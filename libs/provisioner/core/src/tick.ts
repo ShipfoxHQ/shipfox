@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import * as nodeCrypto from 'node:crypto';
 import type {
   DemandStatDto,
   MintRegistrationTokensBatchResponseDto,
@@ -12,6 +12,10 @@ import type {LaunchRunner, ProvisionerTemplate, TerminateRunners} from '#types.j
 
 /** The API caps reservations per poll at 1000; never advertise a larger appetite. */
 const MAX_RESERVATIONS_PER_POLL = 1000;
+
+const cryptoWithUuidV7 = nodeCrypto as typeof nodeCrypto & {
+  randomUUIDv7(): string;
+};
 
 export type RunnerEnvFactory<Spec> = (args: {
   template: ProvisionerTemplate<Spec>;
@@ -123,11 +127,11 @@ async function launchReservation<Spec>(
   deps: ProvisionerTickDeps<Spec>,
 ): Promise<{attempted: number; launched: number}> {
   // A fresh, never-reused id per runner: it binds the ephemeral registration token,
-  // names the resource, and keys idempotent reporting and reconciliation. Uniqueness is
-  // all the loop needs, so a random UUID suffices.
+  // names the resource, and keys idempotent reporting and reconciliation. UUIDv7 keeps
+  // generated ids time-ordered without adding a dependency.
   const plannedRunners = groups.flatMap((group) =>
     Array.from({length: group.count}, () => ({
-      provisionedRunnerId: randomUUID(),
+      provisionedRunnerId: cryptoWithUuidV7.randomUUIDv7(),
       template: group.template,
     })),
   );

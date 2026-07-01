@@ -10,6 +10,7 @@ import {createInMemoryTracker, type ProvisionedRunnerTracker} from '#tracker.js'
 import type {ProvisionedRunnerLaunch, ProvisionerTemplate} from '#types.js';
 
 const EXPIRES_AT = '2026-01-01T00:00:00.000Z';
+const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function ubuntuTemplate(
   overrides: Partial<ProvisionerTemplate<null>> & {key: string},
@@ -153,6 +154,18 @@ describe('runProvisionerTick', () => {
     expect(fixture.tracker.countsByTemplate()).toEqual(
       new Map([['small', {starting: 2, running: 0}]]),
     );
+  });
+
+  it('generates UUIDv7 provisioned runner ids', async () => {
+    const template = ubuntuTemplate({key: 'small'});
+    const fixture = harness({response: {stats: [], reservations: [reservation(2)]}});
+
+    await runTick(fixture, {templates: [template]});
+
+    expect(fixture.mintBodies[0]?.provisioned_runners).toHaveLength(2);
+    for (const runner of fixture.mintBodies[0]?.provisioned_runners ?? []) {
+      expect(runner.provisioned_runner_id).toMatch(UUID_V7_PATTERN);
+    }
   });
 
   it('asks for no reservations once a template is at its concurrency cap', async () => {

@@ -231,6 +231,33 @@ describe('createDockerLifecycle', () => {
     expect(client.reconcileBodies).toEqual([{observed_provisioned_runner_ids: []}]);
   });
 
+  it('tick retries backend reconcile until the first success, then observes locally', async () => {
+    const engine = fakeEngine({
+      containers: [container({state: 'running'})],
+    });
+    const client = fakeClient({
+      reconcileErrors: [new Error('api down')],
+      reconcileResponse: {
+        runners: [reconciledRunner('runner-1', 'keep')],
+        terminated_absent_provisioned_runner_ids: [],
+      },
+    });
+    const lifecycle = makeLifecycle({engine, client});
+
+    await expect(lifecycle.tick()).rejects.toThrow('api down');
+    expect(client.reconcileBodies).toHaveLength(1);
+    expect(client.reportBodies).toHaveLength(0);
+
+    await lifecycle.tick();
+    await lifecycle.tick();
+
+    expect(client.reconcileBodies).toHaveLength(2);
+    expect(client.reportBodies.map((body) => body.events[0]?.state)).toEqual([
+      'running',
+      'running',
+    ]);
+  });
+
   it('reconcile tears down backend terminate-intent containers', async () => {
     const engine = fakeEngine({
       containers: [container({state: 'running'})],
@@ -546,6 +573,7 @@ function launch(): ProvisionedRunnerLaunch<DockerTemplateSpec> {
 function fakeClient(
   options: {
     reportErrors?: Error[];
+    reconcileErrors?: Error[];
     reconcileResponse?: ReconcileProvisionedRunnersResponseDto;
   } = {},
 ): ProvisionerClient & {
@@ -555,6 +583,7 @@ function fakeClient(
   const reportBodies: ReportProvisionedRunnersBodyDto[] = [];
   const reconcileBodies: ReconcileProvisionedRunnersBodyDto[] = [];
   const reportErrors = [...(options.reportErrors ?? [])];
+  const reconcileErrors = [...(options.reconcileErrors ?? [])];
   return {
     reportBodies,
     reconcileBodies,
@@ -574,6 +603,8 @@ function fakeClient(
     },
     reconcileProvisionedRunners: (body): Promise<ReconcileProvisionedRunnersResponseDto> => {
       reconcileBodies.push(body);
+      const error = reconcileErrors.shift();
+      if (error) return Promise.reject(error);
       return Promise.resolve(
         options.reconcileResponse ?? {
           runners: [],

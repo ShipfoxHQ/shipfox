@@ -46,7 +46,7 @@ export function startDockerProvisioner(): Promise<void> {
       },
       onTick() {
         if (!lifecycle) throw new Error('Docker lifecycle has not been initialized.');
-        return lifecycle.observe();
+        return lifecycle.tick();
       },
       onStop() {
         return lifecycle?.flush() ?? Promise.resolve();

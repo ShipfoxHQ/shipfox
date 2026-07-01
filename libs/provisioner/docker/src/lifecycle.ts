@@ -32,6 +32,7 @@ export interface DockerLifecycle {
   launch(launch: ProvisionedRunnerLaunch<DockerTemplateSpec>): Promise<void>;
   observe(): Promise<void>;
   reconcile(): Promise<void>;
+  tick(): Promise<void>;
   terminate(provisionedRunnerIds: readonly string[]): Promise<void>;
   flush(): Promise<void>;
 }
@@ -59,6 +60,7 @@ interface DockerLifecycleContext {
   readonly knownLiveIds: Set<string>;
   readonly knownTemplateKeys: Map<string, string>;
   readonly pendingReports: ProvisionedRunnerReportEventDto[];
+  backendReconcileSucceeded: boolean;
   reportBacklogPasses: number;
 }
 
@@ -95,6 +97,7 @@ export function createDockerLifecycle(args: DockerLifecycleOptions): DockerLifec
     knownLiveIds: new Set<string>(),
     knownTemplateKeys: new Map<string, string>(),
     pendingReports: [],
+    backendReconcileSucceeded: false,
     reportBacklogPasses: 0,
   };
 
@@ -102,6 +105,7 @@ export function createDockerLifecycle(args: DockerLifecycleOptions): DockerLifec
     launch: (runner) => launch(context, runner),
     observe: () => observe(context),
     reconcile: () => reconcile(context),
+    tick: () => tick(context),
     terminate: (ids) => terminate(context, ids),
     flush: () => flush(context),
   };
@@ -155,11 +159,7 @@ async function launch(
 async function observe(context: DockerLifecycleContext): Promise<void> {
   await reportEvents(context, []);
   const containers = await context.engine.listManaged(context.identity.id);
-  await applyObservationPlan(
-    context,
-    buildObservationPlan(context, containers, EMPTY_TERMINATE_INTENT_IDS),
-  );
-  reportBacklogIfNeeded(context);
+  await applyObservedContainers(context, containers, EMPTY_TERMINATE_INTENT_IDS);
 }
 
 async function reconcile(context: DockerLifecycleContext): Promise<void> {
@@ -174,11 +174,8 @@ async function reconcile(context: DockerLifecycleContext): Promise<void> {
       },
       'Skipping backend reconcile because observed provisioned runner count exceeds the API limit',
     );
-    await applyObservationPlan(
-      context,
-      buildObservationPlan(context, containers, EMPTY_TERMINATE_INTENT_IDS),
-    );
-    reportBacklogIfNeeded(context);
+    await applyObservedContainers(context, containers, EMPTY_TERMINATE_INTENT_IDS);
+    context.backendReconcileSucceeded = true;
     return;
   }
 
@@ -198,11 +195,17 @@ async function reconcile(context: DockerLifecycleContext): Promise<void> {
     );
   }
 
-  await applyObservationPlan(
-    context,
-    buildObservationPlan(context, containers, terminateIntentIds),
-  );
-  reportBacklogIfNeeded(context);
+  await applyObservedContainers(context, containers, terminateIntentIds);
+  context.backendReconcileSucceeded = true;
+}
+
+async function tick(context: DockerLifecycleContext): Promise<void> {
+  if (context.backendReconcileSucceeded) {
+    await observe(context);
+    return;
+  }
+
+  await reconcile(context);
 }
 
 async function terminate(
@@ -355,6 +358,18 @@ async function applyObservationPlan(
   context.tracker.replaceAll(plan.trackerRunners);
   if (plan.liveEvents.length > 0) await reportEvents(context, plan.liveEvents);
   await applyTerminalActions(context, plan.terminalActions);
+}
+
+async function applyObservedContainers(
+  context: DockerLifecycleContext,
+  containers: readonly DockerContainerView[],
+  terminateIntentIds: ReadonlySet<string>,
+): Promise<void> {
+  await applyObservationPlan(
+    context,
+    buildObservationPlan(context, containers, terminateIntentIds),
+  );
+  reportBacklogIfNeeded(context);
 }
 
 async function applyTerminalActions(
