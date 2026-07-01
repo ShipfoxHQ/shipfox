@@ -37,4 +37,48 @@ describe('DekManager', () => {
 
     expect(second.equals(first)).toBe(true);
   });
+
+  it('serves cache hits without reading the persisted data key', async () => {
+    const workspaceId = crypto.randomUUID();
+    const manager = new DekManager(createLocalKeyProvider({currentKek: crypto.randomBytes(32)}), {
+      maxEntries: 10,
+      ttlMs: 60_000,
+    });
+
+    const first = await manager.getPlaintextDek(workspaceId);
+    await db().delete(secretDataKeys).where(eq(secretDataKeys.workspaceId, workspaceId));
+    const second = await manager.getPlaintextDek(workspaceId);
+
+    expect(second.equals(first)).toBe(true);
+  });
+
+  it('refreshes expired cache entries from storage', async () => {
+    const workspaceId = crypto.randomUUID();
+    const manager = new DekManager(createLocalKeyProvider({currentKek: crypto.randomBytes(32)}), {
+      maxEntries: 10,
+      ttlMs: -1,
+    });
+
+    const first = await manager.getPlaintextDek(workspaceId);
+    await db().delete(secretDataKeys).where(eq(secretDataKeys.workspaceId, workspaceId));
+    const second = await manager.getPlaintextDek(workspaceId);
+
+    expect(second.equals(first)).toBe(false);
+  });
+
+  it('evicts the least recently used cache entry when full', async () => {
+    const evictedWorkspaceId = crypto.randomUUID();
+    const otherWorkspaceId = crypto.randomUUID();
+    const manager = new DekManager(createLocalKeyProvider({currentKek: crypto.randomBytes(32)}), {
+      maxEntries: 1,
+      ttlMs: 60_000,
+    });
+
+    const first = await manager.getPlaintextDek(evictedWorkspaceId);
+    await manager.getPlaintextDek(otherWorkspaceId);
+    await db().delete(secretDataKeys).where(eq(secretDataKeys.workspaceId, evictedWorkspaceId));
+    const second = await manager.getPlaintextDek(evictedWorkspaceId);
+
+    expect(second.equals(first)).toBe(false);
+  });
 });
