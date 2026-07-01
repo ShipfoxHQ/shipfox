@@ -9,6 +9,7 @@ import {
   JobExecution,
   type Step,
   type StepAttempt,
+  type StepAttemptDisplayDuration,
 } from '#core/workflow-run.js';
 
 export interface StepStatusVisual extends Omit<WorkflowStatusVisual, 'kind'> {
@@ -17,6 +18,7 @@ export interface StepStatusVisual extends Omit<WorkflowStatusVisual, 'kind'> {
 }
 
 export interface StepAttemptModel extends StepAttempt {
+  displayDuration: StepAttemptDisplayDuration | null;
   statusVisual: StepStatusVisual;
   carriedOver: boolean;
 }
@@ -113,6 +115,7 @@ export function humanizeStatus(status: string): string {
 function toStepModel(step: Step, index: number): StepModel {
   const attempts = [...step.attempts].sort(compareAttempts).map((attempt) => ({
     ...attempt,
+    displayDuration: attempt.displayDuration,
     statusVisual: getStepStatusVisual(attempt.status),
     carriedOver: false,
   }));
@@ -161,6 +164,7 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
       restartResult: null,
       startedAt: step.createdAt,
       finishedAt: null,
+      displayDuration: null,
       statusVisual: getStepStatusVisual(step.status),
       carriedOver: true,
       step,

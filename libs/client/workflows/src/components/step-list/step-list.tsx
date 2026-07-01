@@ -5,14 +5,18 @@ import {
   AccordionTrigger,
   Badge,
   type BadgeVariant,
+  Code,
   cn,
   Dot,
   EmptyState,
+  humanDuration,
   Icon,
   Text,
+  TimeTickerProvider,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  useTimeTick,
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
@@ -24,6 +28,7 @@ import {
   type Step,
   type StepSourceLocation,
 } from '#core/workflow-run.js';
+import {formatJobExecutionTimeLabel} from '../job-graph/job-duration-format.js';
 import {
   buildStepListModel,
   defaultStepListJobExecution,
@@ -164,65 +169,72 @@ function StepListContent({
   }
 
   return (
-    <section
-      aria-labelledby={showHeader ? titleId : undefined}
-      className={cn(
-        'flex min-h-0 flex-col rounded-8 border border-border-neutral-base bg-background-components-base',
-        className,
-      )}
-    >
-      {showHeader ? (
-        <div className="flex min-h-40 items-center border-b border-border-neutral-base px-16 py-8">
-          <Text as="h2" id={titleId} size="sm" bold className="text-foreground-neutral-base">
-            {model.jobName}
-          </Text>
-        </div>
-      ) : null}
+    <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
+      <section
+        aria-labelledby={showHeader ? titleId : undefined}
+        className={cn(
+          'flex min-h-0 flex-col rounded-8 border border-border-neutral-base bg-background-components-base',
+          className,
+        )}
+      >
+        {showHeader ? (
+          <div className="flex min-h-40 items-center border-b border-border-neutral-base px-16 py-8">
+            <Text as="h2" id={titleId} size="sm" bold className="text-foreground-neutral-base">
+              {model.jobName}
+            </Text>
+          </div>
+        ) : null}
 
-      {model.entries.length === 0 ? (
-        <StepListEmptyStateView emptyState={emptyState} />
-      ) : (
-        <Accordion type="multiple" value={selectedAttemptIds} onValueChange={selectAttempt} asChild>
-          <ol>
-            {model.entries.map((entry) => {
-              const selected = selectedAttemptIds.includes(entry.id);
-              return (
-                <StepRow
-                  key={entry.id}
-                  entry={entry}
-                  selected={selected}
-                  hasExpandedContent={hasExpandedContent}
-                  onSelect={() => {
-                    selectAttempt(
-                      hasExpandedContent
-                        ? toggleAttemptId(selectedAttemptIds, entry.id)
-                        : selected
-                          ? []
-                          : [entry.id],
-                    );
-                  }}
-                  expandedContent={
-                    selected
-                      ? renderExpandedStep?.({
-                          step: entry.step,
-                          stepId: entry.step.id,
-                          stepLabel: entry.step.label,
-                          sourceLocation: entry.step.sourceLocation,
-                          attempt: entry.attempt,
-                          attemptId: entry.id,
-                          attemptError: entry.error,
-                          attemptStatus: entry.statusVisual.kind,
-                          carriedOver: entry.carriedOver,
-                        })
-                      : null
-                  }
-                />
-              );
-            })}
-          </ol>
-        </Accordion>
-      )}
-    </section>
+        {model.entries.length === 0 ? (
+          <StepListEmptyStateView emptyState={emptyState} />
+        ) : (
+          <Accordion
+            type="multiple"
+            value={selectedAttemptIds}
+            onValueChange={selectAttempt}
+            asChild
+          >
+            <ol>
+              {model.entries.map((entry) => {
+                const selected = selectedAttemptIds.includes(entry.id);
+                return (
+                  <StepRow
+                    key={entry.id}
+                    entry={entry}
+                    selected={selected}
+                    hasExpandedContent={hasExpandedContent}
+                    onSelect={() => {
+                      selectAttempt(
+                        hasExpandedContent
+                          ? toggleAttemptId(selectedAttemptIds, entry.id)
+                          : selected
+                            ? []
+                            : [entry.id],
+                      );
+                    }}
+                    expandedContent={
+                      selected
+                        ? renderExpandedStep?.({
+                            step: entry.step,
+                            stepId: entry.step.id,
+                            stepLabel: entry.step.label,
+                            sourceLocation: entry.step.sourceLocation,
+                            attempt: entry.attempt,
+                            attemptId: entry.id,
+                            attemptError: entry.error,
+                            attemptStatus: entry.statusVisual.kind,
+                            carriedOver: entry.carriedOver,
+                          })
+                        : null
+                    }
+                  />
+                );
+              })}
+            </ol>
+          </Accordion>
+        )}
+      </section>
+    </TimeTickerProvider>
   );
 }
 
@@ -311,10 +323,11 @@ function StepRow({
           {entry.carriedOver ? <CarriedOverBadge /> : null}
         </div>
       </div>
+      <StepAttemptDurationLabel attempt={entry} />
     </>
   );
   const rowClasses = cn(
-    'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+    'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)_auto] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
     selected && 'bg-background-components-hover',
     entry.carriedOver && 'opacity-[0.55]',
   );
@@ -352,10 +365,11 @@ function StepRow({
       {triggerNode}
       {selected && expandedContent ? (
         <AccordionContent className="border-t border-border-neutral-base bg-background-neutral-base px-12 py-12">
-          <div className="grid grid-cols-[14px_14px_minmax(0,1fr)] gap-x-8">
+          <div className="grid grid-cols-[14px_14px_minmax(0,1fr)_auto] gap-x-8">
             <span aria-hidden="true" />
             <span aria-hidden="true" />
             <div className="min-w-0">{expandedContent}</div>
+            <span aria-hidden="true" />
           </div>
         </AccordionContent>
       ) : null}
@@ -459,4 +473,28 @@ function entryAccessibleLabel(entry: StepListEntryModel): string {
   const parts = [entry.step.label, entry.statusVisual.label, `attempt ${entry.attempt}`];
   if (entry.step.error?.category) parts.push(humanizeStatus(entry.step.error.category));
   return parts.join(', ');
+}
+
+function StepAttemptDurationLabel({attempt}: {attempt: StepAttemptModel}) {
+  const duration = attempt.displayDuration;
+  if (duration === null) return null;
+
+  if (duration.state === 'live') {
+    return <LiveDurationText fromIso={duration.fromIso} />;
+  }
+
+  return <DurationText>{formatJobExecutionTimeLabel(duration)}</DurationText>;
+}
+
+function LiveDurationText({fromIso}: {fromIso: string}) {
+  useTimeTick();
+  return <DurationText>{humanDuration(fromIso)}</DurationText>;
+}
+
+function DurationText({children}: {children: string}) {
+  return (
+    <Code as="span" variant="label" className="shrink-0 tabular-nums text-foreground-neutral-muted">
+      {children}
+    </Code>
+  );
 }

@@ -256,6 +256,10 @@ describe('workflow run model mapping', () => {
       startedAt: '2026-05-07T01:01:10.000Z',
       finishedAt: '2026-05-07T01:01:20.000Z',
     });
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.attempts[0]?.displayDuration).toMatchObject({
+      state: 'fixed',
+      elapsed: {seconds: 10},
+    });
   });
 
   test('maps listening job state', () => {
@@ -420,6 +424,22 @@ describe('workflow run model mapping', () => {
       kind: 'run',
       state: 'live',
       fromIso: '2026-05-07T01:00:05.000Z',
+    });
+  });
+
+  test('maps live step attempt duration as an anchored model getter', () => {
+    const attempt = workflowStepAttemptDto({
+      started_at: '2026-06-21T12:00:00.000Z',
+      finished_at: null,
+    });
+    const step = workflowStepDto({attempts: [attempt]});
+    const dto = workflowRunDetailDto({jobs: [workflowJobDto({steps: [step]})]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.attempts[0]?.displayDuration).toEqual({
+      state: 'live',
+      fromIso: '2026-06-21T12:00:00.000Z',
     });
   });
 

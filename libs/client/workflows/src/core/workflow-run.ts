@@ -31,8 +31,12 @@ export type {
   StepSourceLocation,
 } from './entities/step.js';
 export {toStep} from './entities/step.js';
-export type {StepAttempt, StepGateResult, StepRestartResult} from './entities/step-attempt.js';
-export {toStepAttempt} from './entities/step-attempt.js';
+export type {
+  StepAttemptDisplayDuration,
+  StepGateResult,
+  StepRestartResult,
+} from './entities/step-attempt.js';
+export {StepAttempt, toStepAttempt} from './entities/step-attempt.js';
 export type {
   WorkflowRun,
   WorkflowRunDetail,
