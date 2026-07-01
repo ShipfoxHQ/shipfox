@@ -4,6 +4,7 @@ import {countWorkspaceEntries, type Tx} from '#db/index.js';
 import {
   NamespaceValidationError,
   SecretKeyValidationError,
+  SecretValueTooLargeError,
   WorkspaceSecretCapExceededError,
 } from './errors.js';
 
@@ -21,7 +22,7 @@ export function validateSecretKeys(keys: Iterable<string>): void {
 export function validateValueBytes(values: Iterable<string>): void {
   for (const value of values) {
     if (Buffer.byteLength(value, 'utf8') > MAX_VALUE_BYTES) {
-      throw new Error(`Secret and variable values must not exceed ${MAX_VALUE_BYTES} bytes.`);
+      throw new SecretValueTooLargeError(MAX_VALUE_BYTES);
     }
   }
 }

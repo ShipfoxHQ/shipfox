@@ -50,6 +50,13 @@ export class WorkspaceSecretCapExceededError extends Error {
   }
 }
 
+export class SecretValueTooLargeError extends Error {
+  constructor(public readonly maxBytes: number) {
+    super(`Secret and variable values must not exceed ${maxBytes} bytes.`);
+    this.name = 'SecretValueTooLargeError';
+  }
+}
+
 export class UnknownSecretStoreError extends Error {
   constructor(public readonly store: string) {
     super(`Unknown secret store: ${store.slice(0, 64)}`);

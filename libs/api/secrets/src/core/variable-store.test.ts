@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {db, secretVariables} from '#db/index.js';
+import {WorkspaceSecretCapExceededError} from './errors.js';
 import {getVariable, getVariablesByNamespace, setVariables} from './variable-store.js';
 
 describe('variable store', () => {
@@ -17,5 +18,16 @@ describe('variable store', () => {
     expect(projectValue).toBe('eu-west-1');
     expect(values).toEqual({REGION: 'eu-west-1'});
     expect(rows.map((row) => row.value).sort()).toEqual(['eu-west-1', 'us-east-1']);
+  });
+
+  it('enforces the workspace cap', async () => {
+    const workspaceId = crypto.randomUUID();
+    const values = Object.fromEntries(
+      Array.from({length: 10_001}, (_, index) => [`KEY_${index}`, 'value']),
+    );
+
+    await expect(setVariables({workspaceId, values})).rejects.toThrow(
+      WorkspaceSecretCapExceededError,
+    );
   });
 });

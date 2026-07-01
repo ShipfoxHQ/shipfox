@@ -1,5 +1,5 @@
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {secretBindingSegmentSchema} from './secret-binding.js';
+import {materializedSecretBindingSchema, secretBindingSegmentSchema} from './secret-binding.js';
 
 describe('secret binding schema', () => {
   it('accepts literal and secret segments', () => {
@@ -18,5 +18,17 @@ describe('secret binding schema', () => {
     const result = secretBindingSegmentSchema.safeParse({kind: 'var', key: 'REGION'});
 
     expect(result.success).toBe(false);
+  });
+
+  it('validates materialized bindings', () => {
+    const result = materializedSecretBindingSchema.safeParse({
+      target: 'OPENAI_API_KEY',
+      segments: [
+        {kind: 'literal', value: 'Bearer '},
+        {kind: 'secret', store: 'local', key: 'API_KEY'},
+      ],
+    });
+
+    expect(result.success).toBe(true);
   });
 });

@@ -1,9 +1,15 @@
 import crypto from 'node:crypto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {sql} from 'drizzle-orm';
-import {db, secretValues} from '#db/index.js';
-import {NamespaceValidationError, SecretKeyValidationError} from './errors.js';
-import {deleteSecrets, getSecret, getSecretsByNamespace, setSecrets} from './index.js';
+import {eq, sql} from 'drizzle-orm';
+import {db, secretDataKeys, secretValues} from '#db/index.js';
+import {
+  NamespaceValidationError,
+  SecretDecryptionError,
+  SecretKeyValidationError,
+  SecretValueTooLargeError,
+  WorkspaceSecretCapExceededError,
+} from './errors.js';
+import {dekManager, deleteSecrets, getSecret, getSecretsByNamespace, setSecrets} from './index.js';
 
 const V1_PREFIX_PATTERN = /^v1:/;
 
@@ -59,9 +65,55 @@ describe('secret store', () => {
     ).rejects.toThrow(NamespaceValidationError);
   });
 
+  it('rejects oversized values with a typed domain error', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await expect(
+      setSecrets({workspaceId, values: {TOKEN: 'a'.repeat(64 * 1024 + 1)}}),
+    ).rejects.toThrow(SecretValueTooLargeError);
+  });
+
+  it('enforces the workspace cap', async () => {
+    const workspaceId = crypto.randomUUID();
+    const values = Object.fromEntries(
+      Array.from({length: 10_001}, (_, index) => [`KEY_${index}`, 'value']),
+    );
+
+    await expect(setSecrets({workspaceId, values})).rejects.toThrow(
+      WorkspaceSecretCapExceededError,
+    );
+  });
+
+  it('does not mint a data key for an empty batch', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await setSecrets({workspaceId, values: {}});
+    const rows = await db()
+      .select()
+      .from(secretDataKeys)
+      .where(eq(secretDataKeys.workspaceId, workspaceId));
+
+    expect(rows).toHaveLength(0);
+  });
+
+  it('fails closed when the workspace data key is removed', async () => {
+    const workspaceId = crypto.randomUUID();
+    await setSecrets({workspaceId, values: {TOKEN: 'recover-me'}});
+    dekManager().invalidate(workspaceId);
+    await db().delete(secretDataKeys).where(eq(secretDataKeys.workspaceId, workspaceId));
+
+    await expect(getSecret({workspaceId, key: 'TOKEN'})).rejects.toThrow(SecretDecryptionError);
+  });
+
   it('keeps the database key-pattern check in parity with the DTO pattern', async () => {
-    const accepted = await db().execute(sql`SELECT 'A_B1' ~ '^[A-Z_][A-Z0-9_]*$' AS ok`);
-    const rejected = await db().execute(sql`SELECT 'A-B' ~ '^[A-Z_][A-Z0-9_]*$' AS ok`);
+    const accepted = await db().execute(sql`
+      SELECT bool_and(value ~ '^[A-Z_][A-Z0-9_]*$') AS ok
+      FROM (VALUES ('A_B1'), ('_A')) accepted(value)
+    `);
+    const rejected = await db().execute(sql`
+      SELECT bool_or(value ~ '^[A-Z_][A-Z0-9_]*$') AS ok
+      FROM (VALUES ('A-B'), ('1A'), ('a')) rejected(value)
+    `);
 
     expect(accepted.rows[0]?.ok).toBe(true);
     expect(rejected.rows[0]?.ok).toBe(false);

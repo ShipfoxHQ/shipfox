@@ -16,10 +16,6 @@ export function normalizedProjectId(scope?: StoreScope | undefined): string | nu
   return scope?.projectId ?? null;
 }
 
-export function rowProjectId(scope?: StoreScope | undefined): string | null {
-  return normalizedProjectId(scope);
-}
-
 export function scopeConflictTargetWhere(scope?: StoreScope | undefined): SQL {
   return normalizedProjectId(scope) ? sql`"project_id" IS NOT NULL` : sql`"project_id" IS NULL`;
 }
@@ -37,19 +33,6 @@ export function lookupWithPrecedenceWhere(
     eq(columns.workspaceId, params.workspaceId),
     eq(columns.namespace, params.namespace),
     eq(columns.key, params.key),
-  );
-  const projectId = normalizedProjectId(params);
-  if (!projectId) return and(base, isNull(columns.projectId));
-  return and(base, or(eq(columns.projectId, projectId), isNull(columns.projectId)));
-}
-
-export function listByNamespaceWhere(
-  columns: ScopeColumns,
-  params: StoreScope & {workspaceId: string; namespace: string},
-): SQL | undefined {
-  const base = and(
-    eq(columns.workspaceId, params.workspaceId),
-    eq(columns.namespace, params.namespace),
   );
   const projectId = normalizedProjectId(params);
   if (!projectId) return and(base, isNull(columns.projectId));

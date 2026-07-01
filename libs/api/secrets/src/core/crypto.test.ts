@@ -53,6 +53,29 @@ describe('AES-GCM secret crypto', () => {
     ).toThrow(SecretDecryptionError);
   });
 
+  it('binds ciphertext to namespace and key', () => {
+    const key = crypto.randomBytes(32);
+    const workspaceId = crypto.randomUUID();
+    const scope = {projectId: crypto.randomUUID()};
+    const aad = aadForValue({workspaceId, scope, namespace: 'system/agent/openai', key: 'API_KEY'});
+    const encoded = aesGcmSeal({key, plaintext: Buffer.from('secret'), aad});
+
+    expect(() =>
+      aesGcmOpen({
+        key,
+        encoded,
+        aad: aadForValue({workspaceId, scope, namespace: 'system/agent/anthropic', key: 'API_KEY'}),
+      }),
+    ).toThrow(SecretDecryptionError);
+    expect(() =>
+      aesGcmOpen({
+        key,
+        encoded,
+        aad: aadForValue({workspaceId, scope, namespace: 'system/agent/openai', key: 'OTHER_KEY'}),
+      }),
+    ).toThrow(SecretDecryptionError);
+  });
+
   it('rejects too-short and non-canonical encodings', () => {
     const key = crypto.randomBytes(32);
 
