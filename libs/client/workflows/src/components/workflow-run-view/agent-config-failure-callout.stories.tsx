@@ -9,13 +9,13 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {within} from 'storybook/test';
-import type {WorkflowAgentStepConfig, WorkflowStepError} from '#core/workflow-run.js';
+import type {AgentStepConfig, StepError} from '#core/workflow-run.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 
 const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
 const AGENT_PROVIDERS_LINK_NAME = 'Configure Agent Providers';
 
-const config: WorkflowAgentStepConfig = {
+const config: AgentStepConfig = {
   provider: 'anthropic',
   model: 'claude-opus-4-8',
   thinking: 'high',
@@ -62,7 +62,7 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-type WorkflowAgentConfigIssueValue = NonNullable<WorkflowStepError['agentConfigIssue']>;
+type AgentConfigIssueValue = NonNullable<StepError['agentConfigIssue']>;
 
 const errorCases: Array<{
   label: string;
@@ -114,7 +114,7 @@ export const TestProviderUnsupported: Story = {
   play: assertCallout('Choose a supported agent provider', false),
 };
 
-function makeError(agentConfigIssue: WorkflowAgentConfigIssueValue): WorkflowStepError {
+function makeError(agentConfigIssue: AgentConfigIssueValue): StepError {
   return {
     message: 'Agent configuration is invalid',
     exitCode: null,

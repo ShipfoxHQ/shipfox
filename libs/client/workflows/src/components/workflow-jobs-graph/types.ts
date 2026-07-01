@@ -1,6 +1,6 @@
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
 
-export interface WorkflowJobsGraphProps {
+export interface JobsGraphProps {
   run: WorkflowRunDetail;
   selectedJobId?: string | undefined;
   defaultSelectedJobId?: string | undefined;

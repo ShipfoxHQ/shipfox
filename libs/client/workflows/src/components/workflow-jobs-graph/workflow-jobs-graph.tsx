@@ -1,7 +1,7 @@
 import {useMemo} from 'react';
-import {buildWorkflowJobGraphModel} from './graph-model.js';
-import type {WorkflowJobsGraphProps} from './types.js';
-import {WorkflowJobsGraphView} from './workflow-jobs-graph-view.js';
+import {buildJobGraphModel} from './graph-model.js';
+import type {JobsGraphProps} from './types.js';
+import {JobsGraphView} from './workflow-jobs-graph-view.js';
 
 export function WorkflowJobsGraph({
   run,
@@ -9,10 +9,10 @@ export function WorkflowJobsGraph({
   defaultSelectedJobId,
   onSelectedJobChange,
   className,
-}: WorkflowJobsGraphProps) {
-  const model = useMemo(() => buildWorkflowJobGraphModel({run}), [run]);
+}: JobsGraphProps) {
+  const model = useMemo(() => buildJobGraphModel({run}), [run]);
   return (
-    <WorkflowJobsGraphView
+    <JobsGraphView
       model={model}
       trigger={run}
       selectedJobId={selectedJobId}

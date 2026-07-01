@@ -4,10 +4,10 @@ import {
 } from '#components/workflow-status/status-visuals.js';
 import {
   isWorkflowStatus as isKnownWorkflowStatus,
-  type WorkflowJob,
-  type WorkflowJobExecution,
-  type WorkflowStep,
-  type WorkflowStepAttempt,
+  type Job,
+  JobExecution,
+  type Step,
+  type StepAttempt,
 } from '#core/workflow-run.js';
 
 export interface WorkflowStepStatusVisual extends Omit<WorkflowStatusVisual, 'kind'> {
@@ -15,19 +15,19 @@ export interface WorkflowStepStatusVisual extends Omit<WorkflowStatusVisual, 'ki
   ripple: boolean;
 }
 
-export interface WorkflowStepAttemptModel extends WorkflowStepAttempt {
+export interface WorkflowStepAttemptModel extends StepAttempt {
   statusVisual: WorkflowStepStatusVisual;
   carriedOver: boolean;
 }
 
-export interface WorkflowStepModel extends Omit<WorkflowStep, 'attempts'> {
+export interface StepModel extends Omit<Step, 'attempts'> {
   index: number;
   label: string;
   attempts: WorkflowStepAttemptModel[];
 }
 
 export interface WorkflowStepListEntryModel extends WorkflowStepAttemptModel {
-  step: WorkflowStepModel;
+  step: StepModel;
 }
 
 export interface WorkflowStepListModel {
@@ -39,12 +39,12 @@ export interface WorkflowStepListModel {
   entries: WorkflowStepListEntryModel[];
 }
 
-export function buildWorkflowStepListModel({
+export function buildStepListModel({
   job,
   jobExecution,
 }: {
-  job: WorkflowJob;
-  jobExecution?: WorkflowJobExecution | undefined;
+  job: Job;
+  jobExecution?: JobExecution | undefined;
 }): WorkflowStepListModel {
   const selectedJobExecution = jobExecution ?? job.jobExecutions[0] ?? emptyJobExecutionForJob(job);
   const steps = [...selectedJobExecution.steps].sort(compareSteps).map(toStepModel);
@@ -62,22 +62,22 @@ export function buildWorkflowStepListModel({
   };
 }
 
-function emptyJobExecutionForJob(job: WorkflowJob): WorkflowJobExecution {
-  return {
+function emptyJobExecutionForJob(job: Job): JobExecution {
+  return new JobExecution({
     id: `missing:${job.id}`,
     jobId: job.id,
     sequence: 1,
     name: job.name ?? job.key,
     status: job.status === 'skipped' ? 'cancelled' : job.status,
     statusReason: job.statusReason,
-    queuedAt: job.queuedAt,
-    startedAt: job.startedAt,
-    finishedAt: job.finishedAt,
+    queuedAt: null,
+    startedAt: null,
+    finishedAt: null,
     timedOutAt: null,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     steps: [],
-  };
+  });
 }
 
 export function getStepStatusVisual(status: string): WorkflowStepStatusVisual {
@@ -104,7 +104,7 @@ export function humanizeStatus(status: string): string {
   return firstLetter === undefined ? 'Unknown' : firstLetter.toUpperCase() + words.slice(1);
 }
 
-function toStepModel(step: WorkflowStep, index: number): WorkflowStepModel {
+function toStepModel(step: Step, index: number): StepModel {
   const attempts = [...step.attempts].sort(compareAttempts).map((attempt) => ({
     ...attempt,
     statusVisual: getStepStatusVisual(attempt.status),
@@ -119,7 +119,7 @@ function toStepModel(step: WorkflowStep, index: number): WorkflowStepModel {
   };
 }
 
-function stepLabel(step: WorkflowStep, index: number): string {
+function stepLabel(step: Step, index: number): string {
   const name = step.name.trim();
   if (name) return name;
 
@@ -129,10 +129,7 @@ function stepLabel(step: WorkflowStep, index: number): string {
   return `Step ${index + 1}`;
 }
 
-function toStepEntries(
-  step: WorkflowStepModel,
-  carriedOverJob: boolean,
-): WorkflowStepListEntryModel[] {
+function toStepEntries(step: StepModel, carriedOverJob: boolean): WorkflowStepListEntryModel[] {
   if (step.attempts.length > 0) {
     return step.attempts.map((attempt) => ({
       ...attempt,
@@ -166,7 +163,7 @@ function toStepEntries(
   ];
 }
 
-function compareSteps(left: WorkflowStep, right: WorkflowStep): number {
+function compareSteps(left: Step, right: Step): number {
   return (
     left.position - right.position ||
     (left.name ?? '').localeCompare(right.name ?? '') ||
@@ -174,10 +171,7 @@ function compareSteps(left: WorkflowStep, right: WorkflowStep): number {
   );
 }
 
-function compareAttempts(
-  left: WorkflowStep['attempts'][number],
-  right: WorkflowStep['attempts'][number],
-) {
+function compareAttempts(left: Step['attempts'][number], right: Step['attempts'][number]) {
   return left.attempt - right.attempt || left.id.localeCompare(right.id);
 }
 

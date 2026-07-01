@@ -12,9 +12,9 @@ import {
 } from '@tanstack/react-router';
 import type {ReactNode} from 'react';
 import {within} from 'storybook/test';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import type {Job} from '#core/workflow-run.js';
 import {
-  type WorkflowJobDtoOverrides,
+  type JobDtoOverrides,
   workflowJob,
   workflowStepAttemptDto,
   workflowStepDto,
@@ -26,7 +26,7 @@ const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
 const AGENT_PROVIDERS_LINK_NAME = 'Configure Agent Providers';
 
 const meta = {
-  title: 'Workflows/StepList',
+  title: 'Workflows/WorkflowStepList',
   component: WorkflowStepList,
   parameters: {
     layout: 'centered',
@@ -545,7 +545,7 @@ function renderAgentConfigFailureCallout() {
   );
 }
 
-function makeJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJob {
+function makeJob(overrides: JobDtoOverrides = {}): Job {
   return workflowJob(overrides);
 }
 

@@ -17,14 +17,9 @@ import {
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
+import {isWorkflowStatus, type Job, JobExecution, type Step} from '#core/workflow-run.js';
 import {
-  isWorkflowStatus,
-  type WorkflowJob,
-  type WorkflowJobExecution,
-  type WorkflowStep,
-} from '#core/workflow-run.js';
-import {
-  buildWorkflowStepListModel,
+  buildStepListModel,
   humanizeStatus,
   type WorkflowStepAttemptModel,
   type WorkflowStepListEntryModel,
@@ -32,7 +27,7 @@ import {
 } from './workflow-step-list-model.js';
 
 export interface WorkflowStepExpandedContext {
-  step: WorkflowStep;
+  step: Step;
   stepId: string;
   attempt: number;
   attemptId: string;
@@ -44,12 +39,12 @@ export interface WorkflowStepExpandedContext {
 export interface WorkflowStepListEmptyState {
   title: string;
   description: string;
-  status?: WorkflowJob['status'] | undefined;
+  status?: Job['status'] | undefined;
 }
 
 export interface WorkflowStepListProps {
-  job: WorkflowJob;
-  jobExecution?: WorkflowJobExecution | undefined;
+  job: Job;
+  jobExecution?: JobExecution | undefined;
   selectedAttemptId?: string | null | undefined;
   defaultSelectedAttemptId?: string | undefined;
   onSelectedAttemptChange?: ((attemptId: string | undefined) => void) | undefined;
@@ -74,7 +69,7 @@ export function WorkflowStepList({
 }: WorkflowStepListProps) {
   const selectedJobExecution = jobExecution ?? job.jobExecutions[0] ?? emptyJobExecutionForJob(job);
   const model = useMemo(
-    () => buildWorkflowStepListModel({job, jobExecution: selectedJobExecution}),
+    () => buildStepListModel({job, jobExecution: selectedJobExecution}),
     [job, selectedJobExecution],
   );
 
@@ -94,22 +89,22 @@ export function WorkflowStepList({
   );
 }
 
-function emptyJobExecutionForJob(job: WorkflowJob): WorkflowJobExecution {
-  return {
+function emptyJobExecutionForJob(job: Job): JobExecution {
+  return new JobExecution({
     id: `missing:${job.id}`,
     jobId: job.id,
     sequence: 1,
     name: job.name ?? job.key,
     status: job.status === 'skipped' ? 'cancelled' : job.status,
     statusReason: job.statusReason,
-    queuedAt: job.queuedAt,
-    startedAt: job.startedAt,
-    finishedAt: job.finishedAt,
+    queuedAt: null,
+    startedAt: null,
+    finishedAt: null,
     timedOutAt: null,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     steps: [],
-  };
+  });
 }
 
 function WorkflowStepListContent({
@@ -201,7 +196,7 @@ function WorkflowStepListContent({
             {model.entries.map((entry) => {
               const selected = selectedAttemptIds.includes(entry.id);
               return (
-                <WorkflowStepRow
+                <StepRow
                   key={entry.id}
                   entry={entry}
                   selected={selected}
@@ -273,7 +268,7 @@ function WorkflowStepListEmptyStateView({
   );
 }
 
-function WorkflowStepListEmptyStateIcon({status}: {status: WorkflowJob['status']}) {
+function WorkflowStepListEmptyStateIcon({status}: {status: Job['status']}) {
   if (status !== 'running') {
     return (
       <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8">
@@ -289,7 +284,7 @@ function WorkflowStepListEmptyStateIcon({status}: {status: WorkflowJob['status']
   );
 }
 
-function WorkflowStepRow({
+function StepRow({
   entry,
   selected,
   hasExpandedContent,

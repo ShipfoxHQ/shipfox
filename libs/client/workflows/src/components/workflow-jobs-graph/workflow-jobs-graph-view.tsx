@@ -2,9 +2,9 @@ import {cn} from '@shipfox/react-ui';
 import {useState} from 'react';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphModel} from './graph-model.js';
-import {WorkflowJobsGraphContent} from './workflow-jobs-graph-content.js';
+import {JobsGraphContent} from './workflow-jobs-graph-content.js';
 
-export function WorkflowJobsGraphView({
+export function JobsGraphView({
   model,
   trigger,
   selectedJobId,
@@ -34,7 +34,7 @@ export function WorkflowJobsGraphView({
 
   return (
     <section aria-label="Workflow jobs" className={cn('min-h-0', className)}>
-      <WorkflowJobsGraphContent
+      <JobsGraphContent
         model={model}
         trigger={trigger}
         selectedJobId={selected}

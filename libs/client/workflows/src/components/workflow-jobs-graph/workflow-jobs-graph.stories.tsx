@@ -1,12 +1,12 @@
 import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {within} from 'storybook/test';
-import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
+import type {Job, WorkflowRunDetail} from '#core/workflow-run.js';
 import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {WorkflowJobsGraph} from './workflow-jobs-graph.js';
 
 const meta = {
-  title: 'Workflows/JobsGraph',
+  title: 'Workflows/WorkflowJobsGraph',
   component: WorkflowJobsGraph,
   parameters: {layout: 'centered'},
   decorators: [
@@ -128,7 +128,7 @@ export const LargeWideAndTall: Story = {
   },
 };
 
-function linearJobs(count: number): WorkflowJob[] {
+function linearJobs(count: number): Job[] {
   return Array.from({length: count}, (_, index) =>
     makeJob({
       name: `job-${String(index + 1).padStart(2, '0')}`,
@@ -177,6 +177,6 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
   };
 }
 
-function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): WorkflowJob {
+function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): Job {
   return workflowJob(overrides);
 }

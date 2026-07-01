@@ -1,7 +1,7 @@
 import {Code, Text} from '@shipfox/react-ui';
-import type {WorkflowAgentStepConfig} from '#core/workflow-run.js';
+import type {AgentStepConfig} from '#core/workflow-run.js';
 
-export function AgentStepConfigPanel({config}: {config: WorkflowAgentStepConfig}) {
+export function AgentStepConfigPanel({config}: {config: AgentStepConfig}) {
   return (
     <section aria-label="Resolved agent configuration" className="flex min-w-0 flex-col gap-6">
       <Text as="h3" size="xs" bold className="text-foreground-neutral-subtle">

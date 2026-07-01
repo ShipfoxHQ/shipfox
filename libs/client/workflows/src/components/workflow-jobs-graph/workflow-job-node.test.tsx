@@ -1,22 +1,48 @@
 import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import {TimeTickerProvider} from '@shipfox/react-ui';
-import {act, render, screen} from '@testing-library/react';
-import {workflowJob} from '#test/fixtures/workflow-run.js';
+import {act, render, screen, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import {workflowJob, workflowJobExecutionDto} from '#test/fixtures/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
 import {WorkflowJobNode} from './workflow-job-node.js';
 
 const NOW = Date.parse('2026-06-26T12:00:00.000Z');
 
-function makeNode(
-  overrides: Partial<WorkflowRunJobDetailDto> & {name: string},
-): WorkflowJobGraphNode {
-  const job = workflowJob(overrides);
-  return {
-    ...job,
+type NodeOverrides = Omit<Partial<WorkflowRunJobDetailDto>, 'job_executions'> & {
+  name: string;
+  job_executions?: WorkflowRunJobDetailDto['job_executions'];
+  queued_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+};
+
+function makeNode(overrides: NodeOverrides): WorkflowJobGraphNode {
+  const {queued_at, started_at, finished_at, job_executions, ...jobOverrides} = overrides;
+  const shouldCreateExecution =
+    job_executions === undefined &&
+    (queued_at !== undefined || started_at !== undefined || finished_at !== undefined);
+  const jobOverrideWithExecutions: NodeOverrides = {...jobOverrides};
+  if (shouldCreateExecution) {
+    jobOverrideWithExecutions.job_executions = [
+      workflowJobExecutionDto({
+        ...(jobOverrides.id === undefined ? {} : {job_id: jobOverrides.id}),
+        ...(jobOverrides.status === undefined
+          ? {}
+          : {status: jobOverrides.status === 'skipped' ? 'cancelled' : jobOverrides.status}),
+        queued_at: queued_at ?? null,
+        started_at: started_at ?? null,
+        finished_at: finished_at ?? null,
+      }),
+    ];
+  } else if (job_executions !== undefined) {
+    jobOverrideWithExecutions.job_executions = job_executions;
+  }
+  const job = workflowJob(jobOverrideWithExecutions);
+  return Object.assign(Object.create(Object.getPrototypeOf(job)), job, {
     column: 0,
     row: 0,
     currentDependencyCount: 0,
-  };
+  });
 }
 
 function renderNode(node: WorkflowJobGraphNode, {live = false}: {live?: boolean} = {}) {
@@ -158,7 +184,173 @@ describe('WorkflowJobNode duration', () => {
 
     expect(screen.getByText('6m 00s')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', {name: 'deploy, Pending, queued 6m 00s'}),
+      screen.getByRole('button', {name: 'deploy, Pending, queueing 6m 00s'}),
     ).toBeInTheDocument();
+  });
+
+  test('does not show a duration for listening jobs', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    const node = makeNode({
+      name: 'deploy-window',
+      mode: 'listening',
+      status: 'running',
+      listener_status: 'listening',
+    });
+
+    renderNode(node);
+
+    expect(screen.queryByText('2m 14s')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'deploy-window, Running, listener armed'}),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('WorkflowJobNode listening indicator', () => {
+  beforeEach(() => {
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
+  test('shows the armed listener icon with tooltip for active listening jobs', async () => {
+    const user = userEvent.setup();
+    const node = makeNode({
+      name: 'deploy-window',
+      mode: 'listening',
+      status: 'running',
+      listener_status: 'listening',
+    });
+
+    renderNode(node);
+
+    expect(
+      screen.getByRole('button', {name: 'deploy-window, Running, listener armed'}),
+    ).toBeInTheDocument();
+
+    await user.hover(screen.getByLabelText('Waiting for events to start job'));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Waiting for events to start job');
+  });
+
+  test('does not show the listener icon before the listener is armed or after it resolves', () => {
+    const pendingNode = makeNode({
+      name: 'release-gates',
+      mode: 'listening',
+      status: 'pending',
+      listener_status: 'inactive',
+    });
+    const resolvedNode = makeNode({
+      name: 'release-gates',
+      mode: 'listening',
+      status: 'succeeded',
+      listener_status: 'resolved',
+    });
+
+    const {unmount} = renderNode(pendingNode);
+    expect(screen.queryByLabelText('Waiting for events to start job')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'release-gates, Pending'})).toBeInTheDocument();
+    unmount();
+
+    renderNode(resolvedNode);
+    expect(screen.queryByLabelText('Waiting for events to start job')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'release-gates, Succeeded'})).toBeInTheDocument();
+  });
+});
+
+describe('WorkflowJobNode status indicator', () => {
+  beforeEach(() => {
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
+  test('shows a tooltip with the human-readable job status', async () => {
+    const user = userEvent.setup();
+    const node = makeNode({
+      name: 'deploy',
+      status: 'running',
+    });
+
+    renderNode(node);
+
+    await user.hover(screen.getByRole('img', {name: 'Running'}));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Running');
+  });
+});
+
+describe('WorkflowJobNode execution count indicator', () => {
+  beforeEach(() => {
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
+  test('shows a number-only badge with status segments for job executions', async () => {
+    const user = userEvent.setup();
+    const node = makeNode({
+      name: 'release-gates',
+      mode: 'listening',
+      status: 'running',
+      job_executions: [
+        workflowJobExecutionDto({status: 'running'}),
+        workflowJobExecutionDto({status: 'running'}),
+        workflowJobExecutionDto({status: 'succeeded'}),
+        workflowJobExecutionDto({status: 'succeeded'}),
+        workflowJobExecutionDto({status: 'succeeded'}),
+        workflowJobExecutionDto({status: 'failed'}),
+      ],
+    });
+
+    renderNode(node);
+
+    const button = screen.getByRole('button', {name: 'release-gates, Running, 6 executions'});
+    expect(within(button).getByText('6')).toBeInTheDocument();
+    expect(within(button).queryByText('6 exec')).not.toBeInTheDocument();
+
+    const segments = button.querySelectorAll('[data-execution-status-segment]');
+    expect(
+      [...segments].map((segment) => segment.getAttribute('data-execution-status-segment')),
+    ).toEqual(['running', 'succeeded', 'failed']);
+    expect(segments[0]).toHaveStyle({height: '33.33333333333333%'});
+    expect(segments[1]).toHaveStyle({height: '50%'});
+    expect(segments[2]).toHaveStyle({height: '16.666666666666664%'});
+
+    await user.hover(within(button).getByText('6'));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      '2 running, 3 succeeded, 1 failed',
+    );
+  });
+
+  test('hides the execution badge when there are no executions', () => {
+    const node = makeNode({
+      name: 'release-gates',
+      mode: 'listening',
+      status: 'pending',
+      job_executions: [],
+    });
+
+    renderNode(node);
+
+    const button = screen.getByRole('button', {name: 'release-gates, Pending'});
+    expect(button.querySelector('[data-execution-status-rail]')).not.toBeInTheDocument();
+    expect(within(button).queryByText('0')).not.toBeInTheDocument();
   });
 });

@@ -10,12 +10,7 @@ import {useNavigate} from '@tanstack/react-router';
 import type {ReactNode} from 'react';
 import {useEffect, useId, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import type {
-  WorkflowJob,
-  WorkflowJobExecution,
-  WorkflowStep,
-  WorkflowStepError,
-} from '#core/workflow-run.js';
+import type {Job, JobExecution, Step, StepError} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -283,8 +278,8 @@ export function WorkflowRunJobCard({
   renderExpandedStep,
 }: {
   workspaceId: string;
-  job: WorkflowJob;
-  selectedJobExecution: WorkflowJobExecution | undefined;
+  job: Job;
+  selectedJobExecution: JobExecution | undefined;
   selectedAttemptId: string | null | undefined;
   onSelectedJobExecutionChange: ((jobExecutionId: string | undefined) => void) | undefined;
   onSelectedAttemptChange: ((attemptId: string | undefined) => void) | undefined;
@@ -365,8 +360,8 @@ function ExecutionChipList({
   selectedJobExecution,
   onSelectedJobExecutionChange,
 }: {
-  job: WorkflowJob;
-  selectedJobExecution: WorkflowJobExecution | undefined;
+  job: Job;
+  selectedJobExecution: JobExecution | undefined;
   onSelectedJobExecutionChange: ((jobExecutionId: string | undefined) => void) | undefined;
 }) {
   function selectByOffset(currentIndex: number, offset: -1 | 1) {
@@ -421,8 +416,8 @@ function ExecutionMetadata({
   job,
   selectedJobExecution,
 }: {
-  job: WorkflowJob;
-  selectedJobExecution: WorkflowJobExecution | undefined;
+  job: Job;
+  selectedJobExecution: JobExecution | undefined;
 }) {
   const parts = selectedJobExecution
     ? [
@@ -439,7 +434,7 @@ function ExecutionMetadata({
   );
 }
 
-function JobExecutionEmptyState({job}: {job: WorkflowJob}) {
+function JobExecutionEmptyState({job}: {job: Job}) {
   const emptyState = emptyStateForMissingExecution(job);
 
   return (
@@ -462,7 +457,7 @@ function StepAttemptDetailPanel({
   attemptStatus,
 }: {
   workspaceId: string;
-  step: WorkflowStep;
+  step: Step;
   stepId: string;
   attempt: number;
   attemptError: Record<string, unknown> | null;
@@ -486,9 +481,9 @@ function StepAttemptDetailPanel({
 }
 
 function toSelectedAttemptError(
-  step: WorkflowStep,
+  step: Step,
   error: Record<string, unknown> | null,
-): WorkflowStepError | null {
+): StepError | null {
   if (error === null) return null;
 
   const reason = stepErrorReasonSchema.safeParse(error.reason);
@@ -514,7 +509,7 @@ function toSelectedAttemptError(
   };
 }
 
-function isAgentConfigFailure(step: WorkflowStep, error: WorkflowStepError | null): boolean {
+function isAgentConfigFailure(step: Step, error: StepError | null): boolean {
   return step.type === 'agent' && error?.reason === 'agent_config_invalid';
 }
 
@@ -525,16 +520,12 @@ function cancelErrorMessage(error: unknown): string {
   return 'Could not cancel workflow run.';
 }
 
-function executionChipLabel(
-  job: WorkflowJob,
-  jobExecution: WorkflowJobExecution,
-  selected: boolean,
-): string {
+function executionChipLabel(job: Job, jobExecution: JobExecution, selected: boolean): string {
   const selectedLabel = selected ? 'selected' : 'not selected';
   return `${job.name} execution ${jobExecution.sequence}, ${jobExecution.status}, ${selectedLabel}`;
 }
 
-function executionTiming(jobExecution: WorkflowJobExecution): string | undefined {
+function executionTiming(jobExecution: JobExecution): string | undefined {
   if (jobExecution.startedAt && jobExecution.finishedAt) {
     return formatDuration(Date.parse(jobExecution.finishedAt) - Date.parse(jobExecution.startedAt));
   }
@@ -554,8 +545,8 @@ function formatTimestamp(value: string): string {
 }
 
 function emptyStateForJob(
-  job: WorkflowJob,
-  jobExecution: WorkflowJobExecution,
+  job: Job,
+  jobExecution: JobExecution,
 ): WorkflowStepListEmptyState | undefined {
   if (job.carriedOver) {
     return {
@@ -608,7 +599,7 @@ function emptyStateForJob(
   return undefined;
 }
 
-function emptyStateForMissingExecution(job: WorkflowJob): WorkflowStepListEmptyState {
+function emptyStateForMissingExecution(job: Job): WorkflowStepListEmptyState {
   if (job.carriedOver) {
     return {
       title: 'Carried over from a previous attempt',
@@ -660,7 +651,7 @@ function CarriedOverStepPanel() {
   );
 }
 
-function skippedJobDescription(reason: WorkflowJob['statusReason']): string {
+function skippedJobDescription(reason: Job['statusReason']): string {
   switch (reason) {
     case 'dependency_not_completed':
       return 'A required job did not complete, so this job was skipped.';
@@ -677,7 +668,7 @@ function skippedJobDescription(reason: WorkflowJob['statusReason']): string {
   }
 }
 
-function findAttemptSelection(jobExecution: WorkflowJobExecution, attemptId: string) {
+function findAttemptSelection(jobExecution: JobExecution, attemptId: string) {
   for (const step of jobExecution.steps) {
     const attempt = step.attempts.find((candidate) => candidate.id === attemptId);
     if (attempt) return {stepId: step.id, attemptId: attempt.id};

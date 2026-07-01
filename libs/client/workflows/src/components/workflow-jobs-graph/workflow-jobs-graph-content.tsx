@@ -3,7 +3,7 @@ import type {KeyboardEvent} from 'react';
 import {useRef, useState} from 'react';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphModel, WorkflowJobGraphNavigationKey} from './graph-model.js';
-import {nextWorkflowJobGraphNodeId} from './graph-model.js';
+import {nextJobGraphNodeId} from './graph-model.js';
 import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
 
 const NODE_WIDTH = 208;
@@ -13,7 +13,7 @@ const ROW_GAP = 20;
 const TRIGGER_WIDTH = 36;
 const PADDING = 16;
 
-export function WorkflowJobsGraphContent({
+export function JobsGraphContent({
   model,
   trigger,
   selectedJobId,
@@ -68,7 +68,7 @@ export function WorkflowJobsGraphContent({
     const currentNodeId = event.currentTarget.dataset.jobId;
     if (!currentNodeId) return;
 
-    const nextNodeId = nextWorkflowJobGraphNodeId({model, currentNodeId, key});
+    const nextNodeId = nextJobGraphNodeId({model, currentNodeId, key});
     if (!nextNodeId) return;
 
     event.preventDefault();

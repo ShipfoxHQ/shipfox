@@ -20,8 +20,8 @@ import type {Ref} from 'react';
 import {useId} from 'react';
 import {
   isWorkflowRunTerminal,
+  type Job,
   WORKFLOW_RUN_STATUSES,
-  type WorkflowJob,
   type WorkflowRunDetail,
 } from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
@@ -273,9 +273,7 @@ function hasFailedOrCancelledJobs(run: WorkflowRunDetail): boolean {
   return run.jobs.some((job) => job.status === 'failed' || job.status === 'cancelled');
 }
 
-function workflowRunHasJobs(
-  run: WorkflowRunDetail,
-): run is WorkflowRunDetail & {jobs: WorkflowJob[]} {
+function workflowRunHasJobs(run: WorkflowRunDetail): run is WorkflowRunDetail & {jobs: Job[]} {
   return 'jobs' in run && Array.isArray(run.jobs);
 }
 

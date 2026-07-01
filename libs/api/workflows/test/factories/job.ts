@@ -53,9 +53,5 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
-    timedOutAt: null,
-    queuedAt: null,
-    startedAt: null,
-    finishedAt: null,
   };
 });

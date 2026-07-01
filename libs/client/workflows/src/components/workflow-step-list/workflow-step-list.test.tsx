@@ -3,10 +3,11 @@ import {Text} from '@shipfox/react-ui';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import type {Job} from '#core/workflow-run.js';
 import {
-  type WorkflowJobDtoOverrides,
+  type JobDtoOverrides,
   workflowJob,
+  workflowJobExecutionDto,
   workflowStepAttemptDto,
   workflowStepDto,
 } from '#test/fixtures/workflow-run.js';
@@ -302,7 +303,20 @@ describe('WorkflowStepList', () => {
     await user.click(deploy);
     rerender(
       <WorkflowStepList
-        job={{...job, updatedAt: '2026-06-21T12:02:00.000Z'}}
+        job={makeJob({
+          id: job.id,
+          name: job.name,
+          key: job.key,
+          status: job.status,
+          job_executions: [
+            workflowJobExecutionDto({
+              id: job.jobExecutions[0]?.id ?? '77777777-7777-4777-8777-000000000001',
+              job_id: job.id,
+              steps: [step],
+            }),
+          ],
+          updated_at: '2026-06-21T12:02:00.000Z',
+        })}
         autoSelectActiveAttempt
         renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
       />,
@@ -460,7 +474,7 @@ describe('WorkflowStepList', () => {
   });
 });
 
-function makeJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJob {
+function makeJob(overrides: JobDtoOverrides = {}): Job {
   return workflowJob(overrides);
 }
 

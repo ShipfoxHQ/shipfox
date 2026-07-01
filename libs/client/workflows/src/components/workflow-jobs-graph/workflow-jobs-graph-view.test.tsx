@@ -1,7 +1,7 @@
 import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import {fireEvent, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
+import type {Job, WorkflowRunDetail} from '#core/workflow-run.js';
 import {
   workflowJob,
   workflowJobExecutionDto,
@@ -109,13 +109,13 @@ describe('WorkflowJobsGraph', () => {
 
     expect(
       screen.getByRole('button', {
-        name: 'deploy, Running, 1 current dependency is still pending or running',
+        name: 'deploy, Running, 1 dependency is pending or running',
       }),
     ).toBeInTheDocument();
     expect(screen.queryByText('Depends on 1 job')).not.toBeInTheDocument();
   });
 
-  test('summarizes multiple current dependencies visually and keeps count accessible', () => {
+  test('summarizes multiple pending dependencies visually and keeps count accessible', () => {
     render(
       <WorkflowJobsGraph
         run={makeRun({
@@ -129,14 +129,14 @@ describe('WorkflowJobsGraph', () => {
     );
 
     const deploy = screen.getByRole('button', {
-      name: 'deploy, Pending, 2 current dependencies are still pending or running',
+      name: 'deploy, Pending, 2 dependencies are pending or running',
     });
     expect(deploy).toBeInTheDocument();
     expect(within(deploy).getByText('2')).toBeInTheDocument();
     expect(screen.queryByText('Depends on 2 jobs')).not.toBeInTheDocument();
   });
 
-  test('hides the current dependency pill when upstream jobs are resolved', () => {
+  test('hides the dependency pill when upstream jobs are resolved', () => {
     render(
       <WorkflowJobsGraph
         run={makeRun({
@@ -172,9 +172,10 @@ describe('WorkflowJobsGraph', () => {
 
     const build = screen.getByRole('button', {name: 'build, Pending, 2 executions'});
     const deploy = screen.getByRole('button', {
-      name: 'deploy, Pending, 1 current dependency is still pending or running',
+      name: 'deploy, Pending, 1 dependency is pending or running',
     });
-    expect(within(build).getByText('2 exec')).toBeInTheDocument();
+    expect(within(build).getByText('2')).toBeInTheDocument();
+    expect(within(build).queryByText('2 exec')).not.toBeInTheDocument();
     expect(within(deploy).getByText('1')).toBeInTheDocument();
   });
 
@@ -193,7 +194,7 @@ describe('WorkflowJobsGraph', () => {
 
     const build = screen.getByRole('button', {name: 'build, Pending'});
     const deploy = screen.getByRole('button', {
-      name: 'deploy, Pending, 1 current dependency is still pending or running',
+      name: 'deploy, Pending, 1 dependency is pending or running',
     });
     build.focus();
 
@@ -212,7 +213,7 @@ describe('WorkflowJobsGraph', () => {
     const triggerEdge = container.querySelector(`[data-edge-id="trigger:${build.id}"]`);
     const deployEdge = container.querySelector(`[data-edge-id="${build.id}:${deploy.id}"]`);
     const deployNode = screen.getByRole('button', {
-      name: 'deploy, Pending, 1 current dependency is still pending or running',
+      name: 'deploy, Pending, 1 dependency is pending or running',
     });
 
     fireEvent.click(deployNode);
@@ -309,6 +310,6 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
   };
 }
 
-function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): WorkflowJob {
+function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): Job {
   return workflowJob(overrides);
 }

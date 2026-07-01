@@ -1,10 +1,10 @@
-import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
+import type {Job, WorkflowRunDetail} from '#core/workflow-run.js';
 
-export interface WorkflowJobGraphNode extends WorkflowJob {
+export type WorkflowJobGraphNode = Job & {
   column: number;
   row: number;
   currentDependencyCount: number;
-}
+};
 
 export type WorkflowJobGraphNavigationKey =
   | 'ArrowRight'
@@ -27,12 +27,12 @@ export interface WorkflowJobGraphModel {
   columns: WorkflowJobGraphNode[][];
 }
 
-export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): WorkflowJobGraphModel {
+export function buildJobGraphModel({run}: {run: WorkflowRunDetail}): WorkflowJobGraphModel {
   const sortedJobs = [...run.jobs].sort(compareJobs);
   const byKey = new Map(sortedJobs.map((job) => [job.key, job]));
   const columnMemo = new Map<string, number>();
 
-  function columnFor(job: WorkflowJob, visiting = new Set<string>()): number {
+  function columnFor(job: Job, visiting = new Set<string>()): number {
     const cached = columnMemo.get(job.id);
     if (cached !== undefined) return cached;
     if (visiting.has(job.id)) return 0;
@@ -42,7 +42,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
 
     const dependencyColumns = job.dependencies
       .map((dependencyKey) => byKey.get(dependencyKey))
-      .filter((dependency): dependency is WorkflowJob => dependency !== undefined)
+      .filter((dependency): dependency is Job => dependency !== undefined)
       .map((dependency) => columnFor(dependency, nextVisiting));
 
     const column = dependencyColumns.length === 0 ? 0 : Math.max(...dependencyColumns) + 1;
@@ -50,12 +50,13 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
     return column;
   }
 
-  const nodesWithoutRows = sortedJobs.map((job) => ({
-    ...job,
-    column: columnFor(job),
-    row: 0,
-    currentDependencyCount: currentDependencyCount(job, byKey),
-  }));
+  const nodesWithoutRows = sortedJobs.map((job) =>
+    jobGraphNode(job, {
+      column: columnFor(job),
+      row: 0,
+      currentDependencyCount: currentDependencyCount(job, byKey),
+    }),
+  );
 
   const grouped = groupColumns(nodesWithoutRows);
   const nodes = grouped.flat();
@@ -68,7 +69,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
   };
 }
 
-function compareJobs(left: WorkflowJob, right: WorkflowJob): number {
+function compareJobs(left: Job, right: Job): number {
   return (
     left.position - right.position ||
     (left.name ?? left.key).localeCompare(right.name ?? right.key) ||
@@ -94,14 +95,11 @@ function groupColumns(nodes: WorkflowJobGraphNode[]): WorkflowJobGraphNode[][] {
             (left.name ?? left.key).localeCompare(right.name ?? right.key) ||
             left.id.localeCompare(right.id),
         )
-        .map((node, row) => ({...node, row})),
+        .map((node, row) => jobGraphNode(node, {...node, row})),
     );
 }
 
-function buildEdges(
-  jobs: readonly WorkflowJob[],
-  byKey: ReadonlyMap<string, WorkflowJob>,
-): WorkflowJobGraphEdge[] {
+function buildEdges(jobs: readonly Job[], byKey: ReadonlyMap<string, Job>): WorkflowJobGraphEdge[] {
   const triggerEdges = jobs
     .filter((job) => job.dependencies.length === 0)
     .map((job) => ({
@@ -129,14 +127,21 @@ function buildEdges(
   return [...triggerEdges, ...dependencyEdges];
 }
 
-function currentDependencyCount(job: WorkflowJob, byKey: ReadonlyMap<string, WorkflowJob>): number {
+function currentDependencyCount(job: Job, byKey: ReadonlyMap<string, Job>): number {
   return job.dependencies.filter((dependencyKey) => {
     const dependency = byKey.get(dependencyKey);
     return dependency?.status === 'pending' || dependency?.status === 'running';
   }).length;
 }
 
-export function nextWorkflowJobGraphNodeId({
+function jobGraphNode(
+  job: Job,
+  layout: Pick<WorkflowJobGraphNode, 'column' | 'row' | 'currentDependencyCount'>,
+): WorkflowJobGraphNode {
+  return Object.assign(Object.create(Object.getPrototypeOf(job)), job, layout);
+}
+
+export function nextJobGraphNodeId({
   model,
   currentNodeId,
   key,

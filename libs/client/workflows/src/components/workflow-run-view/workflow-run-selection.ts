@@ -1,17 +1,11 @@
-import type {
-  WorkflowJob,
-  WorkflowJobExecution,
-  WorkflowRunDetail,
-  WorkflowStep,
-  WorkflowStepAttempt,
-} from '#core/workflow-run.js';
+import type {Job, JobExecution, Step, StepAttempt, WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
 
 export interface ResolvedWorkflowRunSelection {
-  job: WorkflowJob | undefined;
-  jobExecution: WorkflowJobExecution | undefined;
-  step: WorkflowStep | undefined;
-  attempt: WorkflowStepAttempt | undefined;
+  job: Job | undefined;
+  jobExecution: JobExecution | undefined;
+  step: Step | undefined;
+  attempt: StepAttempt | undefined;
   selectedAttemptId: string | null;
 }
 
@@ -51,7 +45,7 @@ export function resolveWorkflowRunSelection({
 function findStep(
   run: WorkflowRunDetail,
   stepId: string | undefined,
-): {job: WorkflowJob; jobExecution: WorkflowJobExecution; step: WorkflowStep} | undefined {
+): {job: Job; jobExecution: JobExecution; step: Step} | undefined {
   if (!stepId) return undefined;
 
   for (const job of run.jobs) {
@@ -65,9 +59,9 @@ function findStep(
 }
 
 export function resolveJobExecution(
-  job: WorkflowJob,
+  job: Job,
   jobExecutionId: string | undefined,
-): WorkflowJobExecution | undefined {
+): JobExecution | undefined {
   const selectedExecution = jobExecutionId
     ? job.jobExecutions.find((jobExecution) => jobExecution.id === jobExecutionId)
     : undefined;
@@ -78,16 +72,13 @@ export function resolveJobExecution(
   );
   if (runningExecution) return runningExecution;
 
-  return job.jobExecutions.reduce<WorkflowJobExecution | undefined>((latest, jobExecution) => {
+  return job.jobExecutions.reduce<JobExecution | undefined>((latest, jobExecution) => {
     if (!latest) return jobExecution;
     return jobExecution.sequence > latest.sequence ? jobExecution : latest;
   }, undefined);
 }
 
-function resolveStepAttempt(
-  step: WorkflowStep,
-  attemptId: string | undefined,
-): WorkflowStepAttempt | undefined {
+function resolveStepAttempt(step: Step, attemptId: string | undefined): StepAttempt | undefined {
   const attemptById = attemptId
     ? step.attempts.find((attempt) => attempt.id === attemptId)
     : undefined;
@@ -96,13 +87,13 @@ function resolveStepAttempt(
   const currentAttempt = step.attempts.find((attempt) => attempt.attempt === step.currentAttempt);
   if (currentAttempt) return currentAttempt;
 
-  return step.attempts.reduce<WorkflowStepAttempt | undefined>((latest, attempt) => {
+  return step.attempts.reduce<StepAttempt | undefined>((latest, attempt) => {
     if (!latest) return attempt;
     return compareAttempts(attempt, latest) > 0 ? attempt : latest;
   }, undefined);
 }
 
-function compareAttempts(left: WorkflowStepAttempt, right: WorkflowStepAttempt): number {
+function compareAttempts(left: StepAttempt, right: StepAttempt): number {
   return (
     left.attempt - right.attempt ||
     left.executionOrder - right.executionOrder ||

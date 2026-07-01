@@ -16,62 +16,12 @@ const baseJob = {
   position: 0,
   created_at: '2026-06-21T12:00:00.000Z',
   updated_at: '2026-06-21T12:01:00.000Z',
-  queued_at: null,
-  started_at: null,
-  finished_at: null,
 };
 
 describe('job DTO schema', () => {
-  it('accepts a queued duration descriptor', () => {
-    const result = jobDtoSchema.parse({
-      ...baseJob,
-      duration: {kind: 'queued', from_iso: '2026-06-21T12:00:00.000Z'},
-    });
+  it('accepts a job without execution timing fields', () => {
+    const result = jobDtoSchema.parse(baseJob);
 
-    expect(result.duration).toEqual({kind: 'queued', from_iso: '2026-06-21T12:00:00.000Z'});
-  });
-
-  it('accepts a running duration descriptor', () => {
-    const result = jobDtoSchema.parse({
-      ...baseJob,
-      duration: {kind: 'running', from_iso: '2026-06-21T12:00:30.000Z'},
-    });
-
-    expect(result.duration).toEqual({kind: 'running', from_iso: '2026-06-21T12:00:30.000Z'});
-  });
-
-  it('accepts a finished duration descriptor', () => {
-    const result = jobDtoSchema.parse({
-      ...baseJob,
-      duration: {
-        kind: 'finished',
-        from_iso: '2026-06-21T12:00:30.000Z',
-        to_iso: '2026-06-21T12:02:44.000Z',
-      },
-    });
-
-    expect(result.duration).toEqual({
-      kind: 'finished',
-      from_iso: '2026-06-21T12:00:30.000Z',
-      to_iso: '2026-06-21T12:02:44.000Z',
-    });
-  });
-
-  it('accepts a no-duration descriptor', () => {
-    const result = jobDtoSchema.parse({
-      ...baseJob,
-      duration: {kind: 'none'},
-    });
-
-    expect(result.duration).toEqual({kind: 'none'});
-  });
-
-  it('rejects a descriptor that does not match its kind', () => {
-    const result = jobDtoSchema.safeParse({
-      ...baseJob,
-      duration: {kind: 'finished', from_iso: '2026-06-21T12:00:30.000Z'},
-    });
-
-    expect(result.success).toBe(false);
+    expect(result).toMatchObject(baseJob);
   });
 });

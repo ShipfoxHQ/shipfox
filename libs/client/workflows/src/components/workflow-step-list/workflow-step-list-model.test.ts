@@ -4,20 +4,20 @@ import {
   workflowRunStatusSchema,
 } from '@shipfox/api-workflows-dto';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import type {Job} from '#core/workflow-run.js';
 import {
-  type WorkflowJobDtoOverrides,
+  type JobDtoOverrides,
   workflowJob,
   workflowStepAttemptDto,
   workflowStepDto,
 } from '#test/fixtures/workflow-run.js';
 import {
-  buildWorkflowStepListModel,
+  buildStepListModel,
   getStepStatusVisual,
   humanizeStatus,
 } from './workflow-step-list-model.js';
 
-describe('buildWorkflowStepListModel', () => {
+describe('buildStepListModel', () => {
   test('sorts steps by position and uses display names before fallback labels', () => {
     const second = makeStep({
       key: 'deploy',
@@ -39,7 +39,7 @@ describe('buildWorkflowStepListModel', () => {
       attempts: [makeAttempt({execution_order: 3})],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [second, first, unnamed]})});
+    const result = buildStepListModel({job: makeJob({steps: [second, first, unnamed]})});
 
     expect(result.entries.map((entry) => entry.step.label)).toEqual([
       'npm test',
@@ -72,7 +72,7 @@ describe('buildWorkflowStepListModel', () => {
       attempts: [makeAttempt()],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [setup, run, agent]})});
+    const result = buildStepListModel({job: makeJob({steps: [setup, run, agent]})});
 
     expect(result.entries.map((entry) => entry.step.label)).toEqual([
       'Set up job',
@@ -84,7 +84,7 @@ describe('buildWorkflowStepListModel', () => {
   test('falls back to the source name when the display label is empty', () => {
     const step = makeStep({key: 'lint', name: '', attempts: [makeAttempt()]});
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.entries[0]?.step.label).toBe('lint');
   });
@@ -97,7 +97,7 @@ describe('buildWorkflowStepListModel', () => {
       attempts: [makeAttempt()],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [custom]})});
+    const result = buildStepListModel({job: makeJob({steps: [custom]})});
 
     expect(result.entries[0]?.step.label).toBe('Step 1');
   });
@@ -106,7 +106,7 @@ describe('buildWorkflowStepListModel', () => {
     const attempted = makeStep({name: 'build', attempts: [makeAttempt()]});
     const pending = makeStep({name: 'deploy', position: 1});
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [attempted, pending]})});
+    const result = buildStepListModel({job: makeJob({steps: [attempted, pending]})});
 
     expect(result.entries.map((entry) => entry.step.label)).toEqual(['build']);
   });
@@ -119,7 +119,7 @@ describe('buildWorkflowStepListModel', () => {
       ],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.activeEntryId).toBeUndefined();
   });
@@ -129,7 +129,7 @@ describe('buildWorkflowStepListModel', () => {
     const later = makeAttempt({status: 'running', execution_order: 4});
     const finished = makeAttempt({status: 'succeeded', execution_order: 5});
 
-    const result = buildWorkflowStepListModel({
+    const result = buildStepListModel({
       job: makeJob({
         steps: [
           makeStep({name: 'install', status: 'running', attempts: [earlier]}),
@@ -148,7 +148,7 @@ describe('buildWorkflowStepListModel', () => {
     const second = makeAttempt({attempt: 2, execution_order: 7, status: 'running'});
     const step = makeStep({attempts: [second, first]});
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.entries.map((entry) => entry.id)).toEqual([first.id, second.id]);
     expect(result.activeEntryId).toBe(second.id);
@@ -179,7 +179,7 @@ describe('buildWorkflowStepListModel', () => {
       ],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.entries).toHaveLength(2);
     expect(result.entries.map((entry) => entry.attempt)).toEqual([1, 2]);
@@ -217,7 +217,7 @@ describe('buildWorkflowStepListModel', () => {
       attempts: [makeAttempt({attempt: 1, execution_order: 6, status: 'succeeded'})],
     });
 
-    const result = buildWorkflowStepListModel({
+    const result = buildStepListModel({
       job: makeJob({steps: [step1, step2, step3, step4]}),
     });
 
@@ -239,7 +239,7 @@ describe('buildWorkflowStepListModel', () => {
       ],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.entries[1]).toMatchObject({restartReason: 'gate-opened'});
   });
@@ -261,7 +261,7 @@ describe('buildWorkflowStepListModel', () => {
       ],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.entries[0]?.step.error).toStrictEqual({
       message: 'Checkout failed',
@@ -286,13 +286,13 @@ describe('buildWorkflowStepListModel', () => {
       attempts: [makeAttempt()],
     });
 
-    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.entries[0]?.step.error).toBeNull();
   });
 });
 
-function makeJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJob {
+function makeJob(overrides: JobDtoOverrides = {}): Job {
   return workflowJob(overrides);
 }
 

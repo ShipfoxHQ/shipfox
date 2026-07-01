@@ -1,5 +1,5 @@
 import type {JobDto, JobExecutionDto} from '@shipfox/api-workflows-dto';
-import {type Job, type JobDuration, jobDurationFor} from '#core/entities/job.js';
+import type {Job} from '#core/entities/job.js';
 import type {JobExecution} from '#core/entities/job-execution.js';
 
 export function toJobDto(job: Job): JobDto {
@@ -40,32 +40,7 @@ export function toJobDto(job: Job): JobDto {
     position: job.position,
     created_at: job.createdAt.toISOString(),
     updated_at: job.updatedAt.toISOString(),
-    queued_at: job.queuedAt?.toISOString() ?? null,
-    started_at: job.startedAt?.toISOString() ?? null,
-    finished_at: job.finishedAt?.toISOString() ?? null,
-    duration: toJobDurationDto(jobDurationFor(job)),
   };
-}
-
-function toJobDurationDto(duration: JobDuration): JobDto['duration'] {
-  switch (duration.kind) {
-    case 'none':
-      return {kind: 'none'};
-    case 'queued':
-      return {kind: 'queued', from_iso: duration.from.toISOString()};
-    case 'running':
-      return {kind: 'running', from_iso: duration.from.toISOString()};
-    case 'finished':
-      return {
-        kind: 'finished',
-        from_iso: duration.from.toISOString(),
-        to_iso: duration.to.toISOString(),
-      };
-    default: {
-      const exhaustive: never = duration;
-      return exhaustive;
-    }
-  }
 }
 
 export function toJobExecutionDto(jobExecution: JobExecution): JobExecutionDto {

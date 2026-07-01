@@ -3,10 +3,10 @@ import type {
   WorkflowRunJobExecutionDetailDto,
   WorkflowRunStepDetailDto,
 } from '@shipfox/api-workflows-dto';
-import {Text} from '@shipfox/react-ui';
+import {Badge, Code, Text} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import type {Job} from '#core/workflow-run.js';
 import {
   workflowJob,
   workflowJobExecutionDto,
@@ -77,11 +77,90 @@ export const LongNameWrappedChips: Story = {
   render: () => <JobCardStory job={longNameManyExecutionsJob()} initialJobExecutionId="exec-6" />,
 };
 
+export const RegularJobVariants: Story = {
+  decorators: [
+    (Story) => (
+      <div className="w-760 bg-background-neutral-base p-16">
+        <Story />
+      </div>
+    ),
+  ],
+  render: () => (
+    <div className="flex flex-col gap-16">
+      <StoryLabel title="Single execution" description="No execution selector needed." />
+      <JobCardStory job={singleExecutionJob()} />
+      <StoryLabel title="Display name fallback" description="The YAML key remains visible." />
+      <JobCardStory job={keyFallbackJob()} />
+      <StoryLabel
+        title="Retry history"
+        description="Execution selection appears only when useful."
+      />
+      <JobCardStory job={failedThenSucceededJob()} initialJobExecutionId="exec-2" />
+    </div>
+  ),
+};
+
+export const ListeningJobControlSurfaces: Story = {
+  decorators: [
+    (Story) => (
+      <div className="w-[980px] bg-background-neutral-base p-16">
+        <Story />
+      </div>
+    ),
+  ],
+  render: () => (
+    <div className="grid grid-cols-2 gap-16">
+      <ListeningJobCardPreview
+        title="release-gates"
+        status="listening"
+        statusVariant="info"
+        waitingFor="workflow.gate.open"
+        stopCondition="workflow.gate.close"
+        executionSummary="23 executions"
+        latestExecution="#23 running"
+        density="compact"
+      />
+      <ListeningJobCardPreview
+        title="deploy-window"
+        status="resolved"
+        statusVariant="neutral"
+        waitingFor="deploy.requested"
+        stopCondition="max executions reached"
+        executionSummary="100 executions"
+        latestExecution="#100 succeeded"
+        density="history"
+      />
+    </div>
+  ),
+};
+
+export const ListeningJobHighVolumeHistory: Story = {
+  decorators: [
+    (Story) => (
+      <div className="w-[760px] bg-background-neutral-base p-16">
+        <Story />
+      </div>
+    ),
+  ],
+  render: () => (
+    <ListeningJobCardPreview
+      title="release-production-gates"
+      status="listening"
+      statusVariant="info"
+      waitingFor="github.deployment_status"
+      stopCondition="slack.approval.received or 30m timeout"
+      executionSummary="124 executions"
+      latestExecution="#124 failed"
+      density="history"
+    />
+  ),
+};
+
 function JobCardStory({
   job,
   initialJobExecutionId,
 }: {
-  job: WorkflowJob;
+  job: Job;
   initialJobExecutionId?: string | undefined;
 }) {
   const [selectedJobExecutionId, setSelectedJobExecutionId] = useState(initialJobExecutionId);
@@ -106,6 +185,19 @@ function JobCardStory({
   );
 }
 
+function StoryLabel({title, description}: {title: string; description: string}) {
+  return (
+    <div className="flex items-baseline gap-8">
+      <Text size="xs" bold className="text-foreground-neutral-base">
+        {title}
+      </Text>
+      <Text size="xs" className="text-foreground-neutral-muted">
+        {description}
+      </Text>
+    </div>
+  );
+}
+
 function StepDetailPlaceholder({attempt, attemptStatus}: WorkflowStepExpandedContext) {
   return (
     <div className="rounded-6 border border-border-neutral-base bg-background-components-base px-12 py-10">
@@ -119,13 +211,120 @@ function StepDetailPlaceholder({attempt, attemptStatus}: WorkflowStepExpandedCon
   );
 }
 
-function singleExecutionJob(): WorkflowJob {
+function ListeningJobCardPreview({
+  title,
+  status,
+  statusVariant,
+  waitingFor,
+  stopCondition,
+  executionSummary,
+  latestExecution,
+  density,
+}: {
+  title: string;
+  status: string;
+  statusVariant: 'info' | 'neutral';
+  waitingFor: string;
+  stopCondition: string;
+  executionSummary: string;
+  latestExecution: string;
+  density: 'compact' | 'history';
+}) {
+  const executions = [
+    {id: '#124', status: 'failed', received: '14:42:18', trigger: 'github.deployment_status'},
+    {id: '#123', status: 'succeeded', received: '14:39:02', trigger: 'github.deployment_status'},
+    {id: '#122', status: 'succeeded', received: '14:36:11', trigger: 'github.deployment_status'},
+    {id: '#121', status: 'cancelled', received: '14:33:48', trigger: 'slack.approval.received'},
+  ];
+
+  return (
+    <section className="flex min-h-0 flex-col rounded-8 border border-border-neutral-base bg-background-components-base">
+      <div className="flex flex-col gap-10 border-b border-border-neutral-base px-16 py-12">
+        <div className="flex min-w-0 items-center justify-between gap-12">
+          <div className="flex min-w-0 items-center gap-8">
+            <span className="size-8 shrink-0 rounded-full bg-background-accent-blue-base" />
+            <Code variant="label" bold className="min-w-0 truncate text-foreground-neutral-base">
+              {title}
+            </Code>
+          </div>
+          <Badge variant={statusVariant} size="2xs" className="font-code">
+            {status}
+          </Badge>
+        </div>
+        <div className="grid gap-8 md:grid-cols-3">
+          <ListeningMetric label="Waiting for" value={waitingFor} />
+          <ListeningMetric label="Stops when" value={stopCondition} />
+          <ListeningMetric label="Executions" value={executionSummary} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-10 px-16 py-12">
+        <div className="flex items-center justify-between gap-12">
+          <Text size="xs" bold className="text-foreground-neutral-base">
+            Latest execution
+          </Text>
+          <Badge variant="neutral" size="2xs" className="font-code">
+            {latestExecution}
+          </Badge>
+        </div>
+        {density === 'compact' ? (
+          <div className="rounded-6 border border-border-neutral-base bg-background-neutral-base px-12 py-10">
+            <Text size="xs" className="font-code text-foreground-neutral-muted">
+              Received github.deployment_status at 14:42:18
+            </Text>
+            <Text size="sm" className="text-foreground-neutral-subtle">
+              Deployment status accepted; waiting for approval signal.
+            </Text>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-6 border border-border-neutral-base">
+            {executions.map((execution) => (
+              <div
+                key={execution.id}
+                className="grid grid-cols-[64px_88px_1fr_64px] items-center gap-8 border-b border-border-neutral-base px-10 py-7 last:border-b-0"
+              >
+                <Code variant="label" className="text-foreground-neutral-base">
+                  {execution.id}
+                </Code>
+                <Badge
+                  variant={execution.status === 'failed' ? 'error' : 'neutral'}
+                  size="2xs"
+                  className="font-code"
+                >
+                  {execution.status}
+                </Badge>
+                <Text size="xs" className="truncate font-code text-foreground-neutral-muted">
+                  {execution.trigger}
+                </Text>
+                <Text size="xs" className="text-right font-code text-foreground-neutral-muted">
+                  {execution.received}
+                </Text>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ListeningMetric({label, value}: {label: string; value: string}) {
+  return (
+    <div className="min-w-0 rounded-6 border border-border-neutral-base bg-background-neutral-base px-10 py-8">
+      <Text size="xs" className="text-foreground-neutral-muted">
+        {label}
+      </Text>
+      <Text size="xs" className="truncate font-code text-foreground-neutral-base">
+        {value}
+      </Text>
+    </div>
+  );
+}
+
+function singleExecutionJob(): Job {
   return makeJob({
     id: 'job-build',
     name: 'build',
     status: 'succeeded',
-    started_at: '2026-06-21T12:00:00.000Z',
-    finished_at: '2026-06-21T12:03:00.000Z',
     job_executions: [
       makeExecution({
         id: 'exec-1',
@@ -144,13 +343,33 @@ function singleExecutionJob(): WorkflowJob {
   });
 }
 
-function failedThenSucceededJob(): WorkflowJob {
+function keyFallbackJob(): Job {
+  return makeJob({
+    id: 'job-key-fallback',
+    key: 'release-production',
+    name: null,
+    status: 'running',
+    job_executions: [
+      makeExecution({
+        id: 'exec-key-fallback',
+        job_id: 'job-key-fallback',
+        sequence: 1,
+        status: 'running',
+        started_at: '2026-06-21T12:00:00.000Z',
+        steps: [
+          makeStep('package', 'succeeded', 0, 'exec-key-fallback'),
+          makeStep('deploy', 'running', 1, 'exec-key-fallback'),
+        ],
+      }),
+    ],
+  });
+}
+
+function failedThenSucceededJob(): Job {
   return makeJob({
     id: 'job-deploy',
     name: 'deploy',
     status: 'succeeded',
-    started_at: '2026-06-21T12:00:00.000Z',
-    finished_at: '2026-06-21T12:08:30.000Z',
     job_executions: [
       makeExecution({
         id: 'exec-1',
@@ -190,12 +409,11 @@ function failedThenSucceededJob(): WorkflowJob {
   });
 }
 
-function runningRetryJob(): WorkflowJob {
+function runningRetryJob(): Job {
   return makeJob({
     id: 'job-release',
     name: 'release-production',
     status: 'running',
-    started_at: '2026-06-21T12:00:00.000Z',
     job_executions: [
       makeExecution({
         id: 'exec-1',
@@ -234,7 +452,7 @@ function runningRetryJob(): WorkflowJob {
   });
 }
 
-function zeroExecutionJob(): WorkflowJob {
+function zeroExecutionJob(): Job {
   return makeJob({
     id: 'job-skipped',
     name: 'deploy-preview',
@@ -245,7 +463,7 @@ function zeroExecutionJob(): WorkflowJob {
   });
 }
 
-function carriedOverJob(): WorkflowJob {
+function carriedOverJob(): Job {
   return makeJob({
     id: 'job-test',
     name: 'test',
@@ -255,12 +473,11 @@ function carriedOverJob(): WorkflowJob {
   });
 }
 
-function longNameManyExecutionsJob(): WorkflowJob {
+function longNameManyExecutionsJob(): Job {
   return makeJob({
     id: 'job-long',
     name: 'release-production-multi-region-with-canary-validation-and-post-deploy-observability',
     status: 'running',
-    started_at: '2026-06-21T12:00:00.000Z',
     job_executions: Array.from({length: 6}, (_, index) => {
       const sequence = index + 1;
       const status: WorkflowRunJobExecutionDetailDto['status'] =
@@ -289,7 +506,7 @@ function longNameManyExecutionsJob(): WorkflowJob {
   });
 }
 
-function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): WorkflowJob {
+function makeJob(overrides: Partial<WorkflowRunJobDetailDto>): Job {
   return workflowJob(overrides);
 }
 
@@ -315,7 +532,6 @@ function makeStep(
     id: stepId,
     job_execution_id: jobExecutionId,
     name,
-    display_name: name,
     position,
     status,
     attempts:

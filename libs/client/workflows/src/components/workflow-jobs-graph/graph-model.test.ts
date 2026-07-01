@@ -1,13 +1,13 @@
 import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
-import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
+import type {Job, WorkflowRunDetail} from '#core/workflow-run.js';
 import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
-import {buildWorkflowJobGraphModel, nextWorkflowJobGraphNodeId} from './graph-model.js';
+import {buildJobGraphModel, nextJobGraphNodeId} from './graph-model.js';
 
-describe('buildWorkflowJobGraphModel', () => {
+describe('buildJobGraphModel', () => {
   test('returns an empty model', () => {
     const run = makeRun({jobs: []});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(result.nodes).toEqual([]);
     expect(result.edges).toEqual([]);
@@ -17,7 +17,7 @@ describe('buildWorkflowJobGraphModel', () => {
   test('maps a single job with a trigger edge', () => {
     const run = makeRun({jobs: [makeJob({name: 'build'})]});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(result.nodes).toMatchObject([{name: 'build', column: 0, row: 0}]);
     expect(result.edges).toMatchObject([
@@ -30,7 +30,7 @@ describe('buildWorkflowJobGraphModel', () => {
     const deploy = makeJob({name: 'deploy', position: 1, dependencies: ['build']});
     const run = makeRun({jobs: [deploy, build]});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(nodeByName(result, 'build')).toMatchObject({column: 0});
     expect(nodeByName(result, 'deploy')).toMatchObject({column: 1, dependencies: ['build']});
@@ -45,7 +45,7 @@ describe('buildWorkflowJobGraphModel', () => {
     );
     const run = makeRun({jobs});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(result.columns).toHaveLength(1);
     expect(result.columns[0]).toHaveLength(10);
@@ -61,7 +61,7 @@ describe('buildWorkflowJobGraphModel', () => {
       ],
     });
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(result.columns[0]?.map((node) => node.name)).toEqual(['alpha', 'zeta', 'middle']);
   });
@@ -76,7 +76,7 @@ describe('buildWorkflowJobGraphModel', () => {
     );
     const run = makeRun({jobs});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(result.columns).toHaveLength(10);
     expect(nodeByName(result, 'job-10')).toMatchObject({column: 9});
@@ -89,7 +89,7 @@ describe('buildWorkflowJobGraphModel', () => {
     const deploy = makeJob({name: 'deploy', position: 3, dependencies: ['lint', 'test']});
     const run = makeRun({jobs: [deploy, testJob, lint, build]});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(nodeByName(result, 'lint')).toMatchObject({column: 1});
     expect(nodeByName(result, 'test')).toMatchObject({column: 1});
@@ -103,19 +103,19 @@ describe('buildWorkflowJobGraphModel', () => {
     const testJob = makeJob({name: 'test', position: 2, dependencies: ['build']});
     const deploy = makeJob({name: 'deploy', position: 3, dependencies: ['lint', 'test']});
     const run = makeRun({jobs: [build, lint, testJob, deploy]});
-    const model = buildWorkflowJobGraphModel({run});
+    const model = buildJobGraphModel({run});
 
-    const nextFromBuild = nextWorkflowJobGraphNodeId({
+    const nextFromBuild = nextJobGraphNodeId({
       model,
       currentNodeId: build.id,
       key: 'ArrowRight',
     });
-    const downFromLint = nextWorkflowJobGraphNodeId({
+    const downFromLint = nextJobGraphNodeId({
       model,
       currentNodeId: lint.id,
       key: 'ArrowDown',
     });
-    const rightFromTest = nextWorkflowJobGraphNodeId({
+    const rightFromTest = nextJobGraphNodeId({
       model,
       currentNodeId: testJob.id,
       key: 'ArrowRight',
@@ -137,7 +137,7 @@ describe('buildWorkflowJobGraphModel', () => {
     });
     const run = makeRun({jobs: [build, deploy]});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(nodeByName(result, 'deploy')).toMatchObject({
       status: 'skipped',
@@ -158,7 +158,7 @@ describe('buildWorkflowJobGraphModel', () => {
     });
     const run = makeRun({jobs: [deploy, skipped, cancelled, failed, succeeded, running, pending]});
 
-    const result = buildWorkflowJobGraphModel({run});
+    const result = buildJobGraphModel({run});
 
     expect(nodeByName(result, 'deploy')).toMatchObject({
       currentDependencyCount: 2,
@@ -166,7 +166,7 @@ describe('buildWorkflowJobGraphModel', () => {
   });
 });
 
-function nodeByName(result: ReturnType<typeof buildWorkflowJobGraphModel>, name: string) {
+function nodeByName(result: ReturnType<typeof buildJobGraphModel>, name: string) {
   return result.nodes.find((node) => node.name === name);
 }
 
@@ -184,6 +184,6 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
   };
 }
 
-function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): WorkflowJob {
+function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): Job {
   return workflowJob({key: overrides.key ?? overrides.name, ...overrides});
 }
