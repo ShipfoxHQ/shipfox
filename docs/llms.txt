@@ -1,0 +1,41 @@
+# Shipfox
+
+> Shipfox is a continuous shipping platform for engineering teams. Define YAML workflows in your repo, run shell and AI agent steps on your own runners, and trigger pipelines from GitHub, Sentry, and more.
+
+## Documentation
+
+- [Introduction](/introduction): What Shipfox is, how it works, and what you can build with agentic workflows.
+- [Quick Start](/getting-started): Connect a project, add a workflow YAML, register a runner, and fire your first run.
+- [Installation](/installation): Run Shipfox locally with Docker Compose or deploy self-hosted with PostgreSQL, Temporal, and S3-compatible object storage.
+- [Workflows](/concepts/workflows): The YAML workflow file format, top-level fields, env variables, and file location conventions.
+- [Jobs & Steps](/concepts/jobs-steps): How jobs group steps, job isolation, run steps, agent steps, and the gate block.
+- [Triggers](/concepts/triggers): What starts a run: manual, GitHub push, Sentry issue, and the filter field.
+- [Runners](/concepts/runners): How to register and configure runners that execute your workflow jobs.
+- [Checks on Push](/guides/checks-on-push): Build a workflow that runs tests and an AI review on every GitHub push.
+- [Agent Steps](/guides/agent-steps): Use AI model steps inline in your workflow with model, prompt, thinking, and provider.
+- [Gate & Retry](/guides/gate-and-retry): Use gate blocks and restart_from to loop until a condition is met.
+- [Multi-Job Pipeline](/guides/multi-job-pipeline): Connect jobs with needs for sequential and fan-out pipelines.
+- [Model Providers](/guides/model-providers): Configure Anthropic, OpenAI, DeepSeek, and 25+ other AI providers.
+- [AI Overview](/ai/overview): How Shipfox supports coding agents: ingestible docs, copy/paste prompt, and skills package.
+- [Authoring Prompt](/ai/authoring-prompt): A compact schema cheat sheet to paste into any coding agent for valid workflow YAML.
+- [Skills Package](/ai/skills-package): Install the Shipfox skill for Claude Code, Cursor, Codex, and 18+ other agent tools.
+- [Workflow Schema](/reference/workflow-schema): Complete YAML schema reference: all fields, validation rules, and a full example.
+- [Trigger Sources](/reference/trigger-sources): Every supported trigger source and event: manual, github, sentry.
+- [Step Types](/reference/step-types): Run step and agent step field reference with the constraints table.
+- [Glossary](/reference/glossary): Definitions for every Shipfox term: workflow, run, job, step, trigger, runner, gate.
+- [Troubleshooting](/troubleshooting): Fix common issues: pending runs, validation errors, agent failures, trigger problems.
+- [FAQ](/faq): Quick answers about YAML authoring, AI providers, secrets, self-hosting, and roadmap features.
+
+## AI Authoring
+
+If you are an AI agent writing Shipfox workflow YAML, read [Authoring Prompt](/ai/authoring-prompt) first. It contains the complete shipped schema, hard rules, and the today/roadmap boundary in a compact form you can inject into your context.
+
+Key rules:
+- Workflows live in `.shipfox/workflows/*.yml`
+- Steps are `run` (shell) OR `model`+`prompt` (agent) — never both on one step
+- `env` is valid only on run steps
+- At most one `manual` trigger per workflow
+- Do NOT use: `loop`, `matrix`, `branch`, `${{ }}` interpolation (not shipped yet)
+- `filter` parses but is not enforced — trigger fires on every matching (source, event)
+- `event.ref` is the bare branch name (e.g., `main`), not `refs/heads/main`
+- `key:` is a valid optional field on any step for identification (e.g., used by `restart_from`)

@@ -130,6 +130,18 @@
   },
   "overrides": [
     {
+      "includes": ["docs/**"],
+      "assist": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["libs/client/router/src/routeTree.gen.ts"],
       "assist": {
         "enabled": false
