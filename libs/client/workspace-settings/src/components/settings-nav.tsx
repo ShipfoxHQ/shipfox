@@ -63,7 +63,7 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
           aria-current={isProvisionersActive ? 'page' : undefined}
         >
           <Icon name="serverLine" className="size-16" />
-          Runner Provisioners
+          Runner provisioners
         </Link>
       </Button>
       <Button
