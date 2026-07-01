@@ -11,12 +11,28 @@ export const workflowContextNames = [
 ] as const;
 export type WorkflowContextName = (typeof workflowContextNames)[number];
 
+export const workflowContextPhases = [
+  'workflow-run-creation',
+  'job-execution-creation',
+  'step-completion',
+  'job-resolution',
+] as const;
+export type WorkflowContextPhase = (typeof workflowContextPhases)[number];
+
+export const workflowContextReservedRoots = {
+  step: 'step-completion',
+  steps: 'step-completion',
+  jobs: 'job-resolution',
+} as const satisfies Record<string, WorkflowContextPhase>;
+export type WorkflowContextReservedRoot = keyof typeof workflowContextReservedRoots;
+
 export const workflowContextTrustTiers = ['trusted', 'untrusted'] as const;
 export type WorkflowContextTrustTier = (typeof workflowContextTrustTiers)[number];
 
 export type WorkflowContextShape = 'known' | 'open';
 
 export interface TypedWorkflowContextDefinition {
+  readonly availability: WorkflowContextPhase;
   readonly trustTier: WorkflowContextTrustTier;
   readonly shape: 'known';
   readonly checkMode: 'typed';
@@ -25,6 +41,7 @@ export interface TypedWorkflowContextDefinition {
 }
 
 export interface OpenWorkflowContextDefinition {
+  readonly availability: WorkflowContextPhase;
   readonly trustTier: WorkflowContextTrustTier;
   readonly shape: 'open';
   readonly checkMode: 'syntax';
@@ -109,34 +126,40 @@ const executionTypeEnvironment = {
 
 export const workflowContextDefinitions = {
   run: {
+    availability: 'workflow-run-creation',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: runTypeEnvironment,
   },
   trigger: {
+    availability: 'workflow-run-creation',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: triggerTypeEnvironment,
   },
   event: {
+    availability: 'workflow-run-creation',
     trustTier: 'untrusted',
     shape: 'open',
     checkMode: 'syntax',
   },
   inputs: {
+    availability: 'workflow-run-creation',
     trustTier: 'untrusted',
     shape: 'open',
     checkMode: 'syntax',
   },
   job: {
+    availability: 'workflow-run-creation',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: jobTypeEnvironment,
   },
   executions: {
+    availability: 'job-execution-creation',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
@@ -144,6 +167,7 @@ export const workflowContextDefinitions = {
     untrustedPaths: ['events'],
   },
   execution: {
+    availability: 'job-execution-creation',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
@@ -213,6 +237,19 @@ export function getWorkflowContextDefinition(name: WorkflowContextName): Workflo
   return workflowContextDefinitions[name];
 }
 
+export function getWorkflowContextAvailability(name: WorkflowContextName): WorkflowContextPhase {
+  return workflowContextDefinitions[name].availability;
+}
+
+export function rootsAvailableAt(phase: WorkflowContextPhase): readonly WorkflowContextName[] {
+  const targetPhaseIndex = workflowContextPhases.indexOf(phase);
+  return workflowContextNames.filter(
+    (name) =>
+      workflowContextPhases.indexOf(workflowContextDefinitions[name].availability) <=
+      targetPhaseIndex,
+  );
+}
+
 export function getWorkflowContextTypeEnvironment(
   name: WorkflowContextName,
 ): ExpressionTypeEnvironment | undefined {
@@ -242,4 +279,38 @@ export function workflowInterpolationFieldAcceptsContext(
     field,
     workflowContextDefinitions[context].trustTier,
   );
+}
+
+export interface WorkflowContextAvailabilityReferenceEntry {
+  readonly root: WorkflowContextName | WorkflowContextReservedRoot;
+  readonly availability: WorkflowContextPhase;
+  readonly reserved: boolean;
+  readonly availableAt: Readonly<Record<WorkflowContextPhase, boolean>>;
+}
+
+export function workflowContextAvailabilityReference(): readonly WorkflowContextAvailabilityReferenceEntry[] {
+  return [
+    ...workflowContextNames.map((root) =>
+      availabilityReferenceEntry(root, workflowContextDefinitions[root].availability, false),
+    ),
+    ...Object.entries(workflowContextReservedRoots).map(([root, availability]) =>
+      availabilityReferenceEntry(root as WorkflowContextReservedRoot, availability, true),
+    ),
+  ];
+}
+
+function availabilityReferenceEntry(
+  root: WorkflowContextName | WorkflowContextReservedRoot,
+  availability: WorkflowContextPhase,
+  reserved: boolean,
+): WorkflowContextAvailabilityReferenceEntry {
+  const availabilityIndex = workflowContextPhases.indexOf(availability);
+  const availableAt = Object.fromEntries(
+    workflowContextPhases.map((phase) => [
+      phase,
+      workflowContextPhases.indexOf(phase) >= availabilityIndex,
+    ]),
+  ) as Record<WorkflowContextPhase, boolean>;
+
+  return {root, availability, reserved, availableAt};
 }

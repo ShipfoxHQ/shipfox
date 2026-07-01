@@ -1,5 +1,6 @@
 import type {WorkflowExpressionEvaluationContext} from '@shipfox/expression';
 import type {TriggerPayload, WorkflowRun} from '#core/entities/workflow-run.js';
+import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 export interface AssembleWorkflowRunContextParams {
   readonly run: Pick<
@@ -28,5 +29,14 @@ export function assembleWorkflowRunContext(
     },
     event: 'data' in params.triggerPayload ? params.triggerPayload.data : null,
     inputs: params.inputs ?? null,
+  };
+}
+
+export function assembleCreationContext(
+  params: AssembleWorkflowRunContextParams,
+): WorkflowEvaluationContext {
+  return {
+    phase: 'workflow-run-creation',
+    values: assembleWorkflowRunContext(params),
   };
 }

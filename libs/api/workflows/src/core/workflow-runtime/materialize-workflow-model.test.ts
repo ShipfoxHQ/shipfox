@@ -501,6 +501,32 @@ describe('materializeWorkflowModel', () => {
     ]);
   });
 
+  it('records unavailable execution paths in non-step-name fields as diagnostics at creation', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: 'echo ok', env: {BODY: template('execution.events[0].data.body')}}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: runContext(), definitionId: 'def-1'});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: 'echo ok',
+      env: {BODY: ''},
+    });
+    expect(rows[0]?.steps[1]?.diagnostics).toEqual([
+      {
+        reason: 'missing-path',
+        expression: 'execution.events[0].data.body',
+        contextRoots: ['execution'],
+        field: 'env',
+        envKey: 'BODY',
+      },
+    ]);
+  });
+
   it('reserves user env names when generating run interpolation env vars', () => {
     const model = workflowModel({
       jobs: {
