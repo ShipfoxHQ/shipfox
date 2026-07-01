@@ -1561,6 +1561,30 @@ describe('normalizeWorkflowDocument', () => {
       ]);
     });
 
+    it('rejects execution event access through CEL comprehension bindings in run commands', () => {
+      const document: WorkflowDocument = {
+        name: 'unsafe execution map run',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('executions.map(e, e.events[0].data.body)')}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'unknown-interpolation-context',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+          details: expect.objectContaining({
+            contextRoots: expect.arrayContaining(['executions', 'e']),
+            unknownRoots: ['e'],
+          }),
+        }),
+      ]);
+    });
+
     it('allows trusted execution metadata in run commands', () => {
       const document: WorkflowDocument = {
         name: 'execution metadata',

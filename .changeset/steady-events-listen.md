@@ -1,4 +1,7 @@
 ---
+"@shipfox/api-definitions": patch
+"@shipfox/api-workflows": patch
+"@shipfox/api-workflows-dto": patch
 "@shipfox/expression": minor
 "@shipfox/workflow-document": minor
 ---
