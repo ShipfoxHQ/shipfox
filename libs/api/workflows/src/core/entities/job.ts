@@ -1,3 +1,5 @@
+import type {WorkflowModelJobCheckout} from '@shipfox/api-definitions';
+
 export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
 
 export type JobMode = 'one_shot' | 'listening';
@@ -44,6 +46,7 @@ export interface Job {
   listeningUntil: JobListeningTrigger[] | null;
   dependencies: string[];
   runner: string[] | null;
+  checkout: WorkflowModelJobCheckout | null;
   position: number;
   version: number;
   createdAt: Date;

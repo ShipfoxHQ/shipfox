@@ -308,6 +308,38 @@ describe('workflow run queries', () => {
       expect(buildSteps.filter((step) => step.type !== 'setup')).toHaveLength(1);
     });
 
+    test('persists job checkout config', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              checkout: {
+                permissions: {contents: 'write'},
+                persistCredentials: false,
+              },
+              steps: [{run: 'echo build'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+
+      expect(job?.checkout).toEqual({
+        permissions: {contents: 'write'},
+        persistCredentials: false,
+      });
+    });
+
     test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
       const run = await createWorkflowRun({
         workspaceId,
@@ -1082,6 +1114,51 @@ jobs:
         expect(jobSteps.every((step) => step.status === 'pending')).toBe(true);
         expect(jobSteps.every((step) => step.output === null && step.error === null)).toBe(true);
       }
+    });
+
+    test('reruns preserve job checkout config', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              checkout: {
+                permissions: {contents: 'write'},
+                persistCredentials: false,
+              },
+              steps: [{run: 'echo build'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      await markJob(sourceJobs, 'build', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const jobsAfterRerun = await getJobsByWorkflowRunId(source.id);
+      const rerunJob = jobsAfterRerun.find((job) => job.version === 1 && job.status === 'pending');
+      expect(rerunJob?.checkout).toEqual({
+        permissions: {contents: 'write'},
+        persistCredentials: false,
+      });
     });
 
     test('reruns preserve the original resolved agent step config', async () => {

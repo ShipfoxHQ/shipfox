@@ -49,6 +49,7 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
     listeningUntil: null,
     dependencies: [],
     runner: null,
+    checkout: null,
     position: 0,
     version: 1,
     createdAt: new Date(),

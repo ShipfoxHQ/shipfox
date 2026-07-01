@@ -1,5 +1,6 @@
 export type {
   CheckoutCredentials,
+  CheckoutPermissions,
   CheckoutSpec,
   CreateCheckoutSpecInput,
   FetchFileInput,

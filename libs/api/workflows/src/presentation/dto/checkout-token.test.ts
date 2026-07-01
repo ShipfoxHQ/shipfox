@@ -11,6 +11,8 @@ describe('toCheckoutTokenDto', () => {
         token: 'ghs-token',
         expiresAt: new Date('2026-06-10T12:00:00.000Z'),
       },
+      permissions: {contents: 'write'},
+      ephemeral: true,
     };
 
     const dto = toCheckoutTokenDto(spec);
@@ -24,6 +26,8 @@ describe('toCheckoutTokenDto', () => {
         token: 'ghs-token',
         expires_at: '2026-06-10T12:00:00.000Z',
       },
+      permissions: {contents: 'write'},
+      ephemeral: true,
     });
   });
 
@@ -34,6 +38,8 @@ describe('toCheckoutTokenDto', () => {
 
     expect(dto).toEqual({repository_url: 'https://example.com/acme/repo.git', ref: 'trunk'});
     expect(dto.auth).toBeUndefined();
+    expect(dto.permissions).toBeUndefined();
+    expect(dto.ephemeral).toBeUndefined();
   });
 
   it('rejects a repository URL that embeds credentials', () => {

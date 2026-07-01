@@ -1,5 +1,8 @@
 import {Buffer} from 'node:buffer';
-import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-core-dto';
+import {
+  type CheckoutPermissions,
+  MAX_REPOSITORY_FILE_BYTES,
+} from '@shipfox/api-integration-core-dto';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {App, Octokit, RequestError} from 'octokit';
 import {config, normalizedGithubPrivateKey} from '#config.js';
@@ -91,12 +94,14 @@ export interface GithubApiClient {
   createInstallationAccessToken(input: {
     installationId: number;
     repositoryId: number;
+    contents?: CheckoutPermissions['contents'] | undefined;
   }): Promise<GithubInstallationAccessToken>;
 }
 
 export interface GithubInstallationAccessToken {
   token: string;
   expiresAt: Date;
+  permissions?: CheckoutPermissions | undefined;
 }
 
 export function createGithubApiClient(): GithubApiClient {
@@ -341,13 +346,20 @@ class OctokitGithubApiClient implements GithubApiClient {
   async createInstallationAccessToken(input: {
     installationId: number;
     repositoryId: number;
+    contents?: CheckoutPermissions['contents'] | undefined;
   }): Promise<GithubInstallationAccessToken> {
-    const response = await mapGithubError(() =>
-      this.getApp().octokit.rest.apps.createInstallationAccessToken({
-        installation_id: input.installationId,
-        repository_ids: [input.repositoryId],
-        permissions: {contents: 'read'},
-      }),
+    const contents = input.contents ?? 'read';
+    const response = await mapGithubError(
+      () =>
+        this.getApp().octokit.rest.apps.createInstallationAccessToken({
+          installation_id: input.installationId,
+          repository_ids: [input.repositoryId],
+          permissions: {contents, metadata: 'read'},
+        }),
+      'repository-not-found',
+      contents === 'write'
+        ? 'GitHub installation does not grant write access to repository contents'
+        : undefined,
     );
 
     if (typeof response.data.token !== 'string') {
@@ -365,9 +377,12 @@ class OctokitGithubApiClient implements GithubApiClient {
       );
     }
 
+    const grantedPermissions = toCheckoutPermissions(response.data.permissions);
+
     return {
       token: response.data.token,
       expiresAt,
+      ...(grantedPermissions ? {permissions: grantedPermissions} : {}),
     };
   }
 
@@ -415,6 +430,7 @@ async function mapGithubOAuthError<T>(operation: () => Promise<T>): Promise<T> {
 async function mapGithubError<T>(
   operation: () => Promise<T>,
   notFoundReason: 'repository-not-found' | 'file-not-found' = 'repository-not-found',
+  accessDeniedMessage?: string | undefined,
 ): Promise<T> {
   try {
     return await operation();
@@ -431,10 +447,17 @@ async function mapGithubError<T>(
           retryAfterSeconds(error),
         );
       }
-      if (error.status === 401 || error.status === 403) {
+      if (error.status === 401) {
         throw new GithubIntegrationProviderError(
           'access-denied',
           error.message,
+          retryAfterSeconds(error),
+        );
+      }
+      if (error.status === 403 || error.status === 422) {
+        throw new GithubIntegrationProviderError(
+          'access-denied',
+          accessDeniedMessage ?? error.message,
           retryAfterSeconds(error),
         );
       }
@@ -447,6 +470,12 @@ async function mapGithubError<T>(
     }
     throw error;
   }
+}
+
+function toCheckoutPermissions(value: unknown): CheckoutPermissions | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const contents = (value as {contents?: unknown}).contents;
+  return contents === 'read' || contents === 'write' ? {contents} : undefined;
 }
 
 function isGithubRateLimitError(error: RequestError): boolean {

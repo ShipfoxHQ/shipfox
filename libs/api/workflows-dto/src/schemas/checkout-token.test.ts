@@ -43,6 +43,27 @@ describe('checkoutTokenResponseSchema', () => {
     expect(result.auth).toBeUndefined();
   });
 
+  it('accepts granted checkout permissions and ephemeral metadata', () => {
+    const input = {
+      ...basicResponse,
+      permissions: {contents: 'write'},
+      ephemeral: true,
+    };
+
+    const result = checkoutTokenResponseSchema.parse(input);
+
+    expect(result.permissions).toEqual({contents: 'write'});
+    expect(result.ephemeral).toBe(true);
+  });
+
+  it('rejects an unknown checkout permission level', () => {
+    const input = {...basicResponse, permissions: {contents: 'admin'}};
+
+    const parse = () => checkoutTokenResponseSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+
   it('rejects basic auth missing a username', () => {
     const {username: _username, ...basicAuthWithoutUsername} = basicResponse.auth;
     const input = {...basicResponse, auth: basicAuthWithoutUsername};

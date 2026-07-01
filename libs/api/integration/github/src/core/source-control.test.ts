@@ -58,6 +58,7 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
       Promise.resolve({
         token: 'ghs_installationtoken',
         expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+        permissions: {contents: 'read' as const},
       }),
     ),
     ...overrides,
@@ -266,12 +267,65 @@ describe('GithubSourceControlProvider', () => {
         token: 'ghs_installationtoken',
         expiresAt: new Date('2026-06-10T12:00:00.000Z'),
       },
+      permissions: {contents: 'read'},
+      ephemeral: true,
     });
     expect(result.repositoryUrl).not.toContain('ghs_installationtoken');
     expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
       installationId,
       repositoryId: 42,
+      contents: 'read',
     });
+  });
+
+  it('requests write checkout credentials when the job asks for contents write', async () => {
+    await createInstallation();
+    const github = githubClient({
+      createInstallationAccessToken: vi.fn(() =>
+        Promise.resolve({
+          token: 'ghs_installationtoken',
+          expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+          permissions: {contents: 'write' as const},
+        }),
+      ),
+    });
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.createCheckoutSpec({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+      permissions: {contents: 'write'},
+    });
+
+    expect(result.permissions).toEqual({contents: 'write'});
+    expect(result.ephemeral).toBe(true);
+    expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
+      installationId,
+      repositoryId: 42,
+      contents: 'write',
+    });
+  });
+
+  it('omits checkout permissions when the token response did not prove the grant', async () => {
+    await createInstallation();
+    const github = githubClient({
+      createInstallationAccessToken: vi.fn(() =>
+        Promise.resolve({
+          token: 'ghs_installationtoken',
+          expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+        }),
+      ),
+    });
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.createCheckoutSpec({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+      permissions: {contents: 'write'},
+    });
+
+    expect(result.permissions).toBeUndefined();
+    expect(result.ephemeral).toBe(true);
   });
 
   it('defaults the checkout ref to the repository default branch', async () => {

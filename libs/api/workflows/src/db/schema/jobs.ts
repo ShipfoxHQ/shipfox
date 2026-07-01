@@ -1,3 +1,4 @@
+import {DEFAULT_JOB_CHECKOUT, type WorkflowModelJobCheckout} from '@shipfox/api-definitions';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {
   bigint,
@@ -74,6 +75,7 @@ export const jobs = pgTable(
     listeningUntil: jsonb('listening_until').$type<JobListeningTrigger[]>(),
     dependencies: jsonb('dependencies').notNull().$type<string[]>(),
     runner: jsonb('runner').$type<string[]>(),
+    checkout: jsonb('checkout').$type<WorkflowModelJobCheckout>(),
     position: integer('position').notNull(),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
@@ -109,9 +111,30 @@ export function toJob(row: JobDb): Job {
     listeningUntil: row.listeningUntil,
     dependencies: row.dependencies as string[],
     runner: row.runner as string[] | null,
+    checkout: toJobCheckout(row.checkout),
     position: row.position,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function toJobCheckout(value: unknown): WorkflowModelJobCheckout | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object') return DEFAULT_JOB_CHECKOUT;
+
+  const checkout = value as {
+    permissions?: {contents?: unknown};
+    persistCredentials?: unknown;
+  };
+  const contents = checkout.permissions?.contents;
+  const persistCredentials = checkout.persistCredentials;
+  if ((contents !== 'read' && contents !== 'write') || typeof persistCredentials !== 'boolean') {
+    return DEFAULT_JOB_CHECKOUT;
+  }
+
+  return {
+    permissions: {contents},
+    persistCredentials,
   };
 }

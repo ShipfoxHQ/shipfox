@@ -177,6 +177,28 @@ describe('integration source-control service', () => {
     });
   });
 
+  it('forwards checkout permissions to the provider', async () => {
+    const createCheckoutSpec = vi.fn(async (input) => {
+      await Promise.resolve();
+      return {repositoryUrl: repository.cloneUrl, ref: input.ref ?? repository.defaultBranch};
+    });
+    const service = createService({createCheckoutSpec});
+
+    await service.createCheckoutSpec({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'debug:platform',
+      permissions: {contents: 'write'},
+    });
+
+    expect(createCheckoutSpec).toHaveBeenCalledWith({
+      connection,
+      externalRepositoryId: 'debug:platform',
+      ref: undefined,
+      permissions: {contents: 'write'},
+    });
+  });
+
   it('rejects a checkout spec for a connection in another workspace', async () => {
     const service = createService();
 

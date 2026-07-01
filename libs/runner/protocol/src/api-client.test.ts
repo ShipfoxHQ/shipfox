@@ -170,6 +170,8 @@ describe('api-client auth contexts', () => {
         repository_url: 'https://github.com/acme/repo.git',
         ref: 'main',
         auth: {kind: 'bearer', token: 'tok-123', expires_at: '2026-01-01T00:00:00.000Z'},
+        permissions: {contents: 'write'},
+        ephemeral: true,
       }),
     );
     const leaseClient = createLeaseClient('lease-ghi');
@@ -178,6 +180,8 @@ describe('api-client auth contexts', () => {
 
     expect(checkout.repository_url).toBe('https://github.com/acme/repo.git');
     expect(checkout.ref).toBe('main');
+    expect(checkout.permissions).toEqual({contents: 'write'});
+    expect(checkout.ephemeral).toBe(true);
     expect(calls[0]?.url).toContain('runs/jobs/current/checkout-token');
     expect(calls[0]?.authorization).toBe('Bearer lease-ghi');
   });

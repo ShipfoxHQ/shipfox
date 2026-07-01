@@ -290,7 +290,9 @@ describe('GiteaSourceControlProvider', () => {
           token: 'test-service-token',
           expiresAt: new Date('2026-06-20T00:05:00.000Z'),
         },
+        ephemeral: false,
       });
+      expect(result.permissions).toBeUndefined();
       const url = new URL(result.repositoryUrl);
       expect(url.username).toBe('');
       expect(url.password).toBe('');

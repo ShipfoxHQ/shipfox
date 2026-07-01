@@ -426,6 +426,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "checkout": {
+          "name": "checkout",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "position": {
           "name": "position",
           "type": "integer",
