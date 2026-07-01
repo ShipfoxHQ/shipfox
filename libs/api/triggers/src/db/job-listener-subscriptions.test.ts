@@ -71,6 +71,28 @@ describe('job listener subscriptions', () => {
     expect(rows).toHaveLength(2);
   });
 
+  it('prunes stale matcher ordinals when a listener is re-projected with fewer matchers', async () => {
+    const payload = buildActivatedPayload({
+      on: [
+        {source: 'github', event: 'pull_request_review', inputs: {state: 'approved'}},
+        {source: 'github', event: 'check_suite'},
+      ],
+      until: [{source: 'github', event: 'pull_request'}],
+    });
+
+    await onJobActivated(payload);
+    await onJobActivated({
+      ...payload,
+      on: [{source: 'github', event: 'pull_request_review', inputs: {state: 'approved'}}],
+      until: null,
+    });
+
+    const rows = await listJobSubscriptions(payload.jobId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe('on');
+    expect(rows[0]?.matcherOrdinal).toBe(0);
+  });
+
   it('preserves duplicate source and event matchers by ordinal', async () => {
     const payload = buildActivatedPayload({
       on: [

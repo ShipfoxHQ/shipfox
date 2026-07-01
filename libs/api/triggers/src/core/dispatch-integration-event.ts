@@ -23,16 +23,17 @@ export interface DispatchIntegrationEventParams {
 }
 
 // Source-agnostic dispatcher: any inbound integration event fans out to every
-// workspace subscription registered for its (source, event), passing the raw
-// payload through untouched. The module knows nothing about github, gitlab, etc.
+// workspace subscription registered for its (source, event) and to every listening
+// job subscribed to it, passing the raw payload through untouched. The module knows
+// nothing about github, gitlab, etc.
 //
-// Continue-on-error: every matched subscription is attempted so one broken subscription
-// cannot starve its siblings. A permanent failure (deleted definition, project mismatch)
-// is recorded and skipped; a transient one is recorded and re-thrown so the outbox replays
-// the whole event and converges (succeeded siblings dedup on the idempotency key). The event
-// reaches a terminal outcome only when no transient error remains: `routed` if any run was
-// created, otherwise `errored`. History is best-effort; the thrown transient error, not the
-// recorded outcome, is what drives the retry.
+// Continue-on-error: every matched subscription and listener is attempted so one broken
+// subscription cannot starve its siblings. A permanent failure (deleted definition, project
+// mismatch) is recorded and skipped; a transient one is recorded and re-thrown so the outbox
+// replays the whole event and converges (succeeded siblings dedup on the idempotency key). The
+// event reaches a terminal outcome only when no transient error remains: `routed` if any run
+// was created or any listening job matched, `discarded` if nothing matched, otherwise `errored`.
+// History is best-effort; the thrown transient error, not the recorded outcome, drives the retry.
 export async function dispatchIntegrationEvent(
   params: DispatchIntegrationEventParams,
 ): Promise<void> {

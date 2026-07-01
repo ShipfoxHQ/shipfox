@@ -26,32 +26,37 @@ export interface DeliverEventToListenerResult {
 export async function deliverEventToListener(
   params: DeliverEventToListenerParams,
 ): Promise<DeliverEventToListenerResult> {
-  const [job] = await db()
-    .select({id: jobs.id, status: jobs.status})
-    .from(jobs)
-    .where(eq(jobs.id, params.jobId))
-    .limit(1);
+  const result = await db().transaction(async (tx) => {
+    const [job] = await tx
+      .select({id: jobs.id, status: jobs.status})
+      .from(jobs)
+      .where(eq(jobs.id, params.jobId))
+      .for('update')
+      .limit(1);
 
-  if (!job || isJobTerminal(job.status)) return {buffered: false, skipped: true};
+    if (!job || isJobTerminal(job.status)) return {buffered: false, skipped: true};
 
-  const rows = await db()
-    .insert(jobListenerEvents)
-    .values({
-      jobId: params.jobId,
-      disposition: params.disposition,
-      eventRef: params.eventRef,
-      deliveryId: params.deliveryId,
-      source: params.source,
-      event: params.event,
-      payload: params.payload,
-      receivedAt: params.receivedAt,
-    })
-    .onConflictDoNothing({target: [jobListenerEvents.jobId, jobListenerEvents.eventRef]})
-    .returning();
+    const rows = await tx
+      .insert(jobListenerEvents)
+      .values({
+        jobId: params.jobId,
+        disposition: params.disposition,
+        eventRef: params.eventRef,
+        deliveryId: params.deliveryId,
+        source: params.source,
+        event: params.event,
+        payload: params.payload,
+        receivedAt: params.receivedAt,
+      })
+      .onConflictDoNothing({target: [jobListenerEvents.jobId, jobListenerEvents.eventRef]})
+      .returning({id: jobListenerEvents.id});
 
-  const row = rows[0];
-  if (!row) return {buffered: false, skipped: false};
+    if (!rows[0]) return {buffered: false, skipped: false};
+    return {buffered: true, skipped: false};
+  });
+
+  if (!result.buffered) return result;
 
   recordListenerEventReceived(params.provider);
-  return {buffered: true, skipped: false};
+  return result;
 }
