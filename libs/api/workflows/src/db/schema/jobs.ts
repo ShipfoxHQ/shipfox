@@ -54,9 +54,9 @@ export const jobs = pgTable(
     workflowRunAttemptId: uuid('workflow_run_attempt_id')
       .notNull()
       .references(() => workflowRunAttempts.id, {onDelete: 'cascade'}),
-    name: text('name').notNull(),
+    key: text('key').notNull(),
     mode: jobModeEnum('mode').notNull().default('one_shot'),
-    nameTemplate: text('name_template'),
+    name: text('name'),
     status: jobStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),
     carriedOver: boolean('carried_over').notNull().default(false),
@@ -96,9 +96,9 @@ export function toJob(row: JobDb): Job {
   return {
     id: row.id,
     workflowRunAttemptId: row.workflowRunAttemptId,
+    key: row.key,
     name: row.name,
     mode: row.mode,
-    nameTemplate: row.nameTemplate,
     status: row.status,
     statusReason: toJobStatusReason(row.statusReason),
     carriedOver: row.carriedOver,

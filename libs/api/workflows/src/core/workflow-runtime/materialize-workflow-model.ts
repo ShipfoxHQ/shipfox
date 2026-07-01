@@ -12,12 +12,12 @@ type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
 
 const FIRST_LINE_PATTERN = /\r?\n/;
 export interface MaterializedWorkflowJob {
-  readonly sourceName: string;
+  readonly key: string;
   readonly mode: WorkflowModelJob['mode'];
   readonly success?: string;
   readonly executionTimeoutMs?: number;
   readonly listening?: WorkflowModelJob['listening'];
-  readonly nameTemplate?: WorkflowModelJob['nameTemplate'];
+  readonly name?: WorkflowModelJob['name'];
   readonly dependencies: readonly string[];
   readonly runner: readonly string[];
   readonly position: number;
@@ -25,8 +25,8 @@ export interface MaterializedWorkflowJob {
 }
 
 export interface MaterializedWorkflowStep {
-  readonly sourceName: string | null;
-  readonly displayName: string;
+  readonly key: string | null;
+  readonly name: string;
   readonly sourceLocation: WorkflowSourceLocation | null;
   readonly status: 'pending';
   readonly type: WorkflowModelStep['kind'] | 'setup';
@@ -41,8 +41,8 @@ export interface MaterializedWorkflowStep {
 // failures report through the normal step protocol instead of hanging the job
 // until the lease/timeout fires. Its config is credential-free.
 const SETUP_STEP: MaterializedWorkflowStep = {
-  sourceName: 'Set up job',
-  displayName: 'Set up job',
+  key: null,
+  name: 'Set up job',
   sourceLocation: null,
   status: 'pending',
   type: 'setup',
@@ -70,12 +70,12 @@ export function materializeWorkflowModel(
   const jobsById = new Map(model.jobs.map((job) => [job.id, job]));
 
   return model.jobs.map((job, position) => ({
-    sourceName: job.sourceName,
+    key: job.key,
     mode: job.mode,
     ...(job.success === undefined ? {} : {success: job.success}),
     ...(job.executionTimeoutMs === undefined ? {} : {executionTimeoutMs: job.executionTimeoutMs}),
     ...(job.listening === undefined ? {} : {listening: job.listening}),
-    ...(job.nameTemplate === undefined ? {} : {nameTemplate: job.nameTemplate}),
+    ...(job.name === undefined ? {} : {name: job.name}),
     dependencies: dependencySourceNames(job, jobsById),
     runner: job.runner,
     position,
@@ -85,7 +85,7 @@ export function materializeWorkflowModel(
       SETUP_STEP,
       ...job.steps.map((step, stepPosition) => {
         // The trusted context exposes the stable job key; the authored display field remains `job.name`.
-        const stepContext = {...context, job: {key: job.sourceName}};
+        const stepContext = {...context, job: {key: job.key}};
         const resolved = resolveStepConfig({
           step,
           workflowEnv: model.env,
@@ -97,8 +97,8 @@ export function materializeWorkflowModel(
           definitionId,
         });
         return {
-          sourceName: step.sourceName ?? null,
-          displayName: step.sourceName ?? stepDisplayName(step),
+          key: step.key ?? null,
+          name: resolved.name ?? stepDisplayName(step),
           sourceLocation: step.sourceLocation ?? null,
           status: 'pending' as const,
           type: step.kind,
@@ -125,7 +125,7 @@ function dependencySourceNames(
     if (!dependency) {
       throw new Error(`Unresolved workflow model dependency "${dependencyId}" for job "${job.id}"`);
     }
-    return dependency.sourceName;
+    return dependency.key;
   });
 }
 

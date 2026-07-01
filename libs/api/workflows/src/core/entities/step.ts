@@ -13,8 +13,8 @@ export interface StepSourceLocation {
 export interface Step {
   id: string;
   jobExecutionId: string;
-  name: string | null;
-  displayName: string;
+  key: string | null;
+  name: string;
   sourceLocation: StepSourceLocation | null;
   status: StepStatus;
   type: string;

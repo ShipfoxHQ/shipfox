@@ -27,8 +27,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -152,8 +152,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -166,8 +166,8 @@
           "notNull": true,
           "default": "'one_shot'"
         },
-        "name_template": {
-          "name": "name_template",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -677,14 +677,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "display_name": {
-          "name": "display_name",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true

@@ -98,7 +98,7 @@ export function setExecutionStatusCalls() {
 
 export function dagJob(
   id: string,
-  name: string,
+  key: string,
   deps: string[] = [],
   options: {
     mode?: RunDag['jobs'][number]['mode'] | undefined;
@@ -108,7 +108,7 @@ export function dagJob(
   const mode = options.mode ?? 'one_shot';
   return {
     id,
-    name,
+    key,
     mode,
     status: options.status ?? 'pending',
     ...(mode === 'listening' ? {} : {jobExecutionId: id, executionVersion: 1}),

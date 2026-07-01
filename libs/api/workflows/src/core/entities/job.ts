@@ -24,9 +24,9 @@ const JOB_STATUS_REASON_SET = new Set<JobStatusReason>(JOB_STATUS_REASONS);
 export interface Job {
   id: string;
   workflowRunAttemptId: string;
-  name: string;
+  key: string;
   mode: JobMode;
-  nameTemplate: string | null;
+  name: string | null;
   status: JobStatus;
   statusReason: JobStatusReason | null;
   carriedOver: boolean;

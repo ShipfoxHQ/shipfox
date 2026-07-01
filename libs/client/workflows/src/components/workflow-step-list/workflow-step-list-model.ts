@@ -45,7 +45,7 @@ export function buildWorkflowStepListModel({job}: {job: WorkflowJob}): WorkflowS
 
   return {
     jobId: job.id,
-    jobName: job.name,
+    jobName: job.name ?? job.key,
     stepCount: steps.length,
     activeEntryId: latestRunningEntryId(entries),
     entries,
@@ -92,11 +92,11 @@ function toStepModel(step: WorkflowStep, index: number): WorkflowStepModel {
 }
 
 function stepLabel(step: WorkflowStep, index: number): string {
-  const displayName = step.displayName.trim();
-  if (displayName) return displayName;
-
-  const name = step.name?.trim();
+  const name = step.name.trim();
   if (name) return name;
+
+  const key = step.key?.trim();
+  if (key) return key;
 
   return `Step ${index + 1}`;
 }

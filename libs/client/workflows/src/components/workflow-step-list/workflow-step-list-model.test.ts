@@ -20,20 +20,21 @@ import {
 describe('buildWorkflowStepListModel', () => {
   test('sorts steps by position and uses display names before fallback labels', () => {
     const second = makeStep({
+      key: 'deploy',
       name: 'deploy',
       position: 2,
       attempts: [makeAttempt({execution_order: 2})],
     });
     const first = makeStep({
-      name: null,
-      display_name: 'npm test',
+      key: null,
+      name: 'npm test',
       position: 1,
       config: {run: 'npm test'},
       attempts: [makeAttempt({execution_order: 1})],
     });
     const unnamed = makeStep({
+      key: '',
       name: '',
-      display_name: '',
       position: 3,
       attempts: [makeAttempt({execution_order: 3})],
     });
@@ -49,22 +50,22 @@ describe('buildWorkflowStepListModel', () => {
 
   test('uses backend display labels for unnamed setup, run, and agent steps', () => {
     const setup = makeStep({
-      name: null,
-      display_name: 'Set up job',
+      key: null,
+      name: 'Set up job',
       type: 'setup',
       attempts: [makeAttempt()],
     });
     const run = makeStep({
-      name: null,
-      display_name: 'pnpm test',
+      key: null,
+      name: 'pnpm test',
       position: 1,
       type: 'run',
       config: {run: 'pnpm test\npnpm build'},
       attempts: [makeAttempt()],
     });
     const agent = makeStep({
-      name: null,
-      display_name: 'claude-opus-4-8 · Fix the failing tests.',
+      key: null,
+      name: 'claude-opus-4-8 · Fix the failing tests.',
       position: 2,
       type: 'agent',
       config: {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.\nKeep it small.'},
@@ -81,7 +82,7 @@ describe('buildWorkflowStepListModel', () => {
   });
 
   test('falls back to the source name when the display label is empty', () => {
-    const step = makeStep({name: 'lint', display_name: '', attempts: [makeAttempt()]});
+    const step = makeStep({key: 'lint', name: '', attempts: [makeAttempt()]});
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
 
@@ -90,8 +91,8 @@ describe('buildWorkflowStepListModel', () => {
 
   test('uses a generic fallback when display name and source name are empty', () => {
     const custom = makeStep({
-      name: null,
-      display_name: '',
+      key: null,
+      name: '',
       type: 'deploy',
       attempts: [makeAttempt()],
     });

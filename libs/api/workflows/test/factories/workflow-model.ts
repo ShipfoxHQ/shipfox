@@ -6,6 +6,7 @@ type AgentThinking = Extract<ModelStep, {kind: 'agent'}>['thinking'];
 type WorkflowEnvTemplates = NonNullable<NonNullable<WorkflowModel['templates']>['env']>;
 
 interface TestWorkflowStepBase {
+  readonly key?: string | undefined;
   readonly name?: string | undefined;
   readonly sourceLocation?: WorkflowModel['jobs'][number]['steps'][number]['sourceLocation'];
   readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
@@ -29,6 +30,7 @@ const DEFAULT_RUNNER_LABELS = ['ubuntu-latest'] as const;
 
 interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
+  readonly name?: string | undefined;
   readonly runner?: string | readonly string[] | undefined;
   readonly success?: string | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
@@ -48,14 +50,17 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       steps: [{run: 'echo hello'}],
     },
   };
-  const modelJobs = Object.entries(jobs).map(([sourceName, job]) => {
-    const jobId = stableId(sourceName);
+  const modelJobs = Object.entries(jobs).map(([key, job]) => {
+    const jobId = stableId(key);
     return {
       id: jobId,
-      sourceName,
+      key,
       mode: 'one_shot' as const,
       runner: normalizeStringArray(job.runner ?? input.runner ?? DEFAULT_RUNNER_LABELS),
       ...(job.success === undefined ? {} : {success: job.success}),
+      ...(job.name === undefined
+        ? {}
+        : {name: fieldTemplate(job.name) ?? [{kind: 'literal' as const, text: job.name}]}),
       ...optionalScopedEnv(job.env),
       dependencies: normalizeStringArray(job.needs).map(stableId),
       steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
@@ -98,10 +103,9 @@ function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number)
 function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
   return {
     id:
-      step.name === undefined
-        ? `${jobId}-step-${stepIndex + 1}`
-        : `${jobId}-${stableId(step.name)}`,
-    ...(step.name === undefined ? {} : {sourceName: step.name}),
+      step.key === undefined ? `${jobId}-step-${stepIndex + 1}` : `${jobId}-${stableId(step.key)}`,
+    ...(step.key === undefined ? {} : {key: step.key}),
+    ...(step.name === undefined ? {} : {name: step.name}),
     ...(step.sourceLocation === undefined ? {} : {sourceLocation: step.sourceLocation}),
     ...(step.gate === undefined ? {} : {gate: step.gate}),
   };

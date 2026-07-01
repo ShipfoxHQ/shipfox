@@ -49,7 +49,7 @@ describe('parseDefinition', () => {
 
     expect(definition.model.jobs[0]).toMatchObject({
       id: 'review',
-      sourceName: 'review',
+      key: 'review',
       mode: 'listening',
       listening: {
         on: [{source: 'github', event: 'pull_request_review'}],
@@ -60,7 +60,7 @@ describe('parseDefinition', () => {
         onResolve: 'cancel',
       },
     });
-    expect(definition.model.jobs[0]?.nameTemplate).toBeDefined();
+    expect(definition.model.jobs[0]?.name).toBeDefined();
   });
 
   test('attaches source line locations to workflow model steps', () => {

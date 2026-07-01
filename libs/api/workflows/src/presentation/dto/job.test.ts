@@ -49,9 +49,9 @@ function jobEntity(overrides: Partial<Job> = {}): Job {
   return {
     id: '11111111-1111-4111-8111-111111111111',
     workflowRunAttemptId: '22222222-2222-4222-8222-222222222222',
-    name: 'deploy',
+    key: 'deploy',
+    name: null,
     mode: 'one_shot',
-    nameTemplate: null,
     status: 'pending',
     statusReason: null,
     carriedOver: false,

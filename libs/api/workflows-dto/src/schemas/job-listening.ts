@@ -25,7 +25,7 @@ export const jobListeningSchema = z.object({
   batch: jobListeningBatchSchema.nullable(),
   on_resolve: z.enum(['finish', 'cancel']),
   execution_timeout_ms: z.number().int().positive().nullable(),
-  name_template: z.string().nullable(),
+  name: z.string().nullable(),
 });
 
 export const workflowExecutionEventSchema = z.object({

@@ -122,14 +122,15 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.id).toBe(run.id);
     expect(body.source_snapshot).toBeNull();
     expect(body.jobs).toHaveLength(1);
-    expect(body.jobs[0].name).toBe('build');
+    expect(body.jobs[0].key).toBe('build');
+    expect(body.jobs[0].name).toBeNull();
     expect(body.jobs[0].job_executions).toHaveLength(1);
     const steps = body.jobs[0].job_executions[0].steps;
     // Synthetic setup step at position 0, then the two user steps.
     expect(steps).toHaveLength(3);
     expect(steps[0].name).toBe('Set up job');
     expect(steps[1].name).toBe('Install');
-    expect(steps[2].name).toBeNull();
+    expect(steps[2].name).toBe('npm build');
     // Timing fields flow through the read model (null on a fresh, unstamped run).
     expect(body).toMatchObject({latest_attempt: 1, started_at: null, finished_at: null});
     expect(body.jobs[0]).toMatchObject({queued_at: null, started_at: null, finished_at: null});
@@ -461,7 +462,7 @@ jobs:
     const producerId = steps[1]?.id as string;
     const reviewerId = steps[2]?.id as string;
     // reviewer gate: succeed only on exit 0; otherwise restart from producer.
-    await db().update(stepsTable).set({name: 'producer'}).where(eq(stepsTable.id, producerId));
+    await db().update(stepsTable).set({key: 'producer'}).where(eq(stepsTable.id, producerId));
     await db()
       .update(stepsTable)
       .set({

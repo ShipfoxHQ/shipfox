@@ -12,13 +12,13 @@ export function scheduleRuntimeDag<Job extends RuntimeDagNode>(
 ): readonly RuntimeSchedulingCommand<Job>[] {
   const completed = new Map(input.completed);
   const commands: RuntimeSchedulingCommand<Job>[] = [];
-  const listeningNames = new Set(
-    input.jobs.filter((job) => job.mode === 'listening').map((job) => job.name),
+  const listeningKeys = new Set(
+    input.jobs.filter((job) => job.mode === 'listening').map((job) => job.key),
   );
 
   for (const job of findBlockedJobs(input.jobs, completed)) {
     commands.push({kind: 'skip-job', job});
-    completed.set(job.name, 'failed');
+    completed.set(job.key, 'failed');
   }
 
   const ready = findReadyJobs(input.jobs, completed, input.running ?? new Set());
@@ -28,17 +28,15 @@ export function scheduleRuntimeDag<Job extends RuntimeDagNode>(
   }
 
   const running = input.running ?? new Set();
-  if (input.jobs.some((job) => running.has(job.name) && !completed.has(job.name))) {
+  if (input.jobs.some((job) => running.has(job.key) && !completed.has(job.key))) {
     return commands;
   }
 
-  const remaining = input.jobs.filter(
-    (job) => !completed.has(job.name) && job.mode !== 'listening',
-  );
+  const remaining = input.jobs.filter((job) => !completed.has(job.key) && job.mode !== 'listening');
   if (
     remaining.some((job) =>
       job.dependencies.some(
-        (dependency) => listeningNames.has(dependency) && !completed.has(dependency),
+        (dependency) => listeningKeys.has(dependency) && !completed.has(dependency),
       ),
     )
   ) {
@@ -53,7 +51,7 @@ export function scheduleRuntimeDag<Job extends RuntimeDagNode>(
     return commands;
   }
 
-  if (input.jobs.some((job) => job.mode === 'listening' && !completed.has(job.name))) {
+  if (input.jobs.some((job) => job.mode === 'listening' && !completed.has(job.key))) {
     return commands;
   }
 
@@ -72,8 +70,8 @@ function findReadyJobs<Job extends RuntimeDagNode>(
   return jobs.filter(
     (job) =>
       job.mode !== 'listening' &&
-      !completed.has(job.name) &&
-      !running.has(job.name) &&
+      !completed.has(job.key) &&
+      !running.has(job.key) &&
       job.dependencies.every((dependency) => completed.get(dependency) === 'succeeded'),
   );
 }
@@ -85,7 +83,7 @@ function findBlockedJobs<Job extends RuntimeDagNode>(
   return jobs.filter(
     (job) =>
       job.mode !== 'listening' &&
-      !completed.has(job.name) &&
+      !completed.has(job.key) &&
       job.dependencies.some((dependency) => completed.get(dependency) === 'failed'),
   );
 }

@@ -19,7 +19,7 @@ export function createRuntimeRunProgress(jobs: readonly RuntimeProgressJob[]): R
   for (const job of jobs) {
     jobVersions.set(job.id, job.version);
     if (job.mode === 'listening') continue;
-    if (job.status === 'succeeded') completed.set(job.name, 'succeeded');
+    if (job.status === 'succeeded') completed.set(job.key, 'succeeded');
   }
 
   return {completed, jobVersions};
@@ -35,7 +35,7 @@ export function recordSkippedRuntimeJob(
   newVersion: number,
 ): void {
   progress.jobVersions.set(job.id, newVersion);
-  progress.completed.set(job.name, 'failed');
+  progress.completed.set(job.key, 'failed');
 }
 
 export function recordRuntimeJobResult(
@@ -43,7 +43,7 @@ export function recordRuntimeJobResult(
   progress: RuntimeRunProgress,
   result: RuntimeJobResult,
 ): void {
-  progress.completed.set(job.name, result.status);
+  progress.completed.set(job.key, result.status);
   progress.jobVersions.set(job.id, result.jobVersion);
 }
 
@@ -52,7 +52,7 @@ export function nonCompletedRuntimeJobIds(
   progress: RuntimeRunProgress,
 ): string[] {
   return jobs
-    .filter((job) => job.mode !== 'listening' && !progress.completed.has(job.name))
+    .filter((job) => job.mode !== 'listening' && !progress.completed.has(job.key))
     .map((job) => job.id);
 }
 

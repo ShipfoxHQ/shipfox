@@ -11,9 +11,9 @@ CREATE TYPE "public"."workflows_rerun_mode" AS ENUM('all', 'failed');--> stateme
 CREATE TABLE "workflows_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workflow_run_attempt_id" uuid NOT NULL,
-	"name" text NOT NULL,
+	"key" text NOT NULL,
 	"mode" "workflows_job_mode" DEFAULT 'one_shot' NOT NULL,
-	"name_template" text,
+	"name" text,
 	"status" "workflows_job_status" DEFAULT 'pending' NOT NULL,
 	"status_reason" "workflows_job_status_reason",
 	"carried_over" boolean DEFAULT false NOT NULL,
@@ -57,8 +57,8 @@ CREATE TABLE "workflows_outbox" (
 CREATE TABLE "workflows_steps" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"job_execution_id" uuid NOT NULL,
-	"name" text,
-	"display_name" text NOT NULL,
+	"key" text,
+	"name" text NOT NULL,
 	"source_location" jsonb,
 	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
 	"type" text NOT NULL,

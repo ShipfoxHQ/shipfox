@@ -7,3 +7,5 @@
 ---
 
 Adds listening-job authoring fields and trusted execution context validation for listening jobs.
+Separates workflow identifiers so internal rows use UUID `id`, authored workflow/job/step
+references use `key`, and UI labels use `name`.

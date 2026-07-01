@@ -48,7 +48,12 @@ describe('materializeWorkflowModel', () => {
       jobs: {
         build: {
           steps: [
-            {name: 'install', run: 'npm install', sourceLocation: {startLine: 5, endLine: 6}},
+            {
+              key: 'install',
+              name: 'install',
+              run: 'npm install',
+              sourceLocation: {startLine: 5, endLine: 6},
+            },
             {
               run: 'npm run build',
               sourceLocation: {startLine: 7, endLine: 14},
@@ -70,8 +75,8 @@ describe('materializeWorkflowModel', () => {
     const rows = materializeWorkflowModel({model});
 
     const setupStep = {
-      sourceName: 'Set up job',
-      displayName: 'Set up job',
+      key: null,
+      name: 'Set up job',
       sourceLocation: null,
       status: 'pending',
       type: 'setup',
@@ -82,7 +87,7 @@ describe('materializeWorkflowModel', () => {
 
     expect(rows).toEqual([
       {
-        sourceName: 'build',
+        key: 'build',
         mode: 'one_shot',
         dependencies: [],
         runner: ['ubuntu-latest'],
@@ -90,8 +95,8 @@ describe('materializeWorkflowModel', () => {
         steps: [
           setupStep,
           {
-            sourceName: 'install',
-            displayName: 'install',
+            key: 'install',
+            name: 'install',
             sourceLocation: {startLine: 5, endLine: 6},
             status: 'pending',
             type: 'run',
@@ -100,8 +105,8 @@ describe('materializeWorkflowModel', () => {
             position: 1,
           },
           {
-            sourceName: null,
-            displayName: 'npm run build',
+            key: null,
+            name: 'npm run build',
             sourceLocation: {startLine: 7, endLine: 14},
             status: 'pending',
             type: 'run',
@@ -118,7 +123,7 @@ describe('materializeWorkflowModel', () => {
         ],
       },
       {
-        sourceName: 'test',
+        key: 'test',
         mode: 'one_shot',
         dependencies: ['build'],
         runner: ['ubuntu-latest', 'node-22'],
@@ -126,8 +131,8 @@ describe('materializeWorkflowModel', () => {
         steps: [
           setupStep,
           {
-            sourceName: null,
-            displayName: 'npm test',
+            key: null,
+            name: 'npm test',
             sourceLocation: null,
             status: 'pending',
             type: 'run',
@@ -147,6 +152,7 @@ describe('materializeWorkflowModel', () => {
           steps: [
             {run: 'npm install'},
             {
+              key: 'implement',
               name: 'implement',
               model: 'claude-opus-4-8',
               provider: 'anthropic',
@@ -171,8 +177,8 @@ describe('materializeWorkflowModel', () => {
     const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[2]).toEqual({
-      sourceName: 'implement',
-      displayName: 'implement',
+      key: 'implement',
+      name: 'implement',
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
@@ -186,8 +192,8 @@ describe('materializeWorkflowModel', () => {
       position: 2,
     });
     expect(rows[0]?.steps[3]).toEqual({
-      sourceName: null,
-      displayName: 'gpt-5.5-pro · Review it.',
+      key: null,
+      name: 'gpt-5.5-pro · Review it.',
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
@@ -218,8 +224,8 @@ describe('materializeWorkflowModel', () => {
     const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]).toEqual({
-      sourceName: null,
-      displayName: 'Fix the failing tests.',
+      key: null,
+      name: 'Fix the failing tests.',
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
@@ -275,7 +281,7 @@ describe('materializeWorkflowModel', () => {
       thinking: undefined,
     });
     expect(rows[0]?.steps[1]).toMatchObject({
-      displayName: 'Fix the failing tests.',
+      name: 'Fix the failing tests.',
       config: {
         model: 'gpt-5.5-pro',
         provider: 'openai',
@@ -572,8 +578,8 @@ describe('materializeWorkflowModel', () => {
 
     expect(rows[0]?.steps).toEqual([
       {
-        sourceName: 'Set up job',
-        displayName: 'Set up job',
+        key: null,
+        name: 'Set up job',
         sourceLocation: null,
         status: 'pending',
         type: 'setup',
@@ -590,7 +596,7 @@ describe('materializeWorkflowModel', () => {
       jobs: [
         {
           id: 'test',
-          sourceName: 'test',
+          key: 'test',
           mode: 'one_shot',
           runner: [],
           dependencies: ['missing'],

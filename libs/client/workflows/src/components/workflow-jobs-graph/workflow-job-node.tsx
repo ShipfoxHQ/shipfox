@@ -109,7 +109,7 @@ export function WorkflowJobNode({
       ) : null}
       <div className="flex min-w-0 flex-1 items-center gap-8">
         <WorkflowStatusIcon status={node.status} size={14} tooltip={false} />
-        <JobLabel label={node.name} />
+        <JobLabel label={node.name ?? node.key} />
       </div>
       <JobDurationLabel duration={node.duration} />
       {dependencyText ? (

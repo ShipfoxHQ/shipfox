@@ -103,7 +103,7 @@ function normalizeJob(params: {
     sourceName: params.sourceName,
     issues: params.issues,
   });
-  const nameTemplate =
+  const name =
     params.job.name === undefined
       ? undefined
       : parseInterpolationField({
@@ -115,13 +115,13 @@ function normalizeJob(params: {
 
   return {
     id,
-    sourceName: params.sourceName,
+    key: params.sourceName,
     mode: listening === undefined ? 'one_shot' : 'listening',
     runner,
     ...(success === undefined ? {} : {success}),
     ...(executionTimeoutMs === undefined ? {} : {executionTimeoutMs}),
     ...(listening === undefined ? {} : {listening}),
-    ...(nameTemplate === undefined ? {} : {nameTemplate}),
+    ...(name === undefined ? {} : {name}),
     ...jobEnv,
     dependencies,
     steps,
@@ -173,11 +173,11 @@ function normalizeStep(params: {
   issues: WorkflowModelValidationIssue[];
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
 }): WorkflowModelStep {
-  const stepSourceName = params.step.name;
+  const stepKey = params.step.key;
   const stepId =
-    stepSourceName === undefined
+    stepKey === undefined
       ? `${params.jobId}-step-${params.index + 1}`
-      : `${params.jobId}-${stableId(stepSourceName)}`;
+      : `${params.jobId}-${stableId(stepKey)}`;
   const existingIndex = params.usedStepIds.get(stepId);
 
   if (existingIndex !== undefined) {
@@ -198,26 +198,27 @@ function normalizeStep(params: {
     sourceName: params.sourceName,
     stepIndex: params.index,
     stepId,
-    previousStepSourceNames: new Set(
+    previousStepKeys: new Set(
       params.allSteps
         .slice(0, params.index)
-        .flatMap((candidate) => (candidate.name ? [candidate.name] : [])),
+        .flatMap((candidate) => (candidate.key ? [candidate.key] : [])),
     ),
     issues: params.issues,
   });
   const sourceLocation = params.stepSourceLocations?.get(params.sourceName)?.get(params.index);
-  const nameTemplate =
-    stepSourceName === undefined
+  const name =
+    params.step.name === undefined
       ? undefined
       : parseInterpolationField({
           field: 'step.name',
-          source: stepSourceName,
+          source: params.step.name,
           path: ['jobs', params.sourceName, 'steps', params.index, 'name'],
           issues: params.issues,
         });
   const stepBase = {
     id: stepId,
-    ...(stepSourceName === undefined ? {} : {sourceName: stepSourceName}),
+    ...(stepKey === undefined ? {} : {key: stepKey}),
+    ...(params.step.name === undefined ? {} : {name: params.step.name}),
     ...(sourceLocation === undefined ? {} : {sourceLocation}),
     ...(gate === undefined ? {} : {gate}),
   };
@@ -228,7 +229,7 @@ function normalizeStep(params: {
       stepBase,
       sourceName: params.sourceName,
       stepIndex: params.index,
-      nameTemplate,
+      name,
       issues: params.issues,
     });
   }
@@ -239,7 +240,7 @@ function normalizeStep(params: {
       stepBase,
       sourceName: params.sourceName,
       stepIndex: params.index,
-      nameTemplate,
+      name,
       issues: params.issues,
     });
   }
@@ -254,7 +255,7 @@ function normalizeRunStep(params: {
   stepBase: WorkflowModelStepBaseFields;
   sourceName: string;
   stepIndex: number;
-  nameTemplate: WorkflowFieldTemplate | undefined;
+  name: WorkflowFieldTemplate | undefined;
   issues: WorkflowModelValidationIssue[];
 }): WorkflowModelRunStep {
   if (params.step.run === undefined) {
@@ -274,7 +275,7 @@ function normalizeRunStep(params: {
   });
   const templates = optionalRunStepTemplates({
     command: commandTemplate,
-    name: params.nameTemplate,
+    name: params.name,
     env: stepEnv.templates?.env,
   });
 
@@ -292,7 +293,7 @@ function normalizeAgentStep(params: {
   stepBase: WorkflowModelStepBaseFields;
   sourceName: string;
   stepIndex: number;
-  nameTemplate: WorkflowFieldTemplate | undefined;
+  name: WorkflowFieldTemplate | undefined;
   issues: WorkflowModelValidationIssue[];
 }): WorkflowModelAgentStep {
   if (params.step.prompt === undefined) {
@@ -335,7 +336,7 @@ function normalizeAgentStep(params: {
     prompt: promptTemplate,
     model: modelTemplate,
     provider: providerTemplate,
-    name: params.nameTemplate,
+    name: params.name,
   });
 
   return {
@@ -419,7 +420,7 @@ function normalizeRunner(params: {
 
 type WorkflowModelStepBaseFields = Pick<
   WorkflowModelStep,
-  'id' | 'sourceName' | 'sourceLocation' | 'gate'
+  'id' | 'key' | 'name' | 'sourceLocation' | 'gate'
 >;
 
 function optionalRunStepTemplates(params: {

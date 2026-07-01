@@ -216,7 +216,8 @@ describe('workflow run queries', () => {
 
       const runJobs = await getJobsByWorkflowRunId(run.id);
       expect(runJobs).toHaveLength(1);
-      expect(runJobs[0]?.name).toBe('build');
+      expect(runJobs[0]?.key).toBe('build');
+      expect(runJobs[0]?.name).toBeNull();
 
       const jobExecutions = await getJobExecutionsByJobId(runJobs[0]?.id as string);
       expect(jobExecutions).toHaveLength(1);
@@ -240,14 +241,14 @@ describe('workflow run queries', () => {
     });
 
     test('persists listening job config without initial execution or steps', async () => {
-      const nameTemplateSource = ['Review batch $', '{{ execution.index }}'].join('');
+      const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
       const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
       const model = normalizeWorkflowDocument({
         name: 'Listening workflow',
         runner: 'ubuntu-latest',
         jobs: {
           listen: {
-            name: nameTemplateSource,
+            name: displayNameSource,
             listening: {
               on: [{source: 'github', event: 'pull_request_review'}],
               until: [{source: 'github', event: 'pull_request'}],
@@ -277,12 +278,12 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
-      const listen = runJobs.find((job) => job.name === 'listen');
-      const build = runJobs.find((job) => job.name === 'build');
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const listen = runJobs.find((job) => job.key === 'listen');
+      const build = runJobs.find((job) => job.key === 'build');
       expect(listen).toMatchObject({
         mode: 'listening',
-        nameTemplate: nameTemplateSource,
+        name: displayNameSource,
         listeningTimeoutMs: 30 * 24 * 60 * 60 * 1000,
         maxExecutions: 3,
         onResolve: 'cancel',
@@ -424,8 +425,8 @@ describe('workflow run queries', () => {
           workflowRunId: run.id,
           diagnostics: [
             {
-              jobName: 'build',
-              stepDisplayName: 'echo ok',
+              jobKey: 'build',
+              stepName: 'echo ok',
               reason: 'missing-path',
               expression: 'event.ref',
               contextRoots: ['event'],
@@ -479,7 +480,7 @@ describe('workflow run queries', () => {
       });
 
       const runJobs = await getJobsByWorkflowRunId(run.id);
-      const testJob = runJobs.find((j) => j.name === 'test');
+      const testJob = runJobs.find((j) => j.key === 'test');
 
       expect(testJob?.dependencies).toEqual(['build']);
     });
@@ -654,7 +655,7 @@ describe('workflow run queries', () => {
       expect(jobSteps[0]).toMatchObject({type: 'setup', name: 'Set up job', position: 0});
     });
 
-    test('stores step with optional name', async () => {
+    test('stores step display names', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -680,7 +681,7 @@ describe('workflow run queries', () => {
       // Index 0 is the synthetic setup step; user steps start at index 1.
       expect(jobSteps[0]?.name).toBe('Set up job');
       expect(jobSteps[1]?.name).toBe('Install deps');
-      expect(jobSteps[2]?.name).toBeNull();
+      expect(jobSteps[2]?.name).toBe('npm build');
     });
 
     test('stores source locations for authored steps', async () => {
@@ -987,18 +988,18 @@ jobs:
 
     async function markJob(
       runJobs: Awaited<ReturnType<typeof getJobsByWorkflowRunId>>,
-      name: string,
+      key: string,
       status: 'succeeded' | 'failed' | 'cancelled' | 'skipped',
     ) {
-      const job = runJobs.find((candidate) => candidate.name === name);
-      if (!job) throw new Error(`Missing job ${name}`);
+      const job = runJobs.find((candidate) => candidate.key === key);
+      if (!job) throw new Error(`Missing job ${key}`);
       await db().update(jobs).set({status}).where(eq(jobs.id, job.id));
       const jobSteps = await getStepsByJobId(job.id);
       await db()
         .update(stepsTable)
         .set({
           status: status === 'skipped' ? 'cancelled' : status,
-          output: status === 'succeeded' ? {job: name} : null,
+          output: status === 'succeeded' ? {job: key} : null,
           error: status === 'failed' ? {message: 'failed'} : null,
         })
         .where(
@@ -1147,10 +1148,10 @@ jobs:
       });
 
       const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
-      const build = rerunJobs.find((job) => job.name === 'build');
-      const test = rerunJobs.find((job) => job.name === 'test');
-      const deploy = rerunJobs.find((job) => job.name === 'deploy');
-      const notify = rerunJobs.find((job) => job.name === 'notify');
+      const build = rerunJobs.find((job) => job.key === 'build');
+      const test = rerunJobs.find((job) => job.key === 'test');
+      const deploy = rerunJobs.find((job) => job.key === 'deploy');
+      const notify = rerunJobs.find((job) => job.key === 'notify');
       expect(build).toMatchObject({status: 'succeeded', carriedOver: true});
       expect(test).toMatchObject({status: 'pending', carriedOver: false});
       expect(deploy).toMatchObject({status: 'pending', carriedOver: false});
@@ -1562,7 +1563,8 @@ jobs:
         .insert(jobs)
         .values({
           workflowRunAttemptId: existingJob.workflowRunAttemptId,
-          name: 'no-execution',
+          key: 'no-execution',
+          name: null,
           dependencies: [],
           runner: ['ubuntu-latest'],
           position: 99,

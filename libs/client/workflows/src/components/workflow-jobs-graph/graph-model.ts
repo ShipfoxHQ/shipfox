@@ -29,7 +29,7 @@ export interface WorkflowJobGraphModel {
 
 export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): WorkflowJobGraphModel {
   const sortedJobs = [...run.jobs].sort(compareJobs);
-  const byName = new Map(sortedJobs.map((job) => [job.name, job]));
+  const byKey = new Map(sortedJobs.map((job) => [job.key, job]));
   const columnMemo = new Map<string, number>();
 
   function columnFor(job: WorkflowJob, visiting = new Set<string>()): number {
@@ -41,7 +41,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
     nextVisiting.add(job.id);
 
     const dependencyColumns = job.dependencies
-      .map((dependencyName) => byName.get(dependencyName))
+      .map((dependencyKey) => byKey.get(dependencyKey))
       .filter((dependency): dependency is WorkflowJob => dependency !== undefined)
       .map((dependency) => columnFor(dependency, nextVisiting));
 
@@ -54,12 +54,12 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
     ...job,
     column: columnFor(job),
     row: 0,
-    currentDependencyCount: currentDependencyCount(job, byName),
+    currentDependencyCount: currentDependencyCount(job, byKey),
   }));
 
   const grouped = groupColumns(nodesWithoutRows);
   const nodes = grouped.flat();
-  const edges = buildEdges(sortedJobs, byName);
+  const edges = buildEdges(sortedJobs, byKey);
 
   return {
     nodes,
@@ -71,7 +71,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
 function compareJobs(left: WorkflowJob, right: WorkflowJob): number {
   return (
     left.position - right.position ||
-    left.name.localeCompare(right.name) ||
+    (left.name ?? left.key).localeCompare(right.name ?? right.key) ||
     left.id.localeCompare(right.id)
   );
 }
@@ -91,7 +91,7 @@ function groupColumns(nodes: WorkflowJobGraphNode[]): WorkflowJobGraphNode[][] {
         .sort(
           (left, right) =>
             left.position - right.position ||
-            left.name.localeCompare(right.name) ||
+            (left.name ?? left.key).localeCompare(right.name ?? right.key) ||
             left.id.localeCompare(right.id),
         )
         .map((node, row) => ({...node, row})),
@@ -100,7 +100,7 @@ function groupColumns(nodes: WorkflowJobGraphNode[]): WorkflowJobGraphNode[][] {
 
 function buildEdges(
   jobs: readonly WorkflowJob[],
-  byName: ReadonlyMap<string, WorkflowJob>,
+  byKey: ReadonlyMap<string, WorkflowJob>,
 ): WorkflowJobGraphEdge[] {
   const triggerEdges = jobs
     .filter((job) => job.dependencies.length === 0)
@@ -112,8 +112,8 @@ function buildEdges(
     }));
 
   const dependencyEdges = jobs.flatMap((job) =>
-    job.dependencies.flatMap((dependencyName) => {
-      const dependency = byName.get(dependencyName);
+    job.dependencies.flatMap((dependencyKey) => {
+      const dependency = byKey.get(dependencyKey);
       if (!dependency) return [];
       return [
         {
@@ -129,12 +129,9 @@ function buildEdges(
   return [...triggerEdges, ...dependencyEdges];
 }
 
-function currentDependencyCount(
-  job: WorkflowJob,
-  byName: ReadonlyMap<string, WorkflowJob>,
-): number {
-  return job.dependencies.filter((dependencyName) => {
-    const dependency = byName.get(dependencyName);
+function currentDependencyCount(job: WorkflowJob, byKey: ReadonlyMap<string, WorkflowJob>): number {
+  return job.dependencies.filter((dependencyKey) => {
+    const dependency = byKey.get(dependencyKey);
     return dependency?.status === 'pending' || dependency?.status === 'running';
   }).length;
 }

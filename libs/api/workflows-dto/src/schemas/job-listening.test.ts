@@ -6,7 +6,7 @@ import {
 
 describe('jobListeningSchema', () => {
   it('parses listener config payloads unchanged', () => {
-    const nameTemplate = ['Review $', '{{ execution.index }}'].join('');
+    const displayName = ['Review $', '{{ execution.index }}'].join('');
     const input = {
       on: [{source: 'github', event: 'pull_request_review'}],
       until: [{source: 'github', event: 'pull_request'}],
@@ -15,7 +15,7 @@ describe('jobListeningSchema', () => {
       batch: {debounce_ms: 1000, max_size: 10, max_wait_ms: 5000},
       on_resolve: 'finish',
       execution_timeout_ms: null,
-      name_template: nameTemplate,
+      name: displayName,
     };
 
     const result = jobListeningSchema.parse(input);

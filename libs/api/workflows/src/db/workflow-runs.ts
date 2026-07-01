@@ -184,9 +184,9 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         .values(
           materializedJobs.map((job) => ({
             workflowRunAttemptId: attemptRow.id,
-            name: job.sourceName,
+            key: job.key,
             mode: job.mode,
-            nameTemplate: workflowTemplateSource(job.nameTemplate),
+            name: workflowTemplateSource(job.name),
             status: 'pending' as const,
             success: job.success ?? null,
             executionTimeoutMs: job.executionTimeoutMs ?? null,
@@ -213,7 +213,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
             {
               jobId: jobRow.id,
               sequence: 1,
-              name: jobRow.name,
+              name: jobRow.name ?? jobRow.key,
               status: 'pending' as const,
             },
           ],
@@ -236,8 +236,8 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       for (const step of job.steps) {
         stepValues.push({
           jobExecutionId: jobExecution.id,
-          name: step.sourceName,
-          displayName: step.displayName,
+          key: step.key,
+          name: step.name,
           sourceLocation: step.sourceLocation,
           status: step.status,
           type: step.type,
@@ -269,8 +269,8 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       diagnostics: materializedJobs.flatMap((job) =>
         job.steps.flatMap((step) =>
           (step.diagnostics ?? []).map((diagnostic) => ({
-            jobName: job.sourceName,
-            stepDisplayName: step.displayName,
+            jobKey: job.key,
+            stepName: step.name,
             ...diagnostic,
           })),
         ),
@@ -431,9 +431,9 @@ export async function createRerunWorkflowRun(
                 const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
                 return {
                   workflowRunAttemptId: newAttemptRow.id,
+                  key: job.key,
                   name: job.name,
                   mode: job.mode,
-                  nameTemplate: job.nameTemplate,
                   status: carriedOver ? ('succeeded' as const) : ('pending' as const),
                   statusReason: null,
                   carriedOver,
@@ -465,7 +465,7 @@ export async function createRerunWorkflowRun(
             {
               jobId: job.id,
               sequence: 1,
-              name: job.name,
+              name: job.name ?? job.key,
               status: carriedOver ? ('succeeded' as const) : ('pending' as const),
               statusReason: null,
               ...(carriedOver ? {finishedAt: sql`now()`} : {}),
@@ -499,8 +499,8 @@ export async function createRerunWorkflowRun(
       return [
         {
           jobExecutionId: clonedJobExecution.id,
+          key: step.key,
           name: step.name,
-          displayName: step.displayName,
           sourceLocation: step.sourceLocation,
           status: carriedOver ? step.status : ('pending' as const),
           type: step.type,
@@ -552,7 +552,7 @@ export async function createRerunWorkflowRun(
   return result;
 }
 
-function workflowTemplateSource(template: MaterializedWorkflowJob['nameTemplate']): string | null {
+function workflowTemplateSource(template: MaterializedWorkflowJob['name']): string | null {
   if (template === undefined) return null;
 
   return template
@@ -565,8 +565,8 @@ function workflowTemplateSource(template: MaterializedWorkflowJob['nameTemplate'
 function logTemplateDiagnostics(params: {
   readonly workflowRunId: string;
   readonly diagnostics: readonly (WorkflowStepTemplateDiagnostic & {
-    readonly jobName: string;
-    readonly stepDisplayName: string;
+    readonly jobKey: string;
+    readonly stepName: string;
   })[];
 }): void {
   if (params.diagnostics.length === 0) return;

@@ -2,11 +2,11 @@ import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
 import {scheduleRuntimeDag} from './schedule-runtime-dag.js';
 
 function job(
-  name: string,
+  key: string,
   dependencies: readonly string[] = [],
   mode: RuntimeDagNode['mode'] = 'one_shot',
 ): RuntimeDagNode {
-  return {id: `job-${name}`, name, mode, dependencies, version: 1};
+  return {id: `job-${key}`, key, mode, dependencies, version: 1};
 }
 
 function completed(

@@ -66,6 +66,7 @@ const workflowDocumentStepGateSchema = z
 // case produces a clear message instead of a generic "unrecognized key".
 export const workflowDocumentStepSchema = z
   .strictObject({
+    key: z.string().min(1).optional(),
     name: z.string().min(1).optional(),
     run: z.string().min(1).optional(),
     model: z.string().min(1).optional(),

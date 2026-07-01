@@ -21,7 +21,7 @@ import {
 
 export interface DagJob extends RuntimeDagNode {
   id: string;
-  name: string;
+  key: string;
   mode: 'one_shot' | 'listening';
   status: JobStatus;
   jobExecutionId?: string | undefined;
@@ -68,7 +68,7 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
       return [
         {
           id: job.id,
-          name: job.name,
+          key: job.key,
           mode: job.mode,
           status: job.status,
           ...(jobExecution === undefined

@@ -36,9 +36,9 @@ export const jobDurationDtoSchema = z.discriminatedUnion('kind', [
 export const jobDtoSchema = z.object({
   id: z.string().uuid(),
   run_attempt_id: z.string().uuid(),
-  name: z.string(),
+  key: z.string(),
+  name: z.string().nullable(),
   mode: jobModeSchema,
-  name_template: z.string().nullable(),
   status: jobStatusSchema,
   status_reason: jobStatusReasonSchema.nullable(),
   carried_over: z.boolean(),
