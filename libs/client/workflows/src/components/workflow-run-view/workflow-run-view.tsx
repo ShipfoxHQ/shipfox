@@ -14,10 +14,10 @@ import {
   useRerunWorkflowRunMutation,
   useWorkflowRunAttemptQuery,
 } from '#hooks/api/workflow-runs.js';
-import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
+import {JobGraph} from '../job-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
-import {WorkflowRunJobCard} from './workflow-run-job-card.js';
+import {JobCard} from './job-card.js';
 import {resolveJobExecution, resolveWorkflowRunSelection} from './workflow-run-selection.js';
 import {
   WorkflowRunNotFound,
@@ -226,13 +226,13 @@ function RunViewContent({
         {query.isError ? <WorkflowRunStaleError query={query} /> : null}
         <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">
           <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-16">
-            <WorkflowJobsGraph
+            <JobGraph
               run={runData}
               selectedJobId={selectedJob?.id}
               onSelectedJobChange={selectJob}
             />
             {selectedJob ? (
-              <WorkflowRunJobCard
+              <JobCard
                 workspaceId={workspaceId}
                 job={selectedJob}
                 selectedJobExecution={selectedJobExecution}
