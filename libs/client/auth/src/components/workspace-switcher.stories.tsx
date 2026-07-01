@@ -101,7 +101,7 @@ async function captureSwitcher(ctx: WorkspaceSwitcherStoryContext, screenshotNam
   await argosScreenshot(ctx, screenshotName);
 }
 
-export const Open: Story = {
+export const Playground: Story = {
   play: async (ctx) => {
     await captureSwitcher(ctx, 'Workspace Switcher Open');
   },

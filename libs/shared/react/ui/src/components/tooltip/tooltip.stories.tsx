@@ -55,7 +55,7 @@ export default meta;
 
 type Story = StoryObj<TooltipStoryArgs>;
 
-export const Default: Story = {
+export const Playground: Story = {
   render: (args: TooltipStoryArgs) => {
     const defaultOpen = args.defaultOpen ?? false;
     const delayDuration = args.delayDuration ?? 0;

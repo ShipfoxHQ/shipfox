@@ -17,6 +17,23 @@ const meta = {
   title: 'Workflows/StatusIcon',
   component: WorkflowStatusIcon,
   parameters: {layout: 'centered'},
+  argTypes: {
+    status: {
+      control: 'select',
+      options: statuses,
+    },
+    size: {
+      control: {type: 'number', min: 8, max: 24, step: 1},
+    },
+    ripple: {
+      control: 'boolean',
+    },
+  },
+  args: {
+    status: 'running',
+    size: 14,
+    ripple: false,
+  },
   decorators: [
     (Story) => (
       <div className="bg-background-neutral-base p-24">
@@ -30,7 +47,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 // Every state at the surface size (14px) plus a compact size, sharing the tuned glyph scale.
-export const AllStates: Story = {
+export const Playground: Story = {};
+
+export const Variants: Story = {
   render: () => (
     <div className="flex flex-col gap-32">
       <Scale label="DAG node / run row (14px)" size={14} />

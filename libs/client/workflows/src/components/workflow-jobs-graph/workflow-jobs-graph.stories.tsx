@@ -24,7 +24,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const SingleJob: Story = {
+export const Playground: Story = {
   args: {run: makeRun({jobs: [makeJob({name: 'build'})]})},
 };
 

@@ -64,7 +64,24 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const AllStatuses: Story = {
+export const Playground: Story = {
+  render: () => (
+    <WorkflowJobNode
+      node={makeNode({
+        id: 'job-build',
+        label: 'build',
+        status: 'running',
+        position: 0,
+        dependencies: [],
+      })}
+      selected
+      onSelect={() => undefined}
+      onKeyDown={ignoreKeyDown}
+    />
+  ),
+};
+
+export const Statuses: Story = {
   render: () => (
     <div className="grid w-720 grid-cols-2 gap-12">
       {storyNodes.map((node) => (

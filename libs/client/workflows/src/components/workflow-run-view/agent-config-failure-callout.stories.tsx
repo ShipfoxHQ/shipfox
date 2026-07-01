@@ -1,3 +1,4 @@
+import {Code} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
 import {
   createMemoryHistory,
@@ -63,40 +64,17 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 type WorkflowAgentConfigIssueValue = NonNullable<WorkflowStepError['agentConfigIssue']>;
 
-export const ProviderNotConfigured: Story = {
-  play: assertCallout('Configure credentials for anthropic', true),
-};
-
-export const CredentialsInvalid: Story = {
-  args: {
-    error: makeError('credentials_invalid'),
-  },
-  play: assertCallout('Update credentials for anthropic', true),
-};
-
-export const ProviderUnsupported: Story = {
-  args: {
-    error: makeError('provider_unsupported'),
-  },
-  play: assertCallout('Choose a supported agent provider', false),
-};
-
-export const ModelUnavailable: Story = {
-  args: {
-    error: makeError('model_unavailable'),
-  },
-  play: assertCallout('Choose an available model', false),
-};
-
-export const StepConfigInvalid: Story = {
-  args: {
-    error: makeError('step_config_invalid'),
-  },
-  play: assertCallout("Fix this step's agent settings", false),
-};
-
-export const UnknownConfigFailure: Story = {
-  args: {
+const errorCases: Array<{
+  label: string;
+  error: WorkflowStepError;
+}> = [
+  {label: 'Provider not configured', error: makeError('provider_not_configured')},
+  {label: 'Credentials invalid', error: makeError('credentials_invalid')},
+  {label: 'Provider unsupported', error: makeError('provider_unsupported')},
+  {label: 'Model unavailable', error: makeError('model_unavailable')},
+  {label: 'Step config invalid', error: makeError('step_config_invalid')},
+  {
+    label: 'Unknown config failure',
     error: {
       message: 'Agent configuration is invalid',
       exitCode: null,
@@ -106,7 +84,34 @@ export const UnknownConfigFailure: Story = {
       category: 'user',
     },
   },
-  play: assertCallout("We couldn't load the agent configuration for this step", true),
+];
+
+export const Playground: Story = {};
+
+export const ErrorVariants: Story = {
+  render: (args) => (
+    <div className="flex flex-col gap-20">
+      {errorCases.map((item) => (
+        <div key={item.label} className="flex flex-col gap-8">
+          <Code variant="label" className="text-foreground-neutral-subtle">
+            {item.label}
+          </Code>
+          <AgentConfigFailureCallout {...args} error={item.error} />
+        </div>
+      ))}
+    </div>
+  ),
+};
+
+export const TestProviderNotConfigured: Story = {
+  play: assertCallout('Configure credentials for anthropic', true),
+};
+
+export const TestProviderUnsupported: Story = {
+  args: {
+    error: makeError('provider_unsupported'),
+  },
+  play: assertCallout('Choose a supported agent provider', false),
 };
 
 function makeError(agentConfigIssue: WorkflowAgentConfigIssueValue): WorkflowStepError {

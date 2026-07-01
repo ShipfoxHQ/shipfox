@@ -353,7 +353,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Showcase: Story = {
+export const Playground: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={showcaseRecords} />

@@ -100,7 +100,7 @@ function CodeBlockShowcase({
   );
 }
 
-export const Basic: Story = {
+export const Playground: Story = {
   render: () => <CodeBlockShowcase data={[workflowFile]} />,
 };
 

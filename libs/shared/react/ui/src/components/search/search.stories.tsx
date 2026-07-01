@@ -24,7 +24,7 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Inline: Story = {
+export const Playground: Story = {
   render: () => {
     function InlineDemo() {
       const [value, setValue] = useState('');

@@ -28,7 +28,7 @@ const SAMPLE_CONNECTIONS = [
   {id: 'conn-3', name: 'Other GitHub Source', subtitle: 'github · acme-fork'},
 ];
 
-export const Default: Story = {
+export const Playground: Story = {
   render: () => {
     function ControlledRadioGroup() {
       const [value, setValue] = useState<string>('conn-1');

@@ -134,7 +134,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const MixedProviderStates: Story = {};
+export const Playground: Story = {};
 
 export const EmptyConfigured: Story = {
   args: {scenario: 'empty-configured'},

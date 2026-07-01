@@ -17,7 +17,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Single: Story = {
+export const Playground: Story = {
   render: () => {
     const [selected, setSelected] = useState<Date | undefined>(new Date(2024, 0, 12));
     return (
