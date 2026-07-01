@@ -1,4 +1,4 @@
-import {render, screen, waitFor, within} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {agentProviderEntry} from '#test/fixtures/agent-providers.js';
 import {AgentProviderUsageModal} from './agent-provider-usage-modal.js';
@@ -30,13 +30,11 @@ function renderUsageModal() {
 
 describe('AgentProviderUsageModal', () => {
   test('changes the selected model in the workflow example', async () => {
-    const user = userEvent.setup();
-
     renderUsageModal();
     expect(await screen.findByText('model: claude-opus-4-8')).toBeVisible();
 
-    await user.click(screen.getByRole('button', {name: 'Model'}));
-    await user.click(await screen.findByRole('option', {name: 'Kimi K2.7 Code'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Model'}));
+    fireEvent.click(await screen.findByRole('option', {name: 'Kimi K2.7 Code'}));
 
     await waitFor(() =>
       expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(

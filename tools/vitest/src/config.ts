@@ -17,21 +17,43 @@ export type UserConfigFnObject = () => Parameters<typeof vitestDefineConfig>[0];
 export type UserConfig = Parameters<typeof vitestDefineConfig>[0];
 
 type ConfigInput = UserConfig | UserWorkspaceConfig;
+type MergeableConfigInput = ConfigInput & {
+  plugins?: unknown[];
+  optimizeDeps?: {
+    rolldownOptions?: {
+      checks?: Record<string, unknown>;
+    };
+  };
+  test?: {
+    exclude?: string[];
+  };
+};
 
 function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): ConfigInput {
-  const existingPlugins = (resolvedConfig as {plugins?: unknown[]}).plugins || [];
+  const mergeableConfig = resolvedConfig as MergeableConfigInput;
+  const existingPlugins = mergeableConfig.plugins || [];
   const merged = {
     ...resolvedConfig,
     plugins: [...existingPlugins],
+    optimizeDeps: {
+      ...(mergeableConfig.optimizeDeps || {}),
+      rolldownOptions: {
+        ...(mergeableConfig.optimizeDeps?.rolldownOptions || {}),
+        checks: {
+          ...(mergeableConfig.optimizeDeps?.rolldownOptions?.checks || {}),
+          pluginTimings: false,
+        },
+      },
+    },
     test: {
-      ...((resolvedConfig as {test?: {exclude?: string[]}}).test || {}),
+      ...(mergeableConfig.test || {}),
       globals: true,
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
         '**/build/**',
         '**/out/**',
-        ...((resolvedConfig as {test?: {exclude?: string[]}}).test?.exclude || []),
+        ...(mergeableConfig.test?.exclude || []),
       ],
     },
   };
