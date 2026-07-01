@@ -44,7 +44,7 @@ export type WorkflowJobDtoOverrides = Partial<Omit<RunJobDetailDto, 'job_executi
   steps?: RunStepDetailDto[];
 };
 
-type WorkflowJobDtoBase = Omit<RunJobDetailDto, 'job_executions'>;
+type WorkflowJobDtoBase = Omit<RunJobDetailDto, 'duration' | 'job_executions'>;
 
 export function workflowRunDto(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
   return {
