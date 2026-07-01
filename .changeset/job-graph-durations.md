@@ -1,4 +1,5 @@
 ---
+"@shipfox/client-workflows": patch
 "@shipfox/react-ui": minor
 ---
 
