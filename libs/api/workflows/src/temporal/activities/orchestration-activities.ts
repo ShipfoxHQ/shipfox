@@ -1,10 +1,10 @@
 import {cancelRunnerJobs, enqueueJobExecution, releaseJobExecution} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
 import type {JobStatus, JobStatusReason} from '#core/entities/job.js';
-import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
+import type {RuntimeCompletionStatus, RuntimeDagNode} from '#core/workflow-runtime/runtime-dag.js';
 import {
   bulkUpdateStepStatuses,
   failJobExecutionAsTimedOut,
@@ -19,7 +19,7 @@ import {
   updateWorkflowRunStatus,
 } from '#db/index.js';
 
-export interface DagJob extends RuntimeDagJob {
+export interface DagJob extends RuntimeDagNode {
   id: string;
   name: string;
   status: JobStatus;
@@ -154,6 +154,7 @@ export async function releaseLeaseActivity(params: {jobExecutionId: string}): Pr
 
 export async function enqueueJobExecutionForRunner(params: {
   workspaceId: string;
+  workflowRunId: string;
   jobId: string;
   jobExecutionId: string;
   runAttemptId: string;
@@ -163,9 +164,10 @@ export async function enqueueJobExecutionForRunner(params: {
   try {
     await enqueueJobExecution({
       workspaceId: params.workspaceId,
+      workflowRunId: params.workflowRunId,
+      workflowRunAttemptId: params.runAttemptId,
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
-      workflowRunAttemptId: params.runAttemptId,
       projectId: params.projectId,
       requiredLabels: params.requiredLabels,
     });

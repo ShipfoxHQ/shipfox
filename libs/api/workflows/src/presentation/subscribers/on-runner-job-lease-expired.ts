@@ -11,9 +11,10 @@ import {isWorkflowNotFound} from '#temporal/workflow-not-found.js';
 export async function onRunnerJobLeaseExpired(payload: RunnerJobLeaseExpiredEvent): Promise<void> {
   logger().info(
     {
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
       jobId: payload.jobId,
       jobExecutionId: payload.jobExecutionId,
-      workflowRunAttemptId: payload.workflowRunAttemptId,
     },
     'Signaling job orchestration of lease expiry',
   );

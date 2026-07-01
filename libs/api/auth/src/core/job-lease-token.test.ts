@@ -7,9 +7,10 @@ const SECRET = process.env.AUTH_JOB_LEASE_TOKEN_SECRET ?? 'test-lease-secret';
 
 function claims() {
   return {
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
-    workflowRunAttemptId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     runnerSessionId: crypto.randomUUID(),
@@ -24,8 +25,9 @@ describe('job-lease-token', () => {
     const verified = await verifyJobLeaseToken(token);
 
     expect(verified).not.toBeNull();
-    expect(verified?.jobId).toBe(input.jobId);
+    expect(verified?.workflowRunId).toBe(input.workflowRunId);
     expect(verified?.workflowRunAttemptId).toBe(input.workflowRunAttemptId);
+    expect(verified?.jobId).toBe(input.jobId);
     expect(verified?.projectId).toBe(input.projectId);
     expect(verified?.workspaceId).toBe(input.workspaceId);
     expect(verified?.runnerSessionId).toBe(input.runnerSessionId);
@@ -64,9 +66,10 @@ describe('job-lease-token', () => {
 
   test('accepts UUIDv7 ids (job/run primary keys are uuidv7)', async () => {
     const input = {
+      workflowRunId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0d',
+      workflowRunAttemptId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0f',
       jobId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0e',
       jobExecutionId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d10',
-      workflowRunAttemptId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0f',
       projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
       runnerSessionId: crypto.randomUUID(),

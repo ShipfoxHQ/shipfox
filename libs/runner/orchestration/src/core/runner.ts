@@ -74,7 +74,12 @@ export async function startRunner(): Promise<void> {
       }
 
       logger().info(
-        {jobId: job.job_id, workflowRunAttemptId: job.workflow_run_attempt_id},
+        {
+          workflowRunId: job.workflow_run_id,
+          workflowRunAttemptId: job.workflow_run_attempt_id,
+          jobId: job.job_id,
+          jobExecutionId: job.job_execution_id,
+        },
         'Job claimed',
       );
 
@@ -182,7 +187,11 @@ export async function runJob(
       signal: ac.signal,
       cwd,
       logsDir,
-      jobContext: {jobId: job.job_id, workflowRunAttemptId: job.workflow_run_attempt_id},
+      jobContext: {
+        workflowRunId: job.workflow_run_id,
+        workflowRunAttemptId: job.workflow_run_attempt_id,
+        jobId: job.job_id,
+      },
     });
     logger().info({jobId: job.job_id}, 'Job step loop finished');
   } catch (stepLoopError) {

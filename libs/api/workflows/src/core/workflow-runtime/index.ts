@@ -10,6 +10,8 @@ export {
   modelHasAgentStep,
 } from './materialize-workflow-model.js';
 export type {WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
+export type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
+export type {RuntimeSchedulingCommand} from './runtime-scheduling-command.js';
 export {
   type ScheduleRuntimeDagInput,
   scheduleRuntimeDag,

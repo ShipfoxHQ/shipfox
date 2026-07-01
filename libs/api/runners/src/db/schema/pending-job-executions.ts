@@ -7,9 +7,10 @@ export const pendingJobExecutions = pgTable(
   {
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
+    workflowRunId: uuid('workflow_run_id').notNull(),
+    workflowRunAttemptId: uuid('workflow_run_attempt_id').notNull(),
     jobId: uuid('job_id').notNull(),
     jobExecutionId: uuid('job_execution_id').notNull().unique(),
-    workflowRunAttemptId: uuid('workflow_run_attempt_id').notNull(),
     projectId: uuid('project_id').notNull(),
     requiredLabels: text('required_labels').array().notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),

@@ -1,6 +1,6 @@
 export type RuntimeCompletionStatus = 'succeeded' | 'failed';
 
-export interface RuntimeDagJob {
+export interface RuntimeDagNode {
   readonly id: string;
   readonly name: string;
   readonly dependencies: readonly string[];

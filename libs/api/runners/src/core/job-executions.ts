@@ -3,9 +3,10 @@ import {claimPendingJobExecution} from '#db/job-executions.js';
 import {jobExecutionClaimedCount} from '#metrics/instance.js';
 
 export interface ClaimJobExecutionResult {
+  workflowRunId: string;
+  workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;
-  workflowRunAttemptId: string;
   leaseToken: string;
 }
 
@@ -23,18 +24,20 @@ export async function claimJobExecution(params: {
   jobExecutionClaimedCount.add(1, {outcome: 'claimed'});
 
   const leaseToken = await issueJobLeaseToken({
+    workflowRunId: claimed.workflowRunId,
+    workflowRunAttemptId: claimed.workflowRunAttemptId,
     jobId: claimed.jobId,
     jobExecutionId: claimed.jobExecutionId,
-    workflowRunAttemptId: claimed.workflowRunAttemptId,
     projectId: claimed.projectId,
     workspaceId: params.workspaceId,
     runnerSessionId: params.runnerSessionId,
   });
 
   return {
+    workflowRunId: claimed.workflowRunId,
+    workflowRunAttemptId: claimed.workflowRunAttemptId,
     jobId: claimed.jobId,
     jobExecutionId: claimed.jobExecutionId,
-    workflowRunAttemptId: claimed.workflowRunAttemptId,
     leaseToken,
   };
 }

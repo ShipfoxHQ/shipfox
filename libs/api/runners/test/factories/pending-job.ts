@@ -3,9 +3,10 @@ import {enqueueJobExecution} from '#db/job-executions.js';
 
 interface PendingJobAttrs {
   workspaceId: string;
+  workflowRunId: string;
+  workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;
-  workflowRunAttemptId: string;
   projectId: string;
   requiredLabels: string[];
 }
@@ -13,6 +14,7 @@ interface PendingJobAttrs {
 export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) => {
   const jobId = crypto.randomUUID();
   const jobExecutionId = crypto.randomUUID();
+  const workflowRunId = crypto.randomUUID();
   const workflowRunAttemptId = crypto.randomUUID();
   const workspaceId = crypto.randomUUID();
   const projectId = crypto.randomUUID();
@@ -20,9 +22,10 @@ export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) =>
   onCreate(async (attrs) => {
     await enqueueJobExecution({
       workspaceId: attrs.workspaceId,
+      workflowRunId: attrs.workflowRunId,
+      workflowRunAttemptId: attrs.workflowRunAttemptId,
       jobId: attrs.jobId,
       jobExecutionId: attrs.jobExecutionId,
-      workflowRunAttemptId: attrs.workflowRunAttemptId,
       projectId: attrs.projectId,
       requiredLabels: attrs.requiredLabels,
     });
@@ -31,9 +34,10 @@ export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) =>
 
   return {
     workspaceId,
+    workflowRunId,
+    workflowRunAttemptId,
     jobId,
     jobExecutionId,
-    workflowRunAttemptId,
     projectId,
     requiredLabels: ['linux'],
   };

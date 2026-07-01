@@ -31,8 +31,9 @@ const CWD = '/tmp/shipfox-test-root/job-1';
 const leaseClient = {} as never;
 const signal = new AbortController().signal;
 const jobContext = {
-  jobId: '00000000-0000-0000-0000-0000000000aa',
+  workflowRunId: '00000000-0000-0000-0000-0000000000ac',
   workflowRunAttemptId: '00000000-0000-0000-0000-0000000000ab',
+  jobId: '00000000-0000-0000-0000-0000000000aa',
 };
 
 function checkoutResponse(auth?: unknown) {
@@ -114,8 +115,9 @@ describe('executeSetupStep', () => {
     expect(log.writeGroup).toHaveBeenCalledWith({
       name: 'Job details',
       lines: [
-        `Job: ${jobContext.jobId}`,
+        `Workflow run: ${jobContext.workflowRunId}`,
         `Workflow run attempt: ${jobContext.workflowRunAttemptId}`,
+        `Job: ${jobContext.jobId}`,
       ],
     });
     expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');

@@ -12,9 +12,10 @@ function buildPayload(
   overrides: Partial<RunnerJobLeaseExpiredEvent> = {},
 ): RunnerJobLeaseExpiredEvent {
   return {
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
-    workflowRunAttemptId: crypto.randomUUID(),
     ...overrides,
   };
 }

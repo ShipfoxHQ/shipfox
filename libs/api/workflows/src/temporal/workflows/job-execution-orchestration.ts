@@ -1,13 +1,12 @@
 import {ApplicationFailure} from '@temporalio/common';
 import {condition, defineSignal, log, proxyActivities, setHandler} from '@temporalio/workflow';
-
-import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import {
   hasNoRequiredRunnerLabels,
   type JobExecutionOutcomeSignals,
   jobExecutionStartOutcome,
   resolveJobExecutionOutcomeSignal,
 } from '#core/job-execution-orchestration.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
@@ -65,9 +64,10 @@ export const jobLeaseExpiredSignal = defineSignal<[]>(JOB_LEASE_EXPIRED_SIGNAL);
 
 export interface JobExecutionOrchestrationInput {
   workspaceId: string;
+  workflowRunId: string;
+  runAttemptId: string;
   jobId: string;
   jobExecutionId: string;
-  runAttemptId: string;
   projectId: string;
   jobVersion: number;
   executionVersion: number;
@@ -136,9 +136,10 @@ async function markJobExecutionRunningAndEnqueue(
 
   await enqueueJobExecutionForRunner({
     workspaceId: input.workspaceId,
+    workflowRunId: input.workflowRunId,
+    runAttemptId: input.runAttemptId,
     jobId: input.jobId,
     jobExecutionId: input.jobExecutionId,
-    runAttemptId: input.runAttemptId,
     projectId: input.projectId,
     requiredLabels: input.requiredLabels,
   });

@@ -51,12 +51,14 @@ describe('enqueueJobExecution', () => {
   it('stores a pending assignment row', async () => {
     const jobId = crypto.randomUUID();
     const jobExecutionId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
     const workflowRunAttemptId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
 
     await enqueueJobExecution({
       workspaceId,
+      workflowRunId,
       jobId,
       jobExecutionId,
       workflowRunAttemptId,
@@ -68,6 +70,7 @@ describe('enqueueJobExecution', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.jobId).toBe(jobId);
     expect(rows[0]?.jobExecutionId).toBe(jobExecutionId);
+    expect(rows[0]?.workflowRunId).toBe(workflowRunId);
     expect(rows[0]?.workflowRunAttemptId).toBe(workflowRunAttemptId);
     expect(rows[0]?.projectId).toBe(projectId);
     expect(rows[0]?.workspaceId).toBe(workspaceId);
@@ -83,6 +86,7 @@ describe('enqueueJobExecution', () => {
       workspaceId: crypto.randomUUID(),
       jobId,
       jobExecutionId,
+      workflowRunId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       requiredLabels: ['Ubuntu22', ' ubuntu22 ', 'LINUX'],
@@ -101,6 +105,7 @@ describe('enqueueJobExecution', () => {
         workspaceId: crypto.randomUUID(),
         jobId: crypto.randomUUID(),
         jobExecutionId: crypto.randomUUID(),
+        workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         requiredLabels: [],
@@ -112,6 +117,7 @@ describe('enqueueJobExecution', () => {
     const jobId = crypto.randomUUID();
     const params = {
       workspaceId: crypto.randomUUID(),
+      workflowRunId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       jobId,
@@ -128,10 +134,12 @@ describe('enqueueJobExecution', () => {
 
   it('emits runners.job.queued carrying the pending row created_at', async () => {
     const jobId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
     const workflowRunAttemptId = crypto.randomUUID();
 
     await enqueueJobExecution({
       workspaceId: crypto.randomUUID(),
+      workflowRunId,
       jobId,
       jobExecutionId: crypto.randomUUID(),
       workflowRunAttemptId,
@@ -145,10 +153,12 @@ describe('enqueueJobExecution', () => {
     expect(outbox[0]?.eventType).toBe(RUNNER_JOB_QUEUED);
     const payload = outbox[0]?.payload as {
       jobId: string;
+      workflowRunId: string;
       workflowRunAttemptId: string;
       queuedAt: string;
     };
     expect(payload.jobId).toBe(jobId);
+    expect(payload.workflowRunId).toBe(workflowRunId);
     expect(payload.workflowRunAttemptId).toBe(workflowRunAttemptId);
     expect(new Date(payload.queuedAt).getTime()).toBe(pending?.createdAt.getTime());
   });
@@ -156,6 +166,7 @@ describe('enqueueJobExecution', () => {
   it('does not double-emit queued when the same jobId is re-enqueued (idempotency regression)', async () => {
     const params = {
       workspaceId: crypto.randomUUID(),
+      workflowRunId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       jobId: crypto.randomUUID(),
@@ -200,10 +211,12 @@ describe('claimPendingJobExecution', () => {
     expect(outbox).toHaveLength(1);
     const payload = outbox[0]?.payload as {
       jobId: string;
+      workflowRunId: string;
       workflowRunAttemptId: string;
       claimedAt: string;
     };
     expect(payload.jobId).toBe(created.jobId);
+    expect(payload.workflowRunId).toBe(created.workflowRunId);
     expect(payload.workflowRunAttemptId).toBe(created.workflowRunAttemptId);
     expect(new Date(payload.claimedAt).getTime()).toBe(running?.startedAt.getTime());
   });
@@ -226,6 +239,7 @@ describe('claimPendingJobExecution', () => {
     if (!first) throw new Error('Expected pending job to be claimed');
     await db().insert(pendingJobExecutions).values({
       workspaceId,
+      workflowRunId: created.workflowRunId,
       jobId: created.jobId,
       jobExecutionId: first.jobExecutionId,
       workflowRunAttemptId: created.workflowRunAttemptId,
@@ -417,6 +431,7 @@ describe('claimPendingJobExecution', () => {
     await expect(
       db().insert(runningJobExecutions).values({
         workspaceId,
+        workflowRunId: created.workflowRunId,
         jobId: created.jobId,
         jobExecutionId: created.jobExecutionId,
         workflowRunAttemptId: created.workflowRunAttemptId,
@@ -519,6 +534,7 @@ describe('claimPendingJobExecution', () => {
     // Simulate an enqueue retry that re-inserts a pending row after the claim.
     await db().insert(pendingJobExecutions).values({
       workspaceId,
+      workflowRunId: created.workflowRunId,
       jobId: created.jobId,
       jobExecutionId: first.jobExecutionId,
       workflowRunAttemptId: created.workflowRunAttemptId,
@@ -542,6 +558,7 @@ describe('claimPendingJobExecution', () => {
     expect(first.jobId).toBe(created.jobId);
     await db().insert(pendingJobExecutions).values({
       workspaceId,
+      workflowRunId: created.workflowRunId,
       jobId: created.jobId,
       jobExecutionId: first.jobExecutionId,
       workflowRunAttemptId: created.workflowRunAttemptId,
@@ -570,6 +587,7 @@ describe('claimPendingJobExecution', () => {
     const real = await pendingJobFactory.create({workspaceId});
     await db().insert(pendingJobExecutions).values({
       workspaceId,
+      workflowRunId: alreadyRunning.workflowRunId,
       jobId: alreadyRunning.jobId,
       jobExecutionId: first.jobExecutionId,
       workflowRunAttemptId: alreadyRunning.workflowRunAttemptId,
@@ -681,6 +699,7 @@ describe('releaseJobExecution', () => {
       .insert(pendingJobExecutions)
       .values({
         workspaceId,
+        workflowRunId: claimed?.workflowRunId as string,
         jobId: claimed?.jobId as string,
         jobExecutionId: claimed?.jobExecutionId as string,
         workflowRunAttemptId: claimed?.workflowRunAttemptId as string,
@@ -894,6 +913,7 @@ describe('detectAndExpireStuckJobs', () => {
   async function makeStaleJob(staleSeconds: number): Promise<{
     jobId: string;
     jobExecutionId: string;
+    workflowRunId: string;
     workflowRunAttemptId: string;
     projectId: string;
   }> {
@@ -908,6 +928,7 @@ describe('detectAndExpireStuckJobs', () => {
     return {
       jobId: claimed?.jobId as string,
       jobExecutionId: claimed?.jobExecutionId as string,
+      workflowRunId: claimed?.workflowRunId as string,
       workflowRunAttemptId: claimed?.workflowRunAttemptId as string,
       projectId: claimed?.projectId as string,
     };
@@ -931,7 +952,7 @@ describe('detectAndExpireStuckJobs', () => {
   }
 
   it('expires a stuck job and writes a runners.job.lease_expired event', async () => {
-    const {jobId, workflowRunAttemptId} = await makeStaleJob(600);
+    const {jobId, workflowRunId, workflowRunAttemptId} = await makeStaleJob(600);
 
     const result = await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
@@ -943,6 +964,7 @@ describe('detectAndExpireStuckJobs', () => {
     expect(outbox[0]?.eventType).toBe(RUNNER_JOB_LEASE_EXPIRED);
     const payload = outbox[0]?.payload as Record<string, unknown>;
     expect(payload.jobId).toBe(jobId);
+    expect(payload.workflowRunId).toBe(workflowRunId);
     expect(payload.workflowRunAttemptId).toBe(workflowRunAttemptId);
     // The lease-expired event carries only the assignment identifiers.
     expect(payload.status).toBeUndefined();
@@ -1003,13 +1025,15 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('sweeps an orphan pending row for the job it reaps (best-effort release may have failed)', async () => {
-    const {jobId, jobExecutionId, workflowRunAttemptId, projectId} = await makeStaleJob(600);
+    const {jobId, jobExecutionId, workflowRunId, workflowRunAttemptId, projectId} =
+      await makeStaleJob(600);
     // A post-claim enqueue retry left a pending row whose job is already running;
     // without this sweep it would stay re-claimable for an already-finished job.
     await db()
       .insert(pendingJobExecutions)
       .values({
         workspaceId,
+        workflowRunId,
         jobId,
         jobExecutionId,
         workflowRunAttemptId,
@@ -1026,11 +1050,13 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('leaves the orphan pending row alone when the running row is not stale enough to reap', async () => {
-    const {jobId, jobExecutionId, workflowRunAttemptId, projectId} = await makeStaleJob(60);
+    const {jobId, jobExecutionId, workflowRunId, workflowRunAttemptId, projectId} =
+      await makeStaleJob(60);
     await db()
       .insert(pendingJobExecutions)
       .values({
         workspaceId,
+        workflowRunId,
         jobId,
         jobExecutionId,
         workflowRunAttemptId,
@@ -1047,13 +1073,13 @@ describe('detectAndExpireStuckJobs', () => {
     ).toHaveLength(1);
   });
 
-  it('returns the reaped {jobId, workflowRunAttemptId} per row without leaking the internal id', async () => {
-    const {jobId, jobExecutionId, workflowRunAttemptId} = await makeStaleJob(600);
+  it('returns the reaped workflow/job identifiers per row without leaking the internal id', async () => {
+    const {jobId, jobExecutionId, workflowRunId, workflowRunAttemptId} = await makeStaleJob(600);
 
     const reaped = await expireStuckJobExecutions({thresholdSeconds: 180});
 
     const mine = reaped.find((row) => row.jobId === jobId);
-    expect(mine).toEqual({jobId, jobExecutionId, workflowRunAttemptId});
+    expect(mine).toEqual({jobId, jobExecutionId, workflowRunId, workflowRunAttemptId});
     expect(mine).not.toHaveProperty('id');
   });
 
@@ -1082,12 +1108,14 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('a reaper tick and a concurrent claim of the same orphan-pending job leave consistent state', async () => {
-    const {jobId, jobExecutionId, workflowRunAttemptId, projectId} = await makeStaleJob(600);
+    const {jobId, jobExecutionId, workflowRunId, workflowRunAttemptId, projectId} =
+      await makeStaleJob(600);
     // Orphan pending row from a post-claim enqueue retry for an already-running job.
     await db()
       .insert(pendingJobExecutions)
       .values({
         workspaceId,
+        workflowRunId,
         jobId,
         jobExecutionId,
         workflowRunAttemptId,

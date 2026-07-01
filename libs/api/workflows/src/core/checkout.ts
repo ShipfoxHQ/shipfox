@@ -15,7 +15,7 @@ export interface CheckoutIntent {
 
 /**
  * Resolves what to check out for a job, keyed off the authoritative `jobId`
- * (`workflowRunAttemptId`/`workspaceId` in the lease claim are informational).
+ * (`workflowRunId`/`workflowRunAttemptId`/`workspaceId` in the lease claim are informational).
  * Chain: job → attempt → run → project source metadata. Credential-free.
  */
 export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutIntent> {

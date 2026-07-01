@@ -6,8 +6,6 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
-
-import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import {
   createRuntimeRunProgress,
   nonCompletedRuntimeJobIds,
@@ -17,6 +15,7 @@ import {
   runtimeJobVersion,
   shouldContinueStartedRun,
 } from '#core/workflow-runtime/run-progress.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import {scheduleRuntimeDag} from '#core/workflow-runtime/schedule-runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
@@ -123,6 +122,7 @@ function launchJobs(
         args: [
           {
             workspaceId: run.workspaceId,
+            workflowRunId: run.workflowRunId,
             projectId: run.projectId,
             jobId: job.id,
             jobExecutionId: job.jobExecutionId,

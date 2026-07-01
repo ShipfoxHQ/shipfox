@@ -9,9 +9,10 @@ import {recordJobExecutionStartedAt} from '#db/index.js';
 export async function onRunnerJobClaimed(payload: RunnerJobClaimedEvent): Promise<void> {
   logger().debug(
     {
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
       jobId: payload.jobId,
       jobExecutionId: payload.jobExecutionId,
-      workflowRunAttemptId: payload.workflowRunAttemptId,
     },
     'Recording job execution started_at from claim',
   );

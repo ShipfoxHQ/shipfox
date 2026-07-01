@@ -45,7 +45,6 @@ import {
   toJobStatusReason,
 } from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
-import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import {
   isWorkflowRunTerminal,
@@ -72,6 +71,7 @@ import {
   assembleWorkflowRunContext,
   materializeWorkflowModel,
 } from '#core/workflow-runtime/index.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import {
   recordWorkflowJobExecutionLeaseExpiryResolved,
   recordWorkflowJobExecutionQueued,

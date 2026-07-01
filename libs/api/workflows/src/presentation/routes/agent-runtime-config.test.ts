@@ -154,15 +154,17 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     const {run, job, step} = await createRunningAgentStep();
     await insertRunningJobLease({
       workspaceId: run.workspaceId,
+      workflowRunId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       jobId: job.id,
       jobExecutionId: step.jobExecutionId,
-      workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       runnerSessionId: crypto.randomUUID(),
     });
     const token = await mintLeaseToken({
       jobId: job.id,
       jobExecutionId: step.jobExecutionId,
+      workflowRunId: run.id,
       workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       workspaceId: run.workspaceId,

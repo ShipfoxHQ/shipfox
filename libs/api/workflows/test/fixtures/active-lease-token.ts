@@ -10,6 +10,7 @@ import {mintLeaseToken} from './lease-token.js';
 export interface MintActiveLeaseTokenParams {
   jobId: string;
   token?: {
+    workflowRunId?: string;
     workflowRunAttemptId?: string;
     projectId?: string;
     workspaceId?: string;
@@ -27,9 +28,10 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
 
   await insertRunningJobLease({
     workspaceId: run.workspaceId,
+    workflowRunId: run.id,
+    workflowRunAttemptId: job.workflowRunAttemptId,
     jobId: params.jobId,
     jobExecutionId: jobExecution.id,
-    workflowRunAttemptId: job.workflowRunAttemptId,
     projectId: run.projectId,
     runnerSessionId,
   });
@@ -37,6 +39,7 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
   return await mintLeaseToken({
     jobId: params.jobId,
     jobExecutionId: jobExecution.id,
+    workflowRunId: params.token?.workflowRunId ?? run.id,
     workflowRunAttemptId: params.token?.workflowRunAttemptId ?? job.workflowRunAttemptId,
     projectId: params.token?.projectId ?? run.projectId,
     workspaceId: params.token?.workspaceId ?? run.workspaceId,
@@ -46,9 +49,10 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
 
 export interface InsertRunningJobLeaseParams {
   workspaceId: string;
+  workflowRunId: string;
+  workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;
-  workflowRunAttemptId: string;
   projectId: string;
   runnerSessionId: string;
 }
@@ -58,9 +62,10 @@ export async function insertRunningJobLease(params: InsertRunningJobLeaseParams)
     .insert(runningJobExecutions)
     .values({
       workspaceId: params.workspaceId,
+      workflowRunId: params.workflowRunId,
+      workflowRunAttemptId: params.workflowRunAttemptId,
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
-      workflowRunAttemptId: params.workflowRunAttemptId,
       projectId: params.projectId,
       runnerSessionId: params.runnerSessionId,
       requiredLabels: ['linux'],

@@ -64,6 +64,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       .insert(runningJobExecutions)
       .values({
         workspaceId,
+        workflowRunId: claimed?.workflowRunId as string,
         jobId: claimed?.jobId as string,
         jobExecutionId: siblingJobExecutionId,
         workflowRunAttemptId: claimed?.workflowRunAttemptId as string,

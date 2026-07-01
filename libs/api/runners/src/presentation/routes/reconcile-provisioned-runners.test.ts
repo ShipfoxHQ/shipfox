@@ -76,10 +76,12 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
   it('returns keep for an observed running runner and includes its bound job', async () => {
     const jobId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
     const workflowRunAttemptId = crypto.randomUUID();
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId,
+      workflowRunId,
       workflowRunAttemptId,
       provisionedRunnerId: 'provisioned-runner-1',
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
@@ -154,6 +156,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId: crypto.randomUUID(),
+      workflowRunId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
       provisionedRunnerId: 'provisioned-runner-1',
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
@@ -255,6 +258,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
   async function insertRunningJob(params: {
     jobId: string;
+    workflowRunId: string;
     workflowRunAttemptId: string;
     provisionedRunnerId: string;
     lastHeartbeatAt: Date;
@@ -264,6 +268,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
       .insert(runningJobExecutions)
       .values({
         workspaceId,
+        workflowRunId: params.workflowRunId,
         jobId: params.jobId,
         jobExecutionId: crypto.randomUUID(),
         workflowRunAttemptId: params.workflowRunAttemptId,

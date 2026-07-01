@@ -8,9 +8,10 @@ import {z} from 'zod';
 export const JOB_LEASE_TOKEN_AUDIENCE = 'runner-job-lease';
 
 export const jobLeaseTokenClaimsSchema = z.object({
+  workflowRunId: z.string().uuid(),
+  workflowRunAttemptId: z.string().uuid(),
   jobId: z.string().uuid(),
   jobExecutionId: z.string().uuid(),
-  workflowRunAttemptId: z.string().uuid(),
   projectId: z.string().uuid(),
   workspaceId: z.string().uuid(),
   runnerSessionId: z.string().uuid(),

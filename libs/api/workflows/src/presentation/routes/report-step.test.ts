@@ -59,15 +59,17 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     if (!run) throw new Error('Expected workflow run to exist');
     await insertRunningJobLease({
       workspaceId: run.workspaceId,
+      workflowRunId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       jobId,
       jobExecutionId: jobExecution.id,
-      workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       runnerSessionId: crypto.randomUUID(),
     });
     const token = await mintLeaseToken({
       jobId,
       jobExecutionId: jobExecution.id,
+      workflowRunId: run.id,
       workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       workspaceId: run.workspaceId,

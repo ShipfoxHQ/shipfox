@@ -13,9 +13,10 @@ export type IssueJobLeaseTokenParams = Omit<JobLeaseTokenClaims, 'aud' | 'iat' |
 export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Promise<string> {
   const token = await signHs256({
     payload: {
+      workflowRunId: claims.workflowRunId,
+      workflowRunAttemptId: claims.workflowRunAttemptId,
       jobId: claims.jobId,
       jobExecutionId: claims.jobExecutionId,
-      workflowRunAttemptId: claims.workflowRunAttemptId,
       projectId: claims.projectId,
       workspaceId: claims.workspaceId,
       runnerSessionId: claims.runnerSessionId,

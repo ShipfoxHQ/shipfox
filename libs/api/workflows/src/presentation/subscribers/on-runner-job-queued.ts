@@ -9,9 +9,10 @@ import {recordJobExecutionQueuedAt} from '#db/index.js';
 export async function onRunnerJobQueued(payload: RunnerJobQueuedEvent): Promise<void> {
   logger().debug(
     {
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
       jobId: payload.jobId,
       jobExecutionId: payload.jobExecutionId,
-      workflowRunAttemptId: payload.workflowRunAttemptId,
     },
     'Recording job execution queued_at',
   );

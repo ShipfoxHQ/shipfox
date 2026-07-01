@@ -929,6 +929,7 @@ describe('reconcileProvisionedRunners', () => {
         workspaceId,
         jobId: params.jobId,
         jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
+        workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),

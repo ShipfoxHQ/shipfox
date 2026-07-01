@@ -14,9 +14,10 @@ describe('onRunnerJobClaimed', () => {
     const claimedAt = new Date('2026-06-22T10:05:00.000Z');
 
     await onRunnerJobClaimed({
+      workflowRunId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       jobId: job.id,
       jobExecutionId: jobExecution.id,
-      workflowRunAttemptId: job.workflowRunAttemptId,
       claimedAt: claimedAt.toISOString(),
     });
 
@@ -36,15 +37,17 @@ describe('onRunnerJobClaimed', () => {
     const second = new Date('2026-06-22T10:06:00.000Z');
 
     await onRunnerJobClaimed({
+      workflowRunId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       jobId: job.id,
       jobExecutionId: jobExecution.id,
-      workflowRunAttemptId: job.workflowRunAttemptId,
       claimedAt: first.toISOString(),
     });
     await onRunnerJobClaimed({
+      workflowRunId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       jobId: job.id,
       jobExecutionId: jobExecution.id,
-      workflowRunAttemptId: job.workflowRunAttemptId,
       claimedAt: second.toISOString(),
     });
 

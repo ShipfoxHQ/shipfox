@@ -1,5 +1,5 @@
-import type {RuntimeCompletionStatus} from '../entities/runtime-dag.js';
 import type {Step, StepStatus} from '../entities/step.js';
+import type {RuntimeCompletionStatus} from '../workflow-runtime/runtime-dag.js';
 
 const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set(['succeeded', 'failed', 'cancelled']);
 

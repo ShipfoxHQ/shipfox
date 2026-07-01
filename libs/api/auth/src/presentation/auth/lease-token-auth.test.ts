@@ -31,9 +31,10 @@ describe('lease-token-auth', () => {
 
   test('valid lease token sets leased job context on the request', async () => {
     const claims = {
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
       jobId: crypto.randomUUID(),
       jobExecutionId: crypto.randomUUID(),
-      workflowRunAttemptId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
       runnerSessionId: crypto.randomUUID(),
