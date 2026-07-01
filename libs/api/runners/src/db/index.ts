@@ -38,7 +38,9 @@ export type {
   ReportProvisionedRunnersParams,
 } from './provisioned-runners.js';
 export {
+  isTerminalState,
   listActiveProvisionedRunners,
+  listProvisionerTerminateIntents,
   reconcileProvisionedRunners,
   reportProvisionedRunners,
 } from './provisioned-runners.js';

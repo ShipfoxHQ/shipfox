@@ -38,7 +38,9 @@ describe('createProvisionerClient', () => {
   });
 
   it('pollDemand posts to /demand/poll with the token and parses the response', async () => {
-    stubFetch(() => jsonResponse({stats: [], reservations: []}));
+    stubFetch(() =>
+      jsonResponse({stats: [], reservations: [], terminate_provisioned_runner_ids: []}),
+    );
 
     const result = await client().pollDemand({
       wait_seconds: 30,
@@ -48,7 +50,7 @@ describe('createProvisionerClient', () => {
       ],
     });
 
-    expect(result).toEqual({stats: [], reservations: []});
+    expect(result).toEqual({stats: [], reservations: [], terminate_provisioned_runner_ids: []});
     expect(calls[0]?.url).toContain('provisioners/demand/poll');
     expect(calls[0]?.method).toBe('POST');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);

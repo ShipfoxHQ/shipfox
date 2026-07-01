@@ -31,7 +31,10 @@ interface Harness {
   readonly tracker: ProvisionedRunnerTracker;
 }
 
-function harness(options: {response: PollDemandResponseDto; mintError?: Error}): Harness {
+type PollDemandResponseFixture = Omit<PollDemandResponseDto, 'terminate_provisioned_runner_ids'> &
+  Partial<Pick<PollDemandResponseDto, 'terminate_provisioned_runner_ids'>>;
+
+function harness(options: {response: PollDemandResponseFixture; mintError?: Error}): Harness {
   const pollBodies: PollDemandBodyDto[] = [];
   const mintBodies: MintRegistrationTokensBatchBodyDto[] = [];
   const launches: ProvisionedRunnerLaunch<null>[] = [];
@@ -40,7 +43,10 @@ function harness(options: {response: PollDemandResponseDto; mintError?: Error}):
     getIdentity: () => Promise.resolve({id: 'provisioner', workspace_id: 'workspace'}),
     pollDemand: (body) => {
       pollBodies.push(body);
-      return Promise.resolve(options.response);
+      return Promise.resolve({
+        ...options.response,
+        terminate_provisioned_runner_ids: options.response.terminate_provisioned_runner_ids ?? [],
+      });
     },
     mintRegistrationTokens: (body): Promise<MintRegistrationTokensBatchResponseDto> => {
       mintBodies.push(body);
@@ -224,7 +230,12 @@ describe('runProvisionerTick', () => {
     const tracker = createInMemoryTracker();
     const client: ProvisionerClient = {
       getIdentity: () => Promise.resolve({id: 'p', workspace_id: 'w'}),
-      pollDemand: () => Promise.resolve({stats: [], reservations: [reservation(2)]}),
+      pollDemand: () =>
+        Promise.resolve({
+          stats: [],
+          reservations: [reservation(2)],
+          terminate_provisioned_runner_ids: [],
+        }),
       mintRegistrationTokens: (body) =>
         Promise.resolve({
           tokens: body.provisioned_runners.slice(0, 1).map((runner) => ({

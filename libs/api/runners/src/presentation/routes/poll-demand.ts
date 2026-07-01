@@ -6,6 +6,8 @@ import {pollDemand, releaseReservationGrants} from '#core/demand.js';
 import type {ReservationGrant} from '#db/reservations.js';
 import {toPollDemandResponseDto} from '#presentation/dto/index.js';
 
+const TERMINATE_INTENT_LIMIT = 1000;
+
 export const pollDemandRoute = defineRoute({
   method: 'POST',
   path: '/demand/poll',
@@ -37,6 +39,7 @@ export const pollDemandRoute = defineRoute({
       maxReservations: request.body.max_reservations,
       waitSeconds: request.body.wait_seconds,
       ttlSeconds: config.RESERVATION_TTL_SECONDS,
+      terminateIntentLimit: TERMINATE_INTENT_LIMIT,
       templates: request.body.templates.map((template) => ({
         templateKey: template.template_key,
         labels: template.labels,

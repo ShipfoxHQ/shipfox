@@ -1,5 +1,6 @@
 import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import {
+  isTerminalState,
   listActiveProvisionedRunners,
   listActiveRunningJobExecutions,
   type ProvisionedRunnerReportEvent,
@@ -126,7 +127,7 @@ export function reconcileProvisionedRunnersFromDbResult(params: {
       boundJobExecution: boundJobExecution
         ? toReconciledBoundJobExecution(boundJobExecution)
         : null,
-      desiredIntent: row ? desiredIntentForState(row.state) : 'keep',
+      desiredIntent: desiredIntent(row, boundJobExecution),
     };
   });
 }
@@ -158,9 +159,14 @@ function toReconciledBoundJobExecution(
   };
 }
 
-function desiredIntentForState(state: ProvisionedRunnerState): ReconcileDesiredIntent {
-  if (state === 'starting' || state === 'running' || state === 'stopping') return 'keep';
-  return 'terminate';
+export function desiredIntent(
+  row: ProvisionedRunner | undefined,
+  boundJobExecution: ProvisionedRunnerBoundJobExecution | undefined,
+): ReconcileDesiredIntent {
+  if (!row) return 'keep';
+  if (isTerminalState(row.state)) return 'terminate';
+  if (boundJobExecution?.cancellationRequestedAt) return 'terminate';
+  return 'keep';
 }
 
 function mergeActiveRunners(

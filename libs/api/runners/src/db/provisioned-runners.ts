@@ -1,16 +1,22 @@
+import {logger} from '@shipfox/node-opentelemetry';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
+  asc,
   desc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
   lt,
+  notExists,
   notInArray,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm';
+import {alias} from 'drizzle-orm/pg-core';
 import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
@@ -20,13 +26,14 @@ import {
 } from './job-executions.js';
 import {releaseReservationUnits} from './reservations.js';
 import {provisionedRunners, toProvisionedRunner} from './schema/provisioned-runners.js';
+import {runningJobExecutions} from './schema/running-job-executions.js';
 
-const terminalStates = [
+export const terminalStates = [
   'stopped',
   'failed',
   'terminated',
 ] as const satisfies readonly ProvisionedRunnerState[];
-const activeStates = [
+export const activeStates = [
   'starting',
   'running',
   'stopping',
@@ -174,6 +181,96 @@ export async function listActiveProvisionedRunners(params: {
     .limit(params.limit ?? 1000);
 
   return rows.map(toProvisionedRunner);
+}
+
+export async function listProvisionerTerminateIntents(params: {
+  workspaceId: string;
+  provisionerId: string;
+  limit: number;
+}): Promise<string[]> {
+  return await db().transaction(async (tx) => listProvisionerTerminateIntentsTx(tx, params));
+}
+
+export async function listProvisionerTerminateIntentsTx(
+  tx: Tx,
+  params: {
+    workspaceId: string;
+    provisionerId: string;
+    limit: number;
+  },
+): Promise<string[]> {
+  const rows = await provisionerTerminateIntentsQuery(tx, params)
+    .orderBy(asc(provisionedRunners.provisionedRunnerId))
+    .limit(params.limit + 1);
+
+  const truncated = rows.length > params.limit;
+  const returnedRows = truncated ? rows.slice(0, params.limit) : rows;
+  if (truncated) {
+    logger().warn(
+      {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        limit: params.limit,
+        returnedCount: returnedRows.length,
+      },
+      'provisioner terminate intents truncated by poll-demand limit',
+    );
+  }
+
+  return returnedRows.map((row) => row.provisionedRunnerId);
+}
+
+function provisionerTerminateIntentsQuery(
+  tx: Tx,
+  params: {workspaceId: string; provisionerId: string},
+) {
+  const newerRunningJobExecutions = alias(runningJobExecutions, 'newer_running_jobs');
+
+  return tx
+    .select({provisionedRunnerId: provisionedRunners.provisionedRunnerId})
+    .from(runningJobExecutions)
+    .innerJoin(
+      provisionedRunners,
+      and(
+        eq(provisionedRunners.workspaceId, runningJobExecutions.workspaceId),
+        eq(provisionedRunners.provisionerId, runningJobExecutions.provisionerId),
+        eq(provisionedRunners.provisionedRunnerId, runningJobExecutions.provisionedRunnerId),
+      ),
+    )
+    .where(
+      and(
+        eq(runningJobExecutions.workspaceId, params.workspaceId),
+        eq(runningJobExecutions.provisionerId, params.provisionerId),
+        isNotNull(runningJobExecutions.cancellationRequestedAt),
+        inArray(provisionedRunners.state, activeStates),
+        notExists(
+          tx
+            .select({id: newerRunningJobExecutions.id})
+            .from(newerRunningJobExecutions)
+            .where(
+              and(
+                eq(newerRunningJobExecutions.workspaceId, runningJobExecutions.workspaceId),
+                eq(newerRunningJobExecutions.provisionerId, runningJobExecutions.provisionerId),
+                eq(
+                  newerRunningJobExecutions.provisionedRunnerId,
+                  runningJobExecutions.provisionedRunnerId,
+                ),
+                or(
+                  gt(newerRunningJobExecutions.startedAt, runningJobExecutions.startedAt),
+                  and(
+                    eq(newerRunningJobExecutions.startedAt, runningJobExecutions.startedAt),
+                    gt(
+                      newerRunningJobExecutions.jobExecutionId,
+                      runningJobExecutions.jobExecutionId,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ),
+      ),
+    )
+    .groupBy(provisionedRunners.provisionedRunnerId);
 }
 
 export async function reconcileProvisionedRunners(
@@ -501,6 +598,6 @@ function firstObservedAt(current: SQL | ProvisionedRunnerMilestoneColumn, incomi
   `;
 }
 
-function isTerminalState(state: ProvisionedRunnerState): boolean {
+export function isTerminalState(state: ProvisionedRunnerState): boolean {
   return terminalStates.includes(state as (typeof terminalStates)[number]);
 }

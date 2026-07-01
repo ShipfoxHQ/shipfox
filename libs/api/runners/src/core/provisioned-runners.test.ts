@@ -36,6 +36,24 @@ describe('reconcileProvisionedRunnersFromDbResult', () => {
       desiredIntent: 'keep',
     });
   });
+
+  it('terminates active provisioned runners with a cancelled latest bound job', () => {
+    const result = reconcileProvisionedRunnersFromDbResult({
+      observedProvisionedRunnerIds: ['provisioned-runner-1'],
+      observedRows: [provisionedRunner({provisionedRunnerId: 'provisioned-runner-1'})],
+      boundJobExecutionsByProvisionedRunnerId: new Map([
+        [
+          'provisioned-runner-1',
+          boundJobExecution({
+            provisionedRunnerId: 'provisioned-runner-1',
+            cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+          }),
+        ],
+      ]),
+    });
+
+    expect(result[0]?.desiredIntent).toBe('terminate');
+  });
 });
 
 function provisionedRunner(params: {
@@ -63,5 +81,21 @@ function provisionedRunner(params: {
     reservationReleasedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+}
+
+function boundJobExecution(params: {
+  provisionedRunnerId: string;
+  cancellationRequestedAt?: Date | null;
+}) {
+  return {
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
+    jobId: crypto.randomUUID(),
+    jobExecutionId: crypto.randomUUID(),
+    provisionedRunnerId: params.provisionedRunnerId,
+    startedAt: new Date('2025-01-01T00:00:00.000Z'),
+    lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
+    cancellationRequestedAt: params.cancellationRequestedAt ?? null,
   };
 }

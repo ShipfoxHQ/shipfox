@@ -1,9 +1,11 @@
 import {setTimeout as sleep} from 'node:timers/promises';
 import {config} from '#config.js';
+import {db} from '#db/db.js';
+import {listProvisionerTerminateIntentsTx} from '#db/provisioned-runners.js';
 import {
   type DemandStat,
   deleteReservationsByIds,
-  pollDemandAndReserve,
+  pollDemandAndReserveTx,
   type ReservationGrant,
   type ReservationTemplate,
 } from '#db/reservations.js';
@@ -14,6 +16,7 @@ export interface PollDemandParams {
   maxReservations: number;
   waitSeconds?: number | undefined;
   ttlSeconds: number;
+  terminateIntentLimit: number;
   templates: ReservationTemplate[];
   signal: AbortSignal;
 }
@@ -21,6 +24,7 @@ export interface PollDemandParams {
 export interface PollDemandResult {
   stats: DemandStat[];
   reservations: ReservationGrant[];
+  terminateProvisionedRunnerIds: string[];
 }
 
 export async function pollDemand(params: PollDemandParams): Promise<PollDemandResult> {
@@ -34,18 +38,39 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
     0,
   );
   let interval = config.RESERVATION_POLL_INTERVAL_MS;
-  let lastResult: PollDemandResult = {stats: [], reservations: []};
+  let lastResult: PollDemandResult = {
+    stats: [],
+    reservations: [],
+    terminateProvisionedRunnerIds: [],
+  };
 
   while (true) {
     if (params.signal.aborted) return lastResult;
 
     const previousResult = lastResult;
-    const result = await pollDemandAndReserve({
-      workspaceId: params.workspaceId,
-      provisionerId: params.provisionerId,
-      maxReservations: params.maxReservations,
-      ttlSeconds: params.ttlSeconds,
-      templates: params.templates,
+    const deadlinePassed = Date.now() >= deadlineMs;
+    const result = await db().transaction(async (tx) => {
+      const demand = await pollDemandAndReserveTx(tx, {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        maxReservations: params.maxReservations,
+        ttlSeconds: params.ttlSeconds,
+        templates: params.templates,
+      });
+      const result: PollDemandResult = {
+        ...demand,
+        terminateProvisionedRunnerIds: await listProvisionerTerminateIntentsTx(tx, {
+          workspaceId: params.workspaceId,
+          provisionerId: params.provisionerId,
+          limit: params.terminateIntentLimit,
+        }),
+      };
+
+      if (!shouldReturn(result, params.maxReservations, totalCapacity, deadlinePassed)) {
+        return result;
+      }
+
+      return result;
     });
     if (params.signal.aborted) {
       await releaseReservationGrants(result.reservations);
@@ -54,7 +79,7 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
 
     lastResult = result;
 
-    if (shouldReturn(lastResult, params.maxReservations, totalCapacity, Date.now() >= deadlineMs)) {
+    if (shouldReturn(lastResult, params.maxReservations, totalCapacity, deadlinePassed)) {
       return lastResult;
     }
 
@@ -82,7 +107,11 @@ export function shouldReturn(
   deadlinePassed: boolean,
 ): boolean {
   return (
-    maxReservations === 0 || totalCapacity === 0 || result.reservations.length > 0 || deadlinePassed
+    maxReservations === 0 ||
+    totalCapacity === 0 ||
+    result.reservations.length > 0 ||
+    result.terminateProvisionedRunnerIds.length > 0 ||
+    deadlinePassed
   );
 }
 

@@ -16,7 +16,8 @@ import {
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
-import {pendingJobFactory} from '#test/index.js';
+import {runningJobExecutions} from '#db/schema/running-job-executions.js';
+import {pendingJobFactory, provisionedRunnerFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -64,7 +65,7 @@ describe('POST /provisioners/demand/poll', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_reservations, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_pending_jobs, runners_reservations, runners_provisioned_runners, runners_running_jobs, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     provisionerTokenId = crypto.randomUUID();
@@ -84,6 +85,7 @@ describe('POST /provisioners/demand/poll', () => {
     expect(res.json()).toMatchObject({
       stats: [{labels: ['linux'], queued: 1, reserved: 1}],
       reservations: [{labels: ['linux'], count: 1}],
+      terminate_provisioned_runner_ids: [],
     });
     expect(res.json().reservations[0].reservation_id).toEqual(expect.any(String));
     expect(res.json().reservations[0].expires_at).toEqual(expect.any(String));
@@ -103,6 +105,33 @@ describe('POST /provisioners/demand/poll', () => {
     expect(res.json()).toMatchObject({
       stats: [{labels: ['linux'], queued: 1, reserved: 0}],
       reservations: [],
+      terminate_provisioned_runner_ids: [],
+    });
+  });
+
+  it('returns terminate intent ids for active provisioned runners with cancelled latest jobs', async () => {
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisionerTokenId,
+      provisionedRunnerId: 'provisioned-runner-1',
+      state: 'running',
+    });
+    await insertRunningJob({
+      provisionedRunnerId: 'provisioned-runner-1',
+      cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/demand/poll',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: body({max_reservations: 0}),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      reservations: [],
+      terminate_provisioned_runner_ids: ['provisioned-runner-1'],
     });
   });
 
@@ -171,5 +200,29 @@ describe('POST /provisioners/demand/poll', () => {
         },
       ],
     };
+  }
+
+  async function insertRunningJob(params: {
+    provisionedRunnerId: string;
+    cancellationRequestedAt?: Date | null;
+  }) {
+    await db()
+      .insert(runningJobExecutions)
+      .values({
+        workspaceId,
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        runnerSessionId: crypto.randomUUID(),
+        provisionerId: provisionerTokenId,
+        provisionedRunnerId: params.provisionedRunnerId,
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+        startedAt: new Date('2025-01-01T00:00:00.000Z'),
+        lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
+        cancellationRequestedAt: params.cancellationRequestedAt ?? null,
+      });
   }
 });

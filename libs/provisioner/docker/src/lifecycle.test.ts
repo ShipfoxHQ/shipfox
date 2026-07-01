@@ -238,7 +238,8 @@ function fakeClient(options: {reportError?: Error} = {}): ProvisionerClient & {
         id: '00000000-0000-4000-8000-000000000001',
         workspace_id: '00000000-0000-4000-8000-000000000002',
       }),
-    pollDemand: () => Promise.resolve({stats: [], reservations: []}),
+    pollDemand: () =>
+      Promise.resolve({stats: [], reservations: [], terminate_provisioned_runner_ids: []}),
     mintRegistrationTokens: () => Promise.resolve({tokens: []}),
     reportProvisionedRunners: (body): Promise<ReportProvisionedRunnersResponseDto> => {
       reportBodies.push(body);
