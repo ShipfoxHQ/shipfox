@@ -184,6 +184,8 @@ function harness(options: {response: PollDemandResponseFixture; onPoll?: () => v
         });
       },
       reportProvisionedRunners: () => Promise.resolve({accepted: 0, reservations_released: 0}),
+      reconcileProvisionedRunners: () =>
+        Promise.resolve({runners: [], terminated_absent_provisioned_runner_ids: []}),
     },
   };
 }

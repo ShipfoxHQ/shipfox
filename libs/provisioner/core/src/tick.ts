@@ -8,7 +8,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import type {ProvisionerClient} from '#api-client.js';
 import {type PlannedLaunchGroup, planLaunches, templateAvailableSlots} from '#capacity.js';
 import type {ProvisionedRunnerTracker} from '#tracker.js';
-import type {LaunchRunner, ProvisionerTemplate} from '#types.js';
+import type {LaunchRunner, ProvisionerTemplate, TerminateRunners} from '#types.js';
 
 /** The API caps reservations per poll at 1000; never advertise a larger appetite. */
 const MAX_RESERVATIONS_PER_POLL = 1000;
@@ -23,6 +23,7 @@ export interface ProvisionerTickDeps<Spec> {
   readonly templates: readonly ProvisionerTemplate<Spec>[];
   readonly tracker: ProvisionedRunnerTracker;
   readonly launch: LaunchRunner<Spec>;
+  readonly terminate?: TerminateRunners;
   readonly buildRunnerEnv: RunnerEnvFactory<Spec>;
   readonly maxReservations: number;
   readonly waitSeconds: number;
@@ -77,6 +78,14 @@ export async function runProvisionerTick<Spec>(
     {wait_seconds: deps.waitSeconds, max_reservations: maxReservations, templates: advertisements},
     deps.signal ? {signal: deps.signal} : {},
   );
+
+  if (
+    response.terminate_provisioned_runner_ids.length > 0 &&
+    !deps.signal?.aborted &&
+    deps.terminate
+  ) {
+    await deps.terminate(response.terminate_provisioned_runner_ids);
+  }
 
   const planned = planLaunches({
     reservations: response.reservations.map((reservation) => ({
