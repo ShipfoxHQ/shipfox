@@ -1,7 +1,6 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {
   Button,
-  Code,
   CodeBlock,
   CodeBlockBody,
   CodeBlockContent,
@@ -55,8 +54,6 @@ export function IntegrationUsageModal({
     setSelectedEvent(events[0]?.value ?? '');
   }, [events]);
 
-  const selectedEventLabel =
-    events.find((event) => event.value === selectedEvent)?.label ?? selectedEvent;
   const workflowExample = connection
     ? buildWorkflowExample({source: connection.slug, event: selectedEvent})
     : '';
@@ -140,10 +137,6 @@ export function IntegrationUsageModal({
                     )}
                   </CodeBlockBody>
                 </CodeBlock>
-                <Text size="sm" className="text-foreground-neutral-muted">
-                  Trigger source <Code as="span">{connection.slug}</Code>, event{' '}
-                  <Code as="span">{selectedEventLabel}</Code>.
-                </Text>
               </section>
               {children ? (
                 <section className="flex w-full flex-col gap-12">

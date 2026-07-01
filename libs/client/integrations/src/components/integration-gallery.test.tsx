@@ -298,8 +298,6 @@ describe('IntegrationGallery — installed section', () => {
     fireEvent.click(screen.getByRole('menuitem', {name: 'Use this integration'}));
 
     expect(await screen.findByText('Usage')).toBeVisible();
-    expect(screen.getByText('stripe-prod')).toBeVisible();
-    expect(screen.getByText('received')).toBeVisible();
     expect(await screen.findByText('Inbound URL')).toBeVisible();
     expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
   });
