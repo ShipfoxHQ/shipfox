@@ -30,7 +30,10 @@ describe('secret store', () => {
       key: 'API_KEY',
     });
     const values = await getSecretsByNamespace({workspaceId, namespace: 'system/agent/openai'});
-    const rows = await db().select().from(secretValues);
+    const rows = await db()
+      .select()
+      .from(secretValues)
+      .where(eq(secretValues.workspaceId, workspaceId));
 
     expect(value).toBe('sk-live-value');
     expect(values).toEqual({API_KEY: 'sk-live-value'});
