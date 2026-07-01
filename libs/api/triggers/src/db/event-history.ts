@@ -9,6 +9,7 @@ export interface InsertReceivedEventParams {
   eventRef: string;
   origin: TriggerEventOrigin;
   workspaceId: string;
+  provider: string | null;
   source: string;
   event: string;
   deliveryId: string | null;
@@ -27,6 +28,7 @@ export async function insertReceivedEvent(params: InsertReceivedEventParams): Pr
       eventRef: params.eventRef,
       origin: params.origin,
       workspaceId: params.workspaceId,
+      provider: params.provider,
       source: params.source,
       event: params.event,
       deliveryId: params.deliveryId,

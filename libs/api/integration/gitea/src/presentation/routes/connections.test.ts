@@ -1,5 +1,8 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationConnection,
+} from '@shipfox/api-integration-core-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GiteaApiClient} from '#api/client.js';
@@ -57,27 +60,32 @@ function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
 interface CreateTestAppOptions {
   gitea?: GiteaApiClient;
   existingConnection?: IntegrationConnection<'gitea'> | undefined;
+  connectGiteaConnection?:
+    | ((input: ConnectGiteaConnectionInput) => Promise<IntegrationConnection<'gitea'>>)
+    | undefined;
 }
 
 async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
   const provider = createGiteaIntegrationProvider({
     gitea: options.gitea ?? giteaClient(),
     getExistingGiteaConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
-    connectGiteaConnection: vi.fn((input: ConnectGiteaConnectionInput) => {
-      const connection: IntegrationConnection<'gitea'> = {
-        id: crypto.randomUUID(),
-        workspaceId: input.workspaceId,
-        provider: 'gitea',
-        externalAccountId: input.org,
-        slug: 'gitea_shipfox',
-        displayName: input.displayName,
-        lifecycleStatus: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    connectGiteaConnection:
+      options.connectGiteaConnection ??
+      vi.fn((input: ConnectGiteaConnectionInput) => {
+        const connection: IntegrationConnection<'gitea'> = {
+          id: crypto.randomUUID(),
+          workspaceId: input.workspaceId,
+          provider: 'gitea',
+          externalAccountId: input.org,
+          slug: 'gitea_shipfox',
+          displayName: input.displayName,
+          lifecycleStatus: 'active',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
 
-      return Promise.resolve(connection);
-    }),
+        return Promise.resolve(connection);
+      }),
     // Provider-level mounting includes webhook routes; these tests exercise only connections.
     coreDb: vi.fn() as never,
     publishSourcePush: vi.fn() as never,
@@ -173,5 +181,23 @@ describe('Gitea connection routes', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('gitea-org-already-linked');
+  });
+
+  it('returns 409 when connection slug allocation conflicts repeatedly', async () => {
+    const app = await createTestApp({
+      connectGiteaConnection: vi.fn(() =>
+        Promise.reject(new ConnectionSlugConflictError(new Error('duplicate slug'))),
+      ),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/gitea/connections',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: crypto.randomUUID(), org: 'shipfox'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('slug-conflict');
   });
 });

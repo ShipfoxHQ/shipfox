@@ -15,6 +15,7 @@ export interface TriggerReceivedEvent {
   eventRef: string;
   origin: TriggerEventOrigin;
   workspaceId: string;
+  provider: string | null;
   source: string;
   event: string;
   deliveryId: string | null;

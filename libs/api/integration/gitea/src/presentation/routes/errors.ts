@@ -1,4 +1,7 @@
-import type {IntegrationProviderErrorReason} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationProviderErrorReason,
+} from '@shipfox/api-integration-core-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   GiteaIntegrationProviderError,
@@ -18,6 +21,9 @@ export function giteaRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof GiteaOrgAlreadyLinkedError) {
     throw new ClientError(error.message, 'gitea-org-already-linked', {status: 409});
+  }
+  if (error instanceof ConnectionSlugConflictError) {
+    throw new ClientError(error.message, 'slug-conflict', {status: 409});
   }
   if (error instanceof GiteaIntegrationProviderError) {
     throw new ClientError(error.message, error.reason, {

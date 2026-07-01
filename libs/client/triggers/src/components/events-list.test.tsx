@@ -11,6 +11,7 @@ function makeEvent(overrides: Partial<TriggerEventListItemDto> = {}): TriggerEve
     event_ref: 'ref-1',
     origin: 'integration',
     workspace_id: 'ws-1',
+    provider: 'github',
     source: 'github',
     event: 'push',
     delivery_id: 'delivery-1',

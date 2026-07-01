@@ -1,20 +1,23 @@
 import {getTriggerSourceIcon} from './trigger-source-icon.js';
 
 describe('getTriggerSourceIcon', () => {
-  it('maps the system sources manual and cron to their own icons', () => {
-    expect(getTriggerSourceIcon('manual')).toBe('cursorLine');
-    expect(getTriggerSourceIcon('cron')).toBe('timeLine');
+  test('maps the system sources manual and cron to their own icons', () => {
+    expect(getTriggerSourceIcon({provider: null, source: 'manual'})).toBe('cursorLine');
+    expect(getTriggerSourceIcon({provider: null, source: 'cron'})).toBe('timeLine');
   });
 
-  it('delegates integration sources to the integration catalog', () => {
-    expect(getTriggerSourceIcon('github')).toBe('github');
-    expect(getTriggerSourceIcon('sentry')).toBe('sentry');
+  test('resolves integration icons from provider while preserving slug sources', () => {
+    const icon = getTriggerSourceIcon({provider: 'github', source: 'github_acme'});
+
+    expect(icon).toBe('github');
   });
 
-  it('falls back for unknown or empty sources', () => {
-    expect(getTriggerSourceIcon('gitlab')).toBe('componentLine');
-    expect(getTriggerSourceIcon('')).toBe('componentLine');
-    expect(getTriggerSourceIcon(null)).toBe('componentLine');
-    expect(getTriggerSourceIcon(undefined)).toBe('componentLine');
+  test('falls back for unknown or empty providers', () => {
+    expect(getTriggerSourceIcon({provider: 'gitlab', source: 'gitlab_acme'})).toBe('componentLine');
+    expect(getTriggerSourceIcon({provider: '', source: 'github_acme'})).toBe('componentLine');
+    expect(getTriggerSourceIcon({provider: null, source: 'github_acme'})).toBe('componentLine');
+    expect(getTriggerSourceIcon({provider: undefined, source: 'github_acme'})).toBe(
+      'componentLine',
+    );
   });
 });

@@ -52,6 +52,7 @@ function makeEvent(
     event_ref: 'github:delivery-179:push',
     origin: 'integration',
     workspace_id: WORKSPACE_ID,
+    provider: 'github',
     source: 'github',
     event: 'push',
     delivery_id: 'delivery-179',

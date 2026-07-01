@@ -1,9 +1,13 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationConnection,
+} from '@shipfox/api-integration-core-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {SentryApiClient} from '#api/client.js';
 import {SentryIntegrationProviderError} from '#core/errors.js';
+import type {ConnectSentryInstallationInput} from '#core/install.js';
 import type {SentryInstallation} from '#db/installations.js';
 import {createSentryIntegrationProvider} from '#index.js';
 
@@ -72,6 +76,9 @@ interface CreateTestAppOptions {
   sentry?: SentryApiClient;
   installation?: SentryInstallation | undefined;
   existingConnection?: IntegrationConnection<'sentry'> | undefined;
+  connectSentryInstallation?:
+    | ((input: ConnectSentryInstallationInput) => Promise<IntegrationConnection<'sentry'>>)
+    | undefined;
 }
 
 async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
@@ -82,19 +89,21 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
     persistVerifiedUnclaimedInstallation: vi.fn((input) =>
       Promise.resolve(unclaimedInstallation({...input})),
     ),
-    connectSentryInstallation: vi.fn((input) =>
-      Promise.resolve({
-        id: crypto.randomUUID(),
-        workspaceId: input.workspaceId,
-        provider: 'sentry' as const,
-        externalAccountId: input.installationUuid,
-        slug: 'sentry_acme',
-        displayName: input.displayName,
-        lifecycleStatus: 'active' as const,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
-    ),
+    connectSentryInstallation:
+      options.connectSentryInstallation ??
+      vi.fn((input) =>
+        Promise.resolve({
+          id: crypto.randomUUID(),
+          workspaceId: input.workspaceId,
+          provider: 'sentry' as const,
+          externalAccountId: input.installationUuid,
+          slug: 'sentry_acme',
+          displayName: input.displayName,
+          lifecycleStatus: 'active' as const,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      ),
     // Webhook receiver dependencies — install/connect tests don't exercise them.
     coreDb: vi.fn() as never,
     publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
@@ -226,6 +235,24 @@ describe('Sentry integration routes', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('sentry-installation-already-linked');
+  });
+
+  it('returns 409 when connection slug allocation conflicts repeatedly', async () => {
+    const app = await createTestApp({
+      connectSentryInstallation: vi.fn(() =>
+        Promise.reject(new ConnectionSlugConflictError(new Error('duplicate slug'))),
+      ),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('slug-conflict');
   });
 
   it('maps a non-access-denied provider error to its status', async () => {

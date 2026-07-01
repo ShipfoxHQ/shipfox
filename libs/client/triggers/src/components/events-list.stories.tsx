@@ -29,6 +29,7 @@ function makeQuery(overrides: Partial<TriggerEventsListQuery> = {}): TriggerEven
 let seq = 0;
 function makeEvent(
   outcome: TriggerEventOutcomeDto,
+  provider: string | null,
   source: string,
   event: string,
   matchedCount: number,
@@ -40,6 +41,7 @@ function makeEvent(
     event_ref: `ref-${seq}`,
     origin: 'integration',
     workspace_id: 'ws-demo',
+    provider,
     source,
     event,
     delivery_id: `delivery-${String(seq).padStart(6, '0')}`,
@@ -53,11 +55,11 @@ function makeEvent(
 }
 
 const SAMPLE_EVENTS: TriggerEventListItemDto[] = [
-  makeEvent('received', 'github', 'push', 0, 0),
-  makeEvent('routed', 'github', 'push', 2, 3),
-  makeEvent('routed', 'gitea', 'pull_request', 1, 12),
-  makeEvent('discarded', 'github', 'issue_comment', 0, 38),
-  makeEvent('failed', 'gitlab', 'push', 1, 95),
+  makeEvent('received', 'github', 'github_acme', 'push', 0, 0),
+  makeEvent('routed', 'github', 'github_acme', 'push', 2, 3),
+  makeEvent('routed', 'gitea', 'gitea_acme', 'pull_request', 1, 12),
+  makeEvent('discarded', 'github', 'github_acme', 'issue_comment', 0, 38),
+  makeEvent('failed', 'gitlab', 'gitlab_acme', 'push', 1, 95),
 ];
 
 const SAMPLE_FACETS: TriggerEventFacetsResponseDto = {
