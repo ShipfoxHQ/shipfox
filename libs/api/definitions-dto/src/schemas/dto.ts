@@ -10,11 +10,27 @@ export const createDefinitionBodySchema = z
     ref: z.string().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.source === 'vcs' && !value.config_path) {
+    const source = value.source ?? 'manual';
+    if (source === 'vcs' && !value.config_path) {
       ctx.addIssue({
         code: 'custom',
         message: 'config_path is required for VCS definitions',
         path: ['config_path'],
+      });
+    }
+    const hasRefOrSha = value.ref != null || value.sha != null;
+    if (source === 'vcs' && !hasRefOrSha) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'VCS definitions require a ref or sha',
+        path: ['ref'],
+      });
+    }
+    if (source === 'manual' && hasRefOrSha) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'manual definitions must not set ref or sha',
+        path: value.ref != null ? ['ref'] : ['sha'],
       });
     }
   });
