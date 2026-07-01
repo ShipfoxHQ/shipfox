@@ -51,6 +51,7 @@ vi.mock('@shipfox/api-integration-core', () => ({
 vi.mock('@shipfox/api-logs', () => ({logsModule: {name: 'logs'}}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
 vi.mock('@shipfox/api-runners', () => ({runnersModule: {name: 'runners'}}));
+vi.mock('@shipfox/api-secrets', () => ({secretsModule: {name: 'secrets'}}));
 vi.mock('@shipfox/api-triggers', () => ({triggersModule: {name: 'triggers'}}));
 vi.mock('@shipfox/api-workflows', () => ({
   setSourceControl: mocks.setSourceControl,
