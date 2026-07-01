@@ -1,6 +1,6 @@
-# Shipfox API Secrets
+# @shipfox/api-secrets
 
-Shipfox API Secrets stores workspace secrets and variables for backend modules.
+`@shipfox/api-secrets` stores workspace secrets and variables for backend modules.
 
 ## What it does
 
