@@ -11,6 +11,7 @@ import type {
   WorkflowRunAttemptDto,
   WorkflowRunDetailResponseDto,
   WorkflowRunJobDetailDto,
+  WorkflowRunJobExecutionDetailDto,
   WorkflowRunListResponseDto,
   WorkflowRunResponseDto,
   WorkflowRunStatusDto,
@@ -19,6 +20,7 @@ import type {
 
 export type WorkflowRunStatus = WorkflowRunStatusDto;
 export type WorkflowJobStatus = JobStatusDto;
+export type WorkflowJobExecutionStatus = WorkflowRunJobExecutionDetailDto['status'];
 export type WorkflowJobStatusReason = JobStatusReasonDto;
 export type WorkflowStatus = WorkflowRunStatus | WorkflowJobStatus;
 export type WorkflowStepErrorReason = StepErrorReasonDto;
@@ -150,6 +152,22 @@ export interface WorkflowJob {
   startedAt: string | null;
   finishedAt: string | null;
   duration: WorkflowJobDuration;
+  jobExecutions: WorkflowJobExecution[];
+}
+
+export interface WorkflowJobExecution {
+  id: string;
+  jobId: string;
+  sequence: number;
+  name: string;
+  status: WorkflowJobExecutionStatus;
+  statusReason: string | null;
+  queuedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  timedOutAt: string | null;
+  createdAt: string;
+  updatedAt: string;
   steps: WorkflowStep[];
 }
 
@@ -303,10 +321,27 @@ export function toWorkflowJob(dto: WorkflowRunJobDetailDto): WorkflowJob {
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
     duration: toWorkflowJobDuration(dto.duration),
-    // The current client UI is single-job-execution: multi-job-execution grouping belongs to ENG-675.
-    steps: dto.job_executions.flatMap((jobExecution) =>
-      jobExecution.steps.map((step) => toWorkflowStep(step, dto.id)),
-    ),
+    jobExecutions: dto.job_executions.map(toWorkflowJobExecution),
+  };
+}
+
+export function toWorkflowJobExecution(
+  dto: WorkflowRunJobExecutionDetailDto,
+): WorkflowJobExecution {
+  return {
+    id: dto.id,
+    jobId: dto.job_id,
+    sequence: dto.sequence,
+    name: dto.name,
+    status: dto.status,
+    statusReason: dto.status_reason,
+    queuedAt: dto.queued_at ?? null,
+    startedAt: dto.started_at ?? null,
+    finishedAt: dto.finished_at ?? null,
+    timedOutAt: dto.timed_out_at ?? null,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+    steps: dto.steps.map((step) => toWorkflowStep(step, dto.job_id)),
   };
 }
 

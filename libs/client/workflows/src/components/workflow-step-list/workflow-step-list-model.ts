@@ -5,6 +5,7 @@ import {
 import {
   isWorkflowStatus as isKnownWorkflowStatus,
   type WorkflowJob,
+  type WorkflowJobExecution,
   type WorkflowStep,
   type WorkflowStepAttempt,
 } from '#core/workflow-run.js';
@@ -32,13 +33,21 @@ export interface WorkflowStepListEntryModel extends WorkflowStepAttemptModel {
 export interface WorkflowStepListModel {
   jobId: string;
   jobName: string;
+  jobExecutionId: string;
   stepCount: number;
   activeEntryId: string | undefined;
   entries: WorkflowStepListEntryModel[];
 }
 
-export function buildWorkflowStepListModel({job}: {job: WorkflowJob}): WorkflowStepListModel {
-  const steps = [...job.steps].sort(compareSteps).map(toStepModel);
+export function buildWorkflowStepListModel({
+  job,
+  jobExecution,
+}: {
+  job: WorkflowJob;
+  jobExecution?: WorkflowJobExecution | undefined;
+}): WorkflowStepListModel {
+  const selectedJobExecution = jobExecution ?? job.jobExecutions[0] ?? emptyJobExecutionForJob(job);
+  const steps = [...selectedJobExecution.steps].sort(compareSteps).map(toStepModel);
   const entries = steps
     .flatMap((step) => toStepEntries(step, job.carriedOver))
     .sort(compareEntries);
@@ -46,9 +55,28 @@ export function buildWorkflowStepListModel({job}: {job: WorkflowJob}): WorkflowS
   return {
     jobId: job.id,
     jobName: job.name ?? job.key,
+    jobExecutionId: selectedJobExecution.id,
     stepCount: steps.length,
     activeEntryId: latestRunningEntryId(entries),
     entries,
+  };
+}
+
+function emptyJobExecutionForJob(job: WorkflowJob): WorkflowJobExecution {
+  return {
+    id: `missing:${job.id}`,
+    jobId: job.id,
+    sequence: 1,
+    name: job.name ?? job.key,
+    status: job.status === 'skipped' ? 'cancelled' : job.status,
+    statusReason: job.statusReason,
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    timedOutAt: null,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    steps: [],
   };
 }
 

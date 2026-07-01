@@ -179,8 +179,13 @@ export function workflowJobExecutionDto(
   overrides: Partial<WorkflowRunJobExecutionDetailDto> = {},
 ): WorkflowRunJobExecutionDetailDto {
   jobExecutionSequence += 1;
+  const id =
+    overrides.id ?? `77777777-7777-4777-8777-${String(jobExecutionSequence).padStart(12, '0')}`;
+  const {steps: overrideSteps, ...restOverrides} = overrides;
+  const steps = overrideSteps?.map((step) => ({...step, job_execution_id: id})) ?? [];
+
   return {
-    id: `77777777-7777-4777-8777-${String(jobExecutionSequence).padStart(12, '0')}`,
+    id,
     job_id: JOB_ID,
     sequence: 1,
     name: 'build',
@@ -192,8 +197,8 @@ export function workflowJobExecutionDto(
     timed_out_at: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
-    steps: [],
-    ...overrides,
+    steps,
+    ...restOverrides,
   };
 }
 

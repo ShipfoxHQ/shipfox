@@ -181,9 +181,18 @@ describe('workflow run model mapping', () => {
         toIso: '2026-05-07T01:02:00.000Z',
       },
     });
-    expect(detail.jobs[0]?.steps[0]).toMatchObject({
+    expect(detail.jobs[0]?.jobExecutions[0]).toMatchObject({
+      sequence: 1,
+      status: 'pending',
+      queuedAt: null,
+      startedAt: null,
+      finishedAt: null,
+      timedOutAt: null,
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]).toMatchObject({
       id: '55555555-5555-4555-8555-000000000001',
       jobId: '44444444-4444-4444-8444-000000000001',
+      jobExecutionId: detail.jobs[0]?.jobExecutions[0]?.id,
       key: null,
       name: 'Run tests',
       sourceLocation: {startLine: 3, endLine: 5},
@@ -196,8 +205,9 @@ describe('workflow run model mapping', () => {
         category: 'user',
       },
     });
-    expect(detail.jobs[0]?.steps[0]?.attempts[0]).toMatchObject({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.attempts[0]).toMatchObject({
       id: '66666666-6666-4666-8666-000000000001',
+      jobExecutionId: detail.jobs[0]?.jobExecutions[0]?.id,
       executionOrder: 4,
       exitCode: 1,
       output: {tail: 'stderr'},
@@ -253,11 +263,11 @@ describe('workflow run model mapping', () => {
       finishedAt: null,
       duration: {kind: 'none'},
     });
-    expect(detail.jobs[0]?.steps[0]).toMatchObject({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]).toMatchObject({
       sourceLocation: null,
       error: null,
     });
-    expect(detail.jobs[0]?.steps[0]?.attempts[0]).toMatchObject({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.attempts[0]).toMatchObject({
       exitCode: null,
       output: null,
       error: null,
@@ -309,12 +319,12 @@ describe('workflow run model mapping', () => {
       }),
     );
 
-    expect(detail.jobs[0]?.steps[0]?.agentConfig).toEqual({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.agentConfig).toEqual({
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
-    expect(detail.jobs[0]?.steps[1]?.agentConfig).toEqual({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[1]?.agentConfig).toEqual({
       provider: null,
       model: null,
       thinking: null,
@@ -333,7 +343,7 @@ describe('workflow run model mapping', () => {
       }),
     );
 
-    expect(detail.jobs[0]?.steps[0]?.agentConfig).toBeNull();
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.agentConfig).toBeNull();
   });
 
   test('maps run attempt summaries', () => {

@@ -17,7 +17,12 @@ import {
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import {isWorkflowStatus, type WorkflowJob, type WorkflowStep} from '#core/workflow-run.js';
+import {
+  isWorkflowStatus,
+  type WorkflowJob,
+  type WorkflowJobExecution,
+  type WorkflowStep,
+} from '#core/workflow-run.js';
 import {
   buildWorkflowStepListModel,
   humanizeStatus,
@@ -44,30 +49,38 @@ export interface WorkflowStepListEmptyState {
 
 export interface WorkflowStepListProps {
   job: WorkflowJob;
+  jobExecution?: WorkflowJobExecution | undefined;
   selectedAttemptId?: string | null | undefined;
   defaultSelectedAttemptId?: string | undefined;
   onSelectedAttemptChange?: ((attemptId: string | undefined) => void) | undefined;
   autoSelectActiveAttempt?: boolean | undefined;
   emptyState?: WorkflowStepListEmptyState | undefined;
   renderExpandedStep?: ((context: WorkflowStepExpandedContext) => ReactNode) | undefined;
+  showHeader?: boolean | undefined;
   className?: string | undefined;
 }
 
 export function WorkflowStepList({
   job,
+  jobExecution,
   selectedAttemptId,
   defaultSelectedAttemptId,
   onSelectedAttemptChange,
   autoSelectActiveAttempt = false,
   emptyState,
   renderExpandedStep,
+  showHeader = true,
   className,
 }: WorkflowStepListProps) {
-  const model = useMemo(() => buildWorkflowStepListModel({job}), [job]);
+  const selectedJobExecution = jobExecution ?? job.jobExecutions[0] ?? emptyJobExecutionForJob(job);
+  const model = useMemo(
+    () => buildWorkflowStepListModel({job, jobExecution: selectedJobExecution}),
+    [job, selectedJobExecution],
+  );
 
   return (
     <WorkflowStepListContent
-      key={model.jobId}
+      key={model.jobExecutionId}
       model={model}
       selectedAttemptId={selectedAttemptId}
       defaultSelectedAttemptId={defaultSelectedAttemptId}
@@ -75,9 +88,28 @@ export function WorkflowStepList({
       autoSelectActiveAttempt={autoSelectActiveAttempt}
       emptyState={emptyState}
       renderExpandedStep={renderExpandedStep}
+      showHeader={showHeader}
       className={className}
     />
   );
+}
+
+function emptyJobExecutionForJob(job: WorkflowJob): WorkflowJobExecution {
+  return {
+    id: `missing:${job.id}`,
+    jobId: job.id,
+    sequence: 1,
+    name: job.name ?? job.key,
+    status: job.status === 'skipped' ? 'cancelled' : job.status,
+    statusReason: job.statusReason,
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    timedOutAt: null,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    steps: [],
+  };
 }
 
 function WorkflowStepListContent({
@@ -88,8 +120,9 @@ function WorkflowStepListContent({
   autoSelectActiveAttempt,
   emptyState,
   renderExpandedStep,
+  showHeader,
   className,
-}: Omit<WorkflowStepListProps, 'job'> & {model: WorkflowStepListModel}) {
+}: Omit<WorkflowStepListProps, 'job' | 'jobExecution'> & {model: WorkflowStepListModel}) {
   const titleId = useId();
   const [localSelectedAttemptIds, setLocalSelectedAttemptIds] = useState<string[]>(() =>
     selectedAttemptId
@@ -146,17 +179,19 @@ function WorkflowStepListContent({
 
   return (
     <section
-      aria-labelledby={titleId}
+      aria-labelledby={showHeader ? titleId : undefined}
       className={cn(
         'flex min-h-0 flex-col rounded-8 border border-border-neutral-base bg-background-components-base',
         className,
       )}
     >
-      <div className="flex min-h-40 items-center border-b border-border-neutral-base px-16 py-8">
-        <Text as="h2" id={titleId} size="sm" bold className="text-foreground-neutral-base">
-          {model.jobName}
-        </Text>
-      </div>
+      {showHeader ? (
+        <div className="flex min-h-40 items-center border-b border-border-neutral-base px-16 py-8">
+          <Text as="h2" id={titleId} size="sm" bold className="text-foreground-neutral-base">
+            {model.jobName}
+          </Text>
+        </div>
+      ) : null}
 
       {model.entries.length === 0 ? (
         <WorkflowStepListEmptyStateView emptyState={emptyState} />

@@ -2,7 +2,11 @@ import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import {fireEvent, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
-import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
+import {
+  workflowJob,
+  workflowJobExecutionDto,
+  workflowRunDetail,
+} from '#test/fixtures/workflow-run.js';
 import {WorkflowJobsGraph} from './workflow-jobs-graph.js';
 
 describe('WorkflowJobsGraph', () => {
@@ -146,6 +150,32 @@ describe('WorkflowJobsGraph', () => {
 
     const deploy = screen.getByRole('button', {name: 'deploy, Pending'});
     expect(within(deploy).queryByText('1')).not.toBeInTheDocument();
+  });
+
+  test('marks jobs with multiple executions without changing dependency counts', () => {
+    render(
+      <WorkflowJobsGraph
+        run={makeRun({
+          jobs: [
+            makeJob({
+              name: 'build',
+              job_executions: [
+                workflowJobExecutionDto({sequence: 1, status: 'failed'}),
+                workflowJobExecutionDto({sequence: 2, status: 'succeeded'}),
+              ],
+            }),
+            makeJob({name: 'deploy', position: 1, dependencies: ['build']}),
+          ],
+        })}
+      />,
+    );
+
+    const build = screen.getByRole('button', {name: 'build, Pending, 2 executions'});
+    const deploy = screen.getByRole('button', {
+      name: 'deploy, Pending, 1 current dependency is still pending or running',
+    });
+    expect(within(build).getByText('2 exec')).toBeInTheDocument();
+    expect(within(deploy).getByText('1')).toBeInTheDocument();
   });
 
   test('moves selection and focus with graph keyboard navigation', async () => {

@@ -79,6 +79,7 @@ export function WorkflowJobNode({
     displayLabel,
     visual.label,
     durationAccessibleLabel(node.duration),
+    node.jobExecutions.length > 1 ? `${node.jobExecutions.length} executions` : undefined,
     dependencyText?.accessible,
     node.carriedOver ? 'reused' : undefined,
   ]
@@ -125,8 +126,26 @@ export function WorkflowJobNode({
           <TooltipContent>{dependencyText.tooltip}</TooltipContent>
         </Tooltip>
       ) : null}
+      {node.jobExecutions.length > 1 ? (
+        <ExecutionCountBadge count={node.jobExecutions.length} />
+      ) : null}
       {node.carriedOver ? <CarriedOverBadge /> : null}
     </button>
+  );
+}
+
+function ExecutionCountBadge({count}: {count: number}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span aria-hidden="true" className="shrink-0">
+          <Badge variant="neutral" size="2xs" className="font-code">
+            {count} exec
+          </Badge>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{count} job executions.</TooltipContent>
+    </Tooltip>
   );
 }
 
