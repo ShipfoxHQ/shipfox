@@ -11,7 +11,7 @@ export interface ClosedStreamIdentity {
   attempt: number;
   workspaceId: string;
   projectId: string;
-  runId: string;
+  workflowRunAttemptId: string;
 }
 
 export interface ArrangeClosedStreamOptions {

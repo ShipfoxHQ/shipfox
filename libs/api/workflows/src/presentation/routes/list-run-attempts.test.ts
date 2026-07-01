@@ -71,37 +71,31 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
     );
   });
 
-  test('returns attempts for the root run and a child run', async () => {
+  test('returns attempts for the run', async () => {
     const {source, rerun} = await createLineage();
 
     const rootRes = await app.inject({
       method: 'GET',
       url: `/api/workflows/runs/${source.id}/attempts`,
     });
-    const childRes = await app.inject({
-      method: 'GET',
-      url: `/api/workflows/runs/${rerun.id}/attempts`,
-    });
 
     expect(rootRes.statusCode).toBe(200);
-    expect(childRes.statusCode).toBe(200);
-    expect(rootRes.json().attempts.map((attempt: {id: string}) => attempt.id)).toEqual([
-      source.id,
-      rerun.id,
-    ]);
-    expect(childRes.json()).toEqual(rootRes.json());
+    expect(
+      rootRes.json().attempts.map((attempt: {workflow_run_id: string}) => attempt.workflow_run_id),
+    ).toEqual([source.id, source.id]);
     expect(rootRes.json().attempts[0]).toMatchObject({
-      id: source.id,
+      workflow_run_id: source.id,
       attempt: 1,
       status: 'failed',
       rerun_mode: null,
     });
     expect(rootRes.json().attempts[1]).toMatchObject({
-      id: rerun.id,
+      workflow_run_id: source.id,
       attempt: 2,
       status: 'pending',
       rerun_mode: 'all',
     });
+    expect(rerun.id).toBe(source.id);
   });
 
   test('returns one attempt for a run without lineage', async () => {
@@ -114,7 +108,11 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().attempts).toHaveLength(1);
-    expect(res.json().attempts[0]).toMatchObject({id: run.id, attempt: 1, rerun_mode: null});
+    expect(res.json().attempts[0]).toMatchObject({
+      workflow_run_id: run.id,
+      attempt: 1,
+      rerun_mode: null,
+    });
   });
 
   test('returns 404 for a missing or inaccessible run', async () => {
@@ -138,9 +136,9 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
 
   async function createLineage() {
     const source = await createRun();
-    await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+    await updateWorkflowRunStatus({workflowRunId: source.id, status: 'failed', expectedVersion: 1});
     const rerun = await createRerunWorkflowRun({
-      sourceRunId: source.id,
+      workflowRunId: source.id,
       mode: 'all',
       actorUserId: crypto.randomUUID(),
     });

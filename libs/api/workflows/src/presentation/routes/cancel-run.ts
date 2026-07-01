@@ -1,4 +1,4 @@
-import {runDtoSchema} from '@shipfox/api-workflows-dto';
+import {workflowRunDtoSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {WorkflowRunNotCancellableError, WorkflowRunNotFoundError} from '#core/errors.js';
@@ -15,7 +15,7 @@ export const cancelRunRoute = defineRoute({
       id: z.string().uuid(),
     }),
     response: {
-      200: runDtoSchema,
+      200: workflowRunDtoSchema,
     },
   },
   errorHandler: (error) => {
@@ -31,7 +31,7 @@ export const cancelRunRoute = defineRoute({
     const {id} = request.params;
     const run = await requireAccessibleRun({request, id});
 
-    const cancelled = await cancelWorkflowRun({runId: run.id});
+    const cancelled = await cancelWorkflowRun({workflowRunId: run.id});
     return toRunDto(cancelled);
   },
 });

@@ -2,14 +2,45 @@ min_version = "2026.5.18"
 
 [tools]
 gh = "2.95.0"
-"node"      = "24.17.0"
-"npm:pnpm"  = "11.7.0"
+"node" = "24.17.0"
+"npm:pnpm" = "11.7.0"
 "npm:turbo" = "2.9.18"
+ollama = "0.30.11"
 
 [env]
 _.path = ['{{config_root}}/node_modules/.bin']
 _.file = '.context/local-services/env'
 
+[tasks."ollama:up"]
+description = "Start the shared root Ollama server and preload the default model"
+run = """
+if [ -n "${CONDUCTOR_ROOT_PATH:-}" ] && [ "$(pwd -P)" != "$(cd "$CONDUCTOR_ROOT_PATH" && pwd -P)" ]; then
+  mise -C "$CONDUCTOR_ROOT_PATH" run ollama:up
+else
+  node dev/shared-ollama.mjs up
+fi
+"""
+
+[tasks."ollama:status"]
+description = "Show the shared root Ollama server status"
+run = """
+if [ -n "${CONDUCTOR_ROOT_PATH:-}" ] && [ "$(pwd -P)" != "$(cd "$CONDUCTOR_ROOT_PATH" && pwd -P)" ]; then
+  mise -C "$CONDUCTOR_ROOT_PATH" run ollama:status
+else
+  node dev/shared-ollama.mjs status
+fi
+"""
+
+[tasks."ollama:stop"]
+description = "Stop the shared root Ollama server if this repo started it"
+run = """
+if [ -n "${CONDUCTOR_ROOT_PATH:-}" ] && [ "$(pwd -P)" != "$(cd "$CONDUCTOR_ROOT_PATH" && pwd -P)" ]; then
+  mise -C "$CONDUCTOR_ROOT_PATH" run ollama:stop
+else
+  node dev/shared-ollama.mjs stop
+fi
+"""
+
 [settings]
-lockfile       = true
+lockfile = true
 minimum_release_age = "48h"

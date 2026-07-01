@@ -251,3 +251,25 @@ export async function signupVerifyLogin(
     userId: loginRes.json().user.id,
   };
 }
+
+export async function createVerifiedSession(prefix: string): Promise<{
+  email: string;
+  password: string;
+  refreshCookie: string;
+  token: string;
+  userId: string;
+}> {
+  const {createUser, createSessionForUser} = await import('#core/auth.js');
+  const email = uniqueEmail(prefix);
+  const password = 'correct horse battery staple';
+  const user = await createUser({email, password, name: prefix, verified: true});
+  const session = await createSessionForUser({userId: user.id});
+
+  return {
+    email,
+    password,
+    refreshCookie: `shipfox_refresh_token=${session.refreshToken}`,
+    token: session.token,
+    userId: user.id,
+  };
+}

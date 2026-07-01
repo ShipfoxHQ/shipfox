@@ -2,7 +2,7 @@ import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {boolean, index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {JOB_STATUS_REASONS, type Job, toJobStatusReason} from '#core/entities/job.js';
 import {pgTable} from './common.js';
-import {workflowRuns} from './workflow-runs.js';
+import {workflowRunAttempts} from './workflow-run-attempts.js';
 
 export const jobStatusEnum = pgEnum('workflows_job_status', [
   'pending',
@@ -19,9 +19,9 @@ export const jobs = pgTable(
   'jobs',
   {
     id: uuidv7PrimaryKey(),
-    runId: uuid('run_id')
+    workflowRunAttemptId: uuid('workflow_run_attempt_id')
       .notNull()
-      .references(() => workflowRuns.id, {onDelete: 'cascade'}),
+      .references(() => workflowRunAttempts.id, {onDelete: 'cascade'}),
     name: text('name').notNull(),
     status: jobStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),
@@ -42,7 +42,7 @@ export const jobs = pgTable(
     startedAt: timestamp('started_at', {withTimezone: true}),
     finishedAt: timestamp('finished_at', {withTimezone: true}),
   },
-  (table) => [index('workflows_jobs_run_id_idx').on(table.runId)],
+  (table) => [index('workflows_jobs_workflow_run_attempt_id_idx').on(table.workflowRunAttemptId)],
 );
 
 export type JobDb = typeof jobs.$inferSelect;
@@ -51,7 +51,7 @@ export type JobCreateDb = typeof jobs.$inferInsert;
 export function toJob(row: JobDb): Job {
   return {
     id: row.id,
-    runId: row.runId,
+    workflowRunAttemptId: row.workflowRunAttemptId,
     name: row.name,
     status: row.status,
     statusReason: toJobStatusReason(row.statusReason),

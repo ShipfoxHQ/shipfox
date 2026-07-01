@@ -38,9 +38,10 @@ export const heartbeatRoute = defineRoute({
     });
 
     const leaseToken = await issueJobLeaseToken({
+      workflowRunId: runningJobExecution.workflowRunId,
+      workflowRunAttemptId: runningJobExecution.workflowRunAttemptId,
       jobId: runningJobExecution.jobId,
       jobExecutionId: runningJobExecution.jobExecutionId,
-      runId: runningJobExecution.runId,
       projectId: runningJobExecution.projectId,
       workspaceId: runningJobExecution.workspaceId,
       runnerSessionId: runningJobExecution.runnerSessionId,

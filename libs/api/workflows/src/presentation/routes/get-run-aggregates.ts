@@ -1,5 +1,8 @@
 import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
-import {runAggregatesQuerySchema, runAggregatesResponseSchema} from '@shipfox/api-workflows-dto';
+import {
+  workflowRunAggregatesQuerySchema,
+  workflowRunAggregatesResponseSchema,
+} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getWorkflowRunAggregates} from '#db/index.js';
@@ -9,9 +12,9 @@ export const getRunAggregatesRoute = defineRoute({
   path: '/aggregates',
   description: 'Get faceted workflow run counts for a project',
   schema: {
-    querystring: runAggregatesQuerySchema,
+    querystring: workflowRunAggregatesQuerySchema,
     response: {
-      200: runAggregatesResponseSchema,
+      200: workflowRunAggregatesResponseSchema,
     },
   },
   errorHandler: (error) => {

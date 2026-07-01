@@ -113,7 +113,8 @@ describe('POST /runners/jobs/request', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.job_id).toBe(created.jobId);
-    expect(body.run_id).toBe(created.runId);
+    expect(body.workflow_run_id).toBe(created.workflowRunId);
+    expect(body.workflow_run_attempt_id).toBe(created.workflowRunAttemptId);
     expect(typeof body.lease_token).toBe('string');
     expect(body.job_name).toBeUndefined();
     expect(body.steps).toBeUndefined();
@@ -121,7 +122,8 @@ describe('POST /runners/jobs/request', () => {
     const claims = await verifyJobLeaseToken(body.lease_token);
     expect(claims).toMatchObject({
       jobId: created.jobId,
-      runId: created.runId,
+      workflowRunId: created.workflowRunId,
+      workflowRunAttemptId: created.workflowRunAttemptId,
       projectId: created.projectId,
       workspaceId,
       runnerSessionId,

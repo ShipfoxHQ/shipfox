@@ -54,7 +54,7 @@ export const activeRunnerDtoSchema = z.object({
   template_key: z.string().nullable(),
   provider_kind: z.string().nullable(),
   job_id: z.string().uuid().nullable(),
-  run_id: z.string().uuid().nullable(),
+  workflow_run_attempt_id: z.string().uuid().nullable(),
   project_id: z.string().uuid().nullable(),
   reported_at: z.string().nullable(),
   last_heartbeat_at: z.string().nullable(),

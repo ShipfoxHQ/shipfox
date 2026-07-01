@@ -1,4 +1,4 @@
-import type {WorkflowsJobStepsSettledEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsJobStepsSettledEventDto} from '@shipfox/api-workflows-dto';
 import {onJobStepsSettled} from './on-job-steps-settled.js';
 
 const signalMock = vi.fn();
@@ -9,12 +9,13 @@ vi.mock('@shipfox/node-temporal', () => ({
 }));
 
 function buildPayload(
-  overrides: Partial<WorkflowsJobStepsSettledEvent> = {},
-): WorkflowsJobStepsSettledEvent {
+  overrides: Partial<WorkflowsJobStepsSettledEventDto> = {},
+): WorkflowsJobStepsSettledEventDto {
   return {
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     status: 'succeeded',
     ...overrides,
   };
@@ -34,6 +35,19 @@ describe('onJobStepsSettled', () => {
 
     expect(getHandleMock).toHaveBeenCalledWith(`job:${payload.jobId}`);
     expect(signalMock).toHaveBeenCalledWith('job-finished', {status: 'failed'});
+  });
+
+  it('routes a stale-attempt event only to the payload job workflow', async () => {
+    const previousAttemptJobId = crypto.randomUUID();
+    const payload = buildPayload({
+      jobId: previousAttemptJobId,
+      workflowRunAttemptId: crypto.randomUUID(),
+    });
+
+    await onJobStepsSettled(payload);
+
+    expect(getHandleMock).toHaveBeenCalledTimes(1);
+    expect(getHandleMock).toHaveBeenCalledWith(`job:${previousAttemptJobId}`);
   });
 
   it('discards a late event when the job workflow already terminated', async () => {

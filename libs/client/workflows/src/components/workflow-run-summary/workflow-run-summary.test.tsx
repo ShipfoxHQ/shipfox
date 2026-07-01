@@ -257,6 +257,33 @@ describe('WorkflowRunSummary', () => {
     expect(screen.queryByRole('button', {name: 'Re-run jobs'})).not.toBeInTheDocument();
     expect(onRerun).toHaveBeenCalledWith('all');
   });
+
+  test('hides run actions when viewing a historical attempt', async () => {
+    renderSummary(
+      {
+        status: 'failed',
+        current_attempt: 2,
+        run_attempt: {
+          id: '11111111-1111-4111-8111-000000000001',
+          workflow_run_id: RUN_ID,
+          attempt: 1,
+          status: 'failed',
+          created_at: '2026-05-07T01:01:00.000Z',
+          started_at: null,
+          finished_at: null,
+          rerun_mode: null,
+        },
+        jobs: [workflowJobDto({status: 'failed'})],
+      },
+      {onCancel: vi.fn(), onRerun: vi.fn()},
+    );
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Cancel workflow'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Re-run workflow'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Re-run jobs'})).not.toBeInTheDocument();
+  });
 });
 
 function renderSummary(

@@ -1,15 +1,15 @@
 import type {
   JobStatusDto,
-  RunAttemptDto,
-  RunAttemptsResponseDto,
-  RunDetailResponseDto,
-  RunJobDetailDto,
-  RunJobExecutionDetailDto,
-  RunListResponseDto,
-  RunResponseDto,
-  RunStatusDto,
-  RunStepDetailDto,
   StepAttemptDto,
+  WorkflowRunAttemptDto,
+  WorkflowRunAttemptsResponseDto,
+  WorkflowRunDetailResponseDto,
+  WorkflowRunJobDetailDto,
+  WorkflowRunJobExecutionDetailDto,
+  WorkflowRunListResponseDto,
+  WorkflowRunResponseDto,
+  WorkflowRunStatusDto,
+  WorkflowRunStepDetailDto,
 } from '@shipfox/api-workflows-dto';
 import {
   toWorkflowJob,
@@ -27,6 +27,7 @@ import {
 } from '#core/workflow-run.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
+const RUN_ATTEMPT_ID = '11111111-1111-4111-8111-111111111112';
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const DEFINITION_ID = '33333333-3333-4333-8333-333333333333';
 const JOB_ID = '44444444-4444-4444-8444-000000000001';
@@ -39,24 +40,24 @@ let jobExecutionSequence = 0;
 let stepSequence = 0;
 let attemptSequence = 0;
 
-export type WorkflowJobDtoOverrides = Partial<Omit<RunJobDetailDto, 'job_executions'>> & {
-  job_executions?: RunJobDetailDto['job_executions'];
-  steps?: RunStepDetailDto[];
+export type WorkflowJobDtoOverrides = Partial<Omit<WorkflowRunJobDetailDto, 'job_executions'>> & {
+  job_executions?: WorkflowRunJobDetailDto['job_executions'];
+  steps?: WorkflowRunStepDetailDto[];
 };
 
-type WorkflowJobDtoBase = Omit<RunJobDetailDto, 'duration' | 'job_executions'>;
+type WorkflowJobDtoBase = Omit<WorkflowRunJobDetailDto, 'duration' | 'job_executions'>;
 
-export function workflowRunDto(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
+export function workflowRunDto(
+  overrides: Partial<WorkflowRunResponseDto> = {},
+): WorkflowRunResponseDto {
   return {
     id: RUN_ID,
     project_id: PROJECT_ID,
     definition_id: DEFINITION_ID,
     name: 'deploy-web',
     status: 'running',
-    source_run_id: null,
-    root_run_id: null,
-    attempt: 1,
-    rerun_mode: null,
+    current_attempt: 1,
+    latest_attempt: 1,
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_payload: {},
@@ -70,13 +71,13 @@ export function workflowRunDto(overrides: Partial<RunResponseDto> = {}): RunResp
   };
 }
 
-export function workflowRun(overrides: Partial<RunResponseDto> = {}): WorkflowRun {
+export function workflowRun(overrides: Partial<WorkflowRunResponseDto> = {}): WorkflowRun {
   return toWorkflowRun(workflowRunDto(overrides));
 }
 
 export function workflowRunListResponseDto(
-  overrides: Partial<RunListResponseDto> = {},
-): RunListResponseDto {
+  overrides: Partial<WorkflowRunListResponseDto> = {},
+): WorkflowRunListResponseDto {
   return {
     runs: [workflowRunDto()],
     next_cursor: null,
@@ -86,54 +87,60 @@ export function workflowRunListResponseDto(
 }
 
 export function workflowRunListPage(
-  overrides: Partial<RunListResponseDto> = {},
+  overrides: Partial<WorkflowRunListResponseDto> = {},
 ): WorkflowRunListPage {
   return toWorkflowRunListPage(workflowRunListResponseDto(overrides));
 }
 
 export function workflowRunDetailDto(
-  overrides: Partial<RunDetailResponseDto> = {},
-): RunDetailResponseDto {
+  overrides: Partial<WorkflowRunDetailResponseDto> = {},
+): WorkflowRunDetailResponseDto {
   return {
     ...workflowRunDto(),
     latest_attempt: 1,
+    run_attempt: workflowRunAttemptDto(),
     jobs: [],
     ...overrides,
   };
 }
 
 export function workflowRunDetail(
-  overrides: Partial<RunDetailResponseDto> = {},
+  overrides: Partial<WorkflowRunDetailResponseDto> = {},
 ): WorkflowRunDetail {
   return toWorkflowRunDetail(workflowRunDetailDto(overrides));
 }
 
-export function workflowRunAttemptDto(overrides: Partial<RunAttemptDto> = {}): RunAttemptDto {
+export function workflowRunAttemptDto(
+  overrides: Partial<WorkflowRunAttemptDto> = {},
+): WorkflowRunAttemptDto {
   return {
-    id: RUN_ID,
+    id: RUN_ATTEMPT_ID,
+    workflow_run_id: RUN_ID,
     attempt: 1,
     status: 'running',
     created_at: '2026-06-21T12:00:00.000Z',
+    started_at: null,
+    finished_at: null,
     rerun_mode: null,
     ...overrides,
   };
 }
 
 export function runAttemptsResponseDto(
-  overrides: Partial<RunAttemptsResponseDto> = {},
-): RunAttemptsResponseDto {
+  overrides: Partial<WorkflowRunAttemptsResponseDto> = {},
+): WorkflowRunAttemptsResponseDto {
   return {
     attempts: [workflowRunAttemptDto()],
     ...overrides,
   };
 }
 
-export function workflowJobDto(overrides: WorkflowJobDtoOverrides = {}): RunJobDetailDto {
+export function workflowJobDto(overrides: WorkflowJobDtoOverrides = {}): WorkflowRunJobDetailDto {
   jobSequence += 1;
   const {job_executions, steps, ...jobOverrides} = overrides;
   const job: WorkflowJobDtoBase = {
     id: `44444444-4444-4444-8444-${String(jobSequence).padStart(12, '0')}`,
-    run_id: RUN_ID,
+    run_attempt_id: RUN_ID,
     name: 'build',
     status: 'pending',
     status_reason: null,
@@ -161,8 +168,8 @@ export function workflowJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJo
 }
 
 export function workflowJobExecutionDto(
-  overrides: Partial<RunJobExecutionDetailDto> = {},
-): RunJobExecutionDetailDto {
+  overrides: Partial<WorkflowRunJobExecutionDetailDto> = {},
+): WorkflowRunJobExecutionDetailDto {
   jobExecutionSequence += 1;
   return {
     id: `77777777-7777-4777-8777-${String(jobExecutionSequence).padStart(12, '0')}`,
@@ -182,7 +189,9 @@ export function workflowJobExecutionDto(
   };
 }
 
-export function workflowStepDto(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
+export function workflowStepDto(
+  overrides: Partial<WorkflowRunStepDetailDto> = {},
+): WorkflowRunStepDetailDto {
   stepSequence += 1;
   const displayName =
     overrides.display_name ??
@@ -207,7 +216,7 @@ export function workflowStepDto(overrides: Partial<RunStepDetailDto> = {}): RunS
   };
 }
 
-export function workflowStep(overrides: Partial<RunStepDetailDto> = {}): WorkflowStep {
+export function workflowStep(overrides: Partial<WorkflowRunStepDetailDto> = {}): WorkflowStep {
   return toWorkflowStep(workflowStepDto(overrides), JOB_ID);
 }
 
@@ -236,8 +245,8 @@ export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): Wo
 }
 
 function workflowJobDurationDto(
-  job: Pick<RunJobDetailDto, 'queued_at' | 'started_at' | 'finished_at'>,
-): RunJobDetailDto['duration'] {
+  job: Pick<WorkflowRunJobDetailDto, 'queued_at' | 'started_at' | 'finished_at'>,
+): WorkflowRunJobDetailDto['duration'] {
   if (job.started_at !== null && job.finished_at !== null) {
     return {kind: 'finished', from_iso: job.started_at, to_iso: job.finished_at};
   }
@@ -250,11 +259,11 @@ function workflowJobDurationDto(
   return {kind: 'none'};
 }
 export function sequencedWorkflowRunDto(
-  status: RunStatusDto,
+  status: WorkflowRunStatusDto,
   name: string,
   minutesAgo: number,
-  overrides: Partial<RunResponseDto> = {},
-): RunResponseDto {
+  overrides: Partial<WorkflowRunResponseDto> = {},
+): WorkflowRunResponseDto {
   runSequence += 1;
   return workflowRunDto({
     id: `run-${String(runSequence).padStart(8, '0')}`,
@@ -271,10 +280,10 @@ export function sequencedWorkflowRunDto(
 }
 
 export function sequencedWorkflowRun(
-  status: RunStatusDto,
+  status: WorkflowRunStatusDto,
   name: string,
   minutesAgo: number,
-  overrides: Partial<RunResponseDto> = {},
+  overrides: Partial<WorkflowRunResponseDto> = {},
 ): WorkflowRun {
   return toWorkflowRun(sequencedWorkflowRunDto(status, name, minutesAgo, overrides));
 }
@@ -282,8 +291,8 @@ export function sequencedWorkflowRun(
 export function workflowJobWithName(
   name: string,
   overrides: WorkflowJobDtoOverrides = {},
-): RunJobDetailDto {
+): WorkflowRunJobDetailDto {
   return workflowJobDto({name, ...overrides});
 }
 
-export type {JobStatusDto, RunStatusDto};
+export type {JobStatusDto, WorkflowRunStatusDto};

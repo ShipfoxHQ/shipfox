@@ -16,7 +16,7 @@ import {steps as stepsTable} from '#db/schema/steps.js';
 import {
   createRerunWorkflowRun,
   createWorkflowRun,
-  getJobsByRunId,
+  getJobsByWorkflowRunId,
   getStepsByJobId,
   updateWorkflowRunStatus,
 } from '#db/workflow-runs.js';
@@ -174,9 +174,9 @@ describe('GET /api/workflows/runs/:id', () => {
         userId: crypto.randomUUID(),
       },
     });
-    await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+    await updateWorkflowRunStatus({workflowRunId: source.id, status: 'failed', expectedVersion: 1});
     const rerun = await createRerunWorkflowRun({
-      sourceRunId: source.id,
+      workflowRunId: source.id,
       mode: 'all',
       actorUserId: crypto.randomUUID(),
     });
@@ -284,7 +284,7 @@ jobs:
       },
     });
 
-    const runJobs = await getJobsByRunId(run.id);
+    const runJobs = await getJobsByWorkflowRunId(run.id);
     const jobId = runJobs[0]?.id ?? '';
     const steps = await getStepsByJobId(jobId);
 
@@ -408,7 +408,7 @@ jobs:
         userId: crypto.randomUUID(),
       },
     });
-    const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+    const jobId = (await getJobsByWorkflowRunId(run.id))[0]?.id as string;
     const steps = await getStepsByJobId(jobId);
     await nextStepForJob(jobId);
     await recordStepResult({
@@ -454,7 +454,7 @@ jobs:
         userId: crypto.randomUUID(),
       },
     });
-    const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+    const jobId = (await getJobsByWorkflowRunId(run.id))[0]?.id as string;
     const steps = await getStepsByJobId(jobId);
     // steps[0] is the synthetic setup step; the user steps follow at 1..2.
     const setupId = steps[0]?.id as string;

@@ -5,7 +5,7 @@ import type {JobExecution} from '#core/entities/job-execution.js';
 export function toJobDto(job: Job): JobDto {
   return {
     id: job.id,
-    run_id: job.runId,
+    run_attempt_id: job.workflowRunAttemptId,
     name: job.name,
     status: job.status,
     status_reason: job.statusReason,

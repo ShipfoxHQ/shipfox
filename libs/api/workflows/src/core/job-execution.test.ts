@@ -2,8 +2,8 @@ import {
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
-  type WorkflowsStepAttemptTerminatedEvent,
-  type WorkflowsStepRestartEnqueuedEvent,
+  type WorkflowsStepAttemptTerminatedEventDto,
+  type WorkflowsStepRestartEnqueuedEventDto,
 } from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
@@ -61,7 +61,7 @@ async function jobStepsSettledEvents(jobId: string): Promise<Array<{status: stri
 
 async function stepAttemptTerminatedEvents(
   jobId: string,
-): Promise<WorkflowsStepAttemptTerminatedEvent[]> {
+): Promise<WorkflowsStepAttemptTerminatedEventDto[]> {
   const rows = await db()
     .select({payload: workflowsOutbox.payload})
     .from(workflowsOutbox)
@@ -71,7 +71,7 @@ async function stepAttemptTerminatedEvents(
         sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
       ),
     );
-  return rows.map((row) => row.payload as WorkflowsStepAttemptTerminatedEvent);
+  return rows.map((row) => row.payload as WorkflowsStepAttemptTerminatedEventDto);
 }
 
 describe('nextStepForJob', () => {
@@ -743,7 +743,7 @@ describe('bulkUpdateStepStatuses attempt finalization', () => {
 });
 
 describe('durable gate restart', () => {
-  async function restartEvents(jobId: string): Promise<WorkflowsStepRestartEnqueuedEvent[]> {
+  async function restartEvents(jobId: string): Promise<WorkflowsStepRestartEnqueuedEventDto[]> {
     const rows = await db()
       .select({payload: workflowsOutbox.payload})
       .from(workflowsOutbox)
@@ -753,7 +753,7 @@ describe('durable gate restart', () => {
           sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
         ),
       );
-    return rows.map((row) => row.payload as WorkflowsStepRestartEnqueuedEvent);
+    return rows.map((row) => row.payload as WorkflowsStepRestartEnqueuedEventDto);
   }
 
   async function restartEventCount(jobId: string): Promise<number> {

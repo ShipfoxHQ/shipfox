@@ -1,7 +1,7 @@
 import {resolve} from 'node:path';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
-import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import type {RunDag} from '../activities/orchestration-activities.js';
 import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
 
@@ -37,7 +37,7 @@ export interface TestConfig {
   releaseLeaseError?: string;
   /** If set, failJobExecutionAsTimedOutActivity throws (for timeout error-path testing) */
   failJobExecutionAsTimedOutError?: string;
-  /** Effective status returned by the initial running setRunStatus call */
+  /** Effective status returned by the initial running setRunAttemptStatus call */
   initialRunStatus?: string;
   /** Effective status returned by a running setJobStatus call */
   runningJobStatus?: string;
@@ -71,10 +71,10 @@ export function callsNamed(name: string): ActivityCall[] {
   return calls.filter((c) => c.name === name);
 }
 
-export function setRunStatusCalls() {
-  return callsNamed('setRunStatus') as Array<{
+export function setRunAttemptStatusCalls() {
+  return callsNamed('setRunAttemptStatus') as Array<{
     name: string;
-    params: {runId: string; status: string; version: number};
+    params: {runAttemptId: string; status: string; version: number};
   }>;
 }
 
@@ -115,8 +115,15 @@ export function dagJob(
   };
 }
 
-export function makeDag(jobs: RunDag['jobs'], runId = 'run-1'): RunDag {
-  return {runId, workspaceId: 'workspace-1', projectId: 'project-1', runVersion: 1, jobs};
+export function makeDag(jobs: RunDag['jobs'], workflowRunId = 'run-1'): RunDag {
+  return {
+    workflowRunId,
+    runAttemptId: `${workflowRunId}-attempt-1`,
+    workspaceId: 'workspace-1',
+    projectId: 'project-1',
+    runVersion: 1,
+    jobs,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -153,13 +160,13 @@ export async function teardownEnv(): Promise<void> {
 
 function createMockActivities() {
   return {
-    loadRunDag: (runId: string): RunDag => {
-      calls.push({name: 'loadRunDag', params: runId});
+    loadRunAttemptDag: (runAttemptId: string): RunDag => {
+      calls.push({name: 'loadRunAttemptDag', params: runAttemptId});
       return cfg.dag;
     },
 
-    setRunStatus: (params: {runId: string; status: string; version: number}) => {
-      calls.push({name: 'setRunStatus', params});
+    setRunAttemptStatus: (params: {runAttemptId: string; status: string; version: number}) => {
+      calls.push({name: 'setRunAttemptStatus', params});
       const status =
         params.status === 'running' && cfg.initialRunStatus ? cfg.initialRunStatus : params.status;
       return {newVersion: nextVersion(), status};
@@ -202,9 +209,10 @@ function createMockActivities() {
     // signal, reproducing the outbox → subscriber → signal rail.
     enqueueJobExecutionForRunner: async (params: {
       workspaceId: string;
+      workflowRunId: string;
+      runAttemptId: string;
       jobId: string;
       jobExecutionId: string;
-      runId: string;
       projectId: string;
       requiredLabels: string[];
     }) => {
@@ -273,7 +281,7 @@ function createMockActivities() {
 
     failJobExecutionAsTimedOutActivity: async (params: {
       jobExecutionId: string;
-      runId: string;
+      runAttemptId: string;
       expectedVersion: number;
     }) => {
       calls.push({name: 'failJobExecutionAsTimedOutActivity', params});

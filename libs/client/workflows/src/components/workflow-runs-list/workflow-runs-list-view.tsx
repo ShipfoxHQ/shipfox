@@ -10,7 +10,7 @@ export function WorkflowRunsListView({
   query,
   workspaceId,
   projectId,
-  selectedRunId,
+  selectedWorkflowRunId,
   className,
 }: WorkflowRunsListViewProps) {
   const [search, setSearch] = useState('');
@@ -47,7 +47,7 @@ export function WorkflowRunsListView({
           runs={filteredRuns}
           workspaceId={workspaceId}
           projectId={projectId}
-          selectedRunId={selectedRunId}
+          selectedWorkflowRunId={selectedWorkflowRunId}
           onClearFilters={handleClearFilters}
         />
       </aside>

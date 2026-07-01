@@ -36,15 +36,16 @@ beforeAll(async () => {
     taskQueue: TASK_QUEUE,
     workflowsPath: WORKFLOWS_PATH,
     activities: {
-      loadRunDag: () => ({
-        runId: 'run-1',
+      loadRunAttemptDag: () => ({
+        workflowRunId: 'run-1',
+        runAttemptId: 'run-attempt-1',
         workspaceId: 'workspace-1',
         projectId: 'project-1',
         runVersion: 1,
         jobs: [],
       }),
-      setRunStatus: (params: unknown) => {
-        calls.push({name: 'setRunStatus', params});
+      setRunAttemptStatus: (params: unknown) => {
+        calls.push({name: 'setRunAttemptStatus', params});
         return {newVersion: nextVersion()};
       },
       setJobStatus: (params: unknown) => {
@@ -105,7 +106,7 @@ beforeEach(() => {
 const defaultJobInput = {
   workspaceId: 'workspace-1',
   jobId: 'job-timeout',
-  runId: 'run-1',
+  runAttemptId: 'run-attempt-1',
   projectId: 'project-1',
   jobVersion: 1,
   jobExecutionId: 'job-timeout',

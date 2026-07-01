@@ -1,4 +1,4 @@
-import type {AgentConfigIssue, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {AgentConfigIssueDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {HTTPError} from 'ky';
 
 const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
@@ -6,7 +6,7 @@ const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
     constructor(
       public readonly status: number,
       public readonly code: string | undefined,
-      public readonly agentConfigIssue: AgentConfigIssue | undefined = undefined,
+      public readonly agentConfigIssue: AgentConfigIssueDto | undefined = undefined,
     ) {
       super(
         code === undefined
@@ -61,7 +61,11 @@ const {executeStep, runJobSteps} = await import('#core/step-loop.js');
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
 const LOGS_DIR = '/runner-logs/job-1';
-const JOB_CONTEXT = {jobId: JOB_ID, runId: RUN_ID};
+const JOB_CONTEXT = {
+  workflowRunId: '00000000-0000-0000-0000-000000000004',
+  workflowRunAttemptId: RUN_ID,
+  jobId: JOB_ID,
+};
 const leaseClient = {} as never;
 const STREAM_LENGTH = 128;
 

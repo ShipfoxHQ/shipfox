@@ -4,7 +4,7 @@ import {LOG_STREAM_CLOSED, type LogsEventMap, logsEventSchemas} from '@shipfox/a
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
-  type WorkflowsEventMap,
+  type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, logsOutbox, migrationsPath} from '#db/index.js';
@@ -21,7 +21,7 @@ export {checkBucketReachable} from '#api/object-storage.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<WorkflowsEventMap & LogsEventMap>();
+const subscriber = subscriberFactory<WorkflowsEventMapDto & LogsEventMap>();
 
 export const logsModule: ShipfoxModule = {
   name: 'logs',

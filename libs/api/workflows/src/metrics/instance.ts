@@ -1,8 +1,8 @@
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
 import type {JobStatus} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
-import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 
 const meter = instanceMetrics.getMeter('workflows');
 

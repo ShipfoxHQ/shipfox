@@ -1,0 +1,69 @@
+import {z} from 'zod';
+import {jobDtoSchema} from './job.js';
+import {stepAttemptDtoSchema, stepDtoSchema} from './step.js';
+import {workflowRunResponseSchema, workflowRunStatusSchema} from './workflow-run.js';
+
+export const jobExecutionStatusSchema = z.enum([
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+]);
+
+export const jobExecutionDtoSchema = z.object({
+  id: z.string().uuid(),
+  job_id: z.string().uuid(),
+  sequence: z.number().int().positive(),
+  name: z.string(),
+  status: jobExecutionStatusSchema,
+  status_reason: z.string().nullable(),
+  queued_at: z.string().nullable(),
+  started_at: z.string().nullable(),
+  finished_at: z.string().nullable(),
+  timed_out_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export type JobExecutionDto = z.infer<typeof jobExecutionDtoSchema>;
+
+// A step with its attempt history: one entry per dispatched attempt (a restarted
+// step has more than one). `current_attempt` on the step points at the latest.
+export const workflowRunStepDetailDtoSchema = stepDtoSchema.extend({
+  attempts: z.array(stepAttemptDtoSchema),
+});
+
+export type WorkflowRunStepDetailDto = z.infer<typeof workflowRunStepDetailDtoSchema>;
+
+export const workflowRunJobExecutionDetailDtoSchema = jobExecutionDtoSchema.extend({
+  steps: z.array(workflowRunStepDetailDtoSchema),
+});
+
+export type WorkflowRunJobExecutionDetailDto = z.infer<
+  typeof workflowRunJobExecutionDetailDtoSchema
+>;
+
+export const workflowRunJobDetailDtoSchema = jobDtoSchema.extend({
+  job_executions: z.array(workflowRunJobExecutionDetailDtoSchema),
+});
+
+export type WorkflowRunJobDetailDto = z.infer<typeof workflowRunJobDetailDtoSchema>;
+
+// The run detail read model returned by `GET /workflows/runs/:id`: a run plus its
+// jobs, each job's steps, and each step's attempt history.
+export const workflowRunDetailResponseSchema = workflowRunResponseSchema.extend({
+  run_attempt: z.object({
+    id: z.string().uuid(),
+    workflow_run_id: z.string().uuid(),
+    attempt: z.number().int().positive(),
+    status: workflowRunStatusSchema,
+    created_at: z.string(),
+    started_at: z.string().nullable(),
+    finished_at: z.string().nullable(),
+    rerun_mode: z.enum(['all', 'failed']).nullable(),
+  }),
+  jobs: z.array(workflowRunJobDetailDtoSchema),
+});
+
+export type WorkflowRunDetailResponseDto = z.infer<typeof workflowRunDetailResponseSchema>;

@@ -6,7 +6,7 @@ export type RunsListStatusFilter = 'all' | 'failed' | 'running';
 export interface WorkflowRunsListProps {
   workspaceId: string;
   projectId: string;
-  selectedRunId?: string | undefined;
+  selectedWorkflowRunId?: string | undefined;
   className?: string | undefined;
 }
 
@@ -17,6 +17,6 @@ export interface WorkflowRunsListViewProps {
   query: WorkflowRunsListQuery;
   workspaceId: string;
   projectId: string;
-  selectedRunId?: string | undefined;
+  selectedWorkflowRunId?: string | undefined;
   className?: string | undefined;
 }

@@ -3,19 +3,19 @@ import {
   cancelRunnerJobsActivity,
   enqueueJobExecutionForRunner,
   failJobExecutionAsTimedOutActivity,
-  loadRunDag,
+  loadRunAttemptDag,
   releaseLeaseActivity,
   resolveJobStatusFromJobExecutionsActivity,
   resolveLeaseExpiredJobExecutionActivity,
   setJobExecutionStatus,
   setJobStatus,
-  setRunStatus,
+  setRunAttemptStatus,
 } from './orchestration-activities.js';
 
 export function createOrchestrationActivities() {
   return {
-    loadRunDag,
-    setRunStatus,
+    loadRunAttemptDag,
+    setRunAttemptStatus,
     setJobStatus,
     setJobExecutionStatus,
     bulkSetStepStatuses,

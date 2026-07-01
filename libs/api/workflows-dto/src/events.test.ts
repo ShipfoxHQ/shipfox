@@ -4,8 +4,8 @@ import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
-  WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   workflowsEventSchemas,
   workflowsJobExecutionTimedOutSchema,
@@ -13,13 +13,15 @@ import {
   workflowsJobTerminatedSchema,
   workflowsStepAttemptTerminatedSchema,
   workflowsStepRestartEnqueuedSchema,
+  workflowsWorkflowRunAttemptCreatedSchema,
   workflowsWorkflowRunCancelledSchema,
-  workflowsWorkflowRunCreatedSchema,
   workflowsWorkflowRunTerminatedSchema,
 } from './events.js';
 
 const validRunCreated = {
-  runId: 'run-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
+  attempt: 1,
   workspaceId: 'ws-1',
   projectId: 'proj-1',
   definitionId: 'def-1',
@@ -27,38 +29,43 @@ const validRunCreated = {
 
 const validJobTerminated = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
   status: 'succeeded',
   statusReason: null,
 };
 
 const validRunTerminated = {
-  runId: 'run-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
   projectId: 'proj-1',
   status: 'failed',
 };
 
 const validRunCancelled = {
-  runId: 'run-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
   projectId: 'proj-1',
 };
 
 const validJobExecutionTimedOut = {
   jobId: 'job-1',
   jobExecutionId: 'execution-1',
-  runId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
 };
 
 const validJobStepsSettled = {
   jobId: 'job-1',
   jobExecutionId: 'execution-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
   status: 'failed',
 };
 
 const validStepRestartEnqueued = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
   failedStepId: 'step-1',
   failedStepAttempt: 2,
   restartFromStepId: 'step-0',
@@ -67,7 +74,8 @@ const validStepRestartEnqueued = {
 
 const validStepAttemptTerminated = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
   workspaceId: 'ws-1',
   projectId: 'proj-1',
   stepId: 'step-1',
@@ -83,9 +91,9 @@ describe('workflowsJobTerminatedSchema', () => {
   });
 
   it('rejects a payload missing a required field', () => {
-    const {runId: _runId, ...withoutRunId} = validJobTerminated;
+    const {workflowRunId: _runId, ...withoutWorkflowRunId} = validJobTerminated;
 
-    const parse = () => workflowsJobTerminatedSchema.parse(withoutRunId);
+    const parse = () => workflowsJobTerminatedSchema.parse(withoutWorkflowRunId);
 
     expect(parse).toThrow();
   });
@@ -161,10 +169,10 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
 
 describe.each([
   [
-    'workflowsWorkflowRunCreatedSchema',
-    workflowsWorkflowRunCreatedSchema,
+    'workflowsWorkflowRunAttemptCreatedSchema',
+    workflowsWorkflowRunAttemptCreatedSchema,
     validRunCreated,
-    'runId',
+    'workflowRunAttemptId',
   ],
   [
     'workflowsWorkflowRunCancelledSchema',
@@ -220,7 +228,7 @@ describe('workflowsEventSchemas', () => {
 
     expect(registeredTypes).toEqual(
       [
-        WORKFLOWS_WORKFLOW_RUN_CREATED,
+        WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
         WORKFLOWS_WORKFLOW_RUN_TERMINATED,
         WORKFLOWS_WORKFLOW_RUN_CANCELLED,
         WORKFLOWS_JOB_EXECUTION_TIMED_OUT,

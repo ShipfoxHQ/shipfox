@@ -1,5 +1,5 @@
 import {arch, platform, release} from 'node:os';
-import type {CheckoutTokenResponseDto, StepErrorReason} from '@shipfox/api-workflows-dto';
+import type {CheckoutTokenResponseDto, StepErrorReasonDto} from '@shipfox/api-workflows-dto';
 import {HTTPError, requestCheckoutToken} from '@shipfox/runner-protocol';
 import {
   assertGitAvailable,
@@ -26,8 +26,9 @@ interface SetupLogSink {
 }
 
 export interface SetupJobContext {
+  workflowRunId: string;
+  workflowRunAttemptId: string;
   jobId: string;
-  runId: string;
 }
 
 // The synthetic "Set up job" step body. It owns per-job workspace preparation and the
@@ -199,7 +200,7 @@ async function checkoutRepositoryForSetup(params: {
   }
 }
 
-const CHECKOUT_KIND_REASON: Record<CheckoutFailureKind, StepErrorReason> = {
+const CHECKOUT_KIND_REASON: Record<CheckoutFailureKind, StepErrorReasonDto> = {
   auth: 'checkout_auth_failed',
   unavailable: 'checkout_unavailable',
   failed: 'checkout_failed',
@@ -211,7 +212,7 @@ const CHECKOUT_KIND_REASON: Record<CheckoutFailureKind, StepErrorReason> = {
 // missing checkout intent (404) and everything else fold into the generic failure.
 // CheckoutError messages are already redacted in the workspace layer; the token-fetch
 // error never carries credential material.
-function classifyCheckoutTokenError(error: unknown): StepErrorReason {
+function classifyCheckoutTokenError(error: unknown): StepErrorReasonDto {
   if (!(error instanceof HTTPError)) return 'checkout_failed';
 
   const {status} = error.response;
@@ -243,7 +244,7 @@ function readErrorCode(error: HTTPError): string | undefined {
   return undefined;
 }
 
-function fail(error: unknown, reason: StepErrorReason): StepResult {
+function fail(error: unknown, reason: StepErrorReasonDto): StepResult {
   return {
     success: false,
     error: {message: messageOf(error), reason},
@@ -258,7 +259,11 @@ function writeJobContext(
   if (!jobContext) return;
   log?.writeGroup({
     name: 'Job details',
-    lines: [`Job: ${jobContext.jobId}`, `Run: ${jobContext.runId}`],
+    lines: [
+      `Workflow run: ${jobContext.workflowRunId}`,
+      `Workflow run attempt: ${jobContext.workflowRunAttemptId}`,
+      `Job: ${jobContext.jobId}`,
+    ],
   });
 }
 
@@ -340,7 +345,7 @@ function checkoutPhaseAction(phase: CheckoutPhase): string {
   }
 }
 
-function checkoutTokenFailureHelp(reason: StepErrorReason): string {
+function checkoutTokenFailureHelp(reason: StepErrorReasonDto): string {
   if (reason === 'checkout_auth_failed') {
     return 'Check that the runner is connected to this workspace and the job is allowed to read this repository.';
   }
@@ -350,7 +355,7 @@ function checkoutTokenFailureHelp(reason: StepErrorReason): string {
   return 'Check the repository connection and job permissions in Shipfox, then retry the job.';
 }
 
-function checkoutFailureHelp(reason: StepErrorReason): string {
+function checkoutFailureHelp(reason: StepErrorReasonDto): string {
   if (reason === 'checkout_auth_failed') {
     return 'Check the repository connection in Shipfox and confirm it has permission to read this repository.';
   }

@@ -61,7 +61,7 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-type AgentConfigIssue = NonNullable<WorkflowStepError['agentConfigIssue']>;
+type WorkflowAgentConfigIssueValue = NonNullable<WorkflowStepError['agentConfigIssue']>;
 
 export const ProviderNotConfigured: Story = {
   play: assertCallout('Configure credentials for anthropic', true),
@@ -109,7 +109,7 @@ export const UnknownConfigFailure: Story = {
   play: assertCallout("We couldn't load the agent configuration for this step", true),
 };
 
-function makeError(agentConfigIssue: AgentConfigIssue): WorkflowStepError {
+function makeError(agentConfigIssue: WorkflowAgentConfigIssueValue): WorkflowStepError {
   return {
     message: 'Agent configuration is invalid',
     exitCode: null,

@@ -2,7 +2,7 @@ import {jobDtoSchema} from './job.js';
 
 const baseJob = {
   id: '11111111-1111-4111-8111-111111111111',
-  run_id: '22222222-2222-4222-8222-222222222222',
+  run_attempt_id: '22222222-2222-4222-8222-222222222222',
   name: 'build',
   status: 'pending',
   status_reason: null,

@@ -1,29 +1,29 @@
 import type {
-  AgentConfigIssue,
+  AgentConfigIssueDto,
   JobStatusDto,
   JobStatusReasonDto,
-  RunAttemptDto,
-  RunDetailResponseDto,
-  RunJobDetailDto,
-  RunListResponseDto,
-  RunResponseDto,
-  RunStatusDto,
-  RunStepDetailDto,
   StepAttemptDto,
-  StepErrorCategory,
-  StepErrorReason,
+  StepErrorCategoryDto,
+  StepErrorReasonDto,
   StepGateResultDto,
   StepRestartResultDto,
   StepSourceLocationDto,
+  WorkflowRunAttemptDto,
+  WorkflowRunDetailResponseDto,
+  WorkflowRunJobDetailDto,
+  WorkflowRunListResponseDto,
+  WorkflowRunResponseDto,
+  WorkflowRunStatusDto,
+  WorkflowRunStepDetailDto,
 } from '@shipfox/api-workflows-dto';
 
-export type WorkflowRunStatus = RunStatusDto;
+export type WorkflowRunStatus = WorkflowRunStatusDto;
 export type WorkflowJobStatus = JobStatusDto;
 export type WorkflowJobStatusReason = JobStatusReasonDto;
 export type WorkflowStatus = WorkflowRunStatus | WorkflowJobStatus;
-export type WorkflowStepErrorReason = StepErrorReason;
-export type WorkflowAgentConfigIssue = AgentConfigIssue;
-export type WorkflowStepErrorCategory = StepErrorCategory;
+export type WorkflowStepErrorReason = StepErrorReasonDto;
+export type WorkflowAgentConfigIssue = AgentConfigIssueDto;
+export type WorkflowStepErrorCategory = StepErrorCategoryDto;
 export type WorkflowStepGateResult = StepGateResultDto;
 export type WorkflowStepRestartResult = StepRestartResultDto;
 
@@ -136,7 +136,7 @@ export interface WorkflowStep {
 
 export interface WorkflowJob {
   id: string;
-  runId: string;
+  runAttemptId: string;
   name: string;
   status: WorkflowJobStatus;
   statusReason: WorkflowJobStatusReason | null;
@@ -158,10 +158,7 @@ export interface WorkflowRun {
   definitionId: string;
   name: string;
   status: WorkflowRunStatus;
-  sourceRunId: string | null;
-  rootRunId: string | null;
-  attempt: number;
-  rerunMode: 'all' | 'failed' | null;
+  currentAttempt: number;
   triggerSource: string;
   triggerEvent: string;
   triggerDisplayLabel: string;
@@ -179,14 +176,18 @@ export interface WorkflowRun {
 
 export interface WorkflowRunDetail extends WorkflowRun {
   latestAttempt: number;
+  runAttempt: WorkflowRunAttempt;
   jobs: WorkflowJob[];
 }
 
 export interface WorkflowRunAttempt {
   id: string;
+  workflowRunId: string;
   attempt: number;
   status: WorkflowRunStatus;
   createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
   rerunMode: 'all' | 'failed' | null;
 }
 
@@ -232,7 +233,7 @@ export function isWorkflowStatus(status: string): status is WorkflowStatus {
   return WORKFLOW_STATUSES.has(status as WorkflowStatus);
 }
 
-export function toWorkflowRun(dto: RunResponseDto): WorkflowRun {
+export function toWorkflowRun(dto: WorkflowRunResponseDto): WorkflowRun {
   const triggerLabel = workflowRunTriggerLabel({
     triggerSource: dto.trigger_source,
     triggerEvent: dto.trigger_event,
@@ -248,10 +249,7 @@ export function toWorkflowRun(dto: RunResponseDto): WorkflowRun {
     definitionId: dto.definition_id,
     name: dto.name,
     status: dto.status,
-    sourceRunId: dto.source_run_id,
-    rootRunId: dto.root_run_id,
-    attempt: dto.attempt,
-    rerunMode: dto.rerun_mode,
+    currentAttempt: dto.current_attempt,
     triggerSource: dto.trigger_source,
     triggerEvent: dto.trigger_event,
     triggerDisplayLabel,
@@ -268,15 +266,16 @@ export function toWorkflowRun(dto: RunResponseDto): WorkflowRun {
   };
 }
 
-export function toWorkflowRunDetail(dto: RunDetailResponseDto): WorkflowRunDetail {
+export function toWorkflowRunDetail(dto: WorkflowRunDetailResponseDto): WorkflowRunDetail {
   return {
     ...toWorkflowRun(dto),
     latestAttempt: dto.latest_attempt,
+    runAttempt: toWorkflowRunAttempt(dto.run_attempt),
     jobs: dto.jobs.map(toWorkflowJob),
   };
 }
 
-export function toWorkflowRunListPage(dto: RunListResponseDto): WorkflowRunListPage {
+export function toWorkflowRunListPage(dto: WorkflowRunListResponseDto): WorkflowRunListPage {
   return {
     runs: dto.runs.map(toWorkflowRun),
     nextCursor: dto.next_cursor,
@@ -284,10 +283,10 @@ export function toWorkflowRunListPage(dto: RunListResponseDto): WorkflowRunListP
   };
 }
 
-export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
+export function toWorkflowJob(dto: WorkflowRunJobDetailDto): WorkflowJob {
   return {
     id: dto.id,
-    runId: dto.run_id,
+    runAttemptId: dto.run_attempt_id,
     name: dto.name,
     status: dto.status,
     statusReason: dto.status_reason,
@@ -307,7 +306,7 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
   };
 }
 
-export function toWorkflowStep(dto: RunStepDetailDto, jobId: string): WorkflowStep {
+export function toWorkflowStep(dto: WorkflowRunStepDetailDto, jobId: string): WorkflowStep {
   return {
     id: dto.id,
     jobId,
@@ -371,17 +370,20 @@ export function toWorkflowStepAttempt(
   };
 }
 
-export function toWorkflowRunAttempt(dto: RunAttemptDto): WorkflowRunAttempt {
+export function toWorkflowRunAttempt(dto: WorkflowRunAttemptDto): WorkflowRunAttempt {
   return {
     id: dto.id,
+    workflowRunId: dto.workflow_run_id,
     attempt: dto.attempt,
     status: dto.status,
     createdAt: dto.created_at,
+    startedAt: dto.started_at ?? null,
+    finishedAt: dto.finished_at ?? null,
     rerunMode: dto.rerun_mode,
   };
 }
 
-function toWorkflowSourceSnapshot(dto: NonNullable<RunResponseDto['source_snapshot']>) {
+function toWorkflowSourceSnapshot(dto: NonNullable<WorkflowRunResponseDto['source_snapshot']>) {
   return {
     content: dto.content,
     format: dto.format,
@@ -395,7 +397,9 @@ function toWorkflowStepSourceLocation(dto: StepSourceLocationDto): WorkflowStepS
   };
 }
 
-function toWorkflowStepError(dto: NonNullable<RunStepDetailDto['error']>): WorkflowStepError {
+function toWorkflowStepError(
+  dto: NonNullable<WorkflowRunStepDetailDto['error']>,
+): WorkflowStepError {
   return {
     message: dto.message,
     exitCode: dto.exit_code ?? null,
@@ -406,7 +410,7 @@ function toWorkflowStepError(dto: NonNullable<RunStepDetailDto['error']>): Workf
   };
 }
 
-function toWorkflowAgentStepConfig(dto: RunStepDetailDto): WorkflowAgentStepConfig | null {
+function toWorkflowAgentStepConfig(dto: WorkflowRunStepDetailDto): WorkflowAgentStepConfig | null {
   if (dto.type !== 'agent') return null;
 
   return {

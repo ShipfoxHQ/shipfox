@@ -1,12 +1,12 @@
 import {
   type JobStatusDto,
   jobStatusSchema,
-  type RunStatusDto,
-  runStatusSchema,
+  type WorkflowRunStatusDto,
+  workflowRunStatusSchema,
 } from '@shipfox/api-workflows-dto';
 import {getWorkflowStatusVisual} from './status-visuals.js';
 
-const EXPECTED_RUN_LABELS: Record<RunStatusDto, string> = {
+const EXPECTED_RUN_LABELS: Record<WorkflowRunStatusDto, string> = {
   pending: 'Pending',
   running: 'Running',
   succeeded: 'Succeeded',
@@ -20,7 +20,9 @@ const EXPECTED_JOB_LABELS: Record<JobStatusDto, string> = {
 };
 
 describe('getWorkflowStatusVisual', () => {
-  test.each(runStatusSchema.options)('maps the run %s status to its own label', (status) => {
+  test.each(
+    workflowRunStatusSchema.options,
+  )('maps the run %s status to its own label', (status) => {
     expect(getWorkflowStatusVisual(status).label).toBe(EXPECTED_RUN_LABELS[status]);
   });
 

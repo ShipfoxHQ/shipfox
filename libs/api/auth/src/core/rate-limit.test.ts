@@ -145,6 +145,7 @@ describe('checkAuthRateLimit', () => {
           limit: 100,
           windowSeconds: 60,
           now,
+          timeoutMs: 5_000,
         }),
       ),
     );

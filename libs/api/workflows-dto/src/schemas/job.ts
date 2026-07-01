@@ -29,7 +29,7 @@ export const jobDurationDtoSchema = z.discriminatedUnion('kind', [
 
 export const jobDtoSchema = z.object({
   id: z.string().uuid(),
-  run_id: z.string().uuid(),
+  run_attempt_id: z.string().uuid(),
   name: z.string(),
   status: jobStatusSchema,
   status_reason: jobStatusReasonSchema.nullable(),

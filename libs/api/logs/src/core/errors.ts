@@ -24,7 +24,7 @@ export class MalformedLogChunkError extends Error {
 }
 
 /**
- * The lease's `(workspaceId, projectId, runId)` does not match the values
+ * The lease's `(workspaceId, projectId, workflowRunAttemptId)` does not match the values
  * stamped on the existing stream row. Since these are functionally determined
  * by `jobId` via workflows FKs, a mismatch implies a forged token or a
  * cross-job lease confusion — never a legitimate request.

@@ -1,5 +1,8 @@
 import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
-import {runListQuerySchema, runListResponseSchema} from '@shipfox/api-workflows-dto';
+import {
+  workflowRunListQuerySchema,
+  workflowRunListResponseSchema,
+} from '@shipfox/api-workflows-dto';
 import {decodeTimestampIdCursor, encodeTimestampIdCursor} from '@shipfox/node-drizzle';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -11,9 +14,9 @@ export const listRunsRoute = defineRoute({
   path: '/',
   description: 'List workflow runs for a project',
   schema: {
-    querystring: runListQuerySchema,
+    querystring: workflowRunListQuerySchema,
     response: {
-      200: runListResponseSchema,
+      200: workflowRunListResponseSchema,
     },
   },
   errorHandler: (error) => {
@@ -72,7 +75,7 @@ export const listRunsRoute = defineRoute({
     );
 
     return {
-      runs: result.runs.map(toRunDto),
+      runs: result.runs.map((run) => toRunDto(run)),
       next_cursor: result.nextCursor ? encodeTimestampIdCursor(result.nextCursor) : null,
       filtered_total_count: result.filteredTotalCount,
     };

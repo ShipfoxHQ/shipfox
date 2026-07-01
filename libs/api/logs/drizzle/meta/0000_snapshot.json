@@ -45,8 +45,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "run_id": {
-          "name": "run_id",
+        "workflow_run_attempt_id": {
+          "name": "workflow_run_attempt_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
