@@ -66,6 +66,7 @@ CREATE TABLE "workflows_workflow_runs" (
 	"name" text NOT NULL,
 	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
 	"current_attempt" integer DEFAULT 1 NOT NULL,
+	"trigger_provider" text,
 	"trigger_source" text NOT NULL,
 	"trigger_event" text NOT NULL,
 	"trigger_payload" jsonb NOT NULL,

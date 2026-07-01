@@ -83,6 +83,7 @@ export const workflowRunDtoSchema = z.object({
   status: workflowRunStatusSchema,
   current_attempt: z.number().int().positive(),
   latest_attempt: z.number().int().positive(),
+  trigger_provider: z.string().nullable(),
   trigger_source: z.string(),
   trigger_event: z.string(),
   trigger_payload: z.record(z.string(), z.unknown()),

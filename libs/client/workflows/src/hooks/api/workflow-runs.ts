@@ -270,6 +270,7 @@ function buildTempRun({
     status: 'pending',
     current_attempt: 1,
     latest_attempt: 1,
+    trigger_provider: null,
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},

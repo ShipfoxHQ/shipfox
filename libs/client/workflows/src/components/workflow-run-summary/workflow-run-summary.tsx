@@ -152,6 +152,7 @@ export function WorkflowRunSummary({
                       className="inline-flex max-w-full min-w-0 items-center gap-4 rounded-6 border-0 bg-transparent p-0 text-left text-foreground-neutral-muted outline-none focus-visible:shadow-button-neutral-focus"
                     >
                       <TriggerSourceIcon
+                        provider={run.triggerProvider}
                         source={run.triggerSource}
                         aria-hidden="true"
                         className="size-12 shrink-0"

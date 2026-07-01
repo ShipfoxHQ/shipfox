@@ -142,6 +142,7 @@ export interface WorkflowRun {
   name: string;
   status: WorkflowRunStatus;
   currentAttempt: number;
+  triggerProvider: string | null;
   triggerSource: string;
   triggerEvent: string;
   triggerDisplayLabel: string;
@@ -229,6 +230,7 @@ export function toWorkflowRun(dto: WorkflowRunResponseDto): WorkflowRun {
     name: dto.name,
     status: dto.status,
     currentAttempt: dto.current_attempt,
+    triggerProvider: dto.trigger_provider,
     triggerSource: dto.trigger_source,
     triggerEvent: dto.trigger_event,
     triggerDisplayLabel,

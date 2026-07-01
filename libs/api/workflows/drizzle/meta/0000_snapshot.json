@@ -939,6 +939,12 @@
           "notNull": true,
           "default": 1
         },
+        "trigger_provider": {
+          "name": "trigger_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "trigger_source": {
           "name": "trigger_source",
           "type": "text",

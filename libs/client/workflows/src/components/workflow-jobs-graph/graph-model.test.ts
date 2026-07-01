@@ -174,7 +174,8 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
   return {
     ...workflowRunDetail({
       name: 'Deploy',
-      trigger_source: 'github',
+      trigger_provider: 'github',
+      trigger_source: 'github_acme',
       trigger_event: 'push',
       started_at: '2026-06-21T12:00:10.000Z',
       jobs: [],

@@ -12,6 +12,7 @@ const baseRun = {
   current_attempt: 1,
   latest_attempt: 1,
   rerun_mode: null,
+  trigger_provider: null,
   trigger_source: 'manual',
   trigger_event: 'fire',
   trigger_payload: {source: 'manual', event: 'fire'},
