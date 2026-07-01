@@ -74,12 +74,14 @@ mise run ollama:up
 
 From a worktree, that task delegates to the root checkout and runs the root
 `ollama:up` task. From the root checkout, it starts `ollama serve`, pulls
-`qwen3.5:0.8b`, and preloads the model with a 24 hour keep-alive.
+`qwen3.5:0.8b`, and then reports the API as ready. A background warmup request
+preloads the model with a 24 hour keep-alive, so callers can start using the
+Ollama HTTP API as soon as the pull completes.
 
 Useful commands:
 
 ```sh
-mise run ollama:up       # start the shared server and preload qwen3.5:0.8b
+mise run ollama:up       # start the shared server and pull qwen3.5:0.8b
 mise run ollama:status   # show endpoint, root path, and managed process status
 mise run ollama:stop     # stop the server if this repo started it
 ```
