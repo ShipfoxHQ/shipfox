@@ -175,7 +175,6 @@ async function reconcile(context: DockerLifecycleContext): Promise<void> {
       'Skipping backend reconcile because observed provisioned runner count exceeds the API limit',
     );
     await applyObservedContainers(context, containers, EMPTY_TERMINATE_INTENT_IDS);
-    context.backendReconcileSucceeded = true;
     return;
   }
 

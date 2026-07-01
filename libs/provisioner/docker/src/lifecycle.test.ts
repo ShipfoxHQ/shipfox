@@ -358,6 +358,27 @@ describe('createDockerLifecycle', () => {
     ]);
   });
 
+  it('tick retries backend reconcile after an oversized observed set later fits the API limit', async () => {
+    const containers = Array.from({length: 5001}, (_, index) =>
+      container({name: `runner-${index}`, state: 'running'}),
+    );
+    const engine = fakeEngine({containers});
+    const client = fakeClient({
+      reconcileResponse: {
+        runners: [reconciledRunner('runner-1', 'keep')],
+        terminated_absent_provisioned_runner_ids: [],
+      },
+    });
+    const lifecycle = makeLifecycle({engine, client});
+
+    await lifecycle.tick();
+    containers.splice(1);
+    await lifecycle.tick();
+    await lifecycle.tick();
+
+    expect(client.reconcileBodies).toEqual([{observed_provisioned_runner_ids: ['runner-0']}]);
+  });
+
   it('terminate kills and reports matching managed containers', async () => {
     const engine = fakeEngine({
       containers: [container({state: 'running'}), container({name: 'runner-2', state: 'running'})],
