@@ -1,9 +1,11 @@
 import type {FastifyInstance} from 'fastify';
 import {signUserToken} from '#core/jwt.js';
+import {verifyPassword} from '#core/password.js';
+import {findUserByEmail} from '#db/users.js';
 import {
   cookieHeader,
   createAuthTestApp,
-  login,
+  createVerifiedSession,
   ROUTE_TEST_SECRET,
   resetCapturedMail,
   signupVerifyLogin,
@@ -25,7 +27,7 @@ describe('POST /auth/change-password', () => {
   });
 
   test('updates credentials and rejects the old password', async () => {
-    const account = await signupVerifyLogin(app, 'change-password');
+    const account = await createVerifiedSession('change-password');
 
     const change = await app.inject({
       method: 'POST',
@@ -39,18 +41,26 @@ describe('POST /auth/change-password', () => {
         new_password: 'new password is long',
       },
     });
-    const oldLogin = await login(app, {email: account.email, password: account.password});
-    const newLogin = await login(app, {email: account.email, password: 'new password is long'});
+    const updatedUser = await findUserByEmail({email: account.email});
     const refresh = await app.inject({
       method: 'POST',
       url: '/auth/refresh',
       headers: {cookie: cookieHeader(account.refreshCookie)},
       payload: {},
     });
+    const oldPasswordValid = await verifyPassword({
+      password: account.password,
+      hash: updatedUser?.hashedPassword ?? '',
+    });
+    const newPasswordValid = await verifyPassword({
+      password: 'new password is long',
+      hash: updatedUser?.hashedPassword ?? '',
+    });
 
     expect(change.statusCode).toBe(204);
-    expect(oldLogin.statusCode).toBe(401);
-    expect(newLogin.statusCode).toBe(200);
+    expect(updatedUser).toBeDefined();
+    expect(oldPasswordValid).toBe(false);
+    expect(newPasswordValid).toBe(true);
     expect(refresh.statusCode).toBe(200);
   });
 

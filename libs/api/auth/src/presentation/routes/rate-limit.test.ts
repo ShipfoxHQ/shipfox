@@ -4,7 +4,6 @@ import {and, eq, sql} from 'drizzle-orm';
 import {
   type AuthRateLimitAction,
   type AuthRateLimitScope,
-  checkAuthRateLimit,
   hashAuthRateLimitIdentifier,
 } from '#core/rate-limit.js';
 import {db} from '#db/db.js';
@@ -24,22 +23,30 @@ function uniqueIp(): string {
   return `203.0.113.${ipCounter}`;
 }
 
-async function exhaustBucket(params: {
+async function seedExhaustedBucket(params: {
   action: AuthRateLimitAction;
   scope: AuthRateLimitScope;
   identifier: string;
   limit: number;
   windowSeconds: number;
 }): Promise<void> {
-  for (let index = 0; index < params.limit; index += 1) {
-    await checkAuthRateLimit({
+  const now = new Date();
+  const windowStart = windowStartFor(now, params.windowSeconds);
+  const identifierHmac = hashAuthRateLimitIdentifier({
+    action: params.action,
+    scope: params.scope,
+    identifier: params.identifier,
+  });
+  await db()
+    .insert(authRateLimits)
+    .values({
       action: params.action,
       scope: params.scope,
-      identifier: params.identifier,
-      limit: params.limit,
-      windowSeconds: params.windowSeconds,
+      identifierHmac,
+      windowStart,
+      count: params.limit,
+      expiresAt: new Date(windowStart.getTime() + params.windowSeconds * 1000),
     });
-  }
 }
 
 async function countBucket(params: {
@@ -140,7 +147,7 @@ describe('auth rate-limit routes', () => {
 
   it('blocks exhausted login IP buckets before login work runs', async () => {
     const ip = uniqueIp();
-    await exhaustBucket({
+    await seedExhaustedBucket({
       action: 'login',
       scope: 'ip',
       identifier: ip,
@@ -166,7 +173,7 @@ describe('auth rate-limit routes', () => {
   it('blocks exhausted login email buckets after the IP bucket passes', async () => {
     const ip = uniqueIp();
     const email = uniqueEmail('login-email-block');
-    await exhaustBucket({
+    await seedExhaustedBucket({
       action: 'login',
       scope: 'email',
       identifier: email,
@@ -220,7 +227,7 @@ describe('auth rate-limit routes', () => {
   it('blocks exhausted email-send IP buckets before consuming email buckets', async () => {
     const ip = uniqueIp();
     const blockedEmail = uniqueEmail('email-send-ip-blocked');
-    await exhaustBucket({
+    await seedExhaustedBucket({
       action: 'email-send',
       scope: 'ip',
       identifier: ip,
@@ -303,7 +310,7 @@ describe('auth rate-limit routes', () => {
     });
     const ip = uniqueIp();
     const email = uniqueEmail('log-privacy');
-    await exhaustBucket({
+    await seedExhaustedBucket({
       action: 'login',
       scope: 'email',
       identifier: email,
