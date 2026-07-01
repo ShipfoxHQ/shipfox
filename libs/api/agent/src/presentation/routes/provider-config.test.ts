@@ -3,7 +3,7 @@ import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-con
 import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {
   getAgentProviderConfig,
@@ -48,8 +48,6 @@ describe('agent provider config routes', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE agent_provider_configs CASCADE`);
-    await db().execute(sql`TRUNCATE agent_workspace_settings CASCADE`);
     workspaceId = crypto.randomUUID();
     vi.mocked(complete).mockReset();
     vi.mocked(complete).mockResolvedValue({

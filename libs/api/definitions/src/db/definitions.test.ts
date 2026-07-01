@@ -421,8 +421,6 @@ describe('definition queries', () => {
     });
 
     test('applyVcsDefinitionsBatch skips outbox events for unchanged content hashes', async () => {
-      await db().execute(sql`TRUNCATE definitions_outbox CASCADE`);
-
       const first = await applyVcsDefinitionsBatch({
         projectId,
         workspaceId,
@@ -451,7 +449,6 @@ describe('definition queries', () => {
     });
 
     test('softDeleteVcsDefinitionsNotIn writes a DEFINITION_DELETED event per pruned row', async () => {
-      await db().execute(sql`TRUNCATE definitions_outbox CASCADE`);
       const pruned = await upsertDefinition({
         projectId,
         workspaceId,
@@ -522,10 +519,6 @@ describe('definition queries', () => {
   });
 
   describe('outbox integration', () => {
-    beforeEach(async () => {
-      await db().execute(sql`TRUNCATE definitions_outbox CASCADE`);
-    });
-
     test('writes a definitions.definition.resolved event to the outbox', async () => {
       const definition = await upsertDefinition({
         projectId,
@@ -589,9 +582,8 @@ describe('definition queries', () => {
   });
 
   describe('publisher registry (drainAll + markDispatched)', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       resetPublishers();
-      await db().execute(sql`TRUNCATE definitions_outbox CASCADE`);
       registerPublisher({
         name: 'definitions',
         table: definitionsOutbox,
@@ -950,6 +942,10 @@ describe('definition queries', () => {
       const remaining = await listOutboxRowsForProject(projectId);
       expect(result).toEqual([{source: 'definitions', deleted: 2, capped: true}]);
       expect(remaining).toHaveLength(1);
+      await db()
+        .update(definitionsOutbox)
+        .set({dispatchedAt: new Date()})
+        .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
     });
 
     test('pruneDispatchedOutboxRows returns zero when no rows are eligible', async () => {
