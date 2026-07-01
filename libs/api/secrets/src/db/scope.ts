@@ -13,7 +13,7 @@ export interface ScopeColumns {
 }
 
 export function normalizedProjectId(scope?: StoreScope | undefined): string | null {
-  return scope?.projectId ?? null;
+  return scope?.projectId || null;
 }
 
 export function scopeConflictTargetWhere(scope?: StoreScope | undefined): SQL {

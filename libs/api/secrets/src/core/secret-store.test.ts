@@ -4,6 +4,7 @@ import {eq, sql} from 'drizzle-orm';
 import {db, secretDataKeys, secretValues, upsertSecretValueRows} from '#db/index.js';
 import {
   NamespaceValidationError,
+  SecretBatchScopeMismatchError,
   SecretDecryptionError,
   SecretKeyValidationError,
   SecretValueTooLargeError,
@@ -57,6 +58,20 @@ describe('secret store', () => {
     expect(projectValue).toBe('project-token');
     expect(workspaceValue).toBe('workspace-token');
     expect(inheritedValue).toBe('workspace-token');
+  });
+
+  it('normalizes an empty project id to workspace scope', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await setSecrets({workspaceId, projectId: '', values: {TOKEN: 'workspace-token'}});
+    const value = await getSecret({workspaceId, key: 'TOKEN'});
+    const rows = await db()
+      .select()
+      .from(secretValues)
+      .where(eq(secretValues.workspaceId, workspaceId));
+
+    expect(value).toBe('workspace-token');
+    expect(rows[0]?.projectId).toBeNull();
   });
 
   it('treats an empty delete key list as a no-op', async () => {
@@ -190,7 +205,7 @@ describe('secret store', () => {
           tx,
         ),
       ),
-    ).rejects.toThrow('single project scope');
+    ).rejects.toThrow(SecretBatchScopeMismatchError);
   });
 
   it('keeps the database namespace check in parity with the DTO pattern', async () => {

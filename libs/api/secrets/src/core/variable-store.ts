@@ -8,6 +8,7 @@ import {
   type StoreScope,
   upsertSecretVariableRows,
 } from '#db/index.js';
+import {normalizedProjectId} from '#db/scope.js';
 import {
   assertWorkspaceCap,
   validateNamespace,
@@ -57,7 +58,7 @@ export async function setVariables(input: SetVariablesParams): Promise<void> {
   validateValueBytes(entries.map(([, value]) => value));
   if (entries.length === 0) return;
 
-  const projectId = input.projectId ?? null;
+  const projectId = normalizedProjectId(input);
   await db().transaction(async (tx) => {
     await lockWorkspaceEntries(input.workspaceId, tx);
     const existingEntries = await countSecretVariableRows(
@@ -95,7 +96,7 @@ export function deleteVariables(input: DeleteVariablesParams): Promise<number> {
 
   return deleteSecretVariableRows({
     workspaceId: input.workspaceId,
-    projectId: input.projectId ?? null,
+    projectId: normalizedProjectId(input),
     namespace,
     keys: input.keys,
   });

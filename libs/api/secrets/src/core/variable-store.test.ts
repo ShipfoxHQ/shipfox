@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
+import {eq} from 'drizzle-orm';
 import {db, secretVariables, upsertSecretVariableRows} from '#db/index.js';
-import {WorkspaceSecretCapExceededError} from './errors.js';
+import {SecretBatchScopeMismatchError, WorkspaceSecretCapExceededError} from './errors.js';
 import {
   deleteVariables,
   getVariable,
@@ -23,6 +24,20 @@ describe('variable store', () => {
     expect(projectValue).toBe('eu-west-1');
     expect(values).toEqual({REGION: 'eu-west-1'});
     expect(rows.map((row) => row.value).sort()).toEqual(['eu-west-1', 'us-east-1']);
+  });
+
+  it('normalizes an empty project id to workspace scope', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await setVariables({workspaceId, projectId: '', values: {REGION: 'us-east-1'}});
+    const value = await getVariable({workspaceId, key: 'REGION'});
+    const rows = await db()
+      .select()
+      .from(secretVariables)
+      .where(eq(secretVariables.workspaceId, workspaceId));
+
+    expect(value).toBe('us-east-1');
+    expect(rows[0]?.projectId).toBeNull();
   });
 
   it('treats an empty delete key list as a no-op', async () => {
@@ -72,7 +87,7 @@ describe('variable store', () => {
           tx,
         ),
       ),
-    ).rejects.toThrow('single project scope');
+    ).rejects.toThrow(SecretBatchScopeMismatchError);
   });
 
   it('keeps the database namespace check in parity with the DTO pattern', async () => {

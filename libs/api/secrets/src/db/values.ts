@@ -1,4 +1,5 @@
 import {and, eq, inArray, isNull, sql} from 'drizzle-orm';
+import {SecretBatchScopeMismatchError} from '#core/errors.js';
 import {db, type Tx} from './db.js';
 import {type SecretValue, secretValues, toSecretValue} from './schema/values.js';
 import {
@@ -149,7 +150,7 @@ function batchProjectId(rows: SecretValueWrite[]): string | null {
   const mixedScope = rows.some(
     (row) => normalizedProjectId({projectId: row.projectId}) !== projectId,
   );
-  if (mixedScope) throw new Error('Secret value batch must target a single project scope.');
+  if (mixedScope) throw new SecretBatchScopeMismatchError();
   return projectId;
 }
 

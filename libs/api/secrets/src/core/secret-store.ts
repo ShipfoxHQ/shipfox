@@ -6,6 +6,7 @@ import {
   type StoreScope,
   upsertSecretValueRows,
 } from '#db/index.js';
+import {normalizedProjectId} from '#db/scope.js';
 import type {DekManager} from './dek-manager.js';
 import {fingerprintSecretValue} from './fingerprint.js';
 import type {SecretStoreProvider} from './store-resolver.js';
@@ -64,7 +65,7 @@ export function createSecretStoreApi(params: {
       if (entries.length === 0) return;
 
       const dek = await params.dekManager.getPlaintextDek(input.workspaceId);
-      const projectId = input.projectId ?? null;
+      const projectId = normalizedProjectId(input);
       const rows = entries.map(([key, value]) => ({
         workspaceId: input.workspaceId,
         projectId,
@@ -108,7 +109,7 @@ export function createSecretStoreApi(params: {
 
       return deleteSecretValueRows({
         workspaceId: input.workspaceId,
-        projectId: input.projectId ?? null,
+        projectId: normalizedProjectId(input),
         namespace,
         keys: input.keys,
       });

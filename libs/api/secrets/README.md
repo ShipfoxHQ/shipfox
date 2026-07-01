@@ -59,7 +59,7 @@ const apiKey = await getSecret({
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SECRETS_ENCRYPTION_KEK` | none | Required base64-encoded 32-byte key used to wrap workspace data keys. Generate one per environment. |
-| `SECRETS_ENCRYPTION_KEK_PREVIOUS` | none | Previous KEK used only during rotation. Set it to the old key until data-key rotation completes. |
+| `SECRETS_ENCRYPTION_KEK_PREVIOUS` | none | Previous KEK needed during rotation and for normal operations until all workspace data keys are re-wrapped. Set it to the old key until data-key rotation completes. |
 | `SECRETS_MAX_PER_WORKSPACE` | `10000` | Maximum total count of secrets and variables in one workspace. The count includes all namespaces and project scopes. |
 | `SECRETS_SHORT_VALUE_WARN_LENGTH` | `12` | Length below which management routes can show a short-secret warning. The core store does not emit the warning itself. |
 

@@ -16,6 +16,7 @@ export {
   NamespaceValidationError,
   resolveSecretStore,
   rotateWorkspaceDataKeys,
+  SecretBatchScopeMismatchError,
   SecretDecryptionError,
   SecretKeyValidationError,
   type SecretStoreProvider,

@@ -2,7 +2,7 @@ import {NAMESPACE_PATTERN_SOURCE, SECRET_KEY_PATTERN_SOURCE} from '@shipfox/api-
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {check, index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
-import {pgTable} from './common.js';
+import {pgTable, sqlStringLiteral} from './common.js';
 
 export interface SecretValue {
   id: string;
@@ -46,11 +46,11 @@ export const secretValues = pgTable(
     ),
     check(
       'secrets_values_key_ck',
-      sql`${table.key} ~ ${sql.raw(`'${SECRET_KEY_PATTERN_SOURCE}'`)}`,
+      sql`${table.key} ~ ${sqlStringLiteral(SECRET_KEY_PATTERN_SOURCE)}`,
     ),
     check(
       'secrets_values_namespace_ck',
-      sql`${table.namespace} = '' OR ${table.namespace} ~ ${sql.raw(`'${NAMESPACE_PATTERN_SOURCE}'`)}`,
+      sql`${table.namespace} = '' OR ${table.namespace} ~ ${sqlStringLiteral(NAMESPACE_PATTERN_SOURCE)}`,
     ),
   ],
 );

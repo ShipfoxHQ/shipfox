@@ -57,6 +57,13 @@ export class SecretValueTooLargeError extends Error {
   }
 }
 
+export class SecretBatchScopeMismatchError extends Error {
+  constructor() {
+    super('Secret and variable batches must target a single project scope.');
+    this.name = 'SecretBatchScopeMismatchError';
+  }
+}
+
 export class UnknownSecretStoreError extends Error {
   constructor(public readonly store: string) {
     super(`Unknown secret store: ${store.slice(0, 64)}`);
