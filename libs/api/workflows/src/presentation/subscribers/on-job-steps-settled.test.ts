@@ -37,6 +37,19 @@ describe('onJobStepsSettled', () => {
     expect(signalMock).toHaveBeenCalledWith('job-finished', {status: 'failed'});
   });
 
+  it('routes a stale-attempt event only to the payload job workflow', async () => {
+    const previousAttemptJobId = crypto.randomUUID();
+    const payload = buildPayload({
+      jobId: previousAttemptJobId,
+      workflowRunAttemptId: crypto.randomUUID(),
+    });
+
+    await onJobStepsSettled(payload);
+
+    expect(getHandleMock).toHaveBeenCalledTimes(1);
+    expect(getHandleMock).toHaveBeenCalledWith(`job:${previousAttemptJobId}`);
+  });
+
   it('discards a late event when the job workflow already terminated', async () => {
     const notFound = new Error('gone');
     notFound.name = 'WorkflowNotFoundError';

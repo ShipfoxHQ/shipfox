@@ -1,5 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {
+  check,
   index,
   integer,
   jsonb,
@@ -69,6 +71,7 @@ export const workflowRuns = pgTable(
       table.createdAt,
       table.id,
     ),
+    check('workflows_wr_current_attempt_positive_ck', sql`${table.currentAttempt} > 0`),
   ],
 );
 

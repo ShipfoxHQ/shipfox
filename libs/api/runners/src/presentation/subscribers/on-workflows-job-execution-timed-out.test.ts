@@ -11,7 +11,7 @@ function buildPayload(
   jobExecutionId: string,
   workflowRunAttemptId: string,
 ): WorkflowsJobExecutionTimedOutEvent {
-  return {jobId, jobExecutionId, runId: crypto.randomUUID(), workflowRunAttemptId};
+  return {jobId, jobExecutionId, workflowRunAttemptId};
 }
 
 describe('onWorkflowsJobExecutionTimedOut', () => {

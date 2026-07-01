@@ -76,7 +76,8 @@ CREATE TABLE "workflows_workflow_runs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"started_at" timestamp with time zone,
-	"finished_at" timestamp with time zone
+	"finished_at" timestamp with time zone,
+	CONSTRAINT "workflows_wr_current_attempt_positive_ck" CHECK ("workflows_workflow_runs"."current_attempt" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "workflows_workflow_run_attempts" (
@@ -90,7 +91,8 @@ CREATE TABLE "workflows_workflow_run_attempts" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"started_at" timestamp with time zone,
-	"finished_at" timestamp with time zone
+	"finished_at" timestamp with time zone,
+	CONSTRAINT "workflows_wra_attempt_positive_ck" CHECK ("workflows_workflow_run_attempts"."attempt" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "workflows_job_executions" (

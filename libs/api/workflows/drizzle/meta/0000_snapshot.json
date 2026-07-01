@@ -896,7 +896,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "workflows_wra_attempt_positive_ck": {
+          "name": "workflows_wra_attempt_positive_ck",
+          "value": "\"workflows_workflow_run_attempts\".\"attempt\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.workflows_workflow_runs": {
@@ -1166,7 +1171,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "workflows_wr_current_attempt_positive_ck": {
+          "name": "workflows_wr_current_attempt_positive_ck",
+          "value": "\"workflows_workflow_runs\".\"current_attempt\" > 0"
+        }
+      },
       "isRLSEnabled": false
     }
   },

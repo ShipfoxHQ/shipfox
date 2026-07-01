@@ -65,7 +65,6 @@ export type WorkflowsWorkflowRunCancelledEvent = z.infer<
 export const workflowsJobExecutionTimedOutSchema = z.object({
   jobId: nonEmptyStringSchema,
   jobExecutionId: nonEmptyStringSchema,
-  runId: nonEmptyStringSchema,
   workflowRunAttemptId: nonEmptyStringSchema,
 });
 export type WorkflowsJobExecutionTimedOutEvent = z.infer<

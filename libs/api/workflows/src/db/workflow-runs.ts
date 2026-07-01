@@ -1262,22 +1262,48 @@ export async function updateWorkflowRunStatus(
   params: UpdateWorkflowRunStatusParams,
 ): Promise<WorkflowRun> {
   const result = await db().transaction(async (tx) => {
-    const [target] = await tx
-      .select({run: workflowRuns, attempt: workflowRunAttempts})
+    const [attemptRef] = params.workflowRunAttemptId
+      ? await tx
+          .select({
+            id: workflowRunAttempts.id,
+            workflowRunId: workflowRunAttempts.workflowRunId,
+          })
+          .from(workflowRunAttempts)
+          .where(eq(workflowRunAttempts.id, params.workflowRunAttemptId))
+          .limit(1)
+      : [];
+
+    const workflowRunId = attemptRef?.workflowRunId ?? params.runId ?? '';
+    const [lockedRun] = await tx
+      .select()
+      .from(workflowRuns)
+      .where(eq(workflowRuns.id, workflowRunId))
+      .limit(1)
+      .for('update');
+
+    if (!lockedRun) {
+      throw new WorkflowRunNotFoundError(params.runId ?? params.workflowRunAttemptId ?? '');
+    }
+
+    const [lockedAttempt] = await tx
+      .select()
       .from(workflowRunAttempts)
-      .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
       .where(
         params.workflowRunAttemptId
           ? eq(workflowRunAttempts.id, params.workflowRunAttemptId)
           : and(
-              eq(workflowRuns.id, params.runId ?? ''),
-              eq(workflowRunAttempts.attempt, workflowRuns.currentAttempt),
+              eq(workflowRunAttempts.workflowRunId, lockedRun.id),
+              eq(workflowRunAttempts.attempt, lockedRun.currentAttempt),
             ),
       )
-      .limit(1);
-    if (!target) {
+      .limit(1)
+      .for('update');
+
+    if (!lockedAttempt) {
       throw new WorkflowRunNotFoundError(params.runId ?? params.workflowRunAttemptId ?? '');
     }
+
+    const target = {run: lockedRun, attempt: lockedAttempt};
 
     const rows = await tx
       .update(workflowRunAttempts)
@@ -1610,7 +1636,6 @@ export async function failJobExecutionAsTimedOut(params: {
       payload: {
         jobId: updated.execution.jobId,
         jobExecutionId: params.jobExecutionId,
-        runId: params.workflowRunAttemptId,
         workflowRunAttemptId: params.workflowRunAttemptId,
       },
     });

@@ -23,6 +23,8 @@ import {db} from './db.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {steps as stepsTable} from './schema/steps.js';
+import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
+import {workflowRuns} from './schema/workflow-runs.js';
 import {
   bulkUpdateStepStatuses,
   cancelWorkflowRun,
@@ -112,7 +114,15 @@ async function runTerminatedEvents(runId: string) {
         sql`${workflowsOutbox.payload}->>'runId' = ${runId}`,
       ),
     );
-  return rows.map((row) => row.payload as {runId: string; projectId: string; status: string});
+  return rows.map(
+    (row) =>
+      row.payload as {
+        runId: string;
+        workflowRunAttemptId: string;
+        projectId: string;
+        status: string;
+      },
+  );
 }
 
 async function runCancelledEvents(runId: string) {
@@ -125,7 +135,9 @@ async function runCancelledEvents(runId: string) {
         sql`${workflowsOutbox.payload}->>'runId' = ${runId}`,
       ),
     );
-  return rows.map((row) => row.payload as {runId: string; projectId: string});
+  return rows.map(
+    (row) => row.payload as {runId: string; workflowRunAttemptId: string; projectId: string},
+  );
 }
 
 async function workflowRunCreatedEvents(runId: string) {
@@ -1679,6 +1691,35 @@ jobs:
       expect(await runTerminatedEvents(run.id)).toHaveLength(0);
     });
 
+    test('does not mirror a non-current attempt terminal update to the run', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const attempts = await listRunAttempts({rootRunId: run.id, projectId});
+      const firstAttempt = attempts[0];
+      if (!firstAttempt) throw new Error('Expected initial attempt');
+      await db().insert(workflowRunAttempts).values({
+        workflowRunId: run.id,
+        attempt: 2,
+        status: 'succeeded',
+      });
+      await db()
+        .update(workflowRuns)
+        .set({currentAttempt: 2, status: 'succeeded'})
+        .where(eq(workflowRuns.id, run.id));
+
+      const staleUpdate = await updateWorkflowRunStatus({
+        workflowRunAttemptId: firstAttempt.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      expect(staleUpdate.status).toBe('succeeded');
+      expect(await getWorkflowRunById(run.id)).toMatchObject({
+        status: 'succeeded',
+        currentAttempt: 2,
+      });
+      expect(await runTerminatedEvents(run.id)).toHaveLength(0);
+    });
+
     test('idempotent retry: a second terminal update at the stale version emits once', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
@@ -1809,6 +1850,51 @@ jobs:
       expect(await stepAttemptTerminatedEvents(runningJobExecution.id)).toHaveLength(1);
       expect(await jobTerminatedEvents(succeededJob.id)).toHaveLength(1);
       expect(await jobTerminatedEvents(skippedJob.id)).toHaveLength(1);
+    });
+
+    test('cancels the current rerun attempt after current_attempt moves', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      await updateWorkflowRunStatus({runId: run.id, status: 'failed', expectedVersion: 1});
+      const firstAttempt = (await listRunAttempts({rootRunId: run.id, projectId}))[0];
+      if (!firstAttempt) throw new Error('Expected initial attempt');
+      await createRerunWorkflowRun({
+        sourceRunId: run.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      const secondAttempt = (await listRunAttempts({rootRunId: run.id, projectId})).find(
+        (attempt) => attempt.attempt === 2,
+      );
+      if (!secondAttempt) throw new Error('Expected rerun attempt');
+      await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
+
+      await cancelWorkflowRun({runId: run.id});
+
+      expect(await runCancelledEvents(run.id)).toEqual([
+        expect.objectContaining({
+          runId: run.id,
+          workflowRunAttemptId: secondAttempt.id,
+          projectId,
+        }),
+      ]);
+      const terminatedEvents = await runTerminatedEvents(run.id);
+      expect(terminatedEvents).toHaveLength(2);
+      expect(terminatedEvents).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            runId: run.id,
+            workflowRunAttemptId: firstAttempt.id,
+            projectId,
+            status: 'failed',
+          }),
+          expect.objectContaining({
+            runId: run.id,
+            workflowRunAttemptId: secondAttempt.id,
+            projectId,
+            status: 'cancelled',
+          }),
+        ]),
+      );
     });
 
     test('throws without changing an already-terminal run', async () => {

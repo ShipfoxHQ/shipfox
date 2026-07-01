@@ -51,7 +51,6 @@ const validRunCancelled = {
 const validJobExecutionTimedOut = {
   jobId: 'job-1',
   jobExecutionId: 'execution-1',
-  runId: 'run-1',
   workflowRunAttemptId: 'attempt-1',
 };
 
