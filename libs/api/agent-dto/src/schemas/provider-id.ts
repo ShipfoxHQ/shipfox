@@ -48,6 +48,13 @@ export const AGENT_PROVIDER_IDS = [
 
 export const supportedAgentProviderIdSchema = z.enum(SUPPORTED_AGENT_PROVIDER_IDS);
 export const agentProviderIdSchema = z.enum(AGENT_PROVIDER_IDS);
+export const AGENT_PROVIDER_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+export const agentProviderRefSchema = z.string().regex(AGENT_PROVIDER_SLUG_PATTERN);
 
 export type SupportedAgentProviderId = z.infer<typeof supportedAgentProviderIdSchema>;
 export type AgentProviderId = z.infer<typeof agentProviderIdSchema>;
+export type AgentProviderRef = z.infer<typeof agentProviderRefSchema>;
+
+export function isReservedAgentProviderId(value: string): boolean {
+  return (AGENT_PROVIDER_IDS as readonly string[]).includes(value);
+}

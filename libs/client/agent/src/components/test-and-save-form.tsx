@@ -119,29 +119,35 @@ export function AgentProviderTestAndSaveForm({
                   value.trim() ? undefined : `${credentialField.label} is required.`,
               }}
             >
-              {(field) => (
-                <FormField
-                  label={credentialField.label}
-                  id={`agent-provider-${entry.id}-${credentialField.key}`}
-                  error={fieldError(field)}
-                >
-                  <FormFieldInput
-                    type={credentialField.secret ? 'password' : 'text'}
-                    autoComplete="off"
-                    value={field.state.value}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    onBlur={field.handleBlur}
-                  />
-                  {existingConfig?.key_fingerprints[credentialField.key] ? (
-                    <Text size="sm" className="mt-4 text-foreground-neutral-muted">
-                      Current:{' '}
-                      <Code as="span" variant="label">
-                        {existingConfig.key_fingerprints[credentialField.key]}
-                      </Code>
-                    </Text>
-                  ) : null}
-                </FormField>
-              )}
+              {(field) => {
+                const fingerprint = existingConfig
+                  ? credentialFingerprint(existingConfig.key_fingerprints, credentialField.key)
+                  : undefined;
+
+                return (
+                  <FormField
+                    label={credentialField.label}
+                    id={`agent-provider-${entry.id}-${credentialField.key}`}
+                    error={fieldError(field)}
+                  >
+                    <FormFieldInput
+                      type={credentialField.secret ? 'password' : 'text'}
+                      autoComplete="off"
+                      value={field.state.value}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                    {fingerprint ? (
+                      <Text size="sm" className="mt-4 text-foreground-neutral-muted">
+                        Current:{' '}
+                        <Code as="span" variant="label">
+                          {fingerprint}
+                        </Code>
+                      </Text>
+                    ) : null}
+                  </FormField>
+                );
+              }}
             </form.Field>
           ))}
         </form>
@@ -177,4 +183,11 @@ function defaultFormValues(
     default_model: defaultModelFormValue(existingConfig?.default_model),
     ...Object.fromEntries(entry.credential_fields.map((field) => [field.key, ''])),
   };
+}
+
+function credentialFingerprint(
+  fingerprints: Record<string, string>,
+  credentialKey: string,
+): string | undefined {
+  return fingerprints[`credential:${credentialKey}`] ?? fingerprints[credentialKey];
 }

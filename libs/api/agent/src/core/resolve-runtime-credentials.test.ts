@@ -112,12 +112,12 @@ describe('resolveRuntimeCredentials', () => {
       providerId: 'anthropic',
       credentials: {api_key: plaintext},
     });
-    const encrypted = encryptedCredentials.api_key as string;
+    const encrypted = encryptedCredentials['credential:api_key'] as string;
     await upsertAgentProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {api_key: `${encrypted.slice(0, -2)}AA`},
-      keyFingerprints: {api_key: 'sk-work...cret'},
+      encryptedCredentials: {'credential:api_key': `${encrypted.slice(0, -2)}AA`},
+      keyFingerprints: {'credential:api_key': 'sk-work...cret'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -148,7 +148,7 @@ async function saveProviderConfig(params: {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
     encryptedCredentials: encryptCredentials(params),
-    keyFingerprints: {api_key: 'sk-test...cret'},
+    keyFingerprints: {'credential:api_key': 'sk-test...cret'},
     defaultModel: null,
     defaultThinking: 'high',
   });

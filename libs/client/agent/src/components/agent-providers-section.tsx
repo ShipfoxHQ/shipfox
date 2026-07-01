@@ -36,17 +36,22 @@ import {AgentProviderUsageModal} from './agent-provider-usage-modal.js';
 import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from './available-providers-grid.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
 import {agentProviderConfigErrorToFormError} from './form-errors.js';
+import {
+  isSupportedCatalogEntry,
+  type SupportedAgentProviderCatalogEntry,
+  toSupportedCatalogEntry,
+} from './supported-agent-provider-catalog-entry.js';
 import {AgentProviderTestAndSaveForm} from './test-and-save-form.js';
 
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
 
 type ProviderFormState =
-  | {mode: 'configure'; entry: AgentProviderCatalogEntryDto; config?: undefined}
-  | {mode: 'edit'; entry: AgentProviderCatalogEntryDto; config: AgentProviderConfigDto};
-type ModelFormState = {entry: AgentProviderCatalogEntryDto; config: AgentProviderConfigDto};
+  | {mode: 'configure'; entry: SupportedAgentProviderCatalogEntry; config?: undefined}
+  | {mode: 'edit'; entry: SupportedAgentProviderCatalogEntry; config: AgentProviderConfigDto};
+type ModelFormState = {entry: SupportedAgentProviderCatalogEntry; config: AgentProviderConfigDto};
 type UsageTarget = {
-  entry: AgentProviderCatalogEntryDto;
+  entry: SupportedAgentProviderCatalogEntry;
   initialModel: string | null;
   restoreFocusToConfiguredProviders: boolean;
 };
@@ -67,7 +72,10 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
   const configsLoaded = configsQuery.data !== undefined;
   const defaultProviderId = configsQuery.data?.default_provider_id ?? null;
   const providerById = useMemo(
-    () => new Map(providers.map((provider) => [provider.id, provider])),
+    () =>
+      new Map<string, AgentProviderCatalogEntryDto>(
+        providers.map((provider) => [provider.id, provider]),
+      ),
     [providers],
   );
   const configuredIds = useMemo(
@@ -76,7 +84,8 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
   );
   const availableProviders = configsLoaded
     ? providers.filter(
-        (provider) => provider.support_status === 'supported' && !configuredIds.has(provider.id),
+        (provider): provider is SupportedAgentProviderCatalogEntry =>
+          isSupportedCatalogEntry(provider) && !configuredIds.has(provider.id),
       )
     : [];
   const unsupportedProviders = providers.filter(
@@ -140,7 +149,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         {configs.length > 0 ? (
           <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
             {configs.map((config) => {
-              const entry = providerById.get(config.provider_id);
+              const entry = toSupportedCatalogEntry(providerById.get(config.provider_id));
               return (
                 <ConfiguredProviderRow
                   key={config.provider_id}
@@ -336,7 +345,7 @@ function ConfiguredProviderRow({
 }: {
   workspaceId: string;
   config: AgentProviderConfigDto;
-  entry: AgentProviderCatalogEntryDto | undefined;
+  entry: SupportedAgentProviderCatalogEntry | undefined;
   isDefault: boolean;
   onEdit: () => void;
   onChangeDefaultModel: () => void;
@@ -350,6 +359,8 @@ function ConfiguredProviderRow({
   const label = entry?.label ?? config.provider_id;
 
   async function handleSetDefault() {
+    if (!entry) return;
+
     setDefaultError(undefined);
     try {
       await setDefault.mutateAsync({
@@ -421,7 +432,7 @@ function ConfiguredProviderRow({
             {!isDefault ? (
               <DropdownMenuItem
                 icon="starLine"
-                disabled={setDefault.isPending}
+                disabled={setDefault.isPending || !entry}
                 onSelect={() => {
                   void handleSetDefault();
                 }}

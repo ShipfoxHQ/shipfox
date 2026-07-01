@@ -69,7 +69,7 @@ describe('agent provider transport', () => {
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.key_fingerprints.api_key).toBe('sk-ant-s...abcd');
+    expect(result.key_fingerprints['credential:api_key']).toBe('sk-ant-s...abcd');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/providers/anthropic`,
     );

@@ -1,4 +1,4 @@
-import {supportedAgentProviderIdSchema} from '@shipfox/api-agent-dto';
+import {agentProviderRefSchema} from '@shipfox/api-agent-dto';
 import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
@@ -11,7 +11,7 @@ export const deleteProviderConfigRoute = defineRoute({
   schema: {
     params: z.object({
       workspaceId: z.string().uuid(),
-      providerId: supportedAgentProviderIdSchema,
+      providerId: agentProviderRefSchema,
     }),
     response: {
       204: z.void(),

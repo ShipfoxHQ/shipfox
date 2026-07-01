@@ -1,12 +1,12 @@
 import {z} from 'zod';
 import {getAgentProviderEntry} from './catalog.js';
-import {type SupportedAgentProviderId, supportedAgentProviderIdSchema} from './provider-id.js';
+import {agentProviderRefSchema, type SupportedAgentProviderId} from './provider-id.js';
 
 const credentialKeySchema = z.string().min(1);
 const credentialRecordSchema = z.record(credentialKeySchema, z.string().min(1));
 
 export const agentProviderConfigDtoSchema = z.object({
-  provider_id: supportedAgentProviderIdSchema,
+  provider_id: agentProviderRefSchema,
   default_model: z.string().min(1).nullable(),
   key_fingerprints: z.record(credentialKeySchema, z.string()),
   created_at: z.string().datetime(),
@@ -17,7 +17,7 @@ export type AgentProviderConfigDto = z.infer<typeof agentProviderConfigDtoSchema
 
 export const listAgentProviderConfigsResponseSchema = z.object({
   configs: z.array(agentProviderConfigDtoSchema),
-  default_provider_id: supportedAgentProviderIdSchema.nullable(),
+  default_provider_id: agentProviderRefSchema.nullable(),
 });
 
 export type ListAgentProviderConfigsResponseDto = z.infer<
@@ -43,13 +43,13 @@ export type UpdateAgentProviderDefaultModelBodyDto = z.infer<
 >;
 
 export const setDefaultAgentProviderBodySchema = z.object({
-  provider_id: supportedAgentProviderIdSchema,
+  provider_id: agentProviderRefSchema,
 });
 
 export type SetDefaultAgentProviderBodyDto = z.infer<typeof setDefaultAgentProviderBodySchema>;
 
 export const setDefaultAgentProviderResponseSchema = z.object({
-  default_provider_id: supportedAgentProviderIdSchema.nullable(),
+  default_provider_id: agentProviderRefSchema.nullable(),
 });
 
 export type SetDefaultAgentProviderResponseDto = z.infer<

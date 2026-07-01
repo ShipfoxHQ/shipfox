@@ -27,6 +27,43 @@
           "primaryKey": false,
           "notNull": true
         },
+        "kind": {
+          "name": "kind",
+          "type": "agent_provider_config_kind",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'builtin'"
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "api": {
+          "name": "api",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_url": {
+          "name": "base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "headers": {
+          "name": "headers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "models": {
+          "name": "models",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "encrypted_credentials": {
           "name": "encrypted_credentials",
           "type": "jsonb",
@@ -93,7 +130,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "agent_provider_configs_custom_required_fields": {
+          "name": "agent_provider_configs_custom_required_fields",
+          "value": "\"agent_provider_configs\".\"kind\" <> 'custom' OR (\"agent_provider_configs\".\"api\" IS NOT NULL AND \"agent_provider_configs\".\"base_url\" IS NOT NULL AND \"agent_provider_configs\".\"models\" IS NOT NULL AND \"agent_provider_configs\".\"display_name\" IS NOT NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.agent_workspace_settings": {
@@ -136,7 +178,13 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.agent_provider_config_kind": {
+      "name": "agent_provider_config_kind",
+      "schema": "public",
+      "values": ["builtin", "custom"]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

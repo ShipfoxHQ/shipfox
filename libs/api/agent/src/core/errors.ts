@@ -13,7 +13,7 @@ export class AgentProviderValidationError extends Error {
 export class AgentProviderConfigNotFoundError extends Error {
   constructor(
     public readonly workspaceId: string,
-    public readonly providerId: SupportedAgentProviderId,
+    public readonly providerId: string,
   ) {
     super(`Agent provider config not found: ${workspaceId}/${providerId}`);
     this.name = 'AgentProviderConfigNotFoundError';

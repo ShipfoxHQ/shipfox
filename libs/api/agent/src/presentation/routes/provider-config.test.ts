@@ -1,4 +1,5 @@
 import {complete} from '@earendil-works/pi-ai';
+import type {AgentProviderRef} from '@shipfox/api-agent-dto';
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
@@ -173,15 +174,15 @@ describe('agent provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().provider_id).toBe('anthropic');
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-s...abcd'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-s...abcd'});
       expect(res.body).not.toContain(secret);
       expect(res.body).not.toContain('encrypted_credentials');
       expect(replace.statusCode).toBe(200);
       expect(replace.json().default_model).toBeNull();
-      expect(replace.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      expect(replace.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
-      expect(stored?.encryptedCredentials.api_key).not.toBeUndefined();
-      expect(stored?.encryptedCredentials.api_key).not.toContain(secret);
+      expect(stored?.encryptedCredentials['credential:api_key']).not.toBeUndefined();
+      expect(stored?.encryptedCredentials['credential:api_key']).not.toContain(secret);
       expect(stored?.defaultModel).toBeNull();
     });
 
@@ -280,7 +281,7 @@ describe('agent provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-opus-4-8');
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-opus-4-8');
     });
@@ -297,7 +298,7 @@ describe('agent provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBeNull();
     });
@@ -386,6 +387,20 @@ describe('agent provider config routes', () => {
       const settings = await getAgentWorkspaceSettings(workspaceId);
       expect(settings?.defaultProviderId).toBeNull();
     });
+
+    it('deletes a configured custom provider ref', async () => {
+      await seedCustomProviderConfig({providerId: 'local-vllm'});
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/workspaces/${workspaceId}/agent/providers/local-vllm`,
+        headers: {authorization: 'Bearer user'},
+      });
+
+      expect(res.statusCode).toBe(204);
+      const stored = await getAgentProviderConfig({workspaceId, providerId: 'local-vllm'});
+      expect(stored).toBeUndefined();
+    });
   });
 
   describe('PUT /workspaces/:workspaceId/agent/providers/:providerId/default-model', () => {
@@ -401,10 +416,10 @@ describe('agent provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-haiku-4-5');
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-secre...abcd'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-secre...abcd'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-haiku-4-5');
-      expect(stored?.encryptedCredentials).toEqual({api_key: 'encrypted-secret'});
+      expect(stored?.encryptedCredentials).toEqual({'credential:api_key': 'encrypted-secret'});
     });
 
     it('stores Latest as a null provider default model', async () => {
@@ -478,19 +493,57 @@ describe('agent provider config routes', () => {
       expect(res.json().code).toBe('provider-not-configured');
       expect(res.json().details.provider_id).toBe('anthropic');
     });
+
+    it('returns 422 when a configured custom provider is set as the default', async () => {
+      await seedCustomProviderConfig({providerId: 'local-vllm'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/default-provider`,
+        headers: {authorization: 'Bearer user'},
+        payload: {provider_id: 'local-vllm'},
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('provider-unsupported');
+      expect(res.json().details.provider_id).toBe('local-vllm');
+    });
   });
 
-  async function seedProviderConfig(params: {
-    providerId: 'anthropic' | 'openai';
+  async function seedProviderConfig(params: {providerId: AgentProviderRef; workspaceId?: string}) {
+    const config = await upsertAgentProviderConfig({
+      workspaceId: params.workspaceId ?? workspaceId,
+      providerId: params.providerId,
+      encryptedCredentials: {'credential:api_key': 'encrypted-secret'},
+      keyFingerprints: {'credential:api_key': 'sk-secre...abcd'},
+      defaultModel: params.providerId === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.5-pro',
+      defaultThinking: 'high',
+    });
+
+    const rows = await db()
+      .select()
+      .from(agentProviderConfigs)
+      .where(eq(agentProviderConfigs.id, config.id));
+    expect(rows).toHaveLength(1);
+  }
+
+  async function seedCustomProviderConfig(params: {
+    providerId: AgentProviderRef;
     workspaceId?: string;
   }) {
     const config = await upsertAgentProviderConfig({
       workspaceId: params.workspaceId ?? workspaceId,
       providerId: params.providerId,
-      encryptedCredentials: {api_key: 'encrypted-secret'},
-      keyFingerprints: {api_key: 'sk-secre...abcd'},
-      defaultModel: params.providerId === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.5-pro',
-      defaultThinking: 'high',
+      kind: 'custom',
+      displayName: 'Local vLLM',
+      api: 'openai-responses',
+      baseUrl: 'https://llm.example.test/v1',
+      headers: [],
+      models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      encryptedCredentials: {'credential:api_key': 'encrypted-secret'},
+      keyFingerprints: {'credential:api_key': 'sk-secre...abcd'},
+      defaultModel: 'llama-3.1',
+      defaultThinking: 'off',
     });
 
     const rows = await db()

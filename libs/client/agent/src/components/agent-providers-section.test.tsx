@@ -36,6 +36,7 @@ function renderAgentProviders(element: ReactElement) {
 
 const ANTHROPIC_FINGERPRINT_RE = /sk-ant-s\.\.\.abcd/;
 const OPENAI_FINGERPRINT_RE = /sk-proj\.\.\.abcd/;
+const LEGACY_ANTHROPIC_FINGERPRINT_RE = /sk-ant-s\.\.\.legacy/;
 function requestPath(input: RequestInfo | URL): string {
   return new URL((input as Request).url).pathname;
 }
@@ -204,7 +205,7 @@ describe('WorkspaceAgentProvidersSection', () => {
             agentProviderConfig({
               provider_id: 'openai',
               default_model: 'gpt-5-mini',
-              key_fingerprints: {api_key: 'sk-proj...abcd'},
+              key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
             }),
           ),
         );
@@ -217,7 +218,7 @@ describe('WorkspaceAgentProvidersSection', () => {
                   agentProviderConfig({
                     provider_id: 'openai',
                     default_model: 'gpt-5-mini',
-                    key_fingerprints: {api_key: 'sk-proj...abcd'},
+                    key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
                   }),
                 ]
               : [],
@@ -297,7 +298,7 @@ describe('WorkspaceAgentProvidersSection', () => {
             agentProviderConfig({
               provider_id: 'openai',
               default_model: 'gpt-5.5-pro',
-              key_fingerprints: {api_key: 'sk-proj...abcd'},
+              key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
             }),
           ),
         );
@@ -312,7 +313,7 @@ describe('WorkspaceAgentProvidersSection', () => {
                     agentProviderConfig({
                       provider_id: 'openai',
                       default_model: 'gpt-5.5-pro',
-                      key_fingerprints: {api_key: 'sk-proj...abcd'},
+                      key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
                     }),
                   ]
                 : []),
@@ -361,7 +362,7 @@ describe('WorkspaceAgentProvidersSection', () => {
           agentProviderConfig({
             provider_id: 'openai',
             default_model: null,
-            key_fingerprints: {api_key: 'sk-proj...abcd'},
+            key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
           }),
         );
       }
@@ -406,6 +407,31 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(screen.getAllByText(ANTHROPIC_FINGERPRINT_RE).length).toBeGreaterThan(0);
     expect(screen.getByLabelText('API key')).toHaveValue('');
     expect(screen.queryByDisplayValue('sk-ant-secret')).not.toBeInTheDocument();
+  });
+
+  test('shows legacy current fingerprints while editing', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input).endsWith('/agent/provider-catalog')) {
+        return Promise.resolve(jsonResponse(agentProviderCatalogResponse()));
+      }
+      return Promise.resolve(
+        jsonResponse(
+          agentProviderConfigsResponse({
+            configs: [agentProviderConfig({key_fingerprints: {api_key: 'sk-ant-s...legacy'}})],
+            default_provider_id: 'anthropic',
+          }),
+        ),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderAgentProviders(<WorkspaceAgentProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+    expect(await screen.findByText('Anthropic')).toBeVisible();
+    await openProviderActions(user, 'Anthropic');
+    await user.click(screen.getByRole('menuitem', {name: 'Edit credentials'}));
+
+    expect(await screen.findByText(LEGACY_ANTHROPIC_FINGERPRINT_RE)).toBeVisible();
   });
 
   test('edits credentials without submitting default model fields', async () => {
@@ -561,7 +587,7 @@ describe('WorkspaceAgentProvidersSection', () => {
             agentProviderConfig(),
             agentProviderConfig({
               provider_id: 'openai',
-              key_fingerprints: {api_key: 'sk-proj...abcd'},
+              key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
             }),
           ],
           default_provider_id: defaultProviderId,
@@ -659,7 +685,7 @@ describe('WorkspaceAgentProvidersSection', () => {
               agentProviderConfig(),
               agentProviderConfig({
                 provider_id: 'openai',
-                key_fingerprints: {api_key: 'sk-proj...abcd'},
+                key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
               }),
             ],
             default_provider_id: 'openai',
@@ -711,13 +737,59 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(await screen.findByText('No providers configured')).toBeVisible();
   });
 
-  test('disables edit when a configured provider is missing from the catalog', async () => {
+  test('deletes a configured provider that is missing from the catalog', async () => {
+    const user = userEvent.setup();
+    let isDeleted = false;
+    let deletedPath: string | undefined;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (requestPath(input).endsWith('/agent/provider-catalog')) {
+        return Promise.resolve(jsonResponse(agentProviderCatalogResponse([])));
+      }
+      if (request.method === 'DELETE') {
+        isDeleted = true;
+        deletedPath = requestPath(input);
+        return Promise.resolve(new Response(null, {status: 204}));
+      }
+      return Promise.resolve(
+        jsonResponse(
+          agentProviderConfigsResponse({
+            configs: isDeleted
+              ? []
+              : [
+                  agentProviderConfig({
+                    provider_id: 'local-vllm',
+                    key_fingerprints: {'credential:api_key': 'sk-local...abcd'},
+                  }),
+                ],
+            default_provider_id: null,
+          }),
+        ),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderAgentProviders(<WorkspaceAgentProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+    expect(await screen.findByText('local-vllm')).toBeVisible();
+    await openProviderActions(user, 'local-vllm');
+    await user.click(screen.getByRole('menuitem', {name: 'Delete'}));
+    await user.click(screen.getByRole('button', {name: 'Delete'}));
+
+    await waitFor(() =>
+      expect(deletedPath).toBe(`/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/providers/local-vllm`),
+    );
+    expect(await screen.findByText('No providers configured')).toBeVisible();
+  });
+
+  test('disables catalog-backed actions when a configured provider is missing from the catalog', async () => {
     const user = userEvent.setup();
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       if (requestPath(input).endsWith('/agent/provider-catalog')) {
         return Promise.resolve(jsonResponse(agentProviderCatalogResponse([])));
       }
-      return Promise.resolve(jsonResponse(agentProviderConfigsResponse()));
+      return Promise.resolve(
+        jsonResponse(agentProviderConfigsResponse({default_provider_id: null})),
+      );
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
@@ -725,6 +797,7 @@ describe('WorkspaceAgentProvidersSection', () => {
 
     expect(await screen.findByText('anthropic')).toBeVisible();
     await openProviderActions(user, 'anthropic');
+    expect(screen.getByRole('menuitem', {name: 'Set as default'})).toHaveAttribute('data-disabled');
     expect(screen.getByRole('menuitem', {name: 'Change default model'})).toHaveAttribute(
       'data-disabled',
     );
@@ -734,5 +807,6 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(screen.getByRole('menuitem', {name: 'Edit credentials'})).toHaveAttribute(
       'data-disabled',
     );
+    expect(screen.getByRole('menuitem', {name: 'Delete'})).not.toHaveAttribute('data-disabled');
   });
 });

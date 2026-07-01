@@ -90,10 +90,10 @@ describe('agent provider config schemas', () => {
     expect(parsed.provider_id).toBe('anthropic');
   });
 
-  it('rejects a set-default body for an unsupported provider', () => {
-    const parse = () => setDefaultAgentProviderBodySchema.parse({provider_id: 'openai-codex'});
+  it('parses a set-default body for an unsupported but valid provider ref', () => {
+    const parsed = setDefaultAgentProviderBodySchema.parse({provider_id: 'openai-codex'});
 
-    expect(parse).toThrow();
+    expect(parsed.provider_id).toBe('openai-codex');
   });
 
   it('parses a set-default response with a nullable provider', () => {
@@ -106,7 +106,7 @@ describe('agent provider config schemas', () => {
     const row = {
       provider_id: 'openai',
       default_model: null,
-      key_fingerprints: {api_key: 'sk-...abcd'},
+      key_fingerprints: {'credential:api_key': 'sk-...abcd'},
       created_at: '2026-06-27T10:30:00.000Z',
       updated_at: '2026-06-27T10:45:00.000Z',
     };

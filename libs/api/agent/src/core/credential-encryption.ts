@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type {SupportedAgentProviderId} from '@shipfox/api-agent-dto';
+import type {AgentProviderRef, SupportedAgentProviderId} from '@shipfox/api-agent-dto';
 import {getAgentProviderEntry} from '@shipfox/api-agent-dto';
 import {stripUrlCredentials} from '@shipfox/redact';
 import {config} from '#config.js';
@@ -27,7 +27,7 @@ export interface CredentialDecipherParams {
 
 export interface CredentialRecordParams {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: AgentProviderRef;
 }
 
 export function encryptCredential(params: CredentialCipherParams): string {
@@ -75,10 +75,10 @@ export function encryptCredentials(
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(params.credentials).map(([fieldKey, plaintext]) => [
-      fieldKey,
+      toStoredCredentialKey(fieldKey),
       encryptCredential({
         plaintext,
-        aad: credentialAad(params.workspaceId, params.providerId, fieldKey),
+        aad: credentialAad(params.workspaceId, params.providerId, toStoredCredentialKey(fieldKey)),
       }),
     ]),
   );
@@ -89,7 +89,7 @@ export function decryptCredentials(
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(params.encryptedCredentials).map(([fieldKey, encoded]) => [
-      fieldKey,
+      toRuntimeCredentialKey(fieldKey),
       decryptCredential({
         encoded,
         aad: credentialAad(params.workspaceId, params.providerId, fieldKey),
@@ -110,7 +110,10 @@ export function fingerprintCredentials(
   return Object.fromEntries(
     entry.credential_fields.map((field) => {
       const value = credentials[field.key] ?? '';
-      return [field.key, field.secret ? maskSecret(value) : stripUrlCredentials(value)];
+      return [
+        toStoredCredentialKey(field.key),
+        field.secret ? maskSecret(value) : stripUrlCredentials(value),
+      ];
     }),
   );
 }
@@ -146,10 +149,20 @@ function isCanonicalBase64Key(encoded: string, key: Buffer): boolean {
 
 function credentialAad(
   workspaceId: string,
-  providerId: SupportedAgentProviderId,
+  providerId: AgentProviderRef,
   fieldKey: string,
 ): string {
   return JSON.stringify([workspaceId, providerId, fieldKey]);
+}
+
+function toStoredCredentialKey(fieldKey: string): string {
+  if (fieldKey.startsWith('credential:') || fieldKey.startsWith('header:')) return fieldKey;
+  return `credential:${fieldKey}`;
+}
+
+function toRuntimeCredentialKey(fieldKey: string): string {
+  if (fieldKey.startsWith('credential:')) return fieldKey.slice('credential:'.length);
+  return fieldKey;
 }
 
 function maskSecret(secret: string): string {

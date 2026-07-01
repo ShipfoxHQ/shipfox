@@ -170,7 +170,7 @@ describe('AgentProviderOnboardingPage', () => {
           agentProviderConfig({
             provider_id: 'openai',
             default_model: null,
-            key_fingerprints: {api_key: 'sk-proj...abcd'},
+            key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
           }),
         );
       }

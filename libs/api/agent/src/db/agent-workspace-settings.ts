@@ -1,4 +1,4 @@
-import type {SupportedAgentProviderId} from '@shipfox/api-agent-dto';
+import type {AgentProviderRef} from '@shipfox/api-agent-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {AgentWorkspaceSettings} from '#core/entities/agent-workspace-settings.js';
 import {AgentProviderConfigNotFoundError} from '#core/errors.js';
@@ -25,7 +25,7 @@ export async function getAgentWorkspaceSettings(
 
 export async function setDefaultAgentProvider(params: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId | null;
+  providerId: AgentProviderRef | null;
 }): Promise<AgentWorkspaceSettings> {
   return await db().transaction(async (tx) => {
     if (params.providerId !== null) {

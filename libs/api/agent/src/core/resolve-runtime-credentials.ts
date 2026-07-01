@@ -1,4 +1,5 @@
 import {
+  type AgentProviderRef,
   type AgentRuntimeCredentialsResponseDto,
   type AgentThinking,
   getAgentProviderEntry,
@@ -12,7 +13,7 @@ import {AgentProviderConfigNotFoundError, CredentialDecryptionError} from './err
 
 export interface ResolveRuntimeCredentialsParams {
   workspaceId: string;
-  provider: SupportedAgentProviderId;
+  provider: AgentProviderRef;
   model: string;
   thinking: AgentThinking;
 }
@@ -66,9 +67,10 @@ export async function resolveRuntimeCredentials(
 }
 
 export function getInstanceDefaultProviderApiKeyField(
-  providerId: SupportedAgentProviderId,
+  providerId: AgentProviderRef,
 ): 'api_key' | undefined {
-  const credentialFields = getAgentProviderEntry(providerId)?.credential_fields ?? [];
+  const credentialFields =
+    getAgentProviderEntry(providerId as SupportedAgentProviderId)?.credential_fields ?? [];
   const field = credentialFields[0];
   if (credentialFields.length !== 1 || field?.key !== 'api_key' || !field.secret) {
     return undefined;
@@ -77,7 +79,7 @@ export function getInstanceDefaultProviderApiKeyField(
 }
 
 function instanceFallbackCredentials(
-  providerId: SupportedAgentProviderId,
+  providerId: AgentProviderRef,
   runtimeConfig: RuntimeCredentialsConfig,
 ): Record<string, string> | undefined {
   const instanceApiKey = runtimeConfig.AGENT_DEFAULT_PROVIDER_API_KEY;

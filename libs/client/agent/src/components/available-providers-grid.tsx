@@ -9,12 +9,12 @@ export const PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-col
 const SEARCH_VISIBILITY_THRESHOLD = 8;
 const MAX_ECHOED_QUERY_LENGTH = 40;
 
-export function AvailableProvidersGrid({
+export function AvailableProvidersGrid<TEntry extends AgentProviderCatalogEntryDto>({
   entries,
   onSelect,
 }: {
-  entries: AgentProviderCatalogEntryDto[];
-  onSelect: (entry: AgentProviderCatalogEntryDto) => void;
+  entries: TEntry[];
+  onSelect: (entry: TEntry) => void;
 }) {
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
