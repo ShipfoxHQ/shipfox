@@ -151,6 +151,21 @@ Available in most packages via `pnpm <script>`:
 | `test`       | Run tests once                                  |
 | `test:watch` | Run tests in watch mode                         |
 
+## Documentation
+
+The user docs are [Mintlify](https://mintlify.com/) `.mdx` files under `docs/`
+(served at `www.shipfox.io/docs`). Render them locally from the repo root:
+
+| Script            | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| `pnpm docs:dev`   | Serve the docs with live reload at `localhost:3000`  |
+| `pnpm docs:check` | Report broken internal links                         |
+
+Both run the Mintlify CLI through `npx` (the first run downloads it). `docs/` is
+intentionally **not** a pnpm/turbo workspace package, so it stays out of
+`turbo build`/`test`/`check`; the CLI reads `docs/docs.json` directly. See
+[docs/README.md](docs/README.md) for details.
+
 ## Publishing & Changesets
 
 `libs/` and `tools/` packages publish to npm under `@shipfox/*`. `apps/`,
