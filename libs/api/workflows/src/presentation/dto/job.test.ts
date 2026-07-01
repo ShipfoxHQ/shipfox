@@ -10,6 +10,39 @@ describe('toJobDto', () => {
     expect(dto.status).toBe('skipped');
     expect(dto.status_reason).toBe('dependency_not_completed');
   });
+
+  it('maps a running duration descriptor', () => {
+    const startedAt = new Date('2026-06-21T12:00:30.000Z');
+    const job = jobEntity({status: 'running', startedAt});
+
+    const dto = toJobDto(job);
+
+    expect(dto.duration).toEqual({kind: 'running', from_iso: startedAt.toISOString()});
+  });
+
+  it('maps a finished duration descriptor', () => {
+    const startedAt = new Date('2026-06-21T12:00:30.000Z');
+    const finishedAt = new Date('2026-06-21T12:02:44.000Z');
+    const job = jobEntity({status: 'succeeded', startedAt, finishedAt});
+
+    const dto = toJobDto(job);
+
+    expect(dto.duration).toEqual({
+      kind: 'finished',
+      from_iso: startedAt.toISOString(),
+      to_iso: finishedAt.toISOString(),
+    });
+  });
+
+  it('maps a queued job cancelled before start to no duration', () => {
+    const queuedAt = new Date('2026-06-21T12:00:00.000Z');
+    const finishedAt = new Date('2026-06-21T12:01:00.000Z');
+    const job = jobEntity({status: 'cancelled', queuedAt, startedAt: null, finishedAt});
+
+    const dto = toJobDto(job);
+
+    expect(dto.duration).toEqual({kind: 'none'});
+  });
 });
 
 function jobEntity(overrides: Partial<Job> = {}): Job {

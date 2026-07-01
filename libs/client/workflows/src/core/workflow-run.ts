@@ -27,6 +27,14 @@ export type WorkflowStepErrorCategory = StepErrorCategoryDto;
 export type WorkflowStepGateResult = StepGateResultDto;
 export type WorkflowStepRestartResult = StepRestartResultDto;
 
+export type WorkflowJobDuration =
+  | {kind: 'none'}
+  | {kind: 'queued'; fromIso: string}
+  | {kind: 'running'; fromIso: string}
+  | {kind: 'finished'; fromIso: string; toIso: string};
+
+type WorkflowJobDurationDto = WorkflowRunJobDetailDto['duration'];
+
 export const WORKFLOW_RUN_STATUSES = [
   'pending',
   'running',
@@ -50,11 +58,19 @@ export const WORKFLOW_JOB_STATUSES = [
   'skipped',
 ] as const satisfies readonly WorkflowJobStatus[];
 
+export const TERMINAL_WORKFLOW_JOB_STATUSES = [
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+] as const satisfies readonly WorkflowJobStatus[];
+
 const WORKFLOW_STATUSES = new Set<WorkflowStatus>([
   ...WORKFLOW_RUN_STATUSES,
   ...WORKFLOW_JOB_STATUSES,
 ]);
 const TERMINAL_WORKFLOW_RUN_STATUS_SET = new Set<WorkflowRunStatus>(TERMINAL_WORKFLOW_RUN_STATUSES);
+const TERMINAL_WORKFLOW_JOB_STATUS_SET = new Set<WorkflowJobStatus>(TERMINAL_WORKFLOW_JOB_STATUSES);
 
 export interface WorkflowSourceSnapshot {
   content: string;
@@ -132,6 +148,7 @@ export interface WorkflowJob {
   queuedAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
+  duration: WorkflowJobDuration;
   steps: WorkflowStep[];
 }
 
@@ -209,6 +226,10 @@ export function isWorkflowRunTerminal(status: WorkflowRunStatus): boolean {
   return TERMINAL_WORKFLOW_RUN_STATUS_SET.has(status);
 }
 
+export function isTerminalJobStatus(status: WorkflowJobStatus): boolean {
+  return TERMINAL_WORKFLOW_JOB_STATUS_SET.has(status);
+}
+
 export function isWorkflowStatus(status: string): status is WorkflowStatus {
   return WORKFLOW_STATUSES.has(status as WorkflowStatus);
 }
@@ -279,6 +300,7 @@ export function toWorkflowJob(dto: WorkflowRunJobDetailDto): WorkflowJob {
     queuedAt: dto.queued_at ?? null,
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
+    duration: toWorkflowJobDuration(dto.duration),
     // The current client UI is single-job-execution: multi-job-execution grouping belongs to ENG-675.
     steps: dto.job_executions.flatMap((jobExecution) =>
       jobExecution.steps.map((step) => toWorkflowStep(step, dto.id)),
@@ -307,6 +329,23 @@ export function toWorkflowStep(dto: WorkflowRunStepDetailDto, jobId: string): Wo
       toWorkflowStepAttempt(attempt, jobId, dto.job_execution_id),
     ),
   };
+}
+
+function toWorkflowJobDuration(dto: WorkflowJobDurationDto): WorkflowJobDuration {
+  switch (dto.kind) {
+    case 'none':
+      return {kind: 'none'};
+    case 'queued':
+      return {kind: 'queued', fromIso: dto.from_iso};
+    case 'running':
+      return {kind: 'running', fromIso: dto.from_iso};
+    case 'finished':
+      return {kind: 'finished', fromIso: dto.from_iso, toIso: dto.to_iso};
+    default: {
+      const exhaustive: never = dto;
+      return exhaustive;
+    }
+  }
 }
 
 export function toWorkflowStepAttempt(

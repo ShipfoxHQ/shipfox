@@ -20,6 +20,13 @@ export const jobStatusReasonSchema = z.enum([
   'unknown',
 ]);
 
+export const jobDurationDtoSchema = z.discriminatedUnion('kind', [
+  z.object({kind: z.literal('none')}),
+  z.object({kind: z.literal('queued'), from_iso: z.string()}),
+  z.object({kind: z.literal('running'), from_iso: z.string()}),
+  z.object({kind: z.literal('finished'), from_iso: z.string(), to_iso: z.string()}),
+]);
+
 export const jobDtoSchema = z.object({
   id: z.string().uuid(),
   run_attempt_id: z.string().uuid(),
@@ -37,8 +44,10 @@ export const jobDtoSchema = z.object({
   queued_at: z.string().nullable(),
   started_at: z.string().nullable(),
   finished_at: z.string().nullable(),
+  duration: jobDurationDtoSchema,
 });
 
 export type JobDto = z.infer<typeof jobDtoSchema>;
+export type JobDurationDto = z.infer<typeof jobDurationDtoSchema>;
 export type JobStatusDto = z.infer<typeof jobStatusSchema>;
 export type JobStatusReasonDto = z.infer<typeof jobStatusReasonSchema>;

@@ -174,6 +174,11 @@ describe('workflow run model mapping', () => {
       queuedAt: '2026-05-07T01:00:00.000Z',
       startedAt: '2026-05-07T01:00:05.000Z',
       finishedAt: '2026-05-07T01:02:00.000Z',
+      duration: {
+        kind: 'finished',
+        fromIso: '2026-05-07T01:00:05.000Z',
+        toIso: '2026-05-07T01:02:00.000Z',
+      },
     });
     expect(detail.jobs[0]?.steps[0]).toMatchObject({
       id: '55555555-5555-4555-8555-000000000001',
@@ -244,6 +249,7 @@ describe('workflow run model mapping', () => {
       queuedAt: null,
       startedAt: null,
       finishedAt: null,
+      duration: {kind: 'none'},
     });
     expect(detail.jobs[0]?.steps[0]).toMatchObject({
       sourceLocation: null,
@@ -257,6 +263,26 @@ describe('workflow run model mapping', () => {
       restartReason: null,
       restartResult: null,
       finishedAt: null,
+    });
+  });
+
+  test('maps queued jobs cancelled before start to no duration', () => {
+    const job = workflowJobDto({
+      status: 'cancelled',
+      queued_at: '2026-05-07T01:00:00.000Z',
+      started_at: null,
+      finished_at: '2026-05-07T01:01:00.000Z',
+    });
+    const dto = workflowRunDetailDto({jobs: [job]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]).toMatchObject({
+      status: 'cancelled',
+      queuedAt: '2026-05-07T01:00:00.000Z',
+      startedAt: null,
+      finishedAt: '2026-05-07T01:01:00.000Z',
+      duration: {kind: 'none'},
     });
   });
 

@@ -3,16 +3,19 @@ import {
   Badge,
   Code,
   cn,
+  humanDuration,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   useIsTextTruncated,
+  useTimeTick,
 } from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import type {WorkflowRunDetail} from '#core/workflow-run.js';
+import type {WorkflowJobDuration, WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
+import {JobDurationLabel} from './job-duration-label.js';
 
 const TRIGGER_SIZE = 36;
 
@@ -68,11 +71,13 @@ export function WorkflowJobNode({
   onHoverEnd: () => void;
   ref?: Ref<HTMLButtonElement>;
 }) {
+  useTimeTick();
   const visual = getWorkflowStatusVisual(node.status);
   const dependencyText = dependencyLabel(node.currentDependencyCount);
   const accessibleLabel = [
     node.name,
     visual.label,
+    durationAccessibleLabel(node.duration),
     dependencyText?.accessible,
     node.carriedOver ? 'reused' : undefined,
   ]
@@ -106,6 +111,7 @@ export function WorkflowJobNode({
         <WorkflowStatusIcon status={node.status} size={14} tooltip={false} />
         <JobLabel label={node.name} />
       </div>
+      <JobDurationLabel duration={node.duration} />
       {dependencyText ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -155,6 +161,23 @@ function JobLabel({label}: {label: string}) {
       {isTruncated ? <TooltipContent>{label}</TooltipContent> : null}
     </Tooltip>
   );
+}
+
+function durationAccessibleLabel(duration: WorkflowJobDuration): string | undefined {
+  switch (duration.kind) {
+    case 'none':
+      return undefined;
+    case 'queued':
+      return `queued ${humanDuration(duration.fromIso)}`;
+    case 'running':
+      return `running ${humanDuration(duration.fromIso)}`;
+    case 'finished':
+      return `ran ${humanDuration(duration.fromIso, duration.toIso)}`;
+    default: {
+      const exhaustive: never = duration;
+      return exhaustive;
+    }
+  }
 }
 
 function dependencyLabel(count: number) {

@@ -45,7 +45,7 @@ export type WorkflowJobDtoOverrides = Partial<Omit<WorkflowRunJobDetailDto, 'job
   steps?: WorkflowRunStepDetailDto[];
 };
 
-type WorkflowJobDtoBase = Omit<WorkflowRunJobDetailDto, 'job_executions'>;
+type WorkflowJobDtoBase = Omit<WorkflowRunJobDetailDto, 'duration' | 'job_executions'>;
 
 export function workflowRunDto(
   overrides: Partial<WorkflowRunResponseDto> = {},
@@ -158,6 +158,7 @@ export function workflowJobDto(overrides: WorkflowJobDtoOverrides = {}): Workflo
 
   return {
     ...job,
+    duration: overrides.duration ?? workflowJobDurationDto(job),
     job_executions:
       job_executions ?? (steps ? [workflowJobExecutionDto({job_id: job.id, steps})] : []),
   };
@@ -244,6 +245,20 @@ export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): Wo
   return toWorkflowStepAttempt(workflowStepAttemptDto(overrides), JOB_ID, JOB_EXECUTION_ID);
 }
 
+function workflowJobDurationDto(
+  job: Pick<WorkflowRunJobDetailDto, 'queued_at' | 'started_at' | 'finished_at'>,
+): WorkflowRunJobDetailDto['duration'] {
+  if (job.started_at !== null && job.finished_at !== null) {
+    return {kind: 'finished', from_iso: job.started_at, to_iso: job.finished_at};
+  }
+
+  if (job.started_at !== null) return {kind: 'running', from_iso: job.started_at};
+  if (job.finished_at === null && job.queued_at !== null) {
+    return {kind: 'queued', from_iso: job.queued_at};
+  }
+
+  return {kind: 'none'};
+}
 export function sequencedWorkflowRunDto(
   status: WorkflowRunStatusDto,
   name: string,

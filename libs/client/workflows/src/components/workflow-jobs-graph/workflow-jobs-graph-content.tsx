@@ -1,4 +1,4 @@
-import {cn, EmptyState} from '@shipfox/react-ui';
+import {cn, EmptyState, TimeTickerProvider} from '@shipfox/react-ui';
 import type {KeyboardEvent} from 'react';
 import {useRef, useState} from 'react';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
@@ -77,39 +77,41 @@ export function WorkflowJobsGraphContent({
   }
 
   return (
-    <div className="min-h-0 overflow-auto bg-background-neutral-base">
-      <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
-        <GraphEdges model={model} hoveredJobId={hoveredJobId} />
-        <div
-          className="absolute"
-          style={{left: PADDING, top: PADDING + (NODE_HEIGHT - TRIGGER_WIDTH) / 2}}
-        >
-          <TriggerNode trigger={trigger} />
-        </div>
-        {model.columns.map((column, columnIndex) => (
+    <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
+      <div className="min-h-0 overflow-auto bg-background-neutral-base">
+        <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
+          <GraphEdges model={model} hoveredJobId={hoveredJobId} />
           <div
-            key={column.map((node) => node.id).join(':')}
-            className="absolute flex flex-col gap-20"
-            style={{left: jobLeft(columnIndex), top: PADDING}}
+            className="absolute"
+            style={{left: PADDING, top: PADDING + (NODE_HEIGHT - TRIGGER_WIDTH) / 2}}
           >
-            {column.map((node) => (
-              <WorkflowJobNode
-                key={node.id}
-                node={node}
-                selected={node.id === selectedJobId}
-                ref={setNodeRef(node.id)}
-                onSelect={() => onSelectJob(node.id === selectedJobId ? undefined : node.id)}
-                onKeyDown={handleKeyDown}
-                onHoverStart={() => setHoveredJobId(node.id)}
-                onHoverEnd={() =>
-                  setHoveredJobId((current) => (current === node.id ? undefined : current))
-                }
-              />
-            ))}
+            <TriggerNode trigger={trigger} />
           </div>
-        ))}
+          {model.columns.map((column, columnIndex) => (
+            <div
+              key={column.map((node) => node.id).join(':')}
+              className="absolute flex flex-col gap-20"
+              style={{left: jobLeft(columnIndex), top: PADDING}}
+            >
+              {column.map((node) => (
+                <WorkflowJobNode
+                  key={node.id}
+                  node={node}
+                  selected={node.id === selectedJobId}
+                  ref={setNodeRef(node.id)}
+                  onSelect={() => onSelectJob(node.id === selectedJobId ? undefined : node.id)}
+                  onKeyDown={handleKeyDown}
+                  onHoverStart={() => setHoveredJobId(node.id)}
+                  onHoverEnd={() =>
+                    setHoveredJobId((current) => (current === node.id ? undefined : current))
+                  }
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </TimeTickerProvider>
   );
 }
 
