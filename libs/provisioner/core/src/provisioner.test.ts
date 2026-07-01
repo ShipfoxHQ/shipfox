@@ -149,7 +149,10 @@ describe('runProvisionerIteration', () => {
   });
 });
 
-function harness(options: {response: PollDemandResponseDto; onPoll?: () => void}): {
+type PollDemandResponseFixture = Omit<PollDemandResponseDto, 'terminate_provisioned_runner_ids'> &
+  Partial<Pick<PollDemandResponseDto, 'terminate_provisioned_runner_ids'>>;
+
+function harness(options: {response: PollDemandResponseFixture; onPoll?: () => void}): {
   client: ProvisionerClient;
   pollBodies: PollDemandBodyDto[];
   mintBodies: MintRegistrationTokensBatchBodyDto[];
@@ -165,7 +168,10 @@ function harness(options: {response: PollDemandResponseDto; onPoll?: () => void}
       pollDemand: (body) => {
         options.onPoll?.();
         pollBodies.push(body);
-        return Promise.resolve(options.response);
+        return Promise.resolve({
+          ...options.response,
+          terminate_provisioned_runner_ids: options.response.terminate_provisioned_runner_ids ?? [],
+        });
       },
       mintRegistrationTokens: (body) => {
         mintBodies.push(body);

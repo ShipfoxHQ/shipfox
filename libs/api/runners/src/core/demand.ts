@@ -21,6 +21,7 @@ export interface PollDemandParams {
 export interface PollDemandResult {
   stats: DemandStat[];
   reservations: ReservationGrant[];
+  terminateProvisionedRunnerIds: string[];
 }
 
 export async function pollDemand(params: PollDemandParams): Promise<PollDemandResult> {
@@ -34,7 +35,11 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
     0,
   );
   let interval = config.RESERVATION_POLL_INTERVAL_MS;
-  let lastResult: PollDemandResult = {stats: [], reservations: []};
+  let lastResult: PollDemandResult = {
+    stats: [],
+    reservations: [],
+    terminateProvisionedRunnerIds: [],
+  };
 
   while (true) {
     if (params.signal.aborted) return lastResult;
@@ -52,7 +57,7 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
       return previousResult;
     }
 
-    lastResult = result;
+    lastResult = {...result, terminateProvisionedRunnerIds: []};
 
     if (shouldReturn(lastResult, params.maxReservations, totalCapacity, Date.now() >= deadlineMs)) {
       return lastResult;

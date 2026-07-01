@@ -15,5 +15,6 @@ export function toPollDemandResponseDto(result: PollDemandResult): PollDemandRes
       count: reservation.count,
       expires_at: reservation.expiresAt.toISOString(),
     })),
+    terminate_provisioned_runner_ids: result.terminateProvisionedRunnerIds,
   };
 }

@@ -39,6 +39,7 @@ export const reservationGrantSchema = z.object({
 export const pollDemandResponseSchema = z.object({
   stats: z.array(demandStatSchema),
   reservations: z.array(reservationGrantSchema),
+  terminate_provisioned_runner_ids: z.array(z.string()),
 });
 
 export type PollDemandTemplateDto = z.infer<typeof pollDemandTemplateSchema>;

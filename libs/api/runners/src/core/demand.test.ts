@@ -3,7 +3,7 @@ import {nextBackoffInterval, pollDemand, shouldReturn} from '#core/demand.js';
 import {db} from '#db/db.js';
 
 describe('shouldReturn', () => {
-  const emptyResult = {stats: [], reservations: []};
+  const emptyResult = {stats: [], reservations: [], terminateProvisionedRunnerIds: []};
 
   it('returns true for observe-only requests', () => {
     const result = shouldReturn(emptyResult, 0, 1, false);
@@ -24,6 +24,7 @@ describe('shouldReturn', () => {
         reservations: [
           {reservationId: crypto.randomUUID(), labels: ['linux'], count: 1, expiresAt: new Date()},
         ],
+        terminateProvisionedRunnerIds: [],
       },
       1,
       1,
@@ -66,7 +67,7 @@ describe('pollDemand', () => {
       signal: new AbortController().signal,
     });
 
-    expect(result).toEqual({stats: [], reservations: []});
+    expect(result).toEqual({stats: [], reservations: [], terminateProvisionedRunnerIds: []});
   });
 });
 

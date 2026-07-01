@@ -1,3 +1,4 @@
+import {logger} from '@shipfox/node-opentelemetry';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
@@ -20,13 +21,14 @@ import {
 } from './job-executions.js';
 import {releaseReservationUnits} from './reservations.js';
 import {provisionedRunners, toProvisionedRunner} from './schema/provisioned-runners.js';
+import {runningJobExecutions} from './schema/running-job-executions.js';
 
-const terminalStates = [
+export const terminalStates = [
   'stopped',
   'failed',
   'terminated',
 ] as const satisfies readonly ProvisionedRunnerState[];
-const activeStates = [
+export const activeStates = [
   'starting',
   'running',
   'stopping',
@@ -174,6 +176,65 @@ export async function listActiveProvisionedRunners(params: {
     .limit(params.limit ?? 1000);
 
   return rows.map(toProvisionedRunner);
+}
+
+export async function listProvisionerTerminateIntents(params: {
+  workspaceId: string;
+  provisionerId: string;
+  limit: number;
+}): Promise<string[]> {
+  const result = await db().execute<{provisionedRunnerId: string; totalCount: number | string}>(sql`
+    WITH latest_cancelled AS (
+      SELECT DISTINCT ${runningJobExecutions.provisionedRunnerId} AS "provisionedRunnerId"
+      FROM ${runningJobExecutions}
+      JOIN ${provisionedRunners}
+        ON ${provisionedRunners.workspaceId} = ${runningJobExecutions.workspaceId}
+       AND ${provisionedRunners.provisionerId} = ${runningJobExecutions.provisionerId}
+       AND ${provisionedRunners.provisionedRunnerId} = ${runningJobExecutions.provisionedRunnerId}
+      WHERE ${runningJobExecutions.workspaceId} = ${params.workspaceId}
+        AND ${runningJobExecutions.provisionerId} = ${params.provisionerId}
+        AND ${runningJobExecutions.cancellationRequestedAt} IS NOT NULL
+        AND ${provisionedRunners.state} IN (${sql.join(
+          activeStates.map((state) => sql`${state}`),
+          sql`, `,
+        )})
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ${runningJobExecutions} AS newer_running_jobs
+          WHERE newer_running_jobs.workspace_id = ${runningJobExecutions.workspaceId}
+            AND newer_running_jobs.provisioner_id = ${runningJobExecutions.provisionerId}
+            AND newer_running_jobs.provisioned_runner_id = ${runningJobExecutions.provisionedRunnerId}
+            AND (
+              newer_running_jobs.started_at > ${runningJobExecutions.startedAt}
+              OR (
+                newer_running_jobs.started_at = ${runningJobExecutions.startedAt}
+                AND newer_running_jobs.job_execution_id > ${runningJobExecutions.jobExecutionId}
+              )
+            )
+        )
+    )
+    SELECT
+      "provisionedRunnerId",
+      count(*) OVER() AS "totalCount"
+    FROM latest_cancelled
+    ORDER BY "provisionedRunnerId"
+    LIMIT ${params.limit}
+  `);
+
+  const totalCount = Number(result.rows[0]?.totalCount ?? 0);
+  if (totalCount > result.rows.length) {
+    logger().warn(
+      {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        returnedCount: result.rows.length,
+        truncatedCount: totalCount - result.rows.length,
+      },
+      'provisioner terminate intents truncated by poll-demand limit',
+    );
+  }
+
+  return result.rows.map((row) => row.provisionedRunnerId);
 }
 
 export async function reconcileProvisionedRunners(
@@ -501,6 +562,6 @@ function firstObservedAt(current: SQL | ProvisionedRunnerMilestoneColumn, incomi
   `;
 }
 
-function isTerminalState(state: ProvisionedRunnerState): boolean {
+export function isTerminalState(state: ProvisionedRunnerState): boolean {
   return terminalStates.includes(state as (typeof terminalStates)[number]);
 }

@@ -150,7 +150,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     });
   });
 
-  it('surfaces cancellation on the bound job without deriving terminate intent', async () => {
+  it('returns terminate for an active runner with a cancelled bound job', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId: crypto.randomUUID(),
@@ -169,7 +169,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().runners[0]).toMatchObject({
-      desired_intent: 'keep',
+      desired_intent: 'terminate',
       bound_job: {
         cancellation_requested_at: '2025-01-01T00:01:00.000Z',
       },
