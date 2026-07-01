@@ -8,17 +8,18 @@ export type ProviderSetupPath =
   | '/workspaces/$wid/integrations/debug'
   | '/workspaces/$wid/integrations/sentry';
 
-export interface ProviderCatalogEntry {
-  /**
-   * Selects the shared install-page behavior: `redirect-install` providers render
-   * the shared redirect-install page (mint install URL, leave the app);
-   * `direct-connect` providers keep a bespoke page. Callback routes stay
-   * bespoke per provider either way.
-   */
+interface RouteProviderCatalogEntry {
   kind: 'redirect-install' | 'direct-connect';
   iconName: IconName;
   setupPath: ProviderSetupPath;
 }
+
+interface ModalProviderCatalogEntry {
+  kind: 'modal-connect';
+  iconName: IconName;
+}
+
+export type ProviderCatalogEntry = RouteProviderCatalogEntry | ModalProviderCatalogEntry;
 
 export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
   github: {
@@ -40,5 +41,9 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     kind: 'direct-connect',
     iconName: 'componentLine',
     setupPath: '/workspaces/$wid/integrations/debug',
+  },
+  webhook: {
+    kind: 'modal-connect',
+    iconName: 'webhookLine',
   },
 };

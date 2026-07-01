@@ -6,13 +6,17 @@ import type {
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button, cn, EmptyState, formatDate, Header, Skeleton, Text} from '@shipfox/react-ui';
+import {useState} from 'react';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';
 import {
   useIntegrationConnectionsQuery,
   useIntegrationProvidersQuery,
 } from '#hooks/api/integrations.js';
 import {IntegrationIcon} from '#integration-icon.js';
+import {PROVIDER_CATALOG} from '#provider-catalog.js';
 import {ProviderGrid} from './provider-grid.js';
+import {WebhookCreateModal} from './webhook/webhook-create-modal.js';
+import {WebhookManageModal} from './webhook/webhook-manage-modal.js';
 
 export interface IntegrationGalleryProps {
   capability?: IntegrationCapabilityDto;
@@ -74,6 +78,8 @@ function IntegrationGalleryForWorkspace({
   emptyProvidersMessage: string;
   workspaceId: string;
 }) {
+  const [createProvider, setCreateProvider] = useState<string | undefined>();
+  const [manageConnectionId, setManageConnectionId] = useState<string | undefined>();
   const providersQuery = useIntegrationProvidersQuery(capability ? {capability} : undefined);
   const connectionsQuery = useIntegrationConnectionsQuery(workspaceId);
 
@@ -133,6 +139,7 @@ function IntegrationGalleryForWorkspace({
                 key={connection.id}
                 connection={connection}
                 providerLabel={providerLabel(connection.provider)}
+                onManage={setManageConnectionId}
               />
             ))}
           </ul>
@@ -151,8 +158,22 @@ function IntegrationGalleryForWorkspace({
           providersQuery={providersQuery}
           workspaceId={workspaceId}
           emptyMessage={emptyProvidersMessage}
+          onOpenProvider={setCreateProvider}
         />
       </section>
+      <WebhookCreateModal
+        workspaceId={workspaceId}
+        open={createProvider === 'webhook'}
+        onOpenChange={(open) => setCreateProvider(open ? 'webhook' : undefined)}
+      />
+      <WebhookManageModal
+        workspaceId={workspaceId}
+        connectionId={manageConnectionId}
+        open={manageConnectionId !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setManageConnectionId(undefined);
+        }}
+      />
     </div>
   );
 }
@@ -160,11 +181,14 @@ function IntegrationGalleryForWorkspace({
 function InstalledRow({
   connection,
   providerLabel,
+  onManage,
 }: {
   connection: IntegrationConnectionDto;
   providerLabel: string;
+  onManage: (connectionId: string) => void;
 }) {
   const muted = connection.lifecycle_status === 'disabled';
+  const catalog = PROVIDER_CATALOG[connection.provider];
 
   return (
     <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
@@ -193,7 +217,17 @@ function InstalledRow({
           Added {formatDate(connection.created_at)}
         </Text>
       </div>
-      {connection.external_url ? (
+      {catalog?.kind === 'modal-connect' ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="transparentMuted"
+          className="shrink-0"
+          onClick={() => onManage(connection.id)}
+        >
+          Manage
+        </Button>
+      ) : connection.external_url ? (
         <Button
           asChild
           size="sm"

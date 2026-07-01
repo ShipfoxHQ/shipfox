@@ -2761,6 +2761,9 @@ importers:
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../../api/integration/sentry-dto
+      '@shipfox/api-integration-webhook-dto':
+        specifier: workspace:*
+        version: link:../../api/integration/webhook-dto
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api

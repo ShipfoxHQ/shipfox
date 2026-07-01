@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import {configureApiClient} from '@shipfox/client-api';
-import {screen, within} from '@testing-library/react';
+import {fireEvent, screen, within} from '@testing-library/react';
 import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
 import {IntegrationGallery} from './integration-gallery.js';
 
@@ -9,11 +9,13 @@ const SETUP_ROUTES = [
   '/workspaces/$wid/integrations/github',
   '/workspaces/$wid/integrations/sentry',
   '/workspaces/$wid/integrations/debug',
+  '/workspaces/$wid/settings/events',
 ];
 
 const defaultProviders = [
   {provider: 'github', display_name: 'GitHub', capabilities: ['source_control']},
   {provider: 'sentry', display_name: 'Sentry', capabilities: []},
+  {provider: 'webhook', display_name: 'Webhook', capabilities: []},
 ];
 
 const githubConnection = {
@@ -30,22 +32,55 @@ const githubConnection = {
   updated_at: '2026-03-12T00:00:00.000Z',
 };
 
+const webhookConnection = {
+  id: '77777777-7777-4777-8777-777777777777',
+  workspace_id: INTEGRATIONS_TEST_WID,
+  provider: 'webhook',
+  external_account_id: 'stripe-prod',
+  slug: 'stripe-prod',
+  display_name: 'Stripe production',
+  lifecycle_status: 'active',
+  capabilities: [],
+  created_at: '2026-04-12T00:00:00.000Z',
+  updated_at: '2026-04-12T00:00:00.000Z',
+};
+
+const webhookConnectionDto = {
+  id: webhookConnection.id,
+  workspace_id: INTEGRATIONS_TEST_WID,
+  name: 'Stripe production',
+  slug: 'stripe-prod',
+  lifecycle_status: 'active',
+  inbound_url: 'https://api.example.test/webhook/77777777-7777-4777-8777-777777777777',
+  created_at: webhookConnection.created_at,
+  updated_at: webhookConnection.updated_at,
+};
+
 interface FetchOptions {
   providers?: unknown[];
   connections?: unknown[];
+  webhookConnections?: unknown[];
   providersFail?: boolean;
   connectionsFail?: boolean;
+  webhookConnectionsFail?: boolean;
 }
 
 function fetchForGallery(options: FetchOptions = {}) {
   const {
     providers = defaultProviders,
     connections = [],
+    webhookConnections = [webhookConnectionDto],
     providersFail = false,
     connectionsFail = false,
+    webhookConnectionsFail = false,
   } = options;
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes('/integrations/webhook/connections')) {
+      if (webhookConnectionsFail)
+        return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+      return Promise.resolve(jsonResponse({connections: webhookConnections}));
+    }
     if (url.includes('/integration-providers')) {
       if (providersFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
@@ -80,6 +115,7 @@ const installedRegion = () => screen.getByRole('region', {name: 'Installed integ
 const availableRegion = () => screen.getByRole('region', {name: 'Available integrations'});
 
 const SORTED_NAMES_RE = /acme-(early|late)/;
+const OPEN_STRIPE_PRODUCTION_RE = /Open Stripe production/;
 // The meta line carries the date only — the provider is named once, by the
 // icon and the account name, never repeated as body text in the row.
 const ADDED_META_RE = /^Added /;
@@ -207,6 +243,24 @@ describe('IntegrationGallery — installed section', () => {
     ).not.toBeInTheDocument();
   });
 
+  test('shows Manage for webhook rows instead of an Open link', async () => {
+    renderGallery({}, {connections: [webhookConnection]});
+
+    expect(await screen.findByText('Stripe production')).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Manage'})).toBeVisible();
+    expect(screen.queryByRole('link', {name: OPEN_STRIPE_PRODUCTION_RE})).not.toBeInTheDocument();
+  });
+
+  test('opens the webhook manage modal from an installed row', async () => {
+    renderGallery({}, {connections: [webhookConnection]});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Manage'}));
+
+    expect(await screen.findByText('Inbound URL')).toBeVisible();
+    expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
+    expect(screen.getByRole('link', {name: 'View deliveries'})).toBeVisible();
+  });
+
   test('filters connections by capability in memory', async () => {
     renderGallery(
       {capability: 'source_control'},
@@ -280,6 +334,7 @@ describe('IntegrationGallery — available section', () => {
 
     expect(await screen.findByRole('link', {name: 'Install GitHub'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Install Sentry'})).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Add Webhook'})).toBeVisible();
     expect(screen.getByText('Providers available to install in this workspace.')).toBeVisible();
   });
 
@@ -292,6 +347,15 @@ describe('IntegrationGallery — available section', () => {
     expect(link.className).not.toContain('shadow-button-secondary');
     expect(within(link).getByText('Install')).toBeVisible();
     expect(within(link).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  test('opens the webhook create modal from the Add card', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+
+    expect(await screen.findByRole('textbox', {name: 'Name'})).toBeVisible();
+    expect(screen.getByRole('textbox', {name: 'Slug'})).toBeVisible();
   });
 
   test('surfaces a providers error only in the available section', async () => {
