@@ -13,7 +13,6 @@ export type WorkflowModelValidationIssueCode =
   | 'invalid-step-gate-restart-from'
   | 'invalid-step-gate-success-if'
   | 'job-dependency-cycle'
-  | 'listening-job-field-without-on'
   | 'listening-job-missing-resolution-source'
   | 'listening-timeout-exceeds-run-timeout'
   | 'missing-runner-label'
