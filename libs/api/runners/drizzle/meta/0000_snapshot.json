@@ -143,6 +143,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "workflow_run_id": {
+          "name": "workflow_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "job_id": {
           "name": "job_id",
           "type": "uuid",
@@ -233,6 +239,12 @@
         },
         "workspace_id": {
           "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workflow_run_id": {
+          "name": "workflow_run_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
