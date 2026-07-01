@@ -1,6 +1,7 @@
+import type {WorkflowModel} from '@shipfox/api-definitions';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {check, integer, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {check, integer, jsonb, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
 import {pgTable} from './common.js';
 import {workflowRunRerunModeEnum, workflowRunStatusEnum, workflowRuns} from './workflow-runs.js';
@@ -16,6 +17,7 @@ export const workflowRunAttempts = pgTable(
     status: workflowRunStatusEnum('status').notNull().default('pending'),
     rerunMode: workflowRunRerunModeEnum('rerun_mode'),
     rerunByUserId: uuid('rerun_by_user_id'),
+    model: jsonb('model').$type<WorkflowModel>(),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -42,6 +44,7 @@ export function toWorkflowRunAttempt(row: WorkflowRunAttemptDb): WorkflowRunAtte
     status: row.status,
     rerunMode: row.rerunMode ?? null,
     rerunByUserId: row.rerunByUserId,
+    model: row.model ?? null,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

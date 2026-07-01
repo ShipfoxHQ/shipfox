@@ -7,6 +7,7 @@ import {
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
+import {createWorkflowExpression} from '@shipfox/expression';
 import * as opentelemetry from '@shipfox/node-opentelemetry';
 import {and, eq, inArray, sql} from 'drizzle-orm';
 import {
@@ -37,6 +38,7 @@ import {
   getStepAttempts,
   getStepsByJobId,
   getWorkflowJobExecutionDepth,
+  getWorkflowRunAttemptById,
   getWorkflowRunById,
   listRunAttempts,
   listWorkflowRunsByProject,
@@ -54,6 +56,10 @@ function buildModel(overrides?: TestWorkflowModelInput) {
 
 function template(source: string): string {
   return `\${{ ${source} }}`;
+}
+
+function expression(source: string) {
+  return createWorkflowExpression({source, check: {mode: 'syntax'}});
 }
 
 function shellRef(name: string): string {
@@ -240,6 +246,41 @@ describe('workflow run queries', () => {
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
     });
 
+    test('persists the parsed model on the run attempt', async () => {
+      const model = buildModel({
+        env: {RUN_ID: template('run.id')},
+        jobs: {
+          build: {
+            name: `Build ${template('event.ref')}`,
+            steps: [
+              {
+                run: 'npm test',
+                env: {REF: template('event.ref')},
+                gate: {successIf: expression('exit_code == 0')},
+              },
+            ],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'github',
+          event: 'push',
+          deliveryId: 'delivery-1',
+          data: {ref: 'refs/heads/main'},
+        },
+      });
+
+      const [attemptSummary] = await listRunAttempts({workflowRunId: run.id, projectId});
+      const attempt = await getWorkflowRunAttemptById(attemptSummary?.id as string);
+      expect(attempt?.model).toEqual(model);
+    });
+
     test('persists listening job config without initial execution or steps', async () => {
       const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
       const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
@@ -306,6 +347,49 @@ describe('workflow run queries', () => {
       const buildSteps = await getStepsByJobId(build?.id as string);
       expect(buildExecutions).toHaveLength(1);
       expect(buildSteps.filter((step) => step.type !== 'setup')).toHaveLength(1);
+    });
+
+    test('persists the listening workflow model on the run attempt', async () => {
+      const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
+      const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
+      const model = normalizeWorkflowDocument({
+        name: 'Listening workflow',
+        runner: 'ubuntu-latest',
+        jobs: {
+          listen: {
+            name: displayNameSource,
+            listening: {
+              on: [{source: 'github', event: 'pull_request_review'}],
+              until: [{source: 'github', event: 'pull_request'}],
+              timeout: '30d',
+              max_executions: 3,
+              batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
+              on_resolve: 'cancel',
+            },
+            steps: [{prompt: promptSource}],
+          },
+          build: {
+            steps: [{run: 'echo build'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [attemptSummary] = await listRunAttempts({workflowRunId: run.id, projectId});
+      const attempt = await getWorkflowRunAttemptById(attemptSummary?.id as string);
+      expect(attempt?.model).toEqual(model);
     });
 
     test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
@@ -860,12 +944,13 @@ jobs:
       const subscriptionId = crypto.randomUUID();
       const eventId = crypto.randomUUID();
       const idempotencyKey = `${subscriptionId}:${eventId}`;
+      const model = buildModel({name: 'Original idempotent model'});
 
       const first = await createWorkflowRun({
         workspaceId,
         projectId,
         definitionId,
-        model: buildModel(),
+        model,
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -879,7 +964,7 @@ jobs:
         workspaceId,
         projectId,
         definitionId,
-        model: buildModel(),
+        model: buildModel({name: 'Mutated idempotent model'}),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -899,6 +984,9 @@ jobs:
 
       const allJobs = await getJobsByWorkflowRunId(first.id);
       expect(allJobs).toHaveLength(1);
+      const attempts = await listRunAttempts({workflowRunId: first.id, projectId});
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0]?.model).toEqual(model);
       const outboxRows = await db()
         .select()
         .from(workflowsOutbox)
@@ -1082,6 +1170,22 @@ jobs:
         expect(jobSteps.every((step) => step.status === 'pending')).toBe(true);
         expect(jobSteps.every((step) => step.output === null && step.error === null)).toBe(true);
       }
+    });
+
+    test('reruns clone the parsed model onto the new attempt', async () => {
+      const source = await createTerminalSourceRun();
+
+      await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const attempts = await listRunAttempts({workflowRunId: source.id, projectId});
+      const sourceAttempt = attempts.find((attempt) => attempt.attempt === 1);
+      const rerunAttempt = attempts.find((attempt) => attempt.attempt === 2);
+      const reloadedRerunAttempt = await getWorkflowRunAttemptById(rerunAttempt?.id as string);
+      expect(reloadedRerunAttempt?.model).toEqual(sourceAttempt?.model);
     });
 
     test('reruns preserve the original resolved agent step config', async () => {
