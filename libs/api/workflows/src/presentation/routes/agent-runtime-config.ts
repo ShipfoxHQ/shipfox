@@ -1,6 +1,6 @@
 import {
-  AgentProviderConfigNotFoundError,
   CredentialDecryptionError,
+  ModelProviderConfigNotFoundError,
 } from '@shipfox/api-agent/core/errors';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {
@@ -20,7 +20,7 @@ export const agentRuntimeConfigRoute = defineRoute({
   method: 'GET',
   path: '/agent-runtime-config',
   description:
-    "Returns the resolved provider, model, thinking effort, and decrypted provider credential bundle for the runner's currently leased running agent step. The job is identified by the lease token and the step is bound to that job before credentials are returned.",
+    "Returns the resolved model provider, model, thinking effort, and decrypted model provider credential bundle for the runner's currently leased running agent step. The job is identified by the lease token and the step is bound to that job before credentials are returned.",
   schema: {
     querystring: agentRuntimeConfigQuerySchema,
     response: {
@@ -31,18 +31,18 @@ export const agentRuntimeConfigRoute = defineRoute({
     if (error instanceof CredentialDecryptionError) {
       captureException(error);
       throw new ClientError(
-        'Agent provider credentials could not be decrypted',
-        'agent-provider-credentials-invalid',
+        'Model provider credentials could not be decrypted',
+        'model-provider-credentials-invalid',
         {
           status: 409,
           cause: error,
         },
       );
     }
-    if (error instanceof AgentProviderConfigNotFoundError) {
+    if (error instanceof ModelProviderConfigNotFoundError) {
       throw new ClientError(
-        'Agent provider credentials are not configured',
-        'agent-provider-not-configured',
+        'Model provider credentials are not configured',
+        'model-provider-not-configured',
         {
           status: 409,
         },
@@ -104,7 +104,7 @@ export const agentRuntimeConfigRoute = defineRoute({
 
     const runtimeConfig = await resolveRuntimeCredentials({
       workspaceId,
-      provider: agentConfig.provider,
+      modelProvider: agentConfig.provider,
       model: agentConfig.model,
       thinking: agentConfig.thinking,
     });

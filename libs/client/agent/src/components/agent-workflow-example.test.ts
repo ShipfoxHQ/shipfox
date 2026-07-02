@@ -5,42 +5,42 @@ import {buildAgentWorkflowExample} from './agent-workflow-example.js';
 describe('buildAgentWorkflowExample', () => {
   it.each([
     {
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       model: 'claude-opus-4-8',
       expectedProvider: '        provider: anthropic',
       expectedModel: '        model: claude-opus-4-8',
     },
     {
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       model: 'anthropic/claude-opus-4.8',
       expectedProvider: '        provider: anthropic',
       expectedModel: '        model: anthropic/claude-opus-4.8',
     },
     {
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       model: '@cf/moonshotai/kimi-k2.7-code',
       expectedProvider: '        provider: anthropic',
       expectedModel: "        model: '@cf/moonshotai/kimi-k2.7-code'",
     },
     {
-      providerId: 'provider#beta',
+      modelProviderId: 'provider#beta',
       model: "model: beta's",
       expectedProvider: "        provider: 'provider#beta'",
       expectedModel: "        model: 'model: beta''s'",
     },
     {
-      providerId: 'true',
+      modelProviderId: 'true',
       model: '123',
       expectedProvider: "        provider: 'true'",
       expectedModel: "        model: '123'",
     },
-  ])('builds valid workflow YAML for provider $providerId and model $model', ({
-    providerId,
+  ])('builds valid workflow YAML for provider $modelProviderId and model $model', ({
+    modelProviderId,
     model,
     expectedProvider,
     expectedModel,
   }) => {
-    const example = buildAgentWorkflowExample({providerId, model});
+    const example = buildAgentWorkflowExample({modelProviderId, model});
 
     const lines = example.code.split('\n');
     const parsed = parse(example.code);
@@ -50,7 +50,7 @@ describe('buildAgentWorkflowExample', () => {
     const result = workflowDocumentSchema.safeParse(parsed);
 
     expect(result.success).toBe(true);
-    expect(parsedStep.jobs.agent.steps[0]?.provider).toBe(providerId);
+    expect(parsedStep.jobs.agent.steps[0]?.provider).toBe(modelProviderId);
     expect(parsedStep.jobs.agent.steps[0]?.model).toBe(model);
     expect(lines).toContain(expectedProvider);
     expect(lines).toContain(expectedModel);

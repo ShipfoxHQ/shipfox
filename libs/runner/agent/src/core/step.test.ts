@@ -8,7 +8,7 @@ import type {AgentInvocation} from '#core/run-agent.js';
 import {executeAgentStep} from '#core/step.js';
 
 const RUNTIME = {
-  provider: 'anthropic',
+  modelProvider: 'anthropic',
   model: 'claude-opus-4-8',
   thinking: 'high',
   credentials: {api_key: 'sk-runtime-secret'},
@@ -56,12 +56,12 @@ describe('executeAgentStep', () => {
     );
   });
 
-  it('forwards runtime provider, model, and thinking to the agent invocation', async () => {
+  it('forwards runtime model provider, model, and thinking to the agent invocation', async () => {
     runAgentMock.mockResolvedValue({});
 
     await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
       runtime: {
-        provider: 'openai',
+        modelProvider: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',
         credentials: {api_key: 'sk-openai'},
@@ -70,7 +70,7 @@ describe('executeAgentStep', () => {
 
     expect(runAgentMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: 'openai',
+        modelProvider: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',
         credentials: {api_key: 'sk-openai'},
@@ -87,7 +87,7 @@ describe('executeAgentStep', () => {
       }),
       {
         runtime: {
-          provider: 'openai',
+          modelProvider: 'openai',
           model: 'gpt-5.1',
           thinking: 'low',
           credentials: {api_key: 'sk-openai'},
@@ -96,7 +96,7 @@ describe('executeAgentStep', () => {
     );
 
     expect(runAgentMock).toHaveBeenCalledWith(
-      expect.objectContaining({provider: 'openai', model: 'gpt-5.1', thinking: 'low'}),
+      expect.objectContaining({modelProvider: 'openai', model: 'gpt-5.1', thinking: 'low'}),
     );
   });
 
@@ -115,16 +115,19 @@ describe('executeAgentStep', () => {
 
   it('fails with agent_config_invalid when the agent run throws an AgentConfigError', async () => {
     runAgentMock.mockRejectedValue(
-      new AgentConfigError('Unknown provider "foo" for agent step.', 'provider_unsupported'),
+      new AgentConfigError(
+        'Unknown model provider "foo" for agent step.',
+        'model_provider_unsupported',
+      ),
     );
 
     const result = await executeAgentStep(buildAgentStep(), {runtime: RUNTIME});
 
     expect(result.success).toBe(false);
     expect(result.error).toEqual({
-      message: 'Unknown provider "foo" for agent step.',
+      message: 'Unknown model provider "foo" for agent step.',
       reason: 'agent_config_invalid',
-      agent_config_issue: 'provider_unsupported',
+      agent_config_issue: 'model_provider_unsupported',
     });
   });
 

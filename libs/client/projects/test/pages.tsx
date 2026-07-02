@@ -85,10 +85,10 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/workspaces/$wid/integrations',
     component: () => <div>Integrations gallery placeholder</div>,
   });
-  const agentProviderSettingsRoute = createRoute({
+  const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/settings/agent-providers',
-    component: () => <div>Agent provider settings placeholder</div>,
+    path: '/workspaces/$wid/settings/model-providers',
+    component: () => <div>Model provider settings placeholder</div>,
   });
   const projectDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -125,7 +125,7 @@ function createTestRouter(path: string, element: ReactElement) {
       workspaceRoute,
       workspaceNewProjectRoute,
       integrationsRoute,
-      agentProviderSettingsRoute,
+      modelProviderSettingsRoute,
       projectDetailRoute,
       projectWorkflowsRoute,
     ]),

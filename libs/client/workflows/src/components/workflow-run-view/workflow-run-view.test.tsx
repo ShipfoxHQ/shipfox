@@ -252,7 +252,7 @@ describe('WorkflowRunView', () => {
                       prompt: 'Fix the failing tests.',
                     },
                     error: {
-                      message: 'Agent provider request failed',
+                      message: 'Model provider request failed',
                       reason: 'agent_invocation_failed',
                       category: 'user',
                     },
@@ -263,9 +263,9 @@ describe('WorkflowRunView', () => {
                         status: 'failed',
                         exit_code: 1,
                         error: {
-                          message: 'Agent provider credentials are not configured',
+                          message: 'Model provider credentials are not configured',
                           reason: 'agent_config_invalid',
-                          agentConfigIssue: 'provider_not_configured',
+                          agentConfigIssue: 'model_provider_not_configured',
                         },
                         finished_at: '2026-05-07T01:01:20.000Z',
                       }),
@@ -296,12 +296,12 @@ describe('WorkflowRunView', () => {
     expect(screen.getByText('Configure credentials for the selected provider')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This step uses the selected provider, but no workspace credentials are configured for that provider. Configure the selected provider in Agent Providers, then re-run the workflow.',
+        'This step uses the selected provider, but no workspace credentials are configured for that model provider. Configure the selected provider in Model Providers, then re-run the workflow.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(
+    expect(screen.getByRole('link', {name: 'Configure Model Providers'})).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
+      `/workspaces/${PROJECT_TEST_WID}/settings/model-providers`,
     );
   });
 
@@ -340,9 +340,9 @@ describe('WorkflowRunView', () => {
                         prompt: 'Fix the failing tests.',
                       },
                       error: {
-                        message: 'Agent provider credentials are not configured',
+                        message: 'Model provider credentials are not configured',
                         reason: 'agent_config_invalid',
-                        agent_config_issue: 'provider_not_configured',
+                        agent_config_issue: 'model_provider_not_configured',
                         category: 'user',
                       },
                       attempts: [
@@ -376,9 +376,9 @@ describe('WorkflowRunView', () => {
     expect(screen.queryByText('claude-opus-4-8')).not.toBeInTheDocument();
     expect(screen.queryByText('high')).not.toBeInTheDocument();
     expect(screen.getByText('Configure credentials for the selected provider')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(
+    expect(screen.getByRole('link', {name: 'Configure Model Providers'})).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
+      `/workspaces/${PROJECT_TEST_WID}/settings/model-providers`,
     );
   });
 

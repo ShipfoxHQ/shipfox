@@ -1,19 +1,19 @@
-import {getAgentProviderCredentialKeys} from '@shipfox/api-agent-dto';
+import {getModelProviderCredentialKeys} from '@shipfox/api-agent-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import {
-  AgentProviderConfigNotFoundError,
-  AgentProviderValidationError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
-  UnsupportedAgentProviderError,
+  ModelProviderConfigNotFoundError,
+  ModelProviderValidationError,
+  UnsupportedModelProviderError,
 } from '#core/index.js';
 
-export function translateAgentProviderRouteError(error: unknown): never {
-  if (error instanceof AgentProviderValidationError) {
-    throw new ClientError(error.sanitizedMessage, 'provider-validation-failed', {
+export function translateModelProviderRouteError(error: unknown): never {
+  if (error instanceof ModelProviderValidationError) {
+    throw new ClientError(error.sanitizedMessage, 'model-provider-validation-failed', {
       status: 422,
       details: {
-        provider_id: error.providerId,
+        model_provider_id: error.modelProviderId,
         message: error.sanitizedMessage,
       },
     });
@@ -23,8 +23,8 @@ export function translateAgentProviderRouteError(error: unknown): never {
     throw new ClientError('Invalid credential fields', 'invalid-credential-fields', {
       status: 422,
       details: {
-        provider_id: error.providerId,
-        expected_keys: getAgentProviderCredentialKeys(error.providerId) ?? [],
+        model_provider_id: error.modelProviderId,
+        expected_keys: getModelProviderCredentialKeys(error.modelProviderId) ?? [],
       },
     });
   }
@@ -33,24 +33,24 @@ export function translateAgentProviderRouteError(error: unknown): never {
     throw new ClientError('Invalid agent model', 'invalid-agent-model', {
       status: 422,
       details: {
-        provider_id: error.providerId,
+        model_provider_id: error.modelProviderId,
         model: error.model,
       },
     });
   }
 
-  if (error instanceof UnsupportedAgentProviderError) {
-    throw new ClientError('Provider is not supported', 'provider-unsupported', {
+  if (error instanceof UnsupportedModelProviderError) {
+    throw new ClientError('Model provider is not supported', 'model-provider-unsupported', {
       status: 422,
-      details: {provider_id: error.providerId},
+      details: {model_provider_id: error.modelProviderId},
     });
   }
 
-  if (error instanceof AgentProviderConfigNotFoundError) {
-    throw new ClientError('Provider is not configured', 'provider-not-configured', {
+  if (error instanceof ModelProviderConfigNotFoundError) {
+    throw new ClientError('Model provider is not configured', 'model-provider-not-configured', {
       status: 422,
       details: {
-        provider_id: error.providerId,
+        model_provider_id: error.modelProviderId,
       },
     });
   }

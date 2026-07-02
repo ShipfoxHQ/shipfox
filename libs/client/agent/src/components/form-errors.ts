@@ -1,17 +1,17 @@
 import {ApiError} from '@shipfox/client-api';
 
-export type AgentProviderConfigFormErrorMapping = {kind: 'form'; message: string};
+export type ModelProviderConfigFormErrorMapping = {kind: 'form'; message: string};
 
-type ProviderErrorDetails = {
+type ModelProviderErrorDetails = {
   message?: unknown;
-  provider_id?: unknown;
+  model_provider_id?: unknown;
   expected_keys?: unknown;
   details?: unknown;
 };
 
-export function agentProviderConfigErrorToFormError(
+export function modelProviderConfigErrorToFormError(
   error: unknown,
-): AgentProviderConfigFormErrorMapping {
+): ModelProviderConfigFormErrorMapping {
   if (error instanceof ApiError) {
     return {kind: 'form', message: apiErrorMessage(error)};
   }
@@ -22,9 +22,9 @@ export function agentProviderConfigErrorToFormError(
 }
 
 function apiErrorMessage(error: ApiError): string {
-  const details = providerErrorDetails(error.details);
+  const details = modelProviderErrorDetails(error.details);
 
-  if (error.code === 'provider-validation-failed') {
+  if (error.code === 'model-provider-validation-failed') {
     return typeof details.message === 'string' ? details.message : error.message;
   }
   if (error.code === 'invalid-credential-fields') {
@@ -34,26 +34,26 @@ function apiErrorMessage(error: ApiError): string {
     if (expectedKeys.length > 0) {
       return `Credentials must include exactly these fields: ${expectedKeys.join(', ')}.`;
     }
-    return 'Credentials do not match the fields required by this provider.';
+    return 'Credentials do not match the fields required by this model provider.';
   }
   if (error.code === 'invalid-agent-model') {
-    return 'Choose a model supported by this provider.';
+    return 'Choose a model supported by this model provider.';
   }
-  if (error.code === 'provider-unsupported') {
-    return 'This provider is not supported for workspace-managed credentials.';
+  if (error.code === 'model-provider-unsupported') {
+    return 'This model provider is not supported for workspace-managed credentials.';
   }
-  if (error.code === 'provider-not-configured') {
-    return 'Configure this provider before setting it as the default.';
+  if (error.code === 'model-provider-not-configured') {
+    return 'Configure this model provider before setting it as the default.';
   }
   return error.message;
 }
 
-function providerErrorDetails(rawDetails: unknown): ProviderErrorDetails {
+function modelProviderErrorDetails(rawDetails: unknown): ModelProviderErrorDetails {
   if (typeof rawDetails !== 'object' || rawDetails === null) return {};
 
-  const payload = rawDetails as ProviderErrorDetails;
+  const payload = rawDetails as ModelProviderErrorDetails;
   if (typeof payload.details === 'object' && payload.details !== null) {
-    return payload.details as ProviderErrorDetails;
+    return payload.details as ModelProviderErrorDetails;
   }
   return payload;
 }

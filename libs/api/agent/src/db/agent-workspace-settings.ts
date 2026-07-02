@@ -1,13 +1,13 @@
-import type {AgentProviderRef} from '@shipfox/api-agent-dto';
+import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {AgentWorkspaceSettings} from '#core/entities/agent-workspace-settings.js';
-import {AgentProviderConfigNotFoundError} from '#core/errors.js';
+import {ModelProviderConfigNotFoundError} from '#core/errors.js';
 import {db} from './db.js';
-import {agentProviderConfigs} from './schema/agent-provider-configs.js';
 import {
   agentWorkspaceSettings,
   toAgentWorkspaceSettings,
 } from './schema/agent-workspace-settings.js';
+import {modelProviderConfigs} from './schema/model-provider-configs.js';
 
 export async function getAgentWorkspaceSettings(
   workspaceId: string,
@@ -23,26 +23,26 @@ export async function getAgentWorkspaceSettings(
   return toAgentWorkspaceSettings(row);
 }
 
-export async function setDefaultAgentProvider(params: {
+export async function setDefaultModelProvider(params: {
   workspaceId: string;
-  providerId: AgentProviderRef | null;
+  modelProviderId: ModelProviderRef | null;
 }): Promise<AgentWorkspaceSettings> {
   return await db().transaction(async (tx) => {
-    if (params.providerId !== null) {
+    if (params.modelProviderId !== null) {
       const existingRows = await tx
-        .select({id: agentProviderConfigs.id})
-        .from(agentProviderConfigs)
+        .select({id: modelProviderConfigs.id})
+        .from(modelProviderConfigs)
         .where(
           and(
-            eq(agentProviderConfigs.workspaceId, params.workspaceId),
-            eq(agentProviderConfigs.providerId, params.providerId),
+            eq(modelProviderConfigs.workspaceId, params.workspaceId),
+            eq(modelProviderConfigs.modelProviderId, params.modelProviderId),
           ),
         )
         .limit(1)
         .for('update');
 
       if (!existingRows[0]) {
-        throw new AgentProviderConfigNotFoundError(params.workspaceId, params.providerId);
+        throw new ModelProviderConfigNotFoundError(params.workspaceId, params.modelProviderId);
       }
     }
 
@@ -50,12 +50,12 @@ export async function setDefaultAgentProvider(params: {
       .insert(agentWorkspaceSettings)
       .values({
         workspaceId: params.workspaceId,
-        defaultProviderId: params.providerId,
+        defaultModelProviderId: params.modelProviderId,
       })
       .onConflictDoUpdate({
         target: agentWorkspaceSettings.workspaceId,
         set: {
-          defaultProviderId: params.providerId,
+          defaultModelProviderId: params.modelProviderId,
           updatedAt: sql`NOW()`,
         },
       })

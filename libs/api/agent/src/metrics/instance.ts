@@ -1,13 +1,13 @@
-import type {SupportedAgentProviderId} from '@shipfox/api-agent-dto';
+import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
 
 const meter = instanceMetrics.getMeter('agent');
 
-export const providerValidationCount = meter.createCounter<{
-  provider: SupportedAgentProviderId;
+export const modelProviderValidationCount = meter.createCounter<{
+  model_provider: SupportedModelProviderId;
   outcome: 'succeeded' | 'failed';
-}>('agent_provider_validation_attempted', {
-  description: 'Provider credential test attempts by provider and outcome',
+}>('model_provider_validation_attempted', {
+  description: 'Model provider credential test attempts by model provider and outcome',
 });
 
 export const agentRuntimeConfigResolvedCount = meter.createCounter<{

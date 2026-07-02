@@ -383,13 +383,13 @@ function agentConfigIssueForCode(code: string | undefined): AgentConfigIssueDto 
     case 'agent-step-config-invalid':
     case 'agent-runtime-config-invalid':
       return 'step_config_invalid';
-    case 'agent-provider-not-configured':
-      return 'provider_not_configured';
-    case 'agent-provider-unsupported':
-      return 'provider_unsupported';
+    case 'model-provider-not-configured':
+      return 'model_provider_not_configured';
+    case 'model-provider-unsupported':
+      return 'model_provider_unsupported';
     case 'agent-model-unavailable':
       return 'model_unavailable';
-    case 'agent-provider-credentials-invalid':
+    case 'model-provider-credentials-invalid':
       return 'credentials_invalid';
     default:
       return undefined;

@@ -1,17 +1,17 @@
-import type {AgentProviderConfigDto} from '@shipfox/api-agent-dto';
+import type {ModelProviderConfigDto} from '@shipfox/api-agent-dto';
 import {Alert, Button, fieldError, ModalBody, ModalFooter, Text} from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
-import {useUpdateAgentProviderDefaultModelMutation} from '#hooks/api/agent-providers.js';
+import {useUpdateModelProviderDefaultModelMutation} from '#hooks/api/model-providers.js';
 import {
   DefaultModelField,
   defaultModelFormValue,
   selectedModelForModelPayload,
 } from './default-model-field.js';
-import {agentProviderConfigErrorToFormError} from './form-errors.js';
-import type {SupportedAgentProviderCatalogEntry} from './supported-agent-provider-catalog-entry.js';
+import {modelProviderConfigErrorToFormError} from './form-errors.js';
+import type {SupportedModelProviderCatalogEntry} from './supported-model-provider-catalog-entry.js';
 
-const CHANGE_DEFAULT_MODEL_FORM_ID = 'agent-provider-change-default-model-form';
+const CHANGE_DEFAULT_MODEL_FORM_ID = 'model-provider-change-default-model-form';
 
 export function ChangeDefaultModelForm({
   workspaceId,
@@ -20,11 +20,11 @@ export function ChangeDefaultModelForm({
   onSaved,
 }: {
   workspaceId: string;
-  entry: SupportedAgentProviderCatalogEntry;
-  config: AgentProviderConfigDto;
+  entry: SupportedModelProviderCatalogEntry;
+  config: ModelProviderConfigDto;
   onSaved: () => void;
 }) {
-  const updateDefaultModel = useUpdateAgentProviderDefaultModelMutation();
+  const updateDefaultModel = useUpdateModelProviderDefaultModelMutation();
   const [formError, setFormError] = useState<string | undefined>();
   const form = useForm({
     defaultValues: {default_model: defaultModelFormValue(config.default_model)},
@@ -33,12 +33,12 @@ export function ChangeDefaultModelForm({
       try {
         await updateDefaultModel.mutateAsync({
           workspaceId,
-          providerId: entry.id,
+          modelProviderId: entry.id,
           body: {default_model: selectedModelForModelPayload(value.default_model)},
         });
         onSaved();
       } catch (error) {
-        const mapped = agentProviderConfigErrorToFormError(error);
+        const mapped = modelProviderConfigErrorToFormError(error);
         setFormError(mapped.message);
       }
     },

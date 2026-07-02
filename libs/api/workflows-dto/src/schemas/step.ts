@@ -4,9 +4,9 @@ import {z} from 'zod';
 // reports it and the server stores it as-is. The `checkout_*`, `git_unavailable`,
 // `workspace_prep_failed`, and `setup_aborted` values cover setup-phase failures.
 // For agent steps the cause is split: `agent_config_invalid` is a user-fixable
-// configuration error (unknown provider, missing provider credentials on the runner,
-// wrong provider/model pair, missing model or prompt), while `agent_invocation_failed`
-// covers a genuine provider/API failure once the config is valid (network, 5xx, auth
+// configuration error (unknown model provider, missing model provider credentials on the runner,
+// wrong model provider/model pair, missing model or prompt), while `agent_invocation_failed`
+// covers a genuine model provider/API failure once the config is valid (network, 5xx, auth
 // rejected at call time). (Aborts are never reported: the step loop stops before reporting.)
 export const stepErrorReasonSchema = z.enum([
   'checkout_failed',
@@ -23,8 +23,8 @@ export type StepErrorReasonDto = z.infer<typeof stepErrorReasonSchema>;
 
 export const agentConfigIssueSchema = z.enum([
   'step_config_invalid',
-  'provider_not_configured',
-  'provider_unsupported',
+  'model_provider_not_configured',
+  'model_provider_unsupported',
   'model_unavailable',
   'credentials_invalid',
 ]);

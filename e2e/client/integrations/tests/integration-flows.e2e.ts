@@ -10,8 +10,8 @@ function projectsNewUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}/projects/new/?$`, 'u');
 }
 
-function agentProviderUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/agent-provider/?$`, 'u');
+function modelProviderUrlRe(wid: string): RegExp {
+  return new RegExp(`/workspaces/${wid}/model-provider/?$`, 'u');
 }
 
 async function expectSetupNavigationHidden(page: Page): Promise<void> {
@@ -21,11 +21,11 @@ async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByLabel('Switch workspace')).toBeVisible();
 }
 
-async function captureAndSkipAgentProviderSetup(page: Page, wid: string): Promise<void> {
-  await expect(page).toHaveURL(agentProviderUrlRe(wid));
-  await expect(page.getByRole('heading', {name: 'Configure agent provider'})).toBeVisible();
+async function captureAndSkipModelProviderSetup(page: Page, wid: string): Promise<void> {
+  await expect(page).toHaveURL(modelProviderUrlRe(wid));
+  await expect(page.getByRole('heading', {name: 'Configure model provider'})).toBeVisible();
   await expectSetupNavigationHidden(page);
-  await argosScreenshot(page, 'integrations/agent-provider-onboarding');
+  await argosScreenshot(page, 'integrations/model-provider-onboarding');
   await page.getByRole('button', {name: 'Skip for now'}).click();
 }
 
@@ -52,12 +52,12 @@ test('connecting Debug from onboarding flows into project creation', async ({pag
   // DebugInstallPage creates the connection on mount, then navigates back to
   // /workspaces/$wid. The setup guard should see the new connection plus zero
   // projects and forward the user through provider setup.
-  await expect(page).toHaveURL(agentProviderUrlRe(wid as string), {
+  await expect(page).toHaveURL(modelProviderUrlRe(wid as string), {
     timeout: SETUP_NAVIGATION_TIMEOUT_MS,
   });
   await expect(page).not.toHaveURL(DEBUG_INSTALL_URL_RE);
   await expect(page).not.toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
-  await captureAndSkipAgentProviderSetup(page, wid as string);
+  await captureAndSkipModelProviderSetup(page, wid as string);
 
   await expect(page).toHaveURL(projectsNewUrlRe(wid as string));
   await expectSetupNavigationHidden(page);

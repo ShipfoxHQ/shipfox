@@ -1,20 +1,20 @@
 import {getModels, getProviders, type KnownProvider} from '@earendil-works/pi-ai';
 import {
-  AGENT_PROVIDER_CATALOG_SEED,
-  AGENT_PROVIDER_IDS,
-  type AgentProviderId,
+  MODEL_PROVIDER_CATALOG_SEED,
+  MODEL_PROVIDER_IDS,
+  type ModelProviderId,
 } from '@shipfox/api-agent-dto';
 
-describe('agent provider catalog registry', () => {
+describe('model provider catalog registry', () => {
   it('keeps catalog provider ids synced with the pinned Pi provider registry', () => {
-    const catalogProviderIds = [...AGENT_PROVIDER_IDS].sort();
-    const piProviderIds = getProviders().sort();
+    const catalogModelProviderIds = [...MODEL_PROVIDER_IDS].sort();
+    const piModelProviderIds = getProviders().sort();
 
-    expect(catalogProviderIds).toEqual(piProviderIds);
+    expect(catalogModelProviderIds).toEqual(piModelProviderIds);
   });
 
   it('keeps supported catalog default models present in the pinned Pi model registry', () => {
-    const supportedEntries = AGENT_PROVIDER_CATALOG_SEED.filter(
+    const supportedEntries = MODEL_PROVIDER_CATALOG_SEED.filter(
       (entry) => entry.support_status === 'supported',
     );
 
@@ -28,6 +28,9 @@ describe('agent provider catalog registry', () => {
   });
 });
 
-function formatMissingDefault(providerId: AgentProviderId, defaultModel: string | null): string {
-  return `${providerId}:${defaultModel ?? '<null>'}`;
+function formatMissingDefault(
+  modelProviderId: ModelProviderId,
+  defaultModel: string | null,
+): string {
+  return `${modelProviderId}:${defaultModel ?? '<null>'}`;
 }

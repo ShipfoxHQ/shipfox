@@ -1,4 +1,4 @@
-import {getAgentProviderEntry} from '@shipfox/api-agent-dto';
+import {getModelProviderEntry} from '@shipfox/api-agent-dto';
 import {
   canonicalizeLabels,
   findInvalidLabels,
@@ -359,17 +359,17 @@ function validateAgentStep(params: {
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
 }): void {
-  const providerId = params.step.provider;
-  if (providerId === undefined) return;
+  const modelProviderId = params.step.provider;
+  if (modelProviderId === undefined) return;
 
-  const provider = getAgentProviderEntry(providerId);
-  if (provider === undefined || provider.support_status !== 'supported') {
+  const modelProvider = getModelProviderEntry(modelProviderId);
+  if (modelProvider === undefined || modelProvider.support_status !== 'supported') {
     params.issues.push(
       issue({
-        code: 'invalid-agent-provider',
-        message: `Agent provider "${providerId}" is not supported.`,
+        code: 'invalid-model-provider',
+        message: `Model provider "${modelProviderId}" is not supported.`,
         path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
-        details: {provider: providerId},
+        details: {provider: modelProviderId},
       }),
     );
     return;

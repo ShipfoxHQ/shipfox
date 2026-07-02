@@ -21,15 +21,15 @@ import { Route as WorkspacesWidLayoutRouteImport } from './routes/workspaces/$wi
 import { Route as IntegrationsSentryCallbackRouteImport } from './routes/integrations/sentry/callback'
 import { Route as IntegrationsGithubCallbackRouteImport } from './routes/integrations/github/callback'
 import { Route as WorkspacesWidLayoutIndexRouteImport } from './routes/workspaces/$wid/_layout/index'
-import { Route as WorkspacesWidLayoutAgentProviderRouteImport } from './routes/workspaces/$wid/_layout/agent-provider'
+import { Route as WorkspacesWidLayoutModelProviderRouteImport } from './routes/workspaces/$wid/_layout/model-provider'
 import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_layout/workspaces/new'
 import { Route as WorkspacesWidLayoutSettingsIndexRouteImport } from './routes/workspaces/$wid/_layout/settings/index'
 import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
+import { Route as WorkspacesWidLayoutSettingsModelProvidersRouteImport } from './routes/workspaces/$wid/_layout/settings/model-providers'
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
 import { Route as WorkspacesWidLayoutSettingsIntegrationsRouteImport } from './routes/workspaces/$wid/_layout/settings/integrations'
 import { Route as WorkspacesWidLayoutSettingsEventsRouteImport } from './routes/workspaces/$wid/_layout/settings/events'
-import { Route as WorkspacesWidLayoutSettingsAgentProvidersRouteImport } from './routes/workspaces/$wid/_layout/settings/agent-providers'
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
 import { Route as WorkspacesWidLayoutIntegrationsSentryRouteImport } from './routes/workspaces/$wid/_layout/integrations/sentry'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
@@ -104,10 +104,10 @@ const WorkspacesWidLayoutIndexRoute =
     path: '/',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
-const WorkspacesWidLayoutAgentProviderRoute =
-  WorkspacesWidLayoutAgentProviderRouteImport.update({
-    id: '/agent-provider',
-    path: '/agent-provider',
+const WorkspacesWidLayoutModelProviderRoute =
+  WorkspacesWidLayoutModelProviderRouteImport.update({
+    id: '/model-provider',
+    path: '/model-provider',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 const SetupLayoutWorkspacesNewRoute =
@@ -134,6 +134,12 @@ const WorkspacesWidLayoutSettingsRunnersRoute =
     path: '/settings/runners',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
+const WorkspacesWidLayoutSettingsModelProvidersRoute =
+  WorkspacesWidLayoutSettingsModelProvidersRouteImport.update({
+    id: '/settings/model-providers',
+    path: '/settings/model-providers',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutSettingsMembersRoute =
   WorkspacesWidLayoutSettingsMembersRouteImport.update({
     id: '/settings/members',
@@ -150,12 +156,6 @@ const WorkspacesWidLayoutSettingsEventsRoute =
   WorkspacesWidLayoutSettingsEventsRouteImport.update({
     id: '/settings/events',
     path: '/settings/events',
-    getParentRoute: () => WorkspacesWidLayoutRoute,
-  } as any)
-const WorkspacesWidLayoutSettingsAgentProvidersRoute =
-  WorkspacesWidLayoutSettingsAgentProvidersRouteImport.update({
-    id: '/settings/agent-providers',
-    path: '/settings/agent-providers',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 const WorkspacesWidLayoutProjectsNewRoute =
@@ -232,17 +232,17 @@ export interface FileRoutesByFullPath {
   '/integrations/sentry/callback': typeof IntegrationsSentryCallbackRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutRouteWithChildren
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
-  '/workspaces/$wid/agent-provider': typeof WorkspacesWidLayoutAgentProviderRoute
+  '/workspaces/$wid/model-provider': typeof WorkspacesWidLayoutModelProviderRoute
   '/workspaces/$wid/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/integrations/gitea': typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
-  '/workspaces/$wid/settings/agent-providers': typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   '/workspaces/$wid/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
+  '/workspaces/$wid/settings/model-providers': typeof WorkspacesWidLayoutSettingsModelProvidersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -264,17 +264,17 @@ export interface FileRoutesByTo {
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
   '/integrations/sentry/callback': typeof IntegrationsSentryCallbackRoute
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
-  '/workspaces/$wid/agent-provider': typeof WorkspacesWidLayoutAgentProviderRoute
+  '/workspaces/$wid/model-provider': typeof WorkspacesWidLayoutModelProviderRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/integrations/gitea': typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
-  '/workspaces/$wid/settings/agent-providers': typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   '/workspaces/$wid/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
+  '/workspaces/$wid/settings/model-providers': typeof WorkspacesWidLayoutSettingsModelProvidersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -297,17 +297,17 @@ export interface FileRoutesById {
   '/integrations/sentry/callback': typeof IntegrationsSentryCallbackRoute
   '/workspaces/$wid/_layout': typeof WorkspacesWidLayoutRouteWithChildren
   '/setup/_layout/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
-  '/workspaces/$wid/_layout/agent-provider': typeof WorkspacesWidLayoutAgentProviderRoute
+  '/workspaces/$wid/_layout/model-provider': typeof WorkspacesWidLayoutModelProviderRoute
   '/workspaces/$wid/_layout/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/_layout/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/_layout/integrations/gitea': typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/_layout/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
-  '/workspaces/$wid/_layout/settings/agent-providers': typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   '/workspaces/$wid/_layout/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/_layout/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
+  '/workspaces/$wid/_layout/settings/model-providers': typeof WorkspacesWidLayoutSettingsModelProvidersRoute
   '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/_layout/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -332,17 +332,17 @@ export interface FileRouteTypes {
     | '/integrations/sentry/callback'
     | '/workspaces/$wid'
     | '/setup/workspaces/new'
-    | '/workspaces/$wid/agent-provider'
+    | '/workspaces/$wid/model-provider'
     | '/workspaces/$wid/'
     | '/workspaces/$wid/integrations/debug'
     | '/workspaces/$wid/integrations/gitea'
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
-    | '/workspaces/$wid/settings/agent-providers'
     | '/workspaces/$wid/settings/events'
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
+    | '/workspaces/$wid/settings/model-providers'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations/'
     | '/workspaces/$wid/settings/'
@@ -364,17 +364,17 @@ export interface FileRouteTypes {
     | '/integrations/github/callback'
     | '/integrations/sentry/callback'
     | '/setup/workspaces/new'
-    | '/workspaces/$wid/agent-provider'
+    | '/workspaces/$wid/model-provider'
     | '/workspaces/$wid'
     | '/workspaces/$wid/integrations/debug'
     | '/workspaces/$wid/integrations/gitea'
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
-    | '/workspaces/$wid/settings/agent-providers'
     | '/workspaces/$wid/settings/events'
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
+    | '/workspaces/$wid/settings/model-providers'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations'
     | '/workspaces/$wid/settings'
@@ -396,17 +396,17 @@ export interface FileRouteTypes {
     | '/integrations/sentry/callback'
     | '/workspaces/$wid/_layout'
     | '/setup/_layout/workspaces/new'
-    | '/workspaces/$wid/_layout/agent-provider'
+    | '/workspaces/$wid/_layout/model-provider'
     | '/workspaces/$wid/_layout/'
     | '/workspaces/$wid/_layout/integrations/debug'
     | '/workspaces/$wid/_layout/integrations/gitea'
     | '/workspaces/$wid/_layout/integrations/github'
     | '/workspaces/$wid/_layout/integrations/sentry'
     | '/workspaces/$wid/_layout/projects/new'
-    | '/workspaces/$wid/_layout/settings/agent-providers'
     | '/workspaces/$wid/_layout/settings/events'
     | '/workspaces/$wid/_layout/settings/integrations'
     | '/workspaces/$wid/_layout/settings/members'
+    | '/workspaces/$wid/_layout/settings/model-providers'
     | '/workspaces/$wid/_layout/settings/runners'
     | '/workspaces/$wid/_layout/integrations/'
     | '/workspaces/$wid/_layout/settings/'
@@ -517,11 +517,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutIndexRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
-    '/workspaces/$wid/_layout/agent-provider': {
-      id: '/workspaces/$wid/_layout/agent-provider'
-      path: '/agent-provider'
-      fullPath: '/workspaces/$wid/agent-provider'
-      preLoaderRoute: typeof WorkspacesWidLayoutAgentProviderRouteImport
+    '/workspaces/$wid/_layout/model-provider': {
+      id: '/workspaces/$wid/_layout/model-provider'
+      path: '/model-provider'
+      fullPath: '/workspaces/$wid/model-provider'
+      preLoaderRoute: typeof WorkspacesWidLayoutModelProviderRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
     '/setup/_layout/workspaces/new': {
@@ -552,6 +552,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsRunnersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/settings/model-providers': {
+      id: '/workspaces/$wid/_layout/settings/model-providers'
+      path: '/settings/model-providers'
+      fullPath: '/workspaces/$wid/settings/model-providers'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsModelProvidersRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/settings/members': {
       id: '/workspaces/$wid/_layout/settings/members'
       path: '/settings/members'
@@ -571,13 +578,6 @@ declare module '@tanstack/react-router' {
       path: '/settings/events'
       fullPath: '/workspaces/$wid/settings/events'
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsEventsRouteImport
-      parentRoute: typeof WorkspacesWidLayoutRoute
-    }
-    '/workspaces/$wid/_layout/settings/agent-providers': {
-      id: '/workspaces/$wid/_layout/settings/agent-providers'
-      path: '/settings/agent-providers'
-      fullPath: '/workspaces/$wid/settings/agent-providers'
-      preLoaderRoute: typeof WorkspacesWidLayoutSettingsAgentProvidersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
     '/workspaces/$wid/_layout/projects/new': {
@@ -690,17 +690,17 @@ const WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren =
   )
 
 interface WorkspacesWidLayoutRouteChildren {
-  WorkspacesWidLayoutAgentProviderRoute: typeof WorkspacesWidLayoutAgentProviderRoute
+  WorkspacesWidLayoutModelProviderRoute: typeof WorkspacesWidLayoutModelProviderRoute
   WorkspacesWidLayoutIndexRoute: typeof WorkspacesWidLayoutIndexRoute
   WorkspacesWidLayoutIntegrationsDebugRoute: typeof WorkspacesWidLayoutIntegrationsDebugRoute
   WorkspacesWidLayoutIntegrationsGiteaRoute: typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
   WorkspacesWidLayoutIntegrationsSentryRoute: typeof WorkspacesWidLayoutIntegrationsSentryRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
-  WorkspacesWidLayoutSettingsAgentProvidersRoute: typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   WorkspacesWidLayoutSettingsEventsRoute: typeof WorkspacesWidLayoutSettingsEventsRoute
   WorkspacesWidLayoutSettingsIntegrationsRoute: typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
+  WorkspacesWidLayoutSettingsModelProvidersRoute: typeof WorkspacesWidLayoutSettingsModelProvidersRoute
   WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
   WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
   WorkspacesWidLayoutSettingsIndexRoute: typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -708,7 +708,7 @@ interface WorkspacesWidLayoutRouteChildren {
 }
 
 const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
-  WorkspacesWidLayoutAgentProviderRoute: WorkspacesWidLayoutAgentProviderRoute,
+  WorkspacesWidLayoutModelProviderRoute: WorkspacesWidLayoutModelProviderRoute,
   WorkspacesWidLayoutIndexRoute: WorkspacesWidLayoutIndexRoute,
   WorkspacesWidLayoutIntegrationsDebugRoute:
     WorkspacesWidLayoutIntegrationsDebugRoute,
@@ -719,14 +719,14 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
   WorkspacesWidLayoutIntegrationsSentryRoute:
     WorkspacesWidLayoutIntegrationsSentryRoute,
   WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
-  WorkspacesWidLayoutSettingsAgentProvidersRoute:
-    WorkspacesWidLayoutSettingsAgentProvidersRoute,
   WorkspacesWidLayoutSettingsEventsRoute:
     WorkspacesWidLayoutSettingsEventsRoute,
   WorkspacesWidLayoutSettingsIntegrationsRoute:
     WorkspacesWidLayoutSettingsIntegrationsRoute,
   WorkspacesWidLayoutSettingsMembersRoute:
     WorkspacesWidLayoutSettingsMembersRoute,
+  WorkspacesWidLayoutSettingsModelProvidersRoute:
+    WorkspacesWidLayoutSettingsModelProvidersRoute,
   WorkspacesWidLayoutSettingsRunnersRoute:
     WorkspacesWidLayoutSettingsRunnersRoute,
   WorkspacesWidLayoutIntegrationsIndexRoute:

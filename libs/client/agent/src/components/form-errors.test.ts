@@ -1,33 +1,33 @@
 import {ApiError} from '@shipfox/client-api';
-import {agentProviderConfigErrorToFormError} from './form-errors.js';
+import {modelProviderConfigErrorToFormError} from './form-errors.js';
 
-describe('agentProviderConfigErrorToFormError', () => {
+describe('modelProviderConfigErrorToFormError', () => {
   test.each([
     [
       new ApiError({
-        code: 'provider-validation-failed',
+        code: 'model-provider-validation-failed',
         message: 'Validation failed',
         status: 422,
-        details: {provider_id: 'anthropic', message: 'Provider rejected the key.'},
+        details: {model_provider_id: 'anthropic', message: 'Model provider rejected the key.'},
       }),
-      'Provider rejected the key.',
+      'Model provider rejected the key.',
     ],
     [
       new ApiError({
-        code: 'provider-validation-failed',
+        code: 'model-provider-validation-failed',
         message: 'Validation failed',
         status: 422,
         details: {
-          code: 'provider-validation-failed',
+          code: 'model-provider-validation-failed',
           message: 'Validation failed',
-          details: {provider_id: 'anthropic', message: 'Provider rejected the key.'},
+          details: {model_provider_id: 'anthropic', message: 'Model provider rejected the key.'},
         },
       }),
-      'Provider rejected the key.',
+      'Model provider rejected the key.',
     ],
     [
       new ApiError({
-        code: 'provider-validation-failed',
+        code: 'model-provider-validation-failed',
         message: 'Validation failed',
         status: 422,
       }),
@@ -38,7 +38,10 @@ describe('agentProviderConfigErrorToFormError', () => {
         code: 'invalid-credential-fields',
         message: 'Invalid credentials',
         status: 422,
-        details: {provider_id: 'azure-openai-responses', expected_keys: ['endpoint', 'api_key']},
+        details: {
+          model_provider_id: 'azure-openai-responses',
+          expected_keys: ['endpoint', 'api_key'],
+        },
       }),
       'Credentials must include exactly these fields: endpoint, api_key.',
     ],
@@ -48,34 +51,34 @@ describe('agentProviderConfigErrorToFormError', () => {
         message: 'Invalid credentials',
         status: 422,
       }),
-      'Credentials do not match the fields required by this provider.',
+      'Credentials do not match the fields required by this model provider.',
     ],
     [
       new ApiError({
-        code: 'provider-unsupported',
+        code: 'model-provider-unsupported',
         message: 'Unsupported',
         status: 422,
-        details: {provider_id: 'amazon-bedrock'},
+        details: {model_provider_id: 'amazon-bedrock'},
       }),
-      'This provider is not supported for workspace-managed credentials.',
+      'This model provider is not supported for workspace-managed credentials.',
     ],
     [
       new ApiError({
         code: 'invalid-agent-model',
         message: 'Invalid agent model',
         status: 422,
-        details: {provider_id: 'anthropic', model: 'missing-model'},
+        details: {model_provider_id: 'anthropic', model: 'missing-model'},
       }),
-      'Choose a model supported by this provider.',
+      'Choose a model supported by this model provider.',
     ],
     [
       new ApiError({
-        code: 'provider-not-configured',
+        code: 'model-provider-not-configured',
         message: 'Not configured',
         status: 422,
-        details: {provider_id: 'openai'},
+        details: {model_provider_id: 'openai'},
       }),
-      'Configure this provider before setting it as the default.',
+      'Configure this model provider before setting it as the default.',
     ],
     [
       new ApiError({code: 'not-found', message: 'Provider config not found', status: 404}),
@@ -83,19 +86,19 @@ describe('agentProviderConfigErrorToFormError', () => {
     ],
     [new ApiError({code: 'unknown-code', message: 'Server copy', status: 422}), 'Server copy'],
   ])('maps ApiError %s to a form-level alert', (error, expectedMessage) => {
-    const result = agentProviderConfigErrorToFormError(error);
+    const result = modelProviderConfigErrorToFormError(error);
 
     expect(result).toEqual({kind: 'form', message: expectedMessage});
   });
 
   test('routes Error to a form-level alert with the error message', () => {
-    const result = agentProviderConfigErrorToFormError(new Error('boom'));
+    const result = modelProviderConfigErrorToFormError(new Error('boom'));
 
     expect(result).toEqual({kind: 'form', message: 'boom'});
   });
 
   test('falls back to generic copy for non-Error throwables', () => {
-    const result = agentProviderConfigErrorToFormError('weird');
+    const result = modelProviderConfigErrorToFormError('weird');
 
     expect(result).toEqual({kind: 'form', message: 'Something went wrong. Try again.'});
   });

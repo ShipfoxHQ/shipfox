@@ -20,7 +20,7 @@ import {
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useState} from 'react';
-import {AgentProviderReminderBanner} from '#components/agent-provider-reminder-banner.js';
+import {ModelProviderReminderBanner} from '#components/model-provider-reminder-banner.js';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 
 export function ProjectsHubPage() {
@@ -81,7 +81,7 @@ export function ProjectsHubPage() {
         </div>
       </header>
 
-      <AgentProviderReminderBanner workspaceId={workspace.id} />
+      <ModelProviderReminderBanner workspaceId={workspace.id} />
 
       {isInitialLoading || (debouncedSearch && hasNoData && query.isFetching) ? (
         <ProjectsSkeleton />

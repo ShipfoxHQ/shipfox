@@ -1,1 +1,1 @@
-export {agentRuntimeConfigResolvedCount, providerValidationCount} from './instance.js';
+export {agentRuntimeConfigResolvedCount, modelProviderValidationCount} from './instance.js';
