@@ -26,8 +26,8 @@ import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_la
 import { Route as WorkspacesWidLayoutSettingsIndexRouteImport } from './routes/workspaces/$wid/_layout/settings/index'
 import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
-import { Route as WorkspacesWidLayoutSettingsModelProvidersRouteImport } from './routes/workspaces/$wid/_layout/settings/model-providers'
 import { Route as WorkspacesWidLayoutSettingsProvisionersRouteImport } from './routes/workspaces/$wid/_layout/settings/provisioners'
+import { Route as WorkspacesWidLayoutSettingsModelProvidersRouteImport } from './routes/workspaces/$wid/_layout/settings/model-providers'
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
 import { Route as WorkspacesWidLayoutSettingsIntegrationsRouteImport } from './routes/workspaces/$wid/_layout/settings/integrations'
 import { Route as WorkspacesWidLayoutSettingsEventsRouteImport } from './routes/workspaces/$wid/_layout/settings/events'
@@ -135,16 +135,16 @@ const WorkspacesWidLayoutSettingsRunnersRoute =
     path: '/settings/runners',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
-const WorkspacesWidLayoutSettingsModelProvidersRoute =
-  WorkspacesWidLayoutSettingsModelProvidersRouteImport.update({
-    id: '/settings/model-providers',
-    path: '/settings/model-providers',
-    getParentRoute: () => WorkspacesWidLayoutRoute,
-  } as any)
 const WorkspacesWidLayoutSettingsProvisionersRoute =
   WorkspacesWidLayoutSettingsProvisionersRouteImport.update({
     id: '/settings/provisioners',
     path: '/settings/provisioners',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutSettingsModelProvidersRoute =
+  WorkspacesWidLayoutSettingsModelProvidersRouteImport.update({
+    id: '/settings/model-providers',
+    path: '/settings/model-providers',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 const WorkspacesWidLayoutSettingsMembersRoute =
@@ -565,18 +565,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsRunnersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
-    '/workspaces/$wid/_layout/settings/model-providers': {
-      id: '/workspaces/$wid/_layout/settings/model-providers'
-      path: '/settings/model-providers'
-      fullPath: '/workspaces/$wid/settings/model-providers'
-      preLoaderRoute: typeof WorkspacesWidLayoutSettingsModelProvidersRouteImport
-      parentRoute: typeof WorkspacesWidLayoutRoute
-    }
     '/workspaces/$wid/_layout/settings/provisioners': {
       id: '/workspaces/$wid/_layout/settings/provisioners'
       path: '/settings/provisioners'
       fullPath: '/workspaces/$wid/settings/provisioners'
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsProvisionersRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/settings/model-providers': {
+      id: '/workspaces/$wid/_layout/settings/model-providers'
+      path: '/settings/model-providers'
+      fullPath: '/workspaces/$wid/settings/model-providers'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsModelProvidersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
     '/workspaces/$wid/_layout/settings/members': {

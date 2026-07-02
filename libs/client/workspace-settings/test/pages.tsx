@@ -46,7 +46,6 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/workspaces/$wid/settings/runners',
     component: () => element,
   });
-  const modelProvidersRoute = createRoute({
   const provisionersRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/settings/provisioners',
