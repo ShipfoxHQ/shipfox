@@ -31,7 +31,7 @@ import {
 
 export interface TestAndSaveModelProviderConfigParams {
   workspaceId: string;
-  modelProviderId: SupportedModelProviderId;
+  providerId: SupportedModelProviderId;
   defaultModel?: string | null | undefined;
   credentials: Record<string, string>;
   setAsDefault?: boolean | undefined;
@@ -44,7 +44,7 @@ export interface TestAndSaveModelProviderConfigOptions {
 
 export interface UpdateModelProviderConfigDefaultModelParams {
   workspaceId: string;
-  modelProviderId: SupportedModelProviderId;
+  providerId: SupportedModelProviderId;
   defaultModel: string | null;
 }
 
@@ -53,30 +53,30 @@ export async function testAndSaveModelProviderConfig(
   options: TestAndSaveModelProviderConfigOptions = {},
 ): Promise<ModelProviderConfig> {
   const probe = options.probe ?? probeModelProviderCredentials;
-  const entry = getModelProviderEntry(params.modelProviderId);
+  const entry = getModelProviderEntry(params.providerId);
   if (entry === undefined || entry.support_status !== 'supported') {
-    throw new UnsupportedModelProviderError(params.modelProviderId);
+    throw new UnsupportedModelProviderError(params.providerId);
   }
-  if (entry.default_model === null) throw new UnsupportedModelProviderError(params.modelProviderId);
+  if (entry.default_model === null) throw new UnsupportedModelProviderError(params.providerId);
 
-  if (!modelProviderCredentialKeysMatch(params.modelProviderId, params.credentials)) {
-    throw new InvalidCredentialFieldsError(params.modelProviderId);
+  if (!modelProviderCredentialKeysMatch(params.providerId, params.credentials)) {
+    throw new InvalidCredentialFieldsError(params.providerId);
   }
 
   ensureCredentialsEncryptionKeyConfigured();
 
   const existingConfig = await getModelProviderConfig({
     workspaceId: params.workspaceId,
-    modelProviderId: params.modelProviderId,
+    providerId: params.providerId,
   });
   const modelSelection = resolveDefaultModel(
-    params.modelProviderId,
+    params.providerId,
     params.defaultModel !== undefined ? params.defaultModel : existingConfig?.defaultModel,
   );
 
   try {
     await probe({
-      modelProviderId: params.modelProviderId,
+      providerId: params.providerId,
       model: modelSelection.probeModel,
       credentials: params.credentials,
       ...(params.signal ? {signal: params.signal} : {}),
@@ -84,7 +84,7 @@ export async function testAndSaveModelProviderConfig(
   } catch (error) {
     if (params.signal?.aborted) throw error;
     modelProviderValidationCount.add(1, {
-      model_provider: params.modelProviderId,
+      model_provider: params.providerId,
       outcome: 'failed',
     });
     if (error instanceof InvalidAgentModelError) throw error;
@@ -92,22 +92,22 @@ export async function testAndSaveModelProviderConfig(
     const sanitizedMessage = sanitizeModelProviderError(error, Object.values(params.credentials));
     // Model provider SDK errors can contain request headers or bodies with the API key, so this
     // handled validation error deliberately carries only the sanitized message.
-    throw new ModelProviderValidationError(params.modelProviderId, sanitizedMessage);
+    throw new ModelProviderValidationError(params.providerId, sanitizedMessage);
   }
 
   modelProviderValidationCount.add(1, {
-    model_provider: params.modelProviderId,
+    model_provider: params.providerId,
     outcome: 'succeeded',
   });
   return await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
-    modelProviderId: params.modelProviderId,
+    providerId: params.providerId,
     encryptedCredentials: encryptCredentials({
       workspaceId: params.workspaceId,
-      modelProviderId: params.modelProviderId,
+      providerId: params.providerId,
       credentials: params.credentials,
     }),
-    keyFingerprints: fingerprintCredentials(params.modelProviderId, params.credentials),
+    keyFingerprints: fingerprintCredentials(params.providerId, params.credentials),
     defaultModel: modelSelection.storedModel,
     defaultThinking: DEFAULT_AGENT_THINKING,
     setAsDefault: params.setAsDefault,
@@ -117,39 +117,38 @@ export async function testAndSaveModelProviderConfig(
 export async function updateModelProviderConfigDefaultModel(
   params: UpdateModelProviderConfigDefaultModelParams,
 ): Promise<ModelProviderConfig> {
-  const entry = getModelProviderEntry(params.modelProviderId);
+  const entry = getModelProviderEntry(params.providerId);
   if (entry === undefined || entry.support_status !== 'supported') {
-    throw new UnsupportedModelProviderError(params.modelProviderId);
+    throw new UnsupportedModelProviderError(params.providerId);
   }
-  if (entry.default_model === null) throw new UnsupportedModelProviderError(params.modelProviderId);
+  if (entry.default_model === null) throw new UnsupportedModelProviderError(params.providerId);
 
-  const modelSelection = resolveDefaultModel(params.modelProviderId, params.defaultModel);
+  const modelSelection = resolveDefaultModel(params.providerId, params.defaultModel);
   const config = await updateModelProviderDefaultModel({
     workspaceId: params.workspaceId,
-    modelProviderId: params.modelProviderId,
+    providerId: params.providerId,
     defaultModel: modelSelection.storedModel,
   });
-  if (!config)
-    throw new ModelProviderConfigNotFoundError(params.workspaceId, params.modelProviderId);
+  if (!config) throw new ModelProviderConfigNotFoundError(params.workspaceId, params.providerId);
   return config;
 }
 
 function resolveDefaultModel(
-  modelProviderId: SupportedModelProviderId,
+  providerId: SupportedModelProviderId,
   requestedModel: string | null | undefined,
 ): {probeModel: string; storedModel: string | null} {
-  const catalogEntry = buildModelProviderCatalog().find((entry) => entry.id === modelProviderId);
+  const catalogEntry = buildModelProviderCatalog().find((entry) => entry.id === providerId);
   if (
     catalogEntry === undefined ||
     catalogEntry.support_status !== 'supported' ||
     catalogEntry.default_model === null
   ) {
-    throw new UnsupportedModelProviderError(modelProviderId);
+    throw new UnsupportedModelProviderError(providerId);
   }
 
   const model = requestedModel ?? catalogEntry.default_model;
   if (!catalogEntry.models.some((candidate) => candidate.id === model)) {
-    throw new InvalidAgentModelError(modelProviderId, model);
+    throw new InvalidAgentModelError(providerId, model);
   }
   return {probeModel: model, storedModel: requestedModel ?? null};
 }

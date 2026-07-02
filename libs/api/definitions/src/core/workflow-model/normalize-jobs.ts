@@ -359,17 +359,17 @@ function validateAgentStep(params: {
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
 }): void {
-  const modelProviderId = params.step.provider;
-  if (modelProviderId === undefined) return;
+  const providerId = params.step.provider;
+  if (providerId === undefined) return;
 
-  const modelProvider = getModelProviderEntry(modelProviderId);
-  if (modelProvider === undefined || modelProvider.support_status !== 'supported') {
+  const provider = getModelProviderEntry(providerId);
+  if (provider === undefined || provider.support_status !== 'supported') {
     params.issues.push(
       issue({
         code: 'invalid-model-provider',
-        message: `Model provider "${modelProviderId}" is not supported.`,
+        message: `Model provider "${providerId}" is not supported.`,
         path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
-        details: {provider: modelProviderId},
+        details: {provider: providerId},
       }),
     );
     return;

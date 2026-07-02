@@ -53,7 +53,7 @@ interface SetupFetchOptions {
   projects?: unknown[];
   connections?: unknown[];
   providerConfigs?: unknown[];
-  defaultModelProviderId?: string | null;
+  defaultProviderId?: string | null;
   projectsFail?: boolean;
   connectionsFail?: boolean;
   providerConfigsFail?: boolean;
@@ -65,7 +65,7 @@ function setupFetch(options: SetupFetchOptions = {}) {
     projects = [],
     connections = [],
     providerConfigs = [modelProviderConfig()],
-    defaultModelProviderId = 'anthropic',
+    defaultProviderId = 'anthropic',
     projectsFail = false,
     connectionsFail = false,
     providerConfigsFail = false,
@@ -88,7 +88,7 @@ function setupFetch(options: SetupFetchOptions = {}) {
       if (providerConfigsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(
-        jsonResponse({configs: providerConfigs, default_model_provider_id: defaultModelProviderId}),
+        jsonResponse({configs: providerConfigs, default_provider_id: defaultProviderId}),
       );
     }
     return Promise.resolve(jsonResponse({}, {status: 404}));
@@ -164,7 +164,7 @@ function projectStub() {
 
 function modelProviderConfig() {
   return {
-    model_provider_id: 'anthropic',
+    provider_id: 'anthropic',
     default_model: null,
     key_fingerprints: {'credential:api_key': 'sk-ant-s...abcd'},
     created_at: new Date().toISOString(),
@@ -260,7 +260,7 @@ describe('workspace setup route hook', () => {
       setupFetch({
         connections: [sourceConnection()],
         providerConfigs: [],
-        defaultModelProviderId: null,
+        defaultProviderId: null,
       }),
     );
 
@@ -274,7 +274,7 @@ describe('workspace setup route hook', () => {
       setupFetch({
         connections: [sourceConnection()],
         providerConfigs: [],
-        defaultModelProviderId: null,
+        defaultProviderId: null,
       }),
     );
 
@@ -288,7 +288,7 @@ describe('workspace setup route hook', () => {
       setupFetch({
         connections: [sourceConnection()],
         providerConfigs: [],
-        defaultModelProviderId: null,
+        defaultProviderId: null,
       }),
     );
 
@@ -313,7 +313,7 @@ describe('workspace setup route hook', () => {
       seedQueryClient: (queryClient) => {
         queryClient.setQueryData(modelProviderQueryKeys.configs(WORKSPACE_ID), {
           configs: [modelProviderConfig()],
-          default_model_provider_id: 'anthropic',
+          default_provider_id: 'anthropic',
         });
       },
     });

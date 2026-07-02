@@ -13,7 +13,7 @@ import {modelProviderConfigs, toModelProviderConfig} from './schema/model-provid
 
 export interface UpsertModelProviderConfigParams {
   workspaceId: string;
-  modelProviderId: ModelProviderRef;
+  providerId: ModelProviderRef;
   kind?: 'builtin' | 'custom' | undefined;
   displayName?: string | null | undefined;
   api?: ModelProviderApi | null | undefined;
@@ -35,7 +35,7 @@ export async function upsertModelProviderConfig(
       .insert(modelProviderConfigs)
       .values({
         workspaceId: params.workspaceId,
-        modelProviderId: params.modelProviderId,
+        providerId: params.providerId,
         ...(params.kind !== undefined ? {kind: params.kind} : {}),
         ...(params.displayName !== undefined ? {displayName: params.displayName} : {}),
         ...(params.api !== undefined ? {api: params.api} : {}),
@@ -48,7 +48,7 @@ export async function upsertModelProviderConfig(
         defaultThinking: params.defaultThinking,
       })
       .onConflictDoUpdate({
-        target: [modelProviderConfigs.workspaceId, modelProviderConfigs.modelProviderId],
+        target: [modelProviderConfigs.workspaceId, modelProviderConfigs.providerId],
         set: {
           encryptedCredentials: params.encryptedCredentials,
           keyFingerprints: params.keyFingerprints,
@@ -73,12 +73,12 @@ export async function upsertModelProviderConfig(
         .insert(agentWorkspaceSettings)
         .values({
           workspaceId: params.workspaceId,
-          defaultModelProviderId: params.modelProviderId,
+          defaultProviderId: params.providerId,
         })
         .onConflictDoUpdate({
           target: agentWorkspaceSettings.workspaceId,
           set: {
-            defaultModelProviderId: params.modelProviderId,
+            defaultProviderId: params.providerId,
             updatedAt: sql`NOW()`,
           },
         });
@@ -90,7 +90,7 @@ export async function upsertModelProviderConfig(
 
 export async function getModelProviderConfig(params: {
   workspaceId: string;
-  modelProviderId: ModelProviderRef;
+  providerId: ModelProviderRef;
 }): Promise<ModelProviderConfig | undefined> {
   const rows = await db()
     .select()
@@ -98,7 +98,7 @@ export async function getModelProviderConfig(params: {
     .where(
       and(
         eq(modelProviderConfigs.workspaceId, params.workspaceId),
-        eq(modelProviderConfigs.modelProviderId, params.modelProviderId),
+        eq(modelProviderConfigs.providerId, params.providerId),
       ),
     )
     .limit(1);
@@ -110,7 +110,7 @@ export async function getModelProviderConfig(params: {
 
 export async function updateModelProviderDefaultModel(params: {
   workspaceId: string;
-  modelProviderId: ModelProviderRef;
+  providerId: ModelProviderRef;
   defaultModel: string | null;
 }): Promise<ModelProviderConfig | undefined> {
   const rows = await db()
@@ -119,7 +119,7 @@ export async function updateModelProviderDefaultModel(params: {
     .where(
       and(
         eq(modelProviderConfigs.workspaceId, params.workspaceId),
-        eq(modelProviderConfigs.modelProviderId, params.modelProviderId),
+        eq(modelProviderConfigs.providerId, params.providerId),
       ),
     )
     .returning();
@@ -136,14 +136,14 @@ export async function listModelProviderConfigs(
     .select()
     .from(modelProviderConfigs)
     .where(eq(modelProviderConfigs.workspaceId, workspaceId))
-    .orderBy(modelProviderConfigs.modelProviderId);
+    .orderBy(modelProviderConfigs.providerId);
 
   return rows.map(toModelProviderConfig);
 }
 
 export async function deleteModelProviderConfig(params: {
   workspaceId: string;
-  modelProviderId: ModelProviderRef;
+  providerId: ModelProviderRef;
 }): Promise<boolean> {
   return await db().transaction(async (tx) => {
     const deleted = await tx
@@ -151,7 +151,7 @@ export async function deleteModelProviderConfig(params: {
       .where(
         and(
           eq(modelProviderConfigs.workspaceId, params.workspaceId),
-          eq(modelProviderConfigs.modelProviderId, params.modelProviderId),
+          eq(modelProviderConfigs.providerId, params.providerId),
         ),
       )
       .returning({id: modelProviderConfigs.id});
@@ -160,11 +160,11 @@ export async function deleteModelProviderConfig(params: {
 
     await tx
       .update(agentWorkspaceSettings)
-      .set({defaultModelProviderId: null, updatedAt: sql`NOW()`})
+      .set({defaultProviderId: null, updatedAt: sql`NOW()`})
       .where(
         and(
           eq(agentWorkspaceSettings.workspaceId, params.workspaceId),
-          eq(agentWorkspaceSettings.defaultModelProviderId, params.modelProviderId),
+          eq(agentWorkspaceSettings.defaultProviderId, params.providerId),
         ),
       );
 

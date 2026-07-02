@@ -327,7 +327,7 @@ export async function executeStep(params: {
         signal,
         cwd,
         runtime: {
-          modelProvider: runtimeConfig.model_provider_id,
+          provider: runtimeConfig.provider_id,
           model: runtimeConfig.model,
           thinking: runtimeConfig.thinking,
           credentials: runtimeConfig.credentials,

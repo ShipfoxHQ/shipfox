@@ -6,7 +6,7 @@ import {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
 import {modelProviderConfigs, toModelProviderConfig} from './schema/model-provider-configs.js';
 
 export interface AgentWorkspaceDefaultsSnapshot {
-  readonly defaultModelProviderId?: SupportedModelProviderId | null | undefined;
+  readonly defaultProviderId?: SupportedModelProviderId | null | undefined;
   readonly providerConfigs: ModelProviderConfig[];
 }
 
@@ -16,7 +16,7 @@ export async function getAgentWorkspaceDefaultsSnapshot(
   const rows = await db()
     .select({
       settingsWorkspaceId: agentWorkspaceSettings.workspaceId,
-      workspaceDefaultModelProviderId: agentWorkspaceSettings.defaultModelProviderId,
+      workspaceDefaultProviderId: agentWorkspaceSettings.defaultProviderId,
       providerConfig: modelProviderConfigs,
     })
     .from(agentWorkspaceSettings)
@@ -30,11 +30,11 @@ export async function getAgentWorkspaceDefaultsSnapshot(
         eq(modelProviderConfigs.workspaceId, workspaceId),
       ),
     )
-    .orderBy(modelProviderConfigs.modelProviderId);
+    .orderBy(modelProviderConfigs.providerId);
 
   const settingsRow = rows.find((row) => row.settingsWorkspaceId !== null);
   return {
-    defaultModelProviderId: settingsRow?.workspaceDefaultModelProviderId as
+    defaultProviderId: settingsRow?.workspaceDefaultProviderId as
       | SupportedModelProviderId
       | null
       | undefined,

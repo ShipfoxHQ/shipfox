@@ -169,7 +169,7 @@ describe('runJobSteps', () => {
     createSessionLogStreamMock.mockReset();
     executeAgentStepMock.mockReset();
     requestAgentRuntimeConfigMock.mockResolvedValue({
-      model_provider_id: 'anthropic',
+      provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
       credentials: {api_key: 'sk-runtime-secret'},
@@ -667,7 +667,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       cwd: '/work',
       runtime: {
-        modelProvider: 'anthropic',
+        provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},
@@ -702,7 +702,7 @@ describe('runJobSteps', () => {
       },
     });
     requestAgentRuntimeConfigMock.mockResolvedValueOnce({
-      model_provider_id: 'openai',
+      provider_id: 'openai',
       model: 'gpt-5.1',
       thinking: 'medium',
       credentials: {api_key: 'sk-openai-runtime'},
@@ -720,7 +720,7 @@ describe('runJobSteps', () => {
       agent,
       expect.objectContaining({
         runtime: {
-          modelProvider: 'openai',
+          provider: 'openai',
           model: 'gpt-5.1',
           thinking: 'medium',
           credentials: {api_key: 'sk-openai-runtime'},
@@ -782,7 +782,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       cwd: '/work',
       runtime: {
-        modelProvider: 'anthropic',
+        provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},

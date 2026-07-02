@@ -14,19 +14,19 @@ describe('resolveRuntimeCredentials', () => {
   it('returns decrypted workspace credentials', async () => {
     await saveProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       credentials: {api_key: 'sk-workspace-secret'},
     });
 
     const result = await resolveRuntimeCredentials({
       workspaceId,
-      modelProvider: 'anthropic',
+      provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
 
     expect(result).toEqual({
-      model_provider_id: 'anthropic',
+      provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
       credentials: {api_key: 'sk-workspace-secret'},
@@ -36,13 +36,13 @@ describe('resolveRuntimeCredentials', () => {
   it('prefers workspace credentials over the instance fallback', async () => {
     await saveProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       credentials: {api_key: 'sk-workspace-secret'},
     });
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        modelProvider: 'anthropic',
+        provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
       },
@@ -56,7 +56,7 @@ describe('resolveRuntimeCredentials', () => {
     const matching = await resolveRuntimeCredentials(
       {
         workspaceId,
-        modelProvider: 'anthropic',
+        provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
       },
@@ -65,7 +65,7 @@ describe('resolveRuntimeCredentials', () => {
     const mismatched = resolveRuntimeCredentials(
       {
         workspaceId,
-        modelProvider: 'openai',
+        provider: 'openai',
         model: 'gpt-5.5-pro',
         thinking: 'high',
       },
@@ -79,7 +79,7 @@ describe('resolveRuntimeCredentials', () => {
   it('throws when no workspace or instance credential is available', async () => {
     const result = resolveRuntimeCredentials({
       workspaceId,
-      modelProvider: 'anthropic',
+      provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
@@ -90,14 +90,14 @@ describe('resolveRuntimeCredentials', () => {
   it('throws after a workspace credential is deleted', async () => {
     await saveProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       credentials: {api_key: 'sk-workspace-secret'},
     });
-    await deleteModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    await deleteModelProviderConfig({workspaceId, providerId: 'anthropic'});
 
     const result = resolveRuntimeCredentials({
       workspaceId,
-      modelProvider: 'anthropic',
+      provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
@@ -109,13 +109,13 @@ describe('resolveRuntimeCredentials', () => {
     const plaintext = 'sk-workspace-secret';
     const encryptedCredentials = encryptCredentials({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       credentials: {api_key: plaintext},
     });
     const encrypted = encryptedCredentials['credential:api_key'] as string;
     await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': `${encrypted.slice(0, -2)}AA`},
       keyFingerprints: {'credential:api_key': 'sk-work...cret'},
       defaultModel: null,
@@ -124,7 +124,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
-      modelProvider: 'anthropic',
+      provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
@@ -141,12 +141,12 @@ describe('resolveRuntimeCredentials', () => {
 
 async function saveProviderConfig(params: {
   workspaceId: string;
-  modelProviderId: SupportedModelProviderId;
+  providerId: SupportedModelProviderId;
   credentials: Record<string, string>;
 }) {
   return await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
-    modelProviderId: params.modelProviderId,
+    providerId: params.providerId,
     encryptedCredentials: encryptCredentials(params),
     keyFingerprints: {'credential:api_key': 'sk-test...cret'},
     defaultModel: null,

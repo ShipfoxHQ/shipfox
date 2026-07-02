@@ -25,16 +25,16 @@ export const setDefaultModelProviderRoute = defineRoute({
   handler: async (request) => {
     const {workspaceId} = request.params;
     await requireMembership({request, workspaceId});
-    const entry = getModelProviderEntry(request.body.model_provider_id);
+    const entry = getModelProviderEntry(request.body.provider_id);
     if (entry === undefined || entry.support_status !== 'supported') {
-      throw new UnsupportedModelProviderError(request.body.model_provider_id);
+      throw new UnsupportedModelProviderError(request.body.provider_id);
     }
 
     const settings = await setDefaultModelProvider({
       workspaceId,
-      modelProviderId: request.body.model_provider_id,
+      providerId: request.body.provider_id,
     });
 
-    return {default_model_provider_id: settings.defaultModelProviderId};
+    return {default_provider_id: settings.defaultProviderId};
   },
 });

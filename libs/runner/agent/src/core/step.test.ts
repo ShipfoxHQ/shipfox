@@ -8,7 +8,7 @@ import type {AgentInvocation} from '#core/run-agent.js';
 import {executeAgentStep} from '#core/step.js';
 
 const RUNTIME = {
-  modelProvider: 'anthropic',
+  provider: 'anthropic',
   model: 'claude-opus-4-8',
   thinking: 'high',
   credentials: {api_key: 'sk-runtime-secret'},
@@ -61,7 +61,7 @@ describe('executeAgentStep', () => {
 
     await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
       runtime: {
-        modelProvider: 'openai',
+        provider: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',
         credentials: {api_key: 'sk-openai'},
@@ -70,7 +70,7 @@ describe('executeAgentStep', () => {
 
     expect(runAgentMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        modelProvider: 'openai',
+        provider: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',
         credentials: {api_key: 'sk-openai'},
@@ -87,7 +87,7 @@ describe('executeAgentStep', () => {
       }),
       {
         runtime: {
-          modelProvider: 'openai',
+          provider: 'openai',
           model: 'gpt-5.1',
           thinking: 'low',
           credentials: {api_key: 'sk-openai'},
@@ -96,7 +96,7 @@ describe('executeAgentStep', () => {
     );
 
     expect(runAgentMock).toHaveBeenCalledWith(
-      expect.objectContaining({modelProvider: 'openai', model: 'gpt-5.1', thinking: 'low'}),
+      expect.objectContaining({provider: 'openai', model: 'gpt-5.1', thinking: 'low'}),
     );
   });
 

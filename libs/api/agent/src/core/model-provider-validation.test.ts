@@ -36,7 +36,7 @@ describe('probeModelProviderCredentials', () => {
     const credentials = {api_key: 'sk-ant-secret'};
 
     await probeModelProviderCredentials({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-opus-4-8',
       credentials,
     });
@@ -61,7 +61,7 @@ describe('probeModelProviderCredentials', () => {
     piAi.getModels.mockReturnValue([]);
 
     const probe = probeModelProviderCredentials({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-opus-4-8',
       credentials: {api_key: 'sk-ant-secret'},
     });
@@ -76,7 +76,7 @@ describe('probeModelProviderCredentials', () => {
     );
 
     const probe = probeModelProviderCredentials({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-opus-4-8',
       credentials: {api_key: 'sk-ant-secret'},
     });
@@ -101,7 +101,7 @@ describe('probeModelProviderCredentials', () => {
     ]);
 
     await probeModelProviderCredentials({
-      modelProviderId: 'azure-openai-responses',
+      providerId: 'azure-openai-responses',
       model: 'gpt-5.5-pro',
       credentials: {
         endpoint: 'https://azure.example.test/openai/v1',
@@ -138,7 +138,7 @@ describe('probeModelProviderCredentials', () => {
     ]);
 
     await probeModelProviderCredentials({
-      modelProviderId: 'cloudflare-ai-gateway',
+      providerId: 'cloudflare-ai-gateway',
       model: 'claude-opus-4-8',
       credentials: {
         api_key: 'cf-secret',
@@ -178,7 +178,7 @@ describe('probeModelProviderCredentials', () => {
     ]);
 
     await probeModelProviderCredentials({
-      modelProviderId: 'cloudflare-workers-ai',
+      providerId: 'cloudflare-workers-ai',
       model: '@cf/moonshotai/kimi-k2.7-code',
       credentials: {
         api_key: 'cf-secret',

@@ -28,9 +28,6 @@ describe('model provider catalog registry', () => {
   });
 });
 
-function formatMissingDefault(
-  modelProviderId: ModelProviderId,
-  defaultModel: string | null,
-): string {
-  return `${modelProviderId}:${defaultModel ?? '<null>'}`;
+function formatMissingDefault(providerId: ModelProviderId, defaultModel: string | null): string {
+  return `${providerId}:${defaultModel ?? '<null>'}`;
 }

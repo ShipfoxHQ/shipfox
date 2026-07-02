@@ -39,7 +39,7 @@ describe('ProjectsHubPage', () => {
   test('shows and dismisses the model provider reminder when no provider is configured', async () => {
     const fetchImpl = createHubFetch({
       projects: jsonResponse({projects: [], next_cursor: null}),
-      modelProviders: jsonResponse({configs: [], default_model_provider_id: null}),
+      modelProviders: jsonResponse({configs: [], default_provider_id: null}),
     });
     configureApiClient({fetchImpl});
 
@@ -273,14 +273,14 @@ function modelProviderConfigsDto() {
   return {
     configs: [
       {
-        model_provider_id: 'anthropic',
+        provider_id: 'anthropic',
         default_model: null,
         key_fingerprints: {'credential:api_key': 'sk-ant-s...abcd'},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
     ],
-    default_model_provider_id: 'anthropic',
+    default_provider_id: 'anthropic',
   };
 }
 

@@ -26,7 +26,7 @@ describe('ModelProvidersSettingsPage', () => {
           ],
         }),
       )
-      .mockResolvedValueOnce(jsonResponse({configs: [], default_model_provider_id: null}));
+      .mockResolvedValueOnce(jsonResponse({configs: [], default_provider_id: null}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     renderWorkspaceSettingsPage(

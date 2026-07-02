@@ -191,7 +191,7 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
       return Promise.resolve(
         jsonResponse(
           providerConfig({
-            model_provider_id: url.pathname.endsWith('/openai') ? 'openai' : 'anthropic',
+            provider_id: url.pathname.endsWith('/openai') ? 'openai' : 'anthropic',
           }),
         ),
       );
@@ -235,7 +235,7 @@ function providerEntry(
 
 function providerConfig(overrides: Partial<ModelProviderConfigDto> = {}): ModelProviderConfigDto {
   return {
-    model_provider_id: 'anthropic',
+    provider_id: 'anthropic',
     default_model: null,
     key_fingerprints: {'credential:api_key': 'sk-ant-s...abcd'},
     created_at: '2026-05-08T00:00:00.000Z',

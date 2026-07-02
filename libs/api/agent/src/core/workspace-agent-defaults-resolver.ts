@@ -13,40 +13,36 @@ export async function createWorkspaceAgentDefaultsResolver(
   workspaceId: string,
 ): Promise<AgentDefaultsResolver> {
   const snapshot = await getAgentWorkspaceDefaultsSnapshot(workspaceId);
-  const workspaceModelProviderConfigs = new Map<
+  const workspaceProviderConfigs = new Map<
     SupportedModelProviderId,
     {defaultModel: string | null; defaultThinking: AgentThinking}
   >();
   for (const providerConfig of snapshot.providerConfigs) {
-    const modelProviderId = toSupportedModelProviderId(providerConfig.modelProviderId);
-    if (!modelProviderId) continue;
+    const providerId = toSupportedModelProviderId(providerConfig.providerId);
+    if (!providerId) continue;
 
-    workspaceModelProviderConfigs.set(modelProviderId, {
+    workspaceProviderConfigs.set(providerId, {
       defaultModel: providerConfig.defaultModel,
       defaultThinking: providerConfig.defaultThinking,
     });
   }
   const ctx: AgentConfigResolutionContext = {
-    workspaceDefaultModelProviderId: snapshot.defaultModelProviderId
-      ? toSupportedModelProviderId(snapshot.defaultModelProviderId)
+    workspaceDefaultProviderId: snapshot.defaultProviderId
+      ? toSupportedModelProviderId(snapshot.defaultProviderId)
       : null,
-    workspaceModelProviderConfigs,
-    instanceDefaultModelProvider: config.AGENT_DEFAULT_PROVIDER as
-      | SupportedModelProviderId
-      | undefined,
-    instanceDefaultModelProviderModel: config.AGENT_DEFAULT_PROVIDER_MODEL,
-    instanceDefaultModelProviderThinking: config.AGENT_DEFAULT_PROVIDER_THINKING as
-      | AgentThinking
-      | undefined,
+    workspaceProviderConfigs,
+    instanceDefaultProvider: config.AGENT_DEFAULT_PROVIDER as SupportedModelProviderId | undefined,
+    instanceDefaultModel: config.AGENT_DEFAULT_PROVIDER_MODEL,
+    instanceDefaultThinking: config.AGENT_DEFAULT_PROVIDER_THINKING as AgentThinking | undefined,
   };
 
   return (step) => resolveAgentConfig(step, ctx);
 }
 
 function toSupportedModelProviderId(
-  modelProviderId: ModelProviderRef,
+  providerId: ModelProviderRef,
 ): SupportedModelProviderId | undefined {
-  const entry = getModelProviderEntry(modelProviderId);
+  const entry = getModelProviderEntry(providerId);
   if (entry === undefined || entry.support_status !== 'supported') return undefined;
-  return modelProviderId as SupportedModelProviderId;
+  return providerId as SupportedModelProviderId;
 }

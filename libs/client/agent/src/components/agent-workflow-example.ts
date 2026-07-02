@@ -9,10 +9,10 @@ export interface AgentWorkflowExample {
 }
 
 export function buildAgentWorkflowExample({
-  modelProviderId,
+  providerId,
   model,
 }: {
-  modelProviderId: string;
+  providerId: string;
   model: string;
 }): AgentWorkflowExample {
   const lines = [
@@ -26,7 +26,7 @@ export function buildAgentWorkflowExample({
     '    runner: ubuntu-latest',
     '    steps:',
     '      - name: implement',
-    `        provider: ${formatYamlPlainOrSingleQuotedScalar(modelProviderId)}`,
+    `        provider: ${formatYamlPlainOrSingleQuotedScalar(providerId)}`,
     `        model: ${formatYamlPlainOrSingleQuotedScalar(model)}`,
     '        prompt: Describe the change you want the agent to make.',
   ];

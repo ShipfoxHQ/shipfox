@@ -61,7 +61,7 @@ export function ModelProviderTestAndSaveForm({
       try {
         await upsertConfig.mutateAsync({
           workspaceId,
-          modelProviderId: entry.id as SupportedModelProviderId,
+          providerId: entry.id as SupportedModelProviderId,
           body: {
             ...(defaultModel !== undefined ? {default_model: defaultModel} : {}),
             credentials,

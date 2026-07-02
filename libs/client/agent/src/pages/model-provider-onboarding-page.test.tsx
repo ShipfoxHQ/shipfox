@@ -168,7 +168,7 @@ describe('ModelProviderOnboardingPage', () => {
         requestBody = await request.clone().json();
         return jsonResponse(
           modelProviderConfig({
-            model_provider_id: 'openai',
+            provider_id: 'openai',
             default_model: null,
             key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
           }),

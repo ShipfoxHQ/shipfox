@@ -9,7 +9,7 @@ import type {
 export interface ModelProviderConfig {
   id: string;
   workspaceId: string;
-  modelProviderId: ModelProviderRef;
+  providerId: ModelProviderRef;
   kind: 'builtin' | 'custom';
   displayName: string | null;
   api: ModelProviderApi | null;

@@ -33,7 +33,7 @@ export function ChangeDefaultModelForm({
       try {
         await updateDefaultModel.mutateAsync({
           workspaceId,
-          modelProviderId: entry.id,
+          providerId: entry.id,
           body: {default_model: selectedModelForModelPayload(value.default_model)},
         });
         onSaved();

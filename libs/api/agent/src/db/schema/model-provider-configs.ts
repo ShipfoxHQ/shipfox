@@ -29,7 +29,7 @@ export const modelProviderConfigs = pgTable(
   {
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
-    modelProviderId: text('model_provider_id').notNull(),
+    providerId: text('provider_id').notNull(),
     kind: modelProviderConfigKindEnum('kind').notNull().default('builtin'),
     displayName: text('display_name'),
     api: text('api').$type<ModelProviderApi>(),
@@ -44,9 +44,9 @@ export const modelProviderConfigs = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('model_provider_configs_workspace_model_provider_unique').on(
+    uniqueIndex('model_provider_configs_workspace_provider_unique').on(
       table.workspaceId,
-      table.modelProviderId,
+      table.providerId,
     ),
     check(
       'model_provider_configs_custom_required_fields',
@@ -62,7 +62,7 @@ export function toModelProviderConfig(row: ModelProviderConfigDb): ModelProvider
   return {
     id: row.id,
     workspaceId: row.workspaceId,
-    modelProviderId: row.modelProviderId as ModelProviderRef,
+    providerId: row.providerId as ModelProviderRef,
     kind: row.kind,
     displayName: row.displayName,
     api: row.api,

@@ -12,23 +12,20 @@ const credentialValueSchema = z.string().min(1);
  */
 export const agentRuntimeCredentialsResponseSchema = z
   .object({
-    model_provider_id: modelProviderRefSchema,
+    provider_id: modelProviderRefSchema,
     model: z.string().min(1),
     thinking: agentThinkingSchema,
     credentials: z.record(credentialKeySchema, credentialValueSchema),
-    custom_model_provider: customModelProviderRuntimeConfigSchema.optional(),
+    custom_provider: customModelProviderRuntimeConfigSchema.optional(),
   })
   .superRefine((response, ctx) => {
-    if (
-      isReservedModelProviderId(response.model_provider_id) ||
-      response.custom_model_provider !== undefined
-    ) {
+    if (isReservedModelProviderId(response.provider_id) || response.custom_provider !== undefined) {
       return;
     }
 
     ctx.addIssue({
       code: 'custom',
-      path: ['custom_model_provider'],
+      path: ['custom_provider'],
       message: 'Custom model provider runtime config is required for custom model provider refs.',
     });
   });

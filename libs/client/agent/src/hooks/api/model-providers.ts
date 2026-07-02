@@ -40,45 +40,42 @@ export async function listModelProviderConfigs({
 
 export async function upsertModelProviderConfig({
   workspaceId,
-  modelProviderId,
+  providerId,
   body,
 }: {
   workspaceId: string;
-  modelProviderId: SupportedModelProviderId;
+  providerId: SupportedModelProviderId;
   body: UpdateModelProviderConfigBodyDto;
 }) {
   return await apiRequest<ModelProviderConfigDto>(
-    `/workspaces/${workspaceId}/agent/model-providers/${modelProviderId}`,
+    `/workspaces/${workspaceId}/agent/model-providers/${providerId}`,
     {method: 'PUT', body},
   );
 }
 
 export async function deleteModelProviderConfig({
   workspaceId,
-  modelProviderId,
+  providerId,
 }: {
   workspaceId: string;
-  modelProviderId: ModelProviderRef;
+  providerId: ModelProviderRef;
 }) {
-  return await apiRequest<void>(
-    `/workspaces/${workspaceId}/agent/model-providers/${modelProviderId}`,
-    {
-      method: 'DELETE',
-    },
-  );
+  return await apiRequest<void>(`/workspaces/${workspaceId}/agent/model-providers/${providerId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function updateModelProviderDefaultModel({
   workspaceId,
-  modelProviderId,
+  providerId,
   body,
 }: {
   workspaceId: string;
-  modelProviderId: SupportedModelProviderId;
+  providerId: SupportedModelProviderId;
   body: UpdateModelProviderDefaultModelBodyDto;
 }) {
   return await apiRequest<ModelProviderConfigDto>(
-    `/workspaces/${workspaceId}/agent/model-providers/${modelProviderId}/default-model`,
+    `/workspaces/${workspaceId}/agent/model-providers/${providerId}/default-model`,
     {method: 'PUT', body},
   );
 }

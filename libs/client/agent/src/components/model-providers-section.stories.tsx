@@ -240,22 +240,22 @@ function catalogForScenario(scenario: Scenario): ModelProviderCatalogEntryDto[] 
 
 function configsForScenario(scenario: Scenario) {
   if (scenario === 'empty-configured' || scenario === 'configs-error') {
-    return {configs: [], default_model_provider_id: null};
+    return {configs: [], default_provider_id: null};
   }
   if (scenario === 'all-configured') {
     return {
       configs: CATALOG.filter((entry) => entry.support_status === 'supported').map((entry) =>
         providerConfig({
-          model_provider_id: entry.id as SupportedModelProviderId,
+          provider_id: entry.id as SupportedModelProviderId,
           key_fingerprints: {'credential:api_key': `${entry.id}...abcd`},
         }),
       ),
-      default_model_provider_id: 'anthropic',
+      default_provider_id: 'anthropic',
     };
   }
   return {
-    configs: [providerConfig({model_provider_id: 'anthropic'})],
-    default_model_provider_id: 'anthropic',
+    configs: [providerConfig({provider_id: 'anthropic'})],
+    default_provider_id: 'anthropic',
   };
 }
 
@@ -276,7 +276,7 @@ function providerEntry(
 
 function providerConfig(overrides: Partial<ModelProviderConfigDto> = {}): ModelProviderConfigDto {
   return {
-    model_provider_id: 'anthropic',
+    provider_id: 'anthropic',
     default_model: null,
     key_fingerprints: {'credential:api_key': 'sk-ant-s...abcd'},
     created_at: '2026-05-08T00:00:00.000Z',

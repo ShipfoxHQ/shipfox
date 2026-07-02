@@ -4,7 +4,7 @@ export type ModelProviderConfigFormErrorMapping = {kind: 'form'; message: string
 
 type ModelProviderErrorDetails = {
   message?: unknown;
-  model_provider_id?: unknown;
+  provider_id?: unknown;
   expected_keys?: unknown;
   details?: unknown;
 };

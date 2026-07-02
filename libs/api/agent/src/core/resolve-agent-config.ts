@@ -23,17 +23,17 @@ export interface ResolvedAgentConfig {
 export type AgentDefaultsResolver = (step: ContextualAgentConfig) => ResolvedAgentConfig;
 
 export interface AgentConfigResolutionContext {
-  readonly workspaceDefaultModelProviderId?: SupportedModelProviderId | null | undefined;
-  readonly workspaceModelProviderConfigs?: ReadonlyMap<
+  readonly workspaceDefaultProviderId?: SupportedModelProviderId | null | undefined;
+  readonly workspaceProviderConfigs?: ReadonlyMap<
     SupportedModelProviderId,
-    WorkspaceModelProviderDefaults
+    WorkspaceProviderDefaults
   >;
-  readonly instanceDefaultModelProvider?: SupportedModelProviderId | undefined;
-  readonly instanceDefaultModelProviderModel?: string | undefined;
-  readonly instanceDefaultModelProviderThinking?: AgentThinking | undefined;
+  readonly instanceDefaultProvider?: SupportedModelProviderId | undefined;
+  readonly instanceDefaultModel?: string | undefined;
+  readonly instanceDefaultThinking?: AgentThinking | undefined;
 }
 
-interface WorkspaceModelProviderDefaults {
+interface WorkspaceProviderDefaults {
   readonly defaultModel: string | null;
   readonly defaultThinking: AgentThinking;
 }
@@ -42,40 +42,40 @@ export function resolveAgentConfig(
   step: ContextualAgentConfig,
   ctx: AgentConfigResolutionContext = {},
 ): ResolvedAgentConfig {
-  const modelProvider = resolveModelProvider(step, ctx);
-  const workspaceModelProviderConfig = ctx.workspaceModelProviderConfigs?.get(modelProvider);
+  const provider = resolveProvider(step, ctx);
+  const workspaceProviderConfig = ctx.workspaceProviderConfigs?.get(provider);
   const model =
     step.model ??
-    workspaceModelProviderConfig?.defaultModel ??
-    instanceDefaultModelProviderModel(modelProvider, ctx) ??
-    catalogDefaultModel(modelProvider);
+    workspaceProviderConfig?.defaultModel ??
+    instanceDefaultModel(provider, ctx) ??
+    catalogDefaultModel(provider);
   const thinking =
     step.thinking ??
-    workspaceModelProviderConfig?.defaultThinking ??
-    instanceDefaultModelProviderThinking(modelProvider, ctx) ??
+    workspaceProviderConfig?.defaultThinking ??
+    instanceDefaultThinking(provider, ctx) ??
     DEFAULT_AGENT_THINKING;
 
-  validateModel(modelProvider, model);
-  return {provider: modelProvider, model, thinking};
+  validateModel(provider, model);
+  return {provider, model, thinking};
 }
 
 export const catalogDefaultAgentResolver: AgentDefaultsResolver = (step) =>
   resolveAgentConfig(step);
 
-function resolveModelProvider(
+function resolveProvider(
   step: ContextualAgentConfig,
   ctx: AgentConfigResolutionContext,
 ): SupportedModelProviderId {
-  const modelProvider =
+  const provider =
     step.provider ??
-    ctx.workspaceDefaultModelProviderId ??
-    ctx.instanceDefaultModelProvider ??
+    ctx.workspaceDefaultProviderId ??
+    ctx.instanceDefaultProvider ??
     DEFAULT_MODEL_PROVIDER;
-  const entry = getModelProviderEntry(modelProvider);
+  const entry = getModelProviderEntry(provider);
   if (entry === undefined || entry.support_status !== 'supported') {
-    throw new UnsupportedModelProviderError(modelProvider);
+    throw new UnsupportedModelProviderError(provider);
   }
-  return modelProvider as SupportedModelProviderId;
+  return provider as SupportedModelProviderId;
 }
 
 function catalogDefaultModel(provider: SupportedModelProviderId): string {
@@ -86,22 +86,18 @@ function catalogDefaultModel(provider: SupportedModelProviderId): string {
   return entry.default_model;
 }
 
-function instanceDefaultModelProviderModel(
+function instanceDefaultModel(
   provider: SupportedModelProviderId,
   ctx: AgentConfigResolutionContext,
 ): string | undefined {
-  return provider === ctx.instanceDefaultModelProvider
-    ? ctx.instanceDefaultModelProviderModel
-    : undefined;
+  return provider === ctx.instanceDefaultProvider ? ctx.instanceDefaultModel : undefined;
 }
 
-function instanceDefaultModelProviderThinking(
+function instanceDefaultThinking(
   provider: SupportedModelProviderId,
   ctx: AgentConfigResolutionContext,
 ): AgentThinking | undefined {
-  return provider === ctx.instanceDefaultModelProvider
-    ? ctx.instanceDefaultModelProviderThinking
-    : undefined;
+  return provider === ctx.instanceDefaultProvider ? ctx.instanceDefaultThinking : undefined;
 }
 
 function validateModel(provider: SupportedModelProviderId, model: string): void {

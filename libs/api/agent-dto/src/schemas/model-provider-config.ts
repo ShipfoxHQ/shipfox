@@ -6,7 +6,7 @@ const credentialKeySchema = z.string().min(1);
 const credentialRecordSchema = z.record(credentialKeySchema, z.string().min(1));
 
 export const modelProviderConfigDtoSchema = z.object({
-  model_provider_id: modelProviderRefSchema,
+  provider_id: modelProviderRefSchema,
   default_model: z.string().min(1).nullable(),
   key_fingerprints: z.record(credentialKeySchema, z.string()),
   created_at: z.string().datetime(),
@@ -17,7 +17,7 @@ export type ModelProviderConfigDto = z.infer<typeof modelProviderConfigDtoSchema
 
 export const listModelProviderConfigsResponseSchema = z.object({
   configs: z.array(modelProviderConfigDtoSchema),
-  default_model_provider_id: modelProviderRefSchema.nullable(),
+  default_provider_id: modelProviderRefSchema.nullable(),
 });
 
 export type ListModelProviderConfigsResponseDto = z.infer<
@@ -43,13 +43,13 @@ export type UpdateModelProviderDefaultModelBodyDto = z.infer<
 >;
 
 export const setDefaultModelProviderBodySchema = z.object({
-  model_provider_id: modelProviderRefSchema,
+  provider_id: modelProviderRefSchema,
 });
 
 export type SetDefaultModelProviderBodyDto = z.infer<typeof setDefaultModelProviderBodySchema>;
 
 export const setDefaultModelProviderResponseSchema = z.object({
-  default_model_provider_id: modelProviderRefSchema.nullable(),
+  default_provider_id: modelProviderRefSchema.nullable(),
 });
 
 export type SetDefaultModelProviderResponseDto = z.infer<
@@ -57,18 +57,18 @@ export type SetDefaultModelProviderResponseDto = z.infer<
 >;
 
 export function getModelProviderCredentialKeys(
-  modelProviderId: SupportedModelProviderId,
+  providerId: SupportedModelProviderId,
 ): string[] | undefined {
-  const entry = getModelProviderEntry(modelProviderId);
+  const entry = getModelProviderEntry(providerId);
   if (entry === undefined || entry.support_status !== 'supported') return undefined;
   return entry.credential_fields.map((field) => field.key).sort();
 }
 
 export function modelProviderCredentialKeysMatch(
-  modelProviderId: SupportedModelProviderId,
+  providerId: SupportedModelProviderId,
   credentials: Record<string, string>,
 ): boolean {
-  const expectedKeys = getModelProviderCredentialKeys(modelProviderId);
+  const expectedKeys = getModelProviderCredentialKeys(providerId);
   if (expectedKeys === undefined) return false;
   return sameKeys(Object.keys(credentials).sort(), expectedKeys);
 }

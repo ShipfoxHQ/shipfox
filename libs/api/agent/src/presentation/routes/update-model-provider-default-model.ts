@@ -12,12 +12,12 @@ import {translateModelProviderRouteError} from './errors.js';
 
 export const updateModelProviderDefaultModelRoute = defineRoute({
   method: 'PUT',
-  path: '/model-providers/:modelProviderId/default-model',
+  path: '/model-providers/:providerId/default-model',
   description: 'Update the default model for an existing model provider configuration',
   schema: {
     params: z.object({
       workspaceId: z.string().uuid(),
-      modelProviderId: supportedModelProviderIdSchema,
+      providerId: supportedModelProviderIdSchema,
     }),
     body: updateModelProviderDefaultModelBodySchema,
     response: {
@@ -26,12 +26,12 @@ export const updateModelProviderDefaultModelRoute = defineRoute({
   },
   errorHandler: translateModelProviderRouteError,
   handler: async (request) => {
-    const {workspaceId, modelProviderId} = request.params;
+    const {workspaceId, providerId} = request.params;
     await requireMembership({request, workspaceId});
 
     const config = await updateModelProviderConfigDefaultModel({
       workspaceId,
-      modelProviderId,
+      providerId,
       defaultModel: request.body.default_model,
     });
 

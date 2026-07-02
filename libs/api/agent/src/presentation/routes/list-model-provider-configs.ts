@@ -26,7 +26,7 @@ export const listModelProviderConfigsRoute = defineRoute({
 
     return {
       configs: configs.map(toModelProviderConfigDto),
-      default_model_provider_id: settings?.defaultModelProviderId ?? null,
+      default_provider_id: settings?.defaultProviderId ?? null,
     };
   },
 });

@@ -62,14 +62,14 @@ describe('credential encryption', () => {
   it('binds ciphertext to workspace, provider, and field AAD', () => {
     const encryptedCredentials = encryptCredentials({
       workspaceId: 'workspace-1',
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       credentials: {api_key: 'sk-ant-secretabcd'},
     });
 
     const decryptForOtherWorkspace = () =>
       decryptCredentials({
         workspaceId: 'workspace-2',
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         encryptedCredentials,
       });
 
@@ -135,12 +135,12 @@ describe('credential encryption', () => {
 
     const encryptedCredentials = encryptCredentials({
       workspaceId: 'workspace-1',
-      modelProviderId: 'azure-openai-responses',
+      providerId: 'azure-openai-responses',
       credentials,
     });
     const decryptedCredentials = decryptCredentials({
       workspaceId: 'workspace-1',
-      modelProviderId: 'azure-openai-responses',
+      providerId: 'azure-openai-responses',
       encryptedCredentials,
     });
 
@@ -153,13 +153,13 @@ describe('credential encryption', () => {
   it('round-trips a built-in credential under the credential-prefixed AAD key', () => {
     const encryptedCredentials = encryptCredentials({
       workspaceId: 'workspace-1',
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       credentials: {api_key: 'sk-ant-secretabcd'},
     });
 
     const decryptedCredentials = decryptCredentials({
       workspaceId: 'workspace-1',
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials,
     });
 

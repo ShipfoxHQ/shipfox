@@ -6,7 +6,7 @@ import {
 import {z} from 'zod';
 import {
   type ModelProviderId,
-  modelProviderIdSchema,
+  providerIdSchema,
   SUPPORTED_MODEL_PROVIDER_IDS,
   type SupportedModelProviderId,
   UNSUPPORTED_MODEL_PROVIDER_IDS,
@@ -38,7 +38,7 @@ const supportedModelProviderIds = new Set<string>(SUPPORTED_MODEL_PROVIDER_IDS);
 const unsupportedModelProviderIds = new Set<string>(UNSUPPORTED_MODEL_PROVIDER_IDS);
 
 const modelProviderCatalogSeedBaseSchema = z.object({
-  id: modelProviderIdSchema,
+  id: providerIdSchema,
   label: z.string().min(1),
   support_status: modelProviderSupportStatusSchema,
   default_model: z.string().min(1).nullable(),

@@ -85,26 +85,26 @@ describe('model provider config schemas', () => {
   });
 
   it('parses a set-default body for a supported provider', () => {
-    const parsed = setDefaultModelProviderBodySchema.parse({model_provider_id: 'anthropic'});
+    const parsed = setDefaultModelProviderBodySchema.parse({provider_id: 'anthropic'});
 
-    expect(parsed.model_provider_id).toBe('anthropic');
+    expect(parsed.provider_id).toBe('anthropic');
   });
 
   it('parses a set-default body for an unsupported but valid provider ref', () => {
-    const parsed = setDefaultModelProviderBodySchema.parse({model_provider_id: 'openai-codex'});
+    const parsed = setDefaultModelProviderBodySchema.parse({provider_id: 'openai-codex'});
 
-    expect(parsed.model_provider_id).toBe('openai-codex');
+    expect(parsed.provider_id).toBe('openai-codex');
   });
 
   it('parses a set-default response with a nullable provider', () => {
-    const parsed = setDefaultModelProviderResponseSchema.parse({default_model_provider_id: null});
+    const parsed = setDefaultModelProviderResponseSchema.parse({default_provider_id: null});
 
-    expect(parsed.default_model_provider_id).toBeNull();
+    expect(parsed.default_provider_id).toBeNull();
   });
 
   it('parses config rows and list responses with a nullable default model provider', () => {
     const row = {
-      model_provider_id: 'openai',
+      provider_id: 'openai',
       default_model: null,
       key_fingerprints: {'credential:api_key': 'sk-...abcd'},
       created_at: '2026-06-27T10:30:00.000Z',
@@ -114,18 +114,18 @@ describe('model provider config schemas', () => {
     const parsedRow = modelProviderConfigDtoSchema.parse(row);
     const parsedList = listModelProviderConfigsResponseSchema.parse({
       configs: [row],
-      default_model_provider_id: null,
+      default_provider_id: null,
     });
 
-    expect(parsedRow.model_provider_id).toBe('openai');
+    expect(parsedRow.provider_id).toBe('openai');
     expect(parsedRow.default_model).toBeNull();
-    expect(parsedList.default_model_provider_id).toBeNull();
+    expect(parsedList.default_provider_id).toBeNull();
   });
 
   it('rejects config rows with empty fingerprint keys', () => {
     const parse = () =>
       modelProviderConfigDtoSchema.parse({
-        model_provider_id: 'openai',
+        provider_id: 'openai',
         default_model: 'gpt-5.5-pro',
         key_fingerprints: {'': 'sk-...abcd'},
         created_at: '2026-06-27T10:30:00.000Z',
