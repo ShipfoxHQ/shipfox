@@ -1,0 +1,179 @@
+import type {
+  WorkflowRunDetailResponseDto,
+  WorkflowRunDto,
+  WorkflowRunListResponseDto,
+  WorkflowRunStatusDto,
+} from '@shipfox/api-workflows-dto';
+import {waitForRunByCommit, waitForRunTerminal} from './index.js';
+
+const projectId = '11111111-1111-4111-8111-111111111111';
+const definitionId = '22222222-2222-4222-8222-222222222222';
+const runId = '33333333-3333-4333-8333-333333333333';
+const attemptId = '44444444-4444-4444-8444-444444444444';
+const RUN_BY_COMMIT_TIMEOUT_RE =
+  /Timed out waiting for workflow run by commit: expectedHeadCommitSha=abc123/u;
+const RUN_BY_COMMIT_OBSERVED_RE = /headCommitSha=other/u;
+const RUN_TERMINAL_TIMEOUT_RE =
+  /Timed out waiting for workflow run terminal status: runId=33333333/u;
+const RUN_TERMINAL_OBSERVED_RE = /status=running/u;
+
+function run(params: Partial<WorkflowRunDto> = {}): WorkflowRunDto {
+  return {
+    id: params.id ?? runId,
+    project_id: params.project_id ?? projectId,
+    definition_id: params.definition_id ?? definitionId,
+    name: params.name ?? 'Build',
+    status: params.status ?? 'pending',
+    current_attempt: params.current_attempt ?? 1,
+    latest_attempt: params.latest_attempt ?? 1,
+    trigger_provider: params.trigger_provider ?? 'gitea',
+    trigger_source: params.trigger_source ?? 'gitea_e2e',
+    trigger_event: params.trigger_event ?? 'push',
+    trigger_payload: params.trigger_payload ?? {
+      provider: 'gitea',
+      source: 'gitea_e2e',
+      event: 'push',
+      deliveryId: 'delivery-1',
+      data: {headCommitSha: 'abc123', ref: 'main'},
+    },
+    inputs: params.inputs ?? null,
+    source_snapshot: params.source_snapshot ?? null,
+    created_at: params.created_at ?? '2026-07-02T08:00:00.000Z',
+    updated_at: params.updated_at ?? '2026-07-02T08:00:00.000Z',
+    started_at: params.started_at ?? null,
+    finished_at: params.finished_at ?? null,
+  };
+}
+
+function listResponse(
+  params: Partial<WorkflowRunListResponseDto> = {},
+): WorkflowRunListResponseDto {
+  return {
+    runs: params.runs ?? [],
+    next_cursor: params.next_cursor ?? null,
+    filtered_total_count: params.filtered_total_count ?? null,
+  };
+}
+
+function detail(params: Partial<WorkflowRunDetailResponseDto> = {}): WorkflowRunDetailResponseDto {
+  return {
+    ...run(params),
+    run_attempt: params.run_attempt ?? {
+      id: attemptId,
+      workflow_run_id: params.id ?? runId,
+      attempt: 1,
+      status: params.status ?? 'pending',
+      created_at: '2026-07-02T08:00:00.000Z',
+      started_at: null,
+      finished_at: null,
+      rerun_mode: null,
+    },
+    jobs: params.jobs ?? [],
+  };
+}
+
+function response(body: unknown): Response {
+  return Response.json(body);
+}
+
+describe('waitForRunByCommit', () => {
+  test('polls until a run with the matching head commit appears', async () => {
+    let calls = 0;
+
+    const result = await waitForRunByCommit({
+      fetch: () => {
+        calls += 1;
+        return Promise.resolve(
+          response(
+            calls === 1
+              ? listResponse({runs: [run({trigger_payload: {data: {headCommitSha: 'other'}}})]})
+              : listResponse({runs: [run()]}),
+          ),
+        );
+      },
+      headCommitSha: 'abc123',
+      initialDelayMs: 1,
+      projectId,
+      token: 'user-token',
+    });
+
+    expect(result.id).toBe(runId);
+    expect(calls).toBe(2);
+  });
+
+  test('times out with a bounded run list summary', async () => {
+    const result = waitForRunByCommit({
+      fetch: () =>
+        response(listResponse({runs: [run({trigger_payload: {data: {headCommitSha: 'other'}}})]})),
+      headCommitSha: 'abc123',
+      initialDelayMs: 1,
+      projectId,
+      timeoutMs: 1,
+      token: 'user-token',
+    });
+
+    await expect(result).rejects.toThrow(RUN_BY_COMMIT_TIMEOUT_RE);
+    await expect(result).rejects.toThrow(RUN_BY_COMMIT_OBSERVED_RE);
+  });
+
+  test('passes abort signals through polling', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = waitForRunByCommit({
+      fetch: () => response(listResponse()),
+      headCommitSha: 'abc123',
+      projectId,
+      signal: controller.signal,
+      token: 'user-token',
+    });
+
+    await expect(result).rejects.toMatchObject({name: 'AbortError'});
+  });
+});
+
+describe('waitForRunTerminal', () => {
+  test.each([
+    'succeeded',
+    'failed',
+    'cancelled',
+  ] satisfies WorkflowRunStatusDto[])('returns %s runs as terminal', async (status) => {
+    const result = await waitForRunTerminal({
+      fetch: () => response(detail({status})),
+      runId,
+      token: 'user-token',
+    });
+
+    expect(result.status).toBe(status);
+  });
+
+  test('polls until the run reaches a terminal status', async () => {
+    let calls = 0;
+
+    const result = await waitForRunTerminal({
+      fetch: () => {
+        calls += 1;
+        return Promise.resolve(response(detail({status: calls === 1 ? 'running' : 'succeeded'})));
+      },
+      initialDelayMs: 1,
+      runId,
+      token: 'user-token',
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(calls).toBe(2);
+  });
+
+  test('times out with the last run status', async () => {
+    const result = waitForRunTerminal({
+      fetch: () => response(detail({status: 'running'})),
+      initialDelayMs: 1,
+      runId,
+      timeoutMs: 1,
+      token: 'user-token',
+    });
+
+    await expect(result).rejects.toThrow(RUN_TERMINAL_TIMEOUT_RE);
+    await expect(result).rejects.toThrow(RUN_TERMINAL_OBSERVED_RE);
+  });
+});
