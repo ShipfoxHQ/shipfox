@@ -27,9 +27,10 @@ export default defineConfig(
           extends: true,
           test: {
             name: 'dom',
-            environment: 'jsdom',
+            environment: 'happy-dom',
             include: ['src/**/*.test.tsx'],
             setupFiles: ['test/setup.ts'],
+            isolate: false,
           },
         },
         {

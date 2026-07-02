@@ -3,46 +3,13 @@ import type {
   TriggerEventListItemDto,
   TriggerEventListResponseDto,
 } from '@shipfox/api-triggers-dto';
-import {render, screen, waitFor} from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import type {AnchorHTMLAttributes, ReactNode} from 'react';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {
   useTriggerEventFacetsQuery,
   useTriggerEventQuery,
   useTriggerEventsInfiniteQuery,
 } from '#hooks/api/trigger-events.js';
 import {EventsPage} from './events-page.js';
-
-vi.mock('#hooks/api/trigger-events.js', () => ({
-  useTriggerEventFacetsQuery: vi.fn(),
-  useTriggerEventQuery: vi.fn(),
-  useTriggerEventsInfiniteQuery: vi.fn(),
-}));
-
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    to,
-    params,
-    search: _search,
-    children,
-    ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
-    to: string;
-    params?: Record<string, string> | undefined;
-    search?: unknown;
-    children: ReactNode;
-  }) => {
-    const href = Object.entries(params ?? {}).reduce(
-      (path, [key, value]) => path.replace(`$${key}`, value),
-      to,
-    );
-    return (
-      <a href={href} {...props}>
-        {children}
-      </a>
-    );
-  },
-}));
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const EVENT_ID = '22222222-2222-4222-8222-222222222222';
@@ -120,7 +87,7 @@ describe('EventsPage', () => {
     const {rerender} = render(
       <EventsPage workspaceId={WORKSPACE_ID} filters={{}} onFiltersChange={vi.fn()} />,
     );
-    await userEvent.click(screen.getByRole('button', {name: 'Open details for github · push'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Open details for github · push'}));
     expect(screen.getByRole('button', {name: 'Back to events'})).toBeInTheDocument();
 
     useTriggerEventsInfiniteQueryMock.mockReturnValue(makeListQuery([]));

@@ -1,4 +1,4 @@
-import {render, screen, within} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {WorkflowSourcePanel} from './workflow-source-panel.js';
 
@@ -10,7 +10,7 @@ describe('WorkflowSourcePanel', () => {
 
     expect(dialog).toHaveAttribute('id', 'workflow-source-panel');
     expect(within(dialog).getByText('workflow.yaml')).toBeInTheDocument();
-    expect(within(dialog).getByText('jobs:')).toBeInTheDocument();
+    await waitFor(() => expect(dialog).toHaveTextContent('jobs:'));
     expect(within(dialog).getByRole('button', {name: 'Copy to clipboard'})).toBeInTheDocument();
     expect(within(dialog).getByRole('button', {name: 'Close source'})).toBeInTheDocument();
   });

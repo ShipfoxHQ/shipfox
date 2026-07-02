@@ -31,7 +31,11 @@ function renderUsageModal() {
 describe('ModelProviderUsageModal', () => {
   test('changes the selected model in the workflow example', async () => {
     renderUsageModal();
-    expect(await screen.findByText('model: claude-opus-4-8')).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(
+        'model: claude-opus-4-8',
+      ),
+    );
 
     fireEvent.click(screen.getByRole('button', {name: 'Model'}));
     fireEvent.click(await screen.findByRole('option', {name: 'Kimi K2.7 Code'}));
