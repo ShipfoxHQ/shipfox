@@ -20,7 +20,7 @@ env:
 # rebuilds what its own Turbo graph needs.
 jobs:
   static-verification:
-    name: Check, type, build, and depcruise
+    name: Static verification
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
