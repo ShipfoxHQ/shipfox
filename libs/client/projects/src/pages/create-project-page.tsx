@@ -280,7 +280,6 @@ export function CreateProjectPage() {
             <ProjectSummary
               connection={selectedConnection}
               repositoryName={selectedRepository?.full_name}
-              repositoryDefaultBranch={selectedRepository?.default_branch}
             />
 
             <form.Field
@@ -328,31 +327,24 @@ export function CreateProjectPage() {
 function ProjectSummary({
   connection,
   repositoryName,
-  repositoryDefaultBranch,
 }: {
   connection: IntegrationConnectionDto | undefined;
   repositoryName: string | undefined;
-  repositoryDefaultBranch: string | undefined;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-10 rounded-8 border border-border-neutral-base bg-background-subtle-base p-12">
+    <div className="flex min-w-0 items-center gap-10">
       <IntegrationIcon
         source={connection?.provider}
         aria-hidden
         className="size-20 shrink-0 text-foreground-neutral-base"
       />
-      <div className="flex min-w-0 flex-col gap-2">
-        <Text
-          size="sm"
-          bold
-          className={repositoryName ? 'truncate' : 'text-foreground-neutral-muted'}
-        >
-          {repositoryName ?? 'Pick a repository'}
-        </Text>
-        <Text size="xs" className="truncate text-foreground-neutral-muted">
-          {repositoryDefaultBranch ?? connection?.display_name ?? 'Choose a source integration'}
-        </Text>
-      </div>
+      <Text
+        size="sm"
+        bold
+        className={repositoryName ? 'min-w-0 truncate' : 'text-foreground-neutral-muted'}
+      >
+        {repositoryName ?? 'Pick a repository'}
+      </Text>
     </div>
   );
 }

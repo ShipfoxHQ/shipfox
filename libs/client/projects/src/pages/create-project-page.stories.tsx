@@ -195,13 +195,13 @@ function connectionsForScenario(scenario: Scenario): IntegrationConnectionDto[] 
       connection({
         id: GITHUB_CONNECTION_ID,
         provider: 'github',
-        display_name: 'GitHub Enterprise Production Source Control',
+        display_name: 'acme-platform-engineering-production',
         external_account_id: 'acme-platform-engineering-production',
       }),
       connection({
         id: GITEA_CONNECTION_ID,
         provider: 'gitea',
-        display_name: 'Self-hosted Gitea Mirror With Long Workspace Name',
+        display_name: 'git.internal.acme.example/platform-tools',
         external_account_id: 'git.internal.acme.example/platform-tools',
       }),
     ];
@@ -211,19 +211,19 @@ function connectionsForScenario(scenario: Scenario): IntegrationConnectionDto[] 
     connection({
       id: GITHUB_CONNECTION_ID,
       provider: 'github',
-      display_name: 'GitHub',
+      display_name: 'acme',
       external_account_id: 'acme',
     }),
     connection({
       id: GITEA_CONNECTION_ID,
       provider: 'gitea',
-      display_name: 'Gitea',
+      display_name: 'git.acme.internal',
       external_account_id: 'git.acme.internal',
     }),
     connection({
       id: DEBUG_CONNECTION_ID,
       provider: 'debug',
-      display_name: 'Debug',
+      display_name: 'Debug sandbox',
       external_account_id: 'debug',
     }),
   ];

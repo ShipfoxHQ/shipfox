@@ -6,7 +6,7 @@ import {CreateProjectPage} from './create-project-page.js';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const SECOND_CONNECTION_ID = '66666666-6666-4666-8666-666666666666';
 const REPOSITORY_NOT_FOUND_RE = /Repository not found/;
-const DEBUG_RADIO_LABEL_RE = /^Debug$/;
+const DEBUG_RADIO_LABEL_RE = /^Debug Source$/;
 
 describe('CreateProjectPage', () => {
   beforeEach(() => {
@@ -101,7 +101,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
-    expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Debug Source')).length).toBeGreaterThan(0);
     expect(await screen.findByText('Other Debug Source')).toBeInTheDocument();
     expect(screen.queryByText('debug-owner/platform')).not.toBeInTheDocument();
 
@@ -258,7 +258,7 @@ function connectionDto() {
     provider: 'debug',
     external_account_id: 'debug',
     slug: 'debug',
-    display_name: 'Debug',
+    display_name: 'Debug Source',
     lifecycle_status: 'active',
     capabilities: ['source_control'],
     created_at: new Date().toISOString(),
