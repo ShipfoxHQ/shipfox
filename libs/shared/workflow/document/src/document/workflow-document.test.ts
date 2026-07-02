@@ -359,7 +359,7 @@ describe('workflowDocumentSchema', () => {
     ['agent step with name', {name: 'fix', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     [
       'agent step with gate',
-      {model: 'claude-opus-4-8', prompt: 'Fix it.', gate: {success_if: 'exit_code == 0'}},
+      {model: 'claude-opus-4-8', prompt: 'Fix it.', gate: {success_if: 'step.exit_code == 0'}},
     ],
     ['custom-model-provider model string', {model: 'openrouter/anthropic/claude', prompt: 'Hi.'}],
   ])('accepts %s', (_label, step) => {
