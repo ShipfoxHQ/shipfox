@@ -1,0 +1,39 @@
+---
+title: "AI-Friendly Docs: How Shipfox Supports Coding Agents"
+sidebarTitle: "AI Overview"
+description: "Shipfox workflows are YAML that coding agents write. These docs are AI-ingestible — every page is available as Markdown for agents to browse and cite."
+---
+
+Shipfox is built for AI-forward engineering teams — the workflow YAML your agents write IS the product. These docs are designed to be as useful to a coding agent (Claude Code, Cursor, Codex, etc.) as to a human engineer. Every page is available as Markdown, and a dedicated skills package encodes the workflow schema so your agent always emits valid YAML.
+
+## Three ways to use Shipfox with AI
+
+<CardGroup cols={3}>
+  <Card title="AI-Ingestible Docs" icon="file-lines" href="#ai-ingestible-docs">
+    Every docs page is available as Markdown. Browse `llms.txt` or append `.md` to any URL.
+  </Card>
+  <Card title="Copy/Paste Prompt" icon="clipboard" href="/ai/authoring-prompt">
+    Paste a compact schema cheat sheet into any coding agent.
+  </Card>
+  <Card title="Skills Package" icon="puzzle-piece" href="/ai/skills-package">
+    Install the Shipfox skill in your AI coding tool with one command.
+  </Card>
+</CardGroup>
+
+## Why this matters for Shipfox
+
+The most common mistake when writing Shipfox YAML is using roadmap-only keys (`loop`, `matrix`, `branch`), writing `{{ }}` instead of `${{ }}` for interpolation, mixing `run` and `prompt` on one step, or setting `env` on an agent step. These errors are easy to make when working from memory or incomplete documentation — and they all result in rejected workflows at validation time.
+
+An agent with the Shipfox skill or the copy/paste prompt avoids all of these pitfalls before the YAML ever reaches your repo. The skill encodes the verified schema, the hard validation rules, the today/roadmap boundary, and correct examples — giving your agent a precise, authoritative reference rather than a best guess.
+
+## AI-ingestible docs
+
+Every docs page in this site is available as Markdown. To access the Markdown version of any page, append `.md` to the URL — for example, `/ai/overview.md`. Coding agents can browse these URLs directly, cite specific pages, and pull in schema details on demand without needing a separate API.
+
+The `llms.txt` file at the root of this site lists all pages with short summaries, following the [llms.txt convention](https://llmstxt.org/) for AI indexing. Drop the URL of `llms.txt` into any agent that supports context URLs and it will have a complete map of the Shipfox docs in seconds.
+
+## Roadmap
+
+<Note>
+  A Shipfox plugin for Claude Code, Cursor, and Codex is planned — with slash commands (`/shipfox:new-workflow`, `/shipfox:validate`, `/shipfox:run`), specialist sub-agents, and session activation for repos with `.shipfox/`. An MCP server is also on the roadmap. Ship the skills package today; the plugin and MCP land when the YAML surface stabilizes.
+</Note>
