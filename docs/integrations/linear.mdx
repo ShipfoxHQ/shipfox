@@ -1,0 +1,37 @@
+---
+title: "Linear Integration (Coming Soon)"
+sidebarTitle: "Linear (soon)"
+description: "Trigger Shipfox workflows from Linear issue events — an agent that picks up a ticket, plans, and opens a PR. Coming soon."
+---
+
+<Note>
+  **Coming soon.** The Linear integration is not available yet. This page
+  describes where it is headed.
+</Note>
+
+The Linear integration will connect a Linear workspace to Shipfox so issue events
+can trigger workflow runs — the natural entry point for agentic work that starts
+from a ticket: an issue is created or moved, a workflow fires, and an agent picks
+it up with the issue's context in its prompt.
+
+Like every integration, it will follow the same model as [GitHub](/integrations/github)
+and [Sentry](/integrations/sentry): connect once, get a **connection slug**
+(e.g. `linear_acme`), and reference it as a trigger `source` with the events the
+integration emits.
+
+## Until it ships
+
+Linear can already reach Shipfox through a [custom webhook](/integrations/webhooks):
+create a webhook connection, point a Linear webhook at its ingest URL, and trigger
+on `webhook.received` — the run gets Linear's payload as its `event` context.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Custom webhook" icon="webhook" href="/integrations/webhooks">
+    The working interim path for Linear events today.
+  </Card>
+  <Card title="Integrations overview" icon="plug" href="/integrations/overview">
+    Connections, slugs, and every available integration.
+  </Card>
+</CardGroup>

@@ -33,6 +33,17 @@
               "concepts/runner-provisioners",
               "concepts/listening-jobs"
             ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/github",
+              "integrations/sentry",
+              "integrations/webhooks",
+              "integrations/linear",
+              "integrations/slack"
+            ]
           }
         ]
       }

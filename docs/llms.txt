@@ -14,3 +14,9 @@
 - [Runners](/concepts/runners): How to register and configure runners that execute your workflow jobs.
 - [Runner Provisioners](/concepts/runner-provisioners): Autoscale ephemeral, single-job runners on demand instead of hand-starting a fleet.
 - [Listening Jobs](/concepts/listening-jobs): Coming soon — jobs that react to a stream of events inside a single run until a terminating condition.
+- [Integrations](/integrations/overview): Connect GitHub, Sentry, and custom webhooks so their events trigger workflows; each connection has a slug used as the trigger source.
+- [GitHub](/integrations/github): Connect a repository with the GitHub App and trigger workflows on pushes and other repository events.
+- [Sentry](/integrations/sentry): Trigger workflows on Sentry issue events — created, resolved, assigned, archived, regressed.
+- [Custom webhook](/integrations/webhooks): Point any system at a webhook connection URL to trigger workflows on the webhook.received event.
+- [Linear](/integrations/linear): Coming soon — trigger workflows from Linear issue events.
+- [Slack](/integrations/slack): Coming soon — trigger workflows from Slack events and report results back to channels.
