@@ -166,10 +166,27 @@ export async function deleteRepo(params: {org: string; repo: string}): Promise<v
   });
 }
 
-// Gitea's DELETE /orgs/{org} rejects an org that still owns repositories, so
-// delete the org's repos first.
+// Deletes the org and every repo it owns. Gitea's DELETE /orgs/{org} rejects an
+// org that still owns repositories, so the repos go first.
 export async function deleteOrg(params: {org: string}): Promise<void> {
+  for (const repo of await listOrgRepoNames(params.org)) {
+    await deleteRepo({org: params.org, repo});
+  }
   await giteaFetch(`orgs/${encodeSegment(params.org)}`, {method: 'DELETE'});
+}
+
+const ORG_REPOS_PAGE_SIZE = 50;
+
+async function listOrgRepoNames(org: string): Promise<string[]> {
+  const names: string[] = [];
+  for (let page = 1; ; page++) {
+    const repos = await giteaFetchJson<Array<{name: string}>>(
+      `orgs/${encodeSegment(org)}/repos?page=${page}&limit=${ORG_REPOS_PAGE_SIZE}`,
+    );
+    for (const repo of repos) names.push(repo.name);
+    if (repos.length < ORG_REPOS_PAGE_SIZE) break;
+  }
+  return names;
 }
 
 // Removes an org on a failure path, where surfacing the original error matters

@@ -434,9 +434,6 @@ importers:
 
   e2e/helpers/integrations-gitea:
     dependencies:
-      '@shipfox/api-integration-gitea':
-        specifier: workspace:*
-        version: link:../../../libs/api/integration/gitea
       '@shipfox/api-integration-gitea-dto':
         specifier: workspace:*
         version: link:../../../libs/api/integration/gitea-dto

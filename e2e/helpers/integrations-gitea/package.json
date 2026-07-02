@@ -34,7 +34,6 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-integration-gitea": "workspace:*",
     "@shipfox/api-integration-gitea-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
