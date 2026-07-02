@@ -7,6 +7,7 @@ import {
 import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionPicker,
+  IntegrationIcon,
   RepositoryPicker,
   useRepositoriesInfiniteQuery,
   useSourceConnectionsQuery,
@@ -14,7 +15,6 @@ import {
 import {displayNameFieldError} from '@shipfox/client-ui';
 import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@shipfox/react-ui/card';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
@@ -117,7 +117,7 @@ export function CreateProjectPage() {
       return;
     }
     if (!selectedConnection) {
-      setFormError('Choose a source-control connection before creating a project.');
+      setFormError('Choose a source integration before creating a project.');
       errorRef.current?.focus();
       return;
     }
@@ -172,10 +172,13 @@ export function CreateProjectPage() {
 
   return (
     <div className="flex w-full flex-col gap-24">
-      <header className="flex flex-col gap-8">
-        <Header variant="h1">Create project</Header>
-        <Text size="md" className="text-foreground-neutral-muted">
-          Choose a repository to create a project from.
+      <header className="flex flex-col gap-6">
+        <Header id="create-project-title" variant="h1">
+          Create project
+        </Header>
+        <Text size="sm" className="text-foreground-neutral-muted">
+          A Shipfox project starts from a Git repository. Choose the repository Shipfox should
+          track, then give the project a name.
         </Text>
       </header>
 
@@ -183,15 +186,19 @@ export function CreateProjectPage() {
 
       {connectionsQuery.isError ? (
         <Alert variant="error">
-          <Text size="sm">Could not load source-control connections. Try again.</Text>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => connectionsQuery.refetch()}
-            className="mt-8 w-fit"
-          >
-            Retry
-          </Button>
+          <div className="flex w-full flex-wrap items-center justify-between gap-12">
+            <Text size="sm" className="min-w-[240px] flex-1">
+              Could not load source integrations. Refresh the integrations list to continue.
+            </Text>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => connectionsQuery.refetch()}
+              className="shrink-0"
+            >
+              Refresh integrations
+            </Button>
+          </div>
         </Alert>
       ) : null}
 
@@ -203,19 +210,27 @@ export function CreateProjectPage() {
         }}
         noValidate
         aria-labelledby="create-project-title"
-        className="grid items-start gap-24 lg:grid-cols-[minmax(0,1fr)_360px]"
+        className="grid items-start gap-32 lg:grid-cols-[minmax(0,1fr)_340px]"
       >
-        <Card className="gap-20 p-24">
-          <CardHeader>
-            <CardTitle id="create-project-title" variant="h2">
-              Source
-            </CardTitle>
-            <CardDescription>
-              Pick a repository visible to one of your source-control connections.
-            </CardDescription>
-          </CardHeader>
+        <div className="flex min-w-0 flex-col gap-32">
+          <section className="flex flex-col gap-16" aria-label="Source integration">
+            <div className="flex items-start justify-between gap-16">
+              <div className="flex flex-col gap-4">
+                <Header variant="h3">Source integration</Header>
+                <Text size="sm" className="text-foreground-neutral-muted">
+                  Choose the integration that can access the repository.
+                </Text>
+              </div>
 
-          <CardContent className="flex flex-col gap-18">
+              {connections.length === 1 ? (
+                <Button asChild variant="transparent" size="sm" className="shrink-0">
+                  <Link to="/workspaces/$wid/integrations" params={{wid: workspace.id}}>
+                    Add another integration
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
+
             {connections.length > 0 ? (
               <ConnectionPicker
                 connections={connections}
@@ -223,16 +238,17 @@ export function CreateProjectPage() {
                 onSelect={selectConnection}
               />
             ) : null}
+          </section>
 
-            {connections.length === 1 ? (
-              <Button asChild variant="transparent" size="sm" className="w-fit">
-                <Link to="/workspaces/$wid/integrations" params={{wid: workspace.id}}>
-                  Add another integration
-                </Link>
-              </Button>
-            ) : null}
+          {showRepoPicker ? (
+            <section className="flex flex-col gap-16" aria-label="Repository">
+              <div className="flex flex-col gap-4">
+                <Header variant="h3">Repository</Header>
+                <Text size="sm" className="text-foreground-neutral-muted">
+                  Select the repository this project tracks.
+                </Text>
+              </div>
 
-            {showRepoPicker ? (
               <RepositoryPicker
                 repositories={repositories}
                 selectedRepositoryId={selectedRepositoryId}
@@ -245,28 +261,30 @@ export function CreateProjectPage() {
                 searchValue={repoFilter}
                 onSearchChange={setRepoFilter}
               />
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card className="gap-20 p-24 lg:sticky lg:top-32">
-          <CardHeader>
-            <CardTitle variant="h2">Project details</CardTitle>
-            <CardDescription>Pick a name and create the project.</CardDescription>
-          </CardHeader>
-
-          {formError ? (
-            <Alert variant="error" animated={false}>
-              <div ref={errorRef} tabIndex={-1}>
-                {formError}
-              </div>
-            </Alert>
+            </section>
           ) : null}
+        </div>
 
-          <CardContent className="flex flex-col gap-18">
+        <aside className="lg:sticky lg:top-32">
+          <div className="flex flex-col gap-18 rounded-8 border border-border-neutral-base bg-background-neutral-base p-20">
+            <div className="flex flex-col gap-4">
+              <Header variant="h3">Project details</Header>
+              <Text size="sm" className="text-foreground-neutral-muted">
+                Confirm the source and create the project.
+              </Text>
+            </div>
+
+            {formError ? (
+              <Alert variant="error" animated={false}>
+                <div ref={errorRef} tabIndex={-1}>
+                  {formError}
+                </div>
+              </Alert>
+            ) : null}
+
             <ProjectSummary
               connection={selectedConnection}
-              repositoryFullName={selectedRepository?.full_name}
+              repositoryName={selectedRepository?.full_name}
             />
 
             <form.Field
@@ -294,17 +312,18 @@ export function CreateProjectPage() {
                 </FormField>
               )}
             </form.Field>
-          </CardContent>
 
-          <Button
-            type="submit"
-            iconRight="chevronRight"
-            isLoading={createProject.isPending}
-            disabled={!selectedConnection || !selectedRepository}
-          >
-            Create project
-          </Button>
-        </Card>
+            <Button
+              type="submit"
+              iconRight="chevronRight"
+              isLoading={createProject.isPending}
+              disabled={!selectedConnection || !selectedRepository}
+              className="w-full"
+            >
+              Create project
+            </Button>
+          </div>
+        </aside>
       </form>
     </div>
   );
@@ -312,35 +331,26 @@ export function CreateProjectPage() {
 
 function ProjectSummary({
   connection,
-  repositoryFullName,
+  repositoryName,
 }: {
   connection: IntegrationConnectionDto | undefined;
-  repositoryFullName: string | undefined;
+  repositoryName: string | undefined;
 }) {
   return (
-    <dl className="flex flex-col gap-8">
-      <SummaryRow
-        label="Connection"
-        value={connection ? connection.display_name : 'Pick a connection'}
-        muted={!connection}
-      />
-      <SummaryRow
-        label="Repository"
-        value={repositoryFullName ?? 'Pick a repository'}
-        muted={!repositoryFullName}
-      />
-    </dl>
-  );
-}
-
-function SummaryRow({label, value, muted}: {label: string; value: string; muted: boolean}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Text size="xs" className="text-foreground-neutral-muted">
-        {label}
-      </Text>
-      <Text size="sm" className={muted ? 'text-foreground-neutral-muted' : ''}>
-        {value}
+    <div className="flex min-w-0 items-center gap-10">
+      {repositoryName ? (
+        <IntegrationIcon
+          source={connection?.provider}
+          aria-hidden
+          className="size-20 shrink-0 text-foreground-neutral-base"
+        />
+      ) : null}
+      <Text
+        size="sm"
+        bold
+        className={repositoryName ? 'min-w-0 truncate' : 'text-foreground-neutral-muted'}
+      >
+        {repositoryName ?? 'Pick a repository'}
       </Text>
     </div>
   );
