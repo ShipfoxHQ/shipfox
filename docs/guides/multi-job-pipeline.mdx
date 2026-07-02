@@ -1,0 +1,123 @@
+---
+title: "Build Multi-Job Pipelines with Shipfox Workflows"
+sidebarTitle: "Multi-Job Pipeline"
+description: "Sequence or parallelize Shipfox jobs with needs. Each job re-clones the repository — no shared filesystem. Learn fan-out, fan-in, and isolation patterns."
+---
+
+Shipfox workflows support multi-job pipelines where jobs run in parallel by default and are sequenced with `needs`. Each job is fully isolated — it re-clones the repository and has its own environment. This page shows you how to design effective pipelines, avoid common isolation pitfalls, and compose fan-out / fan-in patterns that keep total runtime low.
+
+## Parallel jobs (default)
+
+When no `needs` is declared, all jobs in a workflow start at the same time. This is the fastest way to run independent checks:
+
+```yaml
+jobs:
+  lint:
+    steps:
+      - run: npm ci && npm run lint
+  test:
+    steps:
+      - run: npm ci && npm test
+  type-check:
+    steps:
+      - run: npm ci && npx tsc --noEmit
+```
+
+All three jobs run concurrently. The workflow finishes when the last one completes.
+
+## Sequential jobs with `needs`
+
+Use `needs` to declare that a job must wait for one or more other jobs to succeed before it starts:
+
+```yaml
+jobs:
+  lint:
+    steps:
+      - run: npm ci
+      - run: npm run lint
+  test:
+    steps:
+      - run: npm ci
+      - run: npm test
+  deploy:
+    needs: test
+    steps:
+      - run: npm ci
+      - run: ./scripts/deploy.sh
+```
+
+<Warning>
+  **Jobs do not share a filesystem.** Each job re-clones the repository from
+  scratch into a fresh environment. Every job that needs dependencies must run
+  `npm ci` (or your equivalent install step) independently — there is no shared
+  `node_modules` or build cache between jobs.
+</Warning>
+
+`needs` accepts either a single string or a list of strings (see fan-in below).
+
+## Fan-out / fan-in pattern
+
+Run multiple independent jobs in parallel, then converge on a single downstream job that waits for all of them:
+
+```yaml
+jobs:
+  lint:
+    steps:
+      - run: npm ci && npm run lint
+  test:
+    steps:
+      - run: npm ci && npm test
+  review:
+    needs: [lint, test]   # waits for BOTH to finish
+    steps:
+      - model: claude-opus-4-8
+        prompt: Summarize the lint and test results.
+```
+
+`review` will not start until both `lint` and `test` have completed successfully. If either upstream job fails, `review` is skipped.
+
+## Job isolation reminder
+
+<Note>
+  Each job re-clones the repository from scratch. There is no shared volume
+  between jobs. If you need to pass artifacts between jobs — for example, a
+  compiled binary or a test report — upload them to external storage (e.g., S3,
+  a storage bucket) in one job and download them in the next.
+</Note>
+
+This isolation is intentional: it ensures reproducibility and prevents one job's side-effects from contaminating another. Design your jobs so that each one sets up everything it needs independently.
+
+## Example: full CI pipeline
+
+Putting it all together — parallel lint and test jobs, followed by a fan-in agent review, all triggered on push:
+
+```yaml
+name: CI pipeline
+runner: ubuntu-latest
+triggers:
+  on_push:
+    source: github_acme
+    event: push
+jobs:
+  lint:
+    steps:
+      - run: npm ci
+      - run: npm run lint
+  test:
+    steps:
+      - run: npm ci
+      - run: npm test
+  review:
+    needs: [lint, test]
+    steps:
+      - model: claude-opus-4-8
+        thinking: high
+        prompt: Review the repository. Summarize the top 3 issues found.
+```
+
+Lint and test run in parallel on every push, and the AI review step only executes when both pass — giving you fast feedback without wasting agent compute on a broken build.
+
+## Next steps
+
+- [Checks on Push](/guides/checks-on-push) — see a complete push-triggered workflow in action.
+- [Agent Steps](/guides/agent-steps) — configure model, thinking level, and provider for agent steps.
