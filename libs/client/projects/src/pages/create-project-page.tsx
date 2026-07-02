@@ -333,11 +333,13 @@ function ProjectSummary({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-10">
-      <IntegrationIcon
-        source={connection?.provider}
-        aria-hidden
-        className="size-20 shrink-0 text-foreground-neutral-base"
-      />
+      {repositoryName ? (
+        <IntegrationIcon
+          source={connection?.provider}
+          aria-hidden
+          className="size-20 shrink-0 text-foreground-neutral-base"
+        />
+      ) : null}
       <Text
         size="sm"
         bold
