@@ -47,6 +47,12 @@ function createTestRouter(path: string, element: ReactElement) {
     component: () => element,
   });
   const modelProvidersRoute = createRoute({
+  const provisionersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/settings/provisioners',
+    component: () => element,
+  });
+  const modelProvidersRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/settings/model-providers',
     component: () => element,
@@ -59,7 +65,12 @@ function createTestRouter(path: string, element: ReactElement) {
 
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),
-    routeTree: rootRoute.addChildren([runnersRoute, modelProvidersRoute, integrationsRoute]),
+    routeTree: rootRoute.addChildren([
+      runnersRoute,
+      provisionersRoute,
+      modelProvidersRoute,
+      integrationsRoute,
+    ]),
   });
 }
 

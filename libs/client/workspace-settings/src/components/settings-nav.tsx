@@ -12,6 +12,9 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
   const isModelProvidersActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/model-providers', params: {wid: workspaceId}}),
   );
+  const isProvisionersActive = Boolean(
+    matchRoute({to: '/workspaces/$wid/settings/provisioners', params: {wid: workspaceId}}),
+  );
   const isIntegrationsActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/integrations', params: {wid: workspaceId}}),
   );
@@ -47,6 +50,20 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
         >
           <Icon name="settings3Line" className="size-16" />
           Runners
+        </Link>
+      </Button>
+      <Button
+        asChild
+        variant={isProvisionersActive ? 'secondary' : 'transparent'}
+        className="w-full justify-start"
+      >
+        <Link
+          to="/workspaces/$wid/settings/provisioners"
+          params={{wid: workspaceId}}
+          aria-current={isProvisionersActive ? 'page' : undefined}
+        >
+          <Icon name="serverLine" className="size-16" />
+          Runner provisioners
         </Link>
       </Button>
       <Button

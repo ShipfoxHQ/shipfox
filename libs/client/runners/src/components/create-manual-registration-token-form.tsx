@@ -12,13 +12,8 @@ import {
   InlineTipsTitle,
   ModalBody,
   ModalFooter,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Text,
-  useFormField,
+  useCopyToClipboard,
 } from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
@@ -28,34 +23,13 @@ import {
   useCreateManualRegistrationTokenMutation,
 } from '#hooks/api/manual-registration-tokens.js';
 import {manualRegistrationTokenCreateErrorToFormError} from './form-errors.js';
+import {
+  ExpirationSelect,
+  expirationHint,
+  type TokenExpirationOption,
+} from './token-expiration-select.js';
 
 export const CREATE_MANUAL_REGISTRATION_TOKEN_FORM_ID = 'create-manual-registration-token-form';
-
-export type ManualRegistrationTokenExpirationOption =
-  | '86400'
-  | '604800'
-  | '2592000'
-  | '7776000'
-  | '15552000'
-  | '31536000'
-  | 'never';
-
-const expirationOptions: Array<{value: ManualRegistrationTokenExpirationOption; label: string}> = [
-  {value: '86400', label: '1 day'},
-  {value: '604800', label: '7 days'},
-  {value: '2592000', label: '30 days'},
-  {value: '7776000', label: '90 days'},
-  {value: '15552000', label: '180 days'},
-  {value: '31536000', label: '1 year'},
-  {value: 'never', label: 'Never'},
-];
-
-function expirationHint(expiration: ManualRegistrationTokenExpirationOption): string {
-  if (expiration === 'never') return 'Token will not expire.';
-  const expiresAt = new Date(Date.now() + Number(expiration) * 1000);
-  const formatted = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium'}).format(expiresAt);
-  return `Expires on ${formatted}.`;
-}
 
 export function CreateManualRegistrationTokenForm({
   workspaceId,
@@ -69,7 +43,7 @@ export function CreateManualRegistrationTokenForm({
   const [formError, setFormError] = useState<string | undefined>();
 
   const form = useForm({
-    defaultValues: {name: '', expiration: '86400' as ManualRegistrationTokenExpirationOption},
+    defaultValues: {name: '', expiration: '86400' as TokenExpirationOption},
     onSubmit: async ({value}) => {
       setFormError(undefined);
       const trimmedName = value.name.trim();
@@ -177,56 +151,23 @@ export function CreateManualRegistrationTokenForm({
   );
 }
 
-function ExpirationSelect({
-  value,
-  onValueChange,
-}: {
-  value: ManualRegistrationTokenExpirationOption;
-  onValueChange: (next: ManualRegistrationTokenExpirationOption) => void;
-}) {
-  const wiring = useFormField();
-  return (
-    <Select
-      value={value}
-      onValueChange={(next) => onValueChange(next as ManualRegistrationTokenExpirationOption)}
-    >
-      <SelectTrigger
-        id={wiring.id}
-        aria-invalid={wiring['aria-invalid']}
-        aria-describedby={wiring['aria-describedby']}
-        aria-label="Token expiration"
-        className="w-full"
-      >
-        <SelectValue placeholder="Select expiration" />
-      </SelectTrigger>
-      <SelectContent>
-        {expirationOptions.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 export function CreatedManualRegistrationTokenPanel({
   token,
 }: {
   token: CreateManualRegistrationTokenResponseDto;
 }) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-
-  async function copy(value: string) {
-    if (!navigator.clipboard) {
-      setCopyState('failed');
-      window.setTimeout(() => setCopyState('idle'), 2500);
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(value);
+  const {copy} = useCopyToClipboard({
+    text: token.raw_token,
+    onCopy: () => {
       setCopyState('copied');
       window.setTimeout(() => setCopyState('idle'), 1500);
+    },
+  });
+
+  async function handleCopy() {
+    try {
+      await copy();
     } catch {
       setCopyState('failed');
       window.setTimeout(() => setCopyState('idle'), 2500);
@@ -250,7 +191,7 @@ export function CreatedManualRegistrationTokenPanel({
             size="sm"
             variant="secondary"
             iconLeft="fileCopyLine"
-            onClick={() => copy(token.raw_token)}
+            onClick={() => void handleCopy()}
           >
             {copyState === 'copied' ? 'Copied' : 'Copy'}
           </Button>

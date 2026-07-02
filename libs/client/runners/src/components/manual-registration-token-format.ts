@@ -1,11 +1,18 @@
 import type {ManualRegistrationTokenDto} from '@shipfox/api-runners-dto';
-import {formatTimestamp} from '@shipfox/react-ui';
+import {formatDate, formatTimestamp} from '@shipfox/react-ui';
 
 export function formatManualRegistrationTokenDate(value: string | null): string {
   if (!value) return 'Never';
+  return formatDate(value);
+}
+
+export function formatManualRegistrationTokenTimestamp(value: string | null): string | undefined {
+  if (!value) return undefined;
   return formatTimestamp(value);
 }
 
-export function manualRegistrationTokenDisplayName(token: ManualRegistrationTokenDto): string {
+export function manualRegistrationTokenDisplayName(
+  token: Pick<ManualRegistrationTokenDto, 'name'>,
+): string {
   return token.name || 'Unnamed token';
 }

@@ -1,19 +1,44 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {configureApiClient} from '@shipfox/client-api';
-import {screen, within} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
 import {IntegrationGallery} from './integration-gallery.js';
+import {usageEventsForConnection} from './integration-usage-events.js';
+
+if (!HTMLElement.prototype.hasPointerCapture) {
+  Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
+    configurable: true,
+    value: () => false,
+  });
+}
+
+if (!HTMLElement.prototype.setPointerCapture) {
+  Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+    configurable: true,
+    value: () => undefined,
+  });
+}
+
+if (!HTMLElement.prototype.releasePointerCapture) {
+  Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
+    configurable: true,
+    value: () => undefined,
+  });
+}
 
 const SETUP_ROUTES = [
   '/workspaces/$wid/integrations/github',
   '/workspaces/$wid/integrations/sentry',
   '/workspaces/$wid/integrations/debug',
+  '/workspaces/$wid/settings/events',
 ];
 
 const defaultProviders = [
   {provider: 'github', display_name: 'GitHub', capabilities: ['source_control']},
   {provider: 'sentry', display_name: 'Sentry', capabilities: []},
+  {provider: 'webhook', display_name: 'Webhook', capabilities: []},
 ];
 
 const githubConnection = {
@@ -28,28 +53,124 @@ const githubConnection = {
   external_url: 'https://github.com/organizations/acme-corp/settings/installations/1',
   created_at: '2026-03-12T00:00:00.000Z',
   updated_at: '2026-03-12T00:00:00.000Z',
+} satisfies IntegrationConnectionDto;
+
+const webhookConnection = {
+  id: '77777777-7777-4777-8777-777777777777',
+  workspace_id: INTEGRATIONS_TEST_WID,
+  provider: 'webhook',
+  external_account_id: 'stripe-prod',
+  slug: 'stripe-prod',
+  display_name: 'Stripe production',
+  lifecycle_status: 'active',
+  capabilities: [],
+  created_at: '2026-04-12T00:00:00.000Z',
+  updated_at: '2026-04-12T00:00:00.000Z',
+};
+
+const webhookConnectionDto = {
+  id: webhookConnection.id,
+  workspace_id: INTEGRATIONS_TEST_WID,
+  name: 'Stripe production',
+  slug: 'stripe-prod',
+  lifecycle_status: 'active',
+  inbound_url: 'https://api.example.test/webhook/77777777-7777-4777-8777-777777777777',
+  created_at: webhookConnection.created_at,
+  updated_at: webhookConnection.updated_at,
 };
 
 interface FetchOptions {
   providers?: unknown[];
   connections?: unknown[];
+  webhookConnections?: unknown[];
   providersFail?: boolean;
   connectionsFail?: boolean;
+  webhookConnectionsFail?: boolean;
+  onUpdateConnection?: (connectionId: string, body: {lifecycle_status?: string}) => void;
 }
 
 function fetchForGallery(options: FetchOptions = {}) {
   const {
     providers = defaultProviders,
     connections = [],
+    webhookConnections = [webhookConnectionDto],
     providersFail = false,
     connectionsFail = false,
+    webhookConnectionsFail = false,
+    onUpdateConnection,
   } = options;
-  return vi.fn((input: RequestInfo | URL) => {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : undefined;
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const method = init?.method ?? request?.method ?? 'GET';
+    if (url.includes('/integrations/webhook/connections/')) {
+      const connectionId = url.split('/integrations/webhook/connections/')[1]?.split('?')[0];
+      if (!connectionId) return Promise.resolve(jsonResponse({}, {status: 404}));
+      if (method === 'PATCH') {
+        const rawBody =
+          init?.body !== undefined ? String(init.body) : (await request?.clone().text()) || '{}';
+        const body = JSON.parse(rawBody) as {lifecycle_status?: string};
+        onUpdateConnection?.(connectionId, body);
+        const connection = webhookConnections.find(
+          (candidate) =>
+            typeof candidate === 'object' &&
+            candidate !== null &&
+            'id' in candidate &&
+            candidate.id === connectionId,
+        ) as Record<string, unknown> | undefined;
+        return Promise.resolve(
+          jsonResponse({...connection, lifecycle_status: body.lifecycle_status}),
+        );
+      }
+      if (method === 'DELETE') {
+        return Promise.resolve(jsonResponse(undefined, {status: 204}));
+      }
+    }
+    if (url.includes('/integrations/webhook/connections')) {
+      if (webhookConnectionsFail)
+        return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+      if (method === 'POST') {
+        const rawBody =
+          init?.body !== undefined ? String(init.body) : (await request?.clone().text()) || '{}';
+        const body = JSON.parse(rawBody) as {name?: string; slug?: string; workspace_id?: string};
+        return Promise.resolve(
+          jsonResponse({
+            ...webhookConnectionDto,
+            workspace_id: body.workspace_id ?? webhookConnectionDto.workspace_id,
+            name: body.name ?? webhookConnectionDto.name,
+            slug: body.slug ?? webhookConnectionDto.slug,
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({connections: webhookConnections}));
+    }
     if (url.includes('/integration-providers')) {
       if (providersFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(jsonResponse({providers}));
+    }
+    if (url.includes('/integration-connections/')) {
+      const connectionId = url.split('/integration-connections/')[1]?.split('?')[0];
+      if (!connectionId) return Promise.resolve(jsonResponse({}, {status: 404}));
+      if (method === 'PATCH') {
+        const rawBody =
+          init?.body !== undefined ? String(init.body) : (await request?.clone().text()) || '{}';
+        const body = JSON.parse(rawBody) as {lifecycle_status?: string};
+        onUpdateConnection?.(connectionId, body);
+        const connection = connections.find(
+          (candidate) =>
+            typeof candidate === 'object' &&
+            candidate !== null &&
+            'id' in candidate &&
+            candidate.id === connectionId,
+        ) as Record<string, unknown> | undefined;
+        return Promise.resolve(
+          jsonResponse({...connection, lifecycle_status: body.lifecycle_status}),
+        );
+      }
+      if (method === 'DELETE') {
+        return Promise.resolve(jsonResponse(undefined, {status: 204}));
+      }
     }
     if (url.includes('/integration-connections')) {
       if (connectionsFail)
@@ -78,6 +199,9 @@ function renderGallery(
 
 const installedRegion = () => screen.getByRole('region', {name: 'Installed integrations'});
 const availableRegion = () => screen.getByRole('region', {name: 'Available integrations'});
+const openActions = async (name: string) => {
+  fireEvent.pointerDown(await screen.findByRole('button', {name}));
+};
 
 const SORTED_NAMES_RE = /acme-(early|late)/;
 // The meta line carries the date only — the provider is named once, by the
@@ -178,33 +302,157 @@ describe('IntegrationGallery — installed section', () => {
     expect(title).toHaveClass('text-foreground-neutral-disabled');
   });
 
-  test('shows the external link only when external_url is set, with the account name in its label', async () => {
-    renderGallery(
-      {},
-      {
-        connections: [
-          {
-            ...githubConnection,
-            id: '11111111-1111-4111-8111-aaaaaaaaaaaa',
-            display_name: 'acme-linked',
-          },
-          {
-            ...githubConnection,
-            id: '22222222-2222-4222-8222-bbbbbbbbbbbb',
-            display_name: 'acme-unlinked',
-            external_url: undefined,
-          },
-        ],
-      },
-    );
+  test('shows the standard actions menu for installed rows', async () => {
+    renderGallery({}, {connections: [webhookConnection]});
 
-    expect(await screen.findByRole('link', {name: 'Open acme-linked in GitHub'})).toHaveAttribute(
-      'href',
-      githubConnection.external_url,
+    expect(await screen.findByText('Stripe production')).toBeVisible();
+    await openActions('Open Stripe production integration actions');
+
+    expect(screen.getByRole('menuitem', {name: 'Use this integration'})).toBeVisible();
+    expect(screen.getByRole('menuitem', {name: 'View recent events'})).toBeVisible();
+    expect(screen.getByRole('menuitem', {name: 'Disable integration'})).toBeVisible();
+    expect(screen.getByRole('menuitem', {name: 'Delete integration'})).toBeVisible();
+  });
+
+  test('opens the standard usage modal with webhook details', async () => {
+    renderGallery({}, {connections: [webhookConnection]});
+
+    await openActions('Open Stripe production integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Use this integration'}));
+
+    expect(await screen.findByText('Usage')).toBeVisible();
+    expect(await screen.findByText('Inbound URL')).toBeVisible();
+    expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
+  });
+
+  test('shows GitHub webhook events in the usage selector', async () => {
+    const githubEventValues = usageEventsForConnection(githubConnection).map(
+      (event) => event.value,
     );
-    expect(
-      screen.queryByRole('link', {name: 'Open acme-unlinked in GitHub'}),
-    ).not.toBeInTheDocument();
+    expect(githubEventValues).toEqual(expect.arrayContaining(['pull_request', 'workflow_run']));
+
+    renderGallery({}, {connections: [githubConnection]});
+
+    await openActions('Open acme-corp integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Use this integration'}));
+
+    expect(await screen.findByText('Usage')).toBeVisible();
+    expect(screen.getAllByText('github_acme_corp')[0]).toBeVisible();
+    expect(screen.getAllByText('push')[0]).toBeVisible();
+    const eventSelect = screen.getByRole('combobox', {name: 'Event'});
+    expect(eventSelect).toBeVisible();
+  });
+
+  test('toggles integration lifecycle status from the actions menu', async () => {
+    const updates: Array<{connectionId: string; body: {lifecycle_status?: string}}> = [];
+    const fetchImpl = fetchForGallery({
+      connections: [githubConnection],
+      onUpdateConnection: (connectionId, body) => updates.push({connectionId, body}),
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    renderIntegrationsPage({
+      path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
+      routePath: '/workspaces/$wid/integrations',
+      element: <IntegrationGallery />,
+      extraRoutes: SETUP_ROUTES,
+    });
+
+    await openActions('Open acme-corp integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Disable integration'}));
+
+    await screen.findByText('Integration disabled.');
+    const updateRequest = fetchImpl.mock.calls
+      .map(([input]) => input)
+      .find(
+        (input) =>
+          input instanceof Request &&
+          input.url.includes(`/integration-connections/${githubConnection.id}`),
+      );
+    expect(updateRequest).toBeInstanceOf(Request);
+    expect((updateRequest as Request).method).toBe('PATCH');
+    expect(updates).toEqual([
+      {
+        connectionId: githubConnection.id,
+        body: {lifecycle_status: 'disabled'},
+      },
+    ]);
+  });
+
+  test('toggles webhook connections through the webhook endpoint', async () => {
+    const updates: Array<{connectionId: string; body: {lifecycle_status?: string}}> = [];
+    const fetchImpl = fetchForGallery({
+      connections: [webhookConnection],
+      onUpdateConnection: (connectionId, body) => updates.push({connectionId, body}),
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    renderIntegrationsPage({
+      path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
+      routePath: '/workspaces/$wid/integrations',
+      element: <IntegrationGallery />,
+      extraRoutes: SETUP_ROUTES,
+    });
+
+    await openActions('Open Stripe production integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Disable integration'}));
+
+    await screen.findByText('Integration disabled.');
+    const updateRequest = fetchImpl.mock.calls
+      .map(([input]) => input)
+      .find(
+        (input) =>
+          input instanceof Request &&
+          input.url.includes(`/integrations/webhook/connections/${webhookConnection.id}`),
+      );
+    expect(updateRequest).toBeInstanceOf(Request);
+    expect((updateRequest as Request).method).toBe('PATCH');
+    expect(updates).toEqual([
+      {
+        connectionId: webhookConnection.id,
+        body: {lifecycle_status: 'disabled'},
+      },
+    ]);
+  });
+
+  test('deletes webhook connections through the webhook endpoint', async () => {
+    const fetchImpl = fetchForGallery({connections: [webhookConnection]});
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    renderIntegrationsPage({
+      path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
+      routePath: '/workspaces/$wid/integrations',
+      element: <IntegrationGallery />,
+      extraRoutes: SETUP_ROUTES,
+    });
+
+    await openActions('Open Stripe production integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Delete integration'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Delete integration'}));
+
+    await screen.findByText('Integration deleted.');
+    const deleteRequest = fetchImpl.mock.calls
+      .map(([input]) => input)
+      .find(
+        (input) =>
+          input instanceof Request &&
+          input.url.includes(`/integrations/webhook/connections/${webhookConnection.id}`) &&
+          input.method === 'DELETE',
+      );
+    expect(deleteRequest).toBeInstanceOf(Request);
+  });
+
+  test('opens the delete confirmation from the actions menu', async () => {
+    renderGallery({}, {connections: [githubConnection]});
+
+    await openActions('Open acme-corp integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Delete integration'}));
+
+    const dialog = await screen.findByRole('dialog', {name: 'Delete integration'});
+    const alert = within(dialog).getByRole('alert');
+
+    expect(alert).toHaveTextContent(
+      'Are you sure you want to delete acme-corp? Once deleted, Shipfox will immediately stop processing events from this integration. This cannot be undone.',
+    );
+    expect(within(alert).getByText('acme-corp')).toBeVisible();
+    expect(within(dialog).getByRole('button', {name: 'Delete integration'})).toBeVisible();
   });
 
   test('filters connections by capability in memory', async () => {
@@ -253,7 +501,9 @@ describe('IntegrationGallery — installed section', () => {
 
     expect(await screen.findByText('acme-corp')).toBeVisible();
     expect(within(installedRegion()).getByText(ADDED_META_RE)).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Open acme-corp in github'})).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'Open acme-corp integration actions'}),
+    ).toBeInTheDocument();
     expect(
       within(availableRegion()).getByText("Couldn't load available integrations"),
     ).toBeInTheDocument();
@@ -280,6 +530,7 @@ describe('IntegrationGallery — available section', () => {
 
     expect(await screen.findByRole('link', {name: 'Install GitHub'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Install Sentry'})).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Add Webhook'})).toBeVisible();
     expect(screen.getByText('Providers available to install in this workspace.')).toBeVisible();
   });
 
@@ -292,6 +543,103 @@ describe('IntegrationGallery — available section', () => {
     expect(link.className).not.toContain('shadow-button-secondary');
     expect(within(link).getByText('Install')).toBeVisible();
     expect(within(link).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  test('opens the webhook create modal from the Add card', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+
+    expect(await screen.findByRole('textbox', {name: 'Name'})).toBeVisible();
+    expect(screen.getByRole('textbox', {name: 'Slug'})).toBeVisible();
+  });
+
+  test('opens the usage modal after creating a webhook', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create'}));
+
+    expect(await screen.findByText('Usage')).toBeVisible();
+    expect(screen.getAllByText('webhook-stripe-production')[0]).toBeVisible();
+    expect(await screen.findByText('Inbound URL')).toBeVisible();
+    expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
+    expect(screen.queryByRole('textbox', {name: 'Name'})).not.toBeInTheDocument();
+  });
+
+  test('fills an empty webhook slug from the name', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('webhook-stripe-production');
+    });
+  });
+
+  test('preserves a non-empty manual webhook slug until the slug is cleared', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('webhook-stripe-production');
+    });
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: 'custom-stripe-hook'},
+    });
+    fireEvent.change(screen.getByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Billing alerts'},
+    });
+
+    expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('custom-stripe-hook');
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: ''},
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('webhook-billing-alerts');
+    });
+  });
+
+  test('rejects reserved webhook slugs inline', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: 'github'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create'}));
+
+    expect(await screen.findByText('That slug is reserved.')).toBeVisible();
+  });
+
+  test('validates webhook names after trimming whitespace', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: '   '},
+    });
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: 'stripe-prod'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create'}));
+
+    expect(await screen.findByText('Webhook name is required.')).toBeVisible();
   });
 
   test('surfaces a providers error only in the available section', async () => {

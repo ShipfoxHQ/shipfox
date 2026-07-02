@@ -96,11 +96,14 @@ test('manages workspace manual registration tokens from settings', async ({
   await argosScreenshot(page, 'runners/settings-runners-create-token-success');
 
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', {name: 'Revoke E2E runner'})).toBeVisible();
+  await expect(manualRegistrationTokenRow).toBeVisible();
 
-  await page.getByRole('button', {name: 'Revoke E2E runner'}).click();
+  await manualRegistrationTokenRow
+    .getByRole('button', {name: 'Open E2E runner token actions'})
+    .click();
+  await page.getByRole('menuitem', {name: 'Revoke token'}).click();
   await page.getByRole('button', {name: 'Revoke', exact: true}).last().click();
 
-  await expect(page.getByRole('button', {name: 'Revoke E2E runner'})).toHaveCount(0);
+  await expect(manualRegistrationTokenRow).toHaveCount(0);
   await expect(page.getByText('No usable manual registration tokens')).toBeVisible();
 });

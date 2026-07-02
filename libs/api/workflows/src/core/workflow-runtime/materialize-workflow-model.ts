@@ -3,7 +3,7 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
-import type {WorkflowExpressionEvaluationContext} from '@shipfox/expression';
+import type {WorkflowContextPhase, WorkflowExpressionEvaluationContext} from '@shipfox/expression';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
@@ -55,6 +55,7 @@ const SETUP_STEP: MaterializedWorkflowStep = {
 export interface MaterializeWorkflowModelParams {
   readonly model: WorkflowModel;
   readonly context?: WorkflowExpressionEvaluationContext;
+  readonly phase?: WorkflowContextPhase | undefined;
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId?: string | undefined;
 }
@@ -65,6 +66,7 @@ export function materializeWorkflowModel(
   const {
     model,
     context = {},
+    phase = 'workflow-run-creation',
     resolveAgentDefaults = catalogDefaultAgentResolver,
     definitionId = model.name,
   } = params;
@@ -95,6 +97,7 @@ export function materializeWorkflowModel(
           jobEnv: job.env,
           jobEnvTemplates: job.templates?.env,
           context: stepContext,
+          phase,
           resolveAgentDefaults,
           definitionId,
         });

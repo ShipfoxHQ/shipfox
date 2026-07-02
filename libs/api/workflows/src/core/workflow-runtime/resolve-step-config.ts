@@ -9,11 +9,14 @@ import {
   getWorkflowContextDefinition,
   resolveRunCommand,
   resolveWorkflowTemplate,
+  rootsAvailableAt,
   UnsafeRunInterpolationError,
   type WorkflowContextName,
+  type WorkflowContextPhase,
   type WorkflowExpressionEvaluationContext,
   type WorkflowTemplateDiagnostic,
   WorkflowTemplateResolutionError,
+  workflowContextNames,
 } from '@shipfox/expression';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 
@@ -50,6 +53,7 @@ export interface ResolveStepConfigParams {
   readonly jobEnv: WorkflowModelJob['env'];
   readonly jobEnvTemplates: WorkflowEnvTemplates | undefined;
   readonly context: WorkflowExpressionEvaluationContext;
+  readonly phase: WorkflowContextPhase;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly definitionId: string;
 }
@@ -65,7 +69,7 @@ export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStep
     const authoredConfig = effective.hasTemplates
       ? buildStepConfig({...params, mode: 'authored'}).config
       : null;
-    const name = resolveStepName(params.step, params.context);
+    const name = resolveStepName(params.step, params.context, params.phase);
 
     return {
       config: effective.config,
@@ -95,11 +99,12 @@ function buildStepConfig(
 
   if (params.step.kind === 'run') {
     const env = winningEnv(params);
-    const envResolution = resolveEnv(env, params.context, params.mode);
+    const envResolution = resolveEnv(env, params.context, params.phase, params.mode);
     const commandResolution = resolveCommand({
       step: params.step,
       envKeys: Object.keys(envResolution.env),
       context: params.context,
+      phase: params.phase,
       mode: params.mode,
     });
     const mergedEnv = {...envResolution.env, ...commandResolution.env};
@@ -124,6 +129,7 @@ function resolveCommand(params: {
   readonly step: WorkflowModelRunStep;
   readonly envKeys: readonly string[];
   readonly context: WorkflowExpressionEvaluationContext;
+  readonly phase: WorkflowContextPhase;
   readonly mode: 'effective' | 'authored';
 }): {
   readonly command: string;
@@ -142,7 +148,7 @@ function resolveCommand(params: {
 
   const resolved = resolveRunCommand(template, params.context, {
     reservedNames: params.envKeys,
-    requiredContextRoots: requiredTrustedRoots(template),
+    requiredContextRoots: requiredTrustedRoots(template, params.phase),
   });
 
   return {
@@ -156,6 +162,7 @@ function resolveCommand(params: {
 function resolveEnv(
   env: Readonly<Record<string, WinningEnvValue>>,
   context: WorkflowExpressionEvaluationContext,
+  phase: WorkflowContextPhase,
   mode: 'effective' | 'authored',
 ): {
   readonly env: Readonly<Record<string, string>>;
@@ -175,7 +182,7 @@ function resolveEnv(
 
     hasTemplates = true;
     const resolved = resolveWorkflowTemplate(entry.template, context, {
-      requiredContextRoots: requiredTrustedRoots(entry.template),
+      requiredContextRoots: requiredTrustedRoots(entry.template, phase),
     });
     resolvedEnv[key] = resolved.value;
     diagnostics.push(
@@ -206,6 +213,7 @@ function agentStepConfig(
     template: step.templates?.prompt,
     context,
     mode: params.mode,
+    phase: params.phase,
     diagnostics,
   });
   const model = resolveOptionalAgentField({
@@ -214,6 +222,7 @@ function agentStepConfig(
     template: step.templates?.model,
     context,
     mode: params.mode,
+    phase: params.phase,
     diagnostics,
   });
   const provider = resolveOptionalAgentField({
@@ -222,6 +231,7 @@ function agentStepConfig(
     template: step.templates?.provider,
     context,
     mode: params.mode,
+    phase: params.phase,
     diagnostics,
   });
   const hasTemplates =
@@ -271,13 +281,14 @@ function resolveAgentField(params: {
   readonly value: string;
   readonly template: WorkflowFieldTemplate | undefined;
   readonly context: WorkflowExpressionEvaluationContext;
+  readonly phase: WorkflowContextPhase;
   readonly mode: 'effective' | 'authored';
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
 }): string {
   if (params.template === undefined || params.mode === 'authored') return params.value;
 
   const resolved = resolveWorkflowTemplate(params.template, params.context, {
-    requiredContextRoots: requiredTrustedRoots(params.template),
+    requiredContextRoots: requiredTrustedRoots(params.template, params.phase),
   });
   params.diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: params.field})),
@@ -290,6 +301,7 @@ function resolveOptionalAgentField(params: {
   readonly value: string | undefined;
   readonly template: WorkflowFieldTemplate | undefined;
   readonly context: WorkflowExpressionEvaluationContext;
+  readonly phase: WorkflowContextPhase;
   readonly mode: 'effective' | 'authored';
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
 }): string | undefined {
@@ -300,6 +312,7 @@ function resolveOptionalAgentField(params: {
 function resolveStepName(
   step: WorkflowModelStep,
   context: WorkflowExpressionEvaluationContext,
+  phase: WorkflowContextPhase,
 ): {
   readonly value: string | undefined;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
@@ -308,7 +321,7 @@ function resolveStepName(
   if (step.templates?.name === undefined) return {value: step.name, diagnostics: []};
 
   const resolved = resolveWorkflowTemplate(step.templates.name, context, {
-    requiredContextRoots: requiredStepNameRoots(step.templates.name),
+    requiredContextRoots: requiredStepNameRoots(step.templates.name, phase),
   });
   return {
     value: resolved.value,
@@ -350,13 +363,18 @@ function mergeEnvLayers(
   return merged;
 }
 
-function requiredTrustedRoots(segments: readonly unknown[]): WorkflowContextName[] {
+function requiredTrustedRoots(
+  segments: readonly unknown[],
+  phase: WorkflowContextPhase,
+): WorkflowContextName[] {
   const roots = new Set<WorkflowContextName>();
+  const availableRoots = new Set(rootsAvailableAt(phase));
 
   for (const segment of segments) {
     if (!hasContextRoots(segment)) continue;
     for (const root of segment.contextRoots) {
       if (!isWorkflowContextName(root)) continue;
+      if (!availableRoots.has(root)) continue;
       if (getWorkflowContextDefinition(root).trustTier === 'trusted') roots.add(root);
     }
   }
@@ -364,13 +382,18 @@ function requiredTrustedRoots(segments: readonly unknown[]): WorkflowContextName
   return [...roots];
 }
 
-function requiredStepNameRoots(segments: readonly unknown[]): WorkflowContextName[] {
-  const roots = new Set<WorkflowContextName>(requiredTrustedRoots(segments));
+function requiredStepNameRoots(
+  segments: readonly unknown[],
+  phase: WorkflowContextPhase,
+): WorkflowContextName[] {
+  const roots = new Set<WorkflowContextName>(requiredTrustedRoots(segments, phase));
+  const availableRoots = new Set(rootsAvailableAt(phase));
 
   for (const segment of segments) {
     if (!hasContextRoots(segment)) continue;
     for (const root of segment.contextRoots) {
-      if (root === 'execution' || root === 'executions') roots.add(root);
+      if (!isWorkflowContextName(root)) continue;
+      if (!availableRoots.has(root)) roots.add(root);
     }
   }
 
@@ -382,8 +405,10 @@ function hasContextRoots(value: unknown): value is {readonly contextRoots: reado
 }
 
 function isWorkflowContextName(value: string): value is WorkflowContextName {
-  return ['run', 'trigger', 'event', 'inputs', 'job'].includes(value);
+  return workflowContextNameSet.has(value);
 }
+
+const workflowContextNameSet: ReadonlySet<string> = new Set(workflowContextNames);
 
 function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
   return {

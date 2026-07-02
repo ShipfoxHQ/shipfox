@@ -1,5 +1,6 @@
 export {
   type AssembleWorkflowRunContextParams,
+  assembleCreationContext,
   assembleWorkflowRunContext,
 } from './assemble-run-context.js';
 export {
@@ -16,3 +17,4 @@ export {
   type ScheduleRuntimeDagInput,
   scheduleRuntimeDag,
 } from './schedule-runtime-dag.js';
+export type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';

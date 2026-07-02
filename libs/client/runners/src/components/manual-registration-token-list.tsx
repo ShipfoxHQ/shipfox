@@ -3,11 +3,18 @@ import {
   Alert,
   Button,
   Code,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
-  Popover,
-  PopoverArrow,
-  PopoverContent,
-  PopoverTrigger,
+  IconButton,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
   Skeleton,
   Table,
   TableBody,
@@ -26,8 +33,11 @@ import {
 import {manualRegistrationTokenErrorMessage} from './manual-registration-token-errors.js';
 import {
   formatManualRegistrationTokenDate,
+  formatManualRegistrationTokenTimestamp,
   manualRegistrationTokenDisplayName,
 } from './manual-registration-token-format.js';
+import {TokenDate} from './token-date.js';
+import {TokenName} from './token-name.js';
 
 export function ManualRegistrationTokenList({
   workspaceId,
@@ -39,27 +49,33 @@ export function ManualRegistrationTokenList({
   return (
     <>
       <div className="max-[760px]:hidden">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              <TableHead className="w-[34%]">Name</TableHead>
               <TableHead>Prefix</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead className="w-128">Expires</TableHead>
+              <TableHead className="w-128">Created</TableHead>
               <TableHead className="w-80 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tokens.map((token) => (
               <TableRow key={token.id}>
-                <TableCell className="font-medium">
-                  {manualRegistrationTokenDisplayName(token)}
+                <TableCell>
+                  <TokenName name={manualRegistrationTokenDisplayName(token)} />
                 </TableCell>
                 <TableCell>
-                  <Code variant="paragraph">{token.prefix}</Code>
+                  <Code variant="paragraph" className="block truncate">
+                    {token.prefix}
+                  </Code>
                 </TableCell>
-                <TableCell>{formatManualRegistrationTokenDate(token.expires_at)}</TableCell>
-                <TableCell>{formatManualRegistrationTokenDate(token.created_at)}</TableCell>
+                <TableCell>
+                  <ManualRegistrationTokenDate value={token.expires_at} />
+                </TableCell>
+                <TableCell>
+                  <ManualRegistrationTokenDate value={token.created_at} />
+                </TableCell>
                 <TableCell className="text-right">
                   <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
                 </TableCell>
@@ -79,10 +95,8 @@ export function ManualRegistrationTokenList({
           >
             <div className="flex items-start justify-between gap-12">
               <div className="min-w-0 flex-1">
-                <Text size="sm" bold className="truncate">
-                  {manualRegistrationTokenDisplayName(token)}
-                </Text>
-                <Code variant="paragraph" className="text-foreground-neutral-muted">
+                <TokenName name={manualRegistrationTokenDisplayName(token)} />
+                <Code variant="paragraph" className="block truncate text-foreground-neutral-muted">
                   {token.prefix}
                 </Code>
               </div>
@@ -91,17 +105,31 @@ export function ManualRegistrationTokenList({
             <dl className="mt-12 grid grid-cols-2 gap-10 text-sm">
               <div>
                 <dt className="text-foreground-neutral-muted">Expires</dt>
-                <dd>{formatManualRegistrationTokenDate(token.expires_at)}</dd>
+                <dd>
+                  <ManualRegistrationTokenDate value={token.expires_at} />
+                </dd>
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Created</dt>
-                <dd>{formatManualRegistrationTokenDate(token.created_at)}</dd>
+                <dd>
+                  <ManualRegistrationTokenDate value={token.created_at} />
+                </dd>
               </div>
             </dl>
           </li>
         ))}
       </ul>
     </>
+  );
+}
+
+function ManualRegistrationTokenDate({value}: {value: string | null}) {
+  return (
+    <TokenDate
+      value={value}
+      date={formatManualRegistrationTokenDate(value)}
+      timestamp={formatManualRegistrationTokenTimestamp(value)}
+    />
   );
 }
 
@@ -125,7 +153,7 @@ function RevokeManualRegistrationTokenButton({
       });
       setOpen(false);
     } catch {
-      // React Query stores the error for the inline popover alert.
+      // React Query stores the error for the inline modal alert.
     }
   }
 
@@ -136,36 +164,43 @@ function RevokeManualRegistrationTokenButton({
     }
   }
 
+  function openRevokeConfirmation() {
+    revokeToken.reset();
+    setOpen(true);
+  }
+
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          size="sm"
-          variant="transparentMuted"
-          iconLeft="deleteBinLine"
-          aria-label={`Revoke ${tokenName}`}
-        >
-          Revoke
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-280 p-14">
-        <div className="flex flex-col gap-12">
-          <div className="flex flex-col gap-4">
-            <Text size="sm" bold>
-              Revoke token?
-            </Text>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <IconButton
+            type="button"
+            size="sm"
+            variant="transparent"
+            icon="more2Line"
+            aria-label={`Open ${tokenName} token actions`}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" size="sm">
+          <DropdownMenuItem onSelect={openRevokeConfirmation}>Revoke token</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Modal open={open} onOpenChange={handleOpenChange}>
+        <ModalContent aria-describedby={undefined} className="max-w-[420px]">
+          <ModalTitle className="sr-only">Revoke token</ModalTitle>
+          <ModalHeader title="Revoke token?" />
+          <ModalBody className="gap-16">
             <Text size="sm" className="text-foreground-neutral-muted">
               {tokenName} will stop creating new runner sessions. Existing sessions and job leases
               expire on their own.
             </Text>
-          </div>
-          {revokeToken.isError ? (
-            <Alert variant="error" animated={false}>
-              <Text size="sm">{manualRegistrationTokenErrorMessage(revokeToken.error)}</Text>
-            </Alert>
-          ) : null}
-          <div className="flex justify-end gap-8">
+            {revokeToken.isError ? (
+              <Alert variant="error" animated={false}>
+                <Text size="sm">{manualRegistrationTokenErrorMessage(revokeToken.error)}</Text>
+              </Alert>
+            ) : null}
+          </ModalBody>
+          <ModalFooter>
             <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
@@ -177,11 +212,10 @@ function RevokeManualRegistrationTokenButton({
             >
               Revoke
             </Button>
-          </div>
-        </div>
-        <PopoverArrow />
-      </PopoverContent>
-    </Popover>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   );
 }
 

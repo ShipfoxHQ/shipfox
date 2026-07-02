@@ -48,9 +48,10 @@ export function WorkspaceManualRegistrationTokensSettingsSection({
       <section className="flex flex-col gap-16">
         <div className="flex items-center justify-between gap-16 max-[640px]:items-start">
           <div className="flex flex-col gap-4">
-            <Header variant="h3">Runners</Header>
+            <Header variant="h3">Runner registration tokens</Header>
             <Text size="sm" className="text-foreground-neutral-muted">
-              Tokens used by machines to request and complete jobs.
+              Register individual runner agents that run jobs directly in this workspace. Tokens are
+              reusable until revoked.
             </Text>
           </div>
           <div className="flex items-center gap-12">

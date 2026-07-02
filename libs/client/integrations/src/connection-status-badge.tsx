@@ -3,13 +3,11 @@ import {Badge, type IconName} from '@shipfox/react-ui';
 
 const lifecyclePills: Record<
   IntegrationConnectionLifecycleStatusDto,
-  {variant: 'neutral' | 'error'; label: string; iconLeft?: IconName} | undefined
+  {variant: 'warning' | 'error'; label: string; iconLeft?: IconName} | undefined
 > = {
   // `active` is the expected state and carries no badge.
   active: undefined,
-  // Mirrors the webhook-delivery taxonomy (DESIGN.md §9): disabled is quiet
-  // neutral with a warning icon, not warning-orange (which means "act now").
-  disabled: {variant: 'neutral', label: 'Disabled', iconLeft: 'errorWarningLine'},
+  disabled: {variant: 'warning', label: 'Disabled', iconLeft: 'errorWarningLine'},
   error: {variant: 'error', label: 'Error'},
 };
 

@@ -27,6 +27,7 @@ import { Route as WorkspacesWidLayoutSettingsIndexRouteImport } from './routes/w
 import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
 import { Route as WorkspacesWidLayoutSettingsModelProvidersRouteImport } from './routes/workspaces/$wid/_layout/settings/model-providers'
+import { Route as WorkspacesWidLayoutSettingsProvisionersRouteImport } from './routes/workspaces/$wid/_layout/settings/provisioners'
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
 import { Route as WorkspacesWidLayoutSettingsIntegrationsRouteImport } from './routes/workspaces/$wid/_layout/settings/integrations'
 import { Route as WorkspacesWidLayoutSettingsEventsRouteImport } from './routes/workspaces/$wid/_layout/settings/events'
@@ -140,6 +141,12 @@ const WorkspacesWidLayoutSettingsModelProvidersRoute =
     path: '/settings/model-providers',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
+const WorkspacesWidLayoutSettingsProvisionersRoute =
+  WorkspacesWidLayoutSettingsProvisionersRouteImport.update({
+    id: '/settings/provisioners',
+    path: '/settings/provisioners',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutSettingsMembersRoute =
   WorkspacesWidLayoutSettingsMembersRouteImport.update({
     id: '/settings/members',
@@ -243,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/model-providers': typeof WorkspacesWidLayoutSettingsModelProvidersRoute
+  '/workspaces/$wid/settings/provisioners': typeof WorkspacesWidLayoutSettingsProvisionersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -275,6 +283,7 @@ export interface FileRoutesByTo {
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/model-providers': typeof WorkspacesWidLayoutSettingsModelProvidersRoute
+  '/workspaces/$wid/settings/provisioners': typeof WorkspacesWidLayoutSettingsProvisionersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -308,6 +317,7 @@ export interface FileRoutesById {
   '/workspaces/$wid/_layout/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/_layout/settings/model-providers': typeof WorkspacesWidLayoutSettingsModelProvidersRoute
+  '/workspaces/$wid/_layout/settings/provisioners': typeof WorkspacesWidLayoutSettingsProvisionersRoute
   '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/_layout/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -343,6 +353,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/model-providers'
+    | '/workspaces/$wid/settings/provisioners'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations/'
     | '/workspaces/$wid/settings/'
@@ -375,6 +386,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/model-providers'
+    | '/workspaces/$wid/settings/provisioners'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations'
     | '/workspaces/$wid/settings'
@@ -407,6 +419,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/_layout/settings/integrations'
     | '/workspaces/$wid/_layout/settings/members'
     | '/workspaces/$wid/_layout/settings/model-providers'
+    | '/workspaces/$wid/_layout/settings/provisioners'
     | '/workspaces/$wid/_layout/settings/runners'
     | '/workspaces/$wid/_layout/integrations/'
     | '/workspaces/$wid/_layout/settings/'
@@ -559,6 +572,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsModelProvidersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/settings/provisioners': {
+      id: '/workspaces/$wid/_layout/settings/provisioners'
+      path: '/settings/provisioners'
+      fullPath: '/workspaces/$wid/settings/provisioners'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsProvisionersRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/settings/members': {
       id: '/workspaces/$wid/_layout/settings/members'
       path: '/settings/members'
@@ -701,6 +721,7 @@ interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutSettingsIntegrationsRoute: typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
   WorkspacesWidLayoutSettingsModelProvidersRoute: typeof WorkspacesWidLayoutSettingsModelProvidersRoute
+  WorkspacesWidLayoutSettingsProvisionersRoute: typeof WorkspacesWidLayoutSettingsProvisionersRoute
   WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
   WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
   WorkspacesWidLayoutSettingsIndexRoute: typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -727,6 +748,8 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
     WorkspacesWidLayoutSettingsMembersRoute,
   WorkspacesWidLayoutSettingsModelProvidersRoute:
     WorkspacesWidLayoutSettingsModelProvidersRoute,
+  WorkspacesWidLayoutSettingsProvisionersRoute:
+    WorkspacesWidLayoutSettingsProvisionersRoute,
   WorkspacesWidLayoutSettingsRunnersRoute:
     WorkspacesWidLayoutSettingsRunnersRoute,
   WorkspacesWidLayoutIntegrationsIndexRoute:
