@@ -20,6 +20,17 @@
           {
             "group": "Get Started",
             "pages": ["introduction", "getting-started"]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/github",
+              "integrations/sentry",
+              "integrations/webhooks",
+              "integrations/linear",
+              "integrations/slack"
+            ]
           }
         ]
       }
