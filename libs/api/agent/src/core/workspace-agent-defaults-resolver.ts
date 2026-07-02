@@ -1,8 +1,8 @@
 import {
-  type AgentProviderRef,
   type AgentThinking,
-  getAgentProviderEntry,
-  type SupportedAgentProviderId,
+  getModelProviderEntry,
+  type ModelProviderRef,
+  type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {config} from '#config.js';
 import {getAgentWorkspaceDefaultsSnapshot} from '#db/index.js';
@@ -14,11 +14,11 @@ export async function createWorkspaceAgentDefaultsResolver(
 ): Promise<AgentDefaultsResolver> {
   const snapshot = await getAgentWorkspaceDefaultsSnapshot(workspaceId);
   const workspaceProviderConfigs = new Map<
-    SupportedAgentProviderId,
+    SupportedModelProviderId,
     {defaultModel: string | null; defaultThinking: AgentThinking}
   >();
   for (const providerConfig of snapshot.providerConfigs) {
-    const providerId = toSupportedProviderId(providerConfig.providerId);
+    const providerId = toSupportedModelProviderId(providerConfig.providerId);
     if (!providerId) continue;
 
     workspaceProviderConfigs.set(providerId, {
@@ -28,21 +28,21 @@ export async function createWorkspaceAgentDefaultsResolver(
   }
   const ctx: AgentConfigResolutionContext = {
     workspaceDefaultProviderId: snapshot.defaultProviderId
-      ? toSupportedProviderId(snapshot.defaultProviderId)
+      ? toSupportedModelProviderId(snapshot.defaultProviderId)
       : null,
     workspaceProviderConfigs,
-    instanceDefaultProvider: config.AGENT_DEFAULT_PROVIDER as SupportedAgentProviderId | undefined,
-    instanceDefaultProviderModel: config.AGENT_DEFAULT_PROVIDER_MODEL,
-    instanceDefaultProviderThinking: config.AGENT_DEFAULT_PROVIDER_THINKING as
-      | AgentThinking
-      | undefined,
+    instanceDefaultProvider: config.AGENT_DEFAULT_PROVIDER as SupportedModelProviderId | undefined,
+    instanceDefaultModel: config.AGENT_DEFAULT_PROVIDER_MODEL,
+    instanceDefaultThinking: config.AGENT_DEFAULT_PROVIDER_THINKING as AgentThinking | undefined,
   };
 
   return (step) => resolveAgentConfig(step, ctx);
 }
 
-function toSupportedProviderId(providerId: AgentProviderRef): SupportedAgentProviderId | undefined {
-  const entry = getAgentProviderEntry(providerId);
+function toSupportedModelProviderId(
+  providerId: ModelProviderRef,
+): SupportedModelProviderId | undefined {
+  const entry = getModelProviderEntry(providerId);
   if (entry === undefined || entry.support_status !== 'supported') return undefined;
-  return providerId as SupportedAgentProviderId;
+  return providerId as SupportedModelProviderId;
 }

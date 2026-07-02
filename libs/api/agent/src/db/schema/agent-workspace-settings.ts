@@ -1,4 +1,4 @@
-import type {SupportedAgentProviderId} from '@shipfox/api-agent-dto';
+import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import type {AgentWorkspaceSettings} from '#core/entities/agent-workspace-settings.js';
 import {pgTable} from './common.js';
@@ -16,7 +16,7 @@ export type AgentWorkspaceSettingsCreateDb = typeof agentWorkspaceSettings.$infe
 export function toAgentWorkspaceSettings(row: AgentWorkspaceSettingsDb): AgentWorkspaceSettings {
   return {
     workspaceId: row.workspaceId,
-    defaultProviderId: row.defaultProviderId as SupportedAgentProviderId | null,
+    defaultProviderId: row.defaultProviderId as SupportedModelProviderId | null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

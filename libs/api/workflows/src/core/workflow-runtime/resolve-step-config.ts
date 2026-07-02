@@ -1,6 +1,6 @@
 import {
   InvalidAgentModelError,
-  UnsupportedAgentProviderError,
+  UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {MaterializedAgentStepConfigDto} from '@shipfox/api-agent-dto';
@@ -258,9 +258,18 @@ function agentStepConfig(
       model,
       thinking: step.thinking,
     });
-    return {config: {...resolved, prompt}, diagnostics, hasTemplates};
+    return {
+      config: {
+        provider: resolved.provider,
+        model: resolved.model,
+        thinking: resolved.thinking,
+        prompt,
+      },
+      diagnostics,
+      hasTemplates,
+    };
   } catch (error) {
-    if (error instanceof UnsupportedAgentProviderError || error instanceof InvalidAgentModelError) {
+    if (error instanceof UnsupportedModelProviderError || error instanceof InvalidAgentModelError) {
       throw new AgentConfigUnresolvableError(params.definitionId, {cause: error});
     }
     throw error;

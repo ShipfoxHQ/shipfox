@@ -45,15 +45,15 @@ function createTestRouter(
       return renderPage({workflowRunId});
     },
   });
-  const agentProviderSettingsRoute = createRoute({
+  const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/settings/agent-providers',
-    component: () => <div>Agent provider settings placeholder</div>,
+    path: '/workspaces/$wid/settings/model-providers',
+    component: () => <div>Model provider settings placeholder</div>,
   });
 
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),
-    routeTree: rootRoute.addChildren([runsRoute, runDetailRoute, agentProviderSettingsRoute]),
+    routeTree: rootRoute.addChildren([runsRoute, runDetailRoute, modelProviderSettingsRoute]),
   });
 }
 

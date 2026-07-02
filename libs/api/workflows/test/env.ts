@@ -7,6 +7,7 @@ process.env.POSTGRES_MAX_CONNECTIONS ??= '5';
 process.env.AUTH_JWT_SECRET = 'test-secret';
 process.env.AUTH_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
 process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET = 'test-runner-session-secret';
-process.env.AGENT_CREDENTIALS_ENCRYPTION_KEY = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
+process.env.AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY =
+  'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
 process.env.SECRETS_ENCRYPTION_KEK = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';
 process.env.TZ = 'UTC';

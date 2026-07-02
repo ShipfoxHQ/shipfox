@@ -1,8 +1,8 @@
 export {
   type AgentThinking,
   agentThinkingSchema,
-  DEFAULT_AGENT_PROVIDER,
   DEFAULT_AGENT_THINKING,
+  DEFAULT_MODEL_PROVIDER,
 } from './step-enums.js';
 export {
   type WorkflowDocument,

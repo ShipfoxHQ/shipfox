@@ -159,10 +159,10 @@ describe('CreateProjectPage', () => {
     expect(link).toHaveAttribute('href', `/workspaces/${PROJECT_TEST_WID}/integrations`);
   });
 
-  test('shows the agent provider reminder on project creation when no provider is configured', async () => {
+  test('shows the model provider reminder on project creation when no provider is configured', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const request = input as Request;
-      if (request.url.endsWith('/agent/providers')) {
+      if (request.url.endsWith('/agent/model-providers')) {
         return Promise.resolve(jsonResponse({configs: [], default_provider_id: null}));
       }
       if (request.url.includes('/integration-connections?')) {
@@ -177,10 +177,10 @@ describe('CreateProjectPage', () => {
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
 
-    expect(await screen.findByText('Finish setting up an agent provider')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Agent Providers'})).toHaveAttribute(
+    expect(await screen.findByText('Finish setting up a model provider')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Model Providers'})).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
+      `/workspaces/${PROJECT_TEST_WID}/settings/model-providers`,
     );
   });
 

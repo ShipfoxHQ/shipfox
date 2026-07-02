@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import {agentProviderQueryKeys, dismissAgentProviderOnboarding} from '@shipfox/client-agent';
+import {dismissModelProviderOnboarding, modelProviderQueryKeys} from '@shipfox/client-agent';
 import {configureApiClient} from '@shipfox/client-api';
 import {integrationsQueryKeys} from '@shipfox/client-integrations';
 import {FullPageLoader} from '@shipfox/react-ui';
@@ -64,7 +64,7 @@ function setupFetch(options: SetupFetchOptions = {}) {
   const {
     projects = [],
     connections = [],
-    providerConfigs = [agentProviderConfig()],
+    providerConfigs = [modelProviderConfig()],
     defaultProviderId = 'anthropic',
     projectsFail = false,
     connectionsFail = false,
@@ -84,7 +84,7 @@ function setupFetch(options: SetupFetchOptions = {}) {
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(jsonResponse({connections}));
     }
-    if (url.endsWith('/agent/providers')) {
+    if (url.endsWith('/agent/model-providers')) {
       if (providerConfigsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(
@@ -122,11 +122,11 @@ function renderSetupRoute(
     });
   const routeTree = rootRoute.addChildren([
     guardedRoute('/workspaces/$wid', 'Workspace home'),
-    guardedRoute('/workspaces/$wid/agent-provider', 'Agent provider onboarding'),
+    guardedRoute('/workspaces/$wid/model-provider', 'Model provider onboarding'),
     guardedRoute('/workspaces/$wid/integrations', 'VCS onboarding'),
     guardedRoute('/workspaces/$wid/integrations/debug', 'Debug install'),
     guardedRoute('/workspaces/$wid/projects/new', 'Create project'),
-    guardedRoute('/workspaces/$wid/settings/agent-providers', 'Settings agent providers'),
+    guardedRoute('/workspaces/$wid/settings/model-providers', 'Settings model providers'),
     guardedRoute('/workspaces/$wid/settings/integrations', 'Settings integrations'),
   ]);
   const router = createRouter({
@@ -162,7 +162,7 @@ function projectStub() {
   return {id: 'project-1', workspace_id: WORKSPACE_ID, name: 'Platform'};
 }
 
-function agentProviderConfig() {
+function modelProviderConfig() {
   return {
     provider_id: 'anthropic',
     default_model: null,
@@ -264,13 +264,13 @@ describe('workspace setup route hook', () => {
       }),
     );
 
-    expect(await screen.findByText('Agent provider onboarding')).toBeInTheDocument();
+    expect(await screen.findByText('Model provider onboarding')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 
   test('keeps the provider onboarding route available while provider setup is pending', async () => {
     renderSetupRoute(
-      `/workspaces/${WORKSPACE_ID}/agent-provider`,
+      `/workspaces/${WORKSPACE_ID}/model-provider`,
       setupFetch({
         connections: [sourceConnection()],
         providerConfigs: [],
@@ -278,13 +278,13 @@ describe('workspace setup route hook', () => {
       }),
     );
 
-    expect(await screen.findByText('Agent provider onboarding')).toBeInTheDocument();
+    expect(await screen.findByText('Model provider onboarding')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 
-  test('keeps agent provider settings available before first project creation', async () => {
+  test('keeps model provider settings available before first project creation', async () => {
     renderSetupRoute(
-      `/workspaces/${WORKSPACE_ID}/settings/agent-providers`,
+      `/workspaces/${WORKSPACE_ID}/settings/model-providers`,
       setupFetch({
         connections: [sourceConnection()],
         providerConfigs: [],
@@ -292,18 +292,18 @@ describe('workspace setup route hook', () => {
       }),
     );
 
-    expect(await screen.findByText('Settings agent providers')).toBeInTheDocument();
+    expect(await screen.findByText('Settings model providers')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 
   test('uses a dismissed provider step without fetching provider configs', async () => {
     const fetchImpl = setupFetch({connections: [sourceConnection()]});
-    dismissAgentProviderOnboarding(WORKSPACE_ID);
+    dismissModelProviderOnboarding(WORKSPACE_ID);
 
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl);
 
     expect(await screen.findByText('Create project')).toBeInTheDocument();
-    expect(calledUrls(fetchImpl).some((url) => url.endsWith('/agent/providers'))).toBe(false);
+    expect(calledUrls(fetchImpl).some((url) => url.endsWith('/agent/model-providers'))).toBe(false);
   });
 
   test('uses cached provider config state when the provider config refetch fails', async () => {
@@ -311,8 +311,8 @@ describe('workspace setup route hook', () => {
 
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
       seedQueryClient: (queryClient) => {
-        queryClient.setQueryData(agentProviderQueryKeys.configs(WORKSPACE_ID), {
-          configs: [agentProviderConfig()],
+        queryClient.setQueryData(modelProviderQueryKeys.configs(WORKSPACE_ID), {
+          configs: [modelProviderConfig()],
           default_provider_id: 'anthropic',
         });
       },
@@ -320,7 +320,9 @@ describe('workspace setup route hook', () => {
 
     expect(await screen.findByText('Create project')).toBeInTheDocument();
     await waitFor(() =>
-      expect(calledUrls(fetchImpl).some((url) => url.endsWith('/agent/providers'))).toBe(true),
+      expect(calledUrls(fetchImpl).some((url) => url.endsWith('/agent/model-providers'))).toBe(
+        true,
+      ),
     );
     expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
   });

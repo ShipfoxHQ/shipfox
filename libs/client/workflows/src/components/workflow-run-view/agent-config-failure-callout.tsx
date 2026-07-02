@@ -28,8 +28,8 @@ export function AgentConfigFailureCallout({
         {copy.showProviderCta ? (
           <AlertActions>
             <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-              <Link to="/workspaces/$wid/settings/agent-providers" params={{wid: workspaceId}}>
-                Configure Agent Providers
+              <Link to="/workspaces/$wid/settings/model-providers" params={{wid: workspaceId}}>
+                Configure Model Providers
               </Link>
             </Button>
           </AlertActions>
@@ -47,21 +47,21 @@ function agentConfigFailureCopy(
   const model = configValue(config?.model, 'the selected model');
 
   switch (error?.agentConfigIssue) {
-    case 'provider_not_configured':
+    case 'model_provider_not_configured':
       return {
         title: `Configure credentials for ${provider}`,
-        description: `This step uses ${provider}, but no workspace credentials are configured for that provider. Configure ${provider} in Agent Providers, then re-run the workflow.`,
+        description: `This step uses ${provider}, but no workspace credentials are configured for that model provider. Configure ${provider} in Model Providers, then re-run the workflow.`,
         showProviderCta: true,
       };
     case 'credentials_invalid':
       return {
         title: `Update credentials for ${provider}`,
-        description: `This step uses ${provider}, but the saved credentials could not be used. Reconfigure ${provider} in Agent Providers, then re-run the workflow.`,
+        description: `This step uses ${provider}, but the saved credentials could not be used. Reconfigure ${provider} in Model Providers, then re-run the workflow.`,
         showProviderCta: true,
       };
-    case 'provider_unsupported':
+    case 'model_provider_unsupported':
       return {
-        title: `Choose a supported agent provider`,
+        title: `Choose a supported model provider`,
         description: `This step references ${provider}, which is not available to the agent runner. Update the workflow to use a supported provider, then re-run it.`,
         showProviderCta: false,
       };
@@ -82,7 +82,7 @@ function agentConfigFailureCopy(
       return {
         title: "We couldn't load the agent configuration for this step",
         description:
-          'Make sure the step has a prompt, provider, model, and thinking value. Then configure credentials for the provider in Agent Providers and re-run the workflow.',
+          'Make sure the step has a prompt, provider, model, and thinking value. Then configure credentials for the model provider in Model Providers and re-run the workflow.',
         showProviderCta: true,
       };
   }

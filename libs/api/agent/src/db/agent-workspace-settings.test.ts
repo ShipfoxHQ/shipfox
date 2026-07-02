@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
-import type {AgentThinking, SupportedAgentProviderId} from '@shipfox/api-agent-dto';
-import {AgentProviderConfigNotFoundError} from '#core/index.js';
-import {getAgentWorkspaceSettings, setDefaultAgentProvider} from '#db/index.js';
+import type {AgentThinking, SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import {ModelProviderConfigNotFoundError} from '#core/index.js';
+import {getAgentWorkspaceSettings, setDefaultModelProvider} from '#db/index.js';
 import {
-  type UpsertAgentProviderConfigParams,
-  upsertAgentProviderConfig,
-} from './agent-provider-configs.js';
+  type UpsertModelProviderConfigParams,
+  upsertModelProviderConfig,
+} from './model-provider-configs.js';
 
 describe('agent workspace settings', () => {
   let workspaceId: string;
@@ -14,12 +14,12 @@ describe('agent workspace settings', () => {
     workspaceId = crypto.randomUUID();
   });
 
-  it('persists the workspace default provider', async () => {
-    await upsertAgentProviderConfig(
-      createProviderConfigParams({workspaceId, providerId: 'anthropic'}),
+  it('persists the workspace default model provider', async () => {
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
 
-    const settings = await setDefaultAgentProvider({workspaceId, providerId: 'anthropic'});
+    const settings = await setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
 
     const found = await getAgentWorkspaceSettings(workspaceId);
     expect(found).toEqual(settings);
@@ -31,29 +31,29 @@ describe('agent workspace settings', () => {
     expect(found?.updatedAt).toBeInstanceOf(Date);
   });
 
-  it('updates the workspace default provider', async () => {
-    await upsertAgentProviderConfig(
-      createProviderConfigParams({workspaceId, providerId: 'anthropic'}),
+  it('updates the workspace default model provider', async () => {
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
-    await upsertAgentProviderConfig(
-      createProviderConfigParams({workspaceId, providerId: 'openai'}),
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({workspaceId, providerId: 'openai'}),
     );
-    await setDefaultAgentProvider({workspaceId, providerId: 'anthropic'});
+    await setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
 
-    const updated = await setDefaultAgentProvider({workspaceId, providerId: 'openai'});
+    const updated = await setDefaultModelProvider({workspaceId, providerId: 'openai'});
 
     const found = await getAgentWorkspaceSettings(workspaceId);
     expect(found).toEqual(updated);
     expect(found?.defaultProviderId).toBe('openai');
   });
 
-  it('clears the workspace default provider', async () => {
-    await upsertAgentProviderConfig(
-      createProviderConfigParams({workspaceId, providerId: 'anthropic'}),
+  it('clears the workspace default model provider', async () => {
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
-    await setDefaultAgentProvider({workspaceId, providerId: 'anthropic'});
+    await setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
 
-    await setDefaultAgentProvider({workspaceId, providerId: null});
+    await setDefaultModelProvider({workspaceId, providerId: null});
 
     const found = await getAgentWorkspaceSettings(workspaceId);
     expect(found?.defaultProviderId).toBeNull();
@@ -65,18 +65,18 @@ describe('agent workspace settings', () => {
     expect(found).toBeUndefined();
   });
 
-  it('rejects a default provider without a matching config', async () => {
-    const result = setDefaultAgentProvider({workspaceId, providerId: 'anthropic'});
+  it('rejects a default model provider without a matching config', async () => {
+    const result = setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
 
-    await expect(result).rejects.toBeInstanceOf(AgentProviderConfigNotFoundError);
+    await expect(result).rejects.toBeInstanceOf(ModelProviderConfigNotFoundError);
   });
 });
 
-function createProviderConfigParams(params: {
+function createModelProviderConfigParams(params: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: SupportedModelProviderId;
   defaultThinking?: AgentThinking | undefined;
-}): UpsertAgentProviderConfigParams {
+}): UpsertModelProviderConfigParams {
   return {
     workspaceId: params.workspaceId,
     providerId: params.providerId,

@@ -1,10 +1,10 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
-import {agentProviderConfigs} from './schema/agent-provider-configs.js';
 import {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
+import {modelProviderConfigs} from './schema/model-provider-configs.js';
 
 export const schema = {
-  agentProviderConfigs,
+  modelProviderConfigs,
   agentWorkspaceSettings,
 };
 

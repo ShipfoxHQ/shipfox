@@ -9,4 +9,4 @@ export type AgentThinking = z.infer<typeof agentThinkingSchema>;
 export const DEFAULT_AGENT_THINKING = 'high' as const satisfies AgentThinking;
 
 // Used by later resolution layers when no workspace or instance provider is configured.
-export const DEFAULT_AGENT_PROVIDER = 'anthropic' as const;
+export const DEFAULT_MODEL_PROVIDER = 'anthropic' as const;

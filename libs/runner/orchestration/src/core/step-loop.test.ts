@@ -871,8 +871,8 @@ describe('runJobSteps', () => {
     requestAgentRuntimeConfigMock.mockRejectedValueOnce(
       new AgentRuntimeConfigRequestError(
         409,
-        'agent-provider-not-configured',
-        'provider_not_configured',
+        'model-provider-not-configured',
+        'model_provider_not_configured',
       ),
     );
     const ac = new AbortController();
@@ -887,7 +887,7 @@ describe('runJobSteps', () => {
         status: 'failed',
         error: expect.objectContaining({
           reason: 'agent_config_invalid',
-          agent_config_issue: 'provider_not_configured',
+          agent_config_issue: 'model_provider_not_configured',
         }),
       }),
     );

@@ -1,7 +1,7 @@
 import type {
-  AgentProviderCatalogEntryDto,
-  AgentProviderConfigDto,
-  SupportedAgentProviderId,
+  ModelProviderCatalogEntryDto,
+  ModelProviderConfigDto,
+  SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {
   Alert,
@@ -16,18 +16,18 @@ import {
 } from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
-import {useUpsertAgentProviderConfigMutation} from '#hooks/api/agent-providers.js';
+import {useUpsertModelProviderConfigMutation} from '#hooks/api/model-providers.js';
 import {
   DefaultModelField,
   defaultModelFormValue,
   LATEST_MODEL_VALUE,
   selectedModelForCredentialsPayload,
 } from './default-model-field.js';
-import {agentProviderConfigErrorToFormError} from './form-errors.js';
+import {modelProviderConfigErrorToFormError} from './form-errors.js';
 
-export const AGENT_PROVIDER_TEST_AND_SAVE_FORM_ID = 'agent-provider-test-and-save-form';
+export const MODEL_PROVIDER_TEST_AND_SAVE_FORM_ID = 'model-provider-test-and-save-form';
 
-export function AgentProviderTestAndSaveForm({
+export function ModelProviderTestAndSaveForm({
   workspaceId,
   entry,
   existingConfig,
@@ -35,12 +35,12 @@ export function AgentProviderTestAndSaveForm({
   setAsDefaultOnSave = false,
 }: {
   workspaceId: string;
-  entry: AgentProviderCatalogEntryDto;
-  existingConfig?: AgentProviderConfigDto | undefined;
+  entry: ModelProviderCatalogEntryDto;
+  existingConfig?: ModelProviderConfigDto | undefined;
   onSaved: (savedDefaultModel: string | null) => void;
   setAsDefaultOnSave?: boolean | undefined;
 }) {
-  const upsertConfig = useUpsertAgentProviderConfigMutation();
+  const upsertConfig = useUpsertModelProviderConfigMutation();
   const [formError, setFormError] = useState<string | undefined>();
   const form = useForm({
     defaultValues: defaultFormValues(entry, existingConfig),
@@ -61,7 +61,7 @@ export function AgentProviderTestAndSaveForm({
       try {
         await upsertConfig.mutateAsync({
           workspaceId,
-          providerId: entry.id as SupportedAgentProviderId,
+          providerId: entry.id as SupportedModelProviderId,
           body: {
             ...(defaultModel !== undefined ? {default_model: defaultModel} : {}),
             credentials,
@@ -70,7 +70,7 @@ export function AgentProviderTestAndSaveForm({
         });
         onSaved(selectedModelForCredentialsPayload(selectedModel));
       } catch (error) {
-        const mapped = agentProviderConfigErrorToFormError(error);
+        const mapped = modelProviderConfigErrorToFormError(error);
         setFormError(mapped.message);
       }
     },
@@ -80,7 +80,7 @@ export function AgentProviderTestAndSaveForm({
     <>
       <ModalBody className="gap-16">
         <form
-          id={AGENT_PROVIDER_TEST_AND_SAVE_FORM_ID}
+          id={MODEL_PROVIDER_TEST_AND_SAVE_FORM_ID}
           className="flex w-full flex-col gap-14"
           noValidate
           onSubmit={(event) => {
@@ -127,7 +127,7 @@ export function AgentProviderTestAndSaveForm({
                 return (
                   <FormField
                     label={credentialField.label}
-                    id={`agent-provider-${entry.id}-${credentialField.key}`}
+                    id={`model-provider-${entry.id}-${credentialField.key}`}
                     error={fieldError(field)}
                   >
                     <FormFieldInput
@@ -165,7 +165,7 @@ export function AgentProviderTestAndSaveForm({
       <ModalFooter>
         <Button
           type="submit"
-          form={AGENT_PROVIDER_TEST_AND_SAVE_FORM_ID}
+          form={MODEL_PROVIDER_TEST_AND_SAVE_FORM_ID}
           isLoading={upsertConfig.isPending}
         >
           Test & save
@@ -176,8 +176,8 @@ export function AgentProviderTestAndSaveForm({
 }
 
 function defaultFormValues(
-  entry: AgentProviderCatalogEntryDto,
-  existingConfig: AgentProviderConfigDto | undefined,
+  entry: ModelProviderCatalogEntryDto,
+  existingConfig: ModelProviderConfigDto | undefined,
 ): Record<string, string> {
   return {
     default_model: defaultModelFormValue(existingConfig?.default_model),

@@ -1,17 +1,17 @@
 import crypto from 'node:crypto';
-import type {AgentThinking, SupportedAgentProviderId} from '@shipfox/api-agent-dto';
+import type {AgentThinking, SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {
   getAgentWorkspaceSettings,
-  setDefaultAgentProvider,
-  type UpsertAgentProviderConfigParams,
-  upsertAgentProviderConfig,
+  setDefaultModelProvider,
+  type UpsertModelProviderConfigParams,
+  upsertModelProviderConfig,
 } from '#db/index.js';
-import {InvalidAgentModelError, UnsupportedAgentProviderError} from './errors.js';
+import {InvalidAgentModelError, UnsupportedModelProviderError} from './errors.js';
 import {catalogDefaultAgentResolver, resolveAgentConfig} from './resolve-agent-config.js';
 import {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';
 
 describe('resolveAgentConfig', () => {
-  test('resolves provider from explicit step, workspace, instance, then catalog default', () => {
+  test('resolves model provider from explicit step, workspace, instance, then catalog default', () => {
     const workspaceProviderConfigs = new Map([
       ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],
       [
@@ -56,7 +56,7 @@ describe('resolveAgentConfig', () => {
       {},
       {
         instanceDefaultProvider: 'anthropic',
-        instanceDefaultProviderModel: 'claude-opus-4-8',
+        instanceDefaultModel: 'claude-opus-4-8',
       },
     );
     const workspaceLatest = resolveAgentConfig({provider: 'anthropic'}, {workspaceProviderConfigs});
@@ -69,13 +69,13 @@ describe('resolveAgentConfig', () => {
     expect(catalog.model).toBe('deepseek-v4-pro');
   });
 
-  test('uses instance model and thinking only for the resolved instance provider', () => {
+  test('uses instance model and thinking only for the resolved instance model provider', () => {
     const resolved = resolveAgentConfig(
       {provider: 'openai'},
       {
         instanceDefaultProvider: 'anthropic',
-        instanceDefaultProviderModel: 'claude-opus-4-8',
-        instanceDefaultProviderThinking: 'low',
+        instanceDefaultModel: 'claude-opus-4-8',
+        instanceDefaultThinking: 'low',
       },
     );
 
@@ -98,7 +98,7 @@ describe('resolveAgentConfig', () => {
     const workspace = resolveAgentConfig({provider: 'openai'}, {workspaceProviderConfigs});
     const instance = resolveAgentConfig(
       {},
-      {instanceDefaultProvider: 'anthropic', instanceDefaultProviderThinking: 'medium'},
+      {instanceDefaultProvider: 'anthropic', instanceDefaultThinking: 'medium'},
     );
     const fallback = resolveAgentConfig({provider: 'deepseek'});
 
@@ -110,14 +110,14 @@ describe('resolveAgentConfig', () => {
 
   test('throws for unsupported providers and unavailable models', () => {
     expect(() => resolveAgentConfig({provider: 'amazon-bedrock'})).toThrow(
-      UnsupportedAgentProviderError,
+      UnsupportedModelProviderError,
     );
     expect(() => resolveAgentConfig({provider: 'anthropic', model: 'not-a-model'})).toThrow(
       InvalidAgentModelError,
     );
   });
 
-  test('falls through to the instance default when the workspace default provider is null', () => {
+  test('falls through to the instance default when the workspace default model provider is null', () => {
     const resolved = resolveAgentConfig(
       {},
       {workspaceDefaultProviderId: null, instanceDefaultProvider: 'anthropic'},
@@ -126,21 +126,24 @@ describe('resolveAgentConfig', () => {
     expect(resolved.provider).toBe('anthropic');
   });
 
-  test('throws when a stored workspace default provider is no longer supported', () => {
+  test('throws when a stored workspace default model provider is no longer supported', () => {
     const resolve = () =>
       resolveAgentConfig(
         {},
-        {workspaceDefaultProviderId: 'amazon-bedrock' as SupportedAgentProviderId},
+        {workspaceDefaultProviderId: 'amazon-bedrock' as SupportedModelProviderId},
       );
 
-    expect(resolve).toThrow(UnsupportedAgentProviderError);
+    expect(resolve).toThrow(UnsupportedModelProviderError);
   });
 
   test('validates the instance default model and rejects an unknown one', () => {
     const resolve = () =>
       resolveAgentConfig(
         {},
-        {instanceDefaultProvider: 'anthropic', instanceDefaultProviderModel: 'not-a-model'},
+        {
+          instanceDefaultProvider: 'anthropic',
+          instanceDefaultModel: 'not-a-model',
+        },
       );
 
     expect(resolve).toThrow(InvalidAgentModelError);
@@ -164,16 +167,16 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     workspaceId = crypto.randomUUID();
   });
 
-  test('preloads workspace settings and provider configs for resolution', async () => {
-    await upsertAgentProviderConfig(
-      createProviderConfigParams({
+  test('preloads workspace settings and model provider configs for resolution', async () => {
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({
         workspaceId,
         providerId: 'openai',
         defaultModel: 'gpt-5.5-pro',
         defaultThinking: 'medium',
       }),
     );
-    await setDefaultAgentProvider({workspaceId, providerId: 'openai'});
+    await setDefaultModelProvider({workspaceId, providerId: 'openai'});
 
     const resolver = await createWorkspaceAgentDefaultsResolver(workspaceId);
     const resolved = resolver({});
@@ -199,9 +202,9 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     });
   });
 
-  test('uses workspace provider config defaults when settings row does not exist', async () => {
-    await upsertAgentProviderConfig(
-      createProviderConfigParams({
+  test('uses workspace model provider config defaults when settings row does not exist', async () => {
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({
         workspaceId,
         providerId: 'openai',
         defaultModel: 'gpt-5.5-pro',
@@ -219,9 +222,9 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     });
   });
 
-  test('uses catalog model when the workspace provider config keeps latest selected', async () => {
-    await upsertAgentProviderConfig(
-      createProviderConfigParams({
+  test('uses catalog model when the workspace model provider config keeps latest selected', async () => {
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({
         workspaceId,
         providerId: 'openai',
         defaultModel: null,
@@ -240,12 +243,12 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
   });
 });
 
-function createProviderConfigParams(params: {
+function createModelProviderConfigParams(params: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: SupportedModelProviderId;
   defaultModel: string | null;
   defaultThinking: AgentThinking;
-}): UpsertAgentProviderConfigParams {
+}): UpsertModelProviderConfigParams {
   return {
     workspaceId: params.workspaceId,
     providerId: params.providerId,

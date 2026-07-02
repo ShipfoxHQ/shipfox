@@ -1,6 +1,6 @@
 import {
   InvalidAgentModelError,
-  UnsupportedAgentProviderError,
+  UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions';
@@ -323,7 +323,7 @@ describe('materializeWorkflowModel', () => {
   });
 
   it.each([
-    new UnsupportedAgentProviderError('unknown-provider'),
+    new UnsupportedModelProviderError('unknown-provider'),
     new InvalidAgentModelError('anthropic', 'missing-model'),
   ])('wraps known resolver errors as permanent agent config errors', (cause) => {
     const model = workflowModel({

@@ -206,7 +206,7 @@ describe('api-client auth contexts', () => {
   });
 
   it('requestAgentRuntimeConfig maps server config errors to agent config issues', async () => {
-    stubFetch(() => jsonResponse({code: 'agent-provider-not-configured'}, 409));
+    stubFetch(() => jsonResponse({code: 'model-provider-not-configured'}, 409));
     const leaseClient = createLeaseClient('lease-runtime');
 
     const request = requestAgentRuntimeConfig(leaseClient, {
@@ -217,8 +217,8 @@ describe('api-client auth contexts', () => {
     await expect(request).rejects.toMatchObject(
       new AgentRuntimeConfigRequestError(
         409,
-        'agent-provider-not-configured',
-        'provider_not_configured',
+        'model-provider-not-configured',
+        'model_provider_not_configured',
       ),
     );
   });
