@@ -4,6 +4,10 @@ export const config = createConfig({
   GITEA_BASE_URL: url({
     desc: 'Base URL of the Gitea instance the provider connects to, including the scheme (for example https://gitea.example.com). Required.',
   }),
+  GITEA_CLONE_BASE_URL: str({
+    desc: 'Base URL runners use when cloning Gitea repositories. Leave it unset to use clone URLs reported by Gitea, or set it when runners reach Gitea through a different scheme, host, or port.',
+    default: undefined,
+  }),
   GITEA_SERVICE_USERNAME: str({
     desc: 'Username of the Gitea service account the provider authenticates as. Required.',
   }),
@@ -22,3 +26,17 @@ export const config = createConfig({
     default: 10_000,
   }),
 });
+
+export const giteaCloneBaseOrigin = parseGiteaCloneBaseOrigin(config.GITEA_CLONE_BASE_URL);
+
+function parseGiteaCloneBaseOrigin(value: string | undefined): URL | undefined {
+  if (!value) return undefined;
+
+  try {
+    return new URL(value);
+  } catch {
+    throw new Error(
+      'GITEA_CLONE_BASE_URL must be an absolute URL with a scheme, host, and optional port.',
+    );
+  }
+}

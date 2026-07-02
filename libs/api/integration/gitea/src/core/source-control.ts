@@ -19,7 +19,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
 import type {GiteaApiClient, GiteaRepository} from '#api/client.js';
-import {config} from '#config.js';
+import {config, giteaCloneBaseOrigin} from '#config.js';
 import {GiteaIntegrationProviderError} from './errors.js';
 
 type GiteaIntegrationConnection = IntegrationConnection<'gitea'>;
@@ -145,10 +145,7 @@ export class GiteaSourceControlProvider
     const ref = input.ref?.trim() || repository.defaultBranch;
 
     return {
-      // The provider's own clone URL respects a Gitea instance whose external
-      // clone host differs from the API base; it is credential-free, so the
-      // CheckoutSpec "no auth material in repositoryUrl" contract still holds.
-      repositoryUrl: repository.cloneUrl,
+      repositoryUrl: createCheckoutRepositoryUrl(repository.cloneUrl),
       ref,
       // Gitea has no per-repo, auto-expiring token like a GitHub App installation
       // token, so checkout reuses the long-lived service credential. `expiresAt`
@@ -161,6 +158,17 @@ export class GiteaSourceControlProvider
       },
     };
   }
+}
+
+function createCheckoutRepositoryUrl(cloneUrl: string): string {
+  if (!giteaCloneBaseOrigin) return cloneUrl;
+
+  const repositoryUrl = new URL(cloneUrl);
+
+  repositoryUrl.protocol = giteaCloneBaseOrigin.protocol;
+  repositoryUrl.host = giteaCloneBaseOrigin.host;
+
+  return repositoryUrl.toString();
 }
 
 function toRepositorySnapshot(repository: GiteaRepository): RepositorySnapshot {
