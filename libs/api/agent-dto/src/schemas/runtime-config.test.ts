@@ -12,7 +12,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
     expect(parsed.provider_id).toBe('anthropic');
   });
 
-  it('parses runtime credentials with a custom provider descriptor', () => {
+  it('parses runtime credentials with a custom model provider descriptor', () => {
     const parsed = agentRuntimeCredentialsResponseSchema.parse({
       provider_id: 'local-vllm',
       model: 'llama-3.1',
@@ -31,7 +31,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
     expect(parsed.custom_provider?.api).toBe('openai-responses');
   });
 
-  it('rejects custom provider runtime credentials without a custom provider descriptor', () => {
+  it('rejects custom model provider runtime credentials without a custom model provider descriptor', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
         provider_id: 'local-vllm',

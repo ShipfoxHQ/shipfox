@@ -6,4 +6,4 @@
 "@shipfox/client-router": minor
 ---
 
-Adds workspace agent provider settings for configuring, testing, defaulting, and deleting provider credentials.
+Adds workspace model provider settings for configuring, testing, defaulting, and deleting provider credentials.

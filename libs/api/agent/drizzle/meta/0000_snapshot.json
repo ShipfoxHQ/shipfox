@@ -4,8 +4,8 @@
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.agent_provider_configs": {
-      "name": "agent_provider_configs",
+    "public.model_provider_configs": {
+      "name": "model_provider_configs",
       "schema": "",
       "columns": {
         "id": {
@@ -29,7 +29,7 @@
         },
         "kind": {
           "name": "kind",
-          "type": "agent_provider_config_kind",
+          "type": "model_provider_config_kind",
           "primaryKey": false,
           "notNull": true,
           "default": "'builtin'"
@@ -104,8 +104,8 @@
         }
       },
       "indexes": {
-        "agent_provider_configs_workspace_provider_unique": {
-          "name": "agent_provider_configs_workspace_provider_unique",
+        "model_provider_configs_workspace_provider_unique": {
+          "name": "model_provider_configs_workspace_provider_unique",
           "columns": [
             {
               "expression": "workspace_id",
@@ -131,9 +131,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "agent_provider_configs_custom_required_fields": {
-          "name": "agent_provider_configs_custom_required_fields",
-          "value": "\"agent_provider_configs\".\"kind\" <> 'custom' OR (\"agent_provider_configs\".\"api\" IS NOT NULL AND \"agent_provider_configs\".\"base_url\" IS NOT NULL AND \"agent_provider_configs\".\"models\" IS NOT NULL AND \"agent_provider_configs\".\"display_name\" IS NOT NULL)"
+        "model_provider_configs_custom_required_fields": {
+          "name": "model_provider_configs_custom_required_fields",
+          "value": "\"model_provider_configs\".\"kind\" <> 'custom' OR (\"model_provider_configs\".\"api\" IS NOT NULL AND \"model_provider_configs\".\"base_url\" IS NOT NULL AND \"model_provider_configs\".\"models\" IS NOT NULL AND \"model_provider_configs\".\"display_name\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -179,8 +179,8 @@
     }
   },
   "enums": {
-    "public.agent_provider_config_kind": {
-      "name": "agent_provider_config_kind",
+    "public.model_provider_config_kind": {
+      "name": "model_provider_config_kind",
       "schema": "public",
       "values": ["builtin", "custom"]
     }

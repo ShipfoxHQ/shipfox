@@ -1,6 +1,6 @@
-import type {AgentProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
+import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 
-export function providerMatchesSearch(entry: AgentProviderCatalogEntryDto, query: string): boolean {
+export function providerMatchesSearch(entry: ModelProviderCatalogEntryDto, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === '') return true;
 

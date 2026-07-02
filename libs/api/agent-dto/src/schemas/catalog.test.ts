@@ -1,28 +1,28 @@
 import {
-  AGENT_PROVIDER_CATALOG_SEED,
-  agentProviderCatalogEntrySchema,
-  agentProviderCatalogSeedSchema,
   agentThinkingSchema,
   DEFAULT_AGENT_THINKING,
-  getAgentProviderEntry,
-  listSupportedAgentProviders,
+  getModelProviderEntry,
+  listSupportedModelProviders,
+  MODEL_PROVIDER_CATALOG_SEED,
+  modelProviderCatalogEntrySchema,
+  modelProviderCatalogSeedSchema,
 } from './catalog.js';
 import {
-  AGENT_PROVIDER_IDS,
-  SUPPORTED_AGENT_PROVIDER_IDS,
-  UNSUPPORTED_AGENT_PROVIDER_IDS,
-} from './provider-id.js';
+  MODEL_PROVIDER_IDS,
+  SUPPORTED_MODEL_PROVIDER_IDS,
+  UNSUPPORTED_MODEL_PROVIDER_IDS,
+} from './model-provider-id.js';
 
-describe('agent provider catalog', () => {
+describe('model provider catalog', () => {
   it('parses the catalog seed', () => {
-    const parsed = agentProviderCatalogSeedSchema.array().parse(AGENT_PROVIDER_CATALOG_SEED);
+    const parsed = modelProviderCatalogSeedSchema.array().parse(MODEL_PROVIDER_CATALOG_SEED);
 
     expect(parsed).toHaveLength(35);
   });
 
   it('rejects a supported provider without a default model', () => {
     const parse = () =>
-      agentProviderCatalogSeedSchema.parse({
+      modelProviderCatalogSeedSchema.parse({
         id: 'openai',
         label: 'OpenAI',
         support_status: 'supported',
@@ -36,7 +36,7 @@ describe('agent provider catalog', () => {
 
   it('rejects a supported provider without credential fields', () => {
     const parse = () =>
-      agentProviderCatalogSeedSchema.parse({
+      modelProviderCatalogSeedSchema.parse({
         id: 'openai',
         label: 'OpenAI',
         support_status: 'supported',
@@ -50,7 +50,7 @@ describe('agent provider catalog', () => {
 
   it('rejects an unsupported provider with a default model', () => {
     const parse = () =>
-      agentProviderCatalogSeedSchema.parse({
+      modelProviderCatalogSeedSchema.parse({
         id: 'github-copilot',
         label: 'GitHub Copilot',
         support_status: 'unsupported',
@@ -64,7 +64,7 @@ describe('agent provider catalog', () => {
 
   it('rejects an unsupported provider with credential fields', () => {
     const parse = () =>
-      agentProviderCatalogSeedSchema.parse({
+      modelProviderCatalogSeedSchema.parse({
         id: 'github-copilot',
         label: 'GitHub Copilot',
         support_status: 'unsupported',
@@ -78,7 +78,7 @@ describe('agent provider catalog', () => {
 
   it('rejects a catalog entry whose support status disagrees with its provider id', () => {
     const parse = () =>
-      agentProviderCatalogSeedSchema.parse({
+      modelProviderCatalogSeedSchema.parse({
         id: 'github-copilot',
         label: 'GitHub Copilot',
         support_status: 'supported',
@@ -91,22 +91,22 @@ describe('agent provider catalog', () => {
   });
 
   it('keeps catalog ids unique and synced with provider id constants', () => {
-    const supportedIds = AGENT_PROVIDER_CATALOG_SEED.filter(
+    const supportedIds = MODEL_PROVIDER_CATALOG_SEED.filter(
       (entry) => entry.support_status === 'supported',
     ).map((entry) => entry.id);
-    const unsupportedIds = AGENT_PROVIDER_CATALOG_SEED.filter(
+    const unsupportedIds = MODEL_PROVIDER_CATALOG_SEED.filter(
       (entry) => entry.support_status === 'unsupported',
     ).map((entry) => entry.id);
     const ids = [...supportedIds, ...unsupportedIds];
 
-    expect(supportedIds).toEqual([...SUPPORTED_AGENT_PROVIDER_IDS]);
-    expect(unsupportedIds).toEqual([...UNSUPPORTED_AGENT_PROVIDER_IDS]);
-    expect(ids).toEqual([...AGENT_PROVIDER_IDS]);
+    expect(supportedIds).toEqual([...SUPPORTED_MODEL_PROVIDER_IDS]);
+    expect(unsupportedIds).toEqual([...UNSUPPORTED_MODEL_PROVIDER_IDS]);
+    expect(ids).toEqual([...MODEL_PROVIDER_IDS]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('defines non-empty supported credential fields with at least one secret field', () => {
-    const supportedEntries = AGENT_PROVIDER_CATALOG_SEED.filter(
+    const supportedEntries = MODEL_PROVIDER_CATALOG_SEED.filter(
       (entry) => entry.support_status === 'supported',
     );
 
@@ -122,8 +122,8 @@ describe('agent provider catalog', () => {
   });
 
   it('does not share credential field arrays between API-key providers', () => {
-    const anthropic = getAgentProviderEntry('anthropic');
-    const openai = getAgentProviderEntry('openai');
+    const anthropic = getModelProviderEntry('anthropic');
+    const openai = getModelProviderEntry('openai');
     if (anthropic === undefined || openai === undefined) {
       throw new Error('Missing API-key catalog entries');
     }
@@ -139,7 +139,7 @@ describe('agent provider catalog', () => {
   });
 
   it('parses catalog response entries assembled from seed entries and models', () => {
-    const responseEntries = AGENT_PROVIDER_CATALOG_SEED.map((entry) => ({
+    const responseEntries = MODEL_PROVIDER_CATALOG_SEED.map((entry) => ({
       ...entry,
       models:
         entry.default_model === null
@@ -147,26 +147,26 @@ describe('agent provider catalog', () => {
           : [{id: entry.default_model, label: `${entry.label} default`}],
     }));
 
-    const parsed = agentProviderCatalogEntrySchema.array().parse(responseEntries);
+    const parsed = modelProviderCatalogEntrySchema.array().parse(responseEntries);
 
     expect(parsed).toHaveLength(35);
   });
 
   it('rejects a supported response entry without models', () => {
-    const supportedEntry = getAgentProviderEntry('openai');
+    const supportedEntry = getModelProviderEntry('openai');
     if (supportedEntry === undefined) throw new Error('Missing OpenAI catalog entry');
 
-    const parse = () => agentProviderCatalogEntrySchema.parse({...supportedEntry, models: []});
+    const parse = () => modelProviderCatalogEntrySchema.parse({...supportedEntry, models: []});
 
     expect(parse).toThrow();
   });
 
   it('rejects a supported response entry whose default model is not in models', () => {
-    const supportedEntry = getAgentProviderEntry('openai');
+    const supportedEntry = getModelProviderEntry('openai');
     if (supportedEntry === undefined) throw new Error('Missing OpenAI catalog entry');
 
     const parse = () =>
-      agentProviderCatalogEntrySchema.parse({
+      modelProviderCatalogEntrySchema.parse({
         ...supportedEntry,
         models: [{id: 'not-the-default', label: 'Not the default'}],
       });
@@ -175,11 +175,11 @@ describe('agent provider catalog', () => {
   });
 
   it('rejects an unsupported response entry with models', () => {
-    const unsupportedEntry = getAgentProviderEntry('github-copilot');
+    const unsupportedEntry = getModelProviderEntry('github-copilot');
     if (unsupportedEntry === undefined) throw new Error('Missing Copilot catalog entry');
 
     const parse = () =>
-      agentProviderCatalogEntrySchema.parse({
+      modelProviderCatalogEntrySchema.parse({
         ...unsupportedEntry,
         models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
       });
@@ -188,9 +188,9 @@ describe('agent provider catalog', () => {
   });
 
   it('finds catalog entries and lists only supported providers', () => {
-    const found = getAgentProviderEntry('openai');
-    const missing = getAgentProviderEntry('missing-provider');
-    const supportedEntries = listSupportedAgentProviders();
+    const found = getModelProviderEntry('openai');
+    const missing = getModelProviderEntry('missing-provider');
+    const supportedEntries = listSupportedModelProviders();
 
     expect(found?.id).toBe('openai');
     expect(missing).toBeUndefined();

@@ -871,7 +871,7 @@ describe('runJobSteps', () => {
     requestAgentRuntimeConfigMock.mockRejectedValueOnce(
       new AgentRuntimeConfigRequestError(
         409,
-        'agent-provider-not-configured',
+        'model-provider-not-configured',
         'provider_not_configured',
       ),
     );

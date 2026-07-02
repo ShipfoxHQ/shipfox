@@ -1,15 +1,15 @@
-import {getAgentProviderCredentialKeys} from '@shipfox/api-agent-dto';
+import {getModelProviderCredentialKeys} from '@shipfox/api-agent-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import {
-  AgentProviderConfigNotFoundError,
-  AgentProviderValidationError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
-  UnsupportedAgentProviderError,
+  ModelProviderConfigNotFoundError,
+  ModelProviderValidationError,
+  UnsupportedModelProviderError,
 } from '#core/index.js';
 
-export function translateAgentProviderRouteError(error: unknown): never {
-  if (error instanceof AgentProviderValidationError) {
+export function translateModelProviderRouteError(error: unknown): never {
+  if (error instanceof ModelProviderValidationError) {
     throw new ClientError(error.sanitizedMessage, 'provider-validation-failed', {
       status: 422,
       details: {
@@ -24,7 +24,7 @@ export function translateAgentProviderRouteError(error: unknown): never {
       status: 422,
       details: {
         provider_id: error.providerId,
-        expected_keys: getAgentProviderCredentialKeys(error.providerId) ?? [],
+        expected_keys: getModelProviderCredentialKeys(error.providerId) ?? [],
       },
     });
   }
@@ -39,14 +39,14 @@ export function translateAgentProviderRouteError(error: unknown): never {
     });
   }
 
-  if (error instanceof UnsupportedAgentProviderError) {
+  if (error instanceof UnsupportedModelProviderError) {
     throw new ClientError('Provider is not supported', 'provider-unsupported', {
       status: 422,
       details: {provider_id: error.providerId},
     });
   }
 
-  if (error instanceof AgentProviderConfigNotFoundError) {
+  if (error instanceof ModelProviderConfigNotFoundError) {
     throw new ClientError('Provider is not configured', 'provider-not-configured', {
       status: 422,
       details: {

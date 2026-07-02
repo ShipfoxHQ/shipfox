@@ -1,7 +1,7 @@
-import type {SupportedAgentProviderId} from '@shipfox/api-agent-dto';
-import {deleteAgentProviderConfig, upsertAgentProviderConfig} from '#db/index.js';
+import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import {deleteModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
 import {encryptCredentials} from './credential-encryption.js';
-import {AgentProviderConfigNotFoundError, CredentialDecryptionError} from './errors.js';
+import {CredentialDecryptionError, ModelProviderConfigNotFoundError} from './errors.js';
 import {resolveRuntimeCredentials} from './resolve-runtime-credentials.js';
 
 describe('resolveRuntimeCredentials', () => {
@@ -52,7 +52,7 @@ describe('resolveRuntimeCredentials', () => {
     expect(result.credentials).toEqual({api_key: 'sk-workspace-secret'});
   });
 
-  it('returns the instance fallback only for the instance default provider', async () => {
+  it('returns the instance fallback only for the instance default model provider', async () => {
     const matching = await resolveRuntimeCredentials(
       {
         workspaceId,
@@ -73,7 +73,7 @@ describe('resolveRuntimeCredentials', () => {
     );
 
     expect(matching.credentials).toEqual({api_key: 'sk-instance-secret'});
-    await expect(mismatched).rejects.toMatchObject({name: 'AgentProviderConfigNotFoundError'});
+    await expect(mismatched).rejects.toMatchObject({name: 'ModelProviderConfigNotFoundError'});
   });
 
   it('throws when no workspace or instance credential is available', async () => {
@@ -84,7 +84,7 @@ describe('resolveRuntimeCredentials', () => {
       thinking: 'high',
     });
 
-    await expect(result).rejects.toThrow(AgentProviderConfigNotFoundError);
+    await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
   });
 
   it('throws after a workspace credential is deleted', async () => {
@@ -93,7 +93,7 @@ describe('resolveRuntimeCredentials', () => {
       providerId: 'anthropic',
       credentials: {api_key: 'sk-workspace-secret'},
     });
-    await deleteAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+    await deleteModelProviderConfig({workspaceId, providerId: 'anthropic'});
 
     const result = resolveRuntimeCredentials({
       workspaceId,
@@ -102,7 +102,7 @@ describe('resolveRuntimeCredentials', () => {
       thinking: 'high',
     });
 
-    await expect(result).rejects.toThrow(AgentProviderConfigNotFoundError);
+    await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
   });
 
   it('does not expose credential material on corrupt ciphertext errors', async () => {
@@ -113,7 +113,7 @@ describe('resolveRuntimeCredentials', () => {
       credentials: {api_key: plaintext},
     });
     const encrypted = encryptedCredentials['credential:api_key'] as string;
-    await upsertAgentProviderConfig({
+    await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': `${encrypted.slice(0, -2)}AA`},
@@ -141,10 +141,10 @@ describe('resolveRuntimeCredentials', () => {
 
 async function saveProviderConfig(params: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: SupportedModelProviderId;
   credentials: Record<string, string>;
 }) {
-  return await upsertAgentProviderConfig({
+  return await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
     encryptedCredentials: encryptCredentials(params),

@@ -1,16 +1,16 @@
-import {agentProviderEntry} from '#test/fixtures/agent-providers.js';
+import {modelProviderEntry} from '#test/fixtures/model-providers.js';
 import {providerMatchesSearch} from './provider-search.js';
 
 describe('providerMatchesSearch', () => {
   test('matches empty and whitespace queries', () => {
-    const entry = agentProviderEntry();
+    const entry = modelProviderEntry();
 
     expect(providerMatchesSearch(entry, '')).toBe(true);
     expect(providerMatchesSearch(entry, '   ')).toBe(true);
   });
 
   test('matches provider labels case-insensitively', () => {
-    const entry = agentProviderEntry({label: 'Anthropic'});
+    const entry = modelProviderEntry({label: 'Anthropic'});
 
     const result = providerMatchesSearch(entry, 'anthro');
 
@@ -18,7 +18,7 @@ describe('providerMatchesSearch', () => {
   });
 
   test('matches provider id substrings', () => {
-    const entry = agentProviderEntry({id: 'azure-openai-responses', label: 'Azure OpenAI'});
+    const entry = modelProviderEntry({id: 'azure-openai-responses', label: 'Azure OpenAI'});
 
     const result = providerMatchesSearch(entry, 'responses');
 
@@ -26,7 +26,7 @@ describe('providerMatchesSearch', () => {
   });
 
   test('matches model ids and labels', () => {
-    const entry = agentProviderEntry({
+    const entry = modelProviderEntry({
       models: [{id: 'claude-opus-4-8', label: 'Claude Opus 4.8'}],
     });
 
@@ -36,7 +36,7 @@ describe('providerMatchesSearch', () => {
   });
 
   test('returns false when no searchable field matches', () => {
-    const entry = agentProviderEntry();
+    const entry = modelProviderEntry();
 
     const result = providerMatchesSearch(entry, 'gemini');
 

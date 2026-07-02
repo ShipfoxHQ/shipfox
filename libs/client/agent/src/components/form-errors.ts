@@ -1,17 +1,17 @@
 import {ApiError} from '@shipfox/client-api';
 
-export type AgentProviderConfigFormErrorMapping = {kind: 'form'; message: string};
+export type ModelProviderConfigFormErrorMapping = {kind: 'form'; message: string};
 
-type ProviderErrorDetails = {
+type ModelProviderErrorDetails = {
   message?: unknown;
   provider_id?: unknown;
   expected_keys?: unknown;
   details?: unknown;
 };
 
-export function agentProviderConfigErrorToFormError(
+export function modelProviderConfigErrorToFormError(
   error: unknown,
-): AgentProviderConfigFormErrorMapping {
+): ModelProviderConfigFormErrorMapping {
   if (error instanceof ApiError) {
     return {kind: 'form', message: apiErrorMessage(error)};
   }
@@ -22,7 +22,7 @@ export function agentProviderConfigErrorToFormError(
 }
 
 function apiErrorMessage(error: ApiError): string {
-  const details = providerErrorDetails(error.details);
+  const details = modelProviderErrorDetails(error.details);
 
   if (error.code === 'provider-validation-failed') {
     return typeof details.message === 'string' ? details.message : error.message;
@@ -48,12 +48,12 @@ function apiErrorMessage(error: ApiError): string {
   return error.message;
 }
 
-function providerErrorDetails(rawDetails: unknown): ProviderErrorDetails {
+function modelProviderErrorDetails(rawDetails: unknown): ModelProviderErrorDetails {
   if (typeof rawDetails !== 'object' || rawDetails === null) return {};
 
-  const payload = rawDetails as ProviderErrorDetails;
+  const payload = rawDetails as ModelProviderErrorDetails;
   if (typeof payload.details === 'object' && payload.details !== null) {
-    return payload.details as ProviderErrorDetails;
+    return payload.details as ModelProviderErrorDetails;
   }
   return payload;
 }

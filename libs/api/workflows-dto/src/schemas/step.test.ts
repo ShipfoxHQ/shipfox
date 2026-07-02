@@ -18,13 +18,13 @@ const baseAttempt = {
 describe('stepErrorDtoSchema', () => {
   it('accepts an agent config issue with an agent config failure reason', () => {
     const result = stepErrorDtoSchema.parse({
-      message: 'Agent provider credentials are not configured',
+      message: 'Model provider credentials are not configured',
       reason: 'agent_config_invalid',
       agent_config_issue: 'provider_not_configured',
     });
 
     expect(result).toEqual({
-      message: 'Agent provider credentials are not configured',
+      message: 'Model provider credentials are not configured',
       reason: 'agent_config_invalid',
       agent_config_issue: 'provider_not_configured',
     });
@@ -32,7 +32,7 @@ describe('stepErrorDtoSchema', () => {
 
   it('rejects unknown agent config issues', () => {
     const result = stepErrorDtoSchema.safeParse({
-      message: 'Agent provider credentials are not configured',
+      message: 'Model provider credentials are not configured',
       reason: 'agent_config_invalid',
       agent_config_issue: 'unknown',
     });
@@ -46,7 +46,7 @@ describe('stepErrorDtoSchema', () => {
     'agent_invocation_failed',
   ] as const)('rejects an agent config issue when reason is %s', (reason) => {
     const result = stepErrorDtoSchema.safeParse({
-      message: 'Agent provider credentials are not configured',
+      message: 'Model provider credentials are not configured',
       ...(reason === undefined ? {} : {reason}),
       agent_config_issue: 'provider_not_configured',
     });

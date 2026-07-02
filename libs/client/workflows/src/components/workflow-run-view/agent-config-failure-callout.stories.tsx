@@ -13,7 +13,7 @@ import type {AgentStepConfig, StepError} from '#core/workflow-run.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 
 const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
-const AGENT_PROVIDERS_LINK_NAME = 'Configure Agent Providers';
+const MODEL_PROVIDERS_LINK_NAME = 'Configure Model Providers';
 
 const config: AgentStepConfig = {
   provider: 'anthropic',
@@ -40,14 +40,14 @@ const meta = {
         path: '/',
         component: () => <Story />,
       });
-      const agentProviderSettingsRoute = createRoute({
+      const modelProviderSettingsRoute = createRoute({
         getParentRoute: () => rootRoute,
-        path: '/workspaces/$wid/settings/agent-providers',
+        path: '/workspaces/$wid/settings/model-providers',
         component: () => null,
       });
       const router = createRouter({
         history: createMemoryHistory({initialEntries: ['/']}),
-        routeTree: rootRoute.addChildren([storyRoute, agentProviderSettingsRoute]),
+        routeTree: rootRoute.addChildren([storyRoute, modelProviderSettingsRoute]),
       });
 
       return <RouterProvider router={router} />;
@@ -111,7 +111,7 @@ export const TestProviderUnsupported: Story = {
   args: {
     error: makeError('provider_unsupported'),
   },
-  play: assertCallout('Choose a supported agent provider', false),
+  play: assertCallout('Choose a supported model provider', false),
 };
 
 function makeError(agentConfigIssue: AgentConfigIssueValue): StepError {
@@ -130,11 +130,11 @@ function assertCallout(title: string, showsCta: boolean): Story['play'] {
     const canvas = within(canvasElement);
 
     await canvas.findByText(title);
-    const cta = canvas.queryByRole('link', {name: AGENT_PROVIDERS_LINK_NAME});
+    const cta = canvas.queryByRole('link', {name: MODEL_PROVIDERS_LINK_NAME});
     if (showsCta) {
-      await canvas.findByRole('link', {name: AGENT_PROVIDERS_LINK_NAME});
+      await canvas.findByRole('link', {name: MODEL_PROVIDERS_LINK_NAME});
     } else if (cta !== null) {
-      throw new Error(`Unexpected ${AGENT_PROVIDERS_LINK_NAME} CTA`);
+      throw new Error(`Unexpected ${MODEL_PROVIDERS_LINK_NAME} CTA`);
     }
   };
 }

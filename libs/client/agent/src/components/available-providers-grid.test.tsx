@@ -1,17 +1,17 @@
 import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {testAgentProviderEntries} from '#test/fixtures/agent-providers.js';
+import {testModelProviderEntries} from '#test/fixtures/model-providers.js';
 import {AvailableProvidersGrid} from './available-providers-grid.js';
 
 describe('AvailableProvidersGrid', () => {
   test('shows the search field when more than eight providers are available', () => {
-    render(<AvailableProvidersGrid entries={testAgentProviderEntries(9)} onSelect={vi.fn()} />);
+    render(<AvailableProvidersGrid entries={testModelProviderEntries(9)} onSelect={vi.fn()} />);
 
     expect(screen.getByRole('searchbox', {name: 'Search providers'})).toBeVisible();
   });
 
   test('hides the search field when eight or fewer providers are available without a query', () => {
-    render(<AvailableProvidersGrid entries={testAgentProviderEntries(8)} onSelect={vi.fn()} />);
+    render(<AvailableProvidersGrid entries={testModelProviderEntries(8)} onSelect={vi.fn()} />);
 
     expect(screen.queryByRole('searchbox', {name: 'Search providers'})).not.toBeInTheDocument();
     expect(screen.getByRole('list', {name: 'Available providers'})).toBeVisible();
@@ -21,18 +21,18 @@ describe('AvailableProvidersGrid', () => {
   test('keeps the search field mounted when a query is active and the entries shrink below the threshold', async () => {
     const user = userEvent.setup();
     const {rerender} = render(
-      <AvailableProvidersGrid entries={testAgentProviderEntries(9)} onSelect={vi.fn()} />,
+      <AvailableProvidersGrid entries={testModelProviderEntries(9)} onSelect={vi.fn()} />,
     );
     await user.type(screen.getByRole('searchbox', {name: 'Search providers'}), 'provider 1');
 
-    rerender(<AvailableProvidersGrid entries={testAgentProviderEntries(8)} onSelect={vi.fn()} />);
+    rerender(<AvailableProvidersGrid entries={testModelProviderEntries(8)} onSelect={vi.fn()} />);
 
     expect(screen.getByRole('searchbox', {name: 'Search providers'})).toHaveValue('provider 1');
   });
 
   test('clear search resets the query and returns focus to the input', async () => {
     const user = userEvent.setup();
-    render(<AvailableProvidersGrid entries={testAgentProviderEntries(9)} onSelect={vi.fn()} />);
+    render(<AvailableProvidersGrid entries={testModelProviderEntries(9)} onSelect={vi.fn()} />);
     const search = screen.getByRole('searchbox', {name: 'Search providers'});
 
     await user.type(search, 'missing');
@@ -45,7 +45,7 @@ describe('AvailableProvidersGrid', () => {
 
   test('announces the filtered result count while a query is active', async () => {
     const user = userEvent.setup();
-    render(<AvailableProvidersGrid entries={testAgentProviderEntries(9)} onSelect={vi.fn()} />);
+    render(<AvailableProvidersGrid entries={testModelProviderEntries(9)} onSelect={vi.fn()} />);
 
     await user.type(screen.getByRole('searchbox', {name: 'Search providers'}), 'provider 1');
 

@@ -1,7 +1,7 @@
 import {ApiError} from '@shipfox/client-api';
-import {agentProviderConfigErrorToFormError} from './form-errors.js';
+import {modelProviderConfigErrorToFormError} from './form-errors.js';
 
-describe('agentProviderConfigErrorToFormError', () => {
+describe('modelProviderConfigErrorToFormError', () => {
   test.each([
     [
       new ApiError({
@@ -38,7 +38,10 @@ describe('agentProviderConfigErrorToFormError', () => {
         code: 'invalid-credential-fields',
         message: 'Invalid credentials',
         status: 422,
-        details: {provider_id: 'azure-openai-responses', expected_keys: ['endpoint', 'api_key']},
+        details: {
+          provider_id: 'azure-openai-responses',
+          expected_keys: ['endpoint', 'api_key'],
+        },
       }),
       'Credentials must include exactly these fields: endpoint, api_key.',
     ],
@@ -83,19 +86,19 @@ describe('agentProviderConfigErrorToFormError', () => {
     ],
     [new ApiError({code: 'unknown-code', message: 'Server copy', status: 422}), 'Server copy'],
   ])('maps ApiError %s to a form-level alert', (error, expectedMessage) => {
-    const result = agentProviderConfigErrorToFormError(error);
+    const result = modelProviderConfigErrorToFormError(error);
 
     expect(result).toEqual({kind: 'form', message: expectedMessage});
   });
 
   test('routes Error to a form-level alert with the error message', () => {
-    const result = agentProviderConfigErrorToFormError(new Error('boom'));
+    const result = modelProviderConfigErrorToFormError(new Error('boom'));
 
     expect(result).toEqual({kind: 'form', message: 'boom'});
   });
 
   test('falls back to generic copy for non-Error throwables', () => {
-    const result = agentProviderConfigErrorToFormError('weird');
+    const result = modelProviderConfigErrorToFormError('weird');
 
     expect(result).toEqual({kind: 'form', message: 'Something went wrong. Try again.'});
   });

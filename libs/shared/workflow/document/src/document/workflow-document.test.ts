@@ -361,7 +361,7 @@ describe('workflowDocumentSchema', () => {
       'agent step with gate',
       {model: 'claude-opus-4-8', prompt: 'Fix it.', gate: {success_if: 'exit_code == 0'}},
     ],
-    ['custom-provider model string', {model: 'openrouter/anthropic/claude', prompt: 'Hi.'}],
+    ['custom-model-provider model string', {model: 'openrouter/anthropic/claude', prompt: 'Hi.'}],
   ])('accepts %s', (_label, step) => {
     const result = workflowDocumentSchema.safeParse({
       name: 'agent build',

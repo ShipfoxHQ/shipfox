@@ -1,19 +1,19 @@
 import {
   agentThinkingSchema,
-  DEFAULT_AGENT_PROVIDER,
   DEFAULT_AGENT_THINKING,
+  DEFAULT_MODEL_PROVIDER,
 } from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {
-  type AgentProviderId,
-  agentProviderIdSchema,
-  SUPPORTED_AGENT_PROVIDER_IDS,
-  type SupportedAgentProviderId,
-  UNSUPPORTED_AGENT_PROVIDER_IDS,
-} from './provider-id.js';
+  type ModelProviderId,
+  providerIdSchema,
+  SUPPORTED_MODEL_PROVIDER_IDS,
+  type SupportedModelProviderId,
+  UNSUPPORTED_MODEL_PROVIDER_IDS,
+} from './model-provider-id.js';
 
 export type {AgentThinking} from '@shipfox/workflow-document';
-export {agentThinkingSchema, DEFAULT_AGENT_PROVIDER, DEFAULT_AGENT_THINKING};
+export {agentThinkingSchema, DEFAULT_AGENT_THINKING, DEFAULT_MODEL_PROVIDER};
 
 export const agentModelOptionSchema = z.object({
   id: z.string().min(1),
@@ -22,36 +22,36 @@ export const agentModelOptionSchema = z.object({
 
 export type AgentModelOptionDto = z.infer<typeof agentModelOptionSchema>;
 
-export const agentProviderCredentialFieldSchema = z.object({
+export const modelProviderCredentialFieldSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
   secret: z.boolean(),
 });
 
-export type AgentProviderCredentialFieldDto = z.infer<typeof agentProviderCredentialFieldSchema>;
+export type ModelProviderCredentialFieldDto = z.infer<typeof modelProviderCredentialFieldSchema>;
 
-export const agentProviderSupportStatusSchema = z.enum(['supported', 'unsupported']);
+export const modelProviderSupportStatusSchema = z.enum(['supported', 'unsupported']);
 
-export type AgentProviderSupportStatus = z.infer<typeof agentProviderSupportStatusSchema>;
+export type ModelProviderSupportStatus = z.infer<typeof modelProviderSupportStatusSchema>;
 
-const supportedAgentProviderIds = new Set<string>(SUPPORTED_AGENT_PROVIDER_IDS);
-const unsupportedAgentProviderIds = new Set<string>(UNSUPPORTED_AGENT_PROVIDER_IDS);
+const supportedModelProviderIds = new Set<string>(SUPPORTED_MODEL_PROVIDER_IDS);
+const unsupportedModelProviderIds = new Set<string>(UNSUPPORTED_MODEL_PROVIDER_IDS);
 
-const agentProviderCatalogSeedBaseSchema = z.object({
-  id: agentProviderIdSchema,
+const modelProviderCatalogSeedBaseSchema = z.object({
+  id: providerIdSchema,
   label: z.string().min(1),
-  support_status: agentProviderSupportStatusSchema,
+  support_status: modelProviderSupportStatusSchema,
   default_model: z.string().min(1).nullable(),
-  credential_fields: z.array(agentProviderCredentialFieldSchema),
+  credential_fields: z.array(modelProviderCredentialFieldSchema),
   unsupported_reason: z.string().min(1).nullable(),
 });
 
-export const agentProviderCatalogSeedSchema =
-  agentProviderCatalogSeedBaseSchema.superRefine(validateCatalogSeedEntry);
+export const modelProviderCatalogSeedSchema =
+  modelProviderCatalogSeedBaseSchema.superRefine(validateCatalogSeedEntry);
 
-export type AgentProviderCatalogSeedDto = z.infer<typeof agentProviderCatalogSeedSchema>;
+export type ModelProviderCatalogSeedDto = z.infer<typeof modelProviderCatalogSeedSchema>;
 
-export const agentProviderCatalogEntrySchema = agentProviderCatalogSeedBaseSchema
+export const modelProviderCatalogEntrySchema = modelProviderCatalogSeedBaseSchema
   .extend({
     models: z.array(agentModelOptionSchema),
   })
@@ -63,7 +63,7 @@ export const agentProviderCatalogEntrySchema = agentProviderCatalogSeedBaseSchem
         ctx.addIssue({
           code: 'custom',
           path: ['models'],
-          message: 'Supported agent providers must include at least one model.',
+          message: 'Supported model providers must include at least one model.',
         });
       }
       if (
@@ -73,25 +73,25 @@ export const agentProviderCatalogEntrySchema = agentProviderCatalogSeedBaseSchem
         ctx.addIssue({
           code: 'custom',
           path: ['default_model'],
-          message: 'Supported agent provider default_model must be present in models.',
+          message: 'Supported model provider default_model must be present in models.',
         });
       }
     } else if (entry.models.length > 0) {
       ctx.addIssue({
         code: 'custom',
         path: ['models'],
-        message: 'Unsupported agent providers must not include models.',
+        message: 'Unsupported model providers must not include models.',
       });
     }
   });
 
-export type AgentProviderCatalogEntryDto = z.infer<typeof agentProviderCatalogEntrySchema>;
+export type ModelProviderCatalogEntryDto = z.infer<typeof modelProviderCatalogEntrySchema>;
 
-export const agentProviderCatalogResponseSchema = z.object({
-  providers: z.array(agentProviderCatalogEntrySchema),
+export const modelProviderCatalogResponseSchema = z.object({
+  providers: z.array(modelProviderCatalogEntrySchema),
 });
 
-export type AgentProviderCatalogResponseDto = z.infer<typeof agentProviderCatalogResponseSchema>;
+export type ModelProviderCatalogResponseDto = z.infer<typeof modelProviderCatalogResponseSchema>;
 
 const apiKeyCredentialFields = [credentialField('api_key', 'API key', true)];
 
@@ -111,7 +111,7 @@ const cloudflareWorkersAiCredentialFields = [
   credentialField('account_id', 'Account ID', false),
 ];
 
-export const AGENT_PROVIDER_CATALOG_SEED: AgentProviderCatalogSeedDto[] = [
+export const MODEL_PROVIDER_CATALOG_SEED: ModelProviderCatalogSeedDto[] = [
   supportedProvider('anthropic', 'Anthropic', 'claude-opus-4-8'),
   supportedProvider('ant-ling', 'Ant Ling', 'Ring-2.6-1T'),
   supportedProvider('azure-openai-responses', 'Azure OpenAI', 'gpt-5.5-pro', azureCredentialFields),
@@ -175,74 +175,74 @@ export const AGENT_PROVIDER_CATALOG_SEED: AgentProviderCatalogSeedDto[] = [
   ),
 ];
 
-export function getAgentProviderEntry(id: string): AgentProviderCatalogSeedDto | undefined {
-  return AGENT_PROVIDER_CATALOG_SEED.find((entry) => entry.id === id);
+export function getModelProviderEntry(id: string): ModelProviderCatalogSeedDto | undefined {
+  return MODEL_PROVIDER_CATALOG_SEED.find((entry) => entry.id === id);
 }
 
-export function listSupportedAgentProviders(): AgentProviderCatalogSeedDto[] {
-  return AGENT_PROVIDER_CATALOG_SEED.filter((entry) => entry.support_status === 'supported');
+export function listSupportedModelProviders(): ModelProviderCatalogSeedDto[] {
+  return MODEL_PROVIDER_CATALOG_SEED.filter((entry) => entry.support_status === 'supported');
 }
 
 function validateCatalogSeedEntry(
-  entry: z.infer<typeof agentProviderCatalogSeedBaseSchema>,
+  entry: z.infer<typeof modelProviderCatalogSeedBaseSchema>,
   ctx: z.RefinementCtx,
 ): void {
   if (entry.support_status === 'supported') {
-    if (!supportedAgentProviderIds.has(entry.id)) {
+    if (!supportedModelProviderIds.has(entry.id)) {
       ctx.addIssue({
         code: 'custom',
         path: ['id'],
-        message: 'Supported catalog entries must use a supported agent provider id.',
+        message: 'Supported catalog entries must use a supported model provider id.',
       });
     }
     if (entry.default_model === null) {
       ctx.addIssue({
         code: 'custom',
         path: ['default_model'],
-        message: 'Supported agent providers must define a default_model.',
+        message: 'Supported model providers must define a default_model.',
       });
     }
     if (entry.credential_fields.length === 0) {
       ctx.addIssue({
         code: 'custom',
         path: ['credential_fields'],
-        message: 'Supported agent providers must define credential_fields.',
+        message: 'Supported model providers must define credential_fields.',
       });
     }
     if (entry.unsupported_reason !== null) {
       ctx.addIssue({
         code: 'custom',
         path: ['unsupported_reason'],
-        message: 'Supported agent providers must not define unsupported_reason.',
+        message: 'Supported model providers must not define unsupported_reason.',
       });
     }
   } else {
-    if (!unsupportedAgentProviderIds.has(entry.id)) {
+    if (!unsupportedModelProviderIds.has(entry.id)) {
       ctx.addIssue({
         code: 'custom',
         path: ['id'],
-        message: 'Unsupported catalog entries must use an unsupported agent provider id.',
+        message: 'Unsupported catalog entries must use an unsupported model provider id.',
       });
     }
     if (entry.default_model !== null) {
       ctx.addIssue({
         code: 'custom',
         path: ['default_model'],
-        message: 'Unsupported agent providers must not define a default_model.',
+        message: 'Unsupported model providers must not define a default_model.',
       });
     }
     if (entry.credential_fields.length > 0) {
       ctx.addIssue({
         code: 'custom',
         path: ['credential_fields'],
-        message: 'Unsupported agent providers must not define credential_fields.',
+        message: 'Unsupported model providers must not define credential_fields.',
       });
     }
     if (entry.unsupported_reason === null) {
       ctx.addIssue({
         code: 'custom',
         path: ['unsupported_reason'],
-        message: 'Unsupported agent providers must define unsupported_reason.',
+        message: 'Unsupported model providers must define unsupported_reason.',
       });
     }
   }
@@ -252,16 +252,16 @@ function credentialField(
   key: string,
   label: string,
   secret: boolean,
-): AgentProviderCredentialFieldDto {
+): ModelProviderCredentialFieldDto {
   return {key, label, secret};
 }
 
 function supportedProvider(
-  id: SupportedAgentProviderId,
+  id: SupportedModelProviderId,
   label: string,
   defaultModel: string,
-  credentialFields: AgentProviderCredentialFieldDto[] = apiKeyCredentialFields,
-): AgentProviderCatalogSeedDto {
+  credentialFields: ModelProviderCredentialFieldDto[] = apiKeyCredentialFields,
+): ModelProviderCatalogSeedDto {
   return {
     id,
     label,
@@ -273,10 +273,10 @@ function supportedProvider(
 }
 
 function unsupportedProvider(
-  id: AgentProviderId,
+  id: ModelProviderId,
   label: string,
   unsupportedReason: string,
-): AgentProviderCatalogSeedDto {
+): ModelProviderCatalogSeedDto {
   return {
     id,
     label,

@@ -1,4 +1,4 @@
-import type {AgentProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
+import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import {cn, Icon, Text} from '@shipfox/react-ui';
 
 const SURFACE_CLASS =
@@ -8,7 +8,7 @@ export function AvailableProviderCard({
   entry,
   onConfigure,
 }: {
-  entry: AgentProviderCatalogEntryDto;
+  entry: ModelProviderCatalogEntryDto;
   onConfigure: () => void;
 }) {
   return (

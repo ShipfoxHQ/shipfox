@@ -1,6 +1,6 @@
 import {
-  AgentProviderConfigNotFoundError,
   CredentialDecryptionError,
+  ModelProviderConfigNotFoundError,
 } from '@shipfox/api-agent/core/errors';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {
@@ -31,18 +31,18 @@ export const agentRuntimeConfigRoute = defineRoute({
     if (error instanceof CredentialDecryptionError) {
       captureException(error);
       throw new ClientError(
-        'Agent provider credentials could not be decrypted',
-        'agent-provider-credentials-invalid',
+        'Model provider credentials could not be decrypted',
+        'model-provider-credentials-invalid',
         {
           status: 409,
           cause: error,
         },
       );
     }
-    if (error instanceof AgentProviderConfigNotFoundError) {
+    if (error instanceof ModelProviderConfigNotFoundError) {
       throw new ClientError(
-        'Agent provider credentials are not configured',
-        'agent-provider-not-configured',
+        'Model provider credentials are not configured',
+        'model-provider-not-configured',
         {
           status: 409,
         },

@@ -22,7 +22,7 @@ import {AgentConfigFailureCallout as AgentConfigFailureCalloutView} from '../wor
 import {StepList} from './step-list.js';
 
 const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
-const AGENT_PROVIDERS_LINK_NAME = 'Configure Agent Providers';
+const MODEL_PROVIDERS_LINK_NAME = 'Configure Model Providers';
 
 const meta = {
   title: 'Workflows/StepList',
@@ -61,21 +61,21 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 type StepListStoryContext = Parameters<NonNullable<Story['play']>>[0];
 
-const withAgentProviderSettingsRoute: Decorator = (Story) => {
+const withModelProviderSettingsRoute: Decorator = (Story) => {
   const rootRoute = createRootRoute({component: Outlet});
   const storyRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/',
     component: () => <Story />,
   });
-  const agentProviderSettingsRoute = createRoute({
+  const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/settings/agent-providers',
+    path: '/workspaces/$wid/settings/model-providers',
     component: () => null,
   });
   const router = createRouter({
     history: createMemoryHistory({initialEntries: ['/']}),
-    routeTree: rootRoute.addChildren([storyRoute, agentProviderSettingsRoute]),
+    routeTree: rootRoute.addChildren([storyRoute, modelProviderSettingsRoute]),
   });
 
   return <RouterProvider router={router} />;
@@ -85,7 +85,7 @@ async function assertAgentConfigFailureCallout(ctx: StepListStoryContext) {
   const canvas = within(ctx.canvasElement);
 
   await canvas.findByText('Configure credentials for anthropic');
-  await canvas.findByRole('link', {name: AGENT_PROVIDERS_LINK_NAME});
+  await canvas.findByRole('link', {name: MODEL_PROVIDERS_LINK_NAME});
 }
 
 export const Playground: Story = {};
@@ -303,7 +303,7 @@ export const ExpandedSlot: Story = {
 };
 
 export const TestAgentConfigFailureCallout: Story = {
-  decorators: [withAgentProviderSettingsRoute],
+  decorators: [withModelProviderSettingsRoute],
   render: renderAgentConfigFailureCallout,
   play: assertAgentConfigFailureCallout,
 };
@@ -376,7 +376,7 @@ function renderAgentConfigFailureCallout() {
       prompt: 'Fix the failing tests.',
     },
     error: {
-      message: 'Agent provider credentials are not configured',
+      message: 'Model provider credentials are not configured',
       category: 'user',
       reason: 'agent_config_invalid',
       agent_config_issue: 'provider_not_configured',
@@ -393,7 +393,7 @@ function renderAgentConfigFailureCallout() {
           workspaceId={WORKSPACE_ID}
           config={{provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high'}}
           error={{
-            message: 'Agent provider credentials are not configured',
+            message: 'Model provider credentials are not configured',
             reason: 'agent_config_invalid',
             agentConfigIssue: 'provider_not_configured',
             category: 'user',

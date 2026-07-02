@@ -17,12 +17,12 @@ function projectsNewUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}/projects/new/?$`, 'u');
 }
 
-function agentProviderUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/agent-provider/?$`, 'u');
+function modelProviderUrlRe(wid: string): RegExp {
+  return new RegExp(`/workspaces/${wid}/model-provider/?$`, 'u');
 }
 
 function setupDestinationUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/(agent-provider|projects/new)/?$`, 'u');
+  return new RegExp(`/workspaces/${wid}/(model-provider|projects/new)/?$`, 'u');
 }
 
 async function readLastWorkspaceId(page: Page): Promise<string> {
@@ -76,8 +76,8 @@ async function completeWorkspaceSetup(page: Page, workspaceId: string): Promise<
   await expect(page).toHaveURL(setupDestinationUrlRe(workspaceId), {
     timeout: SETUP_NAVIGATION_TIMEOUT_MS,
   });
-  if (agentProviderUrlRe(workspaceId).test(page.url())) {
-    await expect(page.getByRole('heading', {name: 'Configure agent provider'})).toBeVisible();
+  if (modelProviderUrlRe(workspaceId).test(page.url())) {
+    await expect(page.getByRole('heading', {name: 'Configure model provider'})).toBeVisible();
     await expectSetupNavigationHidden(page);
     await page.getByRole('button', {name: 'Skip for now'}).click();
   }

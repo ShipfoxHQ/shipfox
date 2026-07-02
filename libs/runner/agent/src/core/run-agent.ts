@@ -15,9 +15,6 @@ type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
 export interface AgentInvocation {
   readonly cwd: string;
   readonly model: string;
-  // pi resolves a model from its registry by (provider, modelId), so a bare id is
-  // ambiguous on its own; the provider selects which built-in (or models.json) set the
-  // model id is looked up in. Free-text, defaulted upstream to anthropic.
   readonly provider: string;
   readonly thinking: string;
   readonly prompt: string;

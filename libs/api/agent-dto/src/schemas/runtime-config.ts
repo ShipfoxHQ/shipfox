@@ -1,7 +1,7 @@
 import {agentThinkingSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
-import {customAgentProviderRuntimeConfigSchema} from './custom-provider.js';
-import {agentProviderRefSchema, isReservedAgentProviderId} from './provider-id.js';
+import {customModelProviderRuntimeConfigSchema} from './custom-model-provider.js';
+import {isReservedModelProviderId, modelProviderRefSchema} from './model-provider-id.js';
 
 const credentialKeySchema = z.string().min(1);
 const credentialValueSchema = z.string().min(1);
@@ -12,26 +12,26 @@ const credentialValueSchema = z.string().min(1);
  */
 export const agentRuntimeCredentialsResponseSchema = z
   .object({
-    provider_id: agentProviderRefSchema,
+    provider_id: modelProviderRefSchema,
     model: z.string().min(1),
     thinking: agentThinkingSchema,
     credentials: z.record(credentialKeySchema, credentialValueSchema),
-    custom_provider: customAgentProviderRuntimeConfigSchema.optional(),
+    custom_provider: customModelProviderRuntimeConfigSchema.optional(),
   })
   .superRefine((response, ctx) => {
-    if (isReservedAgentProviderId(response.provider_id) || response.custom_provider !== undefined) {
+    if (isReservedModelProviderId(response.provider_id) || response.custom_provider !== undefined) {
       return;
     }
 
     ctx.addIssue({
       code: 'custom',
       path: ['custom_provider'],
-      message: 'Custom provider runtime config is required for custom provider refs.',
+      message: 'Custom model provider runtime config is required for custom model provider refs.',
     });
   });
 
 export type AgentRuntimeCredentialsResponseDto = z.infer<
   typeof agentRuntimeCredentialsResponseSchema
 >;
-export type {CustomAgentProviderRuntimeConfigDto} from './custom-provider.js';
-export {customAgentProviderRuntimeConfigSchema};
+export type {CustomModelProviderRuntimeConfigDto} from './custom-model-provider.js';
+export {customModelProviderRuntimeConfigSchema};
