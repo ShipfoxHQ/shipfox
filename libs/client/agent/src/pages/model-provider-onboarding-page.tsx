@@ -13,10 +13,7 @@ import {
   toast,
 } from '@shipfox/react-ui';
 import {useState} from 'react';
-import {
-  AvailableModelProvidersGrid,
-  MODEL_PROVIDER_GRID_CLASS,
-} from '#components/available-model-providers-grid.js';
+import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from '#components/available-providers-grid.js';
 import {ModelProviderTestAndSaveForm} from '#components/test-and-save-form.js';
 import {useModelProviderCatalogQuery} from '#hooks/api/model-providers.js';
 import {dismissModelProviderOnboarding} from '#state/model-provider-onboarding.js';
@@ -32,10 +29,9 @@ export function ModelProviderOnboardingPage({
 }) {
   const catalogQuery = useModelProviderCatalogQuery();
   const [selectedEntry, setSelectedEntry] = useState<ModelProviderCatalogEntryDto | null>(null);
-  const supportedModelProviders =
-    catalogQuery.data?.model_providers.filter(
-      (modelProvider) => modelProvider.support_status === 'supported',
-    ) ?? [];
+  const supportedProviders =
+    catalogQuery.data?.providers.filter((provider) => provider.support_status === 'supported') ??
+    [];
 
   function handleSkip() {
     try {
@@ -64,7 +60,7 @@ export function ModelProviderOnboardingPage({
 
       <ModelProviderPicker
         catalogQuery={catalogQuery}
-        supportedModelProviders={supportedModelProviders}
+        supportedProviders={supportedProviders}
         onSelect={setSelectedEntry}
       />
 
@@ -106,11 +102,11 @@ export function ModelProviderOnboardingPage({
 
 function ModelProviderPicker({
   catalogQuery,
-  supportedModelProviders,
+  supportedProviders,
   onSelect,
 }: {
   catalogQuery: ReturnType<typeof useModelProviderCatalogQuery>;
-  supportedModelProviders: ModelProviderCatalogEntryDto[];
+  supportedProviders: ModelProviderCatalogEntryDto[];
   onSelect: (entry: ModelProviderCatalogEntryDto) => void;
 }) {
   if (catalogQuery.isPending) {
@@ -125,22 +121,22 @@ function ModelProviderPicker({
     return <QueryLoadError query={catalogQuery} subject="model provider catalog" />;
   }
 
-  if (catalogQuery.data !== undefined && supportedModelProviders.length === 0) {
+  if (catalogQuery.data !== undefined && supportedProviders.length === 0) {
     return (
       <EmptyState
         icon="componentLine"
-        title="No model providers available to configure"
+        title="No providers available to configure"
         description="Skip for now and add one later from workspace settings."
       />
     );
   }
 
-  return <AvailableModelProvidersGrid entries={supportedModelProviders} onSelect={onSelect} />;
+  return <AvailableProvidersGrid entries={supportedProviders} onSelect={onSelect} />;
 }
 
 function ModelProviderGridSkeleton() {
   return (
-    <div className={MODEL_PROVIDER_GRID_CLASS}>
+    <div className={PROVIDER_GRID_CLASS}>
       {[0, 1, 2, 3].map((card) => (
         <Skeleton key={card} className="h-136 w-full" />
       ))}

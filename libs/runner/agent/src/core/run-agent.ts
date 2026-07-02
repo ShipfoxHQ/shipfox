@@ -30,7 +30,7 @@ export interface AgentInvocation {
 
 /**
  * Runs the pi coding agent for one step. Resolves when the agent's turn completes and
- * throws on a pi/model-provider failure or abort, so the caller maps a resolved call to a
+ * throws on a pi/provider failure or abort, so the caller maps a resolved call to a
  * succeeded step and a thrown call to a failed step.
  *
  * The returned `summary` is the agent's final assistant message, kept runner-local for
@@ -64,9 +64,9 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // provider call as an opaque invocation failure, hiding that the fix is workspace config.
   if (!modelRegistry.hasConfiguredAuth(model)) {
     throw new AgentConfigError(
-      `No credentials configured for model provider "${provider}". ` +
-        'Verify the model provider is configured for this workspace.',
-      'model_provider_not_configured',
+      `No credentials configured for provider "${provider}". ` +
+        'Verify the provider is configured for this workspace.',
+      'provider_not_configured',
     );
   }
 
@@ -122,9 +122,9 @@ function startForwarding(
 
 type ResolvedModel = NonNullable<ReturnType<ModelRegistry['find']>>;
 
-// pi's `find` returns undefined for both an unknown model provider and a known model provider
-// that lacks the model, so split them on the registry's provider set to give an actionable
-// message (and, when another model provider carries the same id, a did-you-mean hint).
+// pi's `find` returns undefined for both an unknown provider and a known provider that
+// lacks the model, so split them on the registry's provider set to give an actionable
+// message (and, when another provider carries the same id, a did-you-mean hint).
 function resolveModel(
   modelRegistry: ModelRegistry,
   provider: string,
@@ -134,22 +134,22 @@ function resolveModel(
   if (model) return model;
 
   const all = modelRegistry.getAll();
-  const knownModelProviders = new Set(all.map((entry) => entry.provider));
-  if (!knownModelProviders.has(provider)) {
+  const knownProviders = new Set(all.map((entry) => entry.provider));
+  if (!knownProviders.has(provider)) {
     throw new AgentConfigError(
-      `Unknown model provider "${provider}" for agent step. ` +
-        'Known model providers are pi built-ins plus any from models.json.',
-      'model_provider_unsupported',
+      `Unknown provider "${provider}" for agent step. ` +
+        'Known providers are pi built-ins plus any from models.json.',
+      'provider_unsupported',
     );
   }
 
-  const alternativeModelProvider = all.find((entry) => entry.id === modelId)?.provider;
+  const alternativeProvider = all.find((entry) => entry.id === modelId)?.provider;
   const hint =
-    alternativeModelProvider === undefined
+    alternativeProvider === undefined
       ? ''
-      : ` Did you mean to set provider: ${alternativeModelProvider}?`;
+      : ` Did you mean to set provider: ${alternativeProvider}?`;
   throw new AgentConfigError(
-    `Model "${modelId}" is not available for model provider "${provider}".${hint}`,
+    `Model "${modelId}" is not available for provider "${provider}".${hint}`,
     'model_unavailable',
   );
 }
@@ -193,7 +193,7 @@ function credentialValue(
   const value = credentials[key];
   if (value === undefined || value === '') {
     throw new AgentConfigError(
-      `Runtime credentials for model provider "${provider}" are missing "${key}".`,
+      `Runtime credentials for provider "${provider}" are missing "${key}".`,
       'credentials_invalid',
     );
   }

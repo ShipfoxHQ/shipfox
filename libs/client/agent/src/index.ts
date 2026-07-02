@@ -1,4 +1,4 @@
-export * from './components/available-model-provider-card.js';
+export * from './components/available-provider-card.js';
 export * from './components/form-errors.js';
 export * from './components/model-providers-section.js';
 export * from './components/test-and-save-form.js';

@@ -16,7 +16,7 @@ describe('ProjectsHubPage', () => {
     configureApiClient({
       fetchImpl: createHubFetch({
         projects: jsonResponse({projects: [], next_cursor: null}),
-        agentProviders: jsonResponse(agentProviderConfigsDto()),
+        modelProviders: jsonResponse(modelProviderConfigsDto()),
       }),
     });
 

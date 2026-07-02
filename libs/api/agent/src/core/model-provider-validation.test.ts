@@ -254,6 +254,6 @@ describe('sanitizeModelProviderError', () => {
   it('handles non-Error thrown values', () => {
     const sanitized = sanitizeModelProviderError('raw thrown value', ['secret']);
 
-    expect(sanitized).toBe('Model provider validation failed.');
+    expect(sanitized).toBe('Provider validation failed.');
   });
 });

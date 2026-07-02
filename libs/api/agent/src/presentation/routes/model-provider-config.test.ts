@@ -315,7 +315,7 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(422);
-      expect(res.json().code).toBe('model-provider-validation-failed');
+      expect(res.json().code).toBe('provider-validation-failed');
       expect(res.json().details.message).toContain('***');
       expect(res.body).not.toContain(secret);
     });
@@ -450,7 +450,7 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(422);
-      expect(res.json().code).toBe('model-provider-not-configured');
+      expect(res.json().code).toBe('provider-not-configured');
     });
 
     it('returns 422 when the selected default model is unsupported', async () => {
@@ -493,7 +493,7 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(422);
-      expect(res.json().code).toBe('model-provider-not-configured');
+      expect(res.json().code).toBe('provider-not-configured');
       expect(res.json().details.provider_id).toBe('anthropic');
     });
 
@@ -508,7 +508,7 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(422);
-      expect(res.json().code).toBe('model-provider-unsupported');
+      expect(res.json().code).toBe('provider-unsupported');
       expect(res.json().details.provider_id).toBe('local-vllm');
     });
   });

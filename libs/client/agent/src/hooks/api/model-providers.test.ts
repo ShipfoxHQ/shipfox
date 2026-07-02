@@ -34,7 +34,7 @@ describe('model provider transport', () => {
     const result = await getModelProviderCatalog();
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.model_providers[0]?.label).toBe('Anthropic');
+    expect(result.providers[0]?.label).toBe('Anthropic');
     expect(request.url).toBe('https://api.example.test/agent/model-provider-catalog');
     expect(request.method).toBe('GET');
   });

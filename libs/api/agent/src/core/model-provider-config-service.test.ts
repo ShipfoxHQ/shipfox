@@ -206,7 +206,7 @@ describe('testAndSaveModelProviderConfig', () => {
       {probe},
     );
 
-    await expect(save).rejects.toThrow('Model provider validation failed.');
+    await expect(save).rejects.toThrow('Provider validation failed.');
     const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });

@@ -32,10 +32,7 @@ import {
   useModelProviderConfigsQuery,
   useSetDefaultModelProviderMutation,
 } from '#hooks/api/model-providers.js';
-import {
-  AvailableModelProvidersGrid,
-  MODEL_PROVIDER_GRID_CLASS,
-} from './available-model-providers-grid.js';
+import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from './available-providers-grid.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
 import {modelProviderConfigErrorToFormError} from './form-errors.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
@@ -70,29 +67,29 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
   const [pendingUsageTarget, setPendingUsageTarget] = useState<UsageTarget | null>(null);
   const configuredProvidersRegionRef = useRef<HTMLElement | null>(null);
 
-  const modelProviders = catalogQuery.data?.model_providers ?? [];
+  const providers = catalogQuery.data?.providers ?? [];
   const configs = configsQuery.data?.configs ?? [];
   const configsLoaded = configsQuery.data !== undefined;
   const defaultProviderId = configsQuery.data?.default_provider_id ?? null;
-  const modelProviderById = useMemo(
+  const providerById = useMemo(
     () =>
       new Map<string, ModelProviderCatalogEntryDto>(
-        modelProviders.map((modelProvider) => [modelProvider.id, modelProvider]),
+        providers.map((provider) => [provider.id, provider]),
       ),
-    [modelProviders],
+    [providers],
   );
   const configuredIds = useMemo(
     () => new Set<string>(configs.map((config) => config.provider_id)),
     [configs],
   );
-  const availableModelProviders = configsLoaded
-    ? modelProviders.filter(
-        (modelProvider): modelProvider is SupportedModelProviderCatalogEntry =>
-          isSupportedCatalogEntry(modelProvider) && !configuredIds.has(modelProvider.id),
+  const availableProviders = configsLoaded
+    ? providers.filter(
+        (provider): provider is SupportedModelProviderCatalogEntry =>
+          isSupportedCatalogEntry(provider) && !configuredIds.has(provider.id),
       )
     : [];
-  const unsupportedModelProviders = modelProviders.filter(
-    (modelProvider) => modelProvider.support_status === 'unsupported',
+  const unsupportedProviders = providers.filter(
+    (provider) => provider.support_status === 'unsupported',
   );
 
   function closeForm() {
@@ -119,18 +116,18 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
       <section
         ref={configuredProvidersRegionRef}
         className="flex flex-col gap-16 outline-none"
-        aria-label="Configured model providers"
+        aria-label="Configured providers"
         tabIndex={-1}
       >
         <div className="flex flex-col gap-4">
-          <Header variant="h3">Configured model providers</Header>
+          <Header variant="h3">Configured providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
             Workspace credentials available to agent steps.
           </Text>
         </div>
 
         {configsQuery.isPending ? (
-          <ModelProviderRowsSkeleton label="Loading configured model providers" />
+          <ModelProviderRowsSkeleton label="Loading configured providers" />
         ) : null}
 
         {configsQuery.isError && configsQuery.data === undefined ? (
@@ -143,8 +140,8 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
           <div className={cn(SURFACE_CLASS, 'px-16')}>
             <EmptyState
               icon="key2Line"
-              title="No model providers configured"
-              description="Configure a model provider below to run agent steps with workspace-managed credentials."
+              title="No providers configured"
+              description="Configure a provider below to run agent steps with workspace-managed credentials."
             />
           </div>
         ) : null}
@@ -152,7 +149,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         {configs.length > 0 ? (
           <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
             {configs.map((config) => {
-              const entry = toSupportedCatalogEntry(modelProviderById.get(config.provider_id));
+              const entry = toSupportedCatalogEntry(providerById.get(config.provider_id));
               return (
                 <ConfiguredProviderRow
                   key={config.provider_id}
@@ -183,11 +180,11 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         ) : null}
       </section>
 
-      <section className="flex flex-col gap-16" aria-label="Available model providers">
+      <section className="flex flex-col gap-16" aria-label="Available providers">
         <div className="flex flex-col gap-4">
-          <Header variant="h3">Available model providers</Header>
+          <Header variant="h3">Available providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Model providers that can be configured for agent steps in this workspace.
+            Providers that can be configured for agent steps in this workspace.
           </Text>
         </div>
 
@@ -199,41 +196,39 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
           </div>
         ) : null}
 
-        {catalogQuery.data !== undefined &&
-        configsLoaded &&
-        availableModelProviders.length === 0 ? (
+        {catalogQuery.data !== undefined && configsLoaded && availableProviders.length === 0 ? (
           <div className={cn(SURFACE_CLASS, 'px-16')}>
             <EmptyState
               icon="componentLine"
-              title="No available model providers"
-              description="All supported model providers are already configured for this workspace."
+              title="No available providers"
+              description="All supported providers are already configured for this workspace."
             />
           </div>
         ) : null}
 
-        {configsLoaded && availableModelProviders.length > 0 ? (
-          <AvailableModelProvidersGrid
-            entries={availableModelProviders}
+        {configsLoaded && availableProviders.length > 0 ? (
+          <AvailableProvidersGrid
+            entries={availableProviders}
             onSelect={(entry) => setFormState({mode: 'configure', entry})}
           />
         ) : null}
       </section>
 
-      <section className="flex flex-col gap-16" aria-label="Unsupported model providers">
+      <section className="flex flex-col gap-16" aria-label="Unsupported providers">
         <div className="flex flex-col gap-4">
-          <Header variant="h3">Unsupported model providers</Header>
+          <Header variant="h3">Unsupported providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Model providers that cannot be configured in this workspace yet.
+            Providers that cannot be configured in this workspace yet.
           </Text>
         </div>
 
         {catalogQuery.isPending ? (
-          <ModelProviderRowsSkeleton label="Loading unsupported model providers" />
+          <ModelProviderRowsSkeleton label="Loading unsupported providers" />
         ) : null}
 
-        {unsupportedModelProviders.length > 0 ? (
+        {unsupportedProviders.length > 0 ? (
           <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
-            {unsupportedModelProviders.map((entry) => (
+            {unsupportedProviders.map((entry) => (
               <li key={entry.id} className="flex items-start gap-12 px-16 py-12 opacity-70">
                 <Icon
                   name="forbid2Line"
@@ -372,7 +367,7 @@ function ConfiguredProviderRow({
         workspaceId,
         body: {provider_id: config.provider_id},
       });
-      toast.success(`${label} is now the default model provider`);
+      toast.success(`${label} is now the default provider`);
     } catch (error) {
       const mapped = modelProviderConfigErrorToFormError(error);
       setDefaultError(mapped.message);
@@ -415,9 +410,9 @@ function ConfiguredProviderRow({
                     />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Default model provider</TooltipContent>
+                <TooltipContent>Default provider</TooltipContent>
               </Tooltip>
-              <span className="sr-only">Default model provider</span>
+              <span className="sr-only">Default provider</span>
             </>
           ) : null}
           <Text size="md" bold className="truncate">
@@ -430,7 +425,7 @@ function ConfiguredProviderRow({
               size="sm"
               variant="transparent"
               icon="more2Line"
-              aria-label={`Open ${label} model provider actions`}
+              aria-label={`Open ${label} provider actions`}
             />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -508,8 +503,8 @@ function DeleteModelProviderDialog({
         <ModalHeader title="Delete model provider" />
         <ModalBody className="gap-16">
           <Text size="sm" className="text-foreground-neutral-muted">
-            Delete {label} credentials from this workspace? Agent jobs cannot use this model
-            provider until it is configured again.
+            Delete {label} credentials from this workspace? Agent jobs cannot use this provider
+            until it is configured again.
           </Text>
           {errorMessage ? (
             <Alert variant="error" animated={false}>
@@ -553,11 +548,7 @@ function ModelProviderRowsSkeleton({label}: {label: string}) {
 
 function ModelProviderGridSkeleton() {
   return (
-    <div
-      role="status"
-      aria-label="Loading available model providers"
-      className={MODEL_PROVIDER_GRID_CLASS}
-    >
+    <div role="status" aria-label="Loading available providers" className={PROVIDER_GRID_CLASS}>
       {[0, 1, 2, 3].map((card) => (
         <Skeleton key={card} className="h-136 w-full" />
       ))}

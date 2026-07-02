@@ -24,7 +24,7 @@ export function modelProviderConfigErrorToFormError(
 function apiErrorMessage(error: ApiError): string {
   const details = modelProviderErrorDetails(error.details);
 
-  if (error.code === 'model-provider-validation-failed') {
+  if (error.code === 'provider-validation-failed') {
     return typeof details.message === 'string' ? details.message : error.message;
   }
   if (error.code === 'invalid-credential-fields') {
@@ -34,16 +34,16 @@ function apiErrorMessage(error: ApiError): string {
     if (expectedKeys.length > 0) {
       return `Credentials must include exactly these fields: ${expectedKeys.join(', ')}.`;
     }
-    return 'Credentials do not match the fields required by this model provider.';
+    return 'Credentials do not match the fields required by this provider.';
   }
   if (error.code === 'invalid-agent-model') {
-    return 'Choose a model supported by this model provider.';
+    return 'Choose a model supported by this provider.';
   }
-  if (error.code === 'model-provider-unsupported') {
-    return 'This model provider is not supported for workspace-managed credentials.';
+  if (error.code === 'provider-unsupported') {
+    return 'This provider is not supported for workspace-managed credentials.';
   }
-  if (error.code === 'model-provider-not-configured') {
-    return 'Configure this model provider before setting it as the default.';
+  if (error.code === 'provider-not-configured') {
+    return 'Configure this provider before setting it as the default.';
   }
   return error.message;
 }

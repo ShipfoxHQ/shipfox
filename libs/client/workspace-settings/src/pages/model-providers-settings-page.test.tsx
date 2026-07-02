@@ -13,7 +13,7 @@ describe('ModelProvidersSettingsPage', () => {
       .fn()
       .mockResolvedValueOnce(
         jsonResponse({
-          model_providers: [
+          providers: [
             {
               id: 'anthropic',
               label: 'Anthropic',
@@ -35,8 +35,8 @@ describe('ModelProvidersSettingsPage', () => {
     );
 
     expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-    expect(await screen.findByText('No model providers configured')).toBeVisible();
-    expect(screen.getByText('Available model providers')).toBeVisible();
+    expect(await screen.findByText('No providers configured')).toBeVisible();
+    expect(screen.getByText('Available providers')).toBeVisible();
     expect(screen.getByRole('button', {name: 'Configure Anthropic'})).toBeVisible();
     expect(screen.getByText('Configure')).toBeVisible();
     expect(screen.queryByText('Connect')).not.toBeInTheDocument();

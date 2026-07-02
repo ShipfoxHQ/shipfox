@@ -379,7 +379,7 @@ function renderAgentConfigFailureCallout() {
       message: 'Model provider credentials are not configured',
       category: 'user',
       reason: 'agent_config_invalid',
-      agent_config_issue: 'model_provider_not_configured',
+      agent_config_issue: 'provider_not_configured',
     },
     attempts: [attempt],
   });
@@ -395,7 +395,7 @@ function renderAgentConfigFailureCallout() {
           error={{
             message: 'Model provider credentials are not configured',
             reason: 'agent_config_invalid',
-            agentConfigIssue: 'model_provider_not_configured',
+            agentConfigIssue: 'provider_not_configured',
             category: 'user',
             exitCode: null,
             signal: undefined,

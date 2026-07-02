@@ -76,7 +76,7 @@ export function modelProviderConfig(
 export function modelProviderCatalogResponse(
   modelProviders: ModelProviderCatalogEntryDto[] = [modelProviderEntry()],
 ): ModelProviderCatalogResponseDto {
-  return {model_providers: modelProviders};
+  return {providers: modelProviders};
 }
 
 export function modelProviderConfigsResponse(

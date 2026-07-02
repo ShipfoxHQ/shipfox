@@ -218,7 +218,7 @@ describe('api-client auth contexts', () => {
       new AgentRuntimeConfigRequestError(
         409,
         'model-provider-not-configured',
-        'model_provider_not_configured',
+        'provider_not_configured',
       ),
     );
   });

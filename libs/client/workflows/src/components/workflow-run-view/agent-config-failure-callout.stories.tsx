@@ -56,7 +56,7 @@ const meta = {
   args: {
     workspaceId: WORKSPACE_ID,
     config,
-    error: makeError('model_provider_not_configured'),
+    error: makeError('provider_not_configured'),
   },
 } satisfies Meta<typeof AgentConfigFailureCallout>;
 
@@ -68,9 +68,9 @@ const errorCases: Array<{
   label: string;
   error: WorkflowStepError;
 }> = [
-  {label: 'Provider not configured', error: makeError('model_provider_not_configured')},
+  {label: 'Provider not configured', error: makeError('provider_not_configured')},
   {label: 'Credentials invalid', error: makeError('credentials_invalid')},
-  {label: 'Provider unsupported', error: makeError('model_provider_unsupported')},
+  {label: 'Provider unsupported', error: makeError('provider_unsupported')},
   {label: 'Model unavailable', error: makeError('model_unavailable')},
   {label: 'Step config invalid', error: makeError('step_config_invalid')},
   {
@@ -109,7 +109,7 @@ export const TestProviderNotConfigured: Story = {
 
 export const TestProviderUnsupported: Story = {
   args: {
-    error: makeError('model_provider_unsupported'),
+    error: makeError('provider_unsupported'),
   },
   play: assertCallout('Choose a supported model provider', false),
 };

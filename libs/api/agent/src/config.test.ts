@@ -5,7 +5,7 @@ describe('agent config', () => {
     vi.unstubAllEnvs();
   });
 
-  it('imports with an API-key-only instance default model provider key', async () => {
+  it('imports with an API-key-only instance default provider key', async () => {
     vi.resetModules();
     vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
     vi.stubEnv('AGENT_DEFAULT_PROVIDER', 'openai');
@@ -30,7 +30,7 @@ describe('agent config', () => {
     );
   });
 
-  it('throws when an instance key is set without an instance default model provider', async () => {
+  it('throws when an instance key is set without an instance default provider', async () => {
     vi.resetModules();
     vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
     vi.stubEnv('AGENT_DEFAULT_PROVIDER_API_KEY', 'sk-instance-secret');

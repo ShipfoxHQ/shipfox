@@ -1,15 +1,15 @@
 import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import {Button, EmptyState, Icon, Input} from '@shipfox/react-ui';
 import {useMemo, useRef, useState} from 'react';
-import {AvailableModelProviderCard} from './available-model-provider-card.js';
-import {modelProviderMatchesSearch} from './model-provider-search.js';
+import {AvailableProviderCard} from './available-provider-card.js';
+import {providerMatchesSearch} from './provider-search.js';
 
-export const MODEL_PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-cols-1';
+export const PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-cols-1';
 
 const SEARCH_VISIBILITY_THRESHOLD = 8;
 const MAX_ECHOED_QUERY_LENGTH = 40;
 
-export function AvailableModelProvidersGrid<TEntry extends ModelProviderCatalogEntryDto>({
+export function AvailableProvidersGrid<TEntry extends ModelProviderCatalogEntryDto>({
   entries,
   onSelect,
 }: {
@@ -21,15 +21,13 @@ export function AvailableModelProvidersGrid<TEntry extends ModelProviderCatalogE
   const trimmedSearch = search.trim();
   const showSearch = entries.length > SEARCH_VISIBILITY_THRESHOLD || trimmedSearch !== '';
   const filteredEntries = useMemo(
-    () => entries.filter((entry) => modelProviderMatchesSearch(entry, search)),
+    () => entries.filter((entry) => providerMatchesSearch(entry, search)),
     [entries, search],
   );
-  const modelProviderListLabel =
-    trimmedSearch !== ''
-      ? 'Available model providers matching search'
-      : 'Available model providers';
+  const providerListLabel =
+    trimmedSearch !== '' ? 'Available providers matching search' : 'Available providers';
   const resultCountText =
-    trimmedSearch === '' ? '' : modelProviderResultCountText(filteredEntries.length, trimmedSearch);
+    trimmedSearch === '' ? '' : providerResultCountText(filteredEntries.length, trimmedSearch);
 
   function clearSearch() {
     setSearch('');
@@ -42,8 +40,8 @@ export function AvailableModelProvidersGrid<TEntry extends ModelProviderCatalogE
         <Input
           ref={inputRef}
           type="search"
-          aria-label="Search model providers"
-          placeholder="Search model providers..."
+          aria-label="Search providers"
+          placeholder="Search providers..."
           value={search}
           iconLeft={<Icon name="searchLine" className="size-16 text-foreground-neutral-muted" />}
           onChange={(event) => setSearch(event.target.value)}
@@ -51,9 +49,9 @@ export function AvailableModelProvidersGrid<TEntry extends ModelProviderCatalogE
       ) : null}
 
       {filteredEntries.length > 0 ? (
-        <ul className={MODEL_PROVIDER_GRID_CLASS} aria-label={modelProviderListLabel}>
+        <ul className={PROVIDER_GRID_CLASS} aria-label={providerListLabel}>
           {filteredEntries.map((entry) => (
-            <AvailableModelProviderCard
+            <AvailableProviderCard
               key={entry.id}
               entry={entry}
               onConfigure={() => onSelect(entry)}
@@ -61,7 +59,7 @@ export function AvailableModelProvidersGrid<TEntry extends ModelProviderCatalogE
           ))}
         </ul>
       ) : (
-        <NoModelProviderSearchResults search={trimmedSearch} onClear={clearSearch} />
+        <NoProviderSearchResults search={trimmedSearch} onClear={clearSearch} />
       )}
 
       <p role="status" aria-live="polite" className="sr-only">
@@ -71,12 +69,12 @@ export function AvailableModelProvidersGrid<TEntry extends ModelProviderCatalogE
   );
 }
 
-function NoModelProviderSearchResults({search, onClear}: {search: string; onClear: () => void}) {
+function NoProviderSearchResults({search, onClear}: {search: string; onClear: () => void}) {
   return (
     <EmptyState
       icon="searchLine"
-      title={`No model providers match "${truncateQuery(search)}"`}
-      description="Try a different search, or clear it to see all model providers."
+      title={`No providers match "${truncateQuery(search)}"`}
+      description="Try a different search, or clear it to see all providers."
       action={
         <Button size="sm" variant="secondary" onClick={onClear}>
           Clear search
@@ -91,7 +89,7 @@ function truncateQuery(query: string): string {
   return `${query.slice(0, MAX_ECHOED_QUERY_LENGTH - 3)}...`;
 }
 
-function modelProviderResultCountText(count: number, query: string): string {
-  if (count === 1) return `1 model provider matches "${query}"`;
-  return `${count} model providers match "${query}"`;
+function providerResultCountText(count: number, query: string): string {
+  if (count === 1) return `1 provider matches "${query}"`;
+  return `${count} providers match "${query}"`;
 }

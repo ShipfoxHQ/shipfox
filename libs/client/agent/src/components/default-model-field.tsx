@@ -61,7 +61,7 @@ function defaultModelDescription(
   selectedModel: string | undefined,
 ): string | undefined {
   if (selectedModel === LATEST_MODEL_VALUE) {
-    return `Latest follows the model provider catalog default. Currently resolves to ${defaultModelLabel(entry)}.`;
+    return `Latest follows the provider catalog default. Currently resolves to ${defaultModelLabel(entry)}.`;
   }
   if (!selectedModel) return undefined;
   return selectedModel;

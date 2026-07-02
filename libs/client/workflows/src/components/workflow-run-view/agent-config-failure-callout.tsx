@@ -47,7 +47,7 @@ function agentConfigFailureCopy(
   const model = configValue(config?.model, 'the selected model');
 
   switch (error?.agentConfigIssue) {
-    case 'model_provider_not_configured':
+    case 'provider_not_configured':
       return {
         title: `Configure credentials for ${provider}`,
         description: `This step uses ${provider}, but no workspace credentials are configured for that model provider. Configure ${provider} in Model Providers, then re-run the workflow.`,
@@ -59,7 +59,7 @@ function agentConfigFailureCopy(
         description: `This step uses ${provider}, but the saved credentials could not be used. Reconfigure ${provider} in Model Providers, then re-run the workflow.`,
         showProviderCta: true,
       };
-    case 'model_provider_unsupported':
+    case 'provider_unsupported':
       return {
         title: `Choose a supported model provider`,
         description: `This step references ${provider}, which is not available to the agent runner. Update the workflow to use a supported provider, then re-run it.`,

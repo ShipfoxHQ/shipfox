@@ -66,7 +66,7 @@ export function sanitizeModelProviderError(error: unknown, secrets: string[]): s
   const message =
     error instanceof Error && error.message.length > 0
       ? error.message
-      : 'Model provider validation failed.';
+      : 'Provider validation failed.';
   const secretForms = secrets.flatMap((secret) => secretWireForms(secret));
   const redacted = redactSecrets(message, secretForms);
   return redacted.slice(0, MAX_SANITIZED_ERROR_LENGTH);
@@ -107,5 +107,5 @@ function credentialValue(
 
 function rejectModelProviderErrorResult(result: AssistantMessage): void {
   if (result.stopReason !== 'error' && result.stopReason !== 'aborted') return;
-  throw new Error(result.errorMessage ?? 'Model provider validation failed.');
+  throw new Error(result.errorMessage ?? 'Provider validation failed.');
 }

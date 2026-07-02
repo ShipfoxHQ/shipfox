@@ -127,7 +127,7 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('reports unsupported explicit model providers', () => {
+  it('reports unsupported explicit providers', () => {
     const document: WorkflowDocument = {
       name: 'agent build',
       jobs: {
@@ -141,8 +141,8 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(error.issues).toEqual([
       {
-        code: 'invalid-model-provider',
-        message: 'Model provider "github-copilot" is not supported.',
+        code: 'invalid-provider',
+        message: 'Provider "github-copilot" is not supported.',
         path: ['jobs', 'fix', 'steps', 0, 'provider'],
         details: {provider: 'github-copilot'},
       },
@@ -1826,7 +1826,7 @@ describe('normalizeWorkflowDocument', () => {
       });
     });
 
-    it('still validates literal model providers through the catalog', () => {
+    it('still validates literal providers through the catalog', () => {
       const document: WorkflowDocument = {
         name: 'literal provider',
         jobs: {
@@ -1840,7 +1840,7 @@ describe('normalizeWorkflowDocument', () => {
 
       expect(error.issues).toEqual([
         expect.objectContaining({
-          code: 'invalid-model-provider',
+          code: 'invalid-provider',
           path: ['jobs', 'fix', 'steps', 0, 'provider'],
         }),
       ]);

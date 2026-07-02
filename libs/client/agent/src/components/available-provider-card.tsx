@@ -4,7 +4,7 @@ import {cn, Icon, Text} from '@shipfox/react-ui';
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
 
-export function AvailableModelProviderCard({
+export function AvailableProviderCard({
   entry,
   onConfigure,
 }: {

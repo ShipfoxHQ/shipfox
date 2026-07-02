@@ -165,7 +165,7 @@ export const FilteredAvailableProviders: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await userEvent.type(
-      await canvas.findByRole('searchbox', {name: 'Search model providers'}),
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
       'openrouter',
     );
     await canvas.findByRole('button', {name: 'Configure OpenRouter'});
@@ -177,7 +177,7 @@ export const NoMatchingAvailableProviders: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await userEvent.type(
-      await canvas.findByRole('searchbox', {name: 'Search model providers'}),
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
       'not-a-provider',
     );
     await canvas.findByRole('button', {name: 'Clear search'});
@@ -198,7 +198,7 @@ export const WorkflowExampleModalOpen: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      await canvas.findByRole('button', {name: 'Open Anthropic model provider actions'}),
+      await canvas.findByRole('button', {name: 'Open Anthropic provider actions'}),
     );
     await userEvent.click(await screen.findByRole('menuitem', {name: 'View workflow example'}));
     await screen.findByRole('dialog', {name: 'Use Anthropic in a workflow'});
@@ -211,7 +211,7 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
     if (scenario === 'loading') return new Promise<Response>(() => undefined);
     if (url.pathname.endsWith('/agent/model-provider-catalog')) {
       if (scenario === 'catalog-error') return Promise.resolve(errorResponse());
-      return Promise.resolve(jsonResponse({model_providers: catalogForScenario(scenario)}));
+      return Promise.resolve(jsonResponse({providers: catalogForScenario(scenario)}));
     }
     if (url.pathname.endsWith('/agent/model-providers')) {
       if (scenario === 'configs-error') return Promise.resolve(errorResponse());

@@ -5,29 +5,29 @@ describe('modelProviderConfigErrorToFormError', () => {
   test.each([
     [
       new ApiError({
-        code: 'model-provider-validation-failed',
+        code: 'provider-validation-failed',
         message: 'Validation failed',
         status: 422,
-        details: {provider_id: 'anthropic', message: 'Model provider rejected the key.'},
+        details: {provider_id: 'anthropic', message: 'Provider rejected the key.'},
       }),
-      'Model provider rejected the key.',
+      'Provider rejected the key.',
     ],
     [
       new ApiError({
-        code: 'model-provider-validation-failed',
+        code: 'provider-validation-failed',
         message: 'Validation failed',
         status: 422,
         details: {
-          code: 'model-provider-validation-failed',
+          code: 'provider-validation-failed',
           message: 'Validation failed',
-          details: {provider_id: 'anthropic', message: 'Model provider rejected the key.'},
+          details: {provider_id: 'anthropic', message: 'Provider rejected the key.'},
         },
       }),
-      'Model provider rejected the key.',
+      'Provider rejected the key.',
     ],
     [
       new ApiError({
-        code: 'model-provider-validation-failed',
+        code: 'provider-validation-failed',
         message: 'Validation failed',
         status: 422,
       }),
@@ -51,16 +51,16 @@ describe('modelProviderConfigErrorToFormError', () => {
         message: 'Invalid credentials',
         status: 422,
       }),
-      'Credentials do not match the fields required by this model provider.',
+      'Credentials do not match the fields required by this provider.',
     ],
     [
       new ApiError({
-        code: 'model-provider-unsupported',
+        code: 'provider-unsupported',
         message: 'Unsupported',
         status: 422,
         details: {provider_id: 'amazon-bedrock'},
       }),
-      'This model provider is not supported for workspace-managed credentials.',
+      'This provider is not supported for workspace-managed credentials.',
     ],
     [
       new ApiError({
@@ -69,16 +69,16 @@ describe('modelProviderConfigErrorToFormError', () => {
         status: 422,
         details: {provider_id: 'anthropic', model: 'missing-model'},
       }),
-      'Choose a model supported by this model provider.',
+      'Choose a model supported by this provider.',
     ],
     [
       new ApiError({
-        code: 'model-provider-not-configured',
+        code: 'provider-not-configured',
         message: 'Not configured',
         status: 422,
         details: {provider_id: 'openai'},
       }),
-      'Configure this model provider before setting it as the default.',
+      'Configure this provider before setting it as the default.',
     ],
     [
       new ApiError({code: 'not-found', message: 'Provider config not found', status: 404}),

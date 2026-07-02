@@ -65,7 +65,7 @@ describe('ModelProviderOnboardingPage', () => {
     expect(fetchImpl.mock.calls.some(([input]) => (input as Request).method === 'PUT')).toBe(false);
   });
 
-  test('places skip before the model provider choices', async () => {
+  test('places skip before the provider choices', async () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
       fetchImpl: vi.fn().mockResolvedValue(jsonResponse(modelProviderCatalogResponse())),
@@ -87,7 +87,7 @@ describe('ModelProviderOnboardingPage', () => {
     expect(skip.compareDocumentPosition(provider)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  test('filters supported model providers and clears a no-match search', async () => {
+  test('filters supported providers and clears a no-match search', async () => {
     const user = userEvent.setup();
     configureApiClient({
       baseUrl: 'https://api.example.test',
@@ -103,7 +103,7 @@ describe('ModelProviderOnboardingPage', () => {
         onConfigured={vi.fn()}
       />,
     );
-    const search = await screen.findByRole('searchbox', {name: 'Search model providers'});
+    const search = await screen.findByRole('searchbox', {name: 'Search providers'});
 
     await user.type(search, 'provider 6');
 
@@ -111,7 +111,7 @@ describe('ModelProviderOnboardingPage', () => {
     expect(screen.queryByRole('button', {name: 'Configure Provider 1'})).not.toBeInTheDocument();
     await user.clear(search);
     await user.type(search, 'missing');
-    expect(screen.getByText('No model providers match "missing"')).toBeVisible();
+    expect(screen.getByText('No providers match "missing"')).toBeVisible();
     await user.click(screen.getByRole('button', {name: 'Clear search'}));
 
     expect(screen.getByRole('button', {name: 'Configure Provider 1'})).toBeVisible();

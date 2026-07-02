@@ -150,7 +150,7 @@ export const FilteredProviders: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await userEvent.type(
-      await canvas.findByRole('searchbox', {name: 'Search model providers'}),
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
       'openrouter',
     );
     await canvas.findByRole('button', {name: 'Configure OpenRouter'});
@@ -162,7 +162,7 @@ export const NoMatchingProviders: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await userEvent.type(
-      await canvas.findByRole('searchbox', {name: 'Search model providers'}),
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
       'not-a-provider',
     );
     await canvas.findByRole('button', {name: 'Clear search'});
@@ -185,7 +185,7 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
     if (scenario === 'loading') return new Promise<Response>(() => undefined);
     if (url.pathname.endsWith('/agent/model-provider-catalog')) {
       if (scenario === 'catalog-error') return Promise.resolve(errorResponse());
-      return Promise.resolve(jsonResponse({model_providers: catalogForScenario(scenario)}));
+      return Promise.resolve(jsonResponse({providers: catalogForScenario(scenario)}));
     }
     if (request?.method === 'PUT' && url.pathname.includes('/agent/model-providers/')) {
       return Promise.resolve(

@@ -163,7 +163,7 @@ describe('runAgent', () => {
       runAgent(invocation({provider: 'openai', credentials: {account_id: 'acct-1'}})),
     ).rejects.toThrow(
       new AgentConfigError(
-        'Runtime credentials for model provider "openai" are missing "api_key".',
+        'Runtime credentials for provider "openai" are missing "api_key".',
         'credentials_invalid',
       ),
     );
@@ -181,7 +181,7 @@ describe('runAgent', () => {
       ),
     ).rejects.toThrow(
       new AgentConfigError(
-        'Runtime credentials for model provider "cloudflare-ai-gateway" are missing "gateway_id".',
+        'Runtime credentials for provider "cloudflare-ai-gateway" are missing "gateway_id".',
         'credentials_invalid',
       ),
     );
@@ -216,21 +216,21 @@ describe('runAgent', () => {
     expect(entries).toEqual([]);
   });
 
-  it('throws an AgentConfigError naming the model provider when it is unknown', async () => {
+  it('throws an AgentConfigError naming the provider when it is unknown', async () => {
     findMock.mockReturnValue(undefined);
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
 
     await expect(runAgent(invocation({provider: 'bogus', model: 'gpt-5.1'}))).rejects.toThrow(
       new AgentConfigError(
-        'Unknown model provider "bogus" for agent step. ' +
-          'Known model providers are pi built-ins plus any from models.json.',
-        'model_provider_unsupported',
+        'Unknown provider "bogus" for agent step. ' +
+          'Known providers are pi built-ins plus any from models.json.',
+        'provider_unsupported',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('throws an AgentConfigError with a did-you-mean hint when the model is on another model provider', async () => {
+  it('throws an AgentConfigError with a did-you-mean hint when the model is on another provider', async () => {
     findMock.mockReturnValue(undefined);
     getAllMock.mockReturnValue([
       {provider: 'anthropic', id: 'claude-opus-4-8'},
@@ -239,7 +239,7 @@ describe('runAgent', () => {
 
     await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
       new AgentConfigError(
-        'Model "gpt-5.1" is not available for model provider "anthropic". ' +
+        'Model "gpt-5.1" is not available for provider "anthropic". ' +
           'Did you mean to set provider: openai?',
         'model_unavailable',
       ),
@@ -247,28 +247,28 @@ describe('runAgent', () => {
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('throws an AgentConfigError without a hint when no model provider carries the model', async () => {
+  it('throws an AgentConfigError without a hint when no provider carries the model', async () => {
     findMock.mockReturnValue(undefined);
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
 
     await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
       new AgentConfigError(
-        'Model "gpt-5.1" is not available for model provider "anthropic".',
+        'Model "gpt-5.1" is not available for provider "anthropic".',
         'model_unavailable',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('throws an AgentConfigError when the model provider has no configured workspace credentials', async () => {
+  it('throws an AgentConfigError when the provider has no configured workspace credentials', async () => {
     findMock.mockReturnValue({provider: 'openai', id: 'gpt-5.1'});
     hasConfiguredAuthMock.mockReturnValue(false);
 
     await expect(runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}))).rejects.toThrow(
       new AgentConfigError(
-        'No credentials configured for model provider "openai". ' +
-          'Verify the model provider is configured for this workspace.',
-        'model_provider_not_configured',
+        'No credentials configured for provider "openai". ' +
+          'Verify the provider is configured for this workspace.',
+        'provider_not_configured',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();

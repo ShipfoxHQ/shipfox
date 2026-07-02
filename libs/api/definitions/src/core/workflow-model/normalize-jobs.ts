@@ -366,8 +366,8 @@ function validateAgentStep(params: {
   if (provider === undefined || provider.support_status !== 'supported') {
     params.issues.push(
       issue({
-        code: 'invalid-model-provider',
-        message: `Model provider "${providerId}" is not supported.`,
+        code: 'invalid-provider',
+        message: `Provider "${providerId}" is not supported.`,
         path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
         details: {provider: providerId},
       }),

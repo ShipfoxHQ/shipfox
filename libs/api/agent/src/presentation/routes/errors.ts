@@ -10,7 +10,7 @@ import {
 
 export function translateModelProviderRouteError(error: unknown): never {
   if (error instanceof ModelProviderValidationError) {
-    throw new ClientError(error.sanitizedMessage, 'model-provider-validation-failed', {
+    throw new ClientError(error.sanitizedMessage, 'provider-validation-failed', {
       status: 422,
       details: {
         provider_id: error.providerId,
@@ -40,14 +40,14 @@ export function translateModelProviderRouteError(error: unknown): never {
   }
 
   if (error instanceof UnsupportedModelProviderError) {
-    throw new ClientError('Model provider is not supported', 'model-provider-unsupported', {
+    throw new ClientError('Provider is not supported', 'provider-unsupported', {
       status: 422,
       details: {provider_id: error.providerId},
     });
   }
 
   if (error instanceof ModelProviderConfigNotFoundError) {
-    throw new ClientError('Model provider is not configured', 'model-provider-not-configured', {
+    throw new ClientError('Provider is not configured', 'provider-not-configured', {
       status: 422,
       details: {
         provider_id: error.providerId,

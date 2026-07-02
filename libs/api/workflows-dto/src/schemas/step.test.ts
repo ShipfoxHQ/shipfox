@@ -20,13 +20,13 @@ describe('stepErrorDtoSchema', () => {
     const result = stepErrorDtoSchema.parse({
       message: 'Model provider credentials are not configured',
       reason: 'agent_config_invalid',
-      agent_config_issue: 'model_provider_not_configured',
+      agent_config_issue: 'provider_not_configured',
     });
 
     expect(result).toEqual({
       message: 'Model provider credentials are not configured',
       reason: 'agent_config_invalid',
-      agent_config_issue: 'model_provider_not_configured',
+      agent_config_issue: 'provider_not_configured',
     });
   });
 
@@ -48,7 +48,7 @@ describe('stepErrorDtoSchema', () => {
     const result = stepErrorDtoSchema.safeParse({
       message: 'Model provider credentials are not configured',
       ...(reason === undefined ? {} : {reason}),
-      agent_config_issue: 'model_provider_not_configured',
+      agent_config_issue: 'provider_not_configured',
     });
 
     expect(result.success).toBe(false);

@@ -84,7 +84,7 @@ export function ModelProviderUsageModal({
               {entry ? `Use ${entry.label} in a workflow` : 'Use provider in a workflow'}
             </Text>
             <Text size="sm" className="text-foreground-neutral-muted">
-              Reference this model provider from a workflow agent step.
+              Reference this provider from a workflow agent step.
             </Text>
           </div>
         </ModalHeader>

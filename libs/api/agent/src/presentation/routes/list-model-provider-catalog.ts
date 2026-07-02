@@ -11,5 +11,5 @@ export const listModelProviderCatalogRoute = defineRoute({
       200: modelProviderCatalogResponseSchema,
     },
   },
-  handler: () => ({model_providers: buildModelProviderCatalog()}),
+  handler: () => ({providers: buildModelProviderCatalog()}),
 });

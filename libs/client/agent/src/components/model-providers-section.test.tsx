@@ -42,11 +42,11 @@ function requestPath(input: RequestInfo | URL): string {
 }
 
 async function openProviderActions(user: ReturnType<typeof userEvent.setup>, label: string) {
-  await user.click(screen.getByRole('button', {name: `Open ${label} model provider actions`}));
+  await user.click(screen.getByRole('button', {name: `Open ${label} provider actions`}));
 }
 
 describe('WorkspaceModelProvidersSection', () => {
-  test('renders configured, available, and unsupported model providers', async () => {
+  test('renders configured, available, and unsupported providers', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       if (requestPath(input).endsWith('/agent/model-provider-catalog')) {
         return Promise.resolve(
@@ -70,21 +70,21 @@ describe('WorkspaceModelProvidersSection', () => {
 
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
 
-    expect(await screen.findByText('Configured model providers')).toBeVisible();
+    expect(await screen.findByText('Configured providers')).toBeVisible();
     expect(await screen.findByText('Anthropic')).toBeVisible();
-    expect(screen.getByText('Default model provider')).toHaveClass('sr-only');
+    expect(screen.getByText('Default provider')).toHaveClass('sr-only');
     expect(screen.queryByText(ANTHROPIC_FINGERPRINT_RE)).not.toBeInTheDocument();
-    expect(screen.getByText('Available model providers')).toBeVisible();
+    expect(screen.getByText('Available providers')).toBeVisible();
     expect(
-      screen.getByText('Model providers that can be configured for agent steps in this workspace.'),
+      screen.getByText('Providers that can be configured for agent steps in this workspace.'),
     ).toBeVisible();
     expect(screen.getByText('OpenAI')).toBeVisible();
-    expect(screen.getByText('Unsupported model providers')).toBeVisible();
+    expect(screen.getByText('Unsupported providers')).toBeVisible();
     expect(screen.getByText('Amazon Bedrock')).toBeVisible();
     expect(screen.getByText('AWS cloud credentials are not supported yet.')).toBeVisible();
   });
 
-  test('filters available model providers and clears back to the full available list', async () => {
+  test('filters available providers and clears back to the full available list', async () => {
     const user = userEvent.setup();
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       if (requestPath(input).endsWith('/agent/model-provider-catalog')) {
@@ -99,7 +99,7 @@ describe('WorkspaceModelProvidersSection', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
-    const search = await screen.findByRole('searchbox', {name: 'Search model providers'});
+    const search = await screen.findByRole('searchbox', {name: 'Search providers'});
 
     await user.type(search, 'provider 7');
 
@@ -107,7 +107,7 @@ describe('WorkspaceModelProvidersSection', () => {
     expect(screen.queryByRole('button', {name: 'Configure Provider 1'})).not.toBeInTheDocument();
     await user.clear(search);
     await user.type(search, 'missing');
-    expect(screen.getByText('No model providers match "missing"')).toBeVisible();
+    expect(screen.getByText('No providers match "missing"')).toBeVisible();
     await user.click(screen.getByRole('button', {name: 'Clear search'}));
 
     expect(screen.getByRole('button', {name: 'Configure Provider 1'})).toBeVisible();
@@ -130,12 +130,10 @@ describe('WorkspaceModelProvidersSection', () => {
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
 
     expect(await screen.findByRole('button', {name: 'Configure Provider 0'})).toBeVisible();
-    expect(
-      screen.queryByRole('searchbox', {name: 'Search model providers'}),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('searchbox', {name: 'Search providers'})).not.toBeInTheDocument();
   });
 
-  test('waits for configured model providers before rendering available model provider cards', async () => {
+  test('waits for configured providers before rendering available provider cards', async () => {
     let resolveConfigs!: (response: Response) => void;
     const configsResponse = new Promise<Response>((resolve) => {
       resolveConfigs = resolve;
@@ -161,9 +159,7 @@ describe('WorkspaceModelProvidersSection', () => {
 
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
 
-    expect(
-      await screen.findByRole('status', {name: 'Loading available model providers'}),
-    ).toBeVisible();
+    expect(await screen.findByRole('status', {name: 'Loading available providers'})).toBeVisible();
     expect(screen.queryByRole('button', {name: 'Configure OpenAI'})).not.toBeInTheDocument();
 
     resolveConfigs(
@@ -234,19 +230,19 @@ describe('WorkspaceModelProvidersSection', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
-    expect(await screen.findByText('No model providers configured')).toBeVisible();
+    expect(await screen.findByText('No providers configured')).toBeVisible();
     await user.click(screen.getByRole('button', {name: 'Configure OpenAI'}));
     expect(await screen.findByLabelText('Default model')).toHaveValue('__latest__');
     expect(screen.getByRole('option', {name: 'Latest'})).toBeVisible();
     expect(
       screen.getByText(
-        'Latest follows the model provider catalog default. Currently resolves to GPT-5.5 Pro.',
+        'Latest follows the provider catalog default. Currently resolves to GPT-5.5 Pro.',
       ),
     ).toBeVisible();
     await user.selectOptions(screen.getByLabelText('Default model'), 'gpt-5-mini');
     expect(
       screen.queryByText(
-        'Latest follows the model provider catalog default. Currently resolves to GPT-5.5 Pro.',
+        'Latest follows the provider catalog default. Currently resolves to GPT-5.5 Pro.',
       ),
     ).not.toBeInTheDocument();
     expect(screen.getByText('gpt-5-mini')).toBeVisible();
@@ -266,7 +262,7 @@ describe('WorkspaceModelProvidersSection', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() =>
       expect(document.activeElement).toBe(
-        screen.getByRole('region', {name: 'Configured model providers'}),
+        screen.getByRole('region', {name: 'Configured providers'}),
       ),
     );
     expect(await screen.findByText('OpenAI')).toBeVisible();
@@ -539,11 +535,11 @@ describe('WorkspaceModelProvidersSection', () => {
         return Promise.resolve(
           jsonResponse(
             {
-              code: 'model-provider-validation-failed',
-              message: 'Model provider validation failed',
+              code: 'provider-validation-failed',
+              message: 'Provider validation failed',
               details: {
                 provider_id: 'anthropic',
-                message: 'Model provider rejected the key.',
+                message: 'Provider rejected the key.',
               },
             },
             {status: 422},
@@ -557,13 +553,13 @@ describe('WorkspaceModelProvidersSection', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
-    await screen.findByText('No model providers configured');
+    await screen.findByText('No providers configured');
     await user.click(screen.getByRole('button', {name: 'Configure Anthropic'}));
     await user.type(await screen.findByLabelText('API key'), 'sk-ant-secret');
     await user.click(screen.getByRole('button', {name: 'Test & save'}));
 
     expect(await screen.findByText('Could not save provider')).toBeVisible();
-    expect(screen.getByText('Model provider rejected the key.')).toBeVisible();
+    expect(screen.getByText('Provider rejected the key.')).toBeVisible();
     expect(screen.getByLabelText('API key')).toHaveValue('sk-ant-secret');
   });
 
@@ -653,7 +649,7 @@ describe('WorkspaceModelProvidersSection', () => {
     await user.selectOptions(screen.getByLabelText('Default model'), '__latest__');
     expect(
       screen.getByText(
-        'Latest follows the model provider catalog default. Currently resolves to Claude Opus 4.8.',
+        'Latest follows the provider catalog default. Currently resolves to Claude Opus 4.8.',
       ),
     ).toBeVisible();
     await user.click(screen.getByRole('button', {name: 'Save model'}));
@@ -683,7 +679,7 @@ describe('WorkspaceModelProvidersSection', () => {
       if (requestPath(input).endsWith('/agent/default-model-provider')) {
         return Promise.resolve(
           jsonResponse(
-            {code: 'model-provider-not-configured', message: 'Model provider is not configured'},
+            {code: 'provider-not-configured', message: 'Provider is not configured'},
             {status: 422},
           ),
         );
@@ -711,7 +707,7 @@ describe('WorkspaceModelProvidersSection', () => {
     await user.click(screen.getByRole('menuitem', {name: 'Set as default'}));
 
     expect(
-      await screen.findByText('Configure this model provider before setting it as the default.'),
+      await screen.findByText('Configure this provider before setting it as the default.'),
     ).toBeVisible();
   });
 
@@ -744,7 +740,7 @@ describe('WorkspaceModelProvidersSection', () => {
     await user.click(screen.getByRole('menuitem', {name: 'Delete'}));
     await user.click(screen.getByRole('button', {name: 'Delete'}));
 
-    expect(await screen.findByText('No model providers configured')).toBeVisible();
+    expect(await screen.findByText('No providers configured')).toBeVisible();
   });
 
   test('deletes a configured provider that is missing from the catalog', async () => {
@@ -790,7 +786,7 @@ describe('WorkspaceModelProvidersSection', () => {
         `/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-providers/local-vllm`,
       ),
     );
-    expect(await screen.findByText('No model providers configured')).toBeVisible();
+    expect(await screen.findByText('No providers configured')).toBeVisible();
   });
 
   test('disables catalog-backed actions when a configured provider is missing from the catalog', async () => {

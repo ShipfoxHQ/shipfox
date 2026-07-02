@@ -18,20 +18,20 @@ export const config = createConfig({
     default: undefined,
   }),
   AGENT_DEFAULT_PROVIDER_MODEL: str({
-    desc: 'Instance-wide default model ID used when the resolved model provider matches AGENT_DEFAULT_PROVIDER and no workflow or workspace model is set. Optional. Use a model ID supported by that model provider.',
+    desc: 'Instance-wide default model ID used when the resolved provider matches AGENT_DEFAULT_PROVIDER and no workflow or workspace model is set. Optional. Use a model ID supported by that provider.',
     default: undefined,
   }),
   AGENT_DEFAULT_PROVIDER_THINKING: str({
-    desc: 'Instance-wide default thinking effort used when the resolved model provider matches AGENT_DEFAULT_PROVIDER and no workflow or workspace thinking effort is set. Optional. Accepted values are off, minimal, low, medium, high, and xhigh.',
+    desc: 'Instance-wide default thinking effort used when the resolved provider matches AGENT_DEFAULT_PROVIDER and no workflow or workspace thinking effort is set. Optional. Accepted values are off, minimal, low, medium, high, and xhigh.',
     choices: AGENT_THINKING_CHOICES,
     default: undefined,
   }),
   AGENT_DEFAULT_PROVIDER_API_KEY: str({
-    desc: 'API key for the instance default model provider. Optional. Must belong to AGENT_DEFAULT_PROVIDER. If you change the default model provider, change this key too. Instance defaults support API-key-only providers.',
+    desc: 'API key for the instance default provider. Optional. Must belong to AGENT_DEFAULT_PROVIDER. If you change the default provider, change this key too. Instance defaults support API-key-only providers.',
     default: undefined,
   }),
   AGENT_PROVIDER_VALIDATION_TIMEOUT_MS: num({
-    desc: 'Maximum time in milliseconds to wait for the live model provider test request when saving credentials.',
+    desc: 'Maximum time in milliseconds to wait for the live provider test request when saving credentials.',
     default: 10000,
   }),
   AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS: bool({

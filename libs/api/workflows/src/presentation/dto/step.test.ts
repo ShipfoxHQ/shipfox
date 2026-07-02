@@ -36,13 +36,13 @@ describe('fromStepErrorDto', () => {
     const persisted = fromStepErrorDto({
       message: 'Missing credentials',
       reason: 'agent_config_invalid',
-      agent_config_issue: 'model_provider_not_configured',
+      agent_config_issue: 'provider_not_configured',
     });
 
     expect(persisted).toEqual({
       message: 'Missing credentials',
       reason: 'agent_config_invalid',
-      agentConfigIssue: 'model_provider_not_configured',
+      agentConfigIssue: 'provider_not_configured',
     });
   });
 
@@ -92,17 +92,17 @@ describe('toStepDto error category', () => {
       step({
         type: 'agent',
         error: {
-          message: 'Unknown model provider "foo" for agent step.',
+          message: 'Unknown provider "foo" for agent step.',
           reason: 'agent_config_invalid',
-          agentConfigIssue: 'model_provider_unsupported',
+          agentConfigIssue: 'provider_unsupported',
         },
       }),
     );
 
     expect(dto.error).toEqual({
-      message: 'Unknown model provider "foo" for agent step.',
+      message: 'Unknown provider "foo" for agent step.',
       reason: 'agent_config_invalid',
-      agent_config_issue: 'model_provider_unsupported',
+      agent_config_issue: 'provider_unsupported',
       category: 'user',
     });
   });

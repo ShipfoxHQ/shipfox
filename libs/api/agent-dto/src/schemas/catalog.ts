@@ -88,7 +88,7 @@ export const modelProviderCatalogEntrySchema = modelProviderCatalogSeedBaseSchem
 export type ModelProviderCatalogEntryDto = z.infer<typeof modelProviderCatalogEntrySchema>;
 
 export const modelProviderCatalogResponseSchema = z.object({
-  model_providers: z.array(modelProviderCatalogEntrySchema),
+  providers: z.array(modelProviderCatalogEntrySchema),
 });
 
 export type ModelProviderCatalogResponseDto = z.infer<typeof modelProviderCatalogResponseSchema>;

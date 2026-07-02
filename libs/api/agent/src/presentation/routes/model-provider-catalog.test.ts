@@ -57,8 +57,8 @@ describe('model provider catalog route', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json().model_providers).toHaveLength(35);
-      for (const provider of res.json().model_providers) {
+      expect(res.json().providers).toHaveLength(35);
+      for (const provider of res.json().providers) {
         if (provider.support_status === 'supported') {
           expect(provider.models.length).toBeGreaterThan(0);
           expect(
