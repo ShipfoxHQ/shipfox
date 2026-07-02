@@ -151,7 +151,7 @@ describe('waitForDefinition', () => {
         ),
       initialDelayMs: 1,
       projectId,
-      timeoutMs: 1,
+      timeoutMs: 10,
       token: 'user-token',
     });
 

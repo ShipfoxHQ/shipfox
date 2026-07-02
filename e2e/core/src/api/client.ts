@@ -88,6 +88,7 @@ export function createApiClient(options: ApiClientOptions) {
     path: string,
     params: ApiClientRequestOptions = {},
   ): Promise<Response> {
+    const requestLabel = `${method.toUpperCase()} ${path}`;
     const headers = new Headers();
     headers.set('authorization', `Bearer ${options.token}`);
     appendHeaders(headers, params.headers);
@@ -111,7 +112,10 @@ export function createApiClient(options: ApiClientOptions) {
     } catch (error) {
       if (isAbortError(error)) throw error;
       throw new E2eApiError({
-        message: error instanceof Error ? error.message : 'E2E API request failed',
+        message:
+          error instanceof Error
+            ? `E2E API request failed for ${requestLabel}: ${error.message}`
+            : `E2E API request failed for ${requestLabel}`,
         status: 0,
         details: error,
       });
@@ -119,7 +123,7 @@ export function createApiClient(options: ApiClientOptions) {
 
     if (!response.ok) {
       throw new E2eApiError({
-        message: `E2E API request failed: ${response.status}`,
+        message: `E2E API request failed for ${requestLabel}: ${response.status}`,
         status: response.status,
         details: await parseErrorDetails(response),
       });

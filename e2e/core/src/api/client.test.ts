@@ -51,8 +51,24 @@ describe('createApiClient', () => {
 
     await expect(client.requestJson('get', '/workflows/runs/nope')).rejects.toMatchObject({
       name: 'E2eApiError',
+      message: 'E2E API request failed for GET /workflows/runs/nope: 404',
       status: 404,
       details: {code: 'not-found'},
+    } satisfies Partial<E2eApiError>);
+  });
+
+  test('wraps fetch failures with request context', async () => {
+    const client = createApiClient({
+      fetch: () => {
+        throw new Error('socket closed');
+      },
+      token: 'user-token',
+    });
+
+    await expect(client.requestJson('get', '/definitions?limit=1')).rejects.toMatchObject({
+      name: 'E2eApiError',
+      message: 'E2E API request failed for GET /definitions?limit=1: socket closed',
+      status: 0,
     } satisfies Partial<E2eApiError>);
   });
 
