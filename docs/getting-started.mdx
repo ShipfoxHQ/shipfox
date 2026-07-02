@@ -16,10 +16,10 @@ A project connects one repository to Shipfox and is the container for all workfl
 
 <Steps>
   <Step title="Create a project">
-    Open your Shipfox workspace dashboard and click **New project**. Give the project a name that matches the repository you want to connect.
+    Open your Shipfox workspace dashboard and create a project. Pick the source connection, then the repository — the project name is pre-filled from the repository and can be edited.
   </Step>
   <Step title="Connect the repository">
-    Select the Git provider and choose the repository. Shipfox reads workflow files from `.shipfox/workflows/` in the default branch. No extra configuration is needed — any `.yaml` or `.yml` file in that directory is treated as a workflow definition.
+    Shipfox reads workflow files from `.shipfox/workflows/` in the default branch. No extra configuration is needed — any `.yaml` or `.yml` file in that directory is treated as a workflow definition.
   </Step>
 </Steps>
 
@@ -54,7 +54,7 @@ The fields at a glance:
 | `steps` | An ordered list of steps. Each step is either a `run` command or an agent step (`model` + `prompt`). |
 
 <Note>
-  `filter` is roadmap — the `on_push` trigger fires on every push today; branch or path filtering is not yet evaluated. Push triggers require GitHub; GitLab support is on the roadmap. Use a manual trigger (`source: manual, event: fire`) in the meantime if you need local or GitLab testing.
+  `filter` is roadmap — the `on_push` trigger fires on every push today; branch or path filtering is not yet evaluated. Push triggers require GitHub; GitLab support is on the roadmap. Use a manual trigger (`source: manual, event: fire`) in the meantime if your repository is not on GitHub.
 </Note>
 
 Commit and push the file to your connected repository. Shipfox detects the new workflow file automatically — no manual import is required.
@@ -63,7 +63,7 @@ Commit and push the file to your connected repository. Shipfox detects the new w
 
 A run is one execution of a workflow. You can start a run in two ways:
 
-- **On demand**: Open the project dashboard, find the workflow, and click **Run now**.
+- **On demand**: Open the project's **Workflows** page, find the workflow, and click **Run**.
 - **On push**: Push a commit to the connected repository — the `on_push` trigger fires automatically.
 
 Once the run starts, click into it to stream live output. For the workflow above you should see:
@@ -72,6 +72,10 @@ Once the run starts, click into it to stream live output. For the workflow above
 build · echo "hello world"
 hello world
 ```
+
+<Frame caption="A run detail page: status, the job graph, and every step with its duration.">
+  <img src="/images/run-detail.png" alt="Shipfox run detail page showing a succeeded run with its job graph and step list" />
+</Frame>
 
 <Note>
   A run stuck in `pending` usually means no registered runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online and connected.
@@ -86,19 +90,21 @@ jobs:
   build:
     steps:
       - run: echo "hello world"
-      - name: summarize
+      - name: explain
         model: claude-opus-4-8
-        prompt: Say hello back in one short sentence.
+        prompt: >
+          Read this repository and explain in two sentences what it does
+          and how you would run its tests.
 ```
 
 Push the updated file. Fire another run and you should see output similar to:
 
 ```text
-summarize · claude-opus-4-8
-Hello back! 👋
+explain · claude-opus-4-8
+This repository is a small demo service... To run its tests, ...
 ```
 
-Agent output varies between runs — the model's response is non-deterministic, so expect different wording each time. The step is still marked as succeeded or failed based on whether the model call completes without error.
+The agent had your repository checked out — it read real files to answer. Open the step in the dashboard to see the full **agent session**: every message, thinking block, and tool call, plus token usage and cost. Output varies between runs; the step still succeeds or fails based on whether the call completes.
 
 To make the agent *act on your code* — fix failing tests, review a diff — give it a repo-aware prompt and pair it with a gate so it retries until a check passes. Agent steps use your workspace's configured model provider, so configure one before running them.
 

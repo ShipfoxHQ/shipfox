@@ -1,10 +1,35 @@
 ---
 title: "Introduction to Shipfox: Agentic Workflow Automation"
 sidebarTitle: "Introduction"
-description: "Shipfox runs YAML workflows from your repo, treats AI agents as first-class steps, and makes GitHub pushes and Sentry issues native triggers — no glue."
+description: "Shipfox runs YAML workflows from your repo, treats AI agents as first-class steps, and turns events from your tools into native triggers — GitHub, Sentry, any webhook, and more on the way."
 ---
 
-Shipfox is a continuous shipping platform built for engineering teams who want automation that lives alongside their code. Workflows are YAML files stored in `.shipfox/workflows/` in your repository — versioned, reviewed, and deployed the same way your application code is. A trigger starts a run; jobs group steps together; and each step either executes a shell command or invokes an AI agent. Every run streams live to the dashboard so your team always knows what's happening and why.
+Shipfox runs **agentic workflows** from your repository. A workflow is a YAML file in `.shipfox/workflows/` — triggers, jobs, steps, runners — a shape you already know how to read. The difference is what a step can be: a step runs a shell command **or runs an AI agent** — a `model`, a `prompt`, and your repository checked out. Agents and commands share one lifecycle, so a gate can retry an agent until your tests pass, and every agent step records a full session: messages, thinking, tool calls, token usage, and cost.
+
+```yaml
+name: Fix Sentry issues
+runner: ubuntu-latest
+triggers:
+  on_issue:
+    source: sentry_acme            # fires when Sentry reports a new issue
+    event: issue.created
+jobs:
+  fix:
+    steps:
+      - name: install
+        run: npm ci
+      - model: claude-opus-4-8
+        prompt: >
+          Sentry reported "${{ event.title }}" (${{ event.webUrl }}).
+          Find the cause in this repository and fix it.
+      - run: npm test
+        gate:
+          success_if: exit_code == 0
+          on_failure:
+            restart_from: install  # loop until the tests pass
+```
+
+If you've written GitHub Actions, you already know how to read this file — that's deliberate. What's different is what a step can do — and the control flow around it: a Sentry event starts the run, the event's data lands in the agent's prompt, and the gate loops the agent until the tests pass. Agents run on any of 30+ model providers with your own API keys, on runners you own. Every run — including the agent's full transcript — streams live to the dashboard.
 
 ## How it works
 
@@ -13,7 +38,7 @@ Shipfox is a continuous shipping platform built for engineering teams who want a
     Write a YAML file under `.shipfox/workflows/` in your repository. Commit and push — Shipfox picks it up automatically without any manual import step.
   </Step>
   <Step title="Configure a trigger">
-    Choose when the workflow runs: on a GitHub push, a Sentry issue, or on demand directly from the dashboard. Each trigger is a named entry under the `triggers` key in your workflow YAML.
+    Choose when the workflow runs: on a GitHub push, a Sentry issue, a webhook from any system, or on demand from the dashboard — with more integrations on the way. Each trigger is a named entry under the `triggers` key in your workflow YAML.
   </Step>
   <Step title="Jobs run on your runners">
     Each job executes on a runner you register with Shipfox. Jobs are fully isolated — each one re-clones the repository before executing, so no state bleeds between runs.
@@ -26,22 +51,52 @@ Shipfox is a continuous shipping platform built for engineering teams who want a
   </Step>
 </Steps>
 
+The same flow as one picture — note that the runner **polls outbound** (nothing connects into your compute), and that the agent step and its gate loop sit inside the ordinary step sequence. Click the diagram to enlarge it.
+
+{/* Source: images/diagrams/run-execution-flow.mmd — regenerate with:
+    npx -y @mermaid-js/mermaid-cli -b white -i images/diagrams/run-execution-flow.mmd -o images/diagrams/run-execution-flow.svg */}
+<Frame caption="How a run executes — click to enlarge.">
+  <img src="/images/diagrams/run-execution-flow.svg" alt="Run execution flow: event sources match a trigger in the Shipfox control plane, a run is created with event data resolved into prompts, jobs are scheduled as a needs DAG, a runner on your compute polls outbound and claims the job, then executes run and agent steps with a gate looping back on failure while logs and agent sessions stream live to the dashboard" />
+</Frame>
+
 ## Core concepts
 
 <CardGroup cols={2}>
   <Card title="Workflows" icon="code-branch">
     The YAML files that define your automation — name, triggers, jobs, steps, and environment variables.
   </Card>
-  <Card title="Jobs & Steps" icon="layer-group">
+  <Card title="Jobs, Steps & Agents" icon="layer-group">
     How work is structured and executed inside a workflow, including shell steps, agent steps, and gate conditions.
   </Card>
   <Card title="Triggers" icon="bolt">
-    What starts a run — GitHub pushes, Sentry issues, manual fires from the dashboard, and more.
+    What starts a run — GitHub pushes, Sentry issues, webhooks from any system, manual fires — with more integrations on the way.
   </Card>
   <Card title="Runners" icon="server">
     The processes you register on your own compute that execute jobs. Runners poll Shipfox and are matched to jobs by label.
   </Card>
 </CardGroup>
+
+## Shipped vs. roadmap
+
+Features listed as roadmap are not yet available and should not be relied upon in production workflows.
+
+<Accordion title="The current state of Shipfox, feature by feature">
+| Feature | Status |
+|---|---|
+| Manual triggers (`source: manual, event: fire`) | ✅ Shipped |
+| GitHub push triggers (`event: push`) | ✅ Shipped |
+| Sentry issue triggers | ✅ Shipped |
+| Shell run steps (`run`) | ✅ Shipped |
+| Agent steps (`model` + `prompt`) | ✅ Shipped |
+| Gate / restart_from (`gate.success_if`, `gate.on_failure.restart_from`) | ✅ Shipped |
+| Multi-job DAGs (`needs`) | ✅ Shipped |
+| Trigger filter evaluation (`filter`) | 🔜 Roadmap |
+| Expression interpolation (`${{ }}`) | ✅ Shipped |
+| Listening jobs (`listening: on/until` — react to events inside a run) | 🚧 Coming soon |
+| Cron triggers (`source: cron` — run on a schedule) | 🚧 Coming soon |
+| `loop`, `matrix`, `branch` step kinds | 🔜 Roadmap |
+| GitLab push triggers | 🔜 Roadmap |
+</Accordion>
 
 ## What you can build
 
@@ -55,24 +110,7 @@ Shipfox is a continuous shipping platform built for engineering teams who want a
   <Card title="Gate and retry loops" icon="rotate">
     Retry a step until tests pass using `gate` with `success_if` and `on_failure.restart_from` — no custom scripting needed.
   </Card>
+  <Card title="Agents that answer reviews" icon="satellite-dish">
+    Coming soon: a job that listens for PR review comments and runs an agent per batch until the PR merges.
+  </Card>
 </CardGroup>
-
-## Shipped vs. roadmap
-
-<Note>
-  The table below reflects the current state of Shipfox. Features listed as roadmap are not yet available and should not be relied upon in production workflows.
-</Note>
-
-| Feature | Status |
-|---|---|
-| Manual triggers (`source: manual, event: fire`) | ✅ Shipped |
-| GitHub push triggers (`event: push`) | ✅ Shipped |
-| Sentry issue triggers | ✅ Shipped |
-| Shell run steps (`run`) | ✅ Shipped |
-| Agent steps (`model` + `prompt`) | ✅ Shipped |
-| Gate / restart_from (`gate.success_if`, `gate.on_failure.restart_from`) | ✅ Shipped |
-| Multi-job DAGs (`needs`) | ✅ Shipped |
-| Trigger filter evaluation (`filter`) | 🔜 Roadmap |
-| Expression interpolation (`${{ }}`) | ✅ Shipped |
-| `loop`, `matrix`, `branch` step kinds | 🔜 Roadmap |
-| GitLab push triggers | 🔜 Roadmap |
