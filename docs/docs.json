@@ -20,6 +20,19 @@
           {
             "group": "Get Started",
             "pages": ["introduction", "getting-started"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/workflows",
+              "concepts/jobs-steps",
+              "concepts/gates",
+              "concepts/logging",
+              "concepts/triggers",
+              "concepts/runners",
+              "concepts/runner-provisioners",
+              "concepts/listening-jobs"
+            ]
           }
         ]
       }

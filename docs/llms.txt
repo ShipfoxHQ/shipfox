@@ -6,3 +6,11 @@
 
 - [Introduction](/introduction): What Shipfox is, how it works, and what you can build with agentic workflows.
 - [Quick Start](/getting-started): Connect a project, add a workflow YAML, register a runner, and fire your first run.
+- [Workflows](/concepts/workflows): The YAML workflow file format, top-level fields, env variables, and file location conventions.
+- [Jobs & Steps](/concepts/jobs-steps): How jobs group steps, job isolation, run steps, agent steps, and the gate block.
+- [Gates](/concepts/gates): How gates decide step success and restart a job from an earlier step to build bounded retry loops — valid on run and agent steps.
+- [Logging](/concepts/logging): Live and persisted step logs plus structured agent-session events; masking, retention, and truncation.
+- [Triggers](/concepts/triggers): What starts a run: manual, GitHub push, Sentry issue, and the filter field.
+- [Runners](/concepts/runners): How to register and configure runners that execute your workflow jobs.
+- [Runner Provisioners](/concepts/runner-provisioners): Autoscale ephemeral, single-job runners on demand instead of hand-starting a fleet.
+- [Listening Jobs](/concepts/listening-jobs): Coming soon — jobs that react to a stream of events inside a single run until a terminating condition.

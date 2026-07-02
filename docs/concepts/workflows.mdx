@@ -1,0 +1,95 @@
+---
+title: "Workflows: Versioned YAML Automation for Your Repo"
+sidebarTitle: "Workflows"
+description: "A Shipfox workflow is a YAML file under .shipfox/workflows/ that defines what runs, when, and on which runner. Versioned and reviewed like any code."
+---
+
+A Shipfox **workflow** is a YAML file stored in your repository under `.shipfox/workflows/`. It defines the automation: what jobs to run, which steps to execute, and what triggers start a run. Because workflows live in your repo, they are versioned, diff-able, and reviewable like any other code.
+
+## Workflow structure
+
+Every workflow file begins with a small set of top-level fields. Here is a complete example showing all supported keys:
+
+```yaml
+name: My workflow          # required — human-readable name
+runner: ubuntu-latest      # default runner label for all jobs
+env:                       # optional — env vars for run steps
+  NODE_ENV: production
+triggers:                  # optional — what starts a run
+  on_push:
+    source: github_acme
+    event: push
+jobs:                      # required — at least one job
+  build:
+    steps:
+      - run: npm test
+```
+
+Each top-level field is described below.
+
+<ParamField path="name" type="string" required>
+  Human-readable name shown in the dashboard. Must be at least one character.
+</ParamField>
+
+<ParamField path="runner" type="string | string[]">
+  Default runner label or list of labels for all jobs in this workflow. Each job can override this value with its own `runner:` field. If omitted, jobs must specify their own runner.
+</ParamField>
+
+<ParamField path="env" type="object">
+  Environment variables available to `run` steps across all jobs. Keys must follow POSIX-style variable naming (`[A-Za-z_][A-Za-z0-9_]*`). Values can be strings, numbers, or booleans — the runtime stringifies numbers and booleans before execution. Not applied to agent steps.
+</ParamField>
+
+<ParamField path="triggers" type="object">
+  Named triggers that start a workflow run. Each entry is a named key with a `source` and `event`. A workflow with no `triggers` block can only be started manually via the API or dashboard. See [Triggers](/concepts/triggers) for the full schema.
+</ParamField>
+
+<ParamField path="jobs" type="object" required>
+  Named jobs that make up the workflow. At least one job is required. Job names are used as identifiers in `needs` references and in the dashboard run view.
+</ParamField>
+
+## Where workflow files live
+
+Shipfox scans `.shipfox/workflows/` in your connected repository for workflow definitions. Each `.yml` file in that directory is treated as one workflow definition — **one file, one workflow**.
+
+A few rules to keep in mind:
+
+- **Any `.yml` or `.yaml` file under `.shipfox/workflows/` is picked up.** Files are matched by path prefix and extension, so nested paths such as `.shipfox/workflows/ci/build.yml` are scanned too.
+- **The filename is not the workflow name.** The human-readable name comes from the top-level `name:` field inside the file. You can name the file anything you like.
+- **Both `.yml` and `.yaml` extensions are accepted.** Pick one and stay consistent for readability.
+
+## Env variables
+
+The `env` block at the workflow level sets environment variables that are inherited by every `run` step in every job. Job-level and step-level `env` blocks follow the same format.
+
+There are a few important constraints:
+
+- **Values may interpolate.** `env` values support `${{ }}` expressions, resolved when the run is created from `run`, `trigger`, `event`, and `inputs` context — for example `${{ trigger.source }}`. See Expressions.
+- **`env` applies only to `run` steps.** Declaring `env` directly on an agent step (`prompt`) is rejected by the schema validator. Workflow-level and job-level `env` is also not forwarded to agent steps.
+- **There is no unset syntax.** Setting `FOO: ""` sets `FOO` to an empty string. An empty `env: {}` block does not remove variables inherited from the runner's process environment.
+- **Do not put secrets in `env`.** Values are stored in the committed workflow file and in the saved step config — they are not masked in logs.
+
+The precedence order when the same variable name is defined at multiple levels is:
+
+> **Step env** > **Job env** > **Workflow env**
+
+The nearest scope wins. A step-level declaration always beats a job or workflow declaration of the same name.
+
+## Roadmap
+
+<Note>
+  `filter` evaluation, `loop`, `matrix`, and `branch` are roadmap features. `${{ }}` template interpolation is supported today — see Expressions.
+</Note>
+
+## Related pages
+
+<CardGroup cols={3}>
+  <Card title="Jobs & Steps" icon="list-check" href="/concepts/jobs-steps">
+    How jobs and steps are structured and executed inside a workflow run.
+  </Card>
+  <Card title="Triggers" icon="bolt" href="/concepts/triggers">
+    The full trigger schema and which sources are supported today.
+  </Card>
+  <Card title="Runners" icon="server" href="/concepts/runners">
+    Where jobs execute and how to register your own runner.
+  </Card>
+</CardGroup>
