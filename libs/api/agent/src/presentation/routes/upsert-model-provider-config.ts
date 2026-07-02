@@ -13,7 +13,7 @@ import {translateModelProviderRouteError} from './errors.js';
 export const upsertModelProviderConfigRoute = defineRoute({
   method: 'PUT',
   path: '/model-providers/:providerId',
-  description: 'Test and save an model provider configuration for a workspace',
+  description: 'Test and save a model provider configuration for a workspace',
   schema: {
     params: z.object({
       workspaceId: z.string().uuid(),

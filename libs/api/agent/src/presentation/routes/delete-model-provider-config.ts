@@ -7,7 +7,7 @@ import {deleteModelProviderConfig} from '#db/index.js';
 export const deleteModelProviderConfigRoute = defineRoute({
   method: 'DELETE',
   path: '/model-providers/:providerId',
-  description: 'Delete an model provider configuration for a workspace',
+  description: 'Delete a model provider configuration for a workspace',
   schema: {
     params: z.object({
       workspaceId: z.string().uuid(),
