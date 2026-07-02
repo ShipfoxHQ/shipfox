@@ -9,21 +9,51 @@ on:
 permissions:
   contents: read
 
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: shipfox
+  # Only approved code on main may write remote cache artifacts. Pull requests
+  # can restore trusted artifacts from main, but cannot overwrite them.
+  TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'local:rw,remote:rw' || 'local:rw,remote:r' }}
+
+# Parallel jobs cannot share PR-written remote cache artifacts, so each job
+# rebuilds what its own Turbo graph needs.
 jobs:
   ci:
     name: Check, test, type, and build
     runs-on: ubuntu-latest
-    # On a PR the image steps below validate the Dockerfiles (single-arch, no push);
-    # the main-only publish-images job does the real multi-arch push to GHCR.
     timeout-minutes: 40
     env:
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAM: shipfox
-      # Only approved code on main may publish remote cache artifacts. Pull
-      # requests can restore trusted artifacts from main, but cannot poison cache.
-      TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'local:rw,remote:rw' || 'local:rw,remote:r' }}
       SHIPFOX_TURBO_CONCURRENCY: "2"
       SHIPFOX_VITEST_MAX_WORKERS: "2"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start test services
+        run: docker compose up --wait -d postgres temporal garage garage-init
+
+      # `turbo test` includes client Vitest browser tests, so Chromium is
+      # required in the verification job too.
+      - name: Install Playwright browsers
+        run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
+
+      - name: Run verification
+        env:
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
+        run: turbo check type test build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -41,10 +71,10 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
-      - name: Run verification
-        env:
-          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: turbo check type test build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
+      # E2E dev servers still depend on dist/ for Temporal workflow bundles and
+      # the shared vite-dev bin.
+      - name: Build dev server dependencies
+        run: turbo build --filter @shipfox/api --filter @shipfox/vite
 
       - name: Run E2E tests
         id: e2e
@@ -76,41 +106,47 @@ jobs:
           wait_for "$CLIENT_URL"
           turbo test:e2e
 
-      - name: Upload E2E API logs
+      - name: Upload E2E server logs
         if: failure() && steps.e2e.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-api-logs
-          path: ${{ runner.temp }}/shipfox-e2e-logs/shipfox-api.log
+          name: e2e-server-logs
+          path: ${{ runner.temp }}/shipfox-e2e-logs/
           if-no-files-found: error
 
-      # On a PR, validate that each Dockerfile still builds. Single-arch with --load
-      # (a multi-arch build cannot load) and no push; guarded with success() so it
-      # runs only after the checks, tests, and E2E above pass, reusing the dist/
-      # already built by "Run verification". On main these steps are skipped: the
-      # publish-images job does the real multi-arch push, so the test job stays
-      # least-privileged (no packages: write).
+  # PR image validation stays separate so it can run without package write
+  # permission. Main publishes images in `publish-images`.
+  build-images:
+    name: Build images
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Set up Docker Buildx
-        if: success() && github.ref != 'refs/heads/main'
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
-      # No turbo `--` passthrough: shipfox-docker reads the commit context from the
-      # environment and sets the build metadata itself, so "Run verification"'s build
-      # cache is reused instead of re-hashed (args after `--` enter every task's hash).
-      # With IMAGE_REGISTRIES unset it validates each Dockerfile single-arch (--load,
-      # no push), tagging <app>:ci. --concurrency=1 so the three Docker builds don't
-      # contend for the runner's CPU/memory.
+      # Extra turbo args enter every task hash; shipfox-docker reads image
+      # metadata from the environment instead. Serialize Docker builds to avoid
+      # runner CPU and memory contention.
       - name: Build images
-        if: success() && github.ref != 'refs/heads/main'
         run: turbo image --concurrency=1 --filter @shipfox/api --filter @shipfox/client --filter @shipfox/runner
 
-  # Publish the per-commit images. A separate, main-only job that depends on ci, so
-  # images are only built for a commit whose checks, tests, and E2E passed, and the
-  # packages: write scope never reaches a pull_request run. Re-restoring the build
-  # from the turbo cache here is the cost of keeping that write scope isolated.
+  # Publishing stays in a main-only job so package write permission is granted
+  # only after verification and E2E pass. It restores build output from Turbo's
+  # cache instead of inheriting artifacts from less-privileged jobs.
   publish-images:
     name: Publish app images
-    needs: ci
+    needs: [ci, e2e]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
@@ -119,10 +155,6 @@ jobs:
     permissions:
       contents: read
       packages: write # push images to GHCR
-    env:
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAM: shipfox
-      TURBO_CACHE: local:rw,remote:rw
 
     steps:
       - name: Check out repository
