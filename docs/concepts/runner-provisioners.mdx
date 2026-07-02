@@ -1,0 +1,108 @@
+---
+title: "Runner Provisioners: Autoscale Runners on Demand"
+sidebarTitle: "Runner Provisioners"
+description: "A provisioner watches job demand and starts ephemeral, single-job runner containers automatically — so you don't hand-start runners or keep a fleet idle."
+---
+
+A **provisioner** watches how many jobs are waiting and starts **ephemeral,
+single-job runner containers** to meet that demand — then lets them exit. It's the
+alternative to [manually starting runners](/concepts/runners): instead of keeping a
+fleet online at idle, you run one provisioner and it scales runners to the work.
+
+<Note>
+  Today Shipfox ships a **Docker** provisioner. The provisioner core is
+  provider-agnostic, so other backends (Kubernetes, cloud VMs) can follow — those
+  are roadmap.
+</Note>
+
+## How it works
+
+The provisioner runs a continuous control loop against the Shipfox API:
+
+<Steps>
+  <Step title="Advertise capacity">
+    For each template it can start, the provisioner reports free slots
+    (`max_concurrency` minus what's already running).
+  </Step>
+  <Step title="Poll for demand">
+    It long-polls the API. When jobs are waiting for labels a template provides, the
+    API grants reservations.
+  </Step>
+  <Step title="Mint ephemeral tokens">
+    For each reservation, the provisioner mints a single-use **ephemeral
+    registration token** (`sf_ert_…`, distinct from the long-lived `sf_mrt_…`
+    manual token) that the new runner uses to register once.
+  </Step>
+  <Step title="Launch and reconcile">
+    It starts a container per reservation, injecting the API URL, the ephemeral
+    token, and the template's labels. It reports each container's lifecycle and
+    reconciles against Docker on startup, reaping containers that never registered.
+    If Docker is unreachable it advertises zero capacity and backs off rather than
+    double-launching.
+  </Step>
+</Steps>
+
+Each provisioned runner claims one job, runs it, and exits — so a burst of work
+spins up runners and quiet periods cost nothing.
+
+## Templates
+
+A **template** maps a label set to the container that provides it. Templates live in
+a YAML file the provisioner loads at startup:
+
+```yaml
+templates:
+  docker-ubuntu22-2vcpu:
+    labels: [ubuntu22, ubuntu22-2vcpu]   # labels the started runner registers with
+    image: shipfox-runner:ubuntu22        # container image to start
+    cpu: 2                                 # vCPUs (also the selection cost)
+    memory: 4GiB                           # memory allocation
+    max_concurrency: 100                   # cap on live containers from this template
+```
+
+When several templates satisfy a job's labels, the provisioner picks the cheapest
+(fewest vCPUs), then the most specific.
+
+## Configuration
+
+The Docker provisioner is a standalone app (`@shipfox/provisioner-docker`)
+configured through environment variables:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `SHIPFOX_API_URL` | yes | Shipfox API base URL |
+| `SHIPFOX_PROVISIONER_TOKEN` | yes | Long-lived token that authenticates the provisioner |
+| `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | yes | Path to the templates YAML |
+| `SHIPFOX_RUNNER_API_URL` | no | API URL injected into runner containers, if they reach the API on a different host |
+| `SHIPFOX_PROVISIONER_DOCKER_HOST` | no | Docker daemon socket or host (defaults to the local socket) |
+| `SHIPFOX_PROVISIONER_DOCKER_NETWORK` | no | Docker network to attach runners to |
+| `SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS` | no | Extra host mappings (e.g. `host.docker.internal:host-gateway`) |
+
+Poll intervals, reservation limits, token batch size, and the registration deadline
+have sensible defaults and can be tuned with additional `SHIPFOX_PROVISIONER_*`
+variables.
+
+## Deploying it
+
+Run the provisioner as a long-lived process next to a Docker daemon it can control:
+
+```bash
+SHIPFOX_API_URL=https://api.shipfox.io \
+SHIPFOX_PROVISIONER_TOKEN=<YOUR_PROVISIONER_TOKEN> \
+SHIPFOX_PROVISIONER_TEMPLATES_FILE=./templates.yaml \
+pnpm --filter=@shipfox/provisioner-docker start
+```
+
+It authenticates on startup, then enters the control loop until it receives a
+shutdown signal, at which point it stops claiming new work and exits cleanly.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Runners" icon="server" href="/concepts/runners">
+    Manually started runners, labels, and registration.
+  </Card>
+  <Card title="Installation" icon="download">
+    Standing up the API, storage, and your first runner.
+  </Card>
+</CardGroup>
