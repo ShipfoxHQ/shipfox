@@ -238,6 +238,42 @@ describe('secrets management routes', () => {
     expect(get.json().variable.value).toBe('not-secret-but-sensitive-name');
   });
 
+  it('returns a bounded single-line preview for variable list values', async () => {
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/variables/MULTILINE`,
+      headers: {authorization: 'Bearer user'},
+      payload: {value: 'first line\nsecond line'},
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/variables/SHORT`,
+      headers: {authorization: 'Bearer user'},
+      payload: {value: 'debug'},
+    });
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/variables?limit=10000`,
+      headers: {authorization: 'Bearer user'},
+    });
+    const full = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/variables/MULTILINE`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    const byKey = Object.fromEntries(
+      (list.json().variables as Array<{key: string; value: string; value_truncated: boolean}>).map(
+        (variable) => [variable.key, variable],
+      ),
+    );
+    expect(byKey.MULTILINE).toMatchObject({value: 'first line', value_truncated: true});
+    expect(byKey.SHORT).toMatchObject({value: 'debug', value_truncated: false});
+    // The full value is still available through the single-item read used for editing.
+    expect(full.json().variable.value).toBe('first line\nsecond line');
+  });
+
   it('supports paginated secret lists', async () => {
     await app.inject({
       method: 'POST',
@@ -265,6 +301,33 @@ describe('secrets management routes', () => {
     expect(first.statusCode).toBe(200);
     expect(first.json().secrets.map((secret: {key: string}) => secret.key)).toEqual(['ALPHA']);
     expect(second.json().secrets.map((secret: {key: string}) => secret.key)).toEqual(['BRAVO']);
+  });
+
+  it('accepts a limit above 100 and returns the whole set in one call', async () => {
+    await app.inject({
+      method: 'POST',
+      url: `/workspaces/${workspaceId}/secrets:batch`,
+      headers: {authorization: 'Bearer user'},
+      payload: {
+        entries: [
+          {key: 'ALPHA', value: 'alpha-value'},
+          {key: 'BRAVO', value: 'bravo-value'},
+        ],
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/secrets?limit=10000`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().secrets.map((secret: {key: string}) => secret.key)).toEqual([
+      'ALPHA',
+      'BRAVO',
+    ]);
+    expect(res.json().next_cursor).toBeNull();
   });
 
   it('rejects malformed management cursors', async () => {

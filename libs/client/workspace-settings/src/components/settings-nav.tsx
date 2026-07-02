@@ -15,6 +15,12 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
   const isAgentProvidersActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/agent-providers', params: {wid: workspaceId}}),
   );
+  const isSecretsActive = Boolean(
+    matchRoute({to: '/workspaces/$wid/settings/secrets', params: {wid: workspaceId}}),
+  );
+  const isVariablesActive = Boolean(
+    matchRoute({to: '/workspaces/$wid/settings/variables', params: {wid: workspaceId}}),
+  );
   const isIntegrationsActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/integrations', params: {wid: workspaceId}}),
   );
@@ -78,6 +84,34 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
         >
           <Icon name="robot2Line" className="size-16" />
           Agent providers
+        </Link>
+      </Button>
+      <Button
+        asChild
+        variant={isSecretsActive ? 'secondary' : 'transparent'}
+        className="w-full justify-start"
+      >
+        <Link
+          to="/workspaces/$wid/settings/secrets"
+          params={{wid: workspaceId}}
+          aria-current={isSecretsActive ? 'page' : undefined}
+        >
+          <Icon name="keyLine" className="size-16" />
+          Secrets
+        </Link>
+      </Button>
+      <Button
+        asChild
+        variant={isVariablesActive ? 'secondary' : 'transparent'}
+        className="w-full justify-start"
+      >
+        <Link
+          to="/workspaces/$wid/settings/variables"
+          params={{wid: workspaceId}}
+          aria-current={isVariablesActive ? 'page' : undefined}
+        >
+          <Icon name="bracesLine" className="size-16" />
+          Variables
         </Link>
       </Button>
       <Button

@@ -2,7 +2,7 @@ import {listVariablesQuerySchema, listVariablesResponseSchema} from '@shipfox/ap
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {listManagedVariables} from '#core/index.js';
-import {toVariableDto} from '#presentation/dto/index.js';
+import {toVariableListItemDto} from '#presentation/dto/index.js';
 import {requireManagementRead} from './auth.js';
 import {decodeManagementCursor, encodeManagementCursor} from './cursor.js';
 import {translateManagementError} from './errors.js';
@@ -34,7 +34,7 @@ export const listVariablesRoute = defineRoute({
     });
 
     return {
-      variables: result.variables.map(toVariableDto),
+      variables: result.variables.map(toVariableListItemDto),
       next_cursor: result.nextCursor ? encodeManagementCursor(result.nextCursor) : null,
     };
   },

@@ -1,1 +1,1 @@
-export {toSecretDto, toVariableDto} from './management.js';
+export {toSecretDto, toVariableDto, toVariableListItemDto} from './management.js';
