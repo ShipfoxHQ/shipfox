@@ -11,4 +11,4 @@ jobs:
       - name: build
         run: npm run build
         gate:
-          success_if: exit_code == 0
+          success_if: step.exit_code == 0

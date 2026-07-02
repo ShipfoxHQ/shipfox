@@ -256,7 +256,7 @@ describe('workflow run queries', () => {
               {
                 run: 'npm test',
                 env: {REF: template('event.ref')},
-                gate: {successIf: expression('exit_code == 0')},
+                gate: {successIf: expression('step.exit_code == 0')},
               },
             ],
           },
@@ -1829,6 +1829,82 @@ jobs:
       expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({
         status: 'succeeded',
         statusReason: null,
+      });
+    });
+
+    test('resolves a custom success expression over the full execution shape', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              name: 'Build',
+              success: 'executions.all(e, e.status == "succeeded" && e.name == "Build")',
+              steps: [{run: 'npm test'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
+      if (!job) throw new Error('Expected workflow job');
+      const jobExecution = await getFirstJobExecutionByJobId(job.id);
+      if (!jobExecution) throw new Error('Expected workflow job execution');
+      await updateJobExecutionStatus({
+        jobExecutionId: jobExecution.id,
+        status: 'succeeded',
+        expectedVersion: jobExecution.version,
+      });
+
+      const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
+
+      expect(resolved.status).toBe('succeeded');
+    });
+
+    test('fails closed when the success expression throws at runtime', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              success: 'executions.all(e, 1 / 0 == 0)',
+              steps: [{run: 'npm test'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
+      if (!job) throw new Error('Expected workflow job');
+      const jobExecution = await getFirstJobExecutionByJobId(job.id);
+      if (!jobExecution) throw new Error('Expected workflow job execution');
+      await updateJobExecutionStatus({
+        jobExecutionId: jobExecution.id,
+        status: 'succeeded',
+        expectedVersion: jobExecution.version,
+      });
+
+      const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
+      const resolvedJob = (await getJobsByWorkflowRunId(run.id))[0];
+
+      expect(resolved.status).toBe('failed');
+      expect(resolvedJob).toMatchObject({
+        status: 'failed',
+        statusReason: 'unknown',
       });
     });
   });

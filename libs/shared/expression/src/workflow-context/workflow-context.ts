@@ -8,6 +8,7 @@ export const workflowContextNames = [
   'job',
   'executions',
   'execution',
+  'step',
 ] as const;
 export type WorkflowContextName = (typeof workflowContextNames)[number];
 
@@ -20,7 +21,6 @@ export const workflowContextPhases = [
 export type WorkflowContextPhase = (typeof workflowContextPhases)[number];
 
 export const workflowContextReservedRoots = {
-  step: 'step-completion',
   steps: 'step-completion',
   jobs: 'job-resolution',
 } as const satisfies Record<string, WorkflowContextPhase>;
@@ -124,6 +124,16 @@ const executionTypeEnvironment = {
   execution: executionType,
 } as const satisfies ExpressionTypeEnvironment;
 
+const stepTypeEnvironment = {
+  step: {
+    kind: 'object',
+    fields: {
+      exit_code: 'int',
+      status: 'string',
+    },
+  },
+} as const satisfies ExpressionTypeEnvironment;
+
 export const workflowContextDefinitions = {
   run: {
     availability: 'workflow-run-creation',
@@ -173,6 +183,13 @@ export const workflowContextDefinitions = {
     checkMode: 'typed',
     typeEnvironment: executionTypeEnvironment,
     untrustedPaths: ['events'],
+  },
+  step: {
+    availability: 'step-completion',
+    trustTier: 'trusted',
+    shape: 'known',
+    checkMode: 'typed',
+    typeEnvironment: stepTypeEnvironment,
   },
 } as const satisfies Record<WorkflowContextName, WorkflowContextDefinition>;
 

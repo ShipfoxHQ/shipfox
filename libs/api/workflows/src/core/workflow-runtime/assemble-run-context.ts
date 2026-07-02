@@ -1,4 +1,5 @@
 import type {WorkflowExpressionEvaluationContext} from '@shipfox/expression';
+import type {JobExecution} from '#core/entities/job-execution.js';
 import type {TriggerPayload, WorkflowRun} from '#core/entities/workflow-run.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -38,5 +39,24 @@ export function assembleCreationContext(
   return {
     phase: 'workflow-run-creation',
     values: assembleWorkflowRunContext(params),
+  };
+}
+
+/**
+ * Keeps job-success predicate values aligned with the registry's `executions`
+ * type environment.
+ */
+export function assembleExecutionsContext(
+  executions: readonly JobExecution[],
+): WorkflowExpressionEvaluationContext {
+  return {
+    executions: executions.map((execution, index) => ({
+      index,
+      name: execution.name,
+      status: execution.status,
+      started_at: execution.startedAt,
+      finished_at: execution.finishedAt,
+      events: execution.triggerEvents,
+    })),
   };
 }

@@ -15,7 +15,11 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
-import {createWorkflowExpression, evaluateWorkflowPredicate} from '@shipfox/expression';
+import {
+  createWorkflowExpression,
+  evaluateWorkflowPredicate,
+  WorkflowExpressionEvaluationError,
+} from '@shipfox/expression';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
@@ -67,7 +71,11 @@ import {
 } from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/workflow-runtime/index.js';
-import {assembleCreationContext, materializeWorkflowModel} from '#core/workflow-runtime/index.js';
+import {
+  assembleCreationContext,
+  assembleExecutionsContext,
+  materializeWorkflowModel,
+} from '#core/workflow-runtime/index.js';
 import type {MaterializedWorkflowJob} from '#core/workflow-runtime/materialize-workflow-model.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import {
@@ -1737,17 +1745,25 @@ export async function resolveJobStatusFromJobExecutions(params: {
       source: jobRow.success ?? DEFAULT_JOB_SUCCESS,
       check: {mode: 'syntax'},
     });
-    const passed = evaluateWorkflowPredicate(expression, {
-      executions: jobExecutionRows.map((jobExecution, index) => ({
-        index,
-        status: jobExecution.status,
-      })),
-    });
+    const context = assembleExecutionsContext(jobExecutionRows.map(toJobExecution));
+    // Fail closed so a runtime-only predicate error cannot abort job resolution.
+    let passed: boolean;
+    let predicateEvaluationFailed = false;
+    try {
+      passed = evaluateWorkflowPredicate(expression, context);
+    } catch (error) {
+      if (!(error instanceof WorkflowExpressionEvaluationError)) throw error;
+      passed = false;
+      predicateEvaluationFailed = true;
+    }
     const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
+    // A thrown predicate is a job-level failure, not evidence that any execution failed.
     const statusReason =
       status === 'failed'
-        ? (jobExecutionRows.find((jobExecution) => jobExecution.statusReason)?.statusReason ??
-          'step_failed')
+        ? predicateEvaluationFailed
+          ? 'unknown'
+          : (jobExecutionRows.find((jobExecution) => jobExecution.statusReason)?.statusReason ??
+            'step_failed')
         : null;
 
     const updated = await updateJobStatusAtVersion(tx, {

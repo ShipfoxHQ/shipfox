@@ -16,8 +16,8 @@ describe('readStepGate', () => {
   });
 
   test('parses success_if and on_failure', () => {
-    const gate = readStepGate(gateConfig('exit_code == 0', 'producer'));
-    expect(gate?.successIf?.source).toBe('exit_code == 0');
+    const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer'));
+    expect(gate?.successIf?.source).toBe('step.exit_code == 0');
     expect(gate?.onFailure).toEqual({restartFrom: 'producer'});
   });
 });
@@ -31,51 +31,57 @@ describe('evaluateGate', () => {
     });
   });
 
-  test('exit_code == 0 passes for exit 0', () => {
-    const gate = readStepGate(gateConfig('exit_code == 0'));
+  test('step.exit_code == 0 passes for exit 0', () => {
+    const gate = readStepGate(gateConfig('step.exit_code == 0'));
     expect(evaluateGate(gate, {status: 'succeeded', exitCode: 0})).toEqual({
       kind: 'passed',
-      source: 'exit_code == 0',
+      source: 'step.exit_code == 0',
     });
   });
 
-  test('exit_code == 0 fails for a non-zero exit', () => {
-    const gate = readStepGate(gateConfig('exit_code == 0'));
+  test('step.exit_code == 0 fails for a non-zero exit', () => {
+    const gate = readStepGate(gateConfig('step.exit_code == 0'));
     expect(evaluateGate(gate, {status: 'failed', exitCode: 1})).toEqual({
       kind: 'failed',
-      source: 'exit_code == 0',
+      source: 'step.exit_code == 0',
     });
   });
 
-  test('a passing gate can succeed a non-zero exit (success_if: exit_code == 1)', () => {
-    const gate = readStepGate(gateConfig('exit_code == 1'));
+  test('a passing gate can succeed a non-zero exit (success_if: step.exit_code == 1)', () => {
+    const gate = readStepGate(gateConfig('step.exit_code == 1'));
     expect(evaluateGate(gate, {status: 'failed', exitCode: 1})).toMatchObject({kind: 'passed'});
   });
 
   test('exit_code arithmetic can pass using CEL int values at runtime', () => {
-    const gate = readStepGate(gateConfig('exit_code % 2 == 0'));
+    const gate = readStepGate(gateConfig('step.exit_code % 2 == 0'));
 
     const result = evaluateGate(gate, {status: 'succeeded', exitCode: 2});
 
     expect(result).toEqual({
       kind: 'passed',
-      source: 'exit_code % 2 == 0',
+      source: 'step.exit_code % 2 == 0',
     });
   });
 
   test('exit_code arithmetic can fail using CEL int values at runtime', () => {
-    const gate = readStepGate(gateConfig('exit_code % 2 == 0'));
+    const gate = readStepGate(gateConfig('step.exit_code % 2 == 0'));
 
     const result = evaluateGate(gate, {status: 'failed', exitCode: 3});
 
     expect(result).toEqual({
       kind: 'failed',
-      source: 'exit_code % 2 == 0',
+      source: 'step.exit_code % 2 == 0',
     });
   });
 
+  test('step.status gates on the reported step status', () => {
+    const gate = readStepGate(gateConfig('step.status == "succeeded"'));
+    expect(evaluateGate(gate, {status: 'succeeded', exitCode: 0})).toMatchObject({kind: 'passed'});
+    expect(evaluateGate(gate, {status: 'failed', exitCode: 0})).toMatchObject({kind: 'failed'});
+  });
+
   test('a missing exit code is uncheckable (never evaluated)', () => {
-    const gate = readStepGate(gateConfig('exit_code == 0'));
+    const gate = readStepGate(gateConfig('step.exit_code == 0'));
     expect(evaluateGate(gate, {status: 'failed', exitCode: null})).toMatchObject({
       kind: 'uncheckable',
     });
@@ -95,17 +101,17 @@ describe('gateResultPayload', () => {
   });
 
   test('passed records the source and evaluated exit code', () => {
-    expect(gateResultPayload({kind: 'passed', source: 'exit_code == 0'}, 0)).toEqual({
+    expect(gateResultPayload({kind: 'passed', source: 'step.exit_code == 0'}, 0)).toEqual({
       passed: true,
-      source: 'exit_code == 0',
+      source: 'step.exit_code == 0',
       exit_code: 0,
     });
   });
 
   test('failed records the source and evaluated exit code', () => {
-    expect(gateResultPayload({kind: 'failed', source: 'exit_code == 0'}, 1)).toEqual({
+    expect(gateResultPayload({kind: 'failed', source: 'step.exit_code == 0'}, 1)).toEqual({
       passed: false,
-      source: 'exit_code == 0',
+      source: 'step.exit_code == 0',
       exit_code: 1,
     });
   });

@@ -84,7 +84,7 @@ jobs:
       - name: test
         run: pnpm test
         gate:
-          success_if: exit_code == 0
+          success_if: step.exit_code == 0
 `,
       '.shipfox/workflows/build-and-deploy.yaml': `
 name: Build and deploy
@@ -122,12 +122,12 @@ jobs:
         prompt: Review the fix.
         thinking: low
         gate:
-          success_if: exit_code == 0
+          success_if: step.exit_code == 0
           on_failure:
             restart_from: implement
       - run: pnpm test
         gate:
-          success_if: exit_code == 0
+          success_if: step.exit_code == 0
 `,
       'README.md': '# Debug platform\n',
     },

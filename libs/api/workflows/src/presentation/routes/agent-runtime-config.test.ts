@@ -133,7 +133,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
           provider: 'anthropic',
           thinking: 'high',
           prompt: 'Fix the tests.',
-          gate: {successIf: expression('exit_code == 0')},
+          gate: {successIf: expression('step.exit_code == 0')},
         },
       ],
     });

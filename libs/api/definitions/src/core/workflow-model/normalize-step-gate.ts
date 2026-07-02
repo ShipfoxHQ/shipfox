@@ -1,5 +1,6 @@
 import {
   createWorkflowExpression,
+  getWorkflowContextTypeEnvironment,
   InvalidWorkflowExpressionError,
   type WorkflowExpression,
 } from '@shipfox/expression';
@@ -65,9 +66,7 @@ function normalizeGateSuccessIf(params: {
       source: params.source,
       check: {
         mode: 'typed',
-        typeEnvironment: {
-          exit_code: 'int',
-        },
+        typeEnvironment: getWorkflowContextTypeEnvironment('step') ?? {},
         expectedResultType: 'bool',
       },
     });

@@ -1,4 +1,8 @@
-import {createWorkflowExpression, InvalidWorkflowExpressionError} from '@shipfox/expression';
+import {
+  createWorkflowExpression,
+  getWorkflowContextTypeEnvironment,
+  InvalidWorkflowExpressionError,
+} from '@shipfox/expression';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {issue} from './validation-issue.js';
 
@@ -16,19 +20,7 @@ export function normalizeJobSuccess(params: {
       source: params.source,
       check: {
         mode: 'typed',
-        // Runtime success evaluation intentionally exposes only execution index/status today.
-        typeEnvironment: {
-          executions: {
-            kind: 'list',
-            element: {
-              kind: 'object',
-              fields: {
-                index: 'int',
-                status: 'string',
-              },
-            },
-          },
-        },
+        typeEnvironment: getWorkflowContextTypeEnvironment('executions') ?? {},
         expectedResultType: 'bool',
       },
     });

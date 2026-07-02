@@ -8,9 +8,10 @@ Code that turns a checked workflow document into the model used by definitions.
   parsing.
 - **`normalizeWorkflowDocument(document)`**: Expands shorthand fields, assigns
   stable ids, validates explicit providers, and builds graph edges.
-- **Step gates**: Parse run-step `gate.success_if` as CEL with `exit_code` in
-  scope and check `gate.on_failure.restart_from` against earlier named steps in
-  the same job.
+- **Step gates**: Parse run-step `gate.success_if` as CEL against the `step`
+  self-root (`step.exit_code`, `step.status`) from the shared context registry,
+  and check `gate.on_failure.restart_from` against earlier named steps in the
+  same job.
 - **`InvalidWorkflowModelError`**: Reports semantic workflow errors found during
   normalization.
 
@@ -91,8 +92,9 @@ before execution. Explicit providers are checked against the shared provider
 catalog; explicit model ids are preserved because the shared seed catalog does
 not yet carry each provider's full model list.
 
-For now, run-step gates can use `exit_code`. Fields such as `step.output.pass`
-need a declared output schema, so they belong to later agent-step work.
+For now, run-step gates can use `step.exit_code` and `step.status`. Fields such
+as `step.output.pass` need a declared output schema, so they belong to later
+agent-step work.
 
 `on_failure.restart_from` must name an earlier step in the same job. The runtime
 host does not execute restart semantics yet. This module only records the

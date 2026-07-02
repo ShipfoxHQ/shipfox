@@ -96,7 +96,7 @@ describe('normalizeWorkflowDocument', () => {
               provider: 'openai',
               prompt: 'Review the fix.',
               thinking: 'low',
-              gate: {success_if: 'exit_code == 0', on_failure: {restart_from: 'implement'}},
+              gate: {success_if: 'step.exit_code == 0', on_failure: {restart_from: 'implement'}},
             },
           ],
         },
@@ -700,7 +700,7 @@ describe('normalizeWorkflowDocument', () => {
               key: 'reviewer',
               run: 'npm run review',
               gate: {
-                success_if: 'exit_code == 0',
+                success_if: 'step.exit_code == 0',
                 on_failure: {
                   restart_from: 'producer',
                   output: reviewOutput,
@@ -720,7 +720,7 @@ describe('normalizeWorkflowDocument', () => {
       gate: {
         successIf: {
           language: 'cel',
-          source: 'exit_code == 0',
+          source: 'step.exit_code == 0',
           check: 'typed',
         },
         onFailure: {
@@ -736,7 +736,7 @@ describe('normalizeWorkflowDocument', () => {
       name: 'simple build',
       jobs: {
         build: {
-          steps: [{name: 'build', run: 'npm run build', gate: {success_if: 'exit_code == 0'}}],
+          steps: [{name: 'build', run: 'npm run build', gate: {success_if: 'step.exit_code == 0'}}],
         },
       },
     };
@@ -745,9 +745,68 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
       language: 'cel',
-      source: 'exit_code == 0',
+      source: 'step.exit_code == 0',
       check: 'typed',
     });
+  });
+
+  it('accepts step.status in a gate success_if', () => {
+    const document: WorkflowDocument = {
+      name: 'status gate',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', gate: {success_if: 'step.status == "succeeded"'}}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+      language: 'cel',
+      source: 'step.status == "succeeded"',
+      check: 'typed',
+    });
+  });
+
+  it('rejects a gate success_if referencing a root outside the step self-context', () => {
+    const document: WorkflowDocument = {
+      name: 'out-of-scope gate',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', gate: {success_if: 'run.id == "x"'}}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-step-gate-success-if',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        details: expect.objectContaining({source: 'run.id == "x"'}),
+      }),
+    ]);
+  });
+
+  it('accepts execution fields and event data in job success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'full-shape job success',
+      jobs: {
+        build: {
+          success:
+            'executions.all(e, e.name != "") && executions.all(e, e.events.all(ev, ev.data.ok == true))',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.success).toBe(
+      'executions.all(e, e.name != "") && executions.all(e, e.events.all(ev, ev.data.ok == true))',
+    );
   });
 
   it('reports invalid job success expressions', () => {
@@ -960,7 +1019,7 @@ describe('normalizeWorkflowDocument', () => {
       name: 'non-boolean gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'exit_code + 1'}}],
+          steps: [{run: 'npm run build', gate: {success_if: 'step.exit_code + 1'}}],
         },
       },
     };
@@ -972,7 +1031,7 @@ describe('normalizeWorkflowDocument', () => {
         code: 'invalid-step-gate-success-if',
         path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
         details: expect.objectContaining({
-          source: 'exit_code + 1',
+          source: 'step.exit_code + 1',
           reason: expect.stringContaining('must return bool'),
         }),
       }),
