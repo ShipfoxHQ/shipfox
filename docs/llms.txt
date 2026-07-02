@@ -42,3 +42,5 @@
 - [AWS](/installation/aws): Coming soon — a reference Shipfox deployment on AWS (RDS, S3, container compute).
 - [Kubernetes](/installation/kubernetes): Coming soon — deploy the control plane and runners on a Kubernetes cluster.
 - [Managed Cloud](/installation/cloud): Coming soon — Shipfox runs the control plane; you configure your workspace and connect runners.
+- [Troubleshooting](/troubleshooting): Fix common issues — pending runs, runner connection problems, workflow validation errors, agent step failures, trigger setup.
+- [FAQ](/faq): Common questions about workflow YAML, runners, agent steps, providers, self-hosting, triggers, and roadmap features.

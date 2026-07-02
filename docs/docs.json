@@ -82,6 +82,10 @@
               "installation/kubernetes",
               "installation/cloud"
             ]
+          },
+          {
+            "group": "Help",
+            "pages": ["troubleshooting", "faq"]
           }
         ]
       }
