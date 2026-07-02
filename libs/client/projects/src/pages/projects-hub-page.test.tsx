@@ -16,19 +16,20 @@ describe('ProjectsHubPage', () => {
     configureApiClient({
       fetchImpl: createHubFetch({
         projects: jsonResponse({projects: [], next_cursor: null}),
+        agentProviders: jsonResponse(agentProviderConfigsDto()),
       }),
     });
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
+    expect(await screen.findByText('Create your first project')).toBeInTheDocument();
     // The page-level "Projects" title belongs in content because the top nav owns
     // workspace identity.
-    expect(await screen.findByRole('heading', {name: 'Projects'})).toBeInTheDocument();
+    expect(screen.getByRole('heading', {name: 'Projects'})).toBeInTheDocument();
     expect(screen.getByRole('link', {name: NEW_PROJECT_REGEX})).toHaveAttribute(
       'href',
       WORKSPACE_PROJECTS_NEW_HREF,
     );
-    expect(await screen.findByText('Create your first project')).toBeInTheDocument();
     expect(
       (screen.getAllByRole('link', {name: 'Create project'})[0] as HTMLAnchorElement).getAttribute(
         'href',
@@ -52,7 +53,9 @@ describe('ProjectsHubPage', () => {
     );
     fireEvent.click(screen.getByRole('button', {name: 'Close'}));
 
-    expect(screen.queryByText('Finish setting up an agent provider')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Finish setting up an agent provider')).not.toBeInTheDocument();
+    });
   });
 
   test('hides the agent provider reminder when a provider is configured', async () => {
