@@ -16,11 +16,8 @@ env:
   # can restore trusted artifacts from main, but cannot overwrite them.
   TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'local:rw,remote:rw' || 'local:rw,remote:r' }}
 
-# ci, e2e, and build-images are independent jobs so the workflow's wall-clock
-# is the slowest of the three, not their sum. PR jobs cannot write to the
-# remote turbo cache, so parallel jobs cannot reuse each other's build output;
-# each rebuilds what its own turbo task graph needs, restoring unchanged
-# packages from main's cache.
+# Parallel jobs cannot share PR-written remote cache artifacts, so each job
+# rebuilds what its own Turbo graph needs.
 jobs:
   ci:
     name: Check, test, type, and build
@@ -74,9 +71,11 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
-      # The dev servers boot from source (the `development` export condition
-      # resolves workspace packages to src/), so no app build is needed here;
-      # `turbo test:e2e` builds the e2e packages' own dependencies (^build).
+      # Temporal workers load workflow bundles from dist/, so the API needs its
+      # dependency graph built before dev startup.
+      - name: Build API dependencies
+        run: turbo build --filter @shipfox/api
+
       - name: Run E2E tests
         id: e2e
         env:
@@ -136,9 +135,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
-      # Avoid turbo `--` passthrough because extra args enter every task hash.
-      # shipfox-docker reads image metadata from the environment instead, so
-      # build tasks stay cache-hittable. Serialize Docker builds to avoid
+      # Extra turbo args enter every task hash; shipfox-docker reads image
+      # metadata from the environment instead. Serialize Docker builds to avoid
       # runner CPU and memory contention.
       - name: Build images
         run: turbo image --concurrency=1 --filter @shipfox/api --filter @shipfox/client --filter @shipfox/runner
