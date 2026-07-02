@@ -1,4 +1,4 @@
-import type {AgentProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
+import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import {cn, FormField, useFormField} from '@shipfox/react-ui';
 import type {ComponentProps, ReactNode} from 'react';
 
@@ -12,7 +12,7 @@ export function DefaultModelField({
   onChange,
   onBlur,
 }: {
-  entry: AgentProviderCatalogEntryDto;
+  entry: ModelProviderCatalogEntryDto;
   value: string;
   error: string | undefined;
   children?: ReactNode;
@@ -22,7 +22,7 @@ export function DefaultModelField({
   return (
     <FormField
       label="Default model"
-      id={`agent-provider-${entry.id}-default-model`}
+      id={`model-provider-${entry.id}-default-model`}
       error={error}
       description={defaultModelDescription(entry, value)}
     >
@@ -51,17 +51,17 @@ export function selectedModelForModelPayload(selectedModel: string): string | nu
   return selectedModel === LATEST_MODEL_VALUE ? null : selectedModel.trim();
 }
 
-function defaultModelLabel(entry: AgentProviderCatalogEntryDto): string {
+function defaultModelLabel(entry: ModelProviderCatalogEntryDto): string {
   const defaultModel = entry.default_model ?? entry.models[0]?.id ?? '';
   return entry.models.find((model) => model.id === defaultModel)?.label ?? defaultModel;
 }
 
 function defaultModelDescription(
-  entry: AgentProviderCatalogEntryDto,
+  entry: ModelProviderCatalogEntryDto,
   selectedModel: string | undefined,
 ): string | undefined {
   if (selectedModel === LATEST_MODEL_VALUE) {
-    return `Latest follows the provider catalog default. Currently resolves to ${defaultModelLabel(entry)}.`;
+    return `Latest follows the model provider catalog default. Currently resolves to ${defaultModelLabel(entry)}.`;
   }
   if (!selectedModel) return undefined;
   return selectedModel;

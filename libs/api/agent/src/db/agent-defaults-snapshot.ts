@@ -1,13 +1,13 @@
-import type {SupportedAgentProviderId} from '@shipfox/api-agent-dto';
+import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {eq, or} from 'drizzle-orm';
-import type {AgentProviderConfig} from '#core/entities/agent-provider-config.js';
+import type {ModelProviderConfig} from '#core/entities/model-provider-config.js';
 import {db} from './db.js';
-import {agentProviderConfigs, toAgentProviderConfig} from './schema/agent-provider-configs.js';
 import {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
+import {modelProviderConfigs, toModelProviderConfig} from './schema/model-provider-configs.js';
 
 export interface AgentWorkspaceDefaultsSnapshot {
-  readonly defaultProviderId?: SupportedAgentProviderId | null | undefined;
-  readonly providerConfigs: AgentProviderConfig[];
+  readonly defaultModelProviderId?: SupportedModelProviderId | null | undefined;
+  readonly providerConfigs: ModelProviderConfig[];
 }
 
 export async function getAgentWorkspaceDefaultsSnapshot(
@@ -16,30 +16,30 @@ export async function getAgentWorkspaceDefaultsSnapshot(
   const rows = await db()
     .select({
       settingsWorkspaceId: agentWorkspaceSettings.workspaceId,
-      workspaceDefaultProviderId: agentWorkspaceSettings.defaultProviderId,
-      providerConfig: agentProviderConfigs,
+      workspaceDefaultModelProviderId: agentWorkspaceSettings.defaultModelProviderId,
+      providerConfig: modelProviderConfigs,
     })
     .from(agentWorkspaceSettings)
     .fullJoin(
-      agentProviderConfigs,
-      eq(agentProviderConfigs.workspaceId, agentWorkspaceSettings.workspaceId),
+      modelProviderConfigs,
+      eq(modelProviderConfigs.workspaceId, agentWorkspaceSettings.workspaceId),
     )
     .where(
       or(
         eq(agentWorkspaceSettings.workspaceId, workspaceId),
-        eq(agentProviderConfigs.workspaceId, workspaceId),
+        eq(modelProviderConfigs.workspaceId, workspaceId),
       ),
     )
-    .orderBy(agentProviderConfigs.providerId);
+    .orderBy(modelProviderConfigs.modelProviderId);
 
   const settingsRow = rows.find((row) => row.settingsWorkspaceId !== null);
   return {
-    defaultProviderId: settingsRow?.workspaceDefaultProviderId as
-      | SupportedAgentProviderId
+    defaultModelProviderId: settingsRow?.workspaceDefaultModelProviderId as
+      | SupportedModelProviderId
       | null
       | undefined,
     providerConfigs: rows.flatMap((row) =>
-      row.providerConfig === null ? [] : [toAgentProviderConfig(row.providerConfig)],
+      row.providerConfig === null ? [] : [toModelProviderConfig(row.providerConfig)],
     ),
   };
 }

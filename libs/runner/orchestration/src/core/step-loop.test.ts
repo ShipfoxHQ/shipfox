@@ -169,7 +169,7 @@ describe('runJobSteps', () => {
     createSessionLogStreamMock.mockReset();
     executeAgentStepMock.mockReset();
     requestAgentRuntimeConfigMock.mockResolvedValue({
-      provider_id: 'anthropic',
+      model_provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
       credentials: {api_key: 'sk-runtime-secret'},
@@ -667,7 +667,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       cwd: '/work',
       runtime: {
-        provider: 'anthropic',
+        modelProvider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},
@@ -702,7 +702,7 @@ describe('runJobSteps', () => {
       },
     });
     requestAgentRuntimeConfigMock.mockResolvedValueOnce({
-      provider_id: 'openai',
+      model_provider_id: 'openai',
       model: 'gpt-5.1',
       thinking: 'medium',
       credentials: {api_key: 'sk-openai-runtime'},
@@ -720,7 +720,7 @@ describe('runJobSteps', () => {
       agent,
       expect.objectContaining({
         runtime: {
-          provider: 'openai',
+          modelProvider: 'openai',
           model: 'gpt-5.1',
           thinking: 'medium',
           credentials: {api_key: 'sk-openai-runtime'},
@@ -782,7 +782,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       cwd: '/work',
       runtime: {
-        provider: 'anthropic',
+        modelProvider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},
@@ -871,8 +871,8 @@ describe('runJobSteps', () => {
     requestAgentRuntimeConfigMock.mockRejectedValueOnce(
       new AgentRuntimeConfigRequestError(
         409,
-        'agent-provider-not-configured',
-        'provider_not_configured',
+        'model-provider-not-configured',
+        'model_provider_not_configured',
       ),
     );
     const ac = new AbortController();
@@ -887,7 +887,7 @@ describe('runJobSteps', () => {
         status: 'failed',
         error: expect.objectContaining({
           reason: 'agent_config_invalid',
-          agent_config_issue: 'provider_not_configured',
+          agent_config_issue: 'model_provider_not_configured',
         }),
       }),
     );

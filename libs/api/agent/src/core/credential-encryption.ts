@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import type {AgentProviderRef, SupportedAgentProviderId} from '@shipfox/api-agent-dto';
-import {getAgentProviderEntry} from '@shipfox/api-agent-dto';
+import type {ModelProviderRef, SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import {getModelProviderEntry} from '@shipfox/api-agent-dto';
 import {stripUrlCredentials} from '@shipfox/redact';
 import {config} from '#config.js';
-import {CredentialDecryptionError, UnsupportedAgentProviderError} from './errors.js';
+import {CredentialDecryptionError, UnsupportedModelProviderError} from './errors.js';
 
 const CIPHER = 'aes-256-gcm';
 const ENCODED_PREFIX = 'v1:';
@@ -27,7 +27,7 @@ export interface CredentialDecipherParams {
 
 export interface CredentialRecordParams {
   workspaceId: string;
-  providerId: AgentProviderRef;
+  modelProviderId: ModelProviderRef;
 }
 
 export function encryptCredential(params: CredentialCipherParams): string {
@@ -78,7 +78,11 @@ export function encryptCredentials(
       toStoredCredentialKey(fieldKey),
       encryptCredential({
         plaintext,
-        aad: credentialAad(params.workspaceId, params.providerId, toStoredCredentialKey(fieldKey)),
+        aad: credentialAad(
+          params.workspaceId,
+          params.modelProviderId,
+          toStoredCredentialKey(fieldKey),
+        ),
       }),
     ]),
   );
@@ -92,19 +96,19 @@ export function decryptCredentials(
       toRuntimeCredentialKey(fieldKey),
       decryptCredential({
         encoded,
-        aad: credentialAad(params.workspaceId, params.providerId, fieldKey),
+        aad: credentialAad(params.workspaceId, params.modelProviderId, fieldKey),
       }),
     ]),
   );
 }
 
 export function fingerprintCredentials(
-  providerId: SupportedAgentProviderId,
+  modelProviderId: SupportedModelProviderId,
   credentials: Record<string, string>,
 ): Record<string, string> {
-  const entry = getAgentProviderEntry(providerId);
+  const entry = getModelProviderEntry(modelProviderId);
   if (entry === undefined || entry.support_status !== 'supported') {
-    throw new UnsupportedAgentProviderError(providerId);
+    throw new UnsupportedModelProviderError(modelProviderId);
   }
 
   return Object.fromEntries(
@@ -121,17 +125,17 @@ export function fingerprintCredentials(
 function getEncryptionKey(): Buffer {
   if (memoizedEncryptionKey) return memoizedEncryptionKey;
 
-  const encoded = config.AGENT_CREDENTIALS_ENCRYPTION_KEY;
+  const encoded = config.MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY;
   if (!encoded) {
     throw new Error(
-      'AGENT_CREDENTIALS_ENCRYPTION_KEY is required to encrypt or decrypt agent provider credentials. Set it to a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
+      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required to encrypt or decrypt model provider credentials. Set it to a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
     );
   }
 
   const key = Buffer.from(encoded, 'base64');
   if (key.length !== KEY_BYTES || !isCanonicalBase64Key(encoded, key)) {
     throw new Error(
-      'AGENT_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
+      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
     );
   }
 
@@ -149,10 +153,10 @@ function isCanonicalBase64Key(encoded: string, key: Buffer): boolean {
 
 function credentialAad(
   workspaceId: string,
-  providerId: AgentProviderRef,
+  modelProviderId: ModelProviderRef,
   fieldKey: string,
 ): string {
-  return JSON.stringify([workspaceId, providerId, fieldKey]);
+  return JSON.stringify([workspaceId, modelProviderId, fieldKey]);
 }
 
 function toStoredCredentialKey(fieldKey: string): string {

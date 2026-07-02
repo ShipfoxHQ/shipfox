@@ -14,7 +14,7 @@ export function executeAgentStep(
     signal?: AbortSignal;
     cwd?: string;
     runtime: {
-      provider: string;
+      modelProvider: string;
       model: string;
       thinking: string;
       credentials: Record<string, string>;
@@ -42,7 +42,7 @@ export function executeAgentStep(
     model: options.runtime.model,
     prompt,
     thinking: options.runtime.thinking,
-    provider: options.runtime.provider,
+    modelProvider: options.runtime.modelProvider,
     credentials: options.runtime.credentials,
     signal: options.signal,
     onSessionEntry: options.onSessionEntry,
@@ -54,12 +54,12 @@ async function runAgentStep(params: {
   model: string;
   prompt: string;
   thinking: string;
-  provider: string;
+  modelProvider: string;
   credentials: Record<string, string>;
   signal: AbortSignal | undefined;
   onSessionEntry: ((line: string) => void) | undefined;
 }): Promise<StepResult> {
-  const {cwd, model, prompt, thinking, provider, credentials, onSessionEntry} = params;
+  const {cwd, model, prompt, thinking, modelProvider, credentials, onSessionEntry} = params;
   const signal = params.signal ?? new AbortController().signal;
 
   try {
@@ -67,7 +67,7 @@ async function runAgentStep(params: {
       runAgent({
         cwd,
         model,
-        provider,
+        modelProvider,
         thinking,
         prompt,
         credentials,

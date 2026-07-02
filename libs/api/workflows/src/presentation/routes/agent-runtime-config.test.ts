@@ -1,4 +1,4 @@
-import {testAndSaveProviderConfig, upsertAgentProviderConfig} from '@shipfox/api-agent';
+import {testAndSaveModelProviderConfig, upsertModelProviderConfig} from '@shipfox/api-agent';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
@@ -97,7 +97,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.json()).toEqual({
-      provider_id: 'anthropic',
+      model_provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
       credentials: {api_key: 'sk-workspace-secret'},
@@ -272,14 +272,14 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('agent-provider-not-configured');
+    expect(res.json().code).toBe('model-provider-not-configured');
   });
 
   test('returns 409 and reports when workspace credentials cannot be decrypted', async () => {
     const {run, job, step} = await createRunningAgentStep();
-    await upsertAgentProviderConfig({
+    await upsertModelProviderConfig({
       workspaceId: run.workspaceId,
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       encryptedCredentials: {api_key: 'v1:not-valid-ciphertext'},
       keyFingerprints: {api_key: 'sk-test...cret'},
       defaultModel: null,
@@ -294,7 +294,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('agent-provider-credentials-invalid');
+    expect(res.json().code).toBe('model-provider-credentials-invalid');
     expect(captureExceptionMock).toHaveBeenCalledWith(
       expect.objectContaining({name: 'CredentialDecryptionError'}),
     );
@@ -325,10 +325,10 @@ function runtimeConfigUrl(stepId: string, attempt: number): string {
 }
 
 async function saveWorkspaceCredential(workspaceId: string, apiKey: string) {
-  return await testAndSaveProviderConfig(
+  return await testAndSaveModelProviderConfig(
     {
       workspaceId,
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       credentials: {api_key: apiKey},
     },
     {probe: async () => undefined},

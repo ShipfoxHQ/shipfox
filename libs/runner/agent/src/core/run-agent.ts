@@ -15,10 +15,7 @@ type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
 export interface AgentInvocation {
   readonly cwd: string;
   readonly model: string;
-  // pi resolves a model from its registry by (provider, modelId), so a bare id is
-  // ambiguous on its own; the provider selects which built-in (or models.json) set the
-  // model id is looked up in. Free-text, defaulted upstream to anthropic.
-  readonly provider: string;
+  readonly modelProvider: string;
   readonly thinking: string;
   readonly prompt: string;
   readonly credentials: Record<string, string>;
@@ -33,7 +30,7 @@ export interface AgentInvocation {
 
 /**
  * Runs the pi coding agent for one step. Resolves when the agent's turn completes and
- * throws on a pi/provider failure or abort, so the caller maps a resolved call to a
+ * throws on a pi/model-provider failure or abort, so the caller maps a resolved call to a
  * succeeded step and a thrown call to a failed step.
  *
  * The returned `summary` is the agent's final assistant message, kept runner-local for
@@ -43,7 +40,7 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   const {
     cwd,
     model: modelId,
-    provider,
+    modelProvider,
     thinking,
     prompt,
     credentials,
@@ -58,18 +55,18 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
   const authStorage = AuthStorage.inMemory({
-    [provider]: toPiRuntimeCredential(provider, credentials),
+    [modelProvider]: toPiRuntimeCredential(modelProvider, credentials),
   });
   const modelRegistry = ModelRegistry.create(authStorage);
-  const model = resolveModel(modelRegistry, provider, modelId);
+  const model = resolveModel(modelRegistry, modelProvider, modelId);
 
   // Surface a missing key up front as a config error: otherwise it fails deep inside the
   // provider call as an opaque invocation failure, hiding that the fix is workspace config.
   if (!modelRegistry.hasConfiguredAuth(model)) {
     throw new AgentConfigError(
-      `No credentials configured for provider "${provider}". ` +
-        'Verify the provider is configured for this workspace.',
-      'provider_not_configured',
+      `No credentials configured for model provider "${modelProvider}". ` +
+        'Verify the model provider is configured for this workspace.',
+      'model_provider_not_configured',
     );
   }
 
@@ -125,78 +122,78 @@ function startForwarding(
 
 type ResolvedModel = NonNullable<ReturnType<ModelRegistry['find']>>;
 
-// pi's `find` returns undefined for both an unknown provider and a known provider that
-// lacks the model, so split them on the registry's provider set to give an actionable
-// message (and, when another provider carries the same id, a did-you-mean hint).
+// pi's `find` returns undefined for both an unknown model provider and a known model provider
+// that lacks the model, so split them on the registry's provider set to give an actionable
+// message (and, when another model provider carries the same id, a did-you-mean hint).
 function resolveModel(
   modelRegistry: ModelRegistry,
-  provider: string,
+  modelProvider: string,
   modelId: string,
 ): ResolvedModel {
-  const model = modelRegistry.find(provider, modelId);
+  const model = modelRegistry.find(modelProvider, modelId);
   if (model) return model;
 
   const all = modelRegistry.getAll();
-  const knownProviders = new Set(all.map((entry) => entry.provider));
-  if (!knownProviders.has(provider)) {
+  const knownModelProviders = new Set(all.map((entry) => entry.provider));
+  if (!knownModelProviders.has(modelProvider)) {
     throw new AgentConfigError(
-      `Unknown provider "${provider}" for agent step. ` +
-        'Known providers are pi built-ins plus any from models.json.',
-      'provider_unsupported',
+      `Unknown model provider "${modelProvider}" for agent step. ` +
+        'Known model providers are pi built-ins plus any from models.json.',
+      'model_provider_unsupported',
     );
   }
 
-  const alternativeProvider = all.find((entry) => entry.id === modelId)?.provider;
+  const alternativeModelProvider = all.find((entry) => entry.id === modelId)?.provider;
   const hint =
-    alternativeProvider === undefined
+    alternativeModelProvider === undefined
       ? ''
-      : ` Did you mean to set provider: ${alternativeProvider}?`;
+      : ` Did you mean to set provider: ${alternativeModelProvider}?`;
   throw new AgentConfigError(
-    `Model "${modelId}" is not available for provider "${provider}".${hint}`,
+    `Model "${modelId}" is not available for model provider "${modelProvider}".${hint}`,
     'model_unavailable',
   );
 }
 
 function toPiRuntimeCredential(
-  provider: string,
+  modelProvider: string,
   credentials: Record<string, string>,
 ): ApiKeyCredential {
   const credential: ApiKeyCredential = {
     type: 'api_key',
-    key: credentialValue(provider, credentials, 'api_key'),
+    key: credentialValue(modelProvider, credentials, 'api_key'),
   };
-  const env = providerCredentialEnv(provider, credentials);
+  const env = modelProviderCredentialEnv(modelProvider, credentials);
   return env === undefined ? credential : {...credential, env};
 }
 
-function providerCredentialEnv(
-  provider: string,
+function modelProviderCredentialEnv(
+  modelProvider: string,
   credentials: Record<string, string>,
 ): Record<string, string> | undefined {
-  switch (provider) {
+  switch (modelProvider) {
     case 'azure-openai-responses':
-      return {AZURE_OPENAI_BASE_URL: credentialValue(provider, credentials, 'endpoint')};
+      return {AZURE_OPENAI_BASE_URL: credentialValue(modelProvider, credentials, 'endpoint')};
     case 'cloudflare-ai-gateway':
       return {
-        CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id'),
-        CLOUDFLARE_GATEWAY_ID: credentialValue(provider, credentials, 'gateway_id'),
+        CLOUDFLARE_ACCOUNT_ID: credentialValue(modelProvider, credentials, 'account_id'),
+        CLOUDFLARE_GATEWAY_ID: credentialValue(modelProvider, credentials, 'gateway_id'),
       };
     case 'cloudflare-workers-ai':
-      return {CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id')};
+      return {CLOUDFLARE_ACCOUNT_ID: credentialValue(modelProvider, credentials, 'account_id')};
     default:
       return undefined;
   }
 }
 
 function credentialValue(
-  provider: string,
+  modelProvider: string,
   credentials: Record<string, string>,
   key: string,
 ): string {
   const value = credentials[key];
   if (value === undefined || value === '') {
     throw new AgentConfigError(
-      `Runtime credentials for provider "${provider}" are missing "${key}".`,
+      `Runtime credentials for model provider "${modelProvider}" are missing "${key}".`,
       'credentials_invalid',
     );
   }

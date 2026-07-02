@@ -49,7 +49,9 @@ describe('credential encryption', () => {
       plaintext: 'sk-ant-secretabcd',
       aad: 'workspace:anthropic:api_key',
     });
-    const tampered = `${encoded.slice(0, -1)}A`;
+    const payloadStart = 'v1:'.length;
+    const replacement = encoded[payloadStart] === 'A' ? 'B' : 'A';
+    const tampered = `${encoded.slice(0, payloadStart)}${replacement}${encoded.slice(payloadStart + 1)}`;
 
     const decryptTampered = () =>
       decryptCredential({encoded: tampered, aad: 'workspace:anthropic:api_key'});
@@ -60,14 +62,14 @@ describe('credential encryption', () => {
   it('binds ciphertext to workspace, provider, and field AAD', () => {
     const encryptedCredentials = encryptCredentials({
       workspaceId: 'workspace-1',
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       credentials: {api_key: 'sk-ant-secretabcd'},
     });
 
     const decryptForOtherWorkspace = () =>
       decryptCredentials({
         workspaceId: 'workspace-2',
-        providerId: 'anthropic',
+        modelProviderId: 'anthropic',
         encryptedCredentials,
       });
 
@@ -77,7 +79,7 @@ describe('credential encryption', () => {
   it('rejects ciphertext encrypted with a different key', async () => {
     vi.resetModules();
     vi.stubEnv(
-      'AGENT_CREDENTIALS_ENCRYPTION_KEY',
+      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
       Buffer.from('a'.repeat(32), 'utf8').toString('base64'),
     );
     const firstModule = await import('./credential-encryption.js');
@@ -88,20 +90,20 @@ describe('credential encryption', () => {
 
     vi.resetModules();
     vi.stubEnv(
-      'AGENT_CREDENTIALS_ENCRYPTION_KEY',
+      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
       Buffer.from('b'.repeat(32), 'utf8').toString('base64'),
     );
     const secondModule = await import('./credential-encryption.js');
     const decryptWithWrongKey = () =>
       secondModule.decryptCredential({encoded, aad: 'workspace:anthropic:api_key'});
 
-    expect(decryptWithWrongKey).toThrow('Failed to decrypt agent provider credential');
+    expect(decryptWithWrongKey).toThrow('Failed to decrypt model provider credential');
   });
 
   it('accepts an unpadded base64 encryption key', async () => {
     vi.resetModules();
     vi.stubEnv(
-      'AGENT_CREDENTIALS_ENCRYPTION_KEY',
+      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
       Buffer.from('a'.repeat(32), 'utf8').toString('base64').replace(BASE64_PADDING_SUFFIX, ''),
     );
     const module = await import('./credential-encryption.js');
@@ -115,13 +117,13 @@ describe('credential encryption', () => {
   it('rejects non-canonical base64 encryption keys', async () => {
     vi.resetModules();
     const encodedKey = Buffer.from('a'.repeat(32), 'utf8').toString('base64');
-    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', `$${encodedKey}`);
+    vi.stubEnv('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', `$${encodedKey}`);
     const module = await import('./credential-encryption.js');
 
     const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
 
     expect(encrypt).toThrow(
-      'AGENT_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
+      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
     );
   });
 
@@ -133,12 +135,12 @@ describe('credential encryption', () => {
 
     const encryptedCredentials = encryptCredentials({
       workspaceId: 'workspace-1',
-      providerId: 'azure-openai-responses',
+      modelProviderId: 'azure-openai-responses',
       credentials,
     });
     const decryptedCredentials = decryptCredentials({
       workspaceId: 'workspace-1',
-      providerId: 'azure-openai-responses',
+      modelProviderId: 'azure-openai-responses',
       encryptedCredentials,
     });
 
@@ -151,13 +153,13 @@ describe('credential encryption', () => {
   it('round-trips a built-in credential under the credential-prefixed AAD key', () => {
     const encryptedCredentials = encryptCredentials({
       workspaceId: 'workspace-1',
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       credentials: {api_key: 'sk-ant-secretabcd'},
     });
 
     const decryptedCredentials = decryptCredentials({
       workspaceId: 'workspace-1',
-      providerId: 'anthropic',
+      modelProviderId: 'anthropic',
       encryptedCredentials,
     });
 
@@ -167,23 +169,23 @@ describe('credential encryption', () => {
 
   it('surfaces missing encryption key configuration errors', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', '');
+    vi.stubEnv('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', '');
     const module = await import('./credential-encryption.js');
 
     const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
 
-    expect(encrypt).toThrow('AGENT_CREDENTIALS_ENCRYPTION_KEY is required');
+    expect(encrypt).toThrow('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required');
   });
 
   it('surfaces malformed encryption key configuration errors', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', 'not-base64');
+    vi.stubEnv('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', 'not-base64');
     const module = await import('./credential-encryption.js');
 
     const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
 
     expect(encrypt).toThrow(
-      'AGENT_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
+      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
     );
   });
 });

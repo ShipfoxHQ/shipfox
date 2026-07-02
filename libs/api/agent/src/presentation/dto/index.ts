@@ -1,1 +1,1 @@
-export {toAgentProviderConfigDto} from './agent-provider-config.js';
+export {toModelProviderConfigDto} from './model-provider-config.js';

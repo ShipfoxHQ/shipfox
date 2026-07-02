@@ -1,8 +1,8 @@
 import {
-  type AgentProviderRef,
   type AgentThinking,
-  getAgentProviderEntry,
-  type SupportedAgentProviderId,
+  getModelProviderEntry,
+  type ModelProviderRef,
+  type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {config} from '#config.js';
 import {getAgentWorkspaceDefaultsSnapshot} from '#db/index.js';
@@ -13,27 +13,29 @@ export async function createWorkspaceAgentDefaultsResolver(
   workspaceId: string,
 ): Promise<AgentDefaultsResolver> {
   const snapshot = await getAgentWorkspaceDefaultsSnapshot(workspaceId);
-  const workspaceProviderConfigs = new Map<
-    SupportedAgentProviderId,
+  const workspaceModelProviderConfigs = new Map<
+    SupportedModelProviderId,
     {defaultModel: string | null; defaultThinking: AgentThinking}
   >();
   for (const providerConfig of snapshot.providerConfigs) {
-    const providerId = toSupportedProviderId(providerConfig.providerId);
-    if (!providerId) continue;
+    const modelProviderId = toSupportedModelProviderId(providerConfig.modelProviderId);
+    if (!modelProviderId) continue;
 
-    workspaceProviderConfigs.set(providerId, {
+    workspaceModelProviderConfigs.set(modelProviderId, {
       defaultModel: providerConfig.defaultModel,
       defaultThinking: providerConfig.defaultThinking,
     });
   }
   const ctx: AgentConfigResolutionContext = {
-    workspaceDefaultProviderId: snapshot.defaultProviderId
-      ? toSupportedProviderId(snapshot.defaultProviderId)
+    workspaceDefaultModelProviderId: snapshot.defaultModelProviderId
+      ? toSupportedModelProviderId(snapshot.defaultModelProviderId)
       : null,
-    workspaceProviderConfigs,
-    instanceDefaultProvider: config.AGENT_DEFAULT_PROVIDER as SupportedAgentProviderId | undefined,
-    instanceDefaultProviderModel: config.AGENT_DEFAULT_PROVIDER_MODEL,
-    instanceDefaultProviderThinking: config.AGENT_DEFAULT_PROVIDER_THINKING as
+    workspaceModelProviderConfigs,
+    instanceDefaultModelProvider: config.DEFAULT_MODEL_PROVIDER as
+      | SupportedModelProviderId
+      | undefined,
+    instanceDefaultModelProviderModel: config.DEFAULT_MODEL_PROVIDER_MODEL,
+    instanceDefaultModelProviderThinking: config.DEFAULT_MODEL_PROVIDER_THINKING as
       | AgentThinking
       | undefined,
   };
@@ -41,8 +43,10 @@ export async function createWorkspaceAgentDefaultsResolver(
   return (step) => resolveAgentConfig(step, ctx);
 }
 
-function toSupportedProviderId(providerId: AgentProviderRef): SupportedAgentProviderId | undefined {
-  const entry = getAgentProviderEntry(providerId);
+function toSupportedModelProviderId(
+  modelProviderId: ModelProviderRef,
+): SupportedModelProviderId | undefined {
+  const entry = getModelProviderEntry(modelProviderId);
   if (entry === undefined || entry.support_status !== 'supported') return undefined;
-  return providerId as SupportedAgentProviderId;
+  return modelProviderId as SupportedModelProviderId;
 }

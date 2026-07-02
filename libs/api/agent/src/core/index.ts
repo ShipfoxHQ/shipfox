@@ -1,20 +1,20 @@
 export {decryptCredentials} from './credential-encryption.js';
-export type {AgentProviderConfig} from './entities/agent-provider-config.js';
 export type {AgentWorkspaceSettings} from './entities/agent-workspace-settings.js';
+export type {ModelProviderConfig} from './entities/model-provider-config.js';
 export {
-  AgentProviderConfigNotFoundError,
-  AgentProviderValidationError,
   CredentialDecryptionError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
-  ProviderValidationUnavailableError,
-  UnsupportedAgentProviderError,
+  ModelProviderConfigNotFoundError,
+  ModelProviderValidationError,
+  ModelProviderValidationUnavailableError,
+  UnsupportedModelProviderError,
 } from './errors.js';
-export {buildAgentProviderCatalog} from './provider-catalog.js';
+export {buildModelProviderCatalog} from './model-provider-catalog.js';
 export {
-  testAndSaveProviderConfig,
-  updateProviderConfigDefaultModel,
-} from './provider-config-service.js';
+  testAndSaveModelProviderConfig,
+  updateModelProviderConfigDefaultModel,
+} from './model-provider-config-service.js';
 export {
   type AgentConfigResolutionContext,
   type AgentDefaultsResolver,

@@ -5,20 +5,20 @@ export {
   type AgentWorkspaceDefaultsSnapshot,
   getAgentWorkspaceDefaultsSnapshot,
 } from './agent-defaults-snapshot.js';
-export type {UpsertAgentProviderConfigParams} from './agent-provider-configs.js';
-export {
-  deleteAgentProviderConfig,
-  getAgentProviderConfig,
-  listAgentProviderConfigs,
-  updateAgentProviderDefaultModel,
-  upsertAgentProviderConfig,
-} from './agent-provider-configs.js';
 export {
   getAgentWorkspaceSettings,
-  setDefaultAgentProvider,
+  setDefaultModelProvider,
 } from './agent-workspace-settings.js';
 export {closeDb, db, schema} from './db.js';
-export {agentProviderConfigs} from './schema/agent-provider-configs.js';
+export type {UpsertModelProviderConfigParams} from './model-provider-configs.js';
+export {
+  deleteModelProviderConfig,
+  getModelProviderConfig,
+  listModelProviderConfigs,
+  updateModelProviderDefaultModel,
+  upsertModelProviderConfig,
+} from './model-provider-configs.js';
 export {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
+export {modelProviderConfigs} from './schema/model-provider-configs.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');

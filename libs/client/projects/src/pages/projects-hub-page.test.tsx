@@ -37,45 +37,45 @@ describe('ProjectsHubPage', () => {
     ).toBe(WORKSPACE_PROJECTS_NEW_HREF);
   });
 
-  test('shows and dismisses the agent provider reminder when no provider is configured', async () => {
+  test('shows and dismisses the model provider reminder when no provider is configured', async () => {
     const fetchImpl = createHubFetch({
       projects: jsonResponse({projects: [], next_cursor: null}),
-      agentProviders: jsonResponse({configs: [], default_provider_id: null}),
+      modelProviders: jsonResponse({configs: [], default_model_provider_id: null}),
     });
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
-    expect(await screen.findByText('Finish setting up an agent provider')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Agent Providers'})).toHaveAttribute(
+    expect(await screen.findByText('Finish setting up a model provider')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Model Providers'})).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
+      `/workspaces/${PROJECT_TEST_WID}/settings/model-providers`,
     );
     fireEvent.click(screen.getByRole('button', {name: 'Close'}));
 
     await waitFor(() => {
-      expect(screen.queryByText('Finish setting up an agent provider')).not.toBeInTheDocument();
+      expect(screen.queryByText('Finish setting up a model provider')).not.toBeInTheDocument();
     });
   });
 
-  test('hides the agent provider reminder when a provider is configured', async () => {
+  test('hides the model provider reminder when a provider is configured', async () => {
     const fetchImpl = createHubFetch({
       projects: jsonResponse({projects: [], next_cursor: null}),
-      agentProviders: jsonResponse(agentProviderConfigsDto()),
+      modelProviders: jsonResponse(modelProviderConfigsDto()),
     });
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
     expect(await screen.findByText('Create your first project')).toBeInTheDocument();
-    expect(screen.queryByText('Finish setting up an agent provider')).not.toBeInTheDocument();
+    expect(screen.queryByText('Finish setting up a model provider')).not.toBeInTheDocument();
   });
 
   test('renders projects and loads the next cursor page', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const url = new URL(requestInputUrl(input));
-      if (url.pathname.endsWith('/agent/providers')) {
-        return Promise.resolve(jsonResponse(agentProviderConfigsDto()));
+      if (url.pathname.endsWith('/agent/model-providers')) {
+        return Promise.resolve(jsonResponse(modelProviderConfigsDto()));
       }
       if (url.pathname === '/integration-connections') {
         return Promise.resolve(jsonResponse(connectionsDto()));
@@ -222,16 +222,16 @@ function createHubFetch({
     next_cursor: null,
   }),
   connections = jsonResponse(connectionsDto()),
-  agentProviders = jsonResponse(agentProviderConfigsDto()),
+  modelProviders = jsonResponse(modelProviderConfigsDto()),
 }: {
   projects?: Response;
   connections?: Response;
-  agentProviders?: Response;
+  modelProviders?: Response;
 } = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = new URL(requestInputUrl(input));
-    if (url.pathname.endsWith('/agent/providers')) {
-      return Promise.resolve(agentProviders.clone());
+    if (url.pathname.endsWith('/agent/model-providers')) {
+      return Promise.resolve(modelProviders.clone());
     }
     if (url.pathname === '/integration-connections') {
       return Promise.resolve(connections.clone());
@@ -272,18 +272,18 @@ function projectDto({
   };
 }
 
-function agentProviderConfigsDto() {
+function modelProviderConfigsDto() {
   return {
     configs: [
       {
-        provider_id: 'anthropic',
+        model_provider_id: 'anthropic',
         default_model: null,
         key_fingerprints: {'credential:api_key': 'sk-ant-s...abcd'},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
     ],
-    default_provider_id: 'anthropic',
+    default_model_provider_id: 'anthropic',
   };
 }
 

@@ -4,8 +4,8 @@
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.agent_provider_configs": {
-      "name": "agent_provider_configs",
+    "public.model_provider_configs": {
+      "name": "model_provider_configs",
       "schema": "",
       "columns": {
         "id": {
@@ -21,15 +21,15 @@
           "primaryKey": false,
           "notNull": true
         },
-        "provider_id": {
-          "name": "provider_id",
+        "model_provider_id": {
+          "name": "model_provider_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
         "kind": {
           "name": "kind",
-          "type": "agent_provider_config_kind",
+          "type": "model_provider_config_kind",
           "primaryKey": false,
           "notNull": true,
           "default": "'builtin'"
@@ -104,8 +104,8 @@
         }
       },
       "indexes": {
-        "agent_provider_configs_workspace_provider_unique": {
-          "name": "agent_provider_configs_workspace_provider_unique",
+        "model_provider_configs_workspace_model_provider_unique": {
+          "name": "model_provider_configs_workspace_model_provider_unique",
           "columns": [
             {
               "expression": "workspace_id",
@@ -114,7 +114,7 @@
               "nulls": "last"
             },
             {
-              "expression": "provider_id",
+              "expression": "model_provider_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -131,9 +131,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "agent_provider_configs_custom_required_fields": {
-          "name": "agent_provider_configs_custom_required_fields",
-          "value": "\"agent_provider_configs\".\"kind\" <> 'custom' OR (\"agent_provider_configs\".\"api\" IS NOT NULL AND \"agent_provider_configs\".\"base_url\" IS NOT NULL AND \"agent_provider_configs\".\"models\" IS NOT NULL AND \"agent_provider_configs\".\"display_name\" IS NOT NULL)"
+        "model_provider_configs_custom_required_fields": {
+          "name": "model_provider_configs_custom_required_fields",
+          "value": "\"model_provider_configs\".\"kind\" <> 'custom' OR (\"model_provider_configs\".\"api\" IS NOT NULL AND \"model_provider_configs\".\"base_url\" IS NOT NULL AND \"model_provider_configs\".\"models\" IS NOT NULL AND \"model_provider_configs\".\"display_name\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -148,8 +148,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "default_provider_id": {
-          "name": "default_provider_id",
+        "default_model_provider_id": {
+          "name": "default_model_provider_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -179,8 +179,8 @@
     }
   },
   "enums": {
-    "public.agent_provider_config_kind": {
-      "name": "agent_provider_config_kind",
+    "public.model_provider_config_kind": {
+      "name": "model_provider_config_kind",
       "schema": "public",
       "values": ["builtin", "custom"]
     }
