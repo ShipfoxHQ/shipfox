@@ -177,7 +177,8 @@ export function CreateProjectPage() {
           Create project
         </Header>
         <Text size="sm" className="text-foreground-neutral-muted">
-          Choose a source repository and name the project.
+          A Shipfox project starts from a Git repository. Choose the repository Shipfox should
+          track, then give the project a name.
         </Text>
       </header>
 
