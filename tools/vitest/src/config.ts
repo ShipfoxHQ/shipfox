@@ -37,7 +37,7 @@ function parseMaxWorkers(value: string | undefined): number | undefined {
 
   const maxWorkers = Number(value);
   if (!Number.isInteger(maxWorkers) || maxWorkers < 1) {
-    throw new Error('SHIPFOX_VITEST_MAX_WORKERS must be a positive integer.');
+    throw new Error(`SHIPFOX_VITEST_MAX_WORKERS must be a positive integer, got "${value}".`);
   }
 
   return maxWorkers;
