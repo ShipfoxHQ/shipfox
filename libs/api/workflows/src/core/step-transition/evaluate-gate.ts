@@ -54,10 +54,11 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
 // could trigger a restart.
 //
 // NOTE: callers run this inside the FOR UPDATE transaction, so the eval holds the
-// job's step-row locks. The context is a single scalar (`exit_code`), so this is
-// cheap; do not widen the context or add CEL call sites inside the lock without
-// an eval budget. `language` is assumed CEL because the materializer writes only
-// that language, and the evaluator reads only `.source`.
+// job's step-row locks. The context is a small `step` self-root object
+// (`exit_code`, `status`), so this is cheap; do not widen the context or add CEL
+// call sites inside the lock without an eval budget. `language` is assumed CEL
+// because the materializer writes only that language, and the evaluator reads only
+// `.source`.
 export function evaluateGate(gate: StepGate | undefined, result: StepResult): GateOutcome {
   if (!gate?.successIf) return {kind: 'no-gate'};
   const source = gate.successIf.source;
@@ -67,7 +68,12 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
   }
 
   try {
-    const passed = evaluateWorkflowPredicate(gate.successIf, {exit_code: BigInt(result.exitCode)});
+    const passed = evaluateWorkflowPredicate(gate.successIf, {
+      step: {
+        exit_code: BigInt(result.exitCode),
+        status: result.status,
+      },
+    });
     return passed ? {kind: 'passed', source} : {kind: 'failed', source};
   } catch (error) {
     if (error instanceof WorkflowExpressionEvaluationError) {

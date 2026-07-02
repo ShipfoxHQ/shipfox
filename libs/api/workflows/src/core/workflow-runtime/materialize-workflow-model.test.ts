@@ -69,7 +69,7 @@ describe('materializeWorkflowModel', () => {
               run: 'npm run build',
               sourceLocation: {startLine: 7, endLine: 14},
               gate: {
-                successIf: expression('exit_code == 0'),
+                successIf: expression('step.exit_code == 0'),
                 onFailure: {restartFrom: 'install', output: 'Build failed'},
               },
             },
@@ -125,7 +125,7 @@ describe('materializeWorkflowModel', () => {
             config: {
               run: 'npm run build',
               gate: {
-                success_if: {language: 'cel', check: 'typed', source: 'exit_code == 0'},
+                success_if: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
                 on_failure: {restart_from: 'install', output: 'Build failed'},
               },
             },
@@ -178,7 +178,7 @@ describe('materializeWorkflowModel', () => {
               thinking: 'low',
               prompt: 'Review it.',
               gate: {
-                successIf: expression('exit_code == 0'),
+                successIf: expression('step.exit_code == 0'),
                 onFailure: {restartFrom: 'implement'},
               },
             },
@@ -216,7 +216,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'low',
         prompt: 'Review it.',
         gate: {
-          success_if: {language: 'cel', check: 'typed', source: 'exit_code == 0'},
+          success_if: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
           on_failure: {restart_from: 'implement'},
         },
       },

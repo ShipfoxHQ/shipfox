@@ -471,7 +471,7 @@ jobs:
         config: {
           run: 'review',
           gate: {
-            success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+            success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
             on_failure: {restart_from: 'producer'},
           },
         },
@@ -514,7 +514,7 @@ jobs:
     expect(reviewerAttempts[0]?.gate_result).toEqual({
       kind: 'failed',
       passed: false,
-      source: 'exit_code == 0',
+      source: 'step.exit_code == 0',
       exit_code: 1,
     });
     expect(reviewerAttempts[0]?.restart_reason).toBe('gate condition not met');
@@ -527,7 +527,7 @@ jobs:
     expect(reviewerAttempts[1]?.gate_result).toEqual({
       kind: 'passed',
       passed: true,
-      source: 'exit_code == 0',
+      source: 'step.exit_code == 0',
       exit_code: 0,
     });
     expect(reviewerAttempts[1]?.restart_result).toBeNull();

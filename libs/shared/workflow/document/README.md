@@ -49,7 +49,7 @@ try {
         },
         env: {NODE_ENV: 'test'},
         runner: 'ubuntu-latest',
-        steps: [{run: 'npm run build', env: {CI: true}, gate: {success_if: 'exit_code == 0'}}],
+        steps: [{run: 'npm run build', env: {CI: true}, gate: {success_if: 'step.exit_code == 0'}}],
       },
     },
   });
@@ -81,7 +81,7 @@ parseWorkflowDocument({
       steps: [
         {prompt: 'Fix the failing tests.'},
         {model: 'gpt-5.5-pro', provider: 'openai', prompt: 'Review the fix.'},
-        {run: 'npm test', gate: {success_if: 'exit_code == 0'}},
+        {run: 'npm test', gate: {success_if: 'step.exit_code == 0'}},
       ],
     },
   },

@@ -29,16 +29,16 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'step',
     ]);
   });
 
   it('keeps future phase roots reserved out of the referenceable registry', () => {
     expect(workflowContextReservedRoots).toEqual({
-      step: 'step-completion',
       steps: 'step-completion',
       jobs: 'job-resolution',
     });
-    expect(workflowContextNames).not.toContain('step');
+    expect(workflowContextNames).toContain('step');
     expect(workflowContextNames).not.toContain('steps');
     expect(workflowContextNames).not.toContain('jobs');
   });
@@ -55,7 +55,14 @@ describe('workflow context registry', () => {
       },
     );
 
-    expect(contextsByTrust.trusted).toEqual(['run', 'trigger', 'job', 'executions', 'execution']);
+    expect(contextsByTrust.trusted).toEqual([
+      'run',
+      'trigger',
+      'job',
+      'executions',
+      'execution',
+      'step',
+    ]);
     expect(contextsByTrust.untrusted).toEqual(['event', 'inputs']);
   });
 
@@ -81,6 +88,12 @@ describe('workflow context registry', () => {
       shape: 'known',
       checkMode: 'typed',
       untrustedPaths: ['events'],
+    });
+    expect(workflowContextDefinitions.step).toMatchObject({
+      availability: 'step-completion',
+      trustTier: 'trusted',
+      shape: 'known',
+      checkMode: 'typed',
     });
     expect(workflowContextDefinitions.event).toMatchObject({
       shape: 'open',
@@ -123,6 +136,15 @@ describe('workflow context registry', () => {
         },
       },
     });
+    expect(getWorkflowContextTypeEnvironment('step')).toEqual({
+      step: {
+        kind: 'object',
+        fields: {
+          exit_code: 'int',
+          status: 'string',
+        },
+      },
+    });
   });
 
   it('does not expose type environments for open contexts', () => {
@@ -155,6 +177,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'step',
     ]);
     expect(rootsAvailableAt('job-resolution')).toEqual([
       'run',
@@ -164,6 +187,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'step',
     ]);
   });
 
@@ -299,7 +323,7 @@ describe('workflow context registry', () => {
             "step-completion": true,
             "workflow-run-creation": false,
           },
-          "reserved": true,
+          "reserved": false,
           "root": "step",
         },
         {
@@ -356,6 +380,35 @@ describe('workflow context registry', () => {
     expect(triggerExpression.check).toBe('typed');
     expect(jobExpression.check).toBe('typed');
     expect(executionsExpression.check).toBe('typed');
+  });
+
+  it('type-checks step self-root gate expressions', () => {
+    const gateExpression = createWorkflowExpression({
+      source: 'step.exit_code == 0 && step.status == "succeeded"',
+      check: {
+        mode: 'typed',
+        typeEnvironment: workflowContextDefinitions.step.typeEnvironment,
+        expectedResultType: 'bool',
+      },
+    });
+
+    expect(gateExpression.check).toBe('typed');
+  });
+
+  it('allows dynamic access into untrusted event data on the executions root', () => {
+    // Deep event-data access type-checks as `dyn` because the executions -> events
+    // list-of-objects collapses to `list<dyn>`. Job success relies on this; guard it
+    // against a future converter change.
+    const eventDataExpression = createWorkflowExpression({
+      source: 'executions.all(e, e.events.all(ev, ev.data.ok == true))',
+      check: {
+        mode: 'typed',
+        typeEnvironment: workflowContextDefinitions.executions.typeEnvironment,
+        expectedResultType: 'bool',
+      },
+    });
+
+    expect(eventDataExpression.check).toBe('typed');
   });
 
   it('rejects unknown fields from known context type environments', () => {

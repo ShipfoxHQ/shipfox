@@ -1,6 +1,7 @@
 export {
   type AssembleWorkflowRunContextParams,
   assembleCreationContext,
+  assembleExecutionsContext,
   assembleWorkflowRunContext,
 } from './assemble-run-context.js';
 export {

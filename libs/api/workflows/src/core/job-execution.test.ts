@@ -666,7 +666,7 @@ describe('gate evaluation', () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
     await attachGate(stepId, {
-      success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 1'},
+      success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 1'},
     });
     await nextStepForJob(jobId);
 
@@ -688,7 +688,7 @@ describe('gate evaluation', () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
     await attachGate(stepId, {
-      success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+      success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
     });
     await nextStepForJob(jobId);
 
@@ -708,7 +708,7 @@ describe('gate evaluation', () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
     await attachGate(stepId, {
-      success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+      success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
       on_failure: {restart_from: 'producer'},
     });
     await nextStepForJob(jobId);
@@ -795,7 +795,7 @@ describe('durable gate restart', () => {
   }
 
   test('a failing gate rewinds the job to the restart_from step, keeping it running', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
 
     await runStep(jobId, producer, 0); // producer succeeds, attempt 1
     const restart = await runStep(jobId, reviewer, 1); // reviewer gate fails → restart
@@ -816,7 +816,7 @@ describe('durable gate restart', () => {
   });
 
   test('restart event identifies the failed gate attempt and restart target', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
 
     await runStep(jobId, producer, 0);
     await runStep(jobId, reviewer, 1);
@@ -830,7 +830,7 @@ describe('durable gate restart', () => {
   });
 
   test('a passing rerun after a restart completes the job', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
 
     await runStep(jobId, producer, 0);
     await runStep(jobId, reviewer, 1); // restart
@@ -854,7 +854,7 @@ describe('durable gate restart', () => {
   });
 
   test('a permanently-failing gate terminates via the attempt cap (no infinite loop)', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
 
     // Default cap is 3: reviewer attempts 1 and 2 restart; attempt 3 exhausts.
     await runStep(jobId, producer, 0);
@@ -871,7 +871,7 @@ describe('durable gate restart', () => {
   });
 
   test('a duplicate report of a superseded attempt does not restart twice', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
 
     await runStep(jobId, producer, 0);
     await runStep(jobId, reviewer, 1); // restart (reviewer now pending at attempt 2)
@@ -904,7 +904,7 @@ describe('durable gate restart', () => {
         config: {
           run: 'review',
           gate: {
-            success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+            success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
             on_failure: {restart_from: 'producer'},
           },
         },
@@ -937,7 +937,7 @@ describe('durable gate restart', () => {
     const gatedToProducer = {
       run: 'x',
       gate: {
-        success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+        success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
         on_failure: {restart_from: 'producer'},
       },
     };
@@ -969,7 +969,7 @@ describe('durable gate restart', () => {
         config: {
           run: 'x',
           gate: {
-            success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+            success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
             on_failure: {restart_from: 'does-not-exist'},
           },
         },

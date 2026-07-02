@@ -15,7 +15,11 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
-import {createWorkflowExpression, evaluateWorkflowPredicate} from '@shipfox/expression';
+import {
+  createWorkflowExpression,
+  evaluateWorkflowPredicate,
+  WorkflowExpressionEvaluationError,
+} from '@shipfox/expression';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
@@ -67,7 +71,11 @@ import {
 } from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/workflow-runtime/index.js';
-import {assembleCreationContext, materializeWorkflowModel} from '#core/workflow-runtime/index.js';
+import {
+  assembleCreationContext,
+  assembleExecutionsContext,
+  materializeWorkflowModel,
+} from '#core/workflow-runtime/index.js';
 import type {MaterializedWorkflowJob} from '#core/workflow-runtime/materialize-workflow-model.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import {
@@ -1737,12 +1745,17 @@ export async function resolveJobStatusFromJobExecutions(params: {
       source: jobRow.success ?? DEFAULT_JOB_SUCCESS,
       check: {mode: 'syntax'},
     });
-    const passed = evaluateWorkflowPredicate(expression, {
-      executions: jobExecutionRows.map((jobExecution, index) => ({
-        index,
-        status: jobExecution.status,
-      })),
-    });
+    const context = assembleExecutionsContext(jobExecutionRows.map(toJobExecution));
+    // Fail-closed: a success predicate that throws at runtime (e.g. timestamp math on a
+    // null finished_at) resolves the job to failed rather than aborting resolution. Mirrors
+    // the gate's fail-closed handling of evaluation errors.
+    let passed: boolean;
+    try {
+      passed = evaluateWorkflowPredicate(expression, context);
+    } catch (error) {
+      if (!(error instanceof WorkflowExpressionEvaluationError)) throw error;
+      passed = false;
+    }
     const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
     const statusReason =
       status === 'failed'
