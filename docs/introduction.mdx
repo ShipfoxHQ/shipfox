@@ -54,9 +54,9 @@ If you've written GitHub Actions, you already know how to read this file — tha
 The same flow as one picture — note that the runner **polls outbound** (nothing connects into your compute), and that the agent step and its gate loop sit inside the ordinary step sequence. Click the diagram to enlarge it.
 
 {/* Source: images/diagrams/run-execution-flow.mmd — regenerate with:
-    npx -y @mermaid-js/mermaid-cli -b white -i images/diagrams/run-execution-flow.mmd -o images/diagrams/run-execution-flow.svg */}
+    npx -y @mermaid-js/mermaid-cli -b white -i images/diagrams/run-execution-flow.mmd -s 3 -o images/diagrams/run-execution-flow.png */}
 <Frame caption="How a run executes — click to enlarge.">
-  <img src="/images/diagrams/run-execution-flow.svg" alt="Run execution flow: event sources match a trigger in the Shipfox control plane, a run is created with event data resolved into prompts, jobs are scheduled as a needs DAG, a runner on your compute polls outbound and claims the job, then executes run and agent steps with a gate looping back on failure while logs and agent sessions stream live to the dashboard" />
+  <img src="/images/diagrams/run-execution-flow.png" alt="Run execution flow: event sources match a trigger in the Shipfox control plane, a run is created with event data resolved into prompts, jobs are scheduled as a needs DAG, a runner on your compute polls outbound and claims the job, then executes run and agent steps with a gate looping back on failure while logs and agent sessions stream live to the dashboard" />
 </Frame>
 
 ## Core concepts
