@@ -5,7 +5,12 @@ import {secretWriteWarningSchema} from './warnings.js';
 const timestampSchema = z.string().datetime();
 const projectIdSchema = z.string().uuid().nullable();
 const optionalProjectIdSchema = z.string().uuid().optional();
-const listLimitSchema = z.coerce.number().int().min(1).max(100).default(50);
+
+// The settings UI fetches every key in one call rather than paginating, so the list
+// limit ceiling matches the per-workspace cap (SECRETS_MAX_PER_WORKSPACE default). A
+// client asking for the whole bounded set passes limit=SECRETS_MAX_LIST_LIMIT.
+export const SECRETS_MAX_LIST_LIMIT = 10000;
+const listLimitSchema = z.coerce.number().int().min(1).max(SECRETS_MAX_LIST_LIMIT).default(50);
 const cursorSchema = z
   .string()
   .min(1)

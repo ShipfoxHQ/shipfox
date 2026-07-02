@@ -267,6 +267,33 @@ describe('secrets management routes', () => {
     expect(second.json().secrets.map((secret: {key: string}) => secret.key)).toEqual(['BRAVO']);
   });
 
+  it('accepts a limit above 100 and returns the whole set in one call', async () => {
+    await app.inject({
+      method: 'POST',
+      url: `/workspaces/${workspaceId}/secrets:batch`,
+      headers: {authorization: 'Bearer user'},
+      payload: {
+        entries: [
+          {key: 'ALPHA', value: 'alpha-value'},
+          {key: 'BRAVO', value: 'bravo-value'},
+        ],
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/secrets?limit=10000`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().secrets.map((secret: {key: string}) => secret.key)).toEqual([
+      'ALPHA',
+      'BRAVO',
+    ]);
+    expect(res.json().next_cursor).toBeNull();
+  });
+
   it('rejects malformed management cursors', async () => {
     const res = await app.inject({
       method: 'GET',
