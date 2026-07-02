@@ -2,10 +2,11 @@ import {screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {WorkflowRunListItem, WorkflowRunStatus} from '#core/workflow-run.js';
 import {workflowRunListItem} from '#test/fixtures/workflow-run.js';
-import {PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
+import {renderWithRouter} from '#test/render.js';
 import type {WorkflowRunListQuery} from './types.js';
 import {WorkflowRunListView} from './workflow-run-list-view.js';
 
+const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 
 function loadedQuery(): WorkflowRunListQuery {
@@ -144,14 +145,17 @@ describe('WorkflowRunListView', () => {
 });
 
 function renderListView(runs: WorkflowRunListItem[]) {
-  renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`, () => (
+  // The list view fetches nothing (its rows are fed via props); it only needs a
+  // router so the row `<Link>`s resolve, so it uses the router-only helper rather
+  // than the page harness.
+  renderWithRouter(
     <WorkflowRunListView
       runs={runs}
       query={loadedQuery()}
-      workspaceId={PROJECT_TEST_WID}
+      workspaceId={WORKSPACE_ID}
       projectId={PROJECT_ID}
-    />
-  ));
+    />,
+  );
 }
 
 function run(

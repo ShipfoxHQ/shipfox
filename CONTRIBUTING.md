@@ -278,6 +278,29 @@ export default defineConfig(
 The target shape is many fast Node tests for branch-heavy behavior, a small RTL
 suite for React integration, and Playwright for user-visible journeys.
 
+### Render at the lowest altitude that proves the behavior
+
+A page-level harness (memory router + `QueryClient` + configured API client, e.g.
+`renderProjectPage` in `libs/client/*/test/pages.tsx`) is the heaviest way to
+mount a component, and every import re-evaluates that provider stack. Pick the
+lightest tier that can still exercise what the test asserts:
+
+| Tier | Use it for | How |
+| --- | --- | --- |
+| `node` test | Pure decisions: filtering, formatting, URL/search-param shaping, status mapping. | Extract a helper, test it in the `node` project (`*.test.ts`, no DOM). |
+| `render()` | A presentational component that takes all its data through props and renders no router-aware child. | `render(<Component {...props} />)` from `@testing-library/react`, no providers. |
+| `renderWithRouter()` | A component that needs a router in context (its rows render `<Link>`, or it calls `useNavigate`) but fetches nothing. | A router-only helper (e.g. `libs/client/workflows/test/render.tsx`): memory router, no `QueryClient` or API client. |
+| Page harness | A page, or a component that genuinely fetches and navigates (React Query hooks + `useNavigate`). | `renderProjectPage` / the package's `test/pages.tsx`. |
+
+A page keeps a handful of harness-based smoke tests; it should not carry dozens of
+assertions that each remount the world when a lower tier proves the same branch.
+
+**Enforcement.** Harness usage must be justified in review, and a package that
+uses the page harness pins its harness importers with an allowlist guard test (see
+`libs/client/workflows/src/page-harness-budget.test.ts`). A new `#test/pages`
+import fails the guard until it is added to the allowlist, which is the moment a
+reviewer asks whether the test needs page wiring or should drop an altitude.
+
 ## Visual Regression Testing
 
 Visual drift is caught on every PR via [Argos](https://argos-ci.com/). One Argos

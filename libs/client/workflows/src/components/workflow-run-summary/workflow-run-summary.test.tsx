@@ -1,8 +1,7 @@
-import {screen, within} from '@testing-library/react';
+import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {workflowRunDetailDto} from '#test/fixtures/workflow-run.js';
 import {workflowJobDto, workflowRunDetail} from '#test/fixtures/workflow-run.js';
-import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
 const {useIsTextTruncatedMock} = vi.hoisted(() => ({
@@ -330,7 +329,8 @@ function renderSummary(
     ...overrides,
   });
 
-  renderProjectPage('/workspaces/ws-demo/projects/proj-demo/runs/run-demo', () => (
-    <WorkflowRunSummary run={run} {...props} />
-  ));
+  // The summary takes all its data through props and renders no router-aware child
+  // (the attempt switcher only mounts when `latestAttempt > 1`, which these tests
+  // never set), so a plain render is enough: no router, QueryClient, or API client.
+  render(<WorkflowRunSummary run={run} {...props} />);
 }
