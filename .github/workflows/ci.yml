@@ -19,8 +19,28 @@ env:
 # Parallel jobs cannot share PR-written remote cache artifacts, so each job
 # rebuilds what its own Turbo graph needs.
 jobs:
-  ci:
-    name: Check, test, type, and build
+  static-verification:
+    name: Check, type, build, and depcruise
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SHIPFOX_TURBO_CONCURRENCY: "2"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run static verification
+        run: turbo check type build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
+
+  tests:
+    name: Unit and story tests
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -40,15 +60,15 @@ jobs:
       - name: Start test services
         run: docker compose up --wait -d postgres temporal garage garage-init
 
-      # `turbo test` includes client Vitest browser tests, so Chromium is
-      # required in the verification job too.
+      # Client Vitest browser tests run under `turbo test`, so this non-E2E
+      # job still needs Chromium.
       - name: Install Playwright browsers
         run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
-      - name: Run verification
+      - name: Run tests
         env:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: turbo check type test build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
+        run: turbo test --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
   e2e:
     name: E2E tests
@@ -146,7 +166,7 @@ jobs:
   # cache instead of inheriting artifacts from less-privileged jobs.
   publish-images:
     name: Publish app images
-    needs: [ci, e2e]
+    needs: [static-verification, tests, e2e]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
