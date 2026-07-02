@@ -11,7 +11,7 @@ import {useForm} from '@tanstack/react-form';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
-import {AuthShell} from '#/components/auth-shell.js';
+import {AuthShell} from '#components/auth-shell.js';
 import {
   useConfirmPasswordResetAuth,
   useRequestPasswordResetAuth,

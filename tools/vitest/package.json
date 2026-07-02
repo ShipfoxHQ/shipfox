@@ -29,7 +29,11 @@
   },
   "type": "module",
   "imports": {
-    "#*": "./src/*"
+    "#*": {
+      "types": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "bin": {
     "shipfox-vitest-run": "./bin/vitest-run.js",
@@ -37,6 +41,7 @@
   },
   "scripts": {
     "build": "shipfox-swc",
+    "test": "vitest run",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },

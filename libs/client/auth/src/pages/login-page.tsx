@@ -8,7 +8,7 @@ import {useForm} from '@tanstack/react-form';
 import {Link, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
-import {AuthShell} from '#/components/auth-shell.js';
+import {AuthShell} from '#components/auth-shell.js';
 import {useLoginAuth} from '#hooks/api/login-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
 import {loginErrorToFormError} from './form-errors.js';

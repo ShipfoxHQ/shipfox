@@ -15,7 +15,11 @@
     "dist"
   ],
   "imports": {
-    "#*": "./src/*"
+    "#*": {
+      "types": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {

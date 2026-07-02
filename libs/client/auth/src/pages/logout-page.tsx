@@ -1,8 +1,8 @@
 import {Text} from '@shipfox/react-ui/typography';
 import {useNavigate, useRouter, useSearch} from '@tanstack/react-router';
 import {useEffect} from 'react';
-import {AuthShell} from '#/components/auth-shell.js';
-import {sanitizeRedirectPath} from '#/components/redirect-target.js';
+import {AuthShell} from '#components/auth-shell.js';
+import {sanitizeRedirectPath} from '#components/redirect-target.js';
 import {useLogoutAuth} from '#hooks/api/logout-auth.js';
 
 export function LogoutPage() {

@@ -8,7 +8,6 @@ const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const RELATIVE_TIME_TEXT_PATTERN = /ago$/;
 const OLD_ROOT_TIME_TEXT_PATTERN = /(?:1d|24h) ago/;
 const COPY_RUN_BUTTON_NAME = /Copy run/;
-
 const originalScrollWidth = Object.getOwnPropertyDescriptor(
   window.HTMLElement.prototype,
   'scrollWidth',
@@ -24,7 +23,6 @@ beforeEach(() => {
 
 describe('WorkflowRunSummary', () => {
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
     restoreElementWidthDescriptors();
   });

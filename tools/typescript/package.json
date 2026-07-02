@@ -10,7 +10,11 @@
   "private": false,
   "type": "module",
   "imports": {
-    "#*": "./src/*"
+    "#*": {
+      "types": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "bin": {
     "shipfox-tsc-check": "./bin/tsc-check.js",
