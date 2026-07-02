@@ -125,17 +125,17 @@ export function fingerprintCredentials(
 function getEncryptionKey(): Buffer {
   if (memoizedEncryptionKey) return memoizedEncryptionKey;
 
-  const encoded = config.MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY;
+  const encoded = config.AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY;
   if (!encoded) {
     throw new Error(
-      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required to encrypt or decrypt model provider credentials. Set it to a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required to encrypt or decrypt model provider credentials. Set it to a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
     );
   }
 
   const key = Buffer.from(encoded, 'base64');
   if (key.length !== KEY_BYTES || !isCanonicalBase64Key(encoded, key)) {
     throw new Error(
-      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
     );
   }
 

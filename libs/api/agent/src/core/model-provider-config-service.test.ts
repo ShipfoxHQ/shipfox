@@ -423,7 +423,7 @@ describe('testAndSaveModelProviderConfig', () => {
 
   it('validates the local encryption key before probing the provider', async () => {
     vi.resetModules();
-    vi.stubEnv('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', '');
+    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', '');
     const module = await import('./model-provider-config-service.js');
     const probe = vi.fn();
 
@@ -432,7 +432,9 @@ describe('testAndSaveModelProviderConfig', () => {
       {probe},
     );
 
-    await expect(save).rejects.toThrow('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required');
+    await expect(save).rejects.toThrow(
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required',
+    );
     expect(probe).not.toHaveBeenCalled();
   });
 });

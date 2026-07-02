@@ -19,8 +19,8 @@ export interface ResolveRuntimeCredentialsParams {
 }
 
 interface RuntimeCredentialsConfig {
-  DEFAULT_MODEL_PROVIDER?: SupportedModelProviderId | undefined;
-  DEFAULT_MODEL_PROVIDER_API_KEY?: string | undefined;
+  AGENT_DEFAULT_PROVIDER?: SupportedModelProviderId | undefined;
+  AGENT_DEFAULT_PROVIDER_API_KEY?: string | undefined;
 }
 
 export async function resolveRuntimeCredentials(
@@ -61,7 +61,7 @@ export async function resolveRuntimeCredentials(
 
   agentRuntimeConfigResolvedCount.add(1, {
     source:
-      params.modelProvider === runtimeConfig.DEFAULT_MODEL_PROVIDER ? 'instance' : 'workspace',
+      params.modelProvider === runtimeConfig.AGENT_DEFAULT_PROVIDER ? 'instance' : 'workspace',
     outcome: 'unavailable',
   });
   throw new ModelProviderConfigNotFoundError(params.workspaceId, params.modelProvider);
@@ -83,8 +83,8 @@ function instanceFallbackCredentials(
   modelProviderId: ModelProviderRef,
   runtimeConfig: RuntimeCredentialsConfig,
 ): Record<string, string> | undefined {
-  const instanceApiKey = runtimeConfig.DEFAULT_MODEL_PROVIDER_API_KEY;
-  if (modelProviderId !== runtimeConfig.DEFAULT_MODEL_PROVIDER || !instanceApiKey) return undefined;
+  const instanceApiKey = runtimeConfig.AGENT_DEFAULT_PROVIDER_API_KEY;
+  if (modelProviderId !== runtimeConfig.AGENT_DEFAULT_PROVIDER || !instanceApiKey) return undefined;
 
   const fieldKey = getInstanceDefaultModelProviderApiKeyField(modelProviderId);
   if (!fieldKey) return undefined;
