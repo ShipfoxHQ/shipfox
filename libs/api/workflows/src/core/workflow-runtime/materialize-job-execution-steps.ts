@@ -32,6 +32,10 @@ export interface MaterializeJobExecutionStepsParams {
   readonly definitionId?: string | undefined;
 }
 
+// Synthetic "Set up job" step prepended when a job execution's steps are materialized.
+// The runner prepares the workspace here; failures report through the normal step
+// protocol instead of hanging the job until the lease/timeout fires. Its config is
+// credential-free.
 const SETUP_STEP: MaterializedWorkflowStep = {
   key: null,
   name: 'Set up job',
@@ -57,6 +61,7 @@ export function materializeJobExecutionSteps(
   return [
     SETUP_STEP,
     ...job.steps.map((step, stepPosition) => {
+      // The trusted context exposes the stable job key; the authored display field remains `job.name`.
       const stepContext = {...context.values, job: {key: job.key}};
       const resolved = resolveStepConfig({
         step,
