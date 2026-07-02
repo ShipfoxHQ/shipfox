@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {Input} from '#components/input/index.js';
-import {FormField, useFormField} from './form-field.js';
+import {FormField, FormFieldTextarea, useFormField} from './form-field.js';
 
 const meta = {
   title: 'Components/FormField',
@@ -64,6 +64,20 @@ export const ErrorPreemptsDescription: Story = {
     <div className="w-360">
       <FormField {...args}>
         <WiredInput defaultValue="not an email" type="email" />
+      </FormField>
+    </div>
+  ),
+};
+
+export const WithTextarea: Story = {
+  args: {
+    label: 'Notes',
+    description: 'Visible to workspace admins.',
+  },
+  render: (args) => (
+    <div className="w-420">
+      <FormField {...args}>
+        <FormFieldTextarea placeholder="Add deployment context" rows={4} />
       </FormField>
     </div>
   ),

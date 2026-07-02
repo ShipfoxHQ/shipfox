@@ -37,6 +37,7 @@ export * from './skeleton/index.js';
 export * from './switch/index.js';
 export * from './table/index.js';
 export * from './tabs/index.js';
+export * from './textarea/index.js';
 export * from './theme/index.js';
 export * from './time-ticker/index.js';
 export * from './toast/index.js';
