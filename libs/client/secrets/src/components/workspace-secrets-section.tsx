@@ -140,6 +140,7 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
               workspaceId={workspaceId}
               mode={formState.mode}
               existingKey={formState.mode === 'edit' ? formState.key : undefined}
+              reservedKeys={secrets.map((secret) => secret.key)}
               onSaved={() => {
                 const wasEdit = formState.mode === 'edit';
                 setFormState(null);

@@ -1,3 +1,4 @@
+import {SECRETS_MAX_LIST_LIMIT} from '@shipfox/api-secrets-dto';
 import {createConfig, num, str} from '@shipfox/config';
 import {decodeBase64Key} from '#core/crypto.js';
 
@@ -27,6 +28,13 @@ if (config.SECRETS_ENCRYPTION_KEK_PREVIOUS) {
 }
 if (config.SECRETS_MAX_PER_WORKSPACE < 1) {
   throw new Error('SECRETS_MAX_PER_WORKSPACE must be greater than 0.');
+}
+if (config.SECRETS_MAX_PER_WORKSPACE > SECRETS_MAX_LIST_LIMIT) {
+  // The settings UI lists the whole bounded set in one call (limit = SECRETS_MAX_LIST_LIMIT).
+  // A cap above that would let the list silently truncate, so fail fast instead.
+  throw new Error(
+    `SECRETS_MAX_PER_WORKSPACE (${config.SECRETS_MAX_PER_WORKSPACE}) cannot exceed SECRETS_MAX_LIST_LIMIT (${SECRETS_MAX_LIST_LIMIT}).`,
+  );
 }
 if (config.SECRETS_SHORT_VALUE_WARN_LENGTH < 1) {
   throw new Error('SECRETS_SHORT_VALUE_WARN_LENGTH must be greater than 0.');

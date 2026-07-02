@@ -9,11 +9,11 @@ import {
   Text,
 } from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
-import {useState} from 'react';
-import {usePutVariableMutation} from '#hooks/api/variables.js';
+import {useEffect, useRef, useState} from 'react';
+import {usePutVariableMutation, useVariableQuery} from '#hooks/api/variables.js';
 import {secretsErrorToFormError} from './form-errors.js';
 import {FormBody, FormFooter} from './form-shell.js';
-import {STORE_KEY_HELP, validateStoreKey} from './store-key.js';
+import {STORE_KEY_HELP, validateNewStoreKey} from './store-key.js';
 
 export const VARIABLE_FORM_ID = 'variable-form';
 
@@ -22,6 +22,8 @@ export function VariableForm({
   mode,
   existingKey,
   existingValue,
+  existingValueTruncated = false,
+  reservedKeys = [],
   onSaved,
   onCancel,
 }: {
@@ -29,11 +31,18 @@ export function VariableForm({
   mode: 'create' | 'edit';
   existingKey?: string | undefined;
   existingValue?: string | undefined;
+  existingValueTruncated?: boolean | undefined;
+  reservedKeys?: readonly string[] | undefined;
   onSaved: () => void;
   onCancel: () => void;
 }) {
   const putVariable = usePutVariableMutation();
   const [formError, setFormError] = useState<string | undefined>();
+
+  // The list value is only a preview, so a truncated variable must load its full
+  // value before editing to avoid saving the truncated preview back.
+  const needsFullValue = mode === 'edit' && existingValueTruncated;
+  const fullValueQuery = useVariableQuery(workspaceId, needsFullValue ? existingKey : undefined);
 
   const form = useForm({
     defaultValues: {key: existingKey ?? '', value: existingValue ?? ''},
@@ -56,6 +65,16 @@ export function VariableForm({
     },
   });
 
+  const populatedRef = useRef(false);
+  useEffect(() => {
+    if (needsFullValue && fullValueQuery.data && !populatedRef.current) {
+      populatedRef.current = true;
+      form.setFieldValue('value', fullValueQuery.data.value);
+    }
+  }, [needsFullValue, fullValueQuery.data, form]);
+
+  const loadingFullValue = needsFullValue && fullValueQuery.isPending;
+
   return (
     <>
       <FormBody>
@@ -72,8 +91,10 @@ export function VariableForm({
           <form.Field
             name="key"
             validators={{
-              onBlur: ({value}) => validateStoreKey(value),
-              onSubmit: ({value}) => validateStoreKey(value),
+              onBlur: ({value}) =>
+                validateNewStoreKey(value, {mode, reservedKeys, kind: 'variable'}),
+              onSubmit: ({value}) =>
+                validateNewStoreKey(value, {mode, reservedKeys, kind: 'variable'}),
             }}
           >
             {(field) => (
@@ -107,12 +128,18 @@ export function VariableForm({
 
           <form.Field name="value">
             {(field) => (
-              <FormField label="Value" id="variable-value" error={fieldError(field)}>
+              <FormField
+                label="Value"
+                id="variable-value"
+                error={fieldError(field)}
+                description={loadingFullValue ? 'Loading the current value…' : undefined}
+              >
                 <FormFieldTextarea
                   className="font-code"
                   autoComplete="off"
                   spellCheck={false}
                   rows={3}
+                  disabled={loadingFullValue}
                   placeholder="debug"
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
@@ -122,6 +149,11 @@ export function VariableForm({
             )}
           </form.Field>
         </form>
+        {needsFullValue && fullValueQuery.isError ? (
+          <Alert variant="error" animated={false}>
+            <Text size="sm">Could not load the current value. Close and try again.</Text>
+          </Alert>
+        ) : null}
         {formError ? (
           <Alert variant="error" animated={false}>
             <Text size="sm">{formError}</Text>
@@ -132,7 +164,12 @@ export function VariableForm({
         <Button variant="secondary" type="button" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" form={VARIABLE_FORM_ID} isLoading={putVariable.isPending}>
+        <Button
+          type="submit"
+          form={VARIABLE_FORM_ID}
+          isLoading={putVariable.isPending}
+          disabled={loadingFullValue}
+        >
           {mode === 'edit' ? 'Update variable' : 'Add variable'}
         </Button>
       </FormFooter>

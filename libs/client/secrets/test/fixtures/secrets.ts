@@ -3,6 +3,7 @@ import type {
   ListVariablesResponseDto,
   SecretDto,
   VariableDto,
+  VariableListItemDto,
 } from '@shipfox/api-secrets-dto';
 
 export const SECRETS_TEST_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
@@ -27,6 +28,16 @@ export function variable(overrides: Partial<VariableDto> = {}): VariableDto {
   };
 }
 
+export function variableListItem(
+  overrides: Partial<VariableListItemDto> = {},
+): VariableListItemDto {
+  return {
+    ...variable(),
+    value_truncated: false,
+    ...overrides,
+  };
+}
+
 export function secretsListResponse(
   overrides: Partial<ListSecretsResponseDto> = {},
 ): ListSecretsResponseDto {
@@ -41,7 +52,7 @@ export function variablesListResponse(
   overrides: Partial<ListVariablesResponseDto> = {},
 ): ListVariablesResponseDto {
   return {
-    variables: [variable()],
+    variables: [variableListItem()],
     next_cursor: null,
     ...overrides,
   };

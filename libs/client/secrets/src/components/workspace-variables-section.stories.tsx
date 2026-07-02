@@ -1,4 +1,4 @@
-import type {VariableDto} from '@shipfox/api-secrets-dto';
+import type {VariableListItemDto} from '@shipfox/api-secrets-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
@@ -14,10 +14,11 @@ Date.now = () => FROZEN_NOW;
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const EDITOR_ID = '22222222-2222-4222-8222-222222222222';
 
-const VARIABLES: VariableDto[] = [
+const VARIABLES: VariableListItemDto[] = [
   {
     key: 'LOG_LEVEL',
     value: 'debug',
+    value_truncated: false,
     project_id: null,
     created_at: '2026-05-01T10:00:00.000Z',
     updated_at: '2026-06-30T12:00:00.000Z',
@@ -26,14 +27,25 @@ const VARIABLES: VariableDto[] = [
   {
     key: 'FEATURE_FLAG',
     value: '',
+    value_truncated: false,
     project_id: null,
     created_at: '2026-04-01T10:00:00.000Z',
     updated_at: '2026-06-25T12:00:00.000Z',
     last_edited_by: EDITOR_ID,
   },
   {
+    key: 'TLS_CERT',
+    value: '-----BEGIN CERTIFICATE-----',
+    value_truncated: true,
+    project_id: null,
+    created_at: '2026-03-15T10:00:00.000Z',
+    updated_at: '2026-06-22T12:00:00.000Z',
+    last_edited_by: EDITOR_ID,
+  },
+  {
     key: 'REGION',
     value: 'eu-west-1',
+    value_truncated: false,
     project_id: null,
     created_at: '2026-03-01T10:00:00.000Z',
     updated_at: '2026-06-20T12:00:00.000Z',

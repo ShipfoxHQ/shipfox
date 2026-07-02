@@ -14,7 +14,7 @@ import {useState} from 'react';
 import {usePutSecretMutation} from '#hooks/api/secrets.js';
 import {secretsErrorToFormError} from './form-errors.js';
 import {FormBody, FormFooter} from './form-shell.js';
-import {STORE_KEY_HELP, validateStoreKey} from './store-key.js';
+import {STORE_KEY_HELP, validateNewStoreKey} from './store-key.js';
 
 export const SECRET_FORM_ID = 'secret-form';
 
@@ -26,12 +26,14 @@ export function SecretForm({
   workspaceId,
   mode,
   existingKey,
+  reservedKeys = [],
   onSaved,
   onCancel,
 }: {
   workspaceId: string;
   mode: 'create' | 'edit';
   existingKey?: string | undefined;
+  reservedKeys?: readonly string[] | undefined;
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -76,8 +78,9 @@ export function SecretForm({
           <form.Field
             name="key"
             validators={{
-              onBlur: ({value}) => validateStoreKey(value),
-              onSubmit: ({value}) => validateStoreKey(value),
+              onBlur: ({value}) => validateNewStoreKey(value, {mode, reservedKeys, kind: 'secret'}),
+              onSubmit: ({value}) =>
+                validateNewStoreKey(value, {mode, reservedKeys, kind: 'secret'}),
             }}
           >
             {(field) => (

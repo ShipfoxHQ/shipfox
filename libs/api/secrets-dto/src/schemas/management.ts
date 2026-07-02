@@ -30,6 +30,15 @@ export const variableDtoSchema = secretDtoSchema.extend({
 });
 export type VariableDto = z.infer<typeof variableDtoSchema>;
 
+// List responses return a bounded preview of each value (the store allows large
+// values, so returning every full value in one call is an availability risk).
+// `value_truncated` tells the client the stored value is longer than the preview,
+// so editing must fetch the full value via GET /variables/:key.
+export const variableListItemDtoSchema = variableDtoSchema.extend({
+  value_truncated: z.boolean(),
+});
+export type VariableListItemDto = z.infer<typeof variableListItemDtoSchema>;
+
 export const listSecretsQuerySchema = z.object({
   project_id: optionalProjectIdSchema,
   limit: listLimitSchema,
@@ -52,7 +61,7 @@ export const listSecretsResponseSchema = z.object({
 export type ListSecretsResponseDto = z.infer<typeof listSecretsResponseSchema>;
 
 export const listVariablesResponseSchema = z.object({
-  variables: z.array(variableDtoSchema),
+  variables: z.array(variableListItemDtoSchema),
   next_cursor: cursorSchema.nullable(),
 });
 export type ListVariablesResponseDto = z.infer<typeof listVariablesResponseSchema>;

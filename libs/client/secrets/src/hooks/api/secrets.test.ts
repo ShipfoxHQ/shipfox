@@ -5,10 +5,11 @@ import {
   secret,
   secretsListResponse,
   variable,
+  variableListItem,
   variablesListResponse,
 } from '#test/fixtures/secrets.js';
 import {deleteSecret, listSecrets, putSecret} from './secrets.js';
-import {deleteVariable, listVariables, putVariable} from './variables.js';
+import {deleteVariable, getVariable, listVariables, putVariable} from './variables.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -97,9 +98,25 @@ describe('store transport', () => {
     const result = await listVariables({workspaceId: SECRETS_TEST_WORKSPACE_ID});
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result).toEqual([variable()]);
+    expect(result).toEqual([variableListItem()]);
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${SECRETS_TEST_WORKSPACE_ID}/variables?limit=${SECRETS_MAX_LIST_LIMIT}`,
+    );
+  });
+
+  test('reads a single variable with its full value for editing', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({variable: variable({value: 'first line\nsecond line'})}));
+    configureApiClient({fetchImpl});
+
+    const result = await getVariable({workspaceId: SECRETS_TEST_WORKSPACE_ID, key: 'LOG_LEVEL'});
+
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(result.value).toBe('first line\nsecond line');
+    expect(request.method).toBe('GET');
+    expect(request.url).toBe(
+      `https://api.example.test/workspaces/${SECRETS_TEST_WORKSPACE_ID}/variables/LOG_LEVEL`,
     );
   });
 

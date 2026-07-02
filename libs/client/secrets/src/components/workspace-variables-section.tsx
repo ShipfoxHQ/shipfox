@@ -1,4 +1,4 @@
-import type {VariableDto} from '@shipfox/api-secrets-dto';
+import type {VariableListItemDto} from '@shipfox/api-secrets-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Button,
@@ -36,7 +36,7 @@ import {VariableForm} from './variable-form.js';
 // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${{ vars.NAME }} reference syntax is shown to users.
 const VARS_REFERENCE = '${{ vars.NAME }}';
 
-type FormState = {mode: 'create'} | {mode: 'edit'; variable: VariableDto} | null;
+type FormState = {mode: 'create'} | {mode: 'edit'; variable: VariableListItemDto} | null;
 
 export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) {
   const variablesQuery = useVariablesQuery(workspaceId);
@@ -144,6 +144,10 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
               mode={formState.mode}
               existingKey={formState.mode === 'edit' ? formState.variable.key : undefined}
               existingValue={formState.mode === 'edit' ? formState.variable.value : undefined}
+              existingValueTruncated={
+                formState.mode === 'edit' ? formState.variable.value_truncated : undefined
+              }
+              reservedKeys={variables.map((variable) => variable.key)}
               onSaved={() => {
                 const wasEdit = formState.mode === 'edit';
                 setFormState(null);
@@ -185,7 +189,7 @@ function VariableRow({
   onEdit,
   onDelete,
 }: {
-  variable: VariableDto;
+  variable: VariableListItemDto;
   onEdit: () => void;
   onDelete: () => void;
 }) {

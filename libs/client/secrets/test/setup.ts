@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest';
 
-// Pure-logic tests run in the node environment (the package default), where
-// there is no window; the browser stubs only apply to jsdom test files
-// (those carrying the `@vitest-environment jsdom` pragma).
+// This setup file is shared by the node and jsdom vitest projects. The `.test.ts`
+// files run in the node environment (no window), so the browser stubs below only
+// apply to the jsdom project, which selects `.test.tsx` files via vitest.config.ts.
 if (typeof window !== 'undefined') {
   class ResizeObserverStub {
     observe(): void {
