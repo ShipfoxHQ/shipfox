@@ -1,6 +1,6 @@
 import type {CreateGiteaConnectionResponseDto} from '@shipfox/api-integration-gitea-dto';
 import {connectGiteaOrg} from './connect.js';
-import {type CreatedOrg, createOrg} from './instance.js';
+import {bestEffortDeleteOrg, type CreatedOrg, createOrg} from './instance.js';
 
 export type {CreateGiteaConnectionResponseDto} from '@shipfox/api-integration-gitea-dto';
 export {type ConnectGiteaOrgParams, connectGiteaOrg} from './connect.js';
@@ -35,13 +35,21 @@ export interface ConnectedOrg extends CreatedOrg {
 // ready for a scenario to push into.
 export async function createConnectedOrg(params: CreateConnectedOrgParams): Promise<ConnectedOrg> {
   const org = await createOrg({name: params.name});
-  const connection = await connectGiteaOrg({
-    workspaceId: params.workspaceId,
-    org: org.org,
-    sessionToken: params.sessionToken,
-  });
 
-  return {...org, connection};
+  // If linking fails, the org (with its live webhook) is not returned, so undo it
+  // here rather than leak it into the shared instance.
+  try {
+    const connection = await connectGiteaOrg({
+      workspaceId: params.workspaceId,
+      org: org.org,
+      sessionToken: params.sessionToken,
+    });
+
+    return {...org, connection};
+  } catch (error) {
+    await bestEffortDeleteOrg(org.org);
+    throw error;
+  }
 }
 
 export function createGiteaHelper() {

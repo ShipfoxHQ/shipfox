@@ -70,34 +70,42 @@ export async function createOrg(params: CreateOrgParams = {}): Promise<CreatedOr
     json: {username: org, visibility: params.visibility ?? 'public'},
   });
 
-  const team = await giteaFetchJson<{id: number}>(`orgs/${encodeSegment(org)}/teams`, {
-    method: 'POST',
-    json: {
-      name: READ_TEAM_NAME,
-      permission: 'read',
-      includes_all_repositories: true,
-      units: ['repo.code'],
-    },
-  });
-
-  const botUsername = params.botUsername ?? config.E2E_GITEA_BOT_USERNAME;
-  await giteaFetch(`teams/${team.id}/members/${encodeSegment(botUsername)}`, {method: 'PUT'});
-
-  const hook = await giteaFetchJson<{id: number}>(`orgs/${encodeSegment(org)}/hooks`, {
-    method: 'POST',
-    json: {
-      type: 'gitea',
-      active: true,
-      events: ['push'],
-      config: {
-        url: params.webhookTargetUrl ?? defaultWebhookTargetUrl(),
-        content_type: 'json',
-        secret: params.webhookSecret ?? config.E2E_GITEA_WEBHOOK_SECRET,
+  // A failure after the org exists (team, membership, or webhook) would strand it
+  // in the shared instance with no handle for the caller to clean up, so undo the
+  // half-built org here. It owns no repos yet, so deleteOrg always succeeds.
+  try {
+    const team = await giteaFetchJson<{id: number}>(`orgs/${encodeSegment(org)}/teams`, {
+      method: 'POST',
+      json: {
+        name: READ_TEAM_NAME,
+        permission: 'read',
+        includes_all_repositories: true,
+        units: ['repo.code'],
       },
-    },
-  });
+    });
 
-  return {org, teamId: team.id, webhookId: hook.id};
+    const botUsername = params.botUsername ?? config.E2E_GITEA_BOT_USERNAME;
+    await giteaFetch(`teams/${team.id}/members/${encodeSegment(botUsername)}`, {method: 'PUT'});
+
+    const hook = await giteaFetchJson<{id: number}>(`orgs/${encodeSegment(org)}/hooks`, {
+      method: 'POST',
+      json: {
+        type: 'gitea',
+        active: true,
+        events: ['push'],
+        config: {
+          url: params.webhookTargetUrl ?? defaultWebhookTargetUrl(),
+          content_type: 'json',
+          secret: params.webhookSecret ?? config.E2E_GITEA_WEBHOOK_SECRET,
+        },
+      },
+    });
+
+    return {org, teamId: team.id, webhookId: hook.id};
+  } catch (error) {
+    await bestEffortDeleteOrg(org);
+    throw error;
+  }
 }
 
 export async function createRepo(params: CreateRepoParams): Promise<CreatedRepo> {
@@ -158,6 +166,19 @@ export async function deleteRepo(params: {org: string; repo: string}): Promise<v
   });
 }
 
+// Gitea's DELETE /orgs/{org} rejects an org that still owns repositories, so
+// delete the org's repos first.
 export async function deleteOrg(params: {org: string}): Promise<void> {
   await giteaFetch(`orgs/${encodeSegment(params.org)}`, {method: 'DELETE'});
+}
+
+// Removes an org on a failure path, where surfacing the original error matters
+// more than a cleanup that itself fails; used to keep half-built orgs out of the
+// shared instance.
+export async function bestEffortDeleteOrg(org: string): Promise<void> {
+  try {
+    await deleteOrg({org});
+  } catch {
+    // Swallowed on purpose: the caller is already rethrowing the root cause.
+  }
 }

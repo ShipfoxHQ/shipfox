@@ -20,8 +20,14 @@ Instance side (admin-credentialed, against `E2E_GITEA_URL`):
   cloneUrl, defaultBranch}`.
 - `commitFiles({org, repo, message, files, branch?})` — one commit for the whole batch
   through Gitea's change-files contents API. Returns the commit SHA. File `content` is
-  UTF-8 text; the helper base64-encodes it.
-- `deleteRepo({org, repo})`, `deleteOrg({org})` — teardown.
+  UTF-8 text; the helper base64-encodes it. `operation` defaults to `create`; `update`
+  and `delete` need the file's current blob `sha`.
+- `deleteRepo({org, repo})`, `deleteOrg({org})` — teardown. Delete an org's repos before
+  the org: Gitea's `DELETE /orgs/{org}` fails while the org still owns repositories.
+
+`createOrg` and `createConnectedOrg` are self-cleaning: if a step fails after the org is
+created (team, webhook, or the connect call), they delete the half-built org before
+rethrowing, so a failed run leaves no orphan org in the shared instance.
 
 Platform side (through the product route):
 
