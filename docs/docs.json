@@ -20,6 +20,17 @@
           {
             "group": "Get Started",
             "pages": ["introduction", "getting-started"]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/agent-steps",
+              "guides/gate-and-retry",
+              "guides/triage-sentry-issues",
+              "guides/checks-on-push",
+              "guides/multi-job-pipeline",
+              "guides/model-providers"
+            ]
           }
         ]
       }
