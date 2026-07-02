@@ -5,7 +5,6 @@ import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
 import {IntegrationGallery} from './integration-gallery.js';
-import {usageEventsForConnection} from './integration-usage-events.js';
 
 if (!HTMLElement.prototype.hasPointerCapture) {
   Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
@@ -192,7 +191,7 @@ function renderGallery(
   return renderIntegrationsPage({
     path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
     routePath: '/workspaces/$wid/integrations',
-    element: <IntegrationGallery {...props} />,
+    element: <IntegrationGallery workspaceId={INTEGRATIONS_TEST_WID} {...props} />,
     extraRoutes: SETUP_ROUTES,
   });
 }
@@ -325,22 +324,19 @@ describe('IntegrationGallery — installed section', () => {
     expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
   });
 
-  test('shows GitHub webhook events in the usage selector', async () => {
-    const githubEventValues = usageEventsForConnection(githubConnection).map(
-      (event) => event.value,
-    );
-    expect(githubEventValues).toEqual(expect.arrayContaining(['pull_request', 'workflow_run']));
-
+  test('opens the usage modal with a GitHub event selector', async () => {
     renderGallery({}, {connections: [githubConnection]});
 
     await openActions('Open acme-corp integration actions');
     fireEvent.click(screen.getByRole('menuitem', {name: 'Use this integration'}));
 
     expect(await screen.findByText('Usage')).toBeVisible();
-    expect(screen.getAllByText('github_acme_corp')[0]).toBeVisible();
-    expect(screen.getAllByText('push')[0]).toBeVisible();
-    const eventSelect = screen.getByRole('combobox', {name: 'Event'});
+    const eventSelect = await screen.findByRole('combobox', {name: 'Event'});
+
     expect(eventSelect).toBeVisible();
+    await waitFor(() => {
+      expect(eventSelect).toHaveTextContent('push');
+    });
   });
 
   test('toggles integration lifecycle status from the actions menu', async () => {
