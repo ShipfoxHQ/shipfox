@@ -4,8 +4,12 @@ export {
   assembleWorkflowRunContext,
 } from './assemble-run-context.js';
 export {
-  type MaterializedWorkflowJob,
   type MaterializedWorkflowStep,
+  type MaterializeJobExecutionStepsParams,
+  materializeJobExecutionSteps,
+} from './materialize-job-execution-steps.js';
+export {
+  type MaterializedWorkflowJob,
   type MaterializeWorkflowModelParams,
   materializeWorkflowModel,
   modelHasAgentStep,
