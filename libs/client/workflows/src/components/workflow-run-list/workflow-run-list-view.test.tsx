@@ -145,9 +145,7 @@ describe('WorkflowRunListView', () => {
 });
 
 function renderListView(runs: WorkflowRunListItem[]) {
-  // The list view fetches nothing (its rows are fed via props); it only needs a
-  // router so the row `<Link>`s resolve, so it uses the router-only helper rather
-  // than the page harness.
+  // Row links need router context; the query and data stay injected by props.
   renderWithRouter(
     <WorkflowRunListView
       runs={runs}

@@ -329,8 +329,6 @@ function renderSummary(
     ...overrides,
   });
 
-  // The summary takes all its data through props and renders no router-aware child
-  // (the attempt switcher only mounts when `latestAttempt > 1`, which these tests
-  // never set), so a plain render is enough: no router, QueryClient, or API client.
+  // These cases never mount the attempt switcher links, so no router is needed.
   render(<WorkflowRunSummary run={run} {...props} />);
 }
