@@ -22,8 +22,7 @@ export const textareaVariants = cva('', {
   },
 });
 
-export type TextareaProps = Omit<ComponentProps<'textarea'>, 'size'> &
-  VariantProps<typeof textareaVariants>;
+export type TextareaProps = ComponentProps<'textarea'> & VariantProps<typeof textareaVariants>;
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({className, variant, size, ...props}, ref) => {
