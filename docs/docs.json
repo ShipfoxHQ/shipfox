@@ -59,6 +59,18 @@
           {
             "group": "AI Assistance",
             "pages": ["ai/overview", "ai/authoring-prompt", "ai/skills-package"]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/workflow-schema",
+              "reference/trigger-sources",
+              "reference/step-types",
+              "reference/expressions",
+              "reference/model-providers",
+              "reference/rest-api",
+              "reference/glossary"
+            ]
           }
         ]
       }
