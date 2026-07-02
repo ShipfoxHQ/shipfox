@@ -432,6 +432,34 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/helpers/runners:
+    dependencies:
+      '@shipfox/api-runners':
+        specifier: workspace:*
+        version: link:../../../libs/api/runners
+      '@shipfox/api-runners-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/runners-dto
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+      '@shipfox/provisioner-docker':
+        specifier: workspace:*
+        version: link:../../../apps/provisioner-docker
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/helpers/workspaces:
     dependencies:
       '@shipfox/api-workspaces':
