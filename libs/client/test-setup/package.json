@@ -1,19 +1,18 @@
 {
-  "name": "@shipfox/client-invitations",
+  "name": "@shipfox/client-test-setup",
   "license": "MIT",
-  "version": "0.0.2",
+  "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/client/invitations"
+    "directory": "libs/client/test-setup"
   },
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*",
-    "#test/*": "./test/*"
+    "#*": "./src/*"
   },
   "exports": {
     ".": {
@@ -37,31 +36,21 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-auth-dto": "workspace:*",
-    "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
-    "@shipfox/client-auth": "workspace:*",
-    "@shipfox/react-ui": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
     "@swc/helpers": "^0.5.17",
-    "@tanstack/react-query": "^5.101.0"
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0"
   },
   "peerDependencies": {
-    "@tanstack/react-router": "^1.170.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
-    "@shipfox/client-test-setup": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vite": "workspace:*",
-    "@shipfox/vitest": "workspace:*",
-    "@tanstack/react-router": "^1.170.16",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
     "jsdom": "^29.0.0",

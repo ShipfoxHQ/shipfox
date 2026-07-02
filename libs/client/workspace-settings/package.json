@@ -57,6 +57,7 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/client-test-setup": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
@@ -68,8 +69,8 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
-    "jsdom": "^29.0.0",
     "jotai": "^2.19.1",
+    "jsdom": "^29.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   }

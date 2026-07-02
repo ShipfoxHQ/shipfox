@@ -20,10 +20,6 @@ const ATTEMPT_2_PATTERN = /Attempt 2/;
 const ATTEMPT_3_PATTERN = /Attempt 3/;
 
 describe('WorkflowRunAttemptSwitcher', () => {
-  afterEach(() => {
-    configureApiClient({baseUrl: '', fetchImpl: undefined});
-  });
-
   test('hides itself for a single-attempt run', async () => {
     renderSwitcher({latestAttempt: 1});
 
