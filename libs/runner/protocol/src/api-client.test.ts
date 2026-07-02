@@ -185,7 +185,7 @@ describe('api-client auth contexts', () => {
   it('requestAgentRuntimeConfig sends the lease token and parses credentials', async () => {
     stubFetch(() =>
       jsonResponse({
-        model_provider_id: 'anthropic',
+        provider_id: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
         credentials: {api_key: 'sk-runtime'},
@@ -228,7 +228,7 @@ describe('api-client auth contexts', () => {
       new Response(null, {status: 429}),
       new Response(null, {status: 500}),
       jsonResponse({
-        model_provider_id: 'openai',
+        provider_id: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',
         credentials: {api_key: 'sk-runtime'},
@@ -242,7 +242,7 @@ describe('api-client auth contexts', () => {
       attempt: 2,
     });
 
-    expect(runtimeConfig.model_provider_id).toBe('openai');
+    expect(runtimeConfig.provider_id).toBe('openai');
     expect(calls).toHaveLength(3);
   });
 
@@ -262,9 +262,7 @@ describe('api-client auth contexts', () => {
   });
 
   it('requestAgentRuntimeConfig classifies malformed success bodies without leaking Zod text', async () => {
-    stubFetch(() =>
-      jsonResponse({model_provider_id: 'openai', credentials: {api_key: 'sk-runtime'}}),
-    );
+    stubFetch(() => jsonResponse({provider_id: 'openai', credentials: {api_key: 'sk-runtime'}}));
     const leaseClient = createLeaseClient('lease-runtime');
 
     const request = requestAgentRuntimeConfig(leaseClient, {

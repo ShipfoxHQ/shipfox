@@ -9,13 +9,13 @@ import {
 import {MODEL_PROVIDER_IDS} from './model-provider-id.js';
 
 describe('custom model provider schemas', () => {
-  describe.each(MODEL_PROVIDER_IDS)('modelProviderRefSchema "%s"', (modelProviderId) => {
+  describe.each(MODEL_PROVIDER_IDS)('modelProviderRefSchema "%s"', (providerId) => {
     it('accepts built-in provider ids as refs', async () => {
       const {modelProviderRefSchema} = await import('./model-provider-id.js');
 
-      const parsed = modelProviderRefSchema.parse(modelProviderId);
+      const parsed = modelProviderRefSchema.parse(providerId);
 
-      expect(parsed).toBe(modelProviderId);
+      expect(parsed).toBe(providerId);
     });
   });
 
@@ -184,7 +184,7 @@ describe('custom model provider schemas', () => {
   it('parses a custom config read DTO without secret values', () => {
     const parsed = customModelProviderConfigDtoSchema.parse({
       kind: 'custom',
-      model_provider_id: 'local-vllm',
+      provider_id: 'local-vllm',
       display_name: 'Local vLLM',
       api: 'openai-responses',
       base_url: 'https://llm.example.test/v1',

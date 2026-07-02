@@ -13,7 +13,7 @@ import {CredentialDecryptionError, ModelProviderConfigNotFoundError} from './err
 
 export interface ResolveRuntimeCredentialsParams {
   workspaceId: string;
-  modelProvider: ModelProviderRef;
+  provider: ModelProviderRef;
   model: string;
   thinking: AgentThinking;
 }
@@ -29,14 +29,14 @@ export async function resolveRuntimeCredentials(
 ): Promise<AgentRuntimeCredentialsResponseDto> {
   const providerConfig = await getModelProviderConfig({
     workspaceId: params.workspaceId,
-    modelProviderId: params.modelProvider,
+    providerId: params.provider,
   });
 
   if (providerConfig) {
     try {
       const credentials = decryptCredentials({
         workspaceId: params.workspaceId,
-        modelProviderId: params.modelProvider,
+        providerId: params.provider,
         encryptedCredentials: providerConfig.encryptedCredentials,
       });
 
@@ -53,25 +53,24 @@ export async function resolveRuntimeCredentials(
     }
   }
 
-  const instanceCredentials = instanceFallbackCredentials(params.modelProvider, runtimeConfig);
+  const instanceCredentials = instanceFallbackCredentials(params.provider, runtimeConfig);
   if (instanceCredentials) {
     agentRuntimeConfigResolvedCount.add(1, {source: 'instance', outcome: 'resolved'});
     return toResponse(params, instanceCredentials);
   }
 
   agentRuntimeConfigResolvedCount.add(1, {
-    source:
-      params.modelProvider === runtimeConfig.AGENT_DEFAULT_PROVIDER ? 'instance' : 'workspace',
+    source: params.provider === runtimeConfig.AGENT_DEFAULT_PROVIDER ? 'instance' : 'workspace',
     outcome: 'unavailable',
   });
-  throw new ModelProviderConfigNotFoundError(params.workspaceId, params.modelProvider);
+  throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
 }
 
 export function getInstanceDefaultModelProviderApiKeyField(
-  modelProviderId: ModelProviderRef,
+  providerId: ModelProviderRef,
 ): 'api_key' | undefined {
   const credentialFields =
-    getModelProviderEntry(modelProviderId as SupportedModelProviderId)?.credential_fields ?? [];
+    getModelProviderEntry(providerId as SupportedModelProviderId)?.credential_fields ?? [];
   const field = credentialFields[0];
   if (credentialFields.length !== 1 || field?.key !== 'api_key' || !field.secret) {
     return undefined;
@@ -80,13 +79,13 @@ export function getInstanceDefaultModelProviderApiKeyField(
 }
 
 function instanceFallbackCredentials(
-  modelProviderId: ModelProviderRef,
+  providerId: ModelProviderRef,
   runtimeConfig: RuntimeCredentialsConfig,
 ): Record<string, string> | undefined {
   const instanceApiKey = runtimeConfig.AGENT_DEFAULT_PROVIDER_API_KEY;
-  if (modelProviderId !== runtimeConfig.AGENT_DEFAULT_PROVIDER || !instanceApiKey) return undefined;
+  if (providerId !== runtimeConfig.AGENT_DEFAULT_PROVIDER || !instanceApiKey) return undefined;
 
-  const fieldKey = getInstanceDefaultModelProviderApiKeyField(modelProviderId);
+  const fieldKey = getInstanceDefaultModelProviderApiKeyField(providerId);
   if (!fieldKey) return undefined;
 
   return {[fieldKey]: instanceApiKey};
@@ -97,7 +96,7 @@ function toResponse(
   credentials: Record<string, string>,
 ): AgentRuntimeCredentialsResponseDto {
   return {
-    model_provider_id: params.modelProvider,
+    provider_id: params.provider,
     model: params.model,
     thinking: params.thinking,
     credentials,

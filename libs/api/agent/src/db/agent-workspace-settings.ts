@@ -25,24 +25,24 @@ export async function getAgentWorkspaceSettings(
 
 export async function setDefaultModelProvider(params: {
   workspaceId: string;
-  modelProviderId: ModelProviderRef | null;
+  providerId: ModelProviderRef | null;
 }): Promise<AgentWorkspaceSettings> {
   return await db().transaction(async (tx) => {
-    if (params.modelProviderId !== null) {
+    if (params.providerId !== null) {
       const existingRows = await tx
         .select({id: modelProviderConfigs.id})
         .from(modelProviderConfigs)
         .where(
           and(
             eq(modelProviderConfigs.workspaceId, params.workspaceId),
-            eq(modelProviderConfigs.modelProviderId, params.modelProviderId),
+            eq(modelProviderConfigs.providerId, params.providerId),
           ),
         )
         .limit(1)
         .for('update');
 
       if (!existingRows[0]) {
-        throw new ModelProviderConfigNotFoundError(params.workspaceId, params.modelProviderId);
+        throw new ModelProviderConfigNotFoundError(params.workspaceId, params.providerId);
       }
     }
 
@@ -50,12 +50,12 @@ export async function setDefaultModelProvider(params: {
       .insert(agentWorkspaceSettings)
       .values({
         workspaceId: params.workspaceId,
-        defaultModelProviderId: params.modelProviderId,
+        defaultProviderId: params.providerId,
       })
       .onConflictDoUpdate({
         target: agentWorkspaceSettings.workspaceId,
         set: {
-          defaultModelProviderId: params.modelProviderId,
+          defaultProviderId: params.providerId,
           updatedAt: sql`NOW()`,
         },
       })

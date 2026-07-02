@@ -55,7 +55,7 @@ export function ModelProviderUsageModal({
     [entry],
   );
   const example = entry
-    ? buildAgentWorkflowExample({modelProviderId: entry.id, model: selectedModel})
+    ? buildAgentWorkflowExample({providerId: entry.id, model: selectedModel})
     : null;
   const data =
     example === null

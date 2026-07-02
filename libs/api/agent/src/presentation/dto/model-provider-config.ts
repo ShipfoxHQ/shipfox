@@ -3,7 +3,7 @@ import type {ModelProviderConfig} from '#core/index.js';
 
 export function toModelProviderConfigDto(config: ModelProviderConfig): ModelProviderConfigDto {
   return {
-    model_provider_id: config.modelProviderId,
+    provider_id: config.providerId,
     default_model: config.defaultModel,
     key_fingerprints: config.keyFingerprints,
     created_at: config.createdAt.toISOString(),

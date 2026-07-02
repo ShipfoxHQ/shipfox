@@ -47,12 +47,12 @@ export const MODEL_PROVIDER_IDS = [
 ] as const;
 
 export const supportedModelProviderIdSchema = z.enum(SUPPORTED_MODEL_PROVIDER_IDS);
-export const modelProviderIdSchema = z.enum(MODEL_PROVIDER_IDS);
+export const providerIdSchema = z.enum(MODEL_PROVIDER_IDS);
 export const MODEL_PROVIDER_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 export const modelProviderRefSchema = z.string().regex(MODEL_PROVIDER_SLUG_PATTERN);
 
 export type SupportedModelProviderId = z.infer<typeof supportedModelProviderIdSchema>;
-export type ModelProviderId = z.infer<typeof modelProviderIdSchema>;
+export type ModelProviderId = z.infer<typeof providerIdSchema>;
 export type ModelProviderRef = z.infer<typeof modelProviderRefSchema>;
 
 export function isReservedModelProviderId(value: string): boolean {

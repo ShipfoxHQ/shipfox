@@ -46,7 +46,7 @@ describe('model provider transport', () => {
     const result = await listModelProviderConfigs({workspaceId: AGENT_TEST_WORKSPACE_ID});
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.default_model_provider_id).toBe('anthropic');
+    expect(result.default_provider_id).toBe('anthropic');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-providers`,
     );
@@ -64,7 +64,7 @@ describe('model provider transport', () => {
 
     const result = await upsertModelProviderConfig({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       body,
     });
 
@@ -83,7 +83,7 @@ describe('model provider transport', () => {
 
     const result = await deleteModelProviderConfig({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
@@ -105,7 +105,7 @@ describe('model provider transport', () => {
 
     const result = await updateModelProviderDefaultModel({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       body,
     });
 
@@ -122,10 +122,10 @@ describe('model provider transport', () => {
     let requestBody: unknown;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       requestBody = await (input as Request).clone().json();
-      return jsonResponse({default_model_provider_id: 'anthropic'});
+      return jsonResponse({default_provider_id: 'anthropic'});
     });
     configureApiClient({fetchImpl});
-    const body = {model_provider_id: 'anthropic'} as const;
+    const body = {provider_id: 'anthropic'} as const;
 
     const result = await setDefaultModelProvider({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
@@ -133,7 +133,7 @@ describe('model provider transport', () => {
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.default_model_provider_id).toBe('anthropic');
+    expect(result.default_provider_id).toBe('anthropic');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-model-provider`,
     );

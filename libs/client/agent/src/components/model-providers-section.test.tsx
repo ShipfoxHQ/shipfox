@@ -93,7 +93,7 @@ describe('WorkspaceModelProvidersSection', () => {
         );
       }
       return Promise.resolve(
-        jsonResponse(modelProviderConfigsResponse({configs: [], default_model_provider_id: null})),
+        jsonResponse(modelProviderConfigsResponse({configs: [], default_provider_id: null})),
       );
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
@@ -122,7 +122,7 @@ describe('WorkspaceModelProvidersSection', () => {
         );
       }
       return Promise.resolve(
-        jsonResponse(modelProviderConfigsResponse({configs: [], default_model_provider_id: null})),
+        jsonResponse(modelProviderConfigsResponse({configs: [], default_provider_id: null})),
       );
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
@@ -167,7 +167,7 @@ describe('WorkspaceModelProvidersSection', () => {
     expect(screen.queryByRole('button', {name: 'Configure OpenAI'})).not.toBeInTheDocument();
 
     resolveConfigs(
-      jsonResponse(modelProviderConfigsResponse({configs: [], default_model_provider_id: null})),
+      jsonResponse(modelProviderConfigsResponse({configs: [], default_provider_id: null})),
     );
 
     expect(await screen.findByRole('button', {name: 'Configure OpenAI'})).toBeVisible();
@@ -207,7 +207,7 @@ describe('WorkspaceModelProvidersSection', () => {
         return Promise.resolve(
           jsonResponse(
             modelProviderConfig({
-              model_provider_id: 'openai',
+              provider_id: 'openai',
               default_model: 'gpt-5-mini',
               key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
             }),
@@ -220,13 +220,13 @@ describe('WorkspaceModelProvidersSection', () => {
             configs: isConfigured
               ? [
                   modelProviderConfig({
-                    model_provider_id: 'openai',
+                    provider_id: 'openai',
                     default_model: 'gpt-5-mini',
                     key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
                   }),
                 ]
               : [],
-            default_model_provider_id: null,
+            default_provider_id: null,
           }),
         ),
       );
@@ -300,7 +300,7 @@ describe('WorkspaceModelProvidersSection', () => {
         return Promise.resolve(
           jsonResponse(
             modelProviderConfig({
-              model_provider_id: 'openai',
+              provider_id: 'openai',
               default_model: 'gpt-5.5-pro',
               key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
             }),
@@ -315,14 +315,14 @@ describe('WorkspaceModelProvidersSection', () => {
               ...(isOpenAiConfigured
                 ? [
                     modelProviderConfig({
-                      model_provider_id: 'openai',
+                      provider_id: 'openai',
                       default_model: 'gpt-5.5-pro',
                       key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
                     }),
                   ]
                 : []),
             ],
-            default_model_provider_id: 'anthropic',
+            default_provider_id: 'anthropic',
           }),
         ),
       );
@@ -364,15 +364,13 @@ describe('WorkspaceModelProvidersSection', () => {
         requestBody = await request.clone().json();
         return jsonResponse(
           modelProviderConfig({
-            model_provider_id: 'openai',
+            provider_id: 'openai',
             default_model: null,
             key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
           }),
         );
       }
-      return jsonResponse(
-        modelProviderConfigsResponse({configs: [], default_model_provider_id: null}),
-      );
+      return jsonResponse(modelProviderConfigsResponse({configs: [], default_provider_id: null}));
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
@@ -425,7 +423,7 @@ describe('WorkspaceModelProvidersSection', () => {
         jsonResponse(
           modelProviderConfigsResponse({
             configs: [modelProviderConfig({key_fingerprints: {api_key: 'sk-ant-s...legacy'}})],
-            default_model_provider_id: 'anthropic',
+            default_provider_id: 'anthropic',
           }),
         ),
       );
@@ -468,7 +466,7 @@ describe('WorkspaceModelProvidersSection', () => {
       return jsonResponse(
         modelProviderConfigsResponse({
           configs: [modelProviderConfig({default_model: 'claude-haiku-4-5'})],
-          default_model_provider_id: 'anthropic',
+          default_provider_id: 'anthropic',
         }),
       );
     });
@@ -514,7 +512,7 @@ describe('WorkspaceModelProvidersSection', () => {
         jsonResponse(
           modelProviderConfigsResponse({
             configs: [modelProviderConfig({default_model: 'claude-haiku-4-5'})],
-            default_model_provider_id: 'anthropic',
+            default_provider_id: 'anthropic',
           }),
         ),
       );
@@ -544,7 +542,7 @@ describe('WorkspaceModelProvidersSection', () => {
               code: 'model-provider-validation-failed',
               message: 'Model provider validation failed',
               details: {
-                model_provider_id: 'anthropic',
+                provider_id: 'anthropic',
                 message: 'Model provider rejected the key.',
               },
             },
@@ -553,7 +551,7 @@ describe('WorkspaceModelProvidersSection', () => {
         );
       }
       return Promise.resolve(
-        jsonResponse(modelProviderConfigsResponse({configs: [], default_model_provider_id: null})),
+        jsonResponse(modelProviderConfigsResponse({configs: [], default_provider_id: null})),
       );
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
@@ -571,7 +569,7 @@ describe('WorkspaceModelProvidersSection', () => {
 
   test('sets a configured provider as the default', async () => {
     const user = userEvent.setup();
-    let defaultModelProviderId: 'anthropic' | 'openai' = 'openai';
+    let defaultProviderId: 'anthropic' | 'openai' = 'openai';
     let requestBody: unknown;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
@@ -590,19 +588,19 @@ describe('WorkspaceModelProvidersSection', () => {
       }
       if (requestPath(input).endsWith('/agent/default-model-provider')) {
         requestBody = await request.clone().json();
-        defaultModelProviderId = 'anthropic';
-        return jsonResponse({default_model_provider_id: 'anthropic'});
+        defaultProviderId = 'anthropic';
+        return jsonResponse({default_provider_id: 'anthropic'});
       }
       return jsonResponse(
         modelProviderConfigsResponse({
           configs: [
             modelProviderConfig(),
             modelProviderConfig({
-              model_provider_id: 'openai',
+              provider_id: 'openai',
               key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
             }),
           ],
-          default_model_provider_id: defaultModelProviderId,
+          default_provider_id: defaultProviderId,
         }),
       );
     });
@@ -613,7 +611,7 @@ describe('WorkspaceModelProvidersSection', () => {
     await openProviderActions(user, 'Anthropic');
     await user.click(screen.getByRole('menuitem', {name: 'Set as default'}));
 
-    await waitFor(() => expect(requestBody).toEqual({model_provider_id: 'anthropic'}));
+    await waitFor(() => expect(requestBody).toEqual({provider_id: 'anthropic'}));
   });
 
   test('changes a configured provider default model without credentials', async () => {
@@ -641,7 +639,7 @@ describe('WorkspaceModelProvidersSection', () => {
       return jsonResponse(
         modelProviderConfigsResponse({
           configs: [modelProviderConfig({default_model: 'claude-haiku-4-5'})],
-          default_model_provider_id: 'anthropic',
+          default_provider_id: 'anthropic',
         }),
       );
     });
@@ -696,11 +694,11 @@ describe('WorkspaceModelProvidersSection', () => {
             configs: [
               modelProviderConfig(),
               modelProviderConfig({
-                model_provider_id: 'openai',
+                provider_id: 'openai',
                 key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
               }),
             ],
-            default_model_provider_id: 'openai',
+            default_provider_id: 'openai',
           }),
         ),
       );
@@ -733,7 +731,7 @@ describe('WorkspaceModelProvidersSection', () => {
         jsonResponse(
           modelProviderConfigsResponse({
             configs: isDeleted ? [] : [modelProviderConfig()],
-            default_model_provider_id: isDeleted ? null : 'anthropic',
+            default_provider_id: isDeleted ? null : 'anthropic',
           }),
         ),
       );
@@ -770,11 +768,11 @@ describe('WorkspaceModelProvidersSection', () => {
               ? []
               : [
                   modelProviderConfig({
-                    model_provider_id: 'local-vllm',
+                    provider_id: 'local-vllm',
                     key_fingerprints: {'credential:api_key': 'sk-local...abcd'},
                   }),
                 ],
-            default_model_provider_id: null,
+            default_provider_id: null,
           }),
         ),
       );
@@ -802,7 +800,7 @@ describe('WorkspaceModelProvidersSection', () => {
         return Promise.resolve(jsonResponse(modelProviderCatalogResponse([])));
       }
       return Promise.resolve(
-        jsonResponse(modelProviderConfigsResponse({default_model_provider_id: null})),
+        jsonResponse(modelProviderConfigsResponse({default_provider_id: null})),
       );
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});

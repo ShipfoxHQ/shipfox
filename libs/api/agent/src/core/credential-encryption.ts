@@ -27,7 +27,7 @@ export interface CredentialDecipherParams {
 
 export interface CredentialRecordParams {
   workspaceId: string;
-  modelProviderId: ModelProviderRef;
+  providerId: ModelProviderRef;
 }
 
 export function encryptCredential(params: CredentialCipherParams): string {
@@ -78,11 +78,7 @@ export function encryptCredentials(
       toStoredCredentialKey(fieldKey),
       encryptCredential({
         plaintext,
-        aad: credentialAad(
-          params.workspaceId,
-          params.modelProviderId,
-          toStoredCredentialKey(fieldKey),
-        ),
+        aad: credentialAad(params.workspaceId, params.providerId, toStoredCredentialKey(fieldKey)),
       }),
     ]),
   );
@@ -96,19 +92,19 @@ export function decryptCredentials(
       toRuntimeCredentialKey(fieldKey),
       decryptCredential({
         encoded,
-        aad: credentialAad(params.workspaceId, params.modelProviderId, fieldKey),
+        aad: credentialAad(params.workspaceId, params.providerId, fieldKey),
       }),
     ]),
   );
 }
 
 export function fingerprintCredentials(
-  modelProviderId: SupportedModelProviderId,
+  providerId: SupportedModelProviderId,
   credentials: Record<string, string>,
 ): Record<string, string> {
-  const entry = getModelProviderEntry(modelProviderId);
+  const entry = getModelProviderEntry(providerId);
   if (entry === undefined || entry.support_status !== 'supported') {
-    throw new UnsupportedModelProviderError(modelProviderId);
+    throw new UnsupportedModelProviderError(providerId);
   }
 
   return Object.fromEntries(
@@ -153,10 +149,10 @@ function isCanonicalBase64Key(encoded: string, key: Buffer): boolean {
 
 function credentialAad(
   workspaceId: string,
-  modelProviderId: ModelProviderRef,
+  providerId: ModelProviderRef,
   fieldKey: string,
 ): string {
-  return JSON.stringify([workspaceId, modelProviderId, fieldKey]);
+  return JSON.stringify([workspaceId, providerId, fieldKey]);
 }
 
 function toStoredCredentialKey(fieldKey: string): string {

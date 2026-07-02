@@ -19,7 +19,7 @@ const PROBE_MAX_TOKENS = 64;
 const MAX_SANITIZED_ERROR_LENGTH = 500;
 
 export interface ProbeModelProviderCredentialsParams {
-  modelProviderId: SupportedModelProviderId;
+  providerId: SupportedModelProviderId;
   model: string;
   credentials: Record<string, string>;
   signal?: AbortSignal | undefined;
@@ -28,18 +28,16 @@ export interface ProbeModelProviderCredentialsParams {
 export async function probeModelProviderCredentials(
   params: ProbeModelProviderCredentialsParams,
 ): Promise<void> {
-  const entry = getModelProviderEntry(params.modelProviderId);
+  const entry = getModelProviderEntry(params.providerId);
   if (entry === undefined || entry.support_status !== 'supported') {
-    throw new UnsupportedModelProviderError(params.modelProviderId);
+    throw new UnsupportedModelProviderError(params.providerId);
   }
 
-  const model = getModels(params.modelProviderId).find(
-    (candidate) => candidate.id === params.model,
-  );
-  if (!model) throw new InvalidAgentModelError(params.modelProviderId, params.model);
+  const model = getModels(params.providerId).find((candidate) => candidate.id === params.model);
+  if (!model) throw new InvalidAgentModelError(params.providerId, params.model);
 
   const secretField = entry.credential_fields.find((field) => field.secret);
-  if (!secretField) throw new ModelProviderValidationUnavailableError(params.modelProviderId);
+  if (!secretField) throw new ModelProviderValidationUnavailableError(params.providerId);
   const apiKey = credentialValue(params, secretField.key);
 
   const context: Context = {
@@ -75,9 +73,9 @@ export function sanitizeModelProviderError(error: unknown, secrets: string[]): s
 }
 
 function modelProviderCredentialOptions(
-  params: Pick<ProbeModelProviderCredentialsParams, 'modelProviderId' | 'credentials'>,
+  params: Pick<ProbeModelProviderCredentialsParams, 'providerId' | 'credentials'>,
 ): ProviderStreamOptions {
-  switch (params.modelProviderId) {
+  switch (params.providerId) {
     case 'azure-openai-responses':
       return {azureBaseUrl: credentialValue(params, 'endpoint')};
     case 'cloudflare-ai-gateway':
@@ -99,11 +97,11 @@ function modelProviderCredentialOptions(
 }
 
 function credentialValue(
-  params: Pick<ProbeModelProviderCredentialsParams, 'modelProviderId' | 'credentials'>,
+  params: Pick<ProbeModelProviderCredentialsParams, 'providerId' | 'credentials'>,
   key: string,
 ): string {
   const value = params.credentials[key];
-  if (value === undefined) throw new InvalidCredentialFieldsError(params.modelProviderId);
+  if (value === undefined) throw new InvalidCredentialFieldsError(params.providerId);
   return value;
 }
 

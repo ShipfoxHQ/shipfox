@@ -104,7 +104,7 @@ export const agentRuntimeConfigRoute = defineRoute({
 
     const runtimeConfig = await resolveRuntimeCredentials({
       workspaceId,
-      modelProvider: agentConfig.provider,
+      provider: agentConfig.provider,
       model: agentConfig.model,
       thinking: agentConfig.thinking,
     });

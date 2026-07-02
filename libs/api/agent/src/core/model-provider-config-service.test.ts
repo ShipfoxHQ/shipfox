@@ -28,13 +28,13 @@ describe('testAndSaveModelProviderConfig', () => {
     const probe = vi.fn().mockResolvedValue(undefined);
 
     const config = await testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials},
+      {workspaceId, providerId: 'anthropic', credentials},
       {probe},
     );
 
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(probe).toHaveBeenCalledWith({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-opus-4-8',
       credentials,
     });
@@ -44,7 +44,7 @@ describe('testAndSaveModelProviderConfig', () => {
     expect(
       decryptCredentials({
         workspaceId,
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         encryptedCredentials: stored?.encryptedCredentials ?? {},
       }),
     ).toEqual(credentials);
@@ -60,16 +60,16 @@ describe('testAndSaveModelProviderConfig', () => {
     const config = await testAndSaveModelProviderConfig(
       {
         workspaceId,
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         defaultModel: 'claude-haiku-4-5',
         credentials,
       },
       {probe},
     );
 
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(probe).toHaveBeenCalledWith({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-haiku-4-5',
       credentials,
     });
@@ -83,12 +83,12 @@ describe('testAndSaveModelProviderConfig', () => {
     const probe = vi.fn().mockResolvedValue(undefined);
 
     await testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials, signal: abortController.signal},
+      {workspaceId, providerId: 'anthropic', credentials, signal: abortController.signal},
       {probe},
     );
 
     expect(probe).toHaveBeenCalledWith({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-opus-4-8',
       credentials,
       signal: abortController.signal,
@@ -104,7 +104,7 @@ describe('testAndSaveModelProviderConfig', () => {
     const save = testAndSaveModelProviderConfig(
       {
         workspaceId,
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         credentials: {api_key: 'sk-ant-secret-abcd'},
         signal: abortController.signal,
       },
@@ -112,14 +112,14 @@ describe('testAndSaveModelProviderConfig', () => {
     );
 
     await expect(save).rejects.toBe(error);
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });
 
   it('preserves an existing default model when rotating credentials without a model selection', async () => {
     await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': 'already-encrypted'},
       keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-haiku-4-5',
@@ -131,15 +131,15 @@ describe('testAndSaveModelProviderConfig', () => {
     const config = await testAndSaveModelProviderConfig(
       {
         workspaceId,
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         credentials,
       },
       {probe},
     );
 
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(probe).toHaveBeenCalledWith({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-haiku-4-5',
       credentials,
     });
@@ -150,7 +150,7 @@ describe('testAndSaveModelProviderConfig', () => {
   it('stores Latest when rotating credentials with a null default model selection', async () => {
     await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': 'already-encrypted'},
       keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-haiku-4-5',
@@ -162,16 +162,16 @@ describe('testAndSaveModelProviderConfig', () => {
     const config = await testAndSaveModelProviderConfig(
       {
         workspaceId,
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         defaultModel: null,
         credentials,
       },
       {probe},
     );
 
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(probe).toHaveBeenCalledWith({
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       model: 'claude-opus-4-8',
       credentials,
     });
@@ -187,14 +187,14 @@ describe('testAndSaveModelProviderConfig', () => {
       .mockRejectedValue(new Error(`Provider rejected ${secret} and ${base64Secret}`));
 
     const save = testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials: {api_key: secret}},
+      {workspaceId, providerId: 'anthropic', credentials: {api_key: secret}},
       {probe},
     );
 
     await expect(save).rejects.toThrow(ModelProviderValidationError);
     await expect(save).rejects.not.toThrow(secret);
     await expect(save).rejects.not.toThrow(base64Secret);
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });
 
@@ -202,19 +202,19 @@ describe('testAndSaveModelProviderConfig', () => {
     const probe = vi.fn().mockRejectedValue('raw thrown value');
 
     const save = testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
+      {workspaceId, providerId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
       {probe},
     );
 
     await expect(save).rejects.toThrow('Model provider validation failed.');
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });
 
   it('leaves an existing row unchanged when credential rotation validation fails', async () => {
     const existing = await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': 'already-encrypted'},
       keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-opus-4-8',
@@ -223,12 +223,12 @@ describe('testAndSaveModelProviderConfig', () => {
     const probe = vi.fn().mockRejectedValue(new Error('bad key'));
 
     const save = testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials: {api_key: 'sk-new-secret-abcd'}},
+      {workspaceId, providerId: 'anthropic', credentials: {api_key: 'sk-new-secret-abcd'}},
       {probe},
     );
 
     await expect(save).rejects.toThrow(ModelProviderValidationError);
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toEqual(existing);
   });
 
@@ -237,12 +237,12 @@ describe('testAndSaveModelProviderConfig', () => {
     const probe = vi.fn().mockRejectedValue(error);
 
     const save = testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
+      {workspaceId, providerId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
       {probe},
     );
 
     await expect(save).rejects.toBe(error);
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });
 
@@ -252,7 +252,7 @@ describe('testAndSaveModelProviderConfig', () => {
     const save = testAndSaveModelProviderConfig(
       {
         workspaceId,
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         defaultModel: 'missing-model',
         credentials: {api_key: 'sk-ant-secret-abcd'},
       },
@@ -261,14 +261,14 @@ describe('testAndSaveModelProviderConfig', () => {
 
     await expect(save).rejects.toThrow(InvalidAgentModelError);
     expect(probe).not.toHaveBeenCalled();
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });
 
   it('updates the default model without changing credentials', async () => {
     const existing = await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': 'already-encrypted'},
       keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: null,
@@ -277,7 +277,7 @@ describe('testAndSaveModelProviderConfig', () => {
 
     const updated = await updateModelProviderConfigDefaultModel({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       defaultModel: 'claude-haiku-4-5',
     });
 
@@ -292,7 +292,7 @@ describe('testAndSaveModelProviderConfig', () => {
   it('stores null when the default model is set to Latest', async () => {
     await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': 'already-encrypted'},
       keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-haiku-4-5',
@@ -301,7 +301,7 @@ describe('testAndSaveModelProviderConfig', () => {
 
     const updated = await updateModelProviderConfigDefaultModel({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       defaultModel: null,
     });
 
@@ -311,7 +311,7 @@ describe('testAndSaveModelProviderConfig', () => {
   it('rejects a default model update for a missing config', async () => {
     const update = updateModelProviderConfigDefaultModel({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       defaultModel: null,
     });
 
@@ -321,7 +321,7 @@ describe('testAndSaveModelProviderConfig', () => {
   it('rejects a default model update outside the model provider catalog', async () => {
     await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': 'already-encrypted'},
       keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: null,
@@ -330,7 +330,7 @@ describe('testAndSaveModelProviderConfig', () => {
 
     const update = updateModelProviderConfigDefaultModel({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       defaultModel: 'missing-model',
     });
 
@@ -347,7 +347,7 @@ describe('testAndSaveModelProviderConfig', () => {
     const config = await testAndSaveModelProviderConfig(
       {
         workspaceId,
-        modelProviderId: 'azure-openai-responses',
+        providerId: 'azure-openai-responses',
         credentials,
       },
       {probe},
@@ -355,13 +355,13 @@ describe('testAndSaveModelProviderConfig', () => {
 
     const stored = await getModelProviderConfig({
       workspaceId,
-      modelProviderId: 'azure-openai-responses',
+      providerId: 'azure-openai-responses',
     });
     expect(stored).toEqual(config);
     expect(
       decryptCredentials({
         workspaceId,
-        modelProviderId: 'azure-openai-responses',
+        providerId: 'azure-openai-responses',
         encryptedCredentials: stored?.encryptedCredentials ?? {},
       }),
     ).toEqual(credentials);
@@ -382,7 +382,7 @@ describe('testAndSaveModelProviderConfig', () => {
     const config = await testAndSaveModelProviderConfig(
       {
         workspaceId,
-        modelProviderId: 'cloudflare-ai-gateway',
+        providerId: 'cloudflare-ai-gateway',
         credentials,
       },
       {probe},
@@ -390,13 +390,13 @@ describe('testAndSaveModelProviderConfig', () => {
 
     const stored = await getModelProviderConfig({
       workspaceId,
-      modelProviderId: 'cloudflare-ai-gateway',
+      providerId: 'cloudflare-ai-gateway',
     });
     expect(stored).toEqual(config);
     expect(
       decryptCredentials({
         workspaceId,
-        modelProviderId: 'cloudflare-ai-gateway',
+        providerId: 'cloudflare-ai-gateway',
         encryptedCredentials: stored?.encryptedCredentials ?? {},
       }),
     ).toEqual(credentials);
@@ -411,13 +411,13 @@ describe('testAndSaveModelProviderConfig', () => {
     const probe = vi.fn();
 
     const save = testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials: {wrong_key: 'sk-ant-secret-abcd'}},
+      {workspaceId, providerId: 'anthropic', credentials: {wrong_key: 'sk-ant-secret-abcd'}},
       {probe},
     );
 
     await expect(save).rejects.toThrow(InvalidCredentialFieldsError);
     expect(probe).not.toHaveBeenCalled();
-    const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });
 
@@ -428,7 +428,7 @@ describe('testAndSaveModelProviderConfig', () => {
     const probe = vi.fn();
 
     const save = module.testAndSaveModelProviderConfig(
-      {workspaceId, modelProviderId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
+      {workspaceId, providerId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
       {probe},
     );
 

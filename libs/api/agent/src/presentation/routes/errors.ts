@@ -13,7 +13,7 @@ export function translateModelProviderRouteError(error: unknown): never {
     throw new ClientError(error.sanitizedMessage, 'model-provider-validation-failed', {
       status: 422,
       details: {
-        model_provider_id: error.modelProviderId,
+        provider_id: error.providerId,
         message: error.sanitizedMessage,
       },
     });
@@ -23,8 +23,8 @@ export function translateModelProviderRouteError(error: unknown): never {
     throw new ClientError('Invalid credential fields', 'invalid-credential-fields', {
       status: 422,
       details: {
-        model_provider_id: error.modelProviderId,
-        expected_keys: getModelProviderCredentialKeys(error.modelProviderId) ?? [],
+        provider_id: error.providerId,
+        expected_keys: getModelProviderCredentialKeys(error.providerId) ?? [],
       },
     });
   }
@@ -33,7 +33,7 @@ export function translateModelProviderRouteError(error: unknown): never {
     throw new ClientError('Invalid agent model', 'invalid-agent-model', {
       status: 422,
       details: {
-        model_provider_id: error.modelProviderId,
+        provider_id: error.providerId,
         model: error.model,
       },
     });
@@ -42,7 +42,7 @@ export function translateModelProviderRouteError(error: unknown): never {
   if (error instanceof UnsupportedModelProviderError) {
     throw new ClientError('Model provider is not supported', 'model-provider-unsupported', {
       status: 422,
-      details: {model_provider_id: error.modelProviderId},
+      details: {provider_id: error.providerId},
     });
   }
 
@@ -50,7 +50,7 @@ export function translateModelProviderRouteError(error: unknown): never {
     throw new ClientError('Model provider is not configured', 'model-provider-not-configured', {
       status: 422,
       details: {
-        model_provider_id: error.modelProviderId,
+        provider_id: error.providerId,
       },
     });
   }

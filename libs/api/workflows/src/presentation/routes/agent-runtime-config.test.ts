@@ -97,7 +97,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.json()).toEqual({
-      model_provider_id: 'anthropic',
+      provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
       credentials: {api_key: 'sk-workspace-secret'},
@@ -279,7 +279,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     const {run, job, step} = await createRunningAgentStep();
     await upsertModelProviderConfig({
       workspaceId: run.workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {api_key: 'v1:not-valid-ciphertext'},
       keyFingerprints: {api_key: 'sk-test...cret'},
       defaultModel: null,
@@ -328,7 +328,7 @@ async function saveWorkspaceCredential(workspaceId: string, apiKey: string) {
   return await testAndSaveModelProviderConfig(
     {
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       credentials: {api_key: apiKey},
     },
     {probe: async () => undefined},

@@ -118,7 +118,7 @@ export type CustomModelProviderRuntimeConfigDto = z.infer<
 
 export const customModelProviderConfigDtoSchema = customModelProviderRuntimeConfigSchema.extend({
   kind: z.literal('custom'),
-  model_provider_id: modelProviderRefSchema,
+  provider_id: modelProviderRefSchema,
   display_name: z.string().min(1).max(120),
   default_model: modelIdSchema.nullable(),
   key_fingerprints: z.record(fingerprintKeySchema, z.string()),

@@ -26,15 +26,15 @@ describe('model provider configs', () => {
   });
 
   it('persists a provider config for a workspace provider pair', async () => {
-    const params = createModelProviderConfigParams({workspaceId, modelProviderId: 'anthropic'});
+    const params = createModelProviderConfigParams({workspaceId, providerId: 'anthropic'});
 
     const created = await upsertModelProviderConfig(params);
 
-    const found = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const found = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(found).toEqual(created);
     expect(found).toMatchObject({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       encryptedCredentials: {'credential:api_key': 'encrypted-anthropic-key'},
       keyFingerprints: {'credential:api_key': 'sk-ant-...abcd'},
       defaultModel: 'claude-opus-4-8',
@@ -52,13 +52,13 @@ describe('model provider configs', () => {
 
   it('updates the existing config for the same workspace provider pair', async () => {
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'openai'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'openai'}),
     );
 
     const updated = await upsertModelProviderConfig(
       createModelProviderConfigParams({
         workspaceId,
-        modelProviderId: 'openai',
+        providerId: 'openai',
         encryptedCredentials: {'credential:api_key': 'encrypted-rotated-key'},
         keyFingerprints: {'credential:api_key': 'sk-openai-...wxyz'},
         defaultModel: 'gpt-5.5-pro',
@@ -79,32 +79,32 @@ describe('model provider configs', () => {
   it('lists only configs for the requested workspace', async () => {
     const otherWorkspaceId = crypto.randomUUID();
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'openai'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'openai'}),
     );
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'anthropic'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId: otherWorkspaceId, modelProviderId: 'google'}),
+      createModelProviderConfigParams({workspaceId: otherWorkspaceId, providerId: 'google'}),
     );
 
     const configs = await listModelProviderConfigs(workspaceId);
 
-    expect(configs.map((config) => config.modelProviderId)).toEqual(['anthropic', 'openai']);
+    expect(configs.map((config) => config.providerId)).toEqual(['anthropic', 'openai']);
   });
 
   it('updates only the provider default model', async () => {
     const created = await upsertModelProviderConfig(
       createModelProviderConfigParams({
         workspaceId,
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         defaultModel: 'claude-opus-4-8',
       }),
     );
 
     const updated = await updateModelProviderDefaultModel({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       defaultModel: 'claude-haiku-4-5',
     });
 
@@ -119,7 +119,7 @@ describe('model provider configs', () => {
   it('returns undefined when updating a missing provider default model', async () => {
     const updated = await updateModelProviderDefaultModel({
       workspaceId,
-      modelProviderId: 'anthropic',
+      providerId: 'anthropic',
       defaultModel: null,
     });
 
@@ -128,53 +128,53 @@ describe('model provider configs', () => {
 
   it('hard-deletes a provider config', async () => {
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'anthropic'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
 
-    const deleted = await deleteModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const deleted = await deleteModelProviderConfig({workspaceId, providerId: 'anthropic'});
 
-    const found = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const found = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(deleted).toBe(true);
     expect(found).toBeUndefined();
   });
 
   it('returns false when deleting a missing provider config', async () => {
-    const deleted = await deleteModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    const deleted = await deleteModelProviderConfig({workspaceId, providerId: 'anthropic'});
 
     expect(deleted).toBe(false);
   });
 
   it('clears the workspace default when the default provider config is deleted', async () => {
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'anthropic'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
-    await setDefaultModelProvider({workspaceId, modelProviderId: 'anthropic'});
+    await setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
 
-    await deleteModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+    await deleteModelProviderConfig({workspaceId, providerId: 'anthropic'});
 
     const settings = await getAgentWorkspaceSettings(workspaceId);
-    expect(settings?.defaultModelProviderId).toBeNull();
+    expect(settings?.defaultProviderId).toBeNull();
   });
 
   it('keeps the workspace default when a non-default provider config is deleted', async () => {
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'anthropic'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
     await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'openai'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'openai'}),
     );
-    await setDefaultModelProvider({workspaceId, modelProviderId: 'anthropic'});
+    await setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
 
-    await deleteModelProviderConfig({workspaceId, modelProviderId: 'openai'});
+    await deleteModelProviderConfig({workspaceId, providerId: 'openai'});
 
     const settings = await getAgentWorkspaceSettings(workspaceId);
-    expect(settings?.defaultModelProviderId).toBe('anthropic');
+    expect(settings?.defaultProviderId).toBe('anthropic');
   });
 
   it('round-trips a custom model provider row without storing secret headers in plaintext headers', async () => {
     const encryptedCredentials = encryptCredentials({
       workspaceId,
-      modelProviderId: 'local-vllm',
+      providerId: 'local-vllm',
       credentials: {
         api_key: 'sk-local-secret',
         'header:authorization': 'Bearer header-secret',
@@ -183,7 +183,7 @@ describe('model provider configs', () => {
 
     const created = await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'local-vllm',
+      providerId: 'local-vllm',
       kind: 'custom',
       displayName: 'Local vLLM',
       api: 'openai-responses',
@@ -199,17 +199,17 @@ describe('model provider configs', () => {
       defaultThinking: 'high',
     });
 
-    const found = await getModelProviderConfig({workspaceId, modelProviderId: 'local-vllm'});
+    const found = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
     const decrypted = decryptCredentials({
       workspaceId,
-      modelProviderId: 'local-vllm',
+      providerId: 'local-vllm',
       encryptedCredentials: found?.encryptedCredentials ?? {},
     });
 
     expect(found).toEqual(created);
     expect(found).toMatchObject({
       workspaceId,
-      modelProviderId: 'local-vllm',
+      providerId: 'local-vllm',
       kind: 'custom',
       displayName: 'Local vLLM',
       api: 'openai-responses',
@@ -236,7 +236,7 @@ describe('model provider configs', () => {
   it('does not clobber custom columns when a later upsert omits them', async () => {
     await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'local-vllm',
+      providerId: 'local-vllm',
       kind: 'custom',
       displayName: 'Local vLLM',
       api: 'openai-responses',
@@ -251,7 +251,7 @@ describe('model provider configs', () => {
 
     const updated = await upsertModelProviderConfig({
       workspaceId,
-      modelProviderId: 'local-vllm',
+      providerId: 'local-vllm',
       encryptedCredentials: {'credential:api_key': 'encrypted-rotated-key'},
       keyFingerprints: {'credential:api_key': 'sk-rotat...abcd'},
       defaultModel: null,
@@ -273,7 +273,7 @@ describe('model provider configs', () => {
 
   it('keeps custom columns null for built-in rows', async () => {
     const created = await upsertModelProviderConfig(
-      createModelProviderConfigParams({workspaceId, modelProviderId: 'anthropic'}),
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
     );
 
     expect(created).toMatchObject({
@@ -289,7 +289,7 @@ describe('model provider configs', () => {
   it('rejects custom rows missing required custom fields', async () => {
     const insert = db().insert(modelProviderConfigs).values({
       workspaceId,
-      modelProviderId: 'broken-custom',
+      providerId: 'broken-custom',
       kind: 'custom',
       encryptedCredentials: {},
       keyFingerprints: {},
@@ -303,7 +303,7 @@ describe('model provider configs', () => {
 
 function createModelProviderConfigParams(params: {
   workspaceId: string;
-  modelProviderId: SupportedModelProviderId | ModelProviderRef;
+  providerId: SupportedModelProviderId | ModelProviderRef;
   encryptedCredentials?: Record<string, string> | undefined;
   keyFingerprints?: Record<string, string> | undefined;
   defaultModel?: string | undefined;
@@ -311,9 +311,9 @@ function createModelProviderConfigParams(params: {
 }): UpsertModelProviderConfigParams {
   return {
     workspaceId: params.workspaceId,
-    modelProviderId: params.modelProviderId,
+    providerId: params.providerId,
     encryptedCredentials: params.encryptedCredentials ?? {
-      'credential:api_key': `encrypted-${params.modelProviderId}-key`,
+      'credential:api_key': `encrypted-${params.providerId}-key`,
     },
     keyFingerprints: params.keyFingerprints ?? {'credential:api_key': 'sk-ant-...abcd'},
     defaultModel: params.defaultModel ?? 'claude-opus-4-8',

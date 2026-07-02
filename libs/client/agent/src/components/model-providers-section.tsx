@@ -73,7 +73,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
   const modelProviders = catalogQuery.data?.model_providers ?? [];
   const configs = configsQuery.data?.configs ?? [];
   const configsLoaded = configsQuery.data !== undefined;
-  const defaultModelProviderId = configsQuery.data?.default_model_provider_id ?? null;
+  const defaultProviderId = configsQuery.data?.default_provider_id ?? null;
   const modelProviderById = useMemo(
     () =>
       new Map<string, ModelProviderCatalogEntryDto>(
@@ -82,7 +82,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
     [modelProviders],
   );
   const configuredIds = useMemo(
-    () => new Set<string>(configs.map((config) => config.model_provider_id)),
+    () => new Set<string>(configs.map((config) => config.provider_id)),
     [configs],
   );
   const availableModelProviders = configsLoaded
@@ -152,16 +152,14 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         {configs.length > 0 ? (
           <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
             {configs.map((config) => {
-              const entry = toSupportedCatalogEntry(
-                modelProviderById.get(config.model_provider_id),
-              );
+              const entry = toSupportedCatalogEntry(modelProviderById.get(config.provider_id));
               return (
                 <ConfiguredProviderRow
-                  key={config.model_provider_id}
+                  key={config.provider_id}
                   workspaceId={workspaceId}
                   config={config}
                   entry={entry}
-                  isDefault={config.model_provider_id === defaultModelProviderId}
+                  isDefault={config.provider_id === defaultProviderId}
                   onEdit={() => {
                     if (entry) setFormState({mode: 'edit', entry, config});
                   }}
@@ -363,7 +361,7 @@ function ConfiguredProviderRow({
   const [defaultError, setDefaultError] = useState<string | undefined>();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | undefined>();
-  const label = entry?.label ?? config.model_provider_id;
+  const label = entry?.label ?? config.provider_id;
 
   async function handleSetDefault() {
     if (!entry) return;
@@ -372,7 +370,7 @@ function ConfiguredProviderRow({
     try {
       await setDefault.mutateAsync({
         workspaceId,
-        body: {model_provider_id: config.model_provider_id},
+        body: {provider_id: config.provider_id},
       });
       toast.success(`${label} is now the default model provider`);
     } catch (error) {
@@ -384,7 +382,7 @@ function ConfiguredProviderRow({
   async function handleDelete() {
     setDeleteError(undefined);
     try {
-      await deleteConfig.mutateAsync({workspaceId, modelProviderId: config.model_provider_id});
+      await deleteConfig.mutateAsync({workspaceId, providerId: config.provider_id});
       toast.success(`${label} deleted`);
       setDeleteOpen(false);
     } catch (error) {

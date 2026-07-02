@@ -12,7 +12,7 @@ import {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-r
 
 describe('resolveAgentConfig', () => {
   test('resolves model provider from explicit step, workspace, instance, then catalog default', () => {
-    const workspaceModelProviderConfigs = new Map([
+    const workspaceProviderConfigs = new Map([
       ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],
       [
         'google' as const,
@@ -23,16 +23,16 @@ describe('resolveAgentConfig', () => {
     const explicit = resolveAgentConfig(
       {provider: 'google'},
       {
-        workspaceDefaultModelProviderId: 'openai',
-        workspaceModelProviderConfigs,
-        instanceDefaultModelProvider: 'anthropic',
+        workspaceDefaultProviderId: 'openai',
+        workspaceProviderConfigs,
+        instanceDefaultProvider: 'anthropic',
       },
     );
     const workspace = resolveAgentConfig(
       {},
-      {workspaceDefaultModelProviderId: 'openai', workspaceModelProviderConfigs},
+      {workspaceDefaultProviderId: 'openai', workspaceProviderConfigs},
     );
-    const instance = resolveAgentConfig({}, {instanceDefaultModelProvider: 'anthropic'});
+    const instance = resolveAgentConfig({}, {instanceDefaultProvider: 'anthropic'});
     const catalog = resolveAgentConfig({});
 
     expect(explicit.provider).toBe('google');
@@ -42,27 +42,24 @@ describe('resolveAgentConfig', () => {
   });
 
   test('resolves model from explicit step, workspace, instance match, then catalog default', () => {
-    const workspaceModelProviderConfigs = new Map([
+    const workspaceProviderConfigs = new Map([
       ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],
       ['anthropic' as const, {defaultModel: null, defaultThinking: 'low' as const}],
     ]);
 
     const explicit = resolveAgentConfig(
       {provider: 'openai', model: 'gpt-5.5-pro'},
-      {workspaceModelProviderConfigs},
+      {workspaceProviderConfigs},
     );
-    const workspace = resolveAgentConfig({provider: 'openai'}, {workspaceModelProviderConfigs});
+    const workspace = resolveAgentConfig({provider: 'openai'}, {workspaceProviderConfigs});
     const instance = resolveAgentConfig(
       {},
       {
-        instanceDefaultModelProvider: 'anthropic',
-        instanceDefaultModelProviderModel: 'claude-opus-4-8',
+        instanceDefaultProvider: 'anthropic',
+        instanceDefaultModel: 'claude-opus-4-8',
       },
     );
-    const workspaceLatest = resolveAgentConfig(
-      {provider: 'anthropic'},
-      {workspaceModelProviderConfigs},
-    );
+    const workspaceLatest = resolveAgentConfig({provider: 'anthropic'}, {workspaceProviderConfigs});
     const catalog = resolveAgentConfig({provider: 'deepseek'});
 
     expect(explicit.model).toBe('gpt-5.5-pro');
@@ -76,9 +73,9 @@ describe('resolveAgentConfig', () => {
     const resolved = resolveAgentConfig(
       {provider: 'openai'},
       {
-        instanceDefaultModelProvider: 'anthropic',
-        instanceDefaultModelProviderModel: 'claude-opus-4-8',
-        instanceDefaultModelProviderThinking: 'low',
+        instanceDefaultProvider: 'anthropic',
+        instanceDefaultModel: 'claude-opus-4-8',
+        instanceDefaultThinking: 'low',
       },
     );
 
@@ -90,18 +87,18 @@ describe('resolveAgentConfig', () => {
   });
 
   test('resolves thinking from explicit step, workspace, instance match, then default', () => {
-    const workspaceModelProviderConfigs = new Map([
+    const workspaceProviderConfigs = new Map([
       ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],
     ]);
 
     const explicit = resolveAgentConfig(
       {provider: 'openai', thinking: 'low'},
-      {workspaceModelProviderConfigs},
+      {workspaceProviderConfigs},
     );
-    const workspace = resolveAgentConfig({provider: 'openai'}, {workspaceModelProviderConfigs});
+    const workspace = resolveAgentConfig({provider: 'openai'}, {workspaceProviderConfigs});
     const instance = resolveAgentConfig(
       {},
-      {instanceDefaultModelProvider: 'anthropic', instanceDefaultModelProviderThinking: 'medium'},
+      {instanceDefaultProvider: 'anthropic', instanceDefaultThinking: 'medium'},
     );
     const fallback = resolveAgentConfig({provider: 'deepseek'});
 
@@ -123,7 +120,7 @@ describe('resolveAgentConfig', () => {
   test('falls through to the instance default when the workspace default model provider is null', () => {
     const resolved = resolveAgentConfig(
       {},
-      {workspaceDefaultModelProviderId: null, instanceDefaultModelProvider: 'anthropic'},
+      {workspaceDefaultProviderId: null, instanceDefaultProvider: 'anthropic'},
     );
 
     expect(resolved.provider).toBe('anthropic');
@@ -133,7 +130,7 @@ describe('resolveAgentConfig', () => {
     const resolve = () =>
       resolveAgentConfig(
         {},
-        {workspaceDefaultModelProviderId: 'amazon-bedrock' as SupportedModelProviderId},
+        {workspaceDefaultProviderId: 'amazon-bedrock' as SupportedModelProviderId},
       );
 
     expect(resolve).toThrow(UnsupportedModelProviderError);
@@ -144,8 +141,8 @@ describe('resolveAgentConfig', () => {
       resolveAgentConfig(
         {},
         {
-          instanceDefaultModelProvider: 'anthropic',
-          instanceDefaultModelProviderModel: 'not-a-model',
+          instanceDefaultProvider: 'anthropic',
+          instanceDefaultModel: 'not-a-model',
         },
       );
 
@@ -174,18 +171,18 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     await upsertModelProviderConfig(
       createModelProviderConfigParams({
         workspaceId,
-        modelProviderId: 'openai',
+        providerId: 'openai',
         defaultModel: 'gpt-5.5-pro',
         defaultThinking: 'medium',
       }),
     );
-    await setDefaultModelProvider({workspaceId, modelProviderId: 'openai'});
+    await setDefaultModelProvider({workspaceId, providerId: 'openai'});
 
     const resolver = await createWorkspaceAgentDefaultsResolver(workspaceId);
     const resolved = resolver({});
     const settings = await getAgentWorkspaceSettings(workspaceId);
 
-    expect(settings?.defaultModelProviderId).toBe('openai');
+    expect(settings?.defaultProviderId).toBe('openai');
     expect(resolved).toEqual({
       provider: 'openai',
       model: 'gpt-5.5-pro',
@@ -209,7 +206,7 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     await upsertModelProviderConfig(
       createModelProviderConfigParams({
         workspaceId,
-        modelProviderId: 'openai',
+        providerId: 'openai',
         defaultModel: 'gpt-5.5-pro',
         defaultThinking: 'medium',
       }),
@@ -229,7 +226,7 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     await upsertModelProviderConfig(
       createModelProviderConfigParams({
         workspaceId,
-        modelProviderId: 'openai',
+        providerId: 'openai',
         defaultModel: null,
         defaultThinking: 'medium',
       }),
@@ -248,14 +245,14 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
 
 function createModelProviderConfigParams(params: {
   workspaceId: string;
-  modelProviderId: SupportedModelProviderId;
+  providerId: SupportedModelProviderId;
   defaultModel: string | null;
   defaultThinking: AgentThinking;
 }): UpsertModelProviderConfigParams {
   return {
     workspaceId: params.workspaceId,
-    modelProviderId: params.modelProviderId,
-    encryptedCredentials: {'credential:api_key': `encrypted-${params.modelProviderId}-key`},
+    providerId: params.providerId,
+    encryptedCredentials: {'credential:api_key': `encrypted-${params.providerId}-key`},
     keyFingerprints: {'credential:api_key': 'sk-test...abcd'},
     defaultModel: params.defaultModel,
     defaultThinking: params.defaultThinking,

@@ -132,13 +132,13 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({configs: [], default_model_provider_id: null});
+      expect(res.json()).toEqual({configs: [], default_provider_id: null});
     });
 
     it('returns provider configs and the workspace default model provider', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
-      await seedModelProviderConfig({modelProviderId: 'openai'});
-      await setDefaultModelProvider({workspaceId, modelProviderId: 'openai'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'openai'});
+      await setDefaultModelProvider({workspaceId, providerId: 'openai'});
 
       const res = await app.inject({
         method: 'GET',
@@ -147,14 +147,14 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json().default_model_provider_id).toBe('openai');
-      expect(
-        res.json().configs.map((config: {model_provider_id: string}) => config.model_provider_id),
-      ).toEqual(['anthropic', 'openai']);
+      expect(res.json().default_provider_id).toBe('openai');
+      expect(res.json().configs.map((config: {provider_id: string}) => config.provider_id)).toEqual(
+        ['anthropic', 'openai'],
+      );
     });
   });
 
-  describe('PUT /workspaces/:workspaceId/agent/model-providers/:modelProviderId', () => {
+  describe('PUT /workspaces/:workspaceId/agent/model-providers/:providerId', () => {
     it('tests, saves, and replaces a provider config without exposing credentials', async () => {
       const secret = 'sk-ant-secret-abcd';
 
@@ -172,7 +172,7 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json().model_provider_id).toBe('anthropic');
+      expect(res.json().provider_id).toBe('anthropic');
       expect(res.json().default_model).toBeNull();
       expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-s...abcd'});
       expect(res.body).not.toContain(secret);
@@ -180,7 +180,7 @@ describe('model provider config routes', () => {
       expect(replace.statusCode).toBe(200);
       expect(replace.json().default_model).toBeNull();
       expect(replace.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.encryptedCredentials['credential:api_key']).not.toBeUndefined();
       expect(stored?.encryptedCredentials['credential:api_key']).not.toContain(secret);
       expect(stored?.defaultModel).toBeNull();
@@ -199,7 +199,7 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-haiku-4-5');
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-haiku-4-5');
     });
 
@@ -216,7 +216,7 @@ describe('model provider config routes', () => {
 
       const settings = await getAgentWorkspaceSettings(workspaceId);
       expect(res.statusCode).toBe(200);
-      expect(settings?.defaultModelProviderId).toBe('anthropic');
+      expect(settings?.defaultProviderId).toBe('anthropic');
     });
 
     it('passes a request-scoped abort signal to provider validation', async () => {
@@ -235,8 +235,8 @@ describe('model provider config routes', () => {
     });
 
     it('replaces the workspace default when set_as_default is requested with existing settings', async () => {
-      await seedModelProviderConfig({modelProviderId: 'openai'});
-      await setDefaultModelProvider({workspaceId, modelProviderId: 'openai'});
+      await seedModelProviderConfig({providerId: 'openai'});
+      await setDefaultModelProvider({workspaceId, providerId: 'openai'});
 
       const res = await app.inject({
         method: 'PUT',
@@ -250,12 +250,12 @@ describe('model provider config routes', () => {
 
       const settings = await getAgentWorkspaceSettings(workspaceId);
       expect(res.statusCode).toBe(200);
-      expect(settings?.defaultModelProviderId).toBe('anthropic');
+      expect(settings?.defaultProviderId).toBe('anthropic');
     });
 
     it('does not change the workspace default when set_as_default is omitted', async () => {
-      await seedModelProviderConfig({modelProviderId: 'openai'});
-      await setDefaultModelProvider({workspaceId, modelProviderId: 'openai'});
+      await seedModelProviderConfig({providerId: 'openai'});
+      await setDefaultModelProvider({workspaceId, providerId: 'openai'});
 
       const res = await app.inject({
         method: 'PUT',
@@ -266,11 +266,11 @@ describe('model provider config routes', () => {
 
       const settings = await getAgentWorkspaceSettings(workspaceId);
       expect(res.statusCode).toBe(200);
-      expect(settings?.defaultModelProviderId).toBe('openai');
+      expect(settings?.defaultProviderId).toBe('openai');
     });
 
     it('preserves the existing default model when replacing credentials without default_model', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'PUT',
@@ -282,12 +282,12 @@ describe('model provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-opus-4-8');
       expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-opus-4-8');
     });
 
     it('stores Latest when replacing credentials with a null default_model', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'PUT',
@@ -299,7 +299,7 @@ describe('model provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBeNull();
       expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBeNull();
     });
 
@@ -345,9 +345,9 @@ describe('model provider config routes', () => {
     });
   });
 
-  describe('DELETE /workspaces/:workspaceId/agent/model-providers/:modelProviderId', () => {
+  describe('DELETE /workspaces/:workspaceId/agent/model-providers/:providerId', () => {
     it('deletes a provider config', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'DELETE',
@@ -356,13 +356,13 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(204);
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored).toBeUndefined();
     });
 
     it('returns 404 for a missing or foreign provider config', async () => {
       await seedModelProviderConfig({
-        modelProviderId: 'anthropic',
+        providerId: 'anthropic',
         workspaceId: crypto.randomUUID(),
       });
 
@@ -377,8 +377,8 @@ describe('model provider config routes', () => {
     });
 
     it('clears the workspace default when deleting the default model provider config', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
-      await setDefaultModelProvider({workspaceId, modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
+      await setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'DELETE',
@@ -388,11 +388,11 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(204);
       const settings = await getAgentWorkspaceSettings(workspaceId);
-      expect(settings?.defaultModelProviderId).toBeNull();
+      expect(settings?.defaultProviderId).toBeNull();
     });
 
     it('deletes a configured custom model provider ref', async () => {
-      await seedCustomModelProviderConfig({modelProviderId: 'local-vllm'});
+      await seedCustomModelProviderConfig({providerId: 'local-vllm'});
 
       const res = await app.inject({
         method: 'DELETE',
@@ -401,14 +401,14 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode).toBe(204);
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'local-vllm'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
       expect(stored).toBeUndefined();
     });
   });
 
-  describe('PUT /workspaces/:workspaceId/agent/model-providers/:modelProviderId/default-model', () => {
+  describe('PUT /workspaces/:workspaceId/agent/model-providers/:providerId/default-model', () => {
     it('updates the provider default model without changing credentials', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'PUT',
@@ -420,13 +420,13 @@ describe('model provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-haiku-4-5');
       expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-secre...abcd'});
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-haiku-4-5');
       expect(stored?.encryptedCredentials).toEqual({'credential:api_key': 'encrypted-secret'});
     });
 
     it('stores Latest as a null provider default model', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'PUT',
@@ -437,7 +437,7 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBeNull();
-      const stored = await getModelProviderConfig({workspaceId, modelProviderId: 'anthropic'});
+      const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBeNull();
     });
 
@@ -454,7 +454,7 @@ describe('model provider config routes', () => {
     });
 
     it('returns 422 when the selected default model is unsupported', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'PUT',
@@ -471,17 +471,17 @@ describe('model provider config routes', () => {
 
   describe('PUT /workspaces/:workspaceId/agent/default-model-provider', () => {
     it('sets a configured provider as the workspace default', async () => {
-      await seedModelProviderConfig({modelProviderId: 'anthropic'});
+      await seedModelProviderConfig({providerId: 'anthropic'});
 
       const res = await app.inject({
         method: 'PUT',
         url: `/workspaces/${workspaceId}/agent/default-model-provider`,
         headers: {authorization: 'Bearer user'},
-        payload: {model_provider_id: 'anthropic'},
+        payload: {provider_id: 'anthropic'},
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({default_model_provider_id: 'anthropic'});
+      expect(res.json()).toEqual({default_provider_id: 'anthropic'});
     });
 
     it('returns 422 when the provider is not configured', async () => {
@@ -489,40 +489,40 @@ describe('model provider config routes', () => {
         method: 'PUT',
         url: `/workspaces/${workspaceId}/agent/default-model-provider`,
         headers: {authorization: 'Bearer user'},
-        payload: {model_provider_id: 'anthropic'},
+        payload: {provider_id: 'anthropic'},
       });
 
       expect(res.statusCode).toBe(422);
       expect(res.json().code).toBe('model-provider-not-configured');
-      expect(res.json().details.model_provider_id).toBe('anthropic');
+      expect(res.json().details.provider_id).toBe('anthropic');
     });
 
     it('returns 422 when a configured custom model provider is set as the default', async () => {
-      await seedCustomModelProviderConfig({modelProviderId: 'local-vllm'});
+      await seedCustomModelProviderConfig({providerId: 'local-vllm'});
 
       const res = await app.inject({
         method: 'PUT',
         url: `/workspaces/${workspaceId}/agent/default-model-provider`,
         headers: {authorization: 'Bearer user'},
-        payload: {model_provider_id: 'local-vllm'},
+        payload: {provider_id: 'local-vllm'},
       });
 
       expect(res.statusCode).toBe(422);
       expect(res.json().code).toBe('model-provider-unsupported');
-      expect(res.json().details.model_provider_id).toBe('local-vllm');
+      expect(res.json().details.provider_id).toBe('local-vllm');
     });
   });
 
   async function seedModelProviderConfig(params: {
-    modelProviderId: ModelProviderRef;
+    providerId: ModelProviderRef;
     workspaceId?: string;
   }) {
     const config = await upsertModelProviderConfig({
       workspaceId: params.workspaceId ?? workspaceId,
-      modelProviderId: params.modelProviderId,
+      providerId: params.providerId,
       encryptedCredentials: {'credential:api_key': 'encrypted-secret'},
       keyFingerprints: {'credential:api_key': 'sk-secre...abcd'},
-      defaultModel: params.modelProviderId === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.5-pro',
+      defaultModel: params.providerId === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.5-pro',
       defaultThinking: 'high',
     });
 
@@ -534,12 +534,12 @@ describe('model provider config routes', () => {
   }
 
   async function seedCustomModelProviderConfig(params: {
-    modelProviderId: ModelProviderRef;
+    providerId: ModelProviderRef;
     workspaceId?: string;
   }) {
     const config = await upsertModelProviderConfig({
       workspaceId: params.workspaceId ?? workspaceId,
-      modelProviderId: params.modelProviderId,
+      providerId: params.providerId,
       kind: 'custom',
       displayName: 'Local vLLM',
       api: 'openai-responses',

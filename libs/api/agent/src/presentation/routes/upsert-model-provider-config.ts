@@ -12,12 +12,12 @@ import {translateModelProviderRouteError} from './errors.js';
 
 export const upsertModelProviderConfigRoute = defineRoute({
   method: 'PUT',
-  path: '/model-providers/:modelProviderId',
+  path: '/model-providers/:providerId',
   description: 'Test and save an model provider configuration for a workspace',
   schema: {
     params: z.object({
       workspaceId: z.string().uuid(),
-      modelProviderId: supportedModelProviderIdSchema,
+      providerId: supportedModelProviderIdSchema,
     }),
     body: updateModelProviderConfigBodySchema,
     response: {
@@ -26,7 +26,7 @@ export const upsertModelProviderConfigRoute = defineRoute({
   },
   errorHandler: translateModelProviderRouteError,
   handler: async (request, reply) => {
-    const {workspaceId, modelProviderId} = request.params;
+    const {workspaceId, providerId} = request.params;
     const abortController = new AbortController();
     let responseFinished = false;
     reply.raw.on('finish', () => {
@@ -40,7 +40,7 @@ export const upsertModelProviderConfigRoute = defineRoute({
 
     const config = await testAndSaveModelProviderConfig({
       workspaceId,
-      modelProviderId,
+      providerId,
       ...('default_model' in request.body ? {defaultModel: request.body.default_model} : {}),
       credentials: request.body.credentials,
       setAsDefault: request.body.set_as_default,
