@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {Toaster} from '@shipfox/react-ui';
+import {Toaster} from '@shipfox/react-ui/toast';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

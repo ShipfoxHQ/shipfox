@@ -1,5 +1,5 @@
 import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
-import {FullPageLoader} from '@shipfox/react-ui';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {Outlet, useMatches} from '@tanstack/react-router';
 import {NavBar} from './nav-bar.js';
 import {ProjectTabs} from './project-tabs.js';

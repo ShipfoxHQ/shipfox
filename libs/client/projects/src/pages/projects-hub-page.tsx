@@ -7,17 +7,14 @@ import {
   useIntegrationConnectionsQuery,
 } from '@shipfox/client-integrations';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {
-  Alert,
-  Button,
-  Card,
-  EmptyState,
-  Header,
-  Icon,
-  Input,
-  Skeleton,
-  Text,
-} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {Card} from '@shipfox/react-ui/card';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Input} from '@shipfox/react-ui/input';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useState} from 'react';
 import {ModelProviderReminderBanner} from '#components/model-provider-reminder-banner.js';

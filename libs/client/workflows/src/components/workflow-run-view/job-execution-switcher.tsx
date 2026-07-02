@@ -1,13 +1,13 @@
 import {
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-  Icon,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/dropdown-menu';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {useMemo} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {Job, JobExecution} from '#core/workflow-run.js';

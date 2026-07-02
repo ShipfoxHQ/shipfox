@@ -1,4 +1,8 @@
-import {Button, Code, cn, Text, toast, useCopyToClipboard} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
+import {toast} from '@shipfox/react-ui/toast';
+import {Code, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
 import {useEffect, useRef, useState} from 'react';
 

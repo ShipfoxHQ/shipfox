@@ -1,14 +1,13 @@
 import {isShortSecretValue} from '@shipfox/api-secrets-dto';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
-  Alert,
-  Button,
   FormField,
   FormFieldInput,
   FormFieldTextarea,
   fieldError,
-  IconButton,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/form-field';
+import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
 import {usePutSecretMutation} from '#hooks/api/secrets.js';

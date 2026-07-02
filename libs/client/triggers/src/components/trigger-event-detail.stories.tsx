@@ -1,6 +1,6 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {TriggerEventDetailResponseDto} from '@shipfox/api-triggers-dto';
-import {RelativeTimeProvider} from '@shipfox/react-ui';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {
   createMemoryHistory,

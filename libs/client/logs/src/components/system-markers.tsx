@@ -1,12 +1,6 @@
-import {
-  cn,
-  formatBytes,
-  formatDuration,
-  Icon,
-  type IconName,
-  LogContent,
-  LogRow,
-} from '@shipfox/react-ui';
+import {Icon, type IconName} from '@shipfox/react-ui/icon';
+import {LogContent, LogRow} from '@shipfox/react-ui/log';
+import {cn, formatBytes, formatDuration} from '@shipfox/react-ui/utils';
 import type {
   CappedLogRecord,
   EndLogRecord,

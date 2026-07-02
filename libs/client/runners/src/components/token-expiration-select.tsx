@@ -1,11 +1,11 @@
+import {useFormField} from '@shipfox/react-ui/form-field';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  useFormField,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/select';
 
 export type TokenExpirationOption =
   | '86400'

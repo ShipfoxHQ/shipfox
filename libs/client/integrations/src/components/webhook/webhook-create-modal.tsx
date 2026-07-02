@@ -6,22 +6,19 @@ import {
   webhookSlugSchema,
 } from '@shipfox/api-integration-webhook-dto';
 import {displayNameFieldError} from '@shipfox/client-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {
-  Alert,
-  Button,
-  Code,
-  FormField,
-  FormFieldInput,
-  fieldError,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   ModalTitle,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/modal';
+import {toast} from '@shipfox/react-ui/toast';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useEffect, useRef, useState} from 'react';
 import {useCreateWebhookConnectionMutation} from '#hooks/api/webhook-connections.js';

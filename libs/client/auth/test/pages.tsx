@@ -1,4 +1,4 @@
-import {Toaster} from '@shipfox/react-ui';
+import {Toaster} from '@shipfox/react-ui/toast';
 import {
   createMemoryHistory,
   createRootRoute,

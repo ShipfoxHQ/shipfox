@@ -1,17 +1,13 @@
 import {agentConfigIssueSchema, stepErrorReasonSchema} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
-import {
-  Badge,
-  Button,
-  EmptyState,
-  Icon,
-  RelativeTime,
-  Text,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useTimeTick,
-} from '@shipfox/react-ui';
+import {Badge} from '@shipfox/react-ui/badge';
+import {Button} from '@shipfox/react-ui/button';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon} from '@shipfox/react-ui/icon';
+import {RelativeTime} from '@shipfox/react-ui/relative-time';
+import {useTimeTick} from '@shipfox/react-ui/time-ticker';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Text} from '@shipfox/react-ui/typography';
 import type {ReactNode} from 'react';
 import {Fragment, useId, useRef, useState} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';

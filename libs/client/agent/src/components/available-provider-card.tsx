@@ -1,5 +1,7 @@
 import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
-import {cn, Icon, Text} from '@shipfox/react-ui';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';

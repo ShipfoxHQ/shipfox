@@ -1,14 +1,9 @@
 'use client';
 
 import type {LogRecord} from '@shipfox/api-logs-dto';
-import {
-  Icon,
-  LogContent,
-  LogRow,
-  LogRows,
-  type LogTimestampMode,
-  Skeleton,
-} from '@shipfox/react-ui';
+import {Icon} from '@shipfox/react-ui/icon';
+import {LogContent, LogRow, LogRows, type LogTimestampMode} from '@shipfox/react-ui/log';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {type ReactNode, type UIEventHandler, useEffect, useMemo, useRef} from 'react';
 import {expandSessionRecord} from '#core/agent-session/selector.js';
 import {

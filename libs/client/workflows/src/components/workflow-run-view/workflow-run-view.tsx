@@ -1,7 +1,8 @@
 import type {WorkflowRunRerunModeDto} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {RelativeTimeProvider, toast} from '@shipfox/react-ui';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {toast} from '@shipfox/react-ui/toast';
 import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
 import {

@@ -1,4 +1,4 @@
-import {cn} from '@shipfox/react-ui';
+import {cn} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
 
 /**

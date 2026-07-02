@@ -1,6 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {type AuthState, authStateAtom} from '@shipfox/client-auth';
-import {Toaster} from '@shipfox/react-ui';
+import {Toaster} from '@shipfox/react-ui/toast';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
   createMemoryHistory,

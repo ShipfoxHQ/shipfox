@@ -1,4 +1,5 @@
-import {Header, Icon, Text} from '@shipfox/react-ui';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import type {PropsWithChildren, ReactNode} from 'react';
 
 interface AuthShellProps {

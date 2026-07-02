@@ -1,15 +1,9 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {
-  Alert,
-  Button,
-  ButtonLink,
-  FormField,
-  FormFieldInput,
-  fieldError,
-  Header,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
+import {toast} from '@shipfox/react-ui/toast';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate} from '@tanstack/react-router';

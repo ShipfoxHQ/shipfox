@@ -1,5 +1,5 @@
 import type {ManualRegistrationTokenDto} from '@shipfox/api-runners-dto';
-import {formatDate, formatTimestamp} from '@shipfox/react-ui';
+import {formatDate, formatTimestamp} from '@shipfox/react-ui/utils';
 
 export function formatManualRegistrationTokenDate(value: string | null): string {
   if (!value) return 'Never';

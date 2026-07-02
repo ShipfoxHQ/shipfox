@@ -1,7 +1,7 @@
-import {toast} from '@shipfox/react-ui';
+import {toast} from '@shipfox/react-ui/toast';
 import {copyKeyName} from './copy-key.js';
 
-vi.mock('@shipfox/react-ui', () => ({
+vi.mock('@shipfox/react-ui/toast', () => ({
   toast: {success: vi.fn(), error: vi.fn()},
 }));
 

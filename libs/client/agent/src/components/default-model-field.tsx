@@ -1,5 +1,6 @@
 import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
-import {cn, FormField, useFormField} from '@shipfox/react-ui';
+import {FormField, useFormField} from '@shipfox/react-ui/form-field';
+import {cn} from '@shipfox/react-ui/utils';
 import type {ComponentProps, ReactNode} from 'react';
 
 export const LATEST_MODEL_VALUE = '__latest__';

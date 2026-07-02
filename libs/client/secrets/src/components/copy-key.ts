@@ -1,4 +1,4 @@
-import {toast} from '@shipfox/react-ui';
+import {toast} from '@shipfox/react-ui/toast';
 
 /**
  * Copies a bare key name (e.g. `MY_TOKEN`) to the clipboard. Guarded because

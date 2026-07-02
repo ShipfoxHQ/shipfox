@@ -1,4 +1,4 @@
-import {humanDuration} from '@shipfox/react-ui';
+import {humanDuration} from '@shipfox/react-ui/utils';
 import type {JobDisplayDuration, JobExecutionTime} from '#core/workflow-run.js';
 
 export function formatJobExecutionTimeLabel(time: JobExecutionTime): string {

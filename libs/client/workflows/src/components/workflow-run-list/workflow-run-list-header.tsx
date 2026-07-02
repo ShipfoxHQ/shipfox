@@ -1,4 +1,6 @@
-import {Button, Icon, Input} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Input} from '@shipfox/react-ui/input';
 import type {WorkflowRunListStatusFilter} from './types.js';
 
 const STATUS_FILTERS: Array<{value: WorkflowRunListStatusFilter; label: string}> = [

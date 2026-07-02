@@ -1,6 +1,8 @@
 import type {ManualRegistrationTokenDto, ProvisionerTokenDto} from '@shipfox/api-runners-dto';
 import {configureApiClient} from '@shipfox/client-api';
-import {Code, RelativeTimeProvider, Toaster} from '@shipfox/react-ui';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {Toaster} from '@shipfox/react-ui/toast';
+import {Code} from '@shipfox/react-ui/typography';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import type {ReactNode} from 'react';

@@ -1,21 +1,18 @@
 import type {WorkflowRunRerunModeDto} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
+import {Badge} from '@shipfox/react-ui/badge';
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Badge,
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Header,
-  RelativeTime,
-  Text,
-  TimeTickerProvider,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useIsTextTruncated,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/dropdown-menu';
+import {useIsTextTruncated} from '@shipfox/react-ui/hooks';
+import {RelativeTime} from '@shipfox/react-ui/relative-time';
+import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import type {Ref} from 'react';
 import {useId} from 'react';
 import {

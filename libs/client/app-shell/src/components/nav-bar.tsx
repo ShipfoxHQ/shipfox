@@ -1,6 +1,6 @@
 import {useActiveWorkspace, WorkspaceCrumb} from '@shipfox/client-auth';
 import {ProjectCrumb, useProjectQuery} from '@shipfox/client-projects';
-import {Logo} from '@shipfox/react-ui';
+import {Logo} from '@shipfox/react-ui/logo';
 import {Link, useParams} from '@tanstack/react-router';
 import {UserMenu} from './user-menu.js';
 

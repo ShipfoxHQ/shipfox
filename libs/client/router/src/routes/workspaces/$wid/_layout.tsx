@@ -5,7 +5,7 @@ import {
   WorkspaceLayoutErrorRoute,
   WorkspaceSetupPending,
 } from '@shipfox/client-projects';
-import {ShipfoxLoader} from '@shipfox/react-ui';
+import {ShipfoxLoader} from '@shipfox/react-ui/loader';
 import {createFileRoute, redirect} from '@tanstack/react-router';
 
 export const Route = createFileRoute('/workspaces/$wid/_layout')({

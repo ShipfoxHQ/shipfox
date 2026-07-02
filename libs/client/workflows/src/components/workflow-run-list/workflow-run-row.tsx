@@ -1,13 +1,8 @@
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
-import {
-  Code,
-  cn,
-  RelativeTime,
-  Text,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@shipfox/react-ui';
+import {RelativeTime} from '@shipfox/react-ui/relative-time';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {
   useWorkflowRunDurationAccessibleLabel,

@@ -1,5 +1,7 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
-import {Label, RadioGroup, RadioGroupItem, Text} from '@shipfox/react-ui';
+import {Label} from '@shipfox/react-ui/label';
+import {RadioGroup, RadioGroupItem} from '@shipfox/react-ui/radio-group';
+import {Text} from '@shipfox/react-ui/typography';
 import {useId} from 'react';
 
 export function ConnectionPicker({

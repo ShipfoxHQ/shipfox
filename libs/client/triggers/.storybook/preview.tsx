@@ -1,5 +1,6 @@
 import './preview.css';
-import {RelativeTimeProvider, ThemeProvider} from '@shipfox/react-ui';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {ThemeProvider} from '@shipfox/react-ui/theme';
 import type {Decorator, Preview} from '@storybook/react';
 import {
   createMemoryHistory,

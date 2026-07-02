@@ -1,29 +1,31 @@
 import type {ManualRegistrationTokenDto} from '@shipfox/api-runners-dto';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
-  Alert,
-  Button,
-  Code,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  EmptyState,
-  IconButton,
+} from '@shipfox/react-ui/dropdown-menu';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   ModalTitle,
-  Skeleton,
+} from '@shipfox/react-ui/modal';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/table';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
 import {

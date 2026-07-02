@@ -1,4 +1,4 @@
-import {toast} from '@shipfox/react-ui';
+import {toast} from '@shipfox/react-ui/toast';
 import {beforeEach, describe, expect, it, vi} from '@shipfox/vitest/vi';
 
 import {completeInvitationAcceptance} from './complete-acceptance.js';

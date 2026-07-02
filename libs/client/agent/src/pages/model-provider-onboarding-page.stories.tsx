@@ -1,6 +1,6 @@
 import type {ModelProviderCatalogEntryDto, ModelProviderConfigDto} from '@shipfox/api-agent-dto';
 import {configureApiClient} from '@shipfox/client-api';
-import {Toaster} from '@shipfox/react-ui';
+import {Toaster} from '@shipfox/react-ui/toast';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {useMemo} from 'react';

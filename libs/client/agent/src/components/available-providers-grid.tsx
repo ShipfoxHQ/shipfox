@@ -1,5 +1,8 @@
 import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
-import {Button, EmptyState, Icon, Input} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Input} from '@shipfox/react-ui/input';
 import {useMemo, useRef, useState} from 'react';
 import {AvailableProviderCard} from './available-provider-card.js';
 import {providerMatchesSearch} from './provider-search.js';

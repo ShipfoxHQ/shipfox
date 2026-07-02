@@ -12,22 +12,13 @@ import {
   useSourceConnectionsQuery,
 } from '@shipfox/client-integrations';
 import {displayNameFieldError} from '@shipfox/client-ui';
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  FormField,
-  FormFieldInput,
-  FullPageLoader,
-  fieldError,
-  Header,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@shipfox/react-ui/card';
+import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {toast} from '@shipfox/react-ui/toast';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {type QueryClient, useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';

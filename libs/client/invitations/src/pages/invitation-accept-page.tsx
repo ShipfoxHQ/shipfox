@@ -1,5 +1,10 @@
 import {AuthShell, useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {Alert, Button, formatDate, ShipfoxLoader, Text, toast} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {ShipfoxLoader} from '@shipfox/react-ui/loader';
+import {toast} from '@shipfox/react-ui/toast';
+import {Text} from '@shipfox/react-ui/typography';
+import {formatDate} from '@shipfox/react-ui/utils';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useCallback, useEffect, useRef} from 'react';
 import {completeInvitationAcceptance} from '#complete-acceptance.js';

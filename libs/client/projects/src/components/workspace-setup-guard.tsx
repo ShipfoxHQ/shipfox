@@ -7,7 +7,10 @@ import {
 } from '@shipfox/client-agent';
 import {ApiError} from '@shipfox/client-api';
 import {integrationsQueryKeys, listSourceConnections} from '@shipfox/client-integrations';
-import {Alert, Button, FullPageLoader, Header, Text} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import type {QueryClient} from '@tanstack/react-query';
 import {type ErrorComponentProps, redirect, useRouter} from '@tanstack/react-router';
 import {listProjects, projectsQueryKeys} from '#hooks/api/projects.js';

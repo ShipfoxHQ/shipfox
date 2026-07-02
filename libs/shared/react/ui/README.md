@@ -11,6 +11,16 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 - **Icons**: Custom Shipfox icons plus the icon registry used by the `Icon` component.
 - **CSS entry**: `@shipfox/react-ui/index.css` for fonts, Tailwind, animation utilities, and design tokens.
 
+## Imports
+
+Import from a subpath. Each component has its own entry
+(`@shipfox/react-ui/button`, `@shipfox/react-ui/card`, ...); hooks live under
+`@shipfox/react-ui/hooks` and utilities under `@shipfox/react-ui/utils`. This
+keeps the dev server and bundlers from pulling the whole component tree (and its
+Radix and icon dependencies) when you only need one component. The package root
+(`@shipfox/react-ui`) is not importable: there is no root barrel, and a bare
+import is blocked by lint.
+
 ## Setup
 
 Install the package in a React app:
@@ -32,7 +42,7 @@ import '@shipfox/react-ui/index.css';
 Wrap the app with the theme provider:
 
 ```tsx
-import {ThemeProvider} from '@shipfox/react-ui';
+import {ThemeProvider} from '@shipfox/react-ui/theme';
 
 export function AppRoot() {
   return (
@@ -46,7 +56,9 @@ export function AppRoot() {
 ## Usage
 
 ```tsx
-import {Button, Card, CardContent, CardTitle, Text} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Card, CardContent, CardTitle} from '@shipfox/react-ui/card';
+import {Text} from '@shipfox/react-ui/typography';
 
 export function EmptyState() {
   return (
@@ -64,7 +76,7 @@ export function EmptyState() {
 `FormField` wires up label, input, error, and description with the correct `id`, `aria-invalid`, and `aria-describedby` plumbing. Render controls through `FormFieldInput` or `FormFieldTextarea` to inherit those props automatically:
 
 ```tsx
-import {FormField, FormFieldInput, FormFieldTextarea} from '@shipfox/react-ui';
+import {FormField, FormFieldInput, FormFieldTextarea} from '@shipfox/react-ui/form-field';
 
 <FormField label="Email" id="email" error={error}>
   <FormFieldInput type="email" value={value} onChange={...} />

@@ -1,4 +1,4 @@
-import {Toaster} from '@shipfox/react-ui';
+import {Toaster} from '@shipfox/react-ui/toast';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import type {ReactNode} from 'react';

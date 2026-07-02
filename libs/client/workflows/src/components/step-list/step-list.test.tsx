@@ -1,5 +1,5 @@
 import type {StepAttemptDto, WorkflowRunStepDetailDto} from '@shipfox/api-workflows-dto';
-import {Text} from '@shipfox/react-ui';
+import {Text} from '@shipfox/react-ui/typography';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {useState} from 'react';

@@ -1,13 +1,8 @@
 'use client';
 
-import {
-  cn,
-  formatDuration,
-  Icon,
-  LogDisclosure,
-  LogDisclosureContent,
-  LogDisclosureTrigger,
-} from '@shipfox/react-ui';
+import {Icon} from '@shipfox/react-ui/icon';
+import {LogDisclosure, LogDisclosureContent, LogDisclosureTrigger} from '@shipfox/react-ui/log';
+import {cn, formatDuration} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
 import type {GroupLogNode} from '#core/log-tree.js';
 

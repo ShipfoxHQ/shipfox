@@ -1,4 +1,7 @@
-import {Code, cn, humanDuration, Icon, useTimeTick} from '@shipfox/react-ui';
+import {Icon} from '@shipfox/react-ui/icon';
+import {useTimeTick} from '@shipfox/react-ui/time-ticker';
+import {Code} from '@shipfox/react-ui/typography';
+import {cn, humanDuration} from '@shipfox/react-ui/utils';
 import type {WorkflowRunAttemptDisplayDuration} from '#core/workflow-run.js';
 
 export function WorkflowRunDurationLabel({

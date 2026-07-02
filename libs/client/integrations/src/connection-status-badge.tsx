@@ -1,5 +1,6 @@
 import type {IntegrationConnectionLifecycleStatusDto} from '@shipfox/api-integration-core-dto';
-import {Badge, type IconName} from '@shipfox/react-ui';
+import {Badge} from '@shipfox/react-ui/badge';
+import type {IconName} from '@shipfox/react-ui/icon';
 
 const lifecyclePills: Record<
   IntegrationConnectionLifecycleStatusDto,

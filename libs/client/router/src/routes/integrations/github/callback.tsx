@@ -1,6 +1,7 @@
 import {ApiError, apiRequest} from '@shipfox/client-api';
 import {useRefreshAuth} from '@shipfox/client-auth';
-import {FullPageLoader, toast} from '@shipfox/react-ui';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {toast} from '@shipfox/react-ui/toast';
 import {createFileRoute, useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect} from 'react';
 

@@ -1,5 +1,5 @@
 import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
-import type {BadgeVariant} from '@shipfox/react-ui';
+import type {BadgeVariant} from '@shipfox/react-ui/badge';
 
 export interface TriggerEventResult {
   label: string;

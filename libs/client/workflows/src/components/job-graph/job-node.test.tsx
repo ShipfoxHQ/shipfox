@@ -1,5 +1,5 @@
 import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
-import {TimeTickerProvider} from '@shipfox/react-ui';
+import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
 import {act, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {workflowJob, workflowJobExecutionDto} from '#test/fixtures/workflow-run.js';

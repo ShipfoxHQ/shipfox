@@ -1,20 +1,12 @@
 import {createWorkspaceBodySchema} from '@shipfox/api-workspaces-dto';
 import {displayNameFieldError} from '@shipfox/client-ui';
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  FormField,
-  FormFieldInput,
-  fieldError,
-  Icon,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@shipfox/react-ui/card';
+import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
+import {Icon} from '@shipfox/react-ui/icon';
+import {toast} from '@shipfox/react-ui/toast';
+import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';

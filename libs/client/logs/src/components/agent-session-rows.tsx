@@ -1,17 +1,15 @@
 'use client';
 
+import {Icon} from '@shipfox/react-ui/icon';
 import {
-  cn,
-  Icon,
   LogContent,
   LogDisclosure,
   LogDisclosureContent,
   LogDisclosureTrigger,
   LogRow,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/log';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {cn} from '@shipfox/react-ui/utils';
 import {Fragment, useState} from 'react';
 import type {AgentRowMeta, AgentSessionRow} from '#core/agent-session/selector.js';
 

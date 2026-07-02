@@ -45,7 +45,8 @@
               "@biomejs/biome": "Use @shipfox/biome instead",
               "typescript": "Use @shipfox/typescript instead",
               "vitest": "Use @shipfox/vitest instead",
-              "@shipfox/node-log": "Use @shipfox/node-opentelemetry logger instead"
+              "@shipfox/node-log": "Use @shipfox/node-opentelemetry logger instead",
+              "@shipfox/react-ui": "Import from a subpath like @shipfox/react-ui/button instead of the root barrel"
             },
             "patterns": [
               {

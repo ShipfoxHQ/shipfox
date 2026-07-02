@@ -3,17 +3,11 @@ import type {
   ModelProviderConfigDto,
   SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
-import {
-  Alert,
-  Button,
-  Code,
-  FormField,
-  FormFieldInput,
-  fieldError,
-  ModalBody,
-  ModalFooter,
-  Text,
-} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
+import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
 import {useUpsertModelProviderConfigMutation} from '#hooks/api/model-providers.js';

@@ -4,7 +4,7 @@ import type {
   WorkflowRunJobExecutionDetailDto,
   WorkflowRunStepDetailDto,
 } from '@shipfox/api-workflows-dto';
-import {Text} from '@shipfox/react-ui';
+import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import {type ReactNode, useState} from 'react';
 import {screen, userEvent, within} from 'storybook/test';

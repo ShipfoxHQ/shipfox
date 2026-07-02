@@ -1,5 +1,6 @@
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Button, Table, TableBody, TableHead, TableHeader, TableRow} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Table, TableBody, TableHead, TableHeader, TableRow} from '@shipfox/react-ui/table';
 import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
 import {EventsFilterBar} from './events-filter-bar.js';
 import {

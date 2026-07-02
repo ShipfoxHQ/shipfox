@@ -1,5 +1,6 @@
 import {QueryLoadError} from '@shipfox/client-ui';
-import {ShipfoxLoader, Text} from '@shipfox/react-ui';
+import {ShipfoxLoader} from '@shipfox/react-ui/loader';
+import {Text} from '@shipfox/react-ui/typography';
 import {useWebhookConnectionsQuery} from '#hooks/api/webhook-connections.js';
 import {CopyableValue} from './copyable-value.js';
 import {WebhookPublicEndpointAlert} from './webhook-public-endpoint-alert.js';

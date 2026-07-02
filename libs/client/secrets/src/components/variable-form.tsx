@@ -1,13 +1,13 @@
 import {isSensitiveSecretName} from '@shipfox/api-secrets-dto';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Alert,
-  Button,
   FormField,
   FormFieldInput,
   FormFieldTextarea,
   fieldError,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/form-field';
+import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useEffect, useRef, useState} from 'react';
 import {usePutVariableMutation, useVariableQuery} from '#hooks/api/variables.js';

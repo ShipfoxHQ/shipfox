@@ -6,8 +6,8 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  Icon,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/command';
+import {Icon} from '@shipfox/react-ui/icon';
 import {useNavigate} from '@tanstack/react-router';
 import {type KeyboardEvent, useEffect, useState} from 'react';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';

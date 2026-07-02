@@ -1,5 +1,10 @@
 import type {RepositoryDto} from '@shipfox/api-integration-core-dto';
-import {Button, Input, Label, RadioGroup, RadioGroupItem, Skeleton, Text} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Input} from '@shipfox/react-ui/input';
+import {Label} from '@shipfox/react-ui/label';
+import {RadioGroup, RadioGroupItem} from '@shipfox/react-ui/radio-group';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Text} from '@shipfox/react-ui/typography';
 import {useId} from 'react';
 
 export function RepositoryPicker({

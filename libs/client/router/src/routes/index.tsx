@@ -1,5 +1,5 @@
 import {getLastWorkspaceId} from '@shipfox/client-auth';
-import {FullPageLoader} from '@shipfox/react-ui';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {createFileRoute, redirect} from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({

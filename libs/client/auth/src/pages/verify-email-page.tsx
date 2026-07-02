@@ -1,4 +1,4 @@
-import {toast} from '@shipfox/react-ui';
+import {toast} from '@shipfox/react-ui/toast';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect} from 'react';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';

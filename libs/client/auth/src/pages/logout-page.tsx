@@ -1,4 +1,4 @@
-import {Text} from '@shipfox/react-ui';
+import {Text} from '@shipfox/react-ui/typography';
 import {useNavigate, useRouter, useSearch} from '@tanstack/react-router';
 import {useEffect} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';

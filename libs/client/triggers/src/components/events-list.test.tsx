@@ -1,5 +1,5 @@
 import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
-import {RelativeTimeProvider} from '@shipfox/react-ui';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {EventsList} from './events-list.js';
