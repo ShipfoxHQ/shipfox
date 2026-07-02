@@ -37,7 +37,9 @@ export function RepositoryPicker({
 
   return (
     <div className="flex flex-col gap-10">
-      <Label id={labelId}>Repository</Label>
+      <Label id={labelId} className="sr-only">
+        Repository
+      </Label>
 
       {showSearch ? (
         <Input
@@ -63,18 +65,22 @@ export function RepositoryPicker({
           aria-labelledby={labelId}
           value={selectedRepositoryId ?? ''}
           onValueChange={onSelect}
+          className="grid grid-cols-2 gap-8 min-[1200px]:grid-cols-3 max-[760px]:grid-cols-1"
         >
           {repositories.map((repository) => (
             <RadioGroupItem
               key={repository.external_repository_id}
               value={repository.external_repository_id}
+              className="p-12"
             >
-              <Text size="sm" bold>
-                {repository.full_name}
-              </Text>
-              <Text size="xs" className="text-foreground-neutral-muted">
-                {repository.external_repository_id} · {repository.default_branch}
-              </Text>
+              <span className="flex min-w-0 items-center justify-between gap-10">
+                <Text as="span" size="sm" bold className="truncate">
+                  {repository.full_name}
+                </Text>
+                <Text as="span" size="xs" className="shrink-0 text-foreground-neutral-muted">
+                  {repository.default_branch}
+                </Text>
+              </span>
             </RadioGroupItem>
           ))}
         </RadioGroup>

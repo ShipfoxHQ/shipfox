@@ -6,7 +6,7 @@ import {CreateProjectPage} from './create-project-page.js';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const SECOND_CONNECTION_ID = '66666666-6666-4666-8666-666666666666';
 const REPOSITORY_NOT_FOUND_RE = /Repository not found/;
-const DEBUG_RADIO_LABEL_RE = /^Debug debug · debug$/;
+const DEBUG_RADIO_LABEL_RE = /^Debug$/;
 
 describe('CreateProjectPage', () => {
   beforeEach(() => {
