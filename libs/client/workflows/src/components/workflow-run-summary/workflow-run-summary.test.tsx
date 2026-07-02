@@ -1,8 +1,7 @@
-import {screen, within} from '@testing-library/react';
+import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {workflowRunDetailDto} from '#test/fixtures/workflow-run.js';
 import {workflowJobDto, workflowRunDetail} from '#test/fixtures/workflow-run.js';
-import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
 const {useIsTextTruncatedMock} = vi.hoisted(() => ({
@@ -330,7 +329,6 @@ function renderSummary(
     ...overrides,
   });
 
-  renderProjectPage('/workspaces/ws-demo/projects/proj-demo/runs/run-demo', () => (
-    <WorkflowRunSummary run={run} {...props} />
-  ));
+  // These cases never mount the attempt switcher links, so no router is needed.
+  render(<WorkflowRunSummary run={run} {...props} />);
 }
