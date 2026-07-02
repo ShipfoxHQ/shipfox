@@ -11,6 +11,7 @@ import {
 } from 'react';
 import {Input} from '#components/input/index.js';
 import {Label} from '#components/label/index.js';
+import {Textarea} from '#components/textarea/index.js';
 import {Text} from '#components/typography/index.js';
 import {cn} from '#utils/cn.js';
 
@@ -97,6 +98,15 @@ export const FormFieldInput = forwardRef<HTMLInputElement, ComponentProps<typeof
 );
 
 FormFieldInput.displayName = 'FormFieldInput';
+
+export const FormFieldTextarea = forwardRef<HTMLTextAreaElement, ComponentProps<typeof Textarea>>(
+  (props, ref) => {
+    const wiring = useFormField();
+    return <Textarea ref={ref} {...props} {...wiring} />;
+  },
+);
+
+FormFieldTextarea.displayName = 'FormFieldTextarea';
 
 interface FieldLike {
   state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
