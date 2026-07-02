@@ -12,8 +12,8 @@ import {
   useParams,
 } from '@tanstack/react-router';
 import {type RenderResult, render} from '@testing-library/react';
-import {Provider as JotaiProvider, useSetAtom} from 'jotai';
-import {type ReactElement, useEffect} from 'react';
+import {createStore, Provider as JotaiProvider} from 'jotai';
+import type {ReactElement} from 'react';
 import {CreateProjectPage} from '#pages/create-project-page.js';
 import {ProjectWorkflowsPage} from '#pages/project-workflows-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
@@ -132,26 +132,17 @@ function createTestRouter(path: string, element: ReactElement) {
   });
 }
 
-function AuthSeed() {
-  const setAuth = useSetAtom(authStateAtom);
-
-  useEffect(() => {
-    setAuth(authState);
-  }, [setAuth]);
-
-  return null;
-}
-
 export function renderProjectPage(path: string, element: ReactElement): RenderResult {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const router = createTestRouter(path, element);
+  const store = createStore();
+  store.set(authStateAtom, authState);
 
   configureApiClient({baseUrl: 'https://api.example.test'});
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <JotaiProvider>
-        <AuthSeed />
+      <JotaiProvider store={store}>
         <RouterProvider router={router} />
         <Toaster />
       </JotaiProvider>
