@@ -3,10 +3,15 @@ import {
   UnsupportedAgentProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions';
+import {
+  DEFAULT_JOB_CHECKOUT,
+  normalizeWorkflowDocument,
+  type WorkflowModel,
+} from '@shipfox/api-definitions';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {workflowModel} from '#test/index.js';
 import {materializeWorkflowModel, modelHasAgentStep} from './materialize-workflow-model.js';
+import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type TestWorkflowExpression = NonNullable<
   NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['successIf']
@@ -39,6 +44,12 @@ function runContext(overrides: Record<string, unknown> = {}) {
     event: null,
     inputs: null,
   };
+}
+
+function creationContext(
+  values: Record<string, unknown> = runContext(),
+): WorkflowEvaluationContext {
+  return {phase: 'workflow-run-creation', values};
 }
 
 describe('materializeWorkflowModel', () => {
@@ -422,7 +433,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: runContext()});
+    const rows = materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: `echo "${shellRef('__sf_0')}" && echo "${shellRef('__sf_1')}"`,
@@ -452,7 +463,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: runContext()});
+    const rows = materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: 'echo ok',
@@ -484,7 +495,10 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: {...runContext(), event: {}}});
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext({...runContext(), event: {}}),
+    });
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: 'echo ok',
@@ -510,7 +524,11 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: runContext(), definitionId: 'def-1'});
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext(),
+      definitionId: 'def-1',
+    });
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: 'echo ok',
@@ -536,7 +554,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: runContext()});
+    const rows = materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: `echo "${shellRef('__sf_1')}"`,
@@ -566,7 +584,10 @@ describe('materializeWorkflowModel', () => {
 
     const rows = materializeWorkflowModel({
       model,
-      context: {...runContext({name: 'gpt-5.5-pro'}), trigger: {source: 'openai', event: 'fire'}},
+      context: creationContext({
+        ...runContext({name: 'gpt-5.5-pro'}),
+        trigger: {source: 'openai', event: 'fire'},
+      }),
       resolveAgentDefaults,
       definitionId: 'def-1',
     });
@@ -597,7 +618,7 @@ describe('materializeWorkflowModel', () => {
     });
 
     const materialize = () =>
-      materializeWorkflowModel({model, context: runContext(), definitionId: 'def-1'});
+      materializeWorkflowModel({model, context: creationContext(), definitionId: 'def-1'});
 
     expect(materialize).toThrow(InterpolationUnresolvableError);
   });
@@ -609,7 +630,8 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const materialize = () => materializeWorkflowModel({model, context: {}, definitionId: 'def-1'});
+    const materialize = () =>
+      materializeWorkflowModel({model, context: creationContext({}), definitionId: 'def-1'});
 
     expect(materialize).toThrow(InterpolationUnresolvableError);
   });
@@ -629,9 +651,66 @@ describe('materializeWorkflowModel', () => {
     });
 
     const materialize = () =>
-      materializeWorkflowModel({model, context: runContext(), definitionId: 'def-1'});
+      materializeWorkflowModel({model, context: creationContext(), definitionId: 'def-1'});
 
     expect(materialize).toThrow(InterpolationUnresolvableError);
+  });
+
+  it('skips listening job steps at workflow-run creation', () => {
+    const stepNameSource = `Review ${template('execution.index')}`;
+    const model = normalizeWorkflowDocument({
+      name: 'Listening workflow',
+      runner: 'ubuntu-latest',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            max_executions: 3,
+          },
+          steps: [{name: stepNameSource, prompt: 'Summarize the review.'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext(),
+      definitionId: 'def-1',
+    });
+
+    expect(rows[0]).toMatchObject({
+      key: 'review',
+      mode: 'listening',
+      steps: [],
+    });
+  });
+
+  it('materializes one-shot siblings while skipping listening steps', () => {
+    const model = normalizeWorkflowDocument({
+      name: 'Mixed workflow',
+      runner: 'ubuntu-latest',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            max_executions: 3,
+          },
+          steps: [{name: `Review ${template('execution.index')}`, prompt: 'Summarize it.'}],
+        },
+        build: {
+          steps: [{run: 'npm test'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: creationContext()});
+
+    const review = rows.find((job) => job.key === 'review');
+    const build = rows.find((job) => job.key === 'build');
+    expect(review?.steps).toEqual([]);
+    expect(build?.steps).toHaveLength(2);
+    expect(build?.steps[0]).toMatchObject({type: 'setup', name: 'Set up job', position: 0});
+    expect(build?.steps[1]).toMatchObject({type: 'run', config: {run: 'npm test'}, position: 1});
   });
 
   it('uses the supplied context for each materialization call', () => {
@@ -641,8 +720,14 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const first = materializeWorkflowModel({model, context: runContext({id: 'run-a'})});
-    const second = materializeWorkflowModel({model, context: runContext({id: 'run-b'})});
+    const first = materializeWorkflowModel({
+      model,
+      context: creationContext(runContext({id: 'run-a'})),
+    });
+    const second = materializeWorkflowModel({
+      model,
+      context: creationContext(runContext({id: 'run-b'})),
+    });
 
     expect(first[0]?.steps[1]?.config).toMatchObject({env: {__sf_0: 'run-a'}});
     expect(second[0]?.steps[1]?.config).toMatchObject({env: {__sf_0: 'run-b'}});

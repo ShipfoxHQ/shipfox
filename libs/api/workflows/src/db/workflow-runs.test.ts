@@ -283,6 +283,7 @@ describe('workflow run queries', () => {
 
     test('persists listening job config without initial execution or steps', async () => {
       const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
+      const stepNameSource = ['Review $', '{{ execution.index }}'].join('');
       const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
       const model = normalizeWorkflowDocument({
         name: 'Listening workflow',
@@ -298,7 +299,7 @@ describe('workflow run queries', () => {
               batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
               on_resolve: 'cancel',
             },
-            steps: [{prompt: promptSource}],
+            steps: [{name: stepNameSource, prompt: promptSource}],
           },
           build: {
             steps: [{run: 'echo build'}],
@@ -346,7 +347,9 @@ describe('workflow run queries', () => {
       const buildExecutions = await getJobExecutionsByJobId(build?.id as string);
       const buildSteps = await getStepsByJobId(build?.id as string);
       expect(buildExecutions).toHaveLength(1);
-      expect(buildSteps.filter((step) => step.type !== 'setup')).toHaveLength(1);
+      expect(buildSteps).toHaveLength(2);
+      expect(buildSteps[0]).toMatchObject({type: 'setup', name: 'Set up job', position: 0});
+      expect(buildSteps[1]).toMatchObject({type: 'run', config: {run: 'echo build'}, position: 1});
     });
 
     test('persists the listening workflow model on the run attempt', async () => {
