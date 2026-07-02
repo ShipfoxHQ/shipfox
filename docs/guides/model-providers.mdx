@@ -1,0 +1,59 @@
+---
+title: "Add and Configure AI Model Providers in Shipfox Workflows"
+sidebarTitle: "Model Providers"
+description: "Add API keys for Anthropic, OpenAI, DeepSeek, and 30+ other providers in Shipfox. Set a default provider and reference models by ID in your workflow YAML."
+---
+
+Shipfox agent steps can use any of 31 supported AI model providers. You configure providers once in your workspace settings by adding an API key. Once configured, your workflow YAML can reference any model by its ID and optionally specify the `provider` field — or omit both to fall back to your workspace default.
+
+## Supported providers
+
+Shipfox supports 30+ providers — Anthropic, OpenAI, Azure OpenAI, DeepSeek, Google,
+xAI, Mistral, Groq, OpenRouter, and many more. Each has a `provider` ID and a default
+model used when a step doesn't name one.
+
+See the Model Providers reference for the complete
+table of every provider, its ID, and its default model.
+
+## Configure a provider
+
+1. In the Shipfox dashboard, navigate to **Settings → Agent providers**.
+2. Find the provider you want to use and click **Configure**.
+3. Enter the API key. Azure OpenAI also requires an **Endpoint** URL — paste your Azure deployment endpoint into the additional field.
+4. Click **Save**.
+5. Optionally, click **Set as default** to make this the default provider for agent steps that do not specify a `provider`.
+
+Once saved, any workflow in your workspace can reference that provider immediately — no redeployment required.
+
+## Using a provider in your workflow
+
+If one provider is configured and set as default, you can omit both `provider` and `model` to use the workspace defaults. Otherwise, specify both to be explicit:
+
+```yaml
+steps:
+  - prompt: Review the code for security issues.
+    # Uses workspace default provider + model
+
+  - model: gpt-5.5-pro
+    provider: openai
+    prompt: Rewrite this function to be more readable.
+
+  - model: deepseek-v4-pro
+    provider: deepseek
+    prompt: Optimize this algorithm for performance.
+```
+
+The `model` ID must match an ID recognized by the specified provider. Refer to the provider's own documentation for a full list of available model IDs — Shipfox passes the `model` string directly to the provider's API.
+
+## Unsupported providers
+
+<Note>
+  Amazon Bedrock, Google Vertex AI, OpenAI Codex, and GitHub Copilot appear in
+  the provider list but are not yet supported. They require cloud IAM
+  credentials or OAuth flows that are not available via API key configuration.
+  Support for these providers is planned for a future release.
+</Note>
+
+## Next steps
+
+- [Agent Steps](/guides/agent-steps) — use configured providers in workflow YAML with `model` and `provider`.

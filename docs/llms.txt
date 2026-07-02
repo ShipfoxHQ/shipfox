@@ -20,3 +20,9 @@
 - [Custom webhook](/integrations/webhooks): Point any system at a webhook connection URL to trigger workflows on the webhook.received event.
 - [Linear](/integrations/linear): Coming soon — trigger workflows from Linear issue events.
 - [Slack](/integrations/slack): Coming soon — trigger workflows from Slack events and report results back to channels.
+- [Agent Steps](/guides/agent-steps): Run AI models inline with agent steps — set model, thinking, and provider, or mix agent and shell steps in one job.
+- [Gate & Retry](/guides/gate-and-retry): Use gate blocks with CEL to evaluate step success and retry from an earlier keyed step on failure.
+- [Triage Sentry Issues](/guides/triage-sentry-issues): Fire a workflow on a new Sentry issue and hand it to an agent that investigates the repo and reports the cause.
+- [Checks on Push](/guides/checks-on-push): Run tests, lint, and an AI review automatically on every push to a GitHub repository.
+- [Multi-Job Pipeline](/guides/multi-job-pipeline): Sequence or parallelize jobs with needs; each job re-clones the repo (no shared filesystem) — fan-out/fan-in patterns.
+- [Model Providers](/guides/model-providers): Add API keys for Anthropic, OpenAI, DeepSeek, and 30+ providers; set a default and reference models by ID.
