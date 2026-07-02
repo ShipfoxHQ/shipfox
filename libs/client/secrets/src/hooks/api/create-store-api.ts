@@ -92,8 +92,10 @@ export function createStoreApi<
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: put,
-      onSuccess: async (_result, variables) => {
-        await queryClient.invalidateQueries({queryKey: queryKeys.list(variables.workspaceId)});
+      // Invalidate the whole resource namespace so the per-item detail cache
+      // (full variable values) is refreshed too, not just the list.
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({queryKey: queryKeys.all});
       },
     });
   }
@@ -102,8 +104,8 @@ export function createStoreApi<
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: remove,
-      onSuccess: async (_result, variables) => {
-        await queryClient.invalidateQueries({queryKey: queryKeys.list(variables.workspaceId)});
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({queryKey: queryKeys.all});
       },
     });
   }

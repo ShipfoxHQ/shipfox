@@ -1,15 +1,26 @@
 import type {SecretDto} from '@shipfox/api-secrets-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui';
-import type {Meta, StoryObj} from '@storybook/react';
+import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {useMemo} from 'react';
+import {useEffect, useMemo} from 'react';
 import {within} from 'storybook/test';
 import {WorkspaceSecretsSection} from './workspace-secrets-section.js';
 
-// Freeze the clock so RelativeTime renders a stable string in argos snapshots.
+// Freeze the clock only while a story is mounted so RelativeTime renders a stable
+// string in argos snapshots, without leaking the override to other stories.
 const FROZEN_NOW = Date.parse('2026-07-02T00:00:00.000Z');
-Date.now = () => FROZEN_NOW;
+const realDateNow = Date.now;
+const withFrozenClock: Decorator = (Story) => {
+  Date.now = () => FROZEN_NOW;
+  useEffect(
+    () => () => {
+      Date.now = realDateNow;
+    },
+    [],
+  );
+  return <Story />;
+};
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const EDITOR_ID = '22222222-2222-4222-8222-222222222222';
@@ -82,6 +93,7 @@ function SectionStory({scenario}: {scenario: Scenario}) {
 const meta: Meta<typeof SectionStory> = {
   title: 'Secrets/WorkspaceSecretsSection',
   component: SectionStory,
+  decorators: [withFrozenClock],
 };
 export default meta;
 

@@ -21,7 +21,7 @@ describe('copyKeyName', () => {
     await copyKeyName('MY_TOKEN');
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith('MY_TOKEN');
-    expect(toast.success).toHaveBeenCalledOnce();
+    expect(toast.success).toHaveBeenCalledExactlyOnceWith('Copied MY_TOKEN');
     expect(toast.error).not.toHaveBeenCalled();
   });
 

@@ -73,6 +73,10 @@ export function VariableForm({
     }
   }, [needsFullValue, fullValueQuery.data, form]);
 
+  // The full value must be loaded before a save is allowed, otherwise submitting would
+  // overwrite the stored value with the truncated preview. Block until it arrives —
+  // whether the fetch is still pending or has failed.
+  const awaitingFullValue = needsFullValue && fullValueQuery.data === undefined;
   const loadingFullValue = needsFullValue && fullValueQuery.isPending;
 
   return (
@@ -139,7 +143,7 @@ export function VariableForm({
                   autoComplete="off"
                   spellCheck={false}
                   rows={3}
-                  disabled={loadingFullValue}
+                  disabled={awaitingFullValue}
                   placeholder="debug"
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
@@ -149,7 +153,7 @@ export function VariableForm({
             )}
           </form.Field>
         </form>
-        {needsFullValue && fullValueQuery.isError ? (
+        {awaitingFullValue && fullValueQuery.isError ? (
           <Alert variant="error" animated={false}>
             <Text size="sm">Could not load the current value. Close and try again.</Text>
           </Alert>
@@ -168,7 +172,7 @@ export function VariableForm({
           type="submit"
           form={VARIABLE_FORM_ID}
           isLoading={putVariable.isPending}
-          disabled={loadingFullValue}
+          disabled={awaitingFullValue}
         >
           {mode === 'edit' ? 'Update variable' : 'Add variable'}
         </Button>
