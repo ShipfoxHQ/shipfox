@@ -186,17 +186,19 @@ export function CreateProjectPage() {
 
       {connectionsQuery.isError ? (
         <Alert variant="error">
-          <Text size="sm">
-            Could not load source integrations. Refresh the integrations list to continue.
-          </Text>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => connectionsQuery.refetch()}
-            className="mt-8 w-fit"
-          >
-            Refresh integrations
-          </Button>
+          <div className="flex w-full flex-wrap items-center justify-between gap-12">
+            <Text size="sm" className="min-w-[240px] flex-1">
+              Could not load source integrations. Refresh the integrations list to continue.
+            </Text>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => connectionsQuery.refetch()}
+              className="shrink-0"
+            >
+              Refresh integrations
+            </Button>
+          </div>
         </Alert>
       ) : null}
 
