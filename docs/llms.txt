@@ -6,3 +6,6 @@
 
 - [Introduction](/introduction): What Shipfox is, how it works, and what you can build with agentic workflows.
 - [Quick Start](/getting-started): Connect a project, add a workflow YAML, register a runner, and fire your first run.
+- [AI Overview](/ai/overview): How Shipfox supports coding agents — AI-ingestible docs, every page available as Markdown for agents to browse and cite.
+- [Authoring Prompt](/ai/authoring-prompt): A compact workflow-schema cheat sheet to paste into any coding agent for valid workflow YAML.
+- [Skills Package](/ai/skills-package): Install the Shipfox skills package to give Claude Code, Cursor, Codex, and 18+ agents the full schema, rules, and examples.
