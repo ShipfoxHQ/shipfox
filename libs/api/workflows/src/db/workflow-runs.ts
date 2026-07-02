@@ -161,8 +161,9 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       .returning();
     if (!attemptRow) throw new Error('Insert returned no rows');
 
-    // Resolving templates here gives interpolation access to the inserted run id.
+    // Resolving one-shot templates here gives interpolation access to the inserted run id.
     // If resolution fails, the transaction rolls back the run, jobs, steps, and outbox event together.
+    // Listening steps are resolved later when a job execution is created.
     const context = assembleCreationContext({
       run,
       triggerPayload: params.triggerPayload,
@@ -170,8 +171,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     });
     const materializedJobs = materializeWorkflowModel({
       model: params.model,
-      context: context.values,
-      phase: context.phase,
+      context,
       resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
       definitionId: params.definitionId,
     });
