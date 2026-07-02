@@ -435,6 +435,34 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/helpers/integrations-gitea:
+    dependencies:
+      '@shipfox/api-integration-gitea-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/gitea-dto
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../../libs/shared/common/config
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/helpers/runners:
     dependencies:
       '@shipfox/api-runners':
