@@ -1899,8 +1899,13 @@ jobs:
       });
 
       const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
+      const resolvedJob = (await getJobsByWorkflowRunId(run.id))[0];
 
       expect(resolved.status).toBe('failed');
+      expect(resolvedJob).toMatchObject({
+        status: 'failed',
+        statusReason: 'unknown',
+      });
     });
   });
 

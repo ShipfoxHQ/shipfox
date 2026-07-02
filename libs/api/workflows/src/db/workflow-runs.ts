@@ -1746,21 +1746,24 @@ export async function resolveJobStatusFromJobExecutions(params: {
       check: {mode: 'syntax'},
     });
     const context = assembleExecutionsContext(jobExecutionRows.map(toJobExecution));
-    // Fail-closed: a success predicate that throws at runtime (e.g. timestamp math on a
-    // null finished_at) resolves the job to failed rather than aborting resolution. Mirrors
-    // the gate's fail-closed handling of evaluation errors.
+    // Fail closed so a runtime-only predicate error cannot abort job resolution.
     let passed: boolean;
+    let predicateEvaluationFailed = false;
     try {
       passed = evaluateWorkflowPredicate(expression, context);
     } catch (error) {
       if (!(error instanceof WorkflowExpressionEvaluationError)) throw error;
       passed = false;
+      predicateEvaluationFailed = true;
     }
     const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
+    // A thrown predicate is a job-level failure, not evidence that any execution failed.
     const statusReason =
       status === 'failed'
-        ? (jobExecutionRows.find((jobExecution) => jobExecution.statusReason)?.statusReason ??
-          'step_failed')
+        ? predicateEvaluationFailed
+          ? 'unknown'
+          : (jobExecutionRows.find((jobExecution) => jobExecution.statusReason)?.statusReason ??
+            'step_failed')
         : null;
 
     const updated = await updateJobStatusAtVersion(tx, {
