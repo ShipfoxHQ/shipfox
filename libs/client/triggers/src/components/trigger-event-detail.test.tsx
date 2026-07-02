@@ -1,39 +1,10 @@
 import type {TriggerEventDetailResponseDto} from '@shipfox/api-triggers-dto';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
-import {render, screen} from '@testing-library/react';
+import {fireEvent, render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type {AnchorHTMLAttributes, ReactElement, ReactNode} from 'react';
+import type {ReactElement} from 'react';
 import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';
 import {TriggerEventDetail, TriggerEventDetailView} from './trigger-event-detail.js';
-
-vi.mock('#hooks/api/trigger-events.js', () => ({
-  useTriggerEventQuery: vi.fn(),
-}));
-
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    to,
-    params,
-    search: _search,
-    children,
-    ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
-    to: string;
-    params?: Record<string, string> | undefined;
-    search?: unknown;
-    children: ReactNode;
-  }) => {
-    const href = Object.entries(params ?? {}).reduce(
-      (path, [key, value]) => path.replace(`$${key}`, value),
-      to,
-    );
-    return (
-      <a href={href} {...props}>
-        {children}
-      </a>
-    );
-  },
-}));
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
@@ -94,10 +65,10 @@ function renderDetailView(event: TriggerEventDetailResponseDto, onBack = vi.fn()
 }
 
 describe('TriggerEventDetailView', () => {
-  test('renders the result badge, run links, and payload', () => {
+  test('renders the result badge, run links, and payload', async () => {
     renderDetailView(makeEvent());
 
-    expect(screen.getByText('Triggered 1 workflow')).toBeInTheDocument();
+    expect(await screen.findByText('Triggered 1 workflow')).toBeInTheDocument();
     expect(screen.getByText('Deploy production')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: DEPLOY_RUN_LINK_NAME})).toHaveAttribute(
       'href',
@@ -106,15 +77,15 @@ describe('TriggerEventDetailView', () => {
     expect(screen.getByText(PAYLOAD_REF_LINE)).toBeInTheDocument();
   });
 
-  test('renders a no-subscriptions note for a discarded event', () => {
+  test('renders a no-subscriptions note for a discarded event', async () => {
     renderDetailView(makeEvent({outcome: 'discarded', matched_count: 0, decisions: []}));
 
-    expect(screen.getByText('No workflows triggered')).toBeInTheDocument();
+    expect(await screen.findByText('No workflows triggered')).toBeInTheDocument();
     expect(screen.getByText('No workflows are subscribed to this event.')).toBeInTheDocument();
     expect(screen.queryByText('Matched workflows')).not.toBeInTheDocument();
   });
 
-  test('renders errored decisions inline with their reason', () => {
+  test('renders errored decisions inline with their reason', async () => {
     renderDetailView(
       makeEvent({
         outcome: 'errored',
@@ -136,12 +107,12 @@ describe('TriggerEventDetailView', () => {
       }),
     );
 
-    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(await screen.findByText('Failed')).toBeInTheDocument();
     expect(screen.getByText('Deploy production')).toBeInTheDocument();
     expect(screen.getByText('workflow definition deleted')).toBeInTheDocument();
   });
 
-  test('renders null run fields without a run link', () => {
+  test('renders null run fields without a run link', async () => {
     renderDetailView(
       makeEvent({
         decisions: [
@@ -162,7 +133,7 @@ describe('TriggerEventDetailView', () => {
       }),
     );
 
-    expect(screen.getByText('No run created')).toBeInTheDocument();
+    expect(await screen.findByText('No run created')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
@@ -170,7 +141,7 @@ describe('TriggerEventDetailView', () => {
     const onBack = vi.fn();
     renderDetailView(makeEvent(), onBack);
 
-    await userEvent.click(screen.getByRole('button', {name: 'Back to events'}));
+    await userEvent.click(await screen.findByRole('button', {name: 'Back to events'}));
 
     expect(onBack).toHaveBeenCalledTimes(1);
   });
@@ -181,7 +152,7 @@ describe('TriggerEventDetail', () => {
     useTriggerEventQueryMock.mockReset();
   });
 
-  test('renders a loading panel while the detail query is pending', () => {
+  test('renders a loading panel while the detail query is pending', async () => {
     useTriggerEventQueryMock.mockReturnValue({
       data: undefined,
       isError: false,
@@ -192,7 +163,7 @@ describe('TriggerEventDetail', () => {
       <TriggerEventDetail workspaceId={WORKSPACE_ID} eventId={EVENT_ID} onBack={vi.fn()} />,
     );
 
-    expect(screen.getByRole('button', {name: 'Back to events'})).toBeInTheDocument();
+    expect(await screen.findByRole('button', {name: 'Back to events'})).toBeInTheDocument();
   });
 
   test('renders a retry action when the detail query fails', async () => {
@@ -207,7 +178,7 @@ describe('TriggerEventDetail', () => {
       <TriggerEventDetail workspaceId={WORKSPACE_ID} eventId={EVENT_ID} onBack={vi.fn()} />,
     );
 
-    await userEvent.click(screen.getByRole('button', {name: 'Retry'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Retry'}));
 
     expect(screen.getByText('Event detail could not be loaded.')).toBeInTheDocument();
     expect(refetch).toHaveBeenCalledTimes(1);

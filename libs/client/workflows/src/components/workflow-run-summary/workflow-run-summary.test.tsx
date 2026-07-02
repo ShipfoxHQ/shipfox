@@ -1,38 +1,32 @@
-import {render, screen, within} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {workflowRunDetailDto} from '#test/fixtures/workflow-run.js';
 import {workflowJobDto, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
-
-const {useIsTextTruncatedMock} = vi.hoisted(() => ({
-  useIsTextTruncatedMock: vi.fn(),
-}));
 
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const RELATIVE_TIME_TEXT_PATTERN = /ago$/;
 const OLD_ROOT_TIME_TEXT_PATTERN = /(?:1d|24h) ago/;
 const COPY_RUN_BUTTON_NAME = /Copy run/;
 
-vi.mock('@shipfox/react-ui/hooks', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/react-ui/hooks')>();
-  return {
-    ...actual,
-    useIsTextTruncated: useIsTextTruncatedMock,
-  };
-});
+const originalScrollWidth = Object.getOwnPropertyDescriptor(
+  window.HTMLElement.prototype,
+  'scrollWidth',
+);
+const originalClientWidth = Object.getOwnPropertyDescriptor(
+  window.HTMLElement.prototype,
+  'clientWidth',
+);
 
 beforeEach(() => {
-  useIsTextTruncatedMock.mockReset();
-  useIsTextTruncatedMock.mockReturnValue({
-    ref: () => undefined,
-    isTruncated: false,
-  });
+  setElementWidths({scrollWidth: 80, clientWidth: 120});
 });
 
 describe('WorkflowRunSummary', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    restoreElementWidthDescriptors();
   });
 
   test('renders status, trigger metadata, and trigger time', async () => {
@@ -89,10 +83,6 @@ describe('WorkflowRunSummary', () => {
 
   test('does not show a run name tooltip when the heading is not truncated', async () => {
     const user = userEvent.setup();
-    useIsTextTruncatedMock.mockReturnValue({
-      ref: () => undefined,
-      isTruncated: false,
-    });
     renderSummary();
 
     await user.hover(await screen.findByRole('heading', {name: 'deploy-web'}));
@@ -100,18 +90,17 @@ describe('WorkflowRunSummary', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
-  test('shows the full run name in a tooltip when the heading is truncated', async () => {
-    const user = userEvent.setup();
+  test('wires the full run name tooltip when the heading is truncated', async () => {
     const runName = 'release-production-multi-region-with-canary-and-smoke-tests';
-    useIsTextTruncatedMock.mockReturnValue({
-      ref: () => undefined,
-      isTruncated: true,
-    });
+    setElementWidths({scrollWidth: 160, clientWidth: 80});
     renderSummary({name: runName});
 
-    await user.hover(await screen.findByRole('heading', {name: runName}));
+    const heading = await screen.findByRole('heading', {name: runName});
 
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(runName);
+    expect(heading).toHaveAttribute('data-slot', 'tooltip-trigger');
+    await waitFor(() =>
+      expect(within(heading).getByText(runName)).toHaveAttribute('title', runName),
+    );
   });
 
   test('renders source control only when source is available', async () => {
@@ -331,4 +320,35 @@ function renderSummary(
 
   // These cases never mount the attempt switcher links, so no router is needed.
   render(<WorkflowRunSummary run={run} {...props} />);
+}
+
+function setElementWidths({scrollWidth, clientWidth}: {scrollWidth: number; clientWidth: number}) {
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollWidth', {
+    configurable: true,
+    get() {
+      return scrollWidth;
+    },
+  });
+  Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get() {
+      return clientWidth;
+    },
+  });
+}
+
+function restoreElementWidthDescriptors() {
+  restoreElementWidthDescriptor('scrollWidth', originalScrollWidth);
+  restoreElementWidthDescriptor('clientWidth', originalClientWidth);
+}
+
+function restoreElementWidthDescriptor(
+  property: 'scrollWidth' | 'clientWidth',
+  descriptor: PropertyDescriptor | undefined,
+) {
+  if (descriptor) {
+    Object.defineProperty(window.HTMLElement.prototype, property, descriptor);
+    return;
+  }
+  delete window.HTMLElement.prototype[property];
 }

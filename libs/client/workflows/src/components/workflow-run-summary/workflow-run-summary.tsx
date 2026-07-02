@@ -90,7 +90,11 @@ export function WorkflowRunSummary({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Header id={headingId} variant="h3" className="min-w-0 truncate">
-                  <span ref={headingTextRef} className="block min-w-0 truncate">
+                  <span
+                    ref={headingTextRef}
+                    title={isHeadingTruncated ? run.name : undefined}
+                    className="block min-w-0 truncate"
+                  >
                     {run.name}
                   </span>
                 </Header>
