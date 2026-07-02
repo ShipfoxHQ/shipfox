@@ -26,3 +26,6 @@
 - [Checks on Push](/guides/checks-on-push): Run tests, lint, and an AI review automatically on every push to a GitHub repository.
 - [Multi-Job Pipeline](/guides/multi-job-pipeline): Sequence or parallelize jobs with needs; each job re-clones the repo (no shared filesystem) — fan-out/fan-in patterns.
 - [Model Providers](/guides/model-providers): Add API keys for Anthropic, OpenAI, DeepSeek, and 30+ providers; set a default and reference models by ID.
+- [AI Overview](/ai/overview): How Shipfox supports coding agents — AI-ingestible docs, every page available as Markdown for agents to browse and cite.
+- [Authoring Prompt](/ai/authoring-prompt): A compact workflow-schema cheat sheet to paste into any coding agent for valid workflow YAML.
+- [Skills Package](/ai/skills-package): Install the Shipfox skills package to give Claude Code, Cursor, Codex, and 18+ agents the full schema, rules, and examples.

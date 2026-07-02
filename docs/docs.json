@@ -55,6 +55,10 @@
               "guides/multi-job-pipeline",
               "guides/model-providers"
             ]
+          },
+          {
+            "group": "AI Assistance",
+            "pages": ["ai/overview", "ai/authoring-prompt", "ai/skills-package"]
           }
         ]
       }
