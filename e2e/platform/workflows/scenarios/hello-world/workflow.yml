@@ -1,0 +1,12 @@
+name: Hello world
+runner: e2e
+triggers:
+  on_push:
+    source: gitea
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
+jobs:
+  build:
+    steps:
+      - key: greet
+        run: echo "hello world"

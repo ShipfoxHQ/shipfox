@@ -1,0 +1,12 @@
+trigger: push
+run:
+  status: failed
+jobs:
+  build:
+    status: failed
+    steps:
+      boom:
+        status: failed
+        exit_code: 1
+        logs:
+          include: ["about to fail"]

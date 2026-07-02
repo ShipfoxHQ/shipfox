@@ -1,0 +1,52 @@
+{
+  "name": "@shipfox/e2e-platform-workflows",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/platform/workflows"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*",
+    "#config.js": "./src/config.ts",
+    "#create-project.js": "./src/create-project.ts",
+    "#expect.js": "./src/expect.ts",
+    "#run-scenario.js": "./src/run-scenario.ts",
+    "#scenarios.js": "./src/scenarios.ts",
+    "#suite-context.js": "./src/suite-context.ts",
+    "#templates.js": "./src/templates.ts"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/api-logs-dto": "workspace:*",
+    "@shipfox/api-projects-dto": "workspace:*",
+    "@shipfox/api-triggers-dto": "workspace:*",
+    "@shipfox/api-workflows-dto": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/config": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-helper-auth": "workspace:*",
+    "@shipfox/e2e-helper-definitions": "workspace:*",
+    "@shipfox/e2e-helper-integrations-gitea": "workspace:*",
+    "@shipfox/e2e-helper-logs": "workspace:*",
+    "@shipfox/e2e-helper-runners": "workspace:*",
+    "@shipfox/e2e-helper-workflows": "workspace:*",
+    "@shipfox/e2e-helper-workspaces": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
+    "js-yaml": "^4.1.0",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "@shipfox/ts-config/node",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "playwright.config.ts",
+    "vitest.config.ts",
+    "src",
+    "tests",
+    "node_modules/@shipfox/vitest/globals.d.ts"
+  ]
+}

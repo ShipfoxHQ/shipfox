@@ -695,6 +695,72 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/platform/workflows:
+    devDependencies:
+      '@shipfox/api-logs-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/logs-dto
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/projects-dto
+      '@shipfox/api-triggers-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/triggers-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/workflows-dto
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../../libs/shared/common/config
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+      '@shipfox/e2e-helper-auth':
+        specifier: workspace:*
+        version: link:../../helpers/auth
+      '@shipfox/e2e-helper-definitions':
+        specifier: workspace:*
+        version: link:../../helpers/definitions
+      '@shipfox/e2e-helper-integrations-gitea':
+        specifier: workspace:*
+        version: link:../../helpers/integrations-gitea
+      '@shipfox/e2e-helper-logs':
+        specifier: workspace:*
+        version: link:../../helpers/logs
+      '@shipfox/e2e-helper-runners':
+        specifier: workspace:*
+        version: link:../../helpers/runners
+      '@shipfox/e2e-helper-workflows':
+        specifier: workspace:*
+        version: link:../../helpers/workflows
+      '@shipfox/e2e-helper-workspaces':
+        specifier: workspace:*
+        version: link:../../helpers/workspaces
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.2.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   libs/api/agent:
     dependencies:
       '@earendil-works/pi-ai':

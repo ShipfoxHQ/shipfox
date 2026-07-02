@@ -1,0 +1,73 @@
+import {join} from 'node:path';
+import {preflightCheck} from '@shipfox/e2e-core';
+import {createSession, createUser} from '@shipfox/e2e-helper-auth';
+import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-helper-integrations-gitea';
+import {mintProvisionerToken, startProvisioner, stopProvisioner} from '@shipfox/e2e-helper-runners';
+import {createWorkspace} from '@shipfox/e2e-helper-workspaces';
+import {config, runnerApiUrl} from '#config.js';
+import {
+  resetSuiteRunDir,
+  setProvisionerHandle,
+  suiteRunDir,
+  writeSuiteContext,
+} from '#suite-context.js';
+import {renderTemplatesFile} from '#templates.js';
+
+/**
+ * Arranges the whole suite once over HTTP: user, session, workspace, a fresh gitea org
+ * connected to the workspace, a provisioner token, and the docker provisioner as a
+ * child process. On any failure it unwinds what it created, since Playwright skips
+ * global teardown when setup throws.
+ */
+export default async function globalSetup(): Promise<void> {
+  await preflightCheck({requireClient: false});
+  resetSuiteRunDir();
+  const dir = suiteRunDir();
+  const runId = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+
+  const cleanups: Array<() => Promise<void>> = [];
+  try {
+    const user = await createUser();
+    const session = await createSession({user_id: user.user.id});
+    const workspace = await createWorkspace({userId: user.user.id, userEmail: user.email});
+
+    const org = await createConnectedOrg({
+      workspaceId: workspace.id,
+      sessionToken: session.token,
+    });
+    cleanups.push(() => deleteOrg({org: org.org}).catch(() => undefined));
+
+    const token = await mintProvisionerToken({
+      workspaceId: workspace.id,
+      userToken: session.token,
+    });
+
+    const handle = await startProvisioner({
+      workspaceId: workspace.id,
+      userToken: session.token,
+      provisionerToken: token.raw_token,
+      templatesFile: renderTemplatesFile(join(dir, 'templates.e2e.resolved.yaml')),
+      logFile: join(dir, 'provisioner.log'),
+      runnerApiUrl: runnerApiUrl(),
+      dockerNetwork: config.E2E_DOCKER_NETWORK,
+      dockerExtraHosts: 'host.docker.internal:host-gateway',
+      tokenPrefix: token.prefix,
+    });
+    setProvisionerHandle(handle);
+    cleanups.push(() => stopProvisioner(handle));
+
+    writeSuiteContext({
+      runId,
+      workspaceId: workspace.id,
+      sessionToken: session.token,
+      org: org.org,
+      connectionId: org.connection.id,
+      provisionerLogFile: handle.logFile,
+    });
+  } catch (error) {
+    for (const cleanup of cleanups.reverse()) {
+      await cleanup().catch(() => undefined);
+    }
+    throw error;
+  }
+}

@@ -1,4 +1,11 @@
 export {
+  LOG_STREAM_CLOSED,
+  type LogStreamClosedEvent,
+  type LogsEventMap,
+  logStreamClosedEventSchema,
+  logsEventSchemas,
+} from './events.js';
+export {
   type AppendableLogRecord,
   type AppendLogsQueryDto,
   type AppendLogsResponseDto,
@@ -17,11 +24,4 @@ export {
   type ReadLogsResponseDto,
   readLogsQuerySchema,
   readLogsResponseSchema,
-} from '#schemas/index.js';
-export {
-  LOG_STREAM_CLOSED,
-  type LogStreamClosedEvent,
-  type LogsEventMap,
-  logStreamClosedEventSchema,
-  logsEventSchemas,
-} from './events.js';
+} from './schemas/index.js';
