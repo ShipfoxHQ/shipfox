@@ -1840,9 +1840,8 @@ jobs:
         model: buildModel({
           jobs: {
             build: {
-              // `e.name` is only reachable now that job success evaluates over the full
-              // assembled executions context, not the old `{index, status}` reduction.
-              success: 'executions.all(e, e.status == "succeeded" && e.name == e.name)',
+              name: 'Build',
+              success: 'executions.all(e, e.status == "succeeded" && e.name == "Build")',
               steps: [{run: 'npm test'}],
             },
           },
@@ -1877,8 +1876,6 @@ jobs:
         model: buildModel({
           jobs: {
             build: {
-              // Type-checks at authoring (int / int == int) but throws at runtime; stands in
-              // for any runtime eval error (e.g. timestamp math on a null finished_at).
               success: 'executions.all(e, 1 / 0 == 0)',
               steps: [{run: 'npm test'}],
             },

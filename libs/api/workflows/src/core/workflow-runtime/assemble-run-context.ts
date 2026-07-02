@@ -42,10 +42,10 @@ export function assembleCreationContext(
   };
 }
 
-// Assemble the `executions` root for job-resolution predicates (job `success`).
-// Mirrors the registry `executions` type environment field-for-field: `index` is the
-// position in the resolution-ordered list, and `events` passes the execution's trigger
-// events through unchanged (they already share the executionEvent shape).
+/**
+ * Keeps job-success predicate values aligned with the registry's `executions`
+ * type environment.
+ */
 export function assembleExecutionsContext(
   executions: readonly JobExecution[],
 ): WorkflowExpressionEvaluationContext {

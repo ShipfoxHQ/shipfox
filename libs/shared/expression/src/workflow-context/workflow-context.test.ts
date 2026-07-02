@@ -395,10 +395,7 @@ describe('workflow context registry', () => {
     expect(gateExpression.check).toBe('typed');
   });
 
-  it('allows dynamic access into untrusted event data on the executions root', () => {
-    // Deep event-data access type-checks as `dyn` because the executions -> events
-    // list-of-objects collapses to `list<dyn>`. Job success relies on this; guard it
-    // against a future converter change.
+  it('keeps executions event data dynamic after type conversion', () => {
     const eventDataExpression = createWorkflowExpression({
       source: 'executions.all(e, e.events.all(ev, ev.data.ok == true))',
       check: {
