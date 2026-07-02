@@ -16,7 +16,7 @@ triggers:
 jobs:
   fix:
     steps:
-      - name: install
+      - key: install
         run: npm ci
       - model: claude-opus-4-8
         prompt: >

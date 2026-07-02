@@ -28,7 +28,7 @@ Three things set Shipfox apart, and they compound:
 jobs:
   fix:
     steps:
-      - name: edit
+      - key: edit
         model: claude-opus-4-8
         prompt: Fix the failing unit tests in this repository.
       - run: npm test
