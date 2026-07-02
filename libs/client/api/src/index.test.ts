@@ -1,4 +1,11 @@
-import {ApiError, apiRequest, configureApiClient, getErrorCode, isErrorWithCode} from './index.js';
+import {
+  ApiError,
+  apiRequest,
+  configureApiClient,
+  getErrorCode,
+  isErrorWithCode,
+  resetApiClient,
+} from './index.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -126,5 +133,27 @@ describe('apiRequest', () => {
 
     expect(code).toBe('nope');
     expect(matches).toBe(true);
+  });
+});
+
+describe('resetApiClient', () => {
+  test('drops previously configured base url, auth, and fetch override', async () => {
+    const staleFetch = vi.fn().mockResolvedValue(jsonResponse({ok: true}));
+    configureApiClient({
+      baseUrl: 'https://stale.example.test',
+      fetchImpl: staleFetch,
+      getAccessToken: () => 'stale-token',
+    });
+
+    resetApiClient();
+
+    const freshFetch = vi.fn().mockResolvedValue(jsonResponse({ok: true}));
+    configureApiClient({baseUrl: 'https://fresh.example.test', fetchImpl: freshFetch});
+    await apiRequest('/workspaces');
+
+    expect(staleFetch).not.toHaveBeenCalled();
+    const request = freshFetch.mock.calls[0]?.[0] as Request;
+    expect(request.url).toBe('https://fresh.example.test/workspaces');
+    expect(request.headers.get('authorization')).toBeNull();
   });
 });

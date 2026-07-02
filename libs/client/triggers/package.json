@@ -56,6 +56,7 @@
     "@argos-ci/cli": "^5.0.0",
     "@argos-ci/storybook": "^6.0.0",
     "@shipfox/biome": "workspace:*",
+    "@shipfox/client-test-setup": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",

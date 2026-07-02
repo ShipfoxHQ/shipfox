@@ -1,1 +1,3 @@
-import '@testing-library/jest-dom/vitest';
+import {installClientDomTestEnv} from '@shipfox/client-test-setup';
+
+installClientDomTestEnv();

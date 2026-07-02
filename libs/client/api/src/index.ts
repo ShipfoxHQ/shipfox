@@ -46,6 +46,16 @@ export function configureApiClient(options: ApiClientOptions): void {
   apiOptions = {...apiOptions, ...options};
 }
 
+/**
+ * Clears all client configuration set by {@link configureApiClient}, restoring
+ * same-origin defaults with no auth or fetch overrides. Tests call this between
+ * files so a `configureApiClient` in one suite cannot leak its wiring into the
+ * next when the runner shares module state across files (`isolate: false`).
+ */
+export function resetApiClient(): void {
+  apiOptions = {};
+}
+
 export function getErrorCode(error: unknown): string | undefined {
   return error instanceof ApiError ? error.code : undefined;
 }

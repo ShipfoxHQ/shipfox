@@ -28,7 +28,11 @@ export default defineConfig(
           test: {
             name: 'dom',
             environment: 'jsdom',
+            // Files are isolation-safe (test/setup.ts resets DOM + api client), so reuse the
+            // module graph across files in a worker instead of re-importing it per file.
+            isolate: false,
             include: ['src/**/*.test.tsx'],
+            setupFiles: ['test/setup.ts'],
           },
         },
         {
