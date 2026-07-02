@@ -71,10 +71,10 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
-      # Temporal workers load workflow bundles from dist/, so the API needs its
-      # dependency graph built before dev startup.
-      - name: Build API dependencies
-        run: turbo build --filter @shipfox/api
+      # E2E dev servers still depend on dist/ for Temporal workflow bundles and
+      # the shared vite-dev bin.
+      - name: Build dev server dependencies
+        run: turbo build --filter @shipfox/api --filter @shipfox/vite
 
       - name: Run E2E tests
         id: e2e
@@ -106,12 +106,12 @@ jobs:
           wait_for "$CLIENT_URL"
           turbo test:e2e
 
-      - name: Upload E2E API logs
+      - name: Upload E2E server logs
         if: failure() && steps.e2e.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-api-logs
-          path: ${{ runner.temp }}/shipfox-e2e-logs/shipfox-api.log
+          name: e2e-server-logs
+          path: ${{ runner.temp }}/shipfox-e2e-logs/
           if-no-files-found: error
 
   # PR image validation stays separate so it can run without package write
