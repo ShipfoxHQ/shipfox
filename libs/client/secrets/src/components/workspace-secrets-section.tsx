@@ -28,8 +28,10 @@ import {secretsErrorToFormError} from './form-errors.js';
 import {SecretForm} from './secret-form.js';
 import {StoreRowsSkeleton, StoreSurface} from './store-section-shell.js';
 
-// biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${{ secrets.NAME }} reference syntax is shown to users.
-const SECRET_REFERENCE = '${{ secrets.NAME }}';
+const SECRETS_DESCRIPTION =
+  'Encrypted, write-only values for sensitive data like API keys, tokens, and passwords.';
+const EMPTY_SECRETS_DESCRIPTION =
+  'Create a secret to store sensitive values like API keys, tokens, and passwords.';
 
 type FormState = {mode: 'create'} | {mode: 'edit'; key: string} | null;
 
@@ -57,15 +59,11 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
           <div className="flex flex-col gap-4">
             <Header variant="h3">Secrets</Header>
             <Text size="sm" className="text-foreground-neutral-muted">
-              Encrypted, write-only values. Reference them from workflows as{' '}
-              <Code as="span" variant="label">
-                {SECRET_REFERENCE}
-              </Code>
-              .
+              {SECRETS_DESCRIPTION}
             </Text>
           </div>
           <Button size="sm" onClick={() => setFormState({mode: 'create'})}>
-            Add secret
+            Create secret
           </Button>
         </div>
 
@@ -82,10 +80,10 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
             <EmptyState
               icon="keyLine"
               title="No secrets yet"
-              description={`Secrets are encrypted and write-only. Reference them from workflows as ${SECRET_REFERENCE}.`}
+              description={EMPTY_SECRETS_DESCRIPTION}
               action={
                 <Button size="sm" onClick={() => setFormState({mode: 'create'})}>
-                  Add secret
+                  Create secret
                 </Button>
               }
             />
@@ -128,7 +126,9 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
       >
         <ModalContent>
           <ModalHeader>
-            <ModalTitle>{formState?.mode === 'edit' ? 'Update secret' : 'Add secret'}</ModalTitle>
+            <ModalTitle>
+              {formState?.mode === 'edit' ? 'Update secret' : 'Create secret'}
+            </ModalTitle>
           </ModalHeader>
           {formState ? (
             <SecretForm
@@ -139,7 +139,7 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
               onSaved={() => {
                 const wasEdit = formState.mode === 'edit';
                 setFormState(null);
-                toast.success(wasEdit ? 'Secret updated' : 'Secret added');
+                toast.success(wasEdit ? 'Secret updated' : 'Secret created');
               }}
               onCancel={() => setFormState(null)}
             />
@@ -153,7 +153,6 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
           if (!open) closeDelete();
         }}
         entryKey={deleteKey ?? ''}
-        kind="secret"
         isLoading={deleteSecret.isPending}
         errorMessage={deleteError}
         onConfirm={async () => {
@@ -184,9 +183,16 @@ function SecretRow({
   return (
     <TableRow>
       <TableCell>
-        <Code as="span" variant="paragraph">
-          {secret.key}
-        </Code>
+        <button
+          type="button"
+          className="inline-flex min-w-0 cursor-pointer rounded-4 border-none bg-transparent p-0 text-left text-foreground-neutral-base outline-none transition-colors hover:text-foreground-highlight-interactive focus-visible:shadow-border-interactive-with-active"
+          aria-label={`Copy secret name ${secret.key}`}
+          onClick={() => void copyKeyName(secret.key)}
+        >
+          <Code as="span" variant="paragraph" className="truncate">
+            {secret.key}
+          </Code>
+        </button>
       </TableCell>
       <TableCell>
         <span
@@ -211,9 +217,6 @@ function SecretRow({
             />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem icon="fileCopyLine" onSelect={() => void copyKeyName(secret.key)}>
-              Copy name
-            </DropdownMenuItem>
             <DropdownMenuItem icon="editLine" onSelect={onEdit}>
               Edit value
             </DropdownMenuItem>

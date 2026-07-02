@@ -106,7 +106,10 @@ type Story = StoryObj<typeof SectionStory>;
 export const Loaded: Story = {
   args: {scenario: 'loaded'},
   play: async ({canvasElement}) => {
-    await within(canvasElement).findByText('LOG_LEVEL');
+    const canvas = within(canvasElement);
+
+    await canvas.findByText('LOG_LEVEL');
+    await canvas.findByRole('button', {name: 'Copy variable name LOG_LEVEL'});
   },
 };
 
