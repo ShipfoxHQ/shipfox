@@ -4,7 +4,9 @@ import {
   LogViewSkeleton,
   useStepAttemptLogsQuery,
 } from '@shipfox/client-logs';
-import {Alert, Button, Text} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {Text} from '@shipfox/react-ui/typography';
 import {type UIEvent, useEffect, useRef} from 'react';
 
 const TAIL_FOLLOW_THRESHOLD_PX = 24;

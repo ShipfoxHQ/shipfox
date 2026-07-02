@@ -1,4 +1,4 @@
-import {Code} from '@shipfox/react-ui';
+import {Code} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import type {ReactNode} from 'react';
 import {expect, userEvent, within} from 'storybook/test';

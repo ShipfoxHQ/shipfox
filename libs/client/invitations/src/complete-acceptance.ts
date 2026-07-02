@@ -1,4 +1,4 @@
-import {toast} from '@shipfox/react-ui';
+import {toast} from '@shipfox/react-ui/toast';
 import type {NavigateOptions} from '@tanstack/react-router';
 
 /**

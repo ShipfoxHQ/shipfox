@@ -6,8 +6,8 @@ import {
   AlertContent,
   AlertDescription,
   AlertTitle,
-  Button,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
 import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
 

@@ -1,4 +1,4 @@
-import {ThemeProvider} from '@shipfox/react-ui';
+import {ThemeProvider} from '@shipfox/react-ui/theme';
 import {fireEvent, render, screen} from '@testing-library/react';
 import type {ComponentProps, ReactNode} from 'react';
 import {UserMenu} from './user-menu.js';

@@ -1,17 +1,11 @@
 import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {
-  Button,
-  EmptyState,
-  Header,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalTitle,
-  Skeleton,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Modal, ModalContent, ModalHeader, ModalTitle} from '@shipfox/react-ui/modal';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {toast} from '@shipfox/react-ui/toast';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useState} from 'react';
 import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from '#components/available-providers-grid.js';
 import {ModelProviderTestAndSaveForm} from '#components/test-and-save-form.js';

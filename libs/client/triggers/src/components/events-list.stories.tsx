@@ -3,7 +3,8 @@ import type {
   TriggerEventListItemDto,
   TriggerEventOutcomeDto,
 } from '@shipfox/api-triggers-dto';
-import {Code, RelativeTimeProvider} from '@shipfox/react-ui';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {Code} from '@shipfox/react-ui/typography';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import type {ReactNode} from 'react';
 import {EventsList} from './events-list.js';

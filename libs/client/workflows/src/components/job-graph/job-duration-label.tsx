@@ -1,4 +1,6 @@
-import {Code, humanDuration, useTimeTick} from '@shipfox/react-ui';
+import {useTimeTick} from '@shipfox/react-ui/time-ticker';
+import {Code} from '@shipfox/react-ui/typography';
+import {humanDuration} from '@shipfox/react-ui/utils';
 import type {JobDisplayDuration} from '#core/workflow-run.js';
 import {formatJobExecutionTimeLabel} from './job-duration-format.js';
 

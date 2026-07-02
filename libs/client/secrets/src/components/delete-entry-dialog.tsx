@@ -1,15 +1,14 @@
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Alert,
-  Button,
-  Code,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   ModalTitle,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/modal';
+import {Code, Text} from '@shipfox/react-ui/typography';
 
 export type StoreEntryKind = 'secret' | 'variable';
 

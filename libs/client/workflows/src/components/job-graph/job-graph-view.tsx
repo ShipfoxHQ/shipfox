@@ -1,4 +1,4 @@
-import {cn} from '@shipfox/react-ui';
+import {cn} from '@shipfox/react-ui/utils';
 import {useState} from 'react';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
 import type {JobGraphModel} from './graph-model.js';

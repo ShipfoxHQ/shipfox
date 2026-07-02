@@ -1,17 +1,16 @@
 import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Icon} from '@shipfox/react-ui/icon';
 import {
-  Button,
-  Header,
-  Icon,
   Modal,
   ModalBody,
   ModalContent,
   ModalHeader,
   ModalTitle,
   ModalTrigger,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/modal';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useState} from 'react';
 import {useManualRegistrationTokensQuery} from '#hooks/api/manual-registration-tokens.js';
 import {

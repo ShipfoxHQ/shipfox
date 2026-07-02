@@ -1,30 +1,25 @@
 import type {VariableListItemDto} from '@shipfox/api-secrets-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
+import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
-  Button,
-  Code,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  EmptyState,
-  Header,
-  IconButton,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalTitle,
-  RelativeTime,
-  RelativeTimeProvider,
+} from '@shipfox/react-ui/dropdown-menu';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Modal, ModalContent, ModalHeader, ModalTitle} from '@shipfox/react-ui/modal';
+import {RelativeTime, RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/table';
+import {toast} from '@shipfox/react-ui/toast';
+import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {useMemo, useState} from 'react';
 import {useDeleteVariableMutation, useVariablesQuery} from '#hooks/api/variables.js';
 import {copyKeyName} from './copy-key.js';

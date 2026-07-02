@@ -1,6 +1,6 @@
 import type {ProvisionerTokenDto} from '@shipfox/api-runners-dto';
-import type {DotVariant} from '@shipfox/react-ui';
-import {formatDate, formatTimestamp} from '@shipfox/react-ui';
+import type {DotVariant} from '@shipfox/react-ui/dot';
+import {formatDate, formatTimestamp} from '@shipfox/react-ui/utils';
 
 export type ProvisionerConnectionStatus =
   | {kind: 'connected'; dotVariant: DotVariant; label: 'Connected'}

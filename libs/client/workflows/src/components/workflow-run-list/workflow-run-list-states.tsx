@@ -1,5 +1,9 @@
 import type {QueryLoadErrorQuery} from '@shipfox/client-ui';
-import {Alert, Button, EmptyState, Skeleton, Text} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Text} from '@shipfox/react-ui/typography';
 
 export function WorkflowRunListSkeleton() {
   return (

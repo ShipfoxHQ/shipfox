@@ -1,4 +1,5 @@
-import {type IconName, LoadErrorState} from '@shipfox/react-ui';
+import type {IconName} from '@shipfox/react-ui/icon';
+import {LoadErrorState} from '@shipfox/react-ui/load-error-state';
 import {loadErrorCopy} from './load-error-copy.js';
 
 /**

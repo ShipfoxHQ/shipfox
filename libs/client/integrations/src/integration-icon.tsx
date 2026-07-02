@@ -1,4 +1,4 @@
-import {Icon, type IconName} from '@shipfox/react-ui';
+import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import type {ComponentProps} from 'react';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
 

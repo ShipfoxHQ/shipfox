@@ -1,4 +1,4 @@
-import {Header, Text} from '@shipfox/react-ui';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {createRootRouteWithContext, Link, Outlet} from '@tanstack/react-router';
 import type {RouterContext} from '../router.js';
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import {toast} from '@shipfox/react-ui';
+import {toast} from '@shipfox/react-ui/toast';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {CopyableValue} from './copyable-value.js';
 

@@ -13,8 +13,8 @@ const RELATIVE_TIME_TEXT_PATTERN = /ago$/;
 const OLD_ROOT_TIME_TEXT_PATTERN = /(?:1d|24h) ago/;
 const COPY_RUN_BUTTON_NAME = /Copy run/;
 
-vi.mock('@shipfox/react-ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/react-ui')>();
+vi.mock('@shipfox/react-ui/hooks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/react-ui/hooks')>();
   return {
     ...actual,
     useIsTextTruncated: useIsTextTruncatedMock,

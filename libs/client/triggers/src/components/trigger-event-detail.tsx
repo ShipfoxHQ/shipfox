@@ -1,9 +1,8 @@
 import type {TriggerDecisionDto, TriggerEventDetailResponseDto} from '@shipfox/api-triggers-dto';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Badge} from '@shipfox/react-ui/badge';
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Alert,
-  Badge,
-  Button,
-  Code,
   CodeBlock,
   CodeBlockBody,
   CodeBlockContent,
@@ -12,16 +11,14 @@ import {
   CodeBlockFiles,
   CodeBlockHeader,
   CodeBlockItem,
-  cn,
-  EmptyState,
-  Icon,
-  RelativeTime,
-  Skeleton,
-  Text,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/code-block';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon} from '@shipfox/react-ui/icon';
+import {RelativeTime} from '@shipfox/react-ui/relative-time';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {useMemo} from 'react';
 import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';

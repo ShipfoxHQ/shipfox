@@ -1,4 +1,5 @@
-import {cn, TimeTickerProvider} from '@shipfox/react-ui';
+import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
+import {cn} from '@shipfox/react-ui/utils';
 import {useState} from 'react';
 import {runMatchesSearch, runMatchesStatusFilter} from './run-display.js';
 import type {WorkflowRunListStatusFilter, WorkflowRunListViewProps} from './types.js';

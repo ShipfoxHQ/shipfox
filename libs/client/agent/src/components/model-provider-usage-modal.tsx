@@ -1,7 +1,6 @@
 import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Button,
-  Code,
   CodeBlock,
   CodeBlockBody,
   CodeBlockContent,
@@ -10,19 +9,19 @@ import {
   CodeBlockFiles,
   CodeBlockHeader,
   CodeBlockItem,
-  Combobox,
+} from '@shipfox/react-ui/code-block';
+import {Combobox} from '@shipfox/react-ui/combobox';
+import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
+import {
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   ModalTitle,
-  Text,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useCopyToClipboard,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/modal';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {buildAgentWorkflowExample} from './agent-workflow-example.js';
 

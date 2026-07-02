@@ -1,5 +1,5 @@
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Button,
   CodeBlock,
   CodeBlockBody,
   CodeBlockContent,
@@ -9,12 +9,9 @@ import {
   CodeBlockHeader,
   type CodeBlockHighlightedLineRange,
   CodeBlockItem,
-  cn,
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetTitle,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/code-block';
+import {Sheet, SheetClose, SheetContent, SheetTitle} from '@shipfox/react-ui/sheet';
+import {cn} from '@shipfox/react-ui/utils';
 import type {WorkflowSourceSnapshot} from '#core/workflow-run.js';
 
 const WORKFLOW_SOURCE_FILENAME = 'workflow.yaml';

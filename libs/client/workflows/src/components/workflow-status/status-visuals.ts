@@ -1,4 +1,5 @@
-import type {BadgeVariant, DotVariant} from '@shipfox/react-ui';
+import type {BadgeVariant} from '@shipfox/react-ui/badge';
+import type {DotVariant} from '@shipfox/react-ui/dot';
 import type {WorkflowStatus} from '#core/workflow-run.js';
 
 export type {WorkflowStatus};

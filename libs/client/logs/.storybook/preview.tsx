@@ -1,5 +1,5 @@
 import './preview.css';
-import {ThemeProvider} from '@shipfox/react-ui';
+import {ThemeProvider} from '@shipfox/react-ui/theme';
 import type {Decorator, Preview} from '@storybook/react';
 
 if (typeof document !== 'undefined' && document.fonts) {

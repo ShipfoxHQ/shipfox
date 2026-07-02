@@ -3,20 +3,18 @@ import type {
   ListIntegrationConnectionsResponseDto,
 } from '@shipfox/api-integration-core-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
+import {IconButton} from '@shipfox/react-ui/button';
 import {
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  EmptyState,
-  formatDate,
-  Header,
-  IconButton,
-  Skeleton,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/dropdown-menu';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Header, Text} from '@shipfox/react-ui/typography';
+import {cn, formatDate} from '@shipfox/react-ui/utils';
 import type {UseQueryResult} from '@tanstack/react-query';
 import {Link} from '@tanstack/react-router';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';

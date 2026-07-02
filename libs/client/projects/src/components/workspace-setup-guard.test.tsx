@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import {dismissModelProviderOnboarding, modelProviderQueryKeys} from '@shipfox/client-agent';
 import {configureApiClient} from '@shipfox/client-api';
 import {integrationsQueryKeys} from '@shipfox/client-integrations';
-import {FullPageLoader} from '@shipfox/react-ui';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {QueryClient} from '@tanstack/react-query';
 import {
   createMemoryHistory,

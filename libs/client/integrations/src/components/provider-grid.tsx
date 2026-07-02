@@ -3,7 +3,12 @@ import type {
   ListIntegrationProvidersResponseDto,
 } from '@shipfox/api-integration-core-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Card, cn, EmptyState, Icon, Skeleton, Text} from '@shipfox/react-ui';
+import {Card} from '@shipfox/react-ui/card';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import type {UseQueryResult} from '@tanstack/react-query';
 import {Link} from '@tanstack/react-router';
 import {IntegrationIcon} from '#integration-icon.js';

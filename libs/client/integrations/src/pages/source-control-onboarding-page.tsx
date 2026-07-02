@@ -1,5 +1,5 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {Header, Text} from '@shipfox/react-ui';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {ProviderGrid} from '#components/provider-grid.js';
 import {useIntegrationProvidersQuery} from '#hooks/api/integrations.js';
 

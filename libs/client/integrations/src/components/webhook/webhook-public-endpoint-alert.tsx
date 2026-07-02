@@ -1,4 +1,4 @@
-import {Alert, AlertContent, AlertDescription, AlertTitle} from '@shipfox/react-ui';
+import {Alert, AlertContent, AlertDescription, AlertTitle} from '@shipfox/react-ui/alert';
 
 export function WebhookPublicEndpointAlert() {
   return (

@@ -1,4 +1,4 @@
-import {EmptyState} from '@shipfox/react-ui';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
 
 /**
  * Shown when a project has no workflow runs yet, in place of the empty rail and the

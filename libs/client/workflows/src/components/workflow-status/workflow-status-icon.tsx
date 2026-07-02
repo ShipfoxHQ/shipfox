@@ -1,13 +1,7 @@
-import {
-  cn,
-  Dot,
-  type DotVariant,
-  Icon,
-  type IconName,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@shipfox/react-ui';
+import {Dot, type DotVariant} from '@shipfox/react-ui/dot';
+import {Icon, type IconName} from '@shipfox/react-ui/icon';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {cn} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
 import {getWorkflowStatusVisual, type WorkflowStatus} from './status-visuals.js';
 

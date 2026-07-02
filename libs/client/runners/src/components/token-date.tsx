@@ -1,4 +1,4 @@
-import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 
 export function TokenDate({
   value,

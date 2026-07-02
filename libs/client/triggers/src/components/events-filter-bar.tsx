@@ -1,16 +1,10 @@
 import type {TriggerEventFacetItemDto, TriggerEventOutcomeDto} from '@shipfox/api-triggers-dto';
-import {
-  Button,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-  Combobox,
-  type ComboboxOption,
-  cn,
-  type DateRange,
-  DateRangePicker,
-  Text,
-} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@shipfox/react-ui/collapsible';
+import {Combobox, type ComboboxOption} from '@shipfox/react-ui/combobox';
+import {type DateRange, DateRangePicker} from '@shipfox/react-ui/date-range-picker';
+import {Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {type ReactNode, useState} from 'react';
 import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
 

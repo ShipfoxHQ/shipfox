@@ -3,7 +3,8 @@ import type {
   IntegrationConnectionDto,
   IntegrationProviderDto,
 } from '@shipfox/api-integration-core-dto';
-import {Header, Text, toast} from '@shipfox/react-ui';
+import {toast} from '@shipfox/react-ui/toast';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useState} from 'react';
 import {
   useDeleteIntegrationConnectionMutation,

@@ -1,6 +1,6 @@
 import type {StepAttemptDto, WorkflowRunStepDetailDto} from '@shipfox/api-workflows-dto';
 import {LogView, type LogViewProps} from '@shipfox/client-logs';
-import {Text} from '@shipfox/react-ui';
+import {Text} from '@shipfox/react-ui/typography';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {
   createMemoryHistory,

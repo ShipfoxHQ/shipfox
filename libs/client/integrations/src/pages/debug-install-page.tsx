@@ -1,6 +1,10 @@
 import {ApiError} from '@shipfox/client-api';
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {Alert, ButtonLink, FullPageLoader, Text, toast} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {ButtonLink} from '@shipfox/react-ui/button';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {toast} from '@shipfox/react-ui/toast';
+import {Text} from '@shipfox/react-ui/typography';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';

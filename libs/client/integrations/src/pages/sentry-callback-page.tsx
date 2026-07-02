@@ -1,15 +1,11 @@
 import type {SentryConnectResponseDto} from '@shipfox/api-integration-sentry-dto';
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {
-  Alert,
-  Button,
-  ButtonLink,
-  Card,
-  FullPageLoader,
-  Header,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {Card} from '@shipfox/react-ui/card';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {toast} from '@shipfox/react-ui/toast';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';

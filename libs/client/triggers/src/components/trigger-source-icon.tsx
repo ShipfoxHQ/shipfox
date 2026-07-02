@@ -1,5 +1,5 @@
 import {getIntegrationIcon} from '@shipfox/client-integrations';
-import {Icon, type IconName} from '@shipfox/react-ui';
+import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import type {ComponentProps} from 'react';
 
 const SYSTEM_TRIGGER_SOURCE_ICONS: Record<string, IconName> = {

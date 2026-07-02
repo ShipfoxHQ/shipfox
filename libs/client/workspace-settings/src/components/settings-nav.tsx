@@ -1,4 +1,5 @@
-import {Button, Icon} from '@shipfox/react-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Icon} from '@shipfox/react-ui/icon';
 import {Link, useMatchRoute} from '@tanstack/react-router';
 
 export function SettingsNav({workspaceId}: {workspaceId: string}) {

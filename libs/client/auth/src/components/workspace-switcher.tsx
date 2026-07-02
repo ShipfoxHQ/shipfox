@@ -6,8 +6,8 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  Icon,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/command';
+import {Icon} from '@shipfox/react-ui/icon';
 import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';
 import {useAuthState} from '#hooks/use-auth-state.js';

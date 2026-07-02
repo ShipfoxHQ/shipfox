@@ -1,12 +1,8 @@
-import {
-  Code,
-  cn,
-  Icon,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useCopyToClipboard,
-} from '@shipfox/react-ui';
+import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 

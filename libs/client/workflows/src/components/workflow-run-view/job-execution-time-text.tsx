@@ -1,4 +1,5 @@
-import {formatDuration, useTimeTick} from '@shipfox/react-ui';
+import {useTimeTick} from '@shipfox/react-ui/time-ticker';
+import {formatDuration} from '@shipfox/react-ui/utils';
 import type {JobExecutionTime} from '#core/workflow-run.js';
 
 export function JobExecutionTimeText({time}: {time: JobExecutionTime}) {

@@ -1,14 +1,13 @@
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Button,
-  Code,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  RelativeTime,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/dropdown-menu';
+import {RelativeTime} from '@shipfox/react-ui/relative-time';
+import {Code, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
 import type {WorkflowRunAttempt, WorkflowRunDetail} from '#core/workflow-run.js';

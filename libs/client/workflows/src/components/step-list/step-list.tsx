@@ -3,21 +3,15 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  Badge,
-  type BadgeVariant,
-  Code,
-  cn,
-  Dot,
-  EmptyState,
-  humanDuration,
-  Icon,
-  Text,
-  TimeTickerProvider,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useTimeTick,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/accordion';
+import {Badge, type BadgeVariant} from '@shipfox/react-ui/badge';
+import {Dot} from '@shipfox/react-ui/dot';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon} from '@shipfox/react-ui/icon';
+import {TimeTickerProvider, useTimeTick} from '@shipfox/react-ui/time-ticker';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code, Text} from '@shipfox/react-ui/typography';
+import {cn, humanDuration} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';

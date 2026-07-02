@@ -1,4 +1,4 @@
-import {Code, Text} from '@shipfox/react-ui';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import type {JobStatus} from '#core/workflow-run.js';
 import {getWorkflowStatusVisual} from './status-visuals.js';

@@ -1,14 +1,7 @@
-import {
-  ButtonLink,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Code,
-  Icon,
-  Text,
-} from '@shipfox/react-ui';
+import {ButtonLink} from '@shipfox/react-ui/button';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@shipfox/react-ui/card';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import type {ConfigKeyError} from './load-config.js';
 
 export interface ConfigErrorScreenProps {

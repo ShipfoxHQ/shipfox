@@ -1,20 +1,16 @@
 import type {CreateProvisionerTokenResponseDto} from '@shipfox/api-runners-dto';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
+import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
 import {
-  Alert,
-  Button,
-  Code,
-  FormField,
-  FormFieldInput,
-  fieldError,
   InlineTips,
   InlineTipsContent,
   InlineTipsDescription,
   InlineTipsTitle,
-  ModalBody,
-  ModalFooter,
-  Text,
-  useCopyToClipboard,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/inline-tips';
+import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';

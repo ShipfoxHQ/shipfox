@@ -1,4 +1,4 @@
-import {FullPageLoader} from '@shipfox/react-ui';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {Navigate, useRouter, useSearch} from '@tanstack/react-router';
 import {type PropsWithChildren, useEffect} from 'react';
 import {useAuthState} from '#hooks/use-auth-state.js';

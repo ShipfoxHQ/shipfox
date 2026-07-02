@@ -1,15 +1,9 @@
 import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
-import {
-  Code,
-  cn,
-  RelativeTime,
-  TableCell,
-  TableRow,
-  Text,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@shipfox/react-ui';
+import {RelativeTime} from '@shipfox/react-ui/relative-time';
+import {TableCell, TableRow} from '@shipfox/react-ui/table';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import type {MouseEvent} from 'react';
 import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';

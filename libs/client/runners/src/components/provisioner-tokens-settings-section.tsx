@@ -1,18 +1,17 @@
 import type {CreateProvisionerTokenResponseDto} from '@shipfox/api-runners-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
+import {Button} from '@shipfox/react-ui/button';
+import {Icon} from '@shipfox/react-ui/icon';
 import {
-  Button,
-  Header,
-  Icon,
   Modal,
   ModalBody,
   ModalContent,
   ModalHeader,
   ModalTitle,
   ModalTrigger,
-  RelativeTimeProvider,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/modal';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useMemo, useState} from 'react';
 import {
   useActiveProvisionersQuery,

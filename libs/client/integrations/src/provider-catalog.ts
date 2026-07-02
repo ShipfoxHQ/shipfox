@@ -1,4 +1,4 @@
-import type {IconName} from '@shipfox/react-ui';
+import type {IconName} from '@shipfox/react-ui/icon';
 
 // Literal union (not string) so `<Link to={catalog.setupPath}>` stays typed
 // against TanStack Router's route tree.

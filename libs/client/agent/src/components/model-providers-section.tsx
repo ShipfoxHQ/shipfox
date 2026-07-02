@@ -1,30 +1,28 @@
 import type {ModelProviderCatalogEntryDto, ModelProviderConfigDto} from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
-  Alert,
-  Button,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  EmptyState,
-  Header,
-  Icon,
-  IconButton,
+} from '@shipfox/react-ui/dropdown-menu';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon} from '@shipfox/react-ui/icon';
+import {
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   ModalTitle,
-  Skeleton,
-  Text,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  toast,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/modal';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {toast} from '@shipfox/react-ui/toast';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Header, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {
   useDeleteModelProviderConfigMutation,

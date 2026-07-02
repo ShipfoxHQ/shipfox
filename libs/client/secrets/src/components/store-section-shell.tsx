@@ -1,4 +1,5 @@
-import {cn, Skeleton} from '@shipfox/react-ui';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {cn} from '@shipfox/react-ui/utils';
 
 export const STORE_SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';

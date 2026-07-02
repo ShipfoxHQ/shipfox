@@ -1,4 +1,4 @@
-import {LogRows} from '@shipfox/react-ui';
+import {LogRows} from '@shipfox/react-ui/log';
 import type {Meta, StoryObj} from '@storybook/react';
 import {expect, userEvent, within} from 'storybook/test';
 import type {GroupLogNode, GroupStartLogRecord, OutputLogRecord} from '#core/log-tree.js';

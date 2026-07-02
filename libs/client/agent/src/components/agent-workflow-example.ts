@@ -1,4 +1,4 @@
-import type {CodeBlockHighlightedLineRange} from '@shipfox/react-ui';
+import type {CodeBlockHighlightedLineRange} from '@shipfox/react-ui/code-block';
 
 const YAML_SAFE_PLAIN_SCALAR_RE = /^[A-Za-z][A-Za-z0-9._/-]*$/;
 const YAML_AMBIGUOUS_PLAIN_SCALAR_RE = /^(?:false|n|no|null|off|on|true|y|yes)$/i;

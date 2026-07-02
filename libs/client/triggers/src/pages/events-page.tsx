@@ -1,5 +1,7 @@
 import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
-import {cn, Header, RelativeTimeProvider, Text} from '@shipfox/react-ui';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {Header, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {useEffect, useMemo, useState} from 'react';
 import {EventsList} from '#components/events-list.js';
 import {TriggerEventDetail} from '#components/trigger-event-detail.js';

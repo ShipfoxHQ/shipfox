@@ -1,6 +1,6 @@
 import {useAuthState} from '@shipfox/client-auth';
+import {Avatar} from '@shipfox/react-ui/avatar';
 import {
-  Avatar,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -9,9 +9,9 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  type Theme,
-  useTheme,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/dropdown-menu';
+import {useTheme} from '@shipfox/react-ui/hooks';
+import type {Theme} from '@shipfox/react-ui/theme';
 import {Link} from '@tanstack/react-router';
 
 const THEME_OPTIONS: Array<{value: Theme; label: string}> = [

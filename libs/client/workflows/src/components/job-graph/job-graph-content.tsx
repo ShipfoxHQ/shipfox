@@ -1,4 +1,6 @@
-import {cn, EmptyState, TimeTickerProvider} from '@shipfox/react-ui';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
+import {cn} from '@shipfox/react-ui/utils';
 import type {KeyboardEvent} from 'react';
 import {useRef, useState} from 'react';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';

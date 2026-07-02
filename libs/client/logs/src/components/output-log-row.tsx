@@ -1,4 +1,5 @@
-import {cn, LogContent, LogRow} from '@shipfox/react-ui';
+import {LogContent, LogRow} from '@shipfox/react-ui/log';
+import {cn} from '@shipfox/react-ui/utils';
 import {type OutputLogRecord, stripTrailingNewline} from '#core/log-tree.js';
 
 export interface OutputLogRowProps {

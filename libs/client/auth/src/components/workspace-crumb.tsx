@@ -1,4 +1,5 @@
-import {Icon, Popover, PopoverContent, PopoverTrigger} from '@shipfox/react-ui';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Popover, PopoverContent, PopoverTrigger} from '@shipfox/react-ui/popover';
 import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
 import type {Workspace} from '#state/auth.js';

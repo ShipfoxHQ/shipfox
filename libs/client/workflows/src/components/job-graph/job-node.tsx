@@ -1,15 +1,11 @@
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
-import {
-  Badge,
-  Code,
-  cn,
-  Icon,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useIsTextTruncated,
-  useTimeTick,
-} from '@shipfox/react-ui';
+import {Badge} from '@shipfox/react-ui/badge';
+import {useIsTextTruncated} from '@shipfox/react-ui/hooks';
+import {Icon} from '@shipfox/react-ui/icon';
+import {useTimeTick} from '@shipfox/react-ui/time-ticker';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';

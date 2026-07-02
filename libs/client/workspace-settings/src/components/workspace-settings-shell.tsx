@@ -1,5 +1,5 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {Header, Text} from '@shipfox/react-ui';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import type {ReactNode} from 'react';
 import {SettingsNav} from './settings-nav.js';
 

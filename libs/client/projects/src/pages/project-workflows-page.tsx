@@ -2,33 +2,31 @@ import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definit
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {useFireManualWorkflowMutation} from '@shipfox/client-workflows';
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
+import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Icon, type IconName} from '@shipfox/react-ui/icon';
+import {LoadErrorState} from '@shipfox/react-ui/load-error-state';
+import {RelativeTime, RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {
-  Alert,
-  Button,
-  Code,
-  EmptyState,
-  Header,
-  Icon,
-  type IconName,
-  LoadErrorState,
-  RelativeTime,
-  RelativeTimeProvider,
   Sheet,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  Skeleton,
+} from '@shipfox/react-ui/sheet';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/table';
+import {toast} from '@shipfox/react-ui/toast';
+import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {useState} from 'react';
 import {SourceStrip} from '#components/source-strip.js';
 import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';

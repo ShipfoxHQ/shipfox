@@ -1,17 +1,11 @@
 import type {DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {useSourceConnectionsQuery} from '@shipfox/client-integrations';
-import {
-  Code,
-  Icon,
-  type IconName,
-  Skeleton,
-  StatusBadge,
-  Text,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@shipfox/react-ui';
+import {StatusBadge} from '@shipfox/react-ui/badge';
+import {Icon, type IconName} from '@shipfox/react-ui/icon';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code, Text} from '@shipfox/react-ui/typography';
 
 /**
  * We cannot cheaply resolve `external_repository_id` → `owner/repo`

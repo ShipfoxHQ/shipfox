@@ -1,6 +1,6 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Button,
   CodeBlock,
   CodeBlockBody,
   CodeBlockContent,
@@ -9,19 +9,23 @@ import {
   CodeBlockFiles,
   CodeBlockHeader,
   CodeBlockItem,
+} from '@shipfox/react-ui/code-block';
+import {
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   ModalTitle,
+} from '@shipfox/react-ui/modal';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Text,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/select';
+import {Text} from '@shipfox/react-ui/typography';
 import type {ReactNode} from 'react';
 import {useEffect, useMemo, useState} from 'react';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';

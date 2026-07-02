@@ -1,13 +1,13 @@
+import {Alert} from '@shipfox/react-ui/alert';
+import {Button} from '@shipfox/react-ui/button';
 import {
-  Alert,
-  Button,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   ModalTitle,
-} from '@shipfox/react-ui';
+} from '@shipfox/react-ui/modal';
 
 interface IntegrationDeleteConfirmModalProps {
   connectionName: string | undefined;
