@@ -1,9 +1,9 @@
 {
-  "name": "@shipfox/e2e-core",
+  "name": "@shipfox/e2e-helper-definitions",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "e2e/core"
+    "directory": "e2e/helpers/definitions"
   },
   "license": "MIT",
   "private": true,
@@ -24,26 +24,6 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    },
-    "./api": {
-      "development": {
-        "types": "./src/api/index.ts",
-        "default": "./src/api/index.ts"
-      },
-      "default": {
-        "types": "./dist/api/index.d.ts",
-        "default": "./dist/api/index.js"
-      }
-    },
-    "./playwright": {
-      "development": {
-        "types": "./src/playwright.ts",
-        "default": "./src/playwright.ts"
-      },
-      "default": {
-        "types": "./dist/playwright.d.ts",
-        "default": "./dist/playwright.js"
-      }
     }
   },
   "scripts": {
@@ -56,9 +36,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/config": "workspace:*",
-    "@shipfox/playwright": "workspace:*",
-    "ky": "^2.0.0"
+    "@shipfox/api-definitions-dto": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
