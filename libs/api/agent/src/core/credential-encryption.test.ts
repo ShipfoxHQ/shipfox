@@ -79,7 +79,7 @@ describe('credential encryption', () => {
   it('rejects ciphertext encrypted with a different key', async () => {
     vi.resetModules();
     vi.stubEnv(
-      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
       Buffer.from('a'.repeat(32), 'utf8').toString('base64'),
     );
     const firstModule = await import('./credential-encryption.js');
@@ -90,7 +90,7 @@ describe('credential encryption', () => {
 
     vi.resetModules();
     vi.stubEnv(
-      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
       Buffer.from('b'.repeat(32), 'utf8').toString('base64'),
     );
     const secondModule = await import('./credential-encryption.js');
@@ -103,7 +103,7 @@ describe('credential encryption', () => {
   it('accepts an unpadded base64 encryption key', async () => {
     vi.resetModules();
     vi.stubEnv(
-      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY',
       Buffer.from('a'.repeat(32), 'utf8').toString('base64').replace(BASE64_PADDING_SUFFIX, ''),
     );
     const module = await import('./credential-encryption.js');
@@ -117,13 +117,13 @@ describe('credential encryption', () => {
   it('rejects non-canonical base64 encryption keys', async () => {
     vi.resetModules();
     const encodedKey = Buffer.from('a'.repeat(32), 'utf8').toString('base64');
-    vi.stubEnv('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', `$${encodedKey}`);
+    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', `$${encodedKey}`);
     const module = await import('./credential-encryption.js');
 
     const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
 
     expect(encrypt).toThrow(
-      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
     );
   });
 
@@ -169,23 +169,23 @@ describe('credential encryption', () => {
 
   it('surfaces missing encryption key configuration errors', async () => {
     vi.resetModules();
-    vi.stubEnv('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', '');
+    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', '');
     const module = await import('./credential-encryption.js');
 
     const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
 
-    expect(encrypt).toThrow('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required');
+    expect(encrypt).toThrow('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required');
   });
 
   it('surfaces malformed encryption key configuration errors', async () => {
     vi.resetModules();
-    vi.stubEnv('MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', 'not-base64');
+    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', 'not-base64');
     const module = await import('./credential-encryption.js');
 
     const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
 
     expect(encrypt).toThrow(
-      'MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
+      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
     );
   });
 });

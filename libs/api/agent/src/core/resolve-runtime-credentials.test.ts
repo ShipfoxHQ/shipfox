@@ -156,7 +156,7 @@ async function saveProviderConfig(params: {
 
 function instanceConfig() {
   return {
-    DEFAULT_MODEL_PROVIDER: 'anthropic' as const,
-    DEFAULT_MODEL_PROVIDER_API_KEY: 'sk-instance-secret',
+    AGENT_DEFAULT_PROVIDER: 'anthropic' as const,
+    AGENT_DEFAULT_PROVIDER_API_KEY: 'sk-instance-secret',
   };
 }

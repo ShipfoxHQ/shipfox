@@ -31,11 +31,11 @@ export async function createWorkspaceAgentDefaultsResolver(
       ? toSupportedModelProviderId(snapshot.defaultModelProviderId)
       : null,
     workspaceModelProviderConfigs,
-    instanceDefaultModelProvider: config.DEFAULT_MODEL_PROVIDER as
+    instanceDefaultModelProvider: config.AGENT_DEFAULT_PROVIDER as
       | SupportedModelProviderId
       | undefined,
-    instanceDefaultModelProviderModel: config.DEFAULT_MODEL_PROVIDER_MODEL,
-    instanceDefaultModelProviderThinking: config.DEFAULT_MODEL_PROVIDER_THINKING as
+    instanceDefaultModelProviderModel: config.AGENT_DEFAULT_PROVIDER_MODEL,
+    instanceDefaultModelProviderThinking: config.AGENT_DEFAULT_PROVIDER_THINKING as
       | AgentThinking
       | undefined,
   };

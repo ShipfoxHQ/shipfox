@@ -55,7 +55,7 @@ export async function probeModelProviderCredentials(
     apiKey,
     maxTokens: PROBE_MAX_TOKENS,
     maxRetries: 0,
-    timeoutMs: config.MODEL_PROVIDER_VALIDATION_TIMEOUT_MS,
+    timeoutMs: config.AGENT_PROVIDER_VALIDATION_TIMEOUT_MS,
     ...modelProviderCredentialOptions(params),
     ...(params.signal ? {signal: params.signal} : {}),
   };
