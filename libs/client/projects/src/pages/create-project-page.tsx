@@ -117,7 +117,7 @@ export function CreateProjectPage() {
       return;
     }
     if (!selectedConnection) {
-      setFormError('Choose a source-control connection before creating a project.');
+      setFormError('Choose a source integration before creating a project.');
       errorRef.current?.focus();
       return;
     }
@@ -186,14 +186,16 @@ export function CreateProjectPage() {
 
       {connectionsQuery.isError ? (
         <Alert variant="error">
-          <Text size="sm">Could not load source-control connections. Try again.</Text>
+          <Text size="sm">
+            Could not load source integrations. Refresh the integrations list to continue.
+          </Text>
           <Button
             size="sm"
             variant="secondary"
             onClick={() => connectionsQuery.refetch()}
             className="mt-8 w-fit"
           >
-            Retry
+            Refresh integrations
           </Button>
         </Alert>
       ) : null}
