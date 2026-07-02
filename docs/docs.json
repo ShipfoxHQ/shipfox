@@ -71,6 +71,17 @@
               "reference/rest-api",
               "reference/glossary"
             ]
+          },
+          {
+            "group": "Installation",
+            "pages": [
+              "installation",
+              "installation/local",
+              "installation/self-hosting",
+              "installation/aws",
+              "installation/kubernetes",
+              "installation/cloud"
+            ]
           }
         ]
       }

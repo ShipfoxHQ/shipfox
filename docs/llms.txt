@@ -36,3 +36,9 @@
 - [Model Providers](/reference/model-providers): The agent provider catalog — every provider, its ID and default model, and how config and model resolution work.
 - [REST API](/reference/rest-api): The HTTP API — base URL, bearer-token auth, endpoints for projects, definitions, runs, runners, providers, integrations, and the error shape.
 - [Glossary](/reference/glossary): Definitions for every Shipfox term — workspace, project, workflow, run, job, step, trigger, runner, gate, CEL, filter, key.
+- [Installation](/installation): How to run Shipfox — evaluate locally, self-host, or use managed cloud; components and setup paths.
+- [Local Evaluation](/installation/local): Run the full stack on your machine with Docker Compose — API, dashboard, PostgreSQL, Temporal, Gitea, object storage.
+- [Self-Hosting](/installation/self-hosting): Deploy the control plane and runners on your own infrastructure — PostgreSQL, Temporal, S3-compatible storage, runner registration.
+- [AWS](/installation/aws): Coming soon — a reference Shipfox deployment on AWS (RDS, S3, container compute).
+- [Kubernetes](/installation/kubernetes): Coming soon — deploy the control plane and runners on a Kubernetes cluster.
+- [Managed Cloud](/installation/cloud): Coming soon — Shipfox runs the control plane; you configure your workspace and connect runners.
