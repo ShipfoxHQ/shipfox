@@ -102,7 +102,10 @@ type Story = StoryObj<typeof SectionStory>;
 export const Loaded: Story = {
   args: {scenario: 'loaded'},
   play: async ({canvasElement}) => {
-    await within(canvasElement).findByText('API_TOKEN');
+    const canvas = within(canvasElement);
+
+    await canvas.findByText('API_TOKEN');
+    await canvas.findByRole('button', {name: 'Copy secret name API_TOKEN'});
   },
 };
 

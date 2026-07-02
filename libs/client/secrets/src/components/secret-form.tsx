@@ -142,7 +142,8 @@ export function SecretForm({
                 {isShortSecretValue(field.state.value, SHORT_VALUE_THRESHOLD) ? (
                   <Alert variant="warning" animated={false}>
                     <Text size="sm">
-                      This value is short; log redaction is weaker for very short values.
+                      Very short secrets can match ordinary log text and redact unrelated output. If
+                      this value is not sensitive, store it as a Variable instead.
                     </Text>
                   </Alert>
                 ) : null}
@@ -161,7 +162,7 @@ export function SecretForm({
           Cancel
         </Button>
         <Button type="submit" form={SECRET_FORM_ID} isLoading={putSecret.isPending}>
-          {mode === 'edit' ? 'Update secret' : 'Add secret'}
+          {mode === 'edit' ? 'Update secret' : 'Create secret'}
         </Button>
       </FormFooter>
     </>

@@ -28,8 +28,10 @@ import {secretsErrorToFormError} from './form-errors.js';
 import {StoreRowsSkeleton, StoreSurface} from './store-section-shell.js';
 import {VariableForm} from './variable-form.js';
 
-// biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${{ vars.NAME }} reference syntax is shown to users.
-const VARS_REFERENCE = '${{ vars.NAME }}';
+const VARIABLES_DESCRIPTION =
+  'Plaintext configuration values for non-sensitive data like regions, flags, and log levels.';
+const EMPTY_VARIABLES_DESCRIPTION =
+  'Create a variable to store non-sensitive configuration like regions, flags, and log levels.';
 
 type FormState = {mode: 'create'} | {mode: 'edit'; variable: VariableListItemDto} | null;
 
@@ -57,16 +59,11 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
           <div className="flex flex-col gap-4">
             <Header variant="h3">Variables</Header>
             <Text size="sm" className="text-foreground-neutral-muted">
-              Plaintext config, not redacted from logs. Use a Secret for sensitive values. Reference
-              them from workflows as{' '}
-              <Code as="span" variant="label">
-                {VARS_REFERENCE}
-              </Code>
-              .
+              {VARIABLES_DESCRIPTION}
             </Text>
           </div>
           <Button size="sm" onClick={() => setFormState({mode: 'create'})}>
-            Add variable
+            Create variable
           </Button>
         </div>
 
@@ -83,10 +80,10 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
             <EmptyState
               icon="bracesLine"
               title="No variables yet"
-              description={`Variables are plaintext config. Reference them from workflows as ${VARS_REFERENCE}.`}
+              description={EMPTY_VARIABLES_DESCRIPTION}
               action={
                 <Button size="sm" onClick={() => setFormState({mode: 'create'})}>
-                  Add variable
+                  Create variable
                 </Button>
               }
             />
@@ -130,7 +127,7 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
         <ModalContent>
           <ModalHeader>
             <ModalTitle>
-              {formState?.mode === 'edit' ? 'Update variable' : 'Add variable'}
+              {formState?.mode === 'edit' ? 'Update variable' : 'Create variable'}
             </ModalTitle>
           </ModalHeader>
           {formState ? (
@@ -146,7 +143,7 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
               onSaved={() => {
                 const wasEdit = formState.mode === 'edit';
                 setFormState(null);
-                toast.success(wasEdit ? 'Variable updated' : 'Variable added');
+                toast.success(wasEdit ? 'Variable updated' : 'Variable created');
               }}
               onCancel={() => setFormState(null)}
             />
@@ -160,7 +157,6 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
           if (!open) closeDelete();
         }}
         entryKey={deleteKey ?? ''}
-        kind="variable"
         isLoading={deleteVariable.isPending}
         errorMessage={deleteError}
         onConfirm={async () => {
@@ -191,9 +187,16 @@ function VariableRow({
   return (
     <TableRow>
       <TableCell>
-        <Code as="span" variant="paragraph">
-          {variable.key}
-        </Code>
+        <button
+          type="button"
+          className="inline-flex min-w-0 cursor-pointer rounded-4 border-none bg-transparent p-0 text-left text-foreground-neutral-base outline-none transition-colors hover:text-foreground-highlight-interactive focus-visible:shadow-border-interactive-with-active"
+          aria-label={`Copy variable name ${variable.key}`}
+          onClick={() => void copyKeyName(variable.key)}
+        >
+          <Code as="span" variant="paragraph" className="truncate">
+            {variable.key}
+          </Code>
+        </button>
       </TableCell>
       <TableCell>
         <span
@@ -221,9 +224,6 @@ function VariableRow({
             />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem icon="fileCopyLine" onSelect={() => void copyKeyName(variable.key)}>
-              Copy name
-            </DropdownMenuItem>
             <DropdownMenuItem icon="editLine" onSelect={onEdit}>
               Edit value
             </DropdownMenuItem>

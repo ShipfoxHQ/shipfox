@@ -8,21 +8,12 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@shipfox/react-ui/modal';
-import {Code, Text} from '@shipfox/react-ui/typography';
-
-export type StoreEntryKind = 'secret' | 'variable';
-
-function referenceExpression(kind: StoreEntryKind, key: string): string {
-  // Built by concatenation, not a template literal, because `${{` cannot appear
-  // inside a JS template string.
-  return kind === 'secret' ? `\${{ secrets.${key} }}` : `\${{ vars.${key} }}`;
-}
+import {Text} from '@shipfox/react-ui/typography';
 
 export function DeleteEntryDialog({
   open,
   onOpenChange,
   entryKey,
-  kind,
   isLoading,
   errorMessage,
   onConfirm,
@@ -30,7 +21,6 @@ export function DeleteEntryDialog({
   open: boolean;
   onOpenChange: (next: boolean) => void;
   entryKey: string;
-  kind: StoreEntryKind;
   isLoading: boolean;
   errorMessage?: string | undefined;
   onConfirm: () => void;
@@ -39,19 +29,13 @@ export function DeleteEntryDialog({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent>
         <ModalHeader>
-          <ModalTitle>Delete {kind}</ModalTitle>
+          <ModalTitle>
+            Delete <strong>{entryKey}</strong>?
+          </ModalTitle>
         </ModalHeader>
         <ModalBody className="gap-16">
           <Text size="sm">
-            Delete{' '}
-            <Code as="span" variant="label">
-              {entryKey}
-            </Code>
-            ? Workflows that reference{' '}
-            <Code as="span" variant="label">
-              {referenceExpression(kind, entryKey)}
-            </Code>{' '}
-            will fail at their next run.
+            Workflows that reference <strong>{entryKey}</strong> will fail at their next run.
           </Text>
           {errorMessage ? (
             <Alert variant="error" animated={false}>

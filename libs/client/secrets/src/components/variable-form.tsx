@@ -121,8 +121,8 @@ export function VariableForm({
                 {isSensitiveSecretName(field.state.value) ? (
                   <Alert variant="warning" animated={false}>
                     <Text size="sm" aria-live="polite">
-                      Variables are stored in plaintext and are not redacted from logs. Store this
-                      as a Secret instead.
+                      This looks like it may be sensitive. Variables are stored in plaintext and are
+                      not redacted from logs. Use a Secret if this value contains private data.
                     </Text>
                   </Alert>
                 ) : null}
@@ -174,7 +174,7 @@ export function VariableForm({
           isLoading={putVariable.isPending}
           disabled={awaitingFullValue}
         >
-          {mode === 'edit' ? 'Update variable' : 'Add variable'}
+          {mode === 'edit' ? 'Update variable' : 'Create variable'}
         </Button>
       </FormFooter>
     </>
