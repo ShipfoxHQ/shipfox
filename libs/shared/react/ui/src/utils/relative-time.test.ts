@@ -42,6 +42,15 @@ describe('formatRelative', () => {
     expect(result).toBe('2d ago');
   });
 
+  test('renders relative to an explicit now value', () => {
+    const result = formatRelative('2026-05-13T00:00:00.000Z', {
+      reducedMotion: false,
+      now: '2026-05-13T00:05:00.000Z',
+    });
+
+    expect(result).toBe('5m ago');
+  });
+
   test('renders "in Ns" for future timestamps', () => {
     freezeNow('2026-05-13T00:00:00.000Z');
 

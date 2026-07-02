@@ -3,17 +3,22 @@ import type {
   TriggerEventListItemDto,
   TriggerEventOutcomeDto,
 } from '@shipfox/api-triggers-dto';
-import {Code} from '@shipfox/react-ui';
+import {Code, RelativeTimeProvider} from '@shipfox/react-ui';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import type {ReactNode} from 'react';
 import {EventsList} from './events-list.js';
 import type {TriggerEventsListQuery} from './types.js';
 
+const STORY_NOW = '2026-06-25T20:00:00.000Z';
+const STORY_NOW_MS = Date.parse(STORY_NOW);
+
 // Typed so meta's inferred type stays nameable (TS2883) under the package's tsconfig.
 const withWidth: Decorator = (Story) => (
-  <div className="w-[900px]">
-    <Story />
-  </div>
+  <RelativeTimeProvider now={STORY_NOW}>
+    <div className="w-[900px]">
+      <Story />
+    </div>
+  </RelativeTimeProvider>
 );
 
 function makeQuery(overrides: Partial<TriggerEventsListQuery> = {}): TriggerEventsListQuery {
@@ -50,9 +55,9 @@ function makeEvent(
     connection_id: 'conn-demo',
     outcome,
     matched_count: matchedCount,
-    received_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
-    processed_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
-    created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+    received_at: new Date(STORY_NOW_MS - minutesAgo * 60_000).toISOString(),
+    processed_at: new Date(STORY_NOW_MS - minutesAgo * 60_000).toISOString(),
+    created_at: new Date(STORY_NOW_MS - minutesAgo * 60_000).toISOString(),
   };
 }
 
