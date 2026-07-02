@@ -9,6 +9,7 @@
     "API_URL",
     "CLIENT_URL",
     "ARGOS_TOKEN",
+    "SHIPFOX_VITEST_MAX_WORKERS",
     "CI"
   ],
   "tasks": {

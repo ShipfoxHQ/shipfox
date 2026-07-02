@@ -25,6 +25,8 @@ import { Route as WorkspacesWidLayoutAgentProviderRouteImport } from './routes/w
 import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_layout/workspaces/new'
 import { Route as WorkspacesWidLayoutSettingsIndexRouteImport } from './routes/workspaces/$wid/_layout/settings/index'
 import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
+import { Route as WorkspacesWidLayoutSettingsVariablesRouteImport } from './routes/workspaces/$wid/_layout/settings/variables'
+import { Route as WorkspacesWidLayoutSettingsSecretsRouteImport } from './routes/workspaces/$wid/_layout/settings/secrets'
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
 import { Route as WorkspacesWidLayoutSettingsProvisionersRouteImport } from './routes/workspaces/$wid/_layout/settings/provisioners'
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
@@ -127,6 +129,18 @@ const WorkspacesWidLayoutIntegrationsIndexRoute =
   WorkspacesWidLayoutIntegrationsIndexRouteImport.update({
     id: '/integrations/',
     path: '/integrations/',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutSettingsVariablesRoute =
+  WorkspacesWidLayoutSettingsVariablesRouteImport.update({
+    id: '/settings/variables',
+    path: '/settings/variables',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutSettingsSecretsRoute =
+  WorkspacesWidLayoutSettingsSecretsRouteImport.update({
+    id: '/settings/secrets',
+    path: '/settings/secrets',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 const WorkspacesWidLayoutSettingsRunnersRoute =
@@ -252,6 +266,8 @@ export interface FileRoutesByFullPath {
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/provisioners': typeof WorkspacesWidLayoutSettingsProvisionersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
+  '/workspaces/$wid/settings/secrets': typeof WorkspacesWidLayoutSettingsSecretsRoute
+  '/workspaces/$wid/settings/variables': typeof WorkspacesWidLayoutSettingsVariablesRoute
   '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
   '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren
@@ -285,6 +301,8 @@ export interface FileRoutesByTo {
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/provisioners': typeof WorkspacesWidLayoutSettingsProvisionersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
+  '/workspaces/$wid/settings/secrets': typeof WorkspacesWidLayoutSettingsSecretsRoute
+  '/workspaces/$wid/settings/variables': typeof WorkspacesWidLayoutSettingsVariablesRoute
   '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings': typeof WorkspacesWidLayoutSettingsIndexRoute
   '/workspaces/$wid/projects/$pid/runs': typeof WorkspacesWidLayoutProjectsPidLayoutRunsRoute
@@ -319,6 +337,8 @@ export interface FileRoutesById {
   '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/_layout/settings/provisioners': typeof WorkspacesWidLayoutSettingsProvisionersRoute
   '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
+  '/workspaces/$wid/_layout/settings/secrets': typeof WorkspacesWidLayoutSettingsSecretsRoute
+  '/workspaces/$wid/_layout/settings/variables': typeof WorkspacesWidLayoutSettingsVariablesRoute
   '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/_layout/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
   '/workspaces/$wid/_layout/projects/$pid/_layout': typeof WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren
@@ -355,6 +375,8 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/provisioners'
     | '/workspaces/$wid/settings/runners'
+    | '/workspaces/$wid/settings/secrets'
+    | '/workspaces/$wid/settings/variables'
     | '/workspaces/$wid/integrations/'
     | '/workspaces/$wid/settings/'
     | '/workspaces/$wid/projects/$pid'
@@ -388,6 +410,8 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/provisioners'
     | '/workspaces/$wid/settings/runners'
+    | '/workspaces/$wid/settings/secrets'
+    | '/workspaces/$wid/settings/variables'
     | '/workspaces/$wid/integrations'
     | '/workspaces/$wid/settings'
     | '/workspaces/$wid/projects/$pid/runs'
@@ -421,6 +445,8 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/_layout/settings/members'
     | '/workspaces/$wid/_layout/settings/provisioners'
     | '/workspaces/$wid/_layout/settings/runners'
+    | '/workspaces/$wid/_layout/settings/secrets'
+    | '/workspaces/$wid/_layout/settings/variables'
     | '/workspaces/$wid/_layout/integrations/'
     | '/workspaces/$wid/_layout/settings/'
     | '/workspaces/$wid/_layout/projects/$pid/_layout'
@@ -556,6 +582,20 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/workspaces/$wid/integrations/'
       preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsIndexRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/settings/variables': {
+      id: '/workspaces/$wid/_layout/settings/variables'
+      path: '/settings/variables'
+      fullPath: '/workspaces/$wid/settings/variables'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsVariablesRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/settings/secrets': {
+      id: '/workspaces/$wid/_layout/settings/secrets'
+      path: '/settings/secrets'
+      fullPath: '/workspaces/$wid/settings/secrets'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsSecretsRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
     '/workspaces/$wid/_layout/settings/runners': {
@@ -723,6 +763,8 @@ interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
   WorkspacesWidLayoutSettingsProvisionersRoute: typeof WorkspacesWidLayoutSettingsProvisionersRoute
   WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
+  WorkspacesWidLayoutSettingsSecretsRoute: typeof WorkspacesWidLayoutSettingsSecretsRoute
+  WorkspacesWidLayoutSettingsVariablesRoute: typeof WorkspacesWidLayoutSettingsVariablesRoute
   WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
   WorkspacesWidLayoutSettingsIndexRoute: typeof WorkspacesWidLayoutSettingsIndexRoute
   WorkspacesWidLayoutProjectsPidLayoutRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren
@@ -752,6 +794,10 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
     WorkspacesWidLayoutSettingsProvisionersRoute,
   WorkspacesWidLayoutSettingsRunnersRoute:
     WorkspacesWidLayoutSettingsRunnersRoute,
+  WorkspacesWidLayoutSettingsSecretsRoute:
+    WorkspacesWidLayoutSettingsSecretsRoute,
+  WorkspacesWidLayoutSettingsVariablesRoute:
+    WorkspacesWidLayoutSettingsVariablesRoute,
   WorkspacesWidLayoutIntegrationsIndexRoute:
     WorkspacesWidLayoutIntegrationsIndexRoute,
   WorkspacesWidLayoutSettingsIndexRoute: WorkspacesWidLayoutSettingsIndexRoute,

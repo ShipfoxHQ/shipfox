@@ -1,4 +1,4 @@
-import {and, asc, eq, gt, inArray, isNull, type SQL} from 'drizzle-orm';
+import {and, asc, eq, gt, inArray, isNull, type SQL, sql} from 'drizzle-orm';
 import type {AnyPgColumn} from 'drizzle-orm/pg-core';
 import type {Tx} from './db.js';
 import {db} from './db.js';
@@ -14,13 +14,24 @@ export interface ManagementListParams extends StoreScope {
 
 export type SecretManagementRow = Omit<SecretValue, 'ciphertext' | 'fingerprint'>;
 
+// Values can be large and multi-line, so the list returns only a bounded, single-line
+// preview (the value's first line, capped at this many characters). The full value is
+// fetched on demand via getVariableManagementRow. This keeps a single-call list of the
+// whole bounded set from materializing hundreds of MB server-side.
+export const VARIABLE_LIST_VALUE_PREVIEW_LENGTH = 256;
+
+/** A variable list row whose `value` is a preview; `valueTruncated` flags that more exists. */
+export interface VariableManagementListRow extends SecretVariable {
+  valueTruncated: boolean;
+}
+
 export interface SecretManagementListResult {
   secrets: SecretManagementRow[];
   nextCursor: string | null;
 }
 
 export interface VariableManagementListResult {
-  variables: SecretVariable[];
+  variables: VariableManagementListRow[];
   nextCursor: string | null;
 }
 
@@ -51,8 +62,22 @@ export async function listVariableManagementRows(
   tx?: Tx,
 ): Promise<VariableManagementListResult> {
   const executor = tx ?? db();
+  // Preview = the value's first line, capped at the preview length. `valueTruncated`
+  // is true whenever the stored value differs from that preview (longer, or multi-line).
+  const valuePreview = sql<string>`left(split_part(${secretVariables.value}, chr(10), 1), ${VARIABLE_LIST_VALUE_PREVIEW_LENGTH})`;
   const rows = await executor
-    .select()
+    .select({
+      id: secretVariables.id,
+      workspaceId: secretVariables.workspaceId,
+      projectId: secretVariables.projectId,
+      namespace: secretVariables.namespace,
+      key: secretVariables.key,
+      createdAt: secretVariables.createdAt,
+      updatedAt: secretVariables.updatedAt,
+      lastEditedBy: secretVariables.lastEditedBy,
+      valuePreview,
+      valueTruncated: sql<boolean>`${secretVariables.value} <> ${valuePreview}`,
+    })
     .from(secretVariables)
     .where(and(...managementFilters(secretVariables, params)))
     .orderBy(asc(secretVariables.key))
@@ -63,7 +88,18 @@ export async function listVariableManagementRows(
   const last = pageRows.at(-1);
 
   return {
-    variables: pageRows.map(toSecretVariable),
+    variables: pageRows.map((row) => ({
+      id: row.id,
+      workspaceId: row.workspaceId,
+      projectId: row.projectId,
+      namespace: row.namespace,
+      key: row.key,
+      value: row.valuePreview,
+      valueTruncated: row.valueTruncated,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      lastEditedBy: row.lastEditedBy,
+    })),
     nextCursor: hasMore && last ? last.key : null,
   };
 }

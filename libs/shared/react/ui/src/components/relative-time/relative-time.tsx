@@ -1,14 +1,23 @@
-import type {ReactNode} from 'react';
+import {createContext, type ReactNode, useContext} from 'react';
 import {useMediaQuery} from '#hooks/useMediaQuery.js';
 import {formatTimestamp} from '#utils/datetime.js';
-import {formatRelative} from '#utils/relative-time.js';
+import {formatRelative, type RelativeNow} from '#utils/relative-time.js';
 import {TimeTickerProvider, useTimeTick} from '../time-ticker/index.js';
 import {Tooltip, TooltipContent, TooltipTrigger} from '../tooltip/index.js';
 
 const TICK_MS = 30_000;
+const RelativeTimeContext = createContext<{now?: RelativeNow}>({});
 
-export function RelativeTimeProvider({children}: {children: ReactNode}) {
-  return <TimeTickerProvider intervalMs={TICK_MS}>{children}</TimeTickerProvider>;
+export function RelativeTimeProvider({children, now}: {children: ReactNode; now?: RelativeNow}) {
+  const content = (
+    <RelativeTimeContext.Provider value={now === undefined ? {} : {now}}>
+      {children}
+    </RelativeTimeContext.Provider>
+  );
+
+  if (now !== undefined) return content;
+
+  return <TimeTickerProvider intervalMs={TICK_MS}>{content}</TimeTickerProvider>;
 }
 
 /**
@@ -23,8 +32,9 @@ export function RelativeTimeProvider({children}: {children: ReactNode}) {
 export function RelativeTime({value, className}: {value: string; className?: string}) {
   useTimeTick();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const {now} = useContext(RelativeTimeContext);
 
-  const display = formatRelative(value, {reducedMotion});
+  const display = formatRelative(value, now === undefined ? {reducedMotion} : {reducedMotion, now});
 
   // Skip the Tooltip entirely for unparseable input so consumers see a
   // clean empty render instead of a tooltip exposing a thrown Intl call.

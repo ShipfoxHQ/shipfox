@@ -5,7 +5,12 @@ import {secretWriteWarningSchema} from './warnings.js';
 const timestampSchema = z.string().datetime();
 const projectIdSchema = z.string().uuid().nullable();
 const optionalProjectIdSchema = z.string().uuid().optional();
-const listLimitSchema = z.coerce.number().int().min(1).max(100).default(50);
+
+// The settings UI fetches every key in one call rather than paginating, so the list
+// limit ceiling matches the per-workspace cap (SECRETS_MAX_PER_WORKSPACE default). A
+// client asking for the whole bounded set passes limit=SECRETS_MAX_LIST_LIMIT.
+export const SECRETS_MAX_LIST_LIMIT = 10000;
+const listLimitSchema = z.coerce.number().int().min(1).max(SECRETS_MAX_LIST_LIMIT).default(50);
 const cursorSchema = z
   .string()
   .min(1)
@@ -24,6 +29,15 @@ export const variableDtoSchema = secretDtoSchema.extend({
   value: z.string(),
 });
 export type VariableDto = z.infer<typeof variableDtoSchema>;
+
+// List responses return a bounded preview of each value (the store allows large
+// values, so returning every full value in one call is an availability risk).
+// `value_truncated` tells the client the stored value is longer than the preview,
+// so editing must fetch the full value via GET /variables/:key.
+export const variableListItemDtoSchema = variableDtoSchema.extend({
+  value_truncated: z.boolean(),
+});
+export type VariableListItemDto = z.infer<typeof variableListItemDtoSchema>;
 
 export const listSecretsQuerySchema = z.object({
   project_id: optionalProjectIdSchema,
@@ -47,7 +61,7 @@ export const listSecretsResponseSchema = z.object({
 export type ListSecretsResponseDto = z.infer<typeof listSecretsResponseSchema>;
 
 export const listVariablesResponseSchema = z.object({
-  variables: z.array(variableDtoSchema),
+  variables: z.array(variableListItemDtoSchema),
   next_cursor: cursorSchema.nullable(),
 });
 export type ListVariablesResponseDto = z.infer<typeof listVariablesResponseSchema>;

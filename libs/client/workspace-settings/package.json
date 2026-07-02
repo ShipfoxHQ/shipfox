@@ -43,6 +43,7 @@
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-runners": "workspace:*",
+    "@shipfox/client-secrets": "workspace:*",
     "@shipfox/client-triggers": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
