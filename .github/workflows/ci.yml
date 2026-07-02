@@ -22,6 +22,8 @@ jobs:
       # Only approved code on main may publish remote cache artifacts. Pull
       # requests can restore trusted artifacts from main, but cannot poison cache.
       TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'local:rw,remote:rw' || 'local:rw,remote:r' }}
+      SHIPFOX_TURBO_CONCURRENCY: "2"
+      SHIPFOX_VITEST_MAX_WORKERS: "2"
 
     steps:
       - name: Check out repository
@@ -42,7 +44,7 @@ jobs:
       - name: Run verification
         env:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: turbo check type test build depcruise
+        run: turbo check type test build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Run E2E tests
         id: e2e

@@ -29,6 +29,20 @@ type MergeableConfigInput = ConfigInput & {
   };
 };
 
+const maxWorkers = parseMaxWorkers(process.env.SHIPFOX_VITEST_MAX_WORKERS);
+const workerPoolConfig = maxWorkers === undefined ? {} : {maxWorkers};
+
+function parseMaxWorkers(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+
+  const maxWorkers = Number(value);
+  if (!Number.isInteger(maxWorkers) || maxWorkers < 1) {
+    throw new Error('SHIPFOX_VITEST_MAX_WORKERS must be a positive integer.');
+  }
+
+  return maxWorkers;
+}
+
 function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): ConfigInput {
   const mergeableConfig = resolvedConfig as MergeableConfigInput;
   const existingPlugins = mergeableConfig.plugins || [];
@@ -48,6 +62,7 @@ function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): 
     test: {
       ...(mergeableConfig.test || {}),
       globals: true,
+      ...workerPoolConfig,
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
