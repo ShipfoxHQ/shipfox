@@ -10,6 +10,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test dev/*.test.mjs",
+    "docs:dev": "cd docs && npx --yes mint@4 dev",
+    "docs:check": "cd docs && npx --yes mint@4 broken-links",
     "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
   },
   "devDependencies": {

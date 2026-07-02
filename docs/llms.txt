@@ -1,0 +1,8 @@
+# Shipfox
+
+> Shipfox is a continuous shipping platform for engineering teams. Define YAML workflows in your repo, run shell and AI agent steps on your own runners, and trigger pipelines from GitHub, Sentry, and more.
+
+## Documentation
+
+- [Introduction](/introduction): What Shipfox is, how it works, and what you can build with agentic workflows.
+- [Quick Start](/getting-started): Connect a project, add a workflow YAML, register a runner, and fire your first run.
