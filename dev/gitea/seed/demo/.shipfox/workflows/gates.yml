@@ -25,7 +25,7 @@ jobs:
           fi
           echo "First gate passed"
         gate:
-          success_if: exit_code == 0
+          success_if: step.exit_code == 0
           on_failure:
             restart_from: first-setup
             output: First gate failed once; retrying from first setup.
@@ -43,7 +43,7 @@ jobs:
           fi
           echo "Second gate passed"
         gate:
-          success_if: exit_code == 0
+          success_if: step.exit_code == 0
           on_failure:
             restart_from: second-setup
             output: Second gate failed once; retrying from second setup.
@@ -63,7 +63,7 @@ jobs:
           fi
           echo "Third gate passed on attempt $attempts"
         gate:
-          success_if: exit_code == 0
+          success_if: step.exit_code == 0
           on_failure:
             restart_from: second-setup
             output: Third gate failed; retrying from second setup.
