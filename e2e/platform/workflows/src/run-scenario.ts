@@ -207,15 +207,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
 
   try {
     await createRepo({org: suite.org, name: repo});
-    const project = await createProject({
-      workspaceId: suite.workspaceId,
-      sessionToken: token,
-      name: repo,
-      connectionId: suite.connectionId,
-      externalRepositoryId: giteaExternalRepositoryId(suite.org, repo),
-    });
-
-    // The seed push can race subscription creation; assertions use the explicit trigger below.
+    // Project binding starts a definition sync, so the repo must already contain the workflow.
     await commitFiles({
       org: suite.org,
       repo,
@@ -224,6 +216,14 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
         {path: scenario.configPath, content: workflowYaml},
         ...scenario.extraFiles.map((file) => ({path: file.path, content: file.content})),
       ],
+    });
+
+    const project = await createProject({
+      workspaceId: suite.workspaceId,
+      sessionToken: token,
+      name: repo,
+      connectionId: suite.connectionId,
+      externalRepositoryId: giteaExternalRepositoryId(suite.org, repo),
     });
 
     const definition = await waitForDefinition({
