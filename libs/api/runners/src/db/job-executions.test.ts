@@ -309,9 +309,39 @@ describe('claimPendingJobExecution', () => {
   });
 
   it('returns null when no jobs are pending', async () => {
+    await db()
+      .update(runnerSessions)
+      .set({updatedAt: new Date('2025-01-01T00:00:00.000Z')})
+      .where(eq(runnerSessions.id, runnerSessionId));
+
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
+    const [session] = await db()
+      .select({updatedAt: runnerSessions.updatedAt})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
     expect(claimed).toBeNull();
+    expect(session?.updatedAt.getTime()).toBeGreaterThan(
+      new Date('2025-01-01T00:00:00.000Z').getTime(),
+    );
+  });
+
+  it('touches runner session liveness when a job is claimed', async () => {
+    const staleUpdatedAt = new Date('2025-01-01T00:00:00.000Z');
+    await db()
+      .update(runnerSessions)
+      .set({updatedAt: staleUpdatedAt})
+      .where(eq(runnerSessions.id, runnerSessionId));
+    await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+
+    const [session] = await db()
+      .select({updatedAt: runnerSessions.updatedAt})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
+    expect(claimed).not.toBeNull();
+    expect(session?.updatedAt.getTime()).toBeGreaterThan(staleUpdatedAt.getTime());
   });
 
   it('enforces a non-null session claim cap from the database', async () => {

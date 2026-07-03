@@ -25,6 +25,13 @@ export const provisionedRunnerReportCount = meter.createCounter<{
   description: 'Provisioned runner lifecycle reports accepted by state',
 });
 
+export const provisionedRunnerReapedCount = meter.createCounter<Record<string, never>>(
+  'runners_provisioned_runner_reaped',
+  {
+    description: 'Stale provisioned runners marked failed by backend maintenance',
+  },
+);
+
 export const reservationReleasedCount = meter.createCounter<Record<string, never>>(
   'runners_reservation_released',
   {description: 'Reservation units released from terminal provisioned runner reports'},

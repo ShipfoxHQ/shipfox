@@ -118,6 +118,11 @@ export async function claimPendingJobExecution(params: {
   sessionLabels: string[];
   maxClaims: number | null;
 }): Promise<ClaimedJobExecution | null> {
+  await touchRunnerSessionLiveness({
+    workspaceId: params.workspaceId,
+    runnerSessionId: params.runnerSessionId,
+  });
+
   if (params.sessionLabels.length === 0) return null;
 
   return await db().transaction(async (tx) => {
@@ -196,7 +201,7 @@ export async function claimPendingJobExecution(params: {
     if (params.maxClaims !== null) {
       await tx
         .update(runnerSessions)
-        .set({claimsUsed: sql`${runnerSessions.claimsUsed} + 1`})
+        .set({claimsUsed: sql`${runnerSessions.claimsUsed} + 1`, updatedAt: sql`now()`})
         .where(eq(runnerSessions.id, params.runnerSessionId));
     }
 
@@ -222,6 +227,21 @@ export async function claimPendingJobExecution(params: {
       projectId: row.projectId,
     };
   });
+}
+
+async function touchRunnerSessionLiveness(params: {
+  workspaceId: string;
+  runnerSessionId: string;
+}): Promise<void> {
+  await db()
+    .update(runnerSessions)
+    .set({updatedAt: sql`now()`})
+    .where(
+      and(
+        eq(runnerSessions.id, params.runnerSessionId),
+        eq(runnerSessions.workspaceId, params.workspaceId),
+      ),
+    );
 }
 
 /**

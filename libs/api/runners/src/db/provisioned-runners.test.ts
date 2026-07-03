@@ -5,16 +5,21 @@ import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registra
 import {
   listActiveProvisionedRunners,
   listProvisionerTerminateIntents,
+  reapStaleProvisionedRunners,
   reconcileProvisionedRunners,
   reportProvisionedRunners,
 } from '#db/provisioned-runners.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
+import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {reservations} from '#db/schema/reservations.js';
+import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {
   ephemeralRegistrationTokenFactory,
   provisionedRunnerFactory,
+  provisionerTokenFactory,
   reservationFactory,
+  runnerSessionFactory,
 } from '#test/index.js';
 
 function provisionedRunnerRowsFor(params: {workspaceId: string; provisionerId: string}) {
@@ -823,6 +828,311 @@ describe('listProvisionerTerminateIntents', () => {
         lastHeartbeatAt: startedAt,
         cancellationRequestedAt: params.cancellationRequestedAt ?? null,
       });
+  }
+});
+
+describe('reapStaleProvisionedRunners', () => {
+  let workspaceId: string;
+  let provisionerId: string;
+
+  beforeEach(async () => {
+    workspaceId = crypto.randomUUID();
+    const provisioner = await provisionerTokenFactory.create({workspaceId});
+    provisionerId = provisioner.id;
+  });
+
+  it('fails stale unclaimed provisioned runners and releases reservations', async () => {
+    const reservationId = await createReservation(2);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      reservationId,
+      reportedAt: staleAt(),
+      updatedAt: staleAt(),
+    });
+
+    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
+    expect(result).toEqual({reaped: 1, reservationsReleased: 1});
+    expect(provisionedRunner).toMatchObject({
+      state: 'failed',
+      reason: 'stale-provisioner',
+    });
+    expect(provisionedRunner?.failedAt).toBeInstanceOf(Date);
+    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(reservation?.id).toBe(reservationId);
+    expect(reservation?.count).toBe(1);
+  });
+
+  it('skips fresh rows, live provisioners, terminal rows, running jobs, and fresh sessions', async () => {
+    await createProvisionedRunner({
+      provisionedRunnerId: 'fresh-row',
+      reportedAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'live-provisioner',
+      reportedAt: staleAt(),
+      updatedAt: staleAt(),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'terminal-row',
+      reportedAt: staleAt(),
+      updatedAt: staleAt(),
+      state: 'failed',
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'running-job',
+      reportedAt: staleAt(),
+      updatedAt: staleAt(),
+    });
+    await insertRunningJob({provisionedRunnerId: 'running-job'});
+    const freshSession = await createProvisionedRunner({
+      provisionedRunnerId: 'fresh-session',
+      reportedAt: staleAt(),
+      updatedAt: staleAt(),
+    });
+    await createLinkedSession({
+      provisionedRunnerId: freshSession.provisionedRunnerId,
+      updatedAt: new Date(),
+    });
+    await db()
+      .update(provisionerTokens)
+      .set({lastSeenAt: new Date()})
+      .where(eq(provisionerTokens.id, provisionerId));
+
+    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId}).orderBy(
+      provisionedRunners.provisionedRunnerId,
+    );
+    expect(result).toEqual({reaped: 0, reservationsReleased: 0});
+    expect(rows.map((row) => [row.provisionedRunnerId, row.state])).toEqual([
+      ['fresh-row', 'running'],
+      ['fresh-session', 'running'],
+      ['live-provisioner', 'running'],
+      ['running-job', 'running'],
+      ['terminal-row', 'failed'],
+    ]);
+  });
+
+  it('releases reservations for stale rows whose linked session is no longer live', async () => {
+    const reservationId = await createReservation(1);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'stale-session',
+      reservationId,
+      runnerSessionId: '00000000-0000-4000-8000-000000000001',
+      reportedAt: staleAt(),
+      updatedAt: staleAt(),
+    });
+    const session = await createLinkedSession({
+      provisionedRunnerId: 'stale-session',
+      updatedAt: staleAt(),
+    });
+    await db()
+      .update(provisionedRunners)
+      .set({runnerSessionId: session.id})
+      .where(eq(provisionedRunners.provisionedRunnerId, 'stale-session'));
+
+    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    expect(result).toEqual({reaped: 1, reservationsReleased: 1});
+    expect(provisionedRunner?.state).toBe('failed');
+    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(reservationRows.find((row) => row.id === reservationId)).toBeUndefined();
+  });
+
+  it('flags expired releases and drains only the configured batch size', async () => {
+    const activeReservationId = await createReservation(2);
+    const expiredReservationId = await createReservation(1, {
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'stale-1',
+      reservationId: activeReservationId,
+      reportedAt: staleAt(240_000),
+      updatedAt: staleAt(240_000),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'stale-2',
+      reservationId: expiredReservationId,
+      reportedAt: staleAt(180_000),
+      updatedAt: staleAt(180_000),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'stale-3',
+      reportedAt: staleAt(120_000),
+      updatedAt: staleAt(120_000),
+    });
+
+    const first = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 2});
+    const second = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 2});
+
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    expect(first).toEqual({reaped: 2, reservationsReleased: 1});
+    expect(second).toEqual({reaped: 1, reservationsReleased: 0});
+    expect(reservationRows.find((row) => row.id === activeReservationId)?.count).toBe(1);
+    expect(reservationRows.find((row) => row.id === expiredReservationId)?.count).toBe(1);
+    expect(provisionedRunnerRows.every((row) => row.state === 'failed')).toBe(true);
+    expect(
+      provisionedRunnerRows
+        .filter((row) => row.reservationId)
+        .every((row) => row.reservationReleasedAt instanceof Date),
+    ).toBe(true);
+  });
+
+  it('does not double-release reservations when terminal report and reaper queue on the workspace lock', async () => {
+    const reservationId = await createReservation(2);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      reservationId,
+      reportedAt: staleAt(),
+      updatedAt: staleAt(),
+    });
+    const releaseWorkspaceLock = deferred<void>();
+    const lockHolderReady = deferred<void>();
+    const lockHolder = db().transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${workspaceId}))`);
+      lockHolderReady.resolve();
+      await releaseWorkspaceLock.promise;
+    });
+
+    await lockHolderReady.promise;
+    const report = reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'failed',
+          reportedAt: new Date(),
+        }),
+      ],
+    });
+    await waitForLockWait({queryLike: '%pg_advisory_xact_lock%'});
+    const reaper = reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    try {
+      await waitForLockWait({minWaiters: 2, queryLike: '%pg_advisory_xact_lock%'});
+    } finally {
+      releaseWorkspaceLock.resolve();
+    }
+    const [reportResult, reaperResult] = await Promise.all([report, reaper, lockHolder]);
+
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    expect(reportResult.reservationsReleased + reaperResult.reservationsReleased).toBe(1);
+    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(reservation?.count).toBe(1);
+  });
+
+  async function createReservation(count: number, overrides?: {expiresAt?: Date}): Promise<string> {
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux'],
+      count,
+      expiresAt: overrides?.expiresAt ?? new Date(Date.now() + 60_000),
+    });
+    const [reservation] = await db()
+      .select()
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.workspaceId, workspaceId),
+          eq(reservations.provisionerId, provisionerId),
+        ),
+      )
+      .orderBy(desc(reservations.id))
+      .limit(1);
+    if (!reservation) throw new Error('Expected reservation');
+    return reservation.id;
+  }
+
+  async function createProvisionedRunner(params: {
+    provisionedRunnerId: string;
+    reservationId?: string | null;
+    runnerSessionId?: string | null;
+    reportedAt: Date;
+    updatedAt: Date;
+    state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
+  }) {
+    const row = await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: params.provisionedRunnerId,
+      reservationId: params.reservationId ?? null,
+      runnerSessionId: params.runnerSessionId ?? null,
+      reportedAt: params.reportedAt,
+      state: params.state ?? 'running',
+    });
+    await db()
+      .update(provisionedRunners)
+      .set({updatedAt: params.updatedAt})
+      .where(eq(provisionedRunners.id, row.id));
+    return {...row, updatedAt: params.updatedAt};
+  }
+
+  async function createLinkedSession(params: {provisionedRunnerId: string; updatedAt: Date}) {
+    const session = await runnerSessionFactory.create({workspaceId});
+    await db()
+      .update(runnerSessions)
+      .set({
+        registrationTokenKind: 'ephemeral',
+        provisionerId,
+        provisionedRunnerId: params.provisionedRunnerId,
+        maxClaims: 1,
+        updatedAt: params.updatedAt,
+      })
+      .where(eq(runnerSessions.id, session.id));
+    return session;
+  }
+
+  async function insertRunningJob(params: {provisionedRunnerId: string}) {
+    await db()
+      .insert(runningJobExecutions)
+      .values({
+        workspaceId,
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        runnerSessionId: crypto.randomUUID(),
+        provisionerId,
+        provisionedRunnerId: params.provisionedRunnerId,
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+        startedAt: new Date('2025-01-01T00:00:00.000Z'),
+        lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
+      });
+  }
+
+  function staleAt(ageMs = 120_000): Date {
+    return new Date(Date.now() - ageMs);
+  }
+
+  function event(params: {
+    provisionedRunnerId: string;
+    reservationId?: string | null;
+    state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
+    reportedAt?: Date;
+  }) {
+    return {
+      provisionedRunnerId: params.provisionedRunnerId,
+      reservationId: params.reservationId ?? null,
+      templateKey: 'linux',
+      labels: ['linux'],
+      state: params.state ?? 'running',
+      reason: null,
+      runnerSessionId: null,
+      providerKind: 'docker',
+      reportedAt: params.reportedAt ?? new Date(),
+    };
   }
 });
 

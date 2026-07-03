@@ -3,9 +3,11 @@ import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 import type {createRunnersMaintenanceActivities} from '../activities/index.js';
 
-const {deleteExpiredReservationsActivity, detectAndExpireStuckJobsActivity} = proxyActivities<
-  ReturnType<typeof createRunnersMaintenanceActivities>
->({
+const {
+  deleteExpiredReservationsActivity,
+  detectAndExpireStuckJobsActivity,
+  reapStaleProvisionedRunnersActivity,
+} = proxyActivities<ReturnType<typeof createRunnersMaintenanceActivities>>({
   startToCloseTimeout: '60s',
 });
 
@@ -28,6 +30,14 @@ export async function stuckJobDetector(): Promise<void> {
     log.info('Stuck-job detector expired job leases', {
       expired,
       thresholdSeconds: STUCK_JOB_THRESHOLD_SECONDS,
+    });
+  }
+
+  const {reaped, reservationsReleased} = await reapStaleProvisionedRunnersActivity();
+  if (reaped > 0) {
+    log.info('Stuck-job detector reaped stale provisioned runners', {
+      reaped,
+      reservationsReleased,
     });
   }
 }

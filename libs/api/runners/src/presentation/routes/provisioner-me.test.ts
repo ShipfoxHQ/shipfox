@@ -77,6 +77,8 @@ describe('provisioner me route', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({id: token.id, workspace_id: workspaceId});
+    const touched = await provisionerTokenDb.resolveProvisionerTokenByHash(token.hashedToken);
+    expect(touched?.lastSeenAt).toBeInstanceOf(Date);
   });
 
   it('does not reject valid auth when the last-seen write fails', async () => {

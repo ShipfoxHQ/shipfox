@@ -41,6 +41,7 @@ export {
   isTerminalState,
   listActiveProvisionedRunners,
   listProvisionerTerminateIntents,
+  reapStaleProvisionedRunners,
   reconcileProvisionedRunners,
   reportProvisionedRunners,
 } from './provisioned-runners.js';

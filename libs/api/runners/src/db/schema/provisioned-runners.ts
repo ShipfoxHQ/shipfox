@@ -47,6 +47,12 @@ export const provisionedRunners = pgTable(
       table.state,
       table.updatedAt,
     ),
+    index('runners_provisioned_runners_stale_reaper_idx').on(
+      table.state,
+      table.updatedAt,
+      table.reportedAt,
+      table.workspaceId,
+    ),
     index('runners_provisioned_runners_reservation_id_idx').on(table.reservationId),
   ],
 );
