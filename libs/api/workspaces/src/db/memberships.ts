@@ -1,6 +1,7 @@
 import {and, eq, sql} from 'drizzle-orm';
 import type {Membership} from '#core/entities/membership.js';
 import {LastMemberError} from '#core/errors.js';
+import {recordWorkspaceMembershipChanged} from '#metrics/instance.js';
 import {db} from './db.js';
 import {memberships, toMembership} from './schema/memberships.js';
 import {workspaces} from './schema/workspaces.js';
@@ -25,6 +26,7 @@ export async function createMembership(params: CreateMembershipParams): Promise<
 
   const row = rows[0];
   if (!row) throw new Error('Insert returned no rows');
+  recordWorkspaceMembershipChanged('added');
   return toMembership(row);
 }
 
@@ -87,7 +89,7 @@ export interface RemoveMembershipParams {
 }
 
 export async function removeMembership(params: RemoveMembershipParams): Promise<void> {
-  await db().transaction(async (tx) => {
+  const removed = await db().transaction(async (tx) => {
     const countResult = await tx
       .select({count: sql<number>`count(*)::int`})
       .from(memberships)
@@ -97,10 +99,15 @@ export async function removeMembership(params: RemoveMembershipParams): Promise<
       throw new LastMemberError(params.workspaceId);
     }
 
-    await tx
+    const deleted = await tx
       .delete(memberships)
       .where(
         and(eq(memberships.userId, params.userId), eq(memberships.workspaceId, params.workspaceId)),
-      );
+      )
+      .returning({id: memberships.id});
+
+    return deleted.length > 0;
   });
+
+  if (removed) recordWorkspaceMembershipChanged('removed');
 }

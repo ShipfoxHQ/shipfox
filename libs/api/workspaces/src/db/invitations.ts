@@ -7,6 +7,11 @@ import {and, eq, gt, isNull, lt, sql} from 'drizzle-orm';
 import type {Invitation} from '#core/entities/invitation.js';
 import type {Membership} from '#core/entities/membership.js';
 import {OpenInvitationExistsError} from '#core/errors.js';
+import {
+  recordWorkspaceInvitationAccepted,
+  recordWorkspaceInvitationCreated,
+  recordWorkspaceMembershipChanged,
+} from '#metrics/instance.js';
 import {db} from './db.js';
 import {invitations, toInvitation} from './schema/invitations.js';
 import {memberships, toMembership} from './schema/memberships.js';
@@ -35,7 +40,7 @@ export type CreateInvitationParams = CreateInvitationBaseParams &
   );
 
 export async function createInvitation(params: CreateInvitationParams): Promise<Invitation> {
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     await tx
       .delete(invitations)
       .where(
@@ -86,8 +91,14 @@ export async function createInvitation(params: CreateInvitationParams): Promise<
         },
       });
     }
-    return toInvitation(row);
+    return {
+      invitation: toInvitation(row),
+      emailRequested: params.sendEmail ? ('requested' as const) : ('skipped' as const),
+    };
   });
+
+  recordWorkspaceInvitationCreated(result.emailRequested);
+  return result.invitation;
 }
 
 export async function findInvitationByToken(params: {
@@ -148,7 +159,7 @@ export interface AcceptInvitationResult {
 export async function acceptInvitation(
   params: AcceptInvitationParams,
 ): Promise<AcceptInvitationResult | undefined> {
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     const inv = await tx
       .select()
       .from(invitations)
@@ -212,4 +223,10 @@ export async function acceptInvitation(
 
     return {invitation: toInvitation(updatedRow), membership, alreadyMember};
   });
+
+  if (result && !result.alreadyMember) recordWorkspaceMembershipChanged('added');
+  if (result) {
+    recordWorkspaceInvitationAccepted(result.alreadyMember ? 'already_member' : 'added');
+  }
+  return result;
 }

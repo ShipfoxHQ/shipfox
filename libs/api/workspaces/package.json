@@ -45,6 +45,7 @@
     "@shipfox/node-email": "workspace:*",
     "@shipfox/node-mailer": "workspace:*",
     "@shipfox/node-module": "workspace:*",
+    "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-tokens": "workspace:*",
