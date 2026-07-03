@@ -7,6 +7,8 @@ import {setManagedVariables} from '#core/index.js';
 import {toVariableDto} from '#presentation/dto/index.js';
 import {translateManagementError} from '#presentation/routes/errors.js';
 
+type ManagedVariable = Awaited<ReturnType<typeof setManagedVariables>>[number];
+
 export const createE2eVariableRoute = defineRoute({
   method: 'POST',
   path: '/variable',
@@ -17,13 +19,14 @@ export const createE2eVariableRoute = defineRoute({
   },
   errorHandler: translateManagementError,
   handler: async (request, reply) => {
-    const [variable] = await setManagedVariables({
-      workspaceId: request.body.workspace_id,
-      actorId: request.body.actor_id,
-      projectId: request.body.project_id,
-      entries: [{key: request.body.key, value: request.body.value}],
-    });
-    if (!variable) throw new Error('E2E variable setup returned no row');
+    const variable = (
+      await setManagedVariables({
+        workspaceId: request.body.workspace_id,
+        actorId: request.body.actor_id,
+        projectId: request.body.project_id,
+        entries: [{key: request.body.key, value: request.body.value}],
+      })
+    )[0] as ManagedVariable;
 
     reply.code(201);
     return toVariableDto(variable);

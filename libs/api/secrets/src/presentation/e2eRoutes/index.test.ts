@@ -86,9 +86,9 @@ describe('secrets e2e routes', () => {
   });
 
   it('registers e2e setup routes without user auth', () => {
-    const route = secretsE2eRoutes.routes[0];
-
     expect(secretsE2eRoutes.prefix).toBe('/secrets');
-    expect(route?.auth).toBeUndefined();
+    for (const route of secretsE2eRoutes.routes) {
+      expect(route.auth).toBeUndefined();
+    }
   });
 });
