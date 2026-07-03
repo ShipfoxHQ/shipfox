@@ -1253,6 +1253,7 @@ async function waitForLockWait(params?: {minWaiters?: number; queryLike?: string
         FROM pg_stat_activity
         WHERE datname = current_database()
           AND pid <> pg_backend_pid()
+          AND state = 'active'
           AND wait_event_type = 'Lock'
           AND ($1::text IS NULL OR query ILIKE $1)
       `,
