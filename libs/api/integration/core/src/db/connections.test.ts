@@ -23,36 +23,36 @@ describe('integration connection queries', () => {
   it('upserts duplicate external connections for a workspace', async () => {
     const first = await upsertIntegrationConnection({
       workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const second = await upsertIntegrationConnection({
       workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
       slug: 'debug_renamed',
       displayName: 'Renamed Debug',
     });
 
     expect(second.id).toBe(first.id);
     expect(second.displayName).toBe('Renamed Debug');
-    expect(second.slug).toBe('debug');
+    expect(second.slug).toBe('gitea_owner');
   });
 
   it('allows multiple same-provider connections when external account differs', async () => {
     await upsertIntegrationConnection({
       workspaceId,
-      provider: 'debug',
+      provider: 'gitea',
       externalAccountId: 'debug-1',
       slug: 'debug_1',
       displayName: 'Debug One',
     });
     await upsertIntegrationConnection({
       workspaceId,
-      provider: 'debug',
+      provider: 'gitea',
       externalAccountId: 'debug-2',
       slug: 'debug_2',
       displayName: 'Debug Two',
@@ -66,9 +66,9 @@ describe('integration connection queries', () => {
   it('resolves a unique slug in workspace scope', async () => {
     await upsertIntegrationConnection({
       workspaceId,
-      provider: 'debug',
+      provider: 'gitea',
       externalAccountId: 'debug-1',
-      slug: 'debug',
+      slug: 'gitea_owner',
       displayName: 'Debug One',
     });
     await upsertIntegrationConnection({
@@ -81,12 +81,12 @@ describe('integration connection queries', () => {
 
     const result = await resolveUniqueConnectionSlug({
       workspaceId,
-      provider: 'debug',
+      provider: 'gitea',
       externalAccountId: 'debug-3',
       baseSlug: 'debug',
     });
 
-    expect(result).toBe('debug_3');
+    expect(result).toBe('debug');
   });
 
   it('keeps the existing slug when resolving a reconnect', async () => {
@@ -155,10 +155,10 @@ describe('integration connection queries', () => {
   it('lists workspace connections across all lifecycle statuses', async () => {
     await upsertIntegrationConnection({
       workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
     await upsertIntegrationConnection({
       workspaceId,
@@ -179,7 +179,7 @@ describe('integration connection queries', () => {
     const result = await listIntegrationConnections({workspaceId});
 
     expect(result.map((connection) => [connection.provider, connection.lifecycleStatus])).toEqual([
-      ['debug', 'active'],
+      ['gitea', 'active'],
       ['github', 'active'],
       ['github', 'disabled'],
     ]);
@@ -189,17 +189,17 @@ describe('integration connection queries', () => {
     const otherWorkspaceId = crypto.randomUUID();
     const debugA = await upsertIntegrationConnection({
       workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
     const debugB = await upsertIntegrationConnection({
       workspaceId: otherWorkspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
     const github = await upsertIntegrationConnection({
       workspaceId,
@@ -209,10 +209,10 @@ describe('integration connection queries', () => {
       displayName: 'GitHub',
     });
 
-    const result = await listIntegrationConnectionsByProvider({provider: 'debug'});
+    const result = await listIntegrationConnectionsByProvider({provider: 'gitea'});
 
     const ids = result.map((connection) => connection.id);
-    expect(result.every((connection) => connection.provider === 'debug')).toBe(true);
+    expect(result.every((connection) => connection.provider === 'gitea')).toBe(true);
     expect(ids).toEqual(expect.arrayContaining([debugA.id, debugB.id]));
     expect(ids).not.toContain(github.id);
   });

@@ -24,6 +24,7 @@
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-helper-auth": "workspace:*",
+    "@shipfox/e2e-helper-integrations-gitea": "workspace:*",
     "@shipfox/e2e-helper-projects": "workspace:*",
     "@shipfox/e2e-helper-workspaces": "workspace:*",
     "@shipfox/playwright": "workspace:*",

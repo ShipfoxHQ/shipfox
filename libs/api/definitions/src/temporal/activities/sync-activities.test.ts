@@ -34,23 +34,23 @@ function sourceControl(
         connection: {
           id: 'connection-1',
           workspaceId: 'workspace-1',
-          provider: 'debug',
-          externalAccountId: 'debug',
-          slug: 'debug',
-          displayName: 'Debug',
+          provider: 'gitea',
+          externalAccountId: 'gitea-owner',
+          slug: 'gitea_owner',
+          displayName: 'Gitea',
           lifecycleStatus: 'active' as const,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
         repository: {
-          externalRepositoryId: 'debug:platform',
-          owner: 'debug-owner',
+          externalRepositoryId: 'gitea:gitea-owner/platform',
+          owner: 'gitea-owner',
           name: 'platform',
-          fullName: 'debug-owner/platform',
+          fullName: 'gitea-owner/platform',
           defaultBranch: 'main',
           visibility: 'private' as const,
-          cloneUrl: 'https://debug.local/debug-owner/platform.git',
-          htmlUrl: 'https://debug.local/debug-owner/platform',
+          cloneUrl: 'https://gitea.local/gitea-owner/platform.git',
+          htmlUrl: 'https://gitea.local/gitea-owner/platform',
         },
       }),
     ),
@@ -85,7 +85,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       });
 
       expect(result).toEqual({sourceRef: 'main', sourceCommitSha: undefined});
@@ -106,7 +106,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: 'main',
         sourceCommitSha: 'abc123',
       });
@@ -133,7 +133,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       });
 
       await expect(result).rejects.toBeInstanceOf(ApplicationFailure);
@@ -159,7 +159,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       });
 
       await expect(result).rejects.toMatchObject({
@@ -178,7 +178,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: 'main',
         paths: ['.shipfox/workflows/ci.yml'],
       });
@@ -204,7 +204,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: 'main',
         sourceCommitSha: 'abc123',
         paths: ['.shipfox/workflows/ci.yml'],
@@ -222,7 +222,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: 'main',
         sourceCommitSha: 'abc123',
         paths: ['.shipfox/workflows/ci.yml'],
@@ -247,14 +247,14 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       });
 
       const result = activities.markDefinitionSyncFailed({
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: 'main',
         code: 'invalid-definition',
         message: 'Invalid workflow at .shipfox/workflows/bad.yml',
@@ -278,7 +278,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: null,
         code: 'connection-unavailable',
         message: 'connection disabled before resolving repository',
@@ -304,13 +304,13 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       });
       await activities.markDefinitionSyncFailed({
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: 'main',
         code: 'invalid-definition',
         message: 'something',
@@ -320,7 +320,7 @@ describe('definition sync activities', () => {
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
-        sourceExternalRepositoryId: 'debug:platform',
+        sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         sourceRef: 'main',
       });
       await result;

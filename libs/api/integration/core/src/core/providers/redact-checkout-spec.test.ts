@@ -37,7 +37,7 @@ describe('redactCheckoutSpec', () => {
 
   it('returns the spec unchanged when there are no credentials and the url is clean', () => {
     const spec: CheckoutSpec = {
-      repositoryUrl: 'https://debug.local/debug-owner/platform.git',
+      repositoryUrl: 'https://gitea.local/gitea-owner/platform.git',
       ref: 'main',
     };
 

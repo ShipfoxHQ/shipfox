@@ -59,24 +59,24 @@ describe('project routes', () => {
           connection: {
             id: sourceConnectionId,
             workspaceId,
-            provider: 'debug' as const,
-            externalAccountId: 'debug',
-            slug: 'debug',
-            displayName: 'Debug',
+            provider: 'gitea' as const,
+            externalAccountId: 'gitea-owner',
+            slug: 'gitea_owner',
+            displayName: 'Gitea',
             lifecycleStatus: 'active' as const,
             capabilities: ['source_control' as const],
             createdAt: new Date(),
             updatedAt: new Date(),
           },
           repository: {
-            externalRepositoryId: 'debug:platform',
-            owner: 'debug-owner',
+            externalRepositoryId: 'gitea:gitea-owner/platform',
+            owner: 'gitea-owner',
             name: 'platform',
-            fullName: 'debug-owner/platform',
+            fullName: 'gitea-owner/platform',
             defaultBranch: 'main',
             visibility: 'private' as const,
-            cloneUrl: 'https://debug.local/debug-owner/platform.git',
-            htmlUrl: 'https://debug.local/debug-owner/platform',
+            cloneUrl: 'https://gitea.local/gitea-owner/platform.git',
+            htmlUrl: 'https://gitea.local/gitea-owner/platform',
           },
         };
       }),
@@ -106,7 +106,7 @@ describe('project routes', () => {
         name: '  Platform  ',
         source: {
           connection_id: sourceConnectionId,
-          external_repository_id: 'debug:platform',
+          external_repository_id: 'gitea:gitea-owner/platform',
         },
       },
     });
@@ -115,7 +115,7 @@ describe('project routes', () => {
     expect(res.json().name).toBe('Platform');
     expect(res.json().source).toEqual({
       connection_id: sourceConnectionId,
-      external_repository_id: 'debug:platform',
+      external_repository_id: 'gitea:gitea-owner/platform',
     });
   });
 
@@ -133,7 +133,7 @@ describe('project routes', () => {
         name,
         source: {
           connection_id: sourceConnectionId,
-          external_repository_id: 'debug:platform',
+          external_repository_id: 'gitea:gitea-owner/platform',
         },
       },
     });
@@ -152,7 +152,7 @@ describe('project routes', () => {
         name: 'Platform',
         source: {
           connection_id: sourceConnectionId,
-          external_repository_id: 'debug:platform',
+          external_repository_id: 'gitea:gitea-owner/platform',
         },
       },
     });
@@ -178,23 +178,23 @@ describe('project routes', () => {
         connection: {
           id: sourceConnectionId,
           workspaceId,
-          provider: 'debug',
-          externalAccountId: 'debug',
-          slug: 'debug',
-          displayName: 'Debug',
+          provider: 'gitea',
+          externalAccountId: 'gitea-owner',
+          slug: 'gitea_owner',
+          displayName: 'Gitea',
           lifecycleStatus: 'active',
           createdAt: new Date(),
           updatedAt: new Date(),
         },
         repository: {
-          externalRepositoryId: `debug:${name.toLowerCase()}-${index}`,
-          owner: 'debug-owner',
+          externalRepositoryId: `gitea:gitea-owner/${name.toLowerCase()}-${index}`,
+          owner: 'gitea-owner',
           name: name.toLowerCase(),
-          fullName: `debug-owner/${name.toLowerCase()}`,
+          fullName: `gitea-owner/${name.toLowerCase()}`,
           defaultBranch: 'main',
           visibility: 'private',
-          cloneUrl: `https://debug.local/debug-owner/${name.toLowerCase()}.git`,
-          htmlUrl: `https://debug.local/debug-owner/${name.toLowerCase()}`,
+          cloneUrl: `https://gitea.local/gitea-owner/${name.toLowerCase()}.git`,
+          htmlUrl: `https://gitea.local/gitea-owner/${name.toLowerCase()}`,
         },
       });
       await app.inject({
@@ -206,7 +206,7 @@ describe('project routes', () => {
           name,
           source: {
             connection_id: sourceConnectionId,
-            external_repository_id: `debug:${name.toLowerCase()}-${index}`,
+            external_repository_id: `gitea:gitea-owner/${name.toLowerCase()}-${index}`,
           },
         },
       });
@@ -229,7 +229,7 @@ describe('project routes', () => {
       name: 'Platform',
       source: {
         connection_id: sourceConnectionId,
-        external_repository_id: 'debug:platform',
+        external_repository_id: 'gitea:gitea-owner/platform',
       },
     };
     await app.inject({
@@ -265,7 +265,7 @@ describe('project routes', () => {
         name: 'Platform',
         source: {
           connection_id: sourceConnectionId,
-          external_repository_id: 'debug:platform',
+          external_repository_id: 'gitea:gitea-owner/platform',
         },
       },
     });

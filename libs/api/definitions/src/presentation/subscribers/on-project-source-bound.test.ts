@@ -17,8 +17,8 @@ function buildPayload(): ProjectSourceBoundEvent {
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     sourceConnectionId: crypto.randomUUID(),
-    provider: 'debug',
-    externalRepositoryId: 'debug:platform',
+    provider: 'gitea',
+    externalRepositoryId: 'gitea:gitea-owner/platform',
   };
 }
 

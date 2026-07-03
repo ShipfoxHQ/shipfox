@@ -34,23 +34,23 @@ function sourceControl(
         connection: {
           id: 'connection-1',
           workspaceId: 'workspace-1',
-          provider: 'debug',
-          externalAccountId: 'debug',
-          slug: 'debug',
-          displayName: 'Debug',
+          provider: 'gitea',
+          externalAccountId: 'gitea-owner',
+          slug: 'gitea_owner',
+          displayName: 'Gitea',
           lifecycleStatus: 'active' as const,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
         repository: {
-          externalRepositoryId: 'debug:platform',
-          owner: 'debug-owner',
+          externalRepositoryId: 'gitea:gitea-owner/platform',
+          owner: 'gitea-owner',
           name: 'platform',
-          fullName: 'debug-owner/platform',
+          fullName: 'gitea-owner/platform',
           defaultBranch: 'main',
           visibility: 'private' as const,
-          cloneUrl: 'https://debug.local/debug-owner/platform.git',
-          htmlUrl: 'https://debug.local/debug-owner/platform',
+          cloneUrl: 'https://gitea.local/gitea-owner/platform.git',
+          htmlUrl: 'https://gitea.local/gitea-owner/platform',
         },
       }),
     ),
@@ -71,7 +71,7 @@ function sourceControl(
 const baseContext = {
   workspaceId: 'workspace-1',
   sourceConnectionId: 'connection-1',
-  sourceExternalRepositoryId: 'debug:platform',
+  sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
 };
 
 describe('resolveSyncSource', () => {

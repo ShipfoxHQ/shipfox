@@ -300,6 +300,9 @@ importers:
       '@shipfox/e2e-helper-auth':
         specifier: workspace:*
         version: link:../../helpers/auth
+      '@shipfox/e2e-helper-integrations-gitea':
+        specifier: workspace:*
+        version: link:../../helpers/integrations-gitea
       '@shipfox/e2e-helper-projects':
         specifier: workspace:*
         version: link:../../helpers/projects
@@ -417,6 +420,9 @@ importers:
       '@shipfox/e2e-helper-auth':
         specifier: workspace:*
         version: link:../../helpers/auth
+      '@shipfox/e2e-helper-integrations-gitea':
+        specifier: workspace:*
+        version: link:../../helpers/integrations-gitea
       '@shipfox/e2e-helper-projects':
         specifier: workspace:*
         version: link:../../helpers/projects
@@ -1174,9 +1180,6 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../core-dto
-      '@shipfox/api-integration-debug':
-        specifier: workspace:*
-        version: link:../debug
       '@shipfox/api-integration-gitea':
         specifier: workspace:*
         version: link:../gitea
@@ -1279,92 +1282,6 @@ importers:
         version: 2.4.0
 
   libs/api/integration/core-dto:
-    dependencies:
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@shipfox/biome':
-        specifier: workspace:*
-        version: link:../../../../tools/biome
-      '@shipfox/depcruise':
-        specifier: workspace:*
-        version: link:../../../../tools/depcruise
-      '@shipfox/swc':
-        specifier: workspace:*
-        version: link:../../../../tools/swc
-      '@shipfox/ts-config':
-        specifier: workspace:*
-        version: link:../../../../tools/ts-config
-      '@shipfox/typescript':
-        specifier: workspace:*
-        version: link:../../../../tools/typescript
-      '@shipfox/vitest':
-        specifier: workspace:*
-        version: link:../../../../tools/vitest
-
-  libs/api/integration/debug:
-    dependencies:
-      '@shipfox/api-auth-context':
-        specifier: workspace:*
-        version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
-        specifier: workspace:*
-        version: link:../core-dto
-      '@shipfox/api-integration-debug-dto':
-        specifier: workspace:*
-        version: link:../debug-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
-      '@shipfox/node-fastify':
-        specifier: workspace:*
-        version: link:../../../shared/node/fastify
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@shipfox/biome':
-        specifier: workspace:*
-        version: link:../../../../tools/biome
-      '@shipfox/node-drizzle':
-        specifier: workspace:*
-        version: link:../../../shared/node/drizzle
-      '@shipfox/node-postgres':
-        specifier: workspace:*
-        version: link:../../../shared/node/postgres
-      '@shipfox/swc':
-        specifier: workspace:*
-        version: link:../../../../tools/swc
-      '@shipfox/ts-config':
-        specifier: workspace:*
-        version: link:../../../../tools/ts-config
-      '@shipfox/typescript':
-        specifier: workspace:*
-        version: link:../../../../tools/typescript
-      '@shipfox/vitest':
-        specifier: workspace:*
-        version: link:../../../../tools/vitest
-      '@shipfox/workflow-document':
-        specifier: workspace:*
-        version: link:../../../shared/workflow/document
-      '@types/js-yaml':
-        specifier: ^4.0.9
-        version: 4.0.9
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
-      fastify:
-        specifier: ^5.3.3
-        version: 5.8.5
-      fastify-type-provider-zod:
-        specifier: ^6.0.0
-        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
-      js-yaml:
-        specifier: ^4.1.0
-        version: 4.2.0
-
-  libs/api/integration/debug-dto:
     dependencies:
       zod:
         specifier: ^4.4.3
@@ -3008,9 +2925,6 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../../api/integration/core-dto
-      '@shipfox/api-integration-debug-dto':
-        specifier: workspace:*
-        version: link:../../api/integration/debug-dto
       '@shipfox/api-integration-gitea-dto':
         specifier: workspace:*
         version: link:../../api/integration/gitea-dto

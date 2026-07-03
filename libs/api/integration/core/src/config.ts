@@ -1,10 +1,6 @@
 import {bool, createConfig} from '@shipfox/config';
 
 export const config = createConfig({
-  INTEGRATIONS_ENABLE_DEBUG_PROVIDER: bool({
-    desc: 'Enables the debug integration provider, which is meant for testing. Keep it false in production.',
-    default: false,
-  }),
   INTEGRATIONS_ENABLE_GITEA_PROVIDER: bool({
     desc: 'Enables the Gitea integration provider so users can connect a Gitea instance.',
     default: false,

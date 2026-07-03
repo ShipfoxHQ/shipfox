@@ -5,7 +5,6 @@ import type {IconName} from '@shipfox/react-ui/icon';
 export type ProviderSetupPath =
   | '/workspaces/$wid/integrations/github'
   | '/workspaces/$wid/integrations/gitea'
-  | '/workspaces/$wid/integrations/debug'
   | '/workspaces/$wid/integrations/sentry';
 
 interface RouteProviderCatalogEntry {
@@ -36,11 +35,6 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     kind: 'direct-connect',
     iconName: 'gitea',
     setupPath: '/workspaces/$wid/integrations/gitea',
-  },
-  debug: {
-    kind: 'direct-connect',
-    iconName: 'componentLine',
-    setupPath: '/workspaces/$wid/integrations/debug',
   },
   webhook: {
     kind: 'modal-connect',

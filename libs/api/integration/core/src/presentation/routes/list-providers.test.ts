@@ -32,7 +32,7 @@ describe('GET /integration-providers', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().providers.map((provider: {provider: string}) => provider.provider)).toEqual([
-      'debug',
+      'gitea',
     ]);
   });
 
