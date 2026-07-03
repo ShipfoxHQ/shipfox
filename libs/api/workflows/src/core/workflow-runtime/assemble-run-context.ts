@@ -37,7 +37,7 @@ export function assembleCreationContext(
   params: AssembleWorkflowRunContextParams,
 ): WorkflowEvaluationContext {
   return {
-    phase: 'workflow-run-creation',
+    site: 'run-creation',
     values: assembleWorkflowRunContext(params),
   };
 }

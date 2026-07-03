@@ -1,6 +1,6 @@
-import type {WorkflowContextPhase, WorkflowExpressionEvaluationContext} from '@shipfox/expression';
+import type {AvailabilitySite, WorkflowExpressionEvaluationContext} from '@shipfox/expression';
 
 export interface WorkflowEvaluationContext {
-  readonly phase: WorkflowContextPhase;
+  readonly site: AvailabilitySite;
   readonly values: WorkflowExpressionEvaluationContext;
 }

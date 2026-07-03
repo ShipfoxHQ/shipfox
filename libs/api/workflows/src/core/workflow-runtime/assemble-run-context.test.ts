@@ -67,7 +67,7 @@ describe('assembleCreationContext', () => {
     createdAt: new Date('2026-06-30T12:00:00.000Z'),
   };
 
-  it('wraps the run context with the creation phase', () => {
+  it('wraps the run context with the creation site', () => {
     const context = assembleCreationContext({
       run,
       triggerPayload: {
@@ -80,7 +80,7 @@ describe('assembleCreationContext', () => {
     });
 
     expect(context).toEqual({
-      phase: 'workflow-run-creation',
+      site: 'run-creation',
       values: assembleWorkflowRunContext({
         run,
         triggerPayload: {
