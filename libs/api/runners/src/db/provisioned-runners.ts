@@ -302,7 +302,7 @@ export async function reconcileProvisionedRunners(
       .from(provisionedRunners)
       .where(staleAbsentWhere);
 
-    const absentIds = staleAbsentRows.map((row) => row.provisionedRunnerId);
+    let absentIds: string[] = [];
     let reservationsReleased = 0;
     if (staleAbsentRows.length > 0) {
       const updated = await tx
@@ -327,10 +327,11 @@ export async function reconcileProvisionedRunners(
         )
         .returning({provisionedRunnerId: provisionedRunners.provisionedRunnerId});
 
+      absentIds = updated.map((row) => row.provisionedRunnerId);
       reservationsReleased = await releaseTerminalProvisionedRunnerReservationsByIds(tx, {
         workspaceId: params.workspaceId,
         provisionerId: params.provisionerId,
-        provisionedRunnerIds: updated.map((row) => row.provisionedRunnerId),
+        provisionedRunnerIds: absentIds,
       });
     }
 
