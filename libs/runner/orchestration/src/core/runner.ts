@@ -191,6 +191,7 @@ export async function runJob(
         workflowRunId: job.workflow_run_id,
         workflowRunAttemptId: job.workflow_run_attempt_id,
         jobId: job.job_id,
+        jobExecutionId: job.job_execution_id,
       },
     });
     logger().info({jobId: job.job_id}, 'Job step loop finished');

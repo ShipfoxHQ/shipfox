@@ -1,5 +1,6 @@
 import {arch, platform, release} from 'node:os';
 import type {CheckoutTokenResponseDto, StepErrorReasonDto} from '@shipfox/api-workflows-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {HTTPError, requestCheckoutToken} from '@shipfox/runner-protocol';
 import {
   assertGitAvailable,
@@ -29,6 +30,7 @@ export interface SetupJobContext {
   workflowRunId: string;
   workflowRunAttemptId: string;
   jobId: string;
+  jobExecutionId: string;
 }
 
 // The synthetic "Set up job" step body. It owns per-job workspace preparation and the
@@ -47,18 +49,20 @@ export async function executeSetupStep(params: {
 }): Promise<StepResult> {
   const {cwd, leaseClient, signal, log, jobContext} = params;
 
+  logger().info(setupLogFields(jobContext), 'Setup step started');
   writeJobContext(log, jobContext);
 
   const gitFailure = await checkGit(log);
-  if (gitFailure) return gitFailure;
+  if (gitFailure) return logSetupFailure(gitFailure, jobContext);
 
   const workspaceFailure = await prepareWorkspace({cwd, log});
-  if (workspaceFailure) return workspaceFailure;
+  if (workspaceFailure) return logSetupFailure(workspaceFailure, jobContext);
 
   const checkoutFailure = await runCheckoutSetup({cwd, leaseClient, signal, log});
-  if (checkoutFailure) return checkoutFailure;
+  if (checkoutFailure) return logSetupFailure(checkoutFailure, jobContext);
 
   log?.writeOutputLine('Setup completed successfully. The job is ready to run.');
+  logger().info(setupLogFields(jobContext), 'Setup step completed');
   return {success: true, error: null, exit_code: 0};
 }
 
@@ -263,8 +267,32 @@ function writeJobContext(
       `Workflow run: ${jobContext.workflowRunId}`,
       `Workflow run attempt: ${jobContext.workflowRunAttemptId}`,
       `Job: ${jobContext.jobId}`,
+      `Job execution: ${jobContext.jobExecutionId}`,
     ],
   });
+}
+
+function setupLogFields(
+  jobContext: SetupJobContext | undefined,
+): Partial<Record<keyof SetupJobContext, string>> {
+  if (!jobContext) return {};
+  return {
+    workflowRunId: jobContext.workflowRunId,
+    workflowRunAttemptId: jobContext.workflowRunAttemptId,
+    jobId: jobContext.jobId,
+    jobExecutionId: jobContext.jobExecutionId,
+  };
+}
+
+function logSetupFailure(result: StepResult, jobContext: SetupJobContext | undefined): StepResult {
+  logger().warn(
+    {
+      ...setupLogFields(jobContext),
+      ...(result.error?.reason ? {reason: result.error.reason} : {}),
+    },
+    'Setup step failed',
+  );
+  return result;
 }
 
 function writeRunnerEnvironment(log: SetupLogSink | undefined, gitVersion: string): void {
