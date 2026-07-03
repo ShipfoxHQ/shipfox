@@ -29,6 +29,26 @@ export type {
   WorkflowExpressionCheck,
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
+export {isBareContextReference} from './plan/bare-reference.js';
+export {extractExactContextRoots} from './plan/extract-exact-context-roots.js';
+export {fillResolvedFieldAtSite} from './plan/fill.js';
+export {
+  type FieldPlan,
+  type FieldPlanResult,
+  type PlanViolation,
+  planInterpolationField,
+} from './plan/plan-field.js';
+export type {
+  ResolvedField,
+  ResolvedFieldDeferredSegment,
+  ResolvedFieldLiteralSegment,
+  ResolvedFieldSegment,
+} from './plan/resolved-field.js';
+export {
+  type ServerEvaluabilityResult,
+  type ServerEvaluabilityViolation,
+  validateServerEvaluable,
+} from './plan/validate-server-evaluable.js';
 export {
   WorkflowTemplateResolutionError,
   workflowTemplateResolutionErrorCode,
@@ -73,6 +93,8 @@ export {
   getWorkflowInterpolationFieldFailurePolicy,
   type OpenWorkflowContextDefinition,
   type ReservedRootDefinition,
+  resolveContextRootAvailability,
+  resolveContextRootHost,
   rootsAvailableAt,
   runnerFillTarget,
   type TypedWorkflowContextDefinition,

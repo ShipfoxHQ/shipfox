@@ -6,6 +6,8 @@ import {
   type FillTarget,
   getWorkflowContextTypeEnvironment,
   getWorkflowInterpolationFieldFailurePolicy,
+  resolveContextRootAvailability,
+  resolveContextRootHost,
   rootsAvailableAt,
   runnerFillTarget,
   unavailableRootsAt,
@@ -535,6 +537,17 @@ describe('workflow context registry', () => {
         },
       ]
     `);
+  });
+
+  it('resolves root host and availability across implemented and reserved roots', () => {
+    expect(resolveContextRootHost('run')).toBe('server');
+    expect(resolveContextRootAvailability('run')).toBe('run-creation');
+    expect(resolveContextRootHost('steps')).toBe('server');
+    expect(resolveContextRootAvailability('steps')).toBe('step-report');
+    expect(resolveContextRootHost('runner')).toBe('runner');
+    expect(resolveContextRootAvailability('runner')).toBeUndefined();
+    expect(resolveContextRootHost('unknown')).toBeUndefined();
+    expect(resolveContextRootAvailability('unknown')).toBeUndefined();
   });
 
   describe('workflow field failure policies', () => {

@@ -328,6 +328,20 @@ export function getWorkflowContextHost(name: WorkflowContextName): WorkflowConte
   return workflowContextDefinitions[name].host;
 }
 
+export function resolveContextRootHost(root: string): WorkflowContextHost | undefined {
+  if (isWorkflowContextName(root)) return workflowContextDefinitions[root].host;
+  if (isWorkflowContextReservedRoot(root)) return workflowContextReservedRoots[root].host;
+  return undefined;
+}
+
+export function resolveContextRootAvailability(root: string): AvailabilitySite | undefined {
+  if (isWorkflowContextName(root)) return workflowContextDefinitions[root].availability;
+
+  if (!isWorkflowContextReservedRoot(root)) return undefined;
+  const reservedRoot = workflowContextReservedRoots[root];
+  return reservedRoot?.host === 'server' ? reservedRoot.availability : undefined;
+}
+
 export function getWorkflowContextSensitivity(
   name: WorkflowContextName,
 ): WorkflowContextSensitivity {
@@ -438,4 +452,12 @@ function noServerAvailabilityReferenceEntry(
   >;
 
   return {root, reserved, availableAt};
+}
+
+function isWorkflowContextName(root: string): root is WorkflowContextName {
+  return Object.hasOwn(workflowContextDefinitions, root);
+}
+
+function isWorkflowContextReservedRoot(root: string): root is WorkflowContextReservedRoot {
+  return Object.hasOwn(workflowContextReservedRoots, root);
 }
