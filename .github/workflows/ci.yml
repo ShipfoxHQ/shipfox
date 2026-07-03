@@ -121,7 +121,7 @@ jobs:
           name: e2e-diagnostics
           path: |
             ${{ runner.temp }}/shipfox-e2e-logs/
-            e2e/platform/workflows/test-results/
+            e2e/**/test-results/
           if-no-files-found: error
 
   # PR image validation stays separate so it can run without package write

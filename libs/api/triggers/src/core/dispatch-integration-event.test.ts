@@ -316,6 +316,31 @@ describe('dispatchIntegrationEvent', () => {
     });
   });
 
+  test('records an errored decision when a stored trigger filter is blank', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {filter: '   '},
+    });
+
+    await dispatch({workspaceId, eventRef, payload: {ref: 'refs/heads/main'}});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.matchedCount).toBe(1);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({
+      subscriptionId: subscription.id,
+      decision: 'errored',
+    });
+  });
+
   test('does not fire when no subscription matches the workspace, source and event', async () => {
     const workspaceId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({

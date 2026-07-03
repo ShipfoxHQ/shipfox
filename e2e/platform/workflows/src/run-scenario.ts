@@ -105,7 +105,7 @@ async function attachLocalRunnerLog(
       name: `runner-${logAttachmentName(runnerLogFile)}.error.txt`,
       contentType: 'text/plain',
       body: error instanceof Error ? error.message : String(error),
-    });
+    }).catch(() => undefined);
   }
 }
 

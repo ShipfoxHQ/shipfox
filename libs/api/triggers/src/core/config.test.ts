@@ -80,4 +80,15 @@ describe('triggerFilterMatches', () => {
 
     expect(act).toThrow();
   });
+
+  test.each([
+    {name: 'blank', filter: '   '},
+    {name: 'non-string', filter: ['event.ref == "refs/heads/main"']},
+  ])('throws when the stored filter is $name', ({filter}) => {
+    const subscription = subscriptionWithConfig({filter});
+
+    const act = () => triggerFilterMatches(subscription, {ref: 'refs/heads/main'});
+
+    expect(act).toThrow('Trigger subscription filter must be a non-empty string when set');
+  });
 });

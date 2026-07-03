@@ -43,14 +43,22 @@ function readScenarioFiles(filesDir: string): ScenarioFile[] {
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-function loadScenario(name: string): Scenario {
-  const dir = join(scenariosRoot, name);
+function requireScenarioFile(dir: string, scenario: string, file: string): string {
+  const path = join(dir, file);
+  if (!existsSync(path)) throw new Error(`Scenario "${scenario}" is missing ${file}`);
+  return path;
+}
+
+function loadScenario(root: string, name: string): Scenario {
+  const dir = join(root, name);
+  const workflowPath = requireScenarioFile(dir, name, 'workflow.yml');
+  const expectPath = requireScenarioFile(dir, name, 'expect.yaml');
   return {
     name,
     dir,
     configPath: `.shipfox/workflows/${name}.yml`,
-    workflowYaml: readFileSync(join(dir, 'workflow.yml'), 'utf8'),
-    expectation: parseExpectation(yaml.load(readFileSync(join(dir, 'expect.yaml'), 'utf8'))),
+    workflowYaml: readFileSync(workflowPath, 'utf8'),
+    expectation: parseExpectation(yaml.load(readFileSync(expectPath, 'utf8'))),
     extraFiles: readScenarioFiles(join(dir, 'files')),
   };
 }
@@ -60,10 +68,10 @@ function loadScenario(name: string): Scenario {
  * scenario the generic spec drives. Directories with a spec.e2e.ts instead are
  * ordinary Playwright specs (the escape hatch) and are skipped here.
  */
-export function discoverScenarios(): Scenario[] {
-  return readdirSync(scenariosRoot)
-    .filter((name) => statSync(join(scenariosRoot, name)).isDirectory())
-    .filter((name) => existsSync(join(scenariosRoot, name, 'expect.yaml')))
+export function discoverScenarios(root = scenariosRoot): Scenario[] {
+  return readdirSync(root)
+    .filter((name) => statSync(join(root, name)).isDirectory())
+    .filter((name) => existsSync(join(root, name, 'expect.yaml')))
     .sort()
-    .map(loadScenario);
+    .map((name) => loadScenario(root, name));
 }

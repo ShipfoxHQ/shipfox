@@ -16,7 +16,9 @@ export function readConfigInputs(
 export function triggerFilterMatches(subscription: TriggerSubscription, payload: unknown): boolean {
   const value = subscription.config.filter;
   if (value === null || value === undefined) return true;
-  if (typeof value !== 'string' || value.trim() === '') return true;
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error('Trigger subscription filter must be a non-empty string when set');
+  }
 
   return evaluateWorkflowPredicate(
     createWorkflowExpression({source: value, check: {mode: 'syntax'}}),
