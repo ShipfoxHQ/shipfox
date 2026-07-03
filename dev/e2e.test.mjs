@@ -110,6 +110,13 @@ describe('copyPlaywrightTestResults', () => {
 
       assert.equal(
         await readFile(
+          join(logDir, 'playwright-test-results/e2e/api/auth/test-results/auth-flow/trace.zip'),
+          'utf8',
+        ),
+        'api trace',
+      );
+      assert.equal(
+        await readFile(
           join(
             logDir,
             'playwright-test-results/e2e/client/workspaces/test-results/workspace-flow/trace.zip',
@@ -117,6 +124,16 @@ describe('copyPlaywrightTestResults', () => {
           'utf8',
         ),
         'client trace',
+      );
+      assert.equal(
+        await readFile(
+          join(
+            logDir,
+            'playwright-test-results/e2e/platform/workflows/test-results/scenario/trace.zip',
+          ),
+          'utf8',
+        ),
+        'platform trace',
       );
       await assert.rejects(
         readFile(
