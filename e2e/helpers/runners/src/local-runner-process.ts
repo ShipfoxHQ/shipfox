@@ -3,12 +3,8 @@ import {closeSync, openSync, readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {dirname, join} from 'node:path';
 import {config} from '@shipfox/e2e-core';
-import {pollUntil} from './poll.js';
 
-const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
-const DEFAULT_READINESS_POLL_INTERVAL_MS = 500;
 const DEFAULT_SIGTERM_TIMEOUT_MS = 15_000;
-const RUNNER_SESSION_ID_LOG_RE = /"runnerSessionId":"([^"]+)"/;
 
 export interface StartLocalRunnerParams {
   workspaceId: string;
@@ -25,7 +21,6 @@ export interface StartLocalRunnerParams {
   pollIntervalMs?: number | undefined;
   pollMaxIntervalMs?: number | undefined;
   pollMaxDurationMs?: number | undefined;
-  readinessTimeoutMs?: number | undefined;
   /** Overrides the resolved `@shipfox/runner` source entry (run via tsx). */
   entryPath?: string | undefined;
 }
@@ -36,11 +31,15 @@ export interface LocalRunnerHandle {
   logFile: string;
   workspaceId: string;
   labels: readonly string[];
-  runnerSessionId: string;
 }
 
 export interface StopLocalRunnerOptions {
   sigtermTimeoutMs?: number | undefined;
+}
+
+export interface LocalRunnerExit {
+  code: number | null;
+  signal: NodeJS.Signals | null;
 }
 
 interface RunnerModule {
@@ -81,73 +80,7 @@ function buildRunnerEnv(params: StartLocalRunnerParams): Record<string, string> 
   };
 }
 
-async function waitForRunnerSessionRegistered(params: {
-  labels: readonly string[];
-  timeoutMs: number;
-  child: ChildProcess;
-  logFile: string;
-}): Promise<string> {
-  const abortController = new AbortController();
-
-  let onError: ((error: Error) => void) | undefined;
-  let onExit: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
-  const failed = new Promise<never>((_, reject) => {
-    onError = (error) => {
-      abortController.abort();
-      reject(new Error(`Local runner process error: ${error.message}`));
-    };
-    onExit = (code, signal) => {
-      abortController.abort();
-      reject(
-        new Error(
-          `Local runner process exited before registering a session (code ${code}, signal ${signal})${logTail(params.logFile)}`,
-        ),
-      );
-    };
-    params.child.once('error', onError);
-    params.child.once('exit', onExit);
-  });
-
-  const poll = pollUntil<string>(
-    {
-      timeoutMs: params.timeoutMs,
-      intervalMs: DEFAULT_READINESS_POLL_INTERVAL_MS,
-      maxIntervalMs: DEFAULT_READINESS_POLL_INTERVAL_MS,
-      signal: abortController.signal,
-      describe: () =>
-        `local runner with labels ${params.labels.join(',')} to register a runner session${logTail(params.logFile)}`,
-    },
-    () => Promise.resolve(readRegisteredRunnerSessionId(params.logFile)),
-  );
-
-  try {
-    return await Promise.race([poll, failed]);
-  } finally {
-    if (onError) params.child.removeListener('error', onError);
-    if (onExit) params.child.removeListener('exit', onExit);
-  }
-}
-
-function readRegisteredRunnerSessionId(path: string): string | null {
-  try {
-    const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
-    for (const line of lines.toReversed()) {
-      if (!line.includes('Runner session registered')) continue;
-      try {
-        const entry = JSON.parse(line) as {runnerSessionId?: unknown};
-        if (typeof entry.runnerSessionId === 'string') return entry.runnerSessionId;
-      } catch {
-        const match = RUNNER_SESSION_ID_LOG_RE.exec(line);
-        if (match) return match[1];
-      }
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function logTail(path: string): string {
+export function localRunnerLogTail(path: string): string {
   try {
     const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
     const tail = lines.slice(-40).join('\n');
@@ -157,7 +90,7 @@ function logTail(path: string): string {
   }
 }
 
-export async function startLocalRunner(params: StartLocalRunnerParams): Promise<LocalRunnerHandle> {
+export function startLocalRunner(params: StartLocalRunnerParams): LocalRunnerHandle {
   const {cwd, entry} = params.entryPath
     ? {cwd: dirname(params.entryPath), entry: params.entryPath}
     : resolveRunnerModule();
@@ -180,25 +113,41 @@ export async function startLocalRunner(params: StartLocalRunnerParams): Promise<
     throw new Error('Local runner child process failed to start (no pid)');
   }
 
-  try {
-    const runnerSessionId = await waitForRunnerSessionRegistered({
-      labels: params.labels,
-      timeoutMs: params.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS,
-      child,
-      logFile: params.logFile,
+  return {
+    process: child,
+    pid,
+    logFile: params.logFile,
+    workspaceId: params.workspaceId,
+    labels: params.labels,
+  };
+}
+
+export function waitForLocalRunnerExit(handle: LocalRunnerHandle): Promise<LocalRunnerExit> {
+  if (handle.process.exitCode !== null || handle.process.signalCode !== null) {
+    return Promise.resolve({
+      code: handle.process.exitCode,
+      signal: handle.process.signalCode,
     });
-    return {
-      process: child,
-      pid,
-      logFile: params.logFile,
-      workspaceId: params.workspaceId,
-      labels: params.labels,
-      runnerSessionId,
-    };
-  } catch (error) {
-    child.kill('SIGKILL');
-    throw error;
   }
+
+  let onError: ((error: Error) => void) | undefined;
+  let onExit: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      if (onError) handle.process.removeListener('error', onError);
+      if (onExit) handle.process.removeListener('exit', onExit);
+    };
+    onError = (error) => {
+      cleanup();
+      reject(new Error(`Local runner process error: ${error.message}`));
+    };
+    onExit = (code, signal) => {
+      cleanup();
+      resolve({code, signal});
+    };
+    handle.process.once('error', onError);
+    handle.process.once('exit', onExit);
+  });
 }
 
 function terminate(child: ChildProcess, sigtermTimeoutMs: number): Promise<void> {

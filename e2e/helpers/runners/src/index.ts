@@ -7,11 +7,14 @@ export type {
   ListActiveProvisionersResponseDto,
 } from '@shipfox/api-runners-dto';
 export {
+  type LocalRunnerExit,
   type LocalRunnerHandle,
+  localRunnerLogTail,
   type StartLocalRunnerParams,
   type StopLocalRunnerOptions,
   startLocalRunner,
   stopLocalRunner,
+  waitForLocalRunnerExit,
 } from './local-runner-process.js';
 export {
   type MintManualRegistrationTokenParams,

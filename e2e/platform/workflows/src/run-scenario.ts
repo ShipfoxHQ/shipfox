@@ -6,10 +6,13 @@ import {waitForDefinition} from '@shipfox/e2e-helper-definitions';
 import {commitFiles, createRepo} from '@shipfox/e2e-helper-integrations-gitea';
 import {fetchStepLogs} from '@shipfox/e2e-helper-logs';
 import {
+  type LocalRunnerExit,
   type LocalRunnerHandle,
+  localRunnerLogTail,
   mintManualRegistrationToken,
   startLocalRunner,
   stopLocalRunner,
+  waitForLocalRunnerExit,
 } from '@shipfox/e2e-helper-runners';
 import {waitForRunByCommit, waitForRunTerminal} from '@shipfox/e2e-helper-workflows';
 import {createProject, giteaExternalRepositoryId} from './create-project.js';
@@ -107,6 +110,36 @@ async function attachLocalRunnerLog(
       body: error instanceof Error ? error.message : String(error),
     }).catch(() => undefined);
   }
+}
+
+function isFailedRunnerExit(exit: LocalRunnerExit): boolean {
+  return exit.code !== 0 || exit.signal !== null;
+}
+
+async function waitForRunTerminalOrFailedRunner(params: {
+  runId: string;
+  token: string;
+  timeoutMs: number;
+  runner: LocalRunnerHandle;
+}): ReturnType<typeof waitForRunTerminal> {
+  const runTerminal = waitForRunTerminal({
+    runId: params.runId,
+    token: params.token,
+    timeoutMs: params.timeoutMs,
+  });
+  const runnerExit = waitForLocalRunnerExit(params.runner);
+
+  const first = await Promise.race([
+    runTerminal.then((runDetail) => ({kind: 'run' as const, runDetail})),
+    runnerExit.then((exit) => ({kind: 'runner' as const, exit})),
+  ]);
+
+  if (first.kind === 'run') return first.runDetail;
+  if (!isFailedRunnerExit(first.exit)) return await runTerminal;
+
+  throw new Error(
+    `Local runner exited before workflow reached a terminal state (code ${first.exit.code}, signal ${first.exit.signal})${localRunnerLogTail(params.runner.logFile)}`,
+  );
 }
 
 // Definition sync creates trigger subscriptions asynchronously, so a push can reach
@@ -209,7 +242,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
     const runnerLogDir = join(runDir, 'runners');
     runnerLogFile = join(runnerLogDir, `${runnerLabel}.log`);
     await mkdir(runnerLogDir, {recursive: true});
-    runner = await startLocalRunner({
+    runner = startLocalRunner({
       workspaceId: suite.workspaceId,
       registrationToken: registrationToken.raw_token,
       labels: [runnerLabel],
@@ -236,10 +269,11 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       });
     }
 
-    const runDetail = await waitForRunTerminal({
+    const runDetail = await waitForRunTerminalOrFailedRunner({
       runId,
       token,
       timeoutMs: scenario.expectation.timeout_seconds * 1000,
+      runner,
     });
 
     const {mismatches, logRequirements} = evaluateExpectations(runDetail, scenario.expectation);
