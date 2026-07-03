@@ -6,7 +6,6 @@ import type {
   ListRepositoriesResponseDto,
   UpdateIntegrationConnectionBodyDto,
 } from '@shipfox/api-integration-core-dto';
-import type {CreateDebugConnectionBodyDto} from '@shipfox/api-integration-debug-dto';
 import type {
   CreateGiteaConnectionBodyDto,
   CreateGiteaConnectionResponseDto,
@@ -93,13 +92,6 @@ export async function listSourceConnections({
       (connection) => connection.lifecycle_status === 'active',
     ),
   };
-}
-
-export async function createDebugConnection(body: CreateDebugConnectionBodyDto) {
-  return await apiRequest<IntegrationConnectionDto>('/integrations/debug/connections', {
-    method: 'POST',
-    body,
-  });
 }
 
 export async function createGiteaConnection(body: CreateGiteaConnectionBodyDto) {
@@ -223,10 +215,6 @@ export function useRepositoriesInfiniteQuery(
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });
-}
-
-export function useCreateDebugConnectionMutation() {
-  return useMutation({mutationFn: createDebugConnection});
 }
 
 export function useCreateGiteaConnectionMutation() {

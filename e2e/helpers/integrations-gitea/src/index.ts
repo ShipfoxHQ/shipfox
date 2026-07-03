@@ -1,6 +1,14 @@
 import type {CreateGiteaConnectionResponseDto} from '@shipfox/api-integration-gitea-dto';
 import {connectGiteaOrg} from './connect.js';
-import {bestEffortDeleteOrg, type CreatedOrg, createOrg} from './instance.js';
+import {
+  bestEffortDeleteOrg,
+  type CreatedOrg,
+  commitFiles,
+  createOrg,
+  createRepo,
+  deleteOrg,
+  deleteRepo,
+} from './instance.js';
 
 export type {CreateGiteaConnectionResponseDto} from '@shipfox/api-integration-gitea-dto';
 export {type ConnectGiteaOrgParams, connectGiteaOrg} from './connect.js';

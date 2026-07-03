@@ -124,7 +124,7 @@ function renderSetupRoute(
     guardedRoute('/workspaces/$wid', 'Workspace home'),
     guardedRoute('/workspaces/$wid/model-provider', 'Model provider onboarding'),
     guardedRoute('/workspaces/$wid/integrations', 'VCS onboarding'),
-    guardedRoute('/workspaces/$wid/integrations/debug', 'Debug install'),
+    guardedRoute('/workspaces/$wid/integrations/gitea', 'Gitea install'),
     guardedRoute('/workspaces/$wid/projects/new', 'Create project'),
     guardedRoute('/workspaces/$wid/settings/model-providers', 'Settings model providers'),
     guardedRoute('/workspaces/$wid/settings/integrations', 'Settings integrations'),
@@ -370,11 +370,11 @@ describe('workspace setup route hook', () => {
 
   test('keeps completed workspace integration install routes available', async () => {
     renderSetupRoute(
-      `/workspaces/${WORKSPACE_ID}/integrations/debug`,
+      `/workspaces/${WORKSPACE_ID}/integrations/gitea`,
       setupFetch({projects: [projectStub()]}),
     );
 
-    expect(await screen.findByText('Debug install')).toBeInTheDocument();
+    expect(await screen.findByText('Gitea install')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('visible');
   });
 

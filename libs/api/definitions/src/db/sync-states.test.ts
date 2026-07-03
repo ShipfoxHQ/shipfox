@@ -16,7 +16,7 @@ describe('definition sync state queries', () => {
     const state = await markDefinitionSyncState({
       projectId,
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug-owner/platform',
+      sourceExternalRepositoryId: 'gitea-owner/platform',
       ref: 'main',
       status: 'syncing',
       startedAt: new Date(),
@@ -31,7 +31,7 @@ describe('definition sync state queries', () => {
     const first = await markDefinitionSyncState({
       projectId,
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug-owner/platform',
+      sourceExternalRepositoryId: 'gitea-owner/platform',
       ref: 'main',
       status: 'syncing',
       startedAt: new Date(),
@@ -40,7 +40,7 @@ describe('definition sync state queries', () => {
     const second = await markDefinitionSyncState({
       projectId,
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug-owner/platform',
+      sourceExternalRepositoryId: 'gitea-owner/platform',
       ref: 'main',
       status: 'failed',
       lastErrorCode: 'invalid-definition',
@@ -63,7 +63,7 @@ describe('definition sync state queries', () => {
     await markDefinitionSyncState({
       projectId,
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug-owner/platform',
+      sourceExternalRepositoryId: 'gitea-owner/platform',
       ref: 'main',
       status: 'failed',
       lastErrorCode: 'invalid-definition',
@@ -75,7 +75,7 @@ describe('definition sync state queries', () => {
     const state = await markDefinitionSyncState({
       projectId,
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug-owner/platform',
+      sourceExternalRepositoryId: 'gitea-owner/platform',
       ref: 'main',
       status: 'syncing',
       startedAt: new Date(),

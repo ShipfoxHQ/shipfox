@@ -208,7 +208,7 @@ describe('GithubSourceControlProvider', () => {
     'github:-1',
     'github:0',
     'github:42.5',
-    'debug:42',
+    'gitlab:42',
     '',
   ])('rejects malformed external repository id %s', async (externalRepositoryId) => {
     await createInstallation();

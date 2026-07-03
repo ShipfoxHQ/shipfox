@@ -24,24 +24,24 @@ describe('createProjectFromSource', () => {
           connection: {
             id: sourceConnectionId,
             workspaceId,
-            provider: 'debug' as const,
-            externalAccountId: 'debug',
-            slug: 'debug',
-            displayName: 'Debug',
+            provider: 'gitea' as const,
+            externalAccountId: 'gitea-owner',
+            slug: 'gitea_owner',
+            displayName: 'Gitea',
             lifecycleStatus: 'active' as const,
             capabilities: ['source_control' as const],
             createdAt: new Date(),
             updatedAt: new Date(),
           },
           repository: {
-            externalRepositoryId: 'debug:platform',
-            owner: 'debug-owner',
+            externalRepositoryId: 'gitea:gitea-owner/platform',
+            owner: 'gitea-owner',
             name: 'platform',
-            fullName: 'debug-owner/platform',
+            fullName: 'gitea-owner/platform',
             defaultBranch: 'main',
             visibility: 'private' as const,
-            cloneUrl: 'https://debug.local/debug-owner/platform.git',
-            htmlUrl: 'https://debug.local/debug-owner/platform',
+            cloneUrl: 'https://gitea.local/gitea-owner/platform.git',
+            htmlUrl: 'https://gitea.local/gitea-owner/platform',
           },
         };
       }),
@@ -57,14 +57,14 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug:platform',
+      sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       sourceControl,
     });
 
     expect(project.workspaceId).toBe(workspaceId);
     expect(project.name).toBe('Platform');
     expect(project.sourceConnectionId).toBe(sourceConnectionId);
-    expect(project.sourceExternalRepositoryId).toBe('debug:platform');
+    expect(project.sourceExternalRepositoryId).toBe('gitea:gitea-owner/platform');
   });
 
   test('emits project lifecycle events in the same transaction', async () => {
@@ -73,7 +73,7 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug:platform',
+      sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       sourceControl,
     });
 
@@ -90,12 +90,12 @@ describe('createProjectFromSource', () => {
       expect.arrayContaining([
         expect.objectContaining({
           sourceConnectionId,
-          sourceExternalRepositoryId: 'debug:platform',
+          sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
         }),
         expect.objectContaining({
           sourceConnectionId,
-          externalRepositoryId: 'debug:platform',
-          provider: 'debug',
+          externalRepositoryId: 'gitea:gitea-owner/platform',
+          provider: 'gitea',
         }),
       ]),
     );
@@ -107,7 +107,7 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug:platform',
+      sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       sourceControl,
     });
 
@@ -116,7 +116,7 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform Again',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'debug:platform',
+      sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
       sourceControl,
     });
 

@@ -232,12 +232,12 @@ describe('publishSourcePush', () => {
 describe('publishSourceCommitPushed', () => {
   function buildParams() {
     return {
-      provider: 'debug',
+      provider: 'gitea',
       workspaceId: crypto.randomUUID(),
       connectionId: crypto.randomUUID(),
       deliveryId: crypto.randomUUID(),
       receivedAt: new Date().toISOString(),
-      push: buildPush({externalRepositoryId: 'debug:platform'}),
+      push: buildPush({externalRepositoryId: 'gitea:gitea-owner/platform'}),
     };
   }
 
@@ -251,9 +251,9 @@ describe('publishSourceCommitPushed', () => {
     expect(outbox[0]?.eventType).toBe(INTEGRATION_SOURCE_COMMIT_PUSHED);
     expect(outbox.some((row) => row.eventType === INTEGRATION_EVENT_RECEIVED)).toBe(false);
     expect(outbox[0]?.payload).toMatchObject({
-      provider: 'debug',
+      provider: 'gitea',
       deliveryId: params.deliveryId,
-      push: {externalRepositoryId: 'debug:platform', isDefaultBranch: true},
+      push: {externalRepositoryId: 'gitea:gitea-owner/platform', isDefaultBranch: true},
     });
   });
 

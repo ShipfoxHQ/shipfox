@@ -14,10 +14,10 @@ describe('PATCH /integration-connections/:connectionId', () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const res = await app.inject({
@@ -52,10 +52,10 @@ describe('PATCH /integration-connections/:connectionId', () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const res = await app.inject({
@@ -74,10 +74,10 @@ describe('PATCH /integration-connections/:connectionId', () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
     requireMembershipMock.mockRejectedValueOnce(
       new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
@@ -102,10 +102,10 @@ describe('DELETE /integration-connections/:connectionId', () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const res = await app.inject({

@@ -14,10 +14,10 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const res = await app.inject({
@@ -30,7 +30,7 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
     expect(requireMembershipMock).toHaveBeenCalledWith(
       expect.objectContaining({workspaceId: connection.workspaceId}),
     );
-    expect(res.json().repositories[0].full_name).toBe('debug-owner/platform');
+    expect(res.json().repositories[0].full_name).toBe('gitea-owner/platform');
   });
 
   it('returns 404 when connection is missing', async () => {
@@ -50,10 +50,10 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
       lifecycleStatus: 'disabled',
     });
 
@@ -140,10 +140,10 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
     ]);
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const res = await app.inject({

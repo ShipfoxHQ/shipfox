@@ -4,14 +4,14 @@ import type {RepositorySnapshot, SourceControlProvider} from './providers/source
 import {createSourceControlIntegrationService} from './source-control-service.js';
 
 const repository: RepositorySnapshot = {
-  externalRepositoryId: 'debug:platform',
-  owner: 'debug-owner',
+  externalRepositoryId: 'gitea:gitea-owner/platform',
+  owner: 'gitea-owner',
   name: 'platform',
-  fullName: 'debug-owner/platform',
+  fullName: 'gitea-owner/platform',
   defaultBranch: 'main',
   visibility: 'private',
-  cloneUrl: 'https://debug.local/debug-owner/platform.git',
-  htmlUrl: 'https://debug.local/debug-owner/platform',
+  cloneUrl: 'https://gitea.local/gitea-owner/platform.git',
+  htmlUrl: 'https://gitea.local/gitea-owner/platform',
 };
 
 describe('integration source-control service', () => {
@@ -19,10 +19,10 @@ describe('integration source-control service', () => {
   const connection = {
     id: crypto.randomUUID(),
     workspaceId,
-    provider: 'debug' as const,
-    externalAccountId: 'debug',
-    slug: 'debug',
-    displayName: 'Debug',
+    provider: 'gitea' as const,
+    externalAccountId: 'gitea-owner',
+    slug: 'gitea_owner',
+    displayName: 'Gitea',
     lifecycleStatus: 'active' as const,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -64,8 +64,8 @@ describe('integration source-control service', () => {
     return createSourceControlIntegrationService({
       registry: createIntegrationProviderRegistry([
         {
-          provider: 'debug',
-          displayName: 'Debug',
+          provider: 'gitea',
+          displayName: 'Gitea',
           adapters: {
             source_control: sourceControl,
           },
@@ -84,11 +84,11 @@ describe('integration source-control service', () => {
     const result = await service.resolveRepository({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
     expect(result.connection.id).toBe(connection.id);
-    expect(result.repository.externalRepositoryId).toBe('debug:platform');
+    expect(result.repository.externalRepositoryId).toBe('gitea:gitea-owner/platform');
   });
 
   it('rejects a missing connection', async () => {
@@ -97,7 +97,7 @@ describe('integration source-control service', () => {
     const result = service.resolveRepository({
       workspaceId,
       connectionId: crypto.randomUUID(),
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
     await expect(result).rejects.toThrow('Integration connection not found');
@@ -109,7 +109,7 @@ describe('integration source-control service', () => {
     const result = service.resolveRepository({
       workspaceId: crypto.randomUUID(),
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
     await expect(result).rejects.toThrow('requested workspace');
@@ -126,7 +126,7 @@ describe('integration source-control service', () => {
     const result = service.resolveRepository({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'debug:missing',
+      externalRepositoryId: 'gitea:gitea-owner/missing',
     });
 
     await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
@@ -138,7 +138,7 @@ describe('integration source-control service', () => {
     const result = await service.listFiles({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
       ref: 'main',
       prefix: '.shipfox/workflows/',
       limit: 100,
@@ -153,7 +153,7 @@ describe('integration source-control service', () => {
     const result = await service.fetchFile({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
       ref: 'main',
       path: '.shipfox/workflows/ci.yml',
     });
@@ -167,12 +167,12 @@ describe('integration source-control service', () => {
     const result = await service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
       ref: 'feature/x',
     });
 
     expect(result).toEqual({
-      repositoryUrl: 'https://debug.local/debug-owner/platform.git',
+      repositoryUrl: 'https://gitea.local/gitea-owner/platform.git',
       ref: 'feature/x',
     });
   });
@@ -183,7 +183,7 @@ describe('integration source-control service', () => {
     const result = service.createCheckoutSpec({
       workspaceId: crypto.randomUUID(),
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
     await expect(result).rejects.toThrow('requested workspace');
@@ -200,7 +200,7 @@ describe('integration source-control service', () => {
     const result = service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
     await expect(result).rejects.toMatchObject({reason: 'access-denied'});
@@ -212,7 +212,7 @@ describe('integration source-control service', () => {
     const result = service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'debug:platform',
+      externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
     await expect(result).rejects.toBeInstanceOf(IntegrationCheckoutUnsupportedError);

@@ -2,9 +2,9 @@ import {argosScreenshot, type Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
-const DEBUG_INSTALL_URL_RE = /\/workspaces\/[^/]+\/integrations\/debug\/?$/u;
-const DEBUG_REPOSITORY_RE = /debug-owner\/platform/u;
+const GITEA_INSTALL_URL_RE = /\/workspaces\/[^/]+\/integrations\/gitea\/?$/u;
 const SETUP_NAVIGATION_TIMEOUT_MS = 15_000;
+const PLATFORM_REPOSITORY = 'platform';
 
 function projectsNewUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}/projects/new/?$`, 'u');
@@ -29,14 +29,17 @@ async function captureAndSkipModelProviderSetup(page: Page, wid: string): Promis
   await page.getByRole('button', {name: 'Skip for now'}).click();
 }
 
-test('connecting Debug from onboarding flows into project creation', async ({page, auth}) => {
+test('connecting Gitea from onboarding flows into project creation', async ({
+  page,
+  auth,
+  gitea,
+}) => {
   const user = await auth.createUser();
   await auth.loginAs(page, user);
 
-  // Reproduces the user-reported flow: a fresh user lands on Install source
-  // control via the onboarding handoff (so WorkspaceSetupGuard has already
-  // populated the projects + source-connections caches with empty data for this
-  // workspace), then clicks Debug to create their first connection.
+  const org = await gitea.createOrg();
+  await gitea.createRepo({org: org.org, name: PLATFORM_REPOSITORY});
+
   await page.goto('/');
   await page.getByLabel('Workspace name').fill('E2E Workspace');
   await page.getByRole('button', {name: 'Create workspace'}).click();
@@ -47,22 +50,21 @@ test('connecting Debug from onboarding flows into project creation', async ({pag
   const wid = new URL(page.url()).pathname.split('/')[2];
   expect(wid).toBeTruthy();
 
-  await page.locator(`a[href$="/workspaces/${wid}/integrations/debug"]`).click();
+  await page.locator(`a[href$="/workspaces/${wid}/integrations/gitea"]`).click();
+  await page.getByLabel('Organization').fill(org.org);
+  await page.getByRole('button', {name: 'Install'}).click();
 
-  // DebugInstallPage creates the connection on mount, then navigates back to
-  // /workspaces/$wid. The setup guard should see the new connection plus zero
-  // projects and forward the user through provider setup.
   await expect(page).toHaveURL(modelProviderUrlRe(wid as string), {
     timeout: SETUP_NAVIGATION_TIMEOUT_MS,
   });
-  await expect(page).not.toHaveURL(DEBUG_INSTALL_URL_RE);
+  await expect(page).not.toHaveURL(GITEA_INSTALL_URL_RE);
   await expect(page).not.toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
   await captureAndSkipModelProviderSetup(page, wid as string);
 
   await expect(page).toHaveURL(projectsNewUrlRe(wid as string));
   await expectSetupNavigationHidden(page);
 
-  await expect(page.getByRole('radio', {name: DEBUG_REPOSITORY_RE})).toBeVisible();
+  await expect(page.getByRole('radio', {name: `${org.org}/${PLATFORM_REPOSITORY}`})).toBeVisible();
   await expect(page.getByRole('button', {name: 'Create project'})).toBeEnabled();
   await page.getByRole('button', {name: 'Create project'}).click();
 

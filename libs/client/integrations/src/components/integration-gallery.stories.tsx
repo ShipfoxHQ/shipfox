@@ -25,7 +25,6 @@ const SETUP_PATHS = [
   '/workspaces/$wid/integrations/github',
   '/workspaces/$wid/integrations/sentry',
   '/workspaces/$wid/integrations/gitea',
-  '/workspaces/$wid/integrations/debug',
   '/workspaces/$wid/settings/events',
 ] as const;
 
@@ -46,7 +45,6 @@ const PROVIDERS: IntegrationProviderDto[] = [
   {provider: 'github', display_name: 'GitHub', capabilities: ['source_control']},
   {provider: 'sentry', display_name: 'Sentry', capabilities: []},
   {provider: 'gitea', display_name: 'Gitea', capabilities: ['source_control']},
-  {provider: 'debug', display_name: 'Debug provider', capabilities: []},
   {provider: 'webhook', display_name: 'Webhook', capabilities: []},
 ];
 

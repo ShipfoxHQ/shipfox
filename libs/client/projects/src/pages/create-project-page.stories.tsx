@@ -20,7 +20,6 @@ const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const WORKSPACE_PATH = `/workspaces/${WORKSPACE_ID}/projects/new`;
 const GITHUB_CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const GITEA_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
-const DEBUG_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
 
 type Scenario =
   | 'playground'
@@ -219,12 +218,6 @@ function connectionsForScenario(scenario: Scenario): IntegrationConnectionDto[] 
       provider: 'gitea',
       display_name: 'git.acme.internal',
       external_account_id: 'git.acme.internal',
-    }),
-    connection({
-      id: DEBUG_CONNECTION_ID,
-      provider: 'debug',
-      display_name: 'Debug sandbox',
-      external_account_id: 'debug',
     }),
   ];
 }

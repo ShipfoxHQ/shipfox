@@ -30,7 +30,6 @@ if (!HTMLElement.prototype.releasePointerCapture) {
 const SETUP_ROUTES = [
   '/workspaces/$wid/integrations/github',
   '/workspaces/$wid/integrations/sentry',
-  '/workspaces/$wid/integrations/debug',
   '/workspaces/$wid/settings/events',
 ];
 

@@ -42,8 +42,8 @@ const fakeUserAuth: AuthMethod = {
 
 export function sourceProvider(overrides: Partial<IntegrationProvider> = {}): IntegrationProvider {
   return {
-    provider: 'debug',
-    displayName: 'Debug',
+    provider: 'gitea',
+    displayName: 'Gitea',
     adapters: {
       source_control: {
         listRepositories: async () => {
@@ -51,14 +51,14 @@ export function sourceProvider(overrides: Partial<IntegrationProvider> = {}): In
           return {
             repositories: [
               {
-                externalRepositoryId: 'debug:platform',
-                owner: 'debug-owner',
+                externalRepositoryId: 'gitea:gitea-owner/platform',
+                owner: 'gitea-owner',
                 name: 'platform',
-                fullName: 'debug-owner/platform',
+                fullName: 'gitea-owner/platform',
                 defaultBranch: 'main',
                 visibility: 'private',
-                cloneUrl: 'https://debug.local/debug-owner/platform.git',
-                htmlUrl: 'https://debug.local/debug-owner/platform',
+                cloneUrl: 'https://gitea.local/gitea-owner/platform.git',
+                htmlUrl: 'https://gitea.local/gitea-owner/platform',
               },
             ],
             nextCursor: null,

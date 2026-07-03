@@ -6,7 +6,7 @@ import {CreateProjectPage} from './create-project-page.js';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const SECOND_CONNECTION_ID = '66666666-6666-4666-8666-666666666666';
 const REPOSITORY_NOT_FOUND_RE = /Repository not found/;
-const DEBUG_RADIO_LABEL_RE = /^Debug Source$/;
+const GITEA_RADIO_LABEL_RE = /^Gitea Source$/;
 
 describe('CreateProjectPage', () => {
   beforeEach(() => {
@@ -34,8 +34,8 @@ describe('CreateProjectPage', () => {
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     const nameInput = await screen.findByLabelText('Project name');
     await waitFor(() => expect(nameInput).toHaveValue('Platform'));
-    expect(screen.getByRole('radio', {name: DEBUG_RADIO_LABEL_RE})).toBeChecked();
-    expect(screen.getAllByText('debug-owner/platform').length).toBeGreaterThan(0);
+    expect(screen.getByRole('radio', {name: GITEA_RADIO_LABEL_RE})).toBeChecked();
+    expect(screen.getAllByText('gitea-owner/platform').length).toBeGreaterThan(0);
     fireEvent.change(nameInput, {
       target: {value: '  Launch Pad  '},
     });
@@ -71,7 +71,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
-    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('gitea-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
@@ -101,13 +101,13 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
-    expect((await screen.findAllByText('Debug Source')).length).toBeGreaterThan(0);
-    expect(await screen.findByText('Other Debug Source')).toBeInTheDocument();
-    expect(screen.queryByText('debug-owner/platform')).not.toBeInTheDocument();
+    expect((await screen.findAllByText('Gitea Source')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('Other Gitea Source')).toBeInTheDocument();
+    expect(screen.queryByText('gitea-owner/platform')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', {name: DEBUG_RADIO_LABEL_RE}));
+    fireEvent.click(screen.getByRole('radio', {name: GITEA_RADIO_LABEL_RE}));
 
-    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('gitea-owner/platform')).length).toBeGreaterThan(0);
   });
 
   test('rejects invalid custom project names locally', async () => {
@@ -124,7 +124,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
-    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('gitea-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.change(await screen.findByLabelText('Project name'), {
       target: {value: 'Bad\u202eName'},
     });
@@ -222,7 +222,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
-    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('gitea-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     // After duplicate recovery, navigation lands on the workspace-scoped project
@@ -244,7 +244,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
-    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('gitea-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     expect(await screen.findByText(REPOSITORY_NOT_FOUND_RE)).toBeInTheDocument();
@@ -255,10 +255,10 @@ function connectionDto() {
   return {
     id: CONNECTION_ID,
     workspace_id: '11111111-1111-4111-8111-111111111111',
-    provider: 'debug',
-    external_account_id: 'debug',
-    slug: 'debug',
-    display_name: 'Debug Source',
+    provider: 'gitea',
+    external_account_id: 'gitea-owner',
+    slug: 'gitea_owner',
+    display_name: 'Gitea Source',
     lifecycle_status: 'active',
     capabilities: ['source_control'],
     created_at: new Date().toISOString(),
@@ -270,10 +270,10 @@ function secondConnectionDto() {
   return {
     id: SECOND_CONNECTION_ID,
     workspace_id: '11111111-1111-4111-8111-111111111111',
-    provider: 'debug',
-    external_account_id: 'debug-2',
-    slug: 'debug_2',
-    display_name: 'Other Debug Source',
+    provider: 'gitea',
+    external_account_id: 'gitea-owner-2',
+    slug: 'gitea_owner_2',
+    display_name: 'Other Gitea Source',
     lifecycle_status: 'active',
     capabilities: ['source_control'],
     created_at: new Date().toISOString(),
@@ -285,13 +285,13 @@ function repositoryDto() {
   return {
     connection_id: CONNECTION_ID,
     external_repository_id: 'platform',
-    owner: 'debug-owner',
+    owner: 'gitea-owner',
     name: 'platform',
-    full_name: 'debug-owner/platform',
+    full_name: 'gitea-owner/platform',
     default_branch: 'main',
     visibility: 'private',
-    clone_url: 'https://debug.local/debug-owner/platform.git',
-    html_url: 'https://debug.local/debug-owner/platform',
+    clone_url: 'https://gitea.local/gitea-owner/platform.git',
+    html_url: 'https://gitea.local/gitea-owner/platform',
   };
 }
 

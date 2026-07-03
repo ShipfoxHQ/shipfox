@@ -14,17 +14,17 @@ describe('GET /integration-connections', () => {
     const app = await createTestApp([sourceProvider()]);
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
+      provider: 'gitea',
       externalAccountId: 'debug-active',
       slug: 'debug_active',
-      displayName: 'Debug',
+      displayName: 'Gitea',
     });
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
+      provider: 'gitea',
       externalAccountId: 'debug-error',
       slug: 'debug_error',
-      displayName: 'Debug',
+      displayName: 'Gitea',
       lifecycleStatus: 'error',
     });
 
@@ -46,10 +46,10 @@ describe('GET /integration-connections', () => {
     const app = await createTestApp([sourceProvider()]);
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
@@ -68,21 +68,21 @@ describe('GET /integration-connections', () => {
     expect(res.statusCode).toBe(200);
     expect(
       res.json().connections.map((connection: {provider: string}) => connection.provider),
-    ).toEqual(['debug']);
+    ).toEqual(['gitea']);
   });
 
   it('includes external_url when the provider resolves one', async () => {
     const app = await createTestApp([
       sourceProvider({
-        connectionExternalUrl: () => Promise.resolve('https://debug.local/team'),
+        connectionExternalUrl: () => Promise.resolve('https://gitea.local/team'),
       }),
     ]);
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const res = await app.inject({
@@ -92,7 +92,7 @@ describe('GET /integration-connections', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().connections[0].external_url).toBe('https://debug.local/team');
+    expect(res.json().connections[0].external_url).toBe('https://gitea.local/team');
   });
 
   it('omits external_url and keeps the list alive when the provider lookup throws', async () => {
@@ -103,10 +103,10 @@ describe('GET /integration-connections', () => {
     ]);
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
-      provider: 'debug',
-      externalAccountId: 'debug',
-      slug: 'debug',
-      displayName: 'Debug',
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
     });
 
     const res = await app.inject({

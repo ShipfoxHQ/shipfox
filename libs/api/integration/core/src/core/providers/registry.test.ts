@@ -29,8 +29,8 @@ describe('integration provider registry', () => {
   it('lists providers by capability', () => {
     const registry = createIntegrationProviderRegistry([
       {
-        provider: 'debug',
-        displayName: 'Debug',
+        provider: 'gitea',
+        displayName: 'Gitea',
         adapters: {
           source_control: sourceControlAdapter(),
         },
@@ -43,34 +43,34 @@ describe('integration provider registry', () => {
 
     const result = registry.list('source_control');
 
-    expect(result.map((provider) => provider.provider)).toEqual(['debug']);
+    expect(result.map((provider) => provider.provider)).toEqual(['gitea']);
   });
 
   it('keeps provider sets isolated per registry instance', () => {
     const emptyRegistry = createIntegrationProviderRegistry([]);
-    const debugRegistry = createIntegrationProviderRegistry([
+    const giteaRegistry = createIntegrationProviderRegistry([
       {
-        provider: 'debug',
-        displayName: 'Debug',
+        provider: 'gitea',
+        displayName: 'Gitea',
         adapters: {
           source_control: sourceControlAdapter(),
         },
       },
     ]);
 
-    expect(debugRegistry.get('debug').provider).toBe('debug');
-    expect(() => emptyRegistry.get('debug')).toThrow(IntegrationProviderUnavailableError);
+    expect(giteaRegistry.get('gitea').provider).toBe('gitea');
+    expect(() => emptyRegistry.get('gitea')).toThrow(IntegrationProviderUnavailableError);
   });
 
   it('rejects source-control access for providers without the capability implementation', () => {
     const registry = createIntegrationProviderRegistry([
       {
-        provider: 'debug',
-        displayName: 'Debug',
+        provider: 'gitea',
+        displayName: 'Gitea',
       },
     ]);
 
-    const result = () => registry.getSourceControl('debug');
+    const result = () => registry.getSourceControl('gitea');
 
     expect(result).toThrow(IntegrationCapabilityUnavailableError);
   });
@@ -79,12 +79,12 @@ describe('integration provider registry', () => {
     const result = () =>
       createIntegrationProviderRegistry([
         {
-          provider: 'debug',
-          displayName: 'Debug',
+          provider: 'gitea',
+          displayName: 'Gitea',
         },
         {
-          provider: 'debug',
-          displayName: 'Debug Duplicate',
+          provider: 'gitea',
+          displayName: 'Gitea Duplicate',
         },
       ]);
 
