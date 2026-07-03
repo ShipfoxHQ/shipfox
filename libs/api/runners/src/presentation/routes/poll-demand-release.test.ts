@@ -12,12 +12,12 @@ const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
 describe('POST /provisioners/demand/poll reservation cleanup', () => {
   it('rolls back granted reservations if loading terminate intents throws', async () => {
     vi.resetModules();
-    const listProvisionerTerminateIntentsTx = vi
+    const listProvisionerTerminateIntentRowsTx = vi
       .fn()
       .mockRejectedValueOnce(new Error('db unavailable'));
     vi.doMock('#db/provisioned-runners.js', async (importOriginal) => ({
       ...(await importOriginal<typeof import('#db/provisioned-runners.js')>()),
-      listProvisionerTerminateIntentsTx,
+      listProvisionerTerminateIntentRowsTx,
     }));
     const {pollDemandRoute} = await import('./poll-demand.js');
     const workspaceId = crypto.randomUUID();

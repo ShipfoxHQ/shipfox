@@ -32,15 +32,20 @@ export {
   revokeManualRegistrationToken,
 } from './manual-registration-tokens.js';
 export type {
+  ActiveProvisionedRunnerTemplateCount,
   ProvisionedRunnerReportEvent,
   ReapStaleProvisionedRunnersResult,
+  ProvisionedRunnerTerminateIntent,
+  ProvisionedRunnerTerminateIntentReason,
   ReconcileProvisionedRunnersDbResult,
   ReconcileProvisionedRunnersParams,
   ReportProvisionedRunnersParams,
 } from './provisioned-runners.js';
 export {
   isTerminalState,
+  listActiveProvisionedRunnerCountsByTemplateTx,
   listActiveProvisionedRunners,
+  listProvisionerTerminateIntentRowsTx,
   listProvisionerTerminateIntents,
   reapStaleProvisionedRunners,
   reconcileProvisionedRunners,

@@ -19,7 +19,12 @@ import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {reservations} from '#db/schema/reservations.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
-import {reservationReleasedCount} from '#metrics/instance.js';
+import {
+  provisionedRunnerAbsentTerminatedCount,
+  provisionedRunnerReconcileCallCount,
+  provisionedRunnerTerminateIntentIssuedCount,
+  reservationReleasedCount,
+} from '#metrics/instance.js';
 import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
@@ -150,6 +155,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
   });
 
   it('returns terminate for an active runner with a cancelled bound job', async () => {
+    const intentSpy = vi.spyOn(provisionedRunnerTerminateIntentIssuedCount, 'add');
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId: crypto.randomUUID(),
@@ -174,9 +180,12 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
         cancellation_requested_at: '2025-01-01T00:01:00.000Z',
       },
     });
+    expect(intentSpy).toHaveBeenCalledWith(1, {surface: 'reconcile', reason: 'job-cancelled'});
   });
 
   it('increments the reservation release metric when reconcile reaps an absent runner', async () => {
+    const reconcileSpy = vi.spyOn(provisionedRunnerReconcileCallCount, 'add');
+    const absentSpy = vi.spyOn(provisionedRunnerAbsentTerminatedCount, 'add');
     const addSpy = vi.spyOn(reservationReleasedCount, 'add');
     const reservationId = await createReservation(2);
     await createProvisionedRunner({
@@ -194,6 +203,8 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().terminated_absent_provisioned_runner_ids).toEqual(['provisioned-runner-1']);
+    expect(reconcileSpy).toHaveBeenCalledWith(1);
+    expect(absentSpy).toHaveBeenCalledWith(1);
     expect(addSpy).toHaveBeenCalledWith(1);
   });
 

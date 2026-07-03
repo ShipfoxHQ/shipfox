@@ -11,7 +11,14 @@ import type {
   ActiveRunningJobExecution,
   ProvisionedRunnerBoundJobExecution,
 } from '#db/job-executions.js';
-import {provisionedRunnerReportCount, reservationReleasedCount} from '#metrics/instance.js';
+import {
+  provisionedRunnerAbsentTerminatedCount,
+  provisionedRunnerReconcileCallCount,
+  provisionedRunnerReportCount,
+  provisionedRunnerTerminateIntentHonoredCount,
+  provisionedRunnerTerminateIntentIssuedCount,
+  reservationReleasedCount,
+} from '#metrics/instance.js';
 import {config} from '../config.js';
 
 export interface ReportProvisionedRunnersParams {
@@ -32,6 +39,7 @@ export interface ReconcileProvisionedRunnersParams {
 }
 
 export type ReconcileDesiredIntent = 'keep' | 'terminate';
+type ReconcileDesiredIntentReason = 'job-cancelled' | 'terminal-state';
 
 export interface ReconciledBoundJobExecution {
   jobId: string;
@@ -48,6 +56,7 @@ export interface ReconciledProvisionedRunner {
   runnerSessionId: string | null;
   boundJobExecution: ReconciledBoundJobExecution | null;
   desiredIntent: ReconcileDesiredIntent;
+  desiredIntentReason: ReconcileDesiredIntentReason | null;
 }
 
 export interface ReconcileProvisionedRunnersResult {
@@ -80,6 +89,9 @@ export async function reportProvisionedRunners(
   for (const event of params.events) {
     provisionedRunnerReportCount.add(1, {state: event.state});
   }
+  for (const intent of result.terminateIntentsHonored) {
+    provisionedRunnerTerminateIntentHonoredCount.add(1, {reason: intent.reason});
+  }
   if (result.reservationsReleased > 0) reservationReleasedCount.add(result.reservationsReleased);
 
   return result;
@@ -94,13 +106,26 @@ export async function reconcileProvisionedRunners(
   });
 
   if (result.reservationsReleased > 0) reservationReleasedCount.add(result.reservationsReleased);
+  provisionedRunnerReconcileCallCount.add(1);
+  if (result.absentIds.length > 0)
+    provisionedRunnerAbsentTerminatedCount.add(result.absentIds.length);
+
+  const runners = reconcileProvisionedRunnersFromDbResult({
+    observedProvisionedRunnerIds: params.observedProvisionedRunnerIds,
+    observedRows: result.observedRows,
+    boundJobExecutionsByProvisionedRunnerId: result.boundJobExecutionsByProvisionedRunnerId,
+  });
+  for (const runner of runners) {
+    if (runner.desiredIntentReason) {
+      provisionedRunnerTerminateIntentIssuedCount.add(1, {
+        surface: 'reconcile',
+        reason: runner.desiredIntentReason,
+      });
+    }
+  }
 
   return {
-    runners: reconcileProvisionedRunnersFromDbResult({
-      observedProvisionedRunnerIds: params.observedProvisionedRunnerIds,
-      observedRows: result.observedRows,
-      boundJobExecutionsByProvisionedRunnerId: result.boundJobExecutionsByProvisionedRunnerId,
-    }),
+    runners,
     terminatedAbsentProvisionedRunnerIds: result.absentIds,
   };
 }
@@ -119,6 +144,8 @@ export function reconcileProvisionedRunnersFromDbResult(params: {
     const boundJobExecution =
       params.boundJobExecutionsByProvisionedRunnerId.get(provisionedRunnerId);
 
+    const desiredIntentReason = getDesiredIntentReason(row, boundJobExecution);
+
     return {
       provisionedRunnerId,
       state: row?.state ?? null,
@@ -127,7 +154,8 @@ export function reconcileProvisionedRunnersFromDbResult(params: {
       boundJobExecution: boundJobExecution
         ? toReconciledBoundJobExecution(boundJobExecution)
         : null,
-      desiredIntent: desiredIntent(row, boundJobExecution),
+      desiredIntent: desiredIntentReason ? 'terminate' : 'keep',
+      desiredIntentReason,
     };
   });
 }
@@ -163,10 +191,17 @@ export function desiredIntent(
   row: ProvisionedRunner | undefined,
   boundJobExecution: ProvisionedRunnerBoundJobExecution | undefined,
 ): ReconcileDesiredIntent {
-  if (!row) return 'keep';
-  if (isTerminalState(row.state)) return 'terminate';
-  if (boundJobExecution?.cancellationRequestedAt) return 'terminate';
-  return 'keep';
+  return getDesiredIntentReason(row, boundJobExecution) ? 'terminate' : 'keep';
+}
+
+function getDesiredIntentReason(
+  row: ProvisionedRunner | undefined,
+  boundJobExecution: ProvisionedRunnerBoundJobExecution | undefined,
+): ReconcileDesiredIntentReason | null {
+  if (!row) return null;
+  if (isTerminalState(row.state)) return 'terminal-state';
+  if (boundJobExecution?.cancellationRequestedAt) return 'job-cancelled';
+  return null;
 }
 
 function mergeActiveRunners(

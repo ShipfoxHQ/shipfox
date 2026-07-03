@@ -13,10 +13,14 @@ import {
   createApp,
   extractBearerToken,
 } from '@shipfox/node-fastify';
+import {vi} from '@shipfox/vitest/vi';
 import {and, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
+import {runningJobExecutions} from '#db/schema/running-job-executions.js';
+import {provisionedRunnerTerminateIntentHonoredCount} from '#metrics/instance.js';
+import {provisionedRunnerFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -130,6 +134,69 @@ describe('POST /provisioners/provisioned-runners/report', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  it('increments the honored terminate-intent metric once for a terminated report', async () => {
+    const honoredSpy = vi.spyOn(provisionedRunnerTerminateIntentHonoredCount, 'add');
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisionerTokenId,
+      provisionedRunnerId: 'provisioned-runner-1',
+      state: 'running',
+    });
+    await db()
+      .insert(runningJobExecutions)
+      .values({
+        workspaceId,
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        runnerSessionId: crypto.randomUUID(),
+        provisionerId: provisionerTokenId,
+        provisionedRunnerId: 'provisioned-runner-1',
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+        startedAt: new Date('2025-01-01T00:00:00.000Z'),
+        lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
+        cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+      });
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/report',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {
+        events: [
+          {
+            provisioned_runner_id: 'provisioned-runner-1',
+            labels: ['linux'],
+            state: 'terminated',
+            reported_at: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+    const second = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/report',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {
+        events: [
+          {
+            provisioned_runner_id: 'provisioned-runner-1',
+            labels: ['linux'],
+            state: 'terminated',
+            reported_at: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(honoredSpy).toHaveBeenCalledWith(1, {reason: 'job-cancelled'});
   });
 
   it('returns 400 for provider-sensitive extra fields', async () => {

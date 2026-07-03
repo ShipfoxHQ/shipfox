@@ -3,7 +3,9 @@ import {and, desc, eq, inArray, or, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
 import {
+  listActiveProvisionedRunnerCountsByTemplateTx,
   listActiveProvisionedRunners,
+  listProvisionerTerminateIntentRowsTx,
   listProvisionerTerminateIntents,
   reapStaleProvisionedRunners,
   reconcileProvisionedRunners,
@@ -72,7 +74,7 @@ describe('reportProvisionedRunners', () => {
     });
 
     const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(rows).toHaveLength(1);
     expect(rows[0]?.state).toBe('running');
   });
@@ -94,7 +96,7 @@ describe('reportProvisionedRunners', () => {
     const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId}).orderBy(
       provisionedRunners.provisionedRunnerId,
     );
-    expect(result).toEqual({accepted: 2, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 2, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(rows.map((row) => row.state)).toEqual(['failed', 'failed']);
   });
 
@@ -202,8 +204,8 @@ describe('reportProvisionedRunners', () => {
 
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    expect(terminal).toEqual({accepted: 1, reservationsReleased: 1});
-    expect(revived).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(terminal).toEqual({accepted: 1, reservationsReleased: 1, terminateIntentsHonored: []});
+    expect(revived).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(provisionedRunnerRows[0]?.state).toBe('failed');
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservationRows).toHaveLength(0);
@@ -273,7 +275,7 @@ describe('reportProvisionedRunners', () => {
     });
 
     const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(rows[0]?.state).toBe('terminated');
     expect(rows[0]?.reportedAt.toISOString()).toBe(terminatedAt.toISOString());
     expect(rows[0]?.startedAt?.toISOString()).toBe(startedAt.toISOString());
@@ -351,7 +353,7 @@ describe('reportProvisionedRunners', () => {
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 1});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 1, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
@@ -387,7 +389,7 @@ describe('reportProvisionedRunners', () => {
       .select()
       .from(reservations)
       .where(inArray(reservations.id, [otherWorkspaceReservationId, peerProvisionerReservationId]));
-    expect(result).toEqual({accepted: 2, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 2, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows).toHaveLength(2);
     expect(reservationRows.every((reservation) => reservation.count === 1)).toBe(true);
   });
@@ -411,7 +413,7 @@ describe('reportProvisionedRunners', () => {
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
   });
 
@@ -464,7 +466,7 @@ describe('reportProvisionedRunners', () => {
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 1});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 1, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.state).toBe('terminated');
     expect(provisionedRunnerRows[0]?.terminatedAt).toBeInstanceOf(Date);
@@ -484,7 +486,7 @@ describe('reportProvisionedRunners', () => {
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 2, reservationsReleased: 2});
+    expect(result).toEqual({accepted: 2, reservationsReleased: 2, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
   });
 
@@ -500,7 +502,7 @@ describe('reportProvisionedRunners', () => {
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 1});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 1, terminateIntentsHonored: []});
     expect(reservationRows).toHaveLength(0);
   });
 
@@ -528,7 +530,7 @@ describe('reportProvisionedRunners', () => {
     });
 
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
 
@@ -550,7 +552,7 @@ describe('reportProvisionedRunners', () => {
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
   });
@@ -585,7 +587,7 @@ describe('reportProvisionedRunners', () => {
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.runnerSessionId).toBe(session.id);
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
@@ -618,11 +620,40 @@ describe('reportProvisionedRunners', () => {
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.state).toBe('failed');
     expect(provisionedRunnerRows[0]?.runnerSessionId).toBe(runnerSessionId);
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
+  });
+
+  it('returns honored terminate intents only for the first active-to-terminated transition', async () => {
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: 'provisioned-runner-1',
+      state: 'running',
+    });
+    await insertRunningJob({
+      provisionedRunnerId: 'provisioned-runner-1',
+      cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+    });
+
+    const first = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [event({provisionedRunnerId: 'provisioned-runner-1', state: 'terminated'})],
+    });
+    const second = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [event({provisionedRunnerId: 'provisioned-runner-1', state: 'terminated'})],
+    });
+
+    expect(first.terminateIntentsHonored).toEqual([
+      {provisionedRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'},
+    ]);
+    expect(second.terminateIntentsHonored).toEqual([]);
   });
 
   async function createReservation(
@@ -671,6 +702,90 @@ describe('reportProvisionedRunners', () => {
       reportedAt: params.reportedAt ?? new Date(),
     };
   }
+
+  async function insertRunningJob(params: {
+    provisionedRunnerId: string;
+    cancellationRequestedAt?: Date | null;
+  }) {
+    await db()
+      .insert(runningJobExecutions)
+      .values({
+        workspaceId,
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        runnerSessionId: crypto.randomUUID(),
+        provisionerId,
+        provisionedRunnerId: params.provisionedRunnerId,
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+        startedAt: new Date('2025-01-01T00:00:00.000Z'),
+        lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
+        cancellationRequestedAt: params.cancellationRequestedAt ?? null,
+      });
+  }
+});
+
+describe('listActiveProvisionedRunnerCountsByTemplateTx', () => {
+  let workspaceId: string;
+  let provisionerId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    provisionerId = crypto.randomUUID();
+  });
+
+  it('groups starting and running provisioned runners by template and ignores non-divergence states', async () => {
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: 'starting-1',
+      templateKey: 'linux',
+      state: 'starting',
+    });
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: 'running-1',
+      templateKey: 'linux',
+      state: 'running',
+    });
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: 'running-2',
+      templateKey: 'linux',
+      state: 'running',
+    });
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: 'stopping-1',
+      templateKey: 'linux',
+      state: 'stopping',
+    });
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: 'null-template',
+      templateKey: null,
+      state: 'running',
+    });
+
+    const result = await db().transaction((tx) =>
+      listActiveProvisionedRunnerCountsByTemplateTx(tx, {workspaceId, provisionerId}),
+    );
+
+    expect(result).toEqual(
+      expect.arrayContaining([
+        {templateKey: 'linux', state: 'starting', count: 1},
+        {templateKey: 'linux', state: 'running', count: 2},
+      ]),
+    );
+    expect(result).toHaveLength(2);
+  });
 });
 
 describe('listProvisionerTerminateIntents', () => {
@@ -692,6 +807,22 @@ describe('listProvisionerTerminateIntents', () => {
     const result = await listProvisionerTerminateIntents({workspaceId, provisionerId, limit: 1000});
 
     expect(result).toEqual(['provisioned-runner-1']);
+  });
+
+  it('returns structured rows with bounded reasons from the shared query', async () => {
+    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await insertRunningJob({
+      provisionedRunnerId: 'provisioned-runner-1',
+      cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+    });
+
+    const result = await db().transaction((tx) =>
+      listProvisionerTerminateIntentRowsTx(tx, {workspaceId, provisionerId, limit: 1000}),
+    );
+
+    expect(result).toEqual([
+      {provisionedRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'},
+    ]);
   });
 
   it('excludes active provisioned runners whose latest bound job is healthy', async () => {
