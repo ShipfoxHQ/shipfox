@@ -84,16 +84,20 @@ function getWorkspacePackageNames(): string[] {
 }
 
 function getResolvableEsmOptimizerPackageNames(directDependencyNames: Set<string>): string[] {
-  return esmOptimizerPackages.flatMap(({dependencyName, optimizerName}) =>
-    directDependencyNames.has(dependencyName) ? [optimizerName] : [],
-  );
+  if (!hasDirectOpenTelemetryEsmGraph(directDependencyNames)) return [];
+
+  return esmOptimizerPackages.map(({optimizerName}) => optimizerName);
 }
 
 function getServerExcludedConditions(directDependencyNames: Set<string>): string[] {
-  return directDependencyNames.has('@opentelemetry/api') ||
+  return hasDirectOpenTelemetryEsmGraph(directDependencyNames) ? [] : ['module'];
+}
+
+function hasDirectOpenTelemetryEsmGraph(directDependencyNames: Set<string>): boolean {
+  return (
+    directDependencyNames.has('@opentelemetry/api') &&
     directDependencyNames.has('@opentelemetry/core')
-    ? []
-    : ['module'];
+  );
 }
 
 function getServerFallbackConditions(serverExcludedConditions: string[]): string[] {

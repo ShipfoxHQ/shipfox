@@ -20,6 +20,7 @@ const runnerProtocolConfigUrl = new URL(
   '../../../libs/runner/protocol/vitest.config.ts',
   import.meta.url,
 ).href;
+const apiAgentConfigUrl = new URL('../../../libs/api/agent/vitest.config.ts', import.meta.url).href;
 const clientLogsConfigUrl = new URL('../../../libs/client/logs/vitest.config.ts', import.meta.url)
   .href;
 const reactUiDistThemeProviderPath = fileURLToPath(
@@ -298,6 +299,34 @@ describe('defineConfig', () => {
       };
     };
 
+    expect(config.test?.server?.deps?.inline).toEqual([esmOptimizerInlinePattern]);
+    expect(config.test?.deps?.optimizer?.ssr?.enabled).toBe(true);
+    expect(config.test?.deps?.optimizer?.ssr?.include).toEqual([]);
+  });
+
+  it('keeps partial direct OpenTelemetry dependencies on Node conditions', () => {
+    process.env.CI = 'true';
+
+    const config = defineConfig({}, apiAgentConfigUrl) as {
+      ssr?: {
+        resolve?: {
+          conditions?: string[];
+        };
+      };
+      test?: {
+        deps?: {
+          optimizer?: {
+            ssr?: {
+              enabled?: boolean;
+              include?: string[];
+            };
+          };
+        };
+        server?: {deps?: {inline?: unknown[] | true}};
+      };
+    };
+
+    expect(config.ssr?.resolve?.conditions).toEqual(['node']);
     expect(config.test?.server?.deps?.inline).toEqual([esmOptimizerInlinePattern]);
     expect(config.test?.deps?.optimizer?.ssr?.enabled).toBe(true);
     expect(config.test?.deps?.optimizer?.ssr?.include).toEqual([]);
