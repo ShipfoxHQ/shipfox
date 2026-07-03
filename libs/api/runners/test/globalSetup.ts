@@ -12,6 +12,7 @@ export async function setup() {
   await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
   await db().execute(sql`TRUNCATE runners_ephemeral_registration_tokens CASCADE`);
   await db().execute(sql`TRUNCATE runners_runner_sessions CASCADE`);
+  await db().execute(sql`TRUNCATE runners_rate_limits CASCADE`);
   await db().execute(sql`TRUNCATE runners_manual_registration_tokens CASCADE`);
   await db().execute(sql`TRUNCATE runners_pending_jobs CASCADE`);
   await db().execute(sql`TRUNCATE runners_running_jobs CASCADE`);

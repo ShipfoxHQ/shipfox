@@ -14,12 +14,14 @@ import {
   extractBearerToken,
 } from '@shipfox/node-fastify';
 import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
-import {and, count, eq} from 'drizzle-orm';
+import {and, count, eq, sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {config} from '#config.js';
+import {hashRunnersRateLimitIdentifier} from '#core/rate-limit.js';
 import {db} from '#db/db.js';
 import {resolveEphemeralRegistrationTokenByHash} from '#db/ephemeral-registration-tokens.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
+import {runnersRateLimits} from '#db/schema/rate-limits.js';
 import {reservations} from '#db/schema/reservations.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {ephemeralRegistrationTokenFactory} from '#test/index.js';
@@ -297,6 +299,54 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('returns 429 when the provisioner mint rate limit is exceeded', async () => {
+    const reservationId = await createReservation({count: 1});
+    await seedProvisionerMintRateLimit(config.PROVISIONER_MINT_RATE_LIMIT_MAX_REQUESTS);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/runner-registration-tokens/batch',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: body(reservationId, ['provisioned-runner-a']),
+    });
+
+    const persistedCount = await countEphemeralTokens();
+    expect(res.statusCode).toBe(429);
+    expect(res.headers['retry-after']).toEqual(expect.any(String));
+    expect(res.json()).toMatchObject({
+      code: 'rate-limited',
+      details: {retry_after_seconds: expect.any(Number)},
+    });
+    expect(persistedCount).toBe(0);
+  });
+
+  it('returns 503 when the provisioner mint rate limiter is unavailable', async () => {
+    const reservationId = await createReservation({count: 1});
+    const identifierHmac = await seedProvisionerMintRateLimit(1);
+
+    await db().transaction(async (tx) => {
+      await tx.execute(sql`
+        SELECT 1
+        FROM runners_rate_limits
+        WHERE identifier_hmac = ${identifierHmac}
+        FOR UPDATE
+      `);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/provisioners/runner-registration-tokens/batch',
+        headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+        payload: body(reservationId, ['provisioned-runner-a']),
+      });
+
+      expect(res.statusCode).toBe(503);
+      expect(res.json().code).toBe('runners-rate-limit-unavailable');
+    });
+
+    const persistedCount = await countEphemeralTokens();
+    expect(persistedCount).toBe(0);
+  });
+
   it('mints tokens that can register exactly once', async () => {
     const reservationId = await createReservation({count: 1});
     const mint = await app.inject({
@@ -367,5 +417,37 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
         provisioned_runner_id: provisionedRunnerId,
       })),
     };
+  }
+
+  async function seedProvisionerMintRateLimit(seedCount: number): Promise<string> {
+    const identifierHmac = hashRunnersRateLimitIdentifier({
+      action: 'provisioner-mint',
+      scope: 'provisioner',
+      identifier: provisionerTokenId,
+    });
+    const windows = rateLimitWindows(config.PROVISIONER_MINT_RATE_LIMIT_WINDOW_SECONDS);
+
+    await db()
+      .insert(runnersRateLimits)
+      .values(
+        windows.map((windowStart) => ({
+          action: 'provisioner-mint',
+          scope: 'provisioner',
+          identifierHmac,
+          windowStart,
+          count: seedCount,
+          expiresAt: new Date(
+            windowStart.getTime() + config.PROVISIONER_MINT_RATE_LIMIT_WINDOW_SECONDS * 1000,
+          ),
+        })),
+      );
+
+    return identifierHmac;
+  }
+
+  function rateLimitWindows(windowSeconds: number): [Date, Date] {
+    const windowMs = windowSeconds * 1000;
+    const currentWindowStart = Math.floor(Date.now() / windowMs) * windowMs;
+    return [new Date(currentWindowStart), new Date(currentWindowStart + windowMs)];
   }
 });

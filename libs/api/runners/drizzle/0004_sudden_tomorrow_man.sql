@@ -45,3 +45,18 @@ CREATE TABLE "runners_provisioner_tokens" (
 CREATE UNIQUE INDEX "runners_provisioner_tokens_hashed_token_unique" ON "runners_provisioner_tokens" USING btree ("hashed_token");--> statement-breakpoint
 CREATE INDEX "runners_provisioner_tokens_workspace_id_idx" ON "runners_provisioner_tokens" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "runners_provisioner_tokens_workspace_last_seen_idx" ON "runners_provisioner_tokens" USING btree ("workspace_id","last_seen_at" DESC,"id" DESC);
+--> statement-breakpoint
+CREATE TABLE "runners_rate_limits" (
+	"action" text NOT NULL,
+	"scope" text NOT NULL,
+	"identifier_hmac" text NOT NULL,
+	"window_start" timestamp with time zone NOT NULL,
+	"count" integer DEFAULT 1 NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_rate_limits_window_unique" ON "runners_rate_limits" USING btree ("action","scope","identifier_hmac","window_start");--> statement-breakpoint
+CREATE INDEX "runners_rate_limits_expires_at_idx" ON "runners_rate_limits" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "runners_ephemeral_registration_tokens_reservation_id_idx" ON "runners_ephemeral_registration_tokens" USING btree ("reservation_id");

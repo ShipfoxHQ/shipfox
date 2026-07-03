@@ -102,9 +102,10 @@ export class RegistrationTokenBatchExceedsReservationError extends Error {
   constructor(
     public readonly requested: number,
     public readonly reservationCount: number,
+    public readonly alreadyMinted: number = 0,
   ) {
     super(
-      `Registration token batch requested ${requested} provisioned runners, exceeding reservation count ${reservationCount}`,
+      `Registration token batch requested ${requested} provisioned runners with ${alreadyMinted} already minted, exceeding reservation count ${reservationCount}`,
     );
     this.name = 'RegistrationTokenBatchExceedsReservationError';
   }

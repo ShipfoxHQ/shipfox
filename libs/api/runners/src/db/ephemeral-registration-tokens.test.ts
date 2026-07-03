@@ -1,6 +1,9 @@
 import {extractDisplayPrefix, generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {and, eq} from 'drizzle-orm';
-import {ActiveEphemeralRegistrationTokensExistError} from '#core/errors.js';
+import {
+  ActiveEphemeralRegistrationTokensExistError,
+  type RegistrationTokenBatchExceedsReservationError,
+} from '#core/errors.js';
 import {db} from '#db/db.js';
 import {
   createEphemeralRegistrationTokensBatch,
@@ -84,6 +87,104 @@ describe('createEphemeralRegistrationTokensBatch', () => {
     expect(rows[0]?.provisionedRunnerId).toBe('provisioned-runner-a');
   });
 
+  it('allows sequential batches that exactly reach the reservation count', async () => {
+    const expiresAt = new Date(Date.now() + 300_000);
+
+    await createEphemeralRegistrationTokensBatch({
+      workspaceId,
+      provisionerId,
+      reservationId,
+      expiresAt,
+      rows: [
+        row('provisioned-runner-a', generateOpaqueToken('ephemeralRegistrationToken')),
+        row('provisioned-runner-b', generateOpaqueToken('ephemeralRegistrationToken')),
+      ],
+    });
+    const result = await createEphemeralRegistrationTokensBatch({
+      workspaceId,
+      provisionerId,
+      reservationId,
+      expiresAt,
+      rows: [row('provisioned-runner-c', generateOpaqueToken('ephemeralRegistrationToken'))],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(await countReservationTokens()).toBe(3);
+  });
+
+  it('rejects sequential batches that cumulatively exceed the reservation count', async () => {
+    const expiresAt = new Date(Date.now() + 300_000);
+    await createEphemeralRegistrationTokensBatch({
+      workspaceId,
+      provisionerId,
+      reservationId,
+      expiresAt,
+      rows: [
+        row('provisioned-runner-a', generateOpaqueToken('ephemeralRegistrationToken')),
+        row('provisioned-runner-b', generateOpaqueToken('ephemeralRegistrationToken')),
+      ],
+    });
+
+    await expect(
+      createEphemeralRegistrationTokensBatch({
+        workspaceId,
+        provisionerId,
+        reservationId,
+        expiresAt,
+        rows: [
+          row('provisioned-runner-c', generateOpaqueToken('ephemeralRegistrationToken')),
+          row('provisioned-runner-d', generateOpaqueToken('ephemeralRegistrationToken')),
+        ],
+      }),
+    ).rejects.toMatchObject({
+      name: 'RegistrationTokenBatchExceedsReservationError',
+      requested: 2,
+      reservationCount: 3,
+      alreadyMinted: 2,
+    } satisfies Partial<RegistrationTokenBatchExceedsReservationError>);
+
+    expect(await countReservationTokens()).toBe(2);
+  });
+
+  it('counts consumed and expired tokens against the reservation total', async () => {
+    const consumed = await ephemeralRegistrationTokenFactory.create({
+      workspaceId,
+      provisionerId,
+      reservationId,
+      provisionedRunnerId: 'provisioned-runner-consumed',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await db()
+      .update(ephemeralRegistrationTokens)
+      .set({consumedAt: new Date()})
+      .where(eq(ephemeralRegistrationTokens.id, consumed.id));
+    await ephemeralRegistrationTokenFactory.create({
+      workspaceId,
+      provisionerId,
+      reservationId,
+      provisionedRunnerId: 'provisioned-runner-expired',
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    await expect(
+      createEphemeralRegistrationTokensBatch({
+        workspaceId,
+        provisionerId,
+        reservationId,
+        expiresAt: new Date(Date.now() + 300_000),
+        rows: [
+          row('provisioned-runner-a', generateOpaqueToken('ephemeralRegistrationToken')),
+          row('provisioned-runner-b', generateOpaqueToken('ephemeralRegistrationToken')),
+        ],
+      }),
+    ).rejects.toMatchObject({
+      name: 'RegistrationTokenBatchExceedsReservationError',
+      requested: 2,
+      reservationCount: 3,
+      alreadyMinted: 2,
+    } satisfies Partial<RegistrationTokenBatchExceedsReservationError>);
+  });
+
   async function createReservation(params: {count: number}): Promise<string> {
     const [reservation] = await db()
       .insert(reservations)
@@ -97,6 +198,14 @@ describe('createEphemeralRegistrationTokensBatch', () => {
       .returning({id: reservations.id});
     if (!reservation) throw new Error('Insert returned no rows');
     return reservation.id;
+  }
+
+  async function countReservationTokens(): Promise<number> {
+    const rows = await db()
+      .select()
+      .from(ephemeralRegistrationTokens)
+      .where(eq(ephemeralRegistrationTokens.reservationId, reservationId));
+    return rows.length;
   }
 
   function row(provisionedRunnerId: string, rawToken: string) {

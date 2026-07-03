@@ -60,6 +60,10 @@ export {
   revokeProvisionerToken,
   touchProvisionerLastSeen,
 } from './provisioner-tokens.js';
+export {
+  consumeRunnersRateLimit,
+  pruneExpiredRunnersRateLimits,
+} from './rate-limits.js';
 export type {
   DemandStat,
   PollDemandAndReserveParams,
