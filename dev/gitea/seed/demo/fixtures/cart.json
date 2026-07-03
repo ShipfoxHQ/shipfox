@@ -1,0 +1,22 @@
+{
+  "currency": "USD",
+  "tax_rate_bps": 875,
+  "items": [
+    {
+      "sku": "mug-black",
+      "name": "Black ceramic mug",
+      "quantity": 2,
+      "unit_price_cents": 2599,
+      "discount_cents": 500,
+      "taxable": true
+    },
+    {
+      "sku": "sticker-pack",
+      "name": "Sticker pack",
+      "quantity": 3,
+      "unit_price_cents": 399,
+      "discount_cents": 0,
+      "taxable": false
+    }
+  ]
+}

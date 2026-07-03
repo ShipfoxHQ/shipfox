@@ -1,0 +1,39 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {calculateCheckoutTotal} from '../src/checkout.js';
+import cart from './cart.json' with {type: 'json'};
+
+test('applies item-level discounts before tax', () => {
+  const total = calculateCheckoutTotal(cart);
+
+  assert.equal(total.subtotal_cents, 6395);
+  assert.equal(total.discount_cents, 500);
+  assert.equal(total.tax_cents, 411);
+  assert.equal(total.total_cents, 6306);
+});
+
+test('rounds tax after removing discounts from taxable items only', () => {
+  const total = calculateCheckoutTotal({
+    tax_rate_bps: 825,
+    items: [
+      {
+        sku: 'hoodie',
+        quantity: 1,
+        unit_price_cents: 6200,
+        discount_cents: 775,
+        taxable: true,
+      },
+      {
+        sku: 'gift-card',
+        quantity: 1,
+        unit_price_cents: 2500,
+        discount_cents: 0,
+        taxable: false,
+      },
+    ],
+  });
+
+  assert.equal(total.discount_cents, 775);
+  assert.equal(total.tax_cents, 448);
+  assert.equal(total.total_cents, 8373);
+});
