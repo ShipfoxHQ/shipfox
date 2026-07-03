@@ -33,8 +33,8 @@ jobs:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Run static verification
         run: turbo check type build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
@@ -54,16 +54,14 @@ jobs:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Set up Playwright
+        uses: ./.github/actions/setup-playwright
 
       - name: Start test services
         run: docker compose up --wait -d postgres temporal garage garage-init
-
-      # Client Vitest browser tests run under `turbo test`, so this non-E2E
-      # job still needs Chromium.
-      - name: Install Playwright browsers
-        run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
       - name: Run tests
         env:
@@ -82,14 +80,14 @@ jobs:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Set up Playwright
+        uses: ./.github/actions/setup-playwright
 
       - name: Start test services
         run: docker compose up --wait -d postgres temporal garage garage-init
-
-      - name: Install Playwright browsers
-        run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
       # E2E dev servers still depend on dist/ for Temporal workflow bundles and
       # the shared vite-dev bin.
@@ -149,8 +147,8 @@ jobs:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
@@ -183,8 +181,8 @@ jobs:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4
