@@ -413,10 +413,12 @@ Packages use Node.js [subpath imports](https://nodejs.org/api/packages.html#subp
 
 | Pattern | Maps to | Example |
 | --- | --- | --- |
-| `#*` | `./src/*` | `import {foo} from '#core/foo.js'` |
+| `#*` | `./src/*` (`types`, `development`), `./dist/*` (`default`) | `import {foo} from '#core/foo.js'` |
 | `#test/*` | `./test/*` | `import {bar} from '#test/factories/bar.js'` |
 
-Node, TypeScript, and [Vitest](https://vitest.dev/) resolve these natively; no build-time rewriting needed.
+Node, TypeScript, and [Vitest](https://vitest.dev/) resolve these natively. `#*`
+resolves to source for editor, pnpm development, and local Vitest workflows, and
+to built output by default for CI and production.
 
 ## Development Workflow
 
