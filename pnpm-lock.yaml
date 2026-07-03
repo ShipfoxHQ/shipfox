@@ -300,6 +300,9 @@ importers:
       '@shipfox/e2e-helper-auth':
         specifier: workspace:*
         version: link:../../helpers/auth
+      '@shipfox/e2e-helper-projects':
+        specifier: workspace:*
+        version: link:../../helpers/projects
       '@shipfox/e2e-helper-workspaces':
         specifier: workspace:*
         version: link:../../helpers/workspaces
@@ -336,6 +339,9 @@ importers:
       '@shipfox/e2e-helper-auth':
         specifier: workspace:*
         version: link:../../helpers/auth
+      '@shipfox/e2e-helper-projects':
+        specifier: workspace:*
+        version: link:../../helpers/projects
       '@shipfox/e2e-helper-workspaces':
         specifier: workspace:*
         version: link:../../helpers/workspaces
@@ -408,6 +414,9 @@ importers:
       '@shipfox/e2e-helper-auth':
         specifier: workspace:*
         version: link:../../helpers/auth
+      '@shipfox/e2e-helper-projects':
+        specifier: workspace:*
+        version: link:../../helpers/projects
       '@shipfox/e2e-helper-workspaces':
         specifier: workspace:*
         version: link:../../helpers/workspaces
@@ -532,6 +541,31 @@ importers:
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../../../libs/api/logs-dto
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
+  e2e/helpers/projects:
+    dependencies:
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/projects-dto
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core

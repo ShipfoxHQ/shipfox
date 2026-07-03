@@ -23,6 +23,7 @@
     "@shipfox/client-router": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-helper-auth": "workspace:*",
+    "@shipfox/e2e-helper-projects": "workspace:*",
     "@shipfox/e2e-helper-workspaces": "workspace:*",
     "@shipfox/playwright": "workspace:*",
     "@shipfox/ts-config": "workspace:*",

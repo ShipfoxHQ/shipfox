@@ -34,37 +34,6 @@ async function stubConnect(page: Page, response: {status: number; body: unknown}
   });
 }
 
-async function stubProjectExists(page: Page, workspaceId: string): Promise<void> {
-  await page.route('**/projects?*', async (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('workspace_id') !== workspaceId) {
-      await route.continue();
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        projects: [
-          {
-            id: '00000000-0000-4000-8000-000000000001',
-            workspace_id: workspaceId,
-            name: 'Platform',
-            source: {
-              connection_id: '00000000-0000-4000-8000-000000000002',
-              external_repository_id: 'debug:platform',
-            },
-            created_at: '2026-01-15T12:00:00.000Z',
-            updated_at: '2026-01-15T12:00:00.000Z',
-          },
-        ],
-        next_cursor: null,
-      }),
-    });
-  });
-}
-
 test('Sentry callback shows an error when required params are missing', async ({
   page,
   auth,
@@ -100,16 +69,21 @@ test('Sentry callback shows the workspace picker', async ({page, auth, workspace
   await argosScreenshot(page, 'integrations/sentry-callback-pick-workspace');
 });
 
-test('Sentry callback installs to a workspace on success', async ({page, auth, workspaces}) => {
+test('Sentry callback installs to a workspace on success', async ({
+  page,
+  auth,
+  projects,
+  workspaces,
+}) => {
   const user = await auth.createUser();
   const workspace = await workspaces.create({
     userId: user.user.id,
     name: 'Sentry Install Workspace',
   });
+  await projects.createProject({workspaceId: workspace.id});
   await auth.loginAs(page, user);
 
   await stubConnect(page, {status: 200, body: sentryConnectionFixture(workspace.id)});
-  await stubProjectExists(page, workspace.id);
 
   await page.goto(CALLBACK_URL);
   await expect(page.getByRole('heading', {name: 'Install Sentry'})).toBeVisible();

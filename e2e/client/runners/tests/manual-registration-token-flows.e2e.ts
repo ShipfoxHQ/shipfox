@@ -1,4 +1,4 @@
-import {argosScreenshot, type Page} from '@shipfox/playwright';
+import {argosScreenshot} from '@shipfox/playwright';
 import {createShipfoxTokenPrefixRegexes} from '@shipfox/regex';
 import {expect, test} from './test.js';
 
@@ -9,40 +9,10 @@ const VISUAL_TEST_RUNNER_TOKEN = 'sf_mrt_visual_regression_token';
 const VISUAL_TEST_CREATED_AT = 'Jan 15, 2026, 12:00 PM';
 const VISUAL_TEST_EXPIRES_AT = 'Jan 16, 2026, 12:00 PM';
 
-async function stubProjectExists(page: Page, workspaceId: string): Promise<void> {
-  await page.route('**/projects?*', async (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('workspace_id') !== workspaceId) {
-      await route.continue();
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        projects: [
-          {
-            id: '00000000-0000-4000-8000-000000000001',
-            workspace_id: workspaceId,
-            name: 'Platform',
-            source: {
-              connection_id: '00000000-0000-4000-8000-000000000002',
-              external_repository_id: 'debug:platform',
-            },
-            created_at: '2026-01-15T12:00:00.000Z',
-            updated_at: '2026-01-15T12:00:00.000Z',
-          },
-        ],
-        next_cursor: null,
-      }),
-    });
-  });
-}
-
 test('manages workspace manual registration tokens from settings', async ({
   page,
   auth,
+  projects,
   workspaces,
 }) => {
   await page.clock.setFixedTime(VISUAL_TEST_NOW);
@@ -52,8 +22,8 @@ test('manages workspace manual registration tokens from settings', async ({
     userId: user.user.id,
     name: 'Runner Settings Workspace',
   });
+  await projects.createProject({workspaceId: workspace.id});
   await auth.loginAs(page, user);
-  await stubProjectExists(page, workspace.id);
 
   await page.goto(`/workspaces/${workspace.id}/settings/runners`);
   await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/settings/runners/?$`, 'u'));
