@@ -87,7 +87,12 @@ jobs:
         uses: ./.github/actions/setup-playwright
 
       - name: Start test services
-        run: docker compose up --wait -d postgres temporal garage garage-init
+        env:
+          SHIPFOX_GITEA_HTTP_HOST: 0.0.0.0
+        run: docker compose up --wait -d postgres temporal garage garage-init gitea gitea-init
+
+      - name: Install Playwright browsers
+        run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
       # E2E dev servers still depend on dist/ for Temporal workflow bundles and
       # the shared vite-dev bin.
@@ -101,35 +106,22 @@ jobs:
           CLIENT_URL: http://localhost:5173
           E2E_ADMIN_API_KEY: e2e-admin-api-key
           E2E_ENABLED: "true"
+          GITEA_CLONE_BASE_URL: http://localhost:3000
+          HOST: 0.0.0.0
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: |
-          set -euo pipefail
+        run: node dev/e2e.mjs run
 
-          log_dir="$RUNNER_TEMP/shipfox-e2e-logs"
-          mkdir -p "$log_dir"
-
-          pnpm --filter=@shipfox/api dev > "$log_dir/shipfox-api.log" 2>&1 &
-          api_pid=$!
-          pnpm --filter=@shipfox/client dev > "$log_dir/shipfox-client.log" 2>&1 &
-          client_pid=$!
-          trap 'kill $api_pid $client_pid 2>/dev/null || true' EXIT
-
-          wait_for() {
-            timeout 60 bash -c 'until curl --fail --silent "$1" >/dev/null; do sleep 1; done' _ "$1"
-          }
-
-          wait_for "$API_URL/readyz"
-          wait_for "$CLIENT_URL"
-          turbo test:e2e
-
-      - name: Upload E2E server logs
+      - name: Upload E2E diagnostics
         if: failure() && steps.e2e.outcome == 'failure'
+        timeout-minutes: 10
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-server-logs
-          path: ${{ runner.temp }}/shipfox-e2e-logs/
+          name: e2e-diagnostics
+          path: |
+            ${{ runner.temp }}/shipfox-e2e-logs/
+            e2e/**/test-results/
           if-no-files-found: error
 
   # PR image validation stays separate so it can run without package write

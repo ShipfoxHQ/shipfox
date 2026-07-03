@@ -164,6 +164,41 @@ Each E2E package must also declare an explicit workspace dependency on the packa
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
 
+### Running the platform workflow E2E suite
+
+`@shipfox/e2e-platform-workflows` (`e2e/platform/workflows`) is the full-loop suite:
+each scenario pushes a real `workflow.yml` to a gitea repo and asserts on the public
+run and log APIs after it flows through the org webhook, definition sync, trigger
+dispatch, Temporal, a local source runner, and step execution. Each Playwright test
+starts its own `@shipfox/runner` process with a unique runner label and injects that
+label into the workflow YAML, so scenarios run against the current workspace source
+without building a runner image.
+
+The pure `expect.yaml` evaluator has Vitest node tests that need no infrastructure:
+
+```sh
+turbo test --filter=@shipfox/e2e-platform-workflows
+```
+
+The full loop needs the Docker services, then the repo E2E harness:
+
+```sh
+# 1. Local services (postgres, temporal, garage, gitea).
+docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
+
+# 2. Start the API/client dev servers and run the suite.
+mise run e2e -- --filter=@shipfox/e2e-platform-workflows
+```
+
+The `e2e` mise task reads Conductor worktree ports from `.context/local-services/env`,
+starts the API with E2E routes enabled, starts the client with the test VCS provider
+enabled, waits for both to become ready, then runs `turbo test:e2e`. Local runner
+logs are written under
+`e2e/platform/workflows/.e2e-run/runners/` and attached to failed scenario results. A
+green run deletes its gitea org; a failing run keeps it and attaches the run detail,
+the expectation diff, fetched step logs, and runner log under `test-results/`. See
+`e2e/platform/workflows/README.md` for the full runbook.
+
 ### Configuration
 
 Each app and each package that reads the environment owns a `src/config.ts`. It

@@ -1,0 +1,12 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      greet:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["hello world"]

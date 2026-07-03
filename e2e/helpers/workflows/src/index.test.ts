@@ -101,6 +101,23 @@ describe('waitForRunByCommit', () => {
     expect(calls).toBe(2);
   });
 
+  test('correlates on a raw VCS push payload where the head commit is `after`', async () => {
+    const result = await waitForRunByCommit({
+      fetch: () =>
+        response(
+          listResponse({
+            runs: [run({trigger_payload: {data: {ref: 'refs/heads/main', after: 'abc123'}}})],
+          }),
+        ),
+      headCommitSha: 'abc123',
+      initialDelayMs: 1,
+      projectId,
+      token: 'user-token',
+    });
+
+    expect(result.id).toBe(runId);
+  });
+
   test('times out with a bounded run list summary', async () => {
     const result = waitForRunByCommit({
       fetch: () =>

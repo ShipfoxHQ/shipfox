@@ -57,7 +57,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function headCommitSha(run: WorkflowRunDto): string | null {
   const payload = run.trigger_payload;
   if (!isRecord(payload) || !isRecord(payload.data)) return null;
-  return typeof payload.data.headCommitSha === 'string' ? payload.data.headCommitSha : null;
+  const data = payload.data;
+  // Real push payloads use `after`; `headCommitSha` covers normalized test payloads.
+  if (typeof data.headCommitSha === 'string') return data.headCommitSha;
+  if (typeof data.after === 'string') return data.after;
+  if (isRecord(data.head_commit) && typeof data.head_commit.id === 'string') {
+    return data.head_commit.id;
+  }
+  return null;
 }
 
 function formatRunListObserved(

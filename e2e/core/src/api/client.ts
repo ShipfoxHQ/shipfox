@@ -52,6 +52,12 @@ async function parseErrorDetails(response: Response): Promise<unknown> {
   }
 }
 
+async function parseHttpErrorDetails(error: HTTPError): Promise<unknown> {
+  if (error.data !== undefined) return error.data;
+  if (error.response.bodyUsed) return undefined;
+  return await parseErrorDetails(error.response);
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
@@ -61,7 +67,7 @@ async function toE2eApiError(error: unknown): Promise<E2eApiError> {
     return new E2eApiError({
       message: `E2E API request failed: ${error.response.status}`,
       status: error.response.status,
-      details: await parseErrorDetails(error.response),
+      details: await parseHttpErrorDetails(error),
     });
   }
 

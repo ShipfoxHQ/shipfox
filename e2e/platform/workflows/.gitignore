@@ -1,0 +1,2 @@
+# Suite context handoff, local runner logs/workspaces, and failure sentinel.
+.e2e-run/

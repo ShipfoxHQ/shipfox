@@ -1,4 +1,4 @@
-import {readConfigInputs} from './config.js';
+import {readConfigInputs, triggerFilterMatches} from './config.js';
 import type {TriggerSubscription} from './entities/subscription.js';
 
 function subscriptionWithConfig(config: Record<string, unknown>): TriggerSubscription {
@@ -45,5 +45,50 @@ describe('readConfigInputs', () => {
     const inputs = readConfigInputs(subscriptionWithConfig({with: 'staging'}));
 
     expect(inputs).toBeUndefined();
+  });
+});
+
+describe('triggerFilterMatches', () => {
+  test('returns true when filter is missing', () => {
+    const matches = triggerFilterMatches(subscriptionWithConfig({}), {ref: 'refs/heads/main'});
+
+    expect(matches).toBe(true);
+  });
+
+  test('evaluates filter expressions against the event payload', () => {
+    const subscription = subscriptionWithConfig({
+      filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "shipfox/platform"',
+    });
+
+    const matches = triggerFilterMatches(subscription, {
+      ref: 'refs/heads/main',
+      repository: {full_name: 'shipfox/platform'},
+    });
+    const misses = triggerFilterMatches(subscription, {
+      ref: 'refs/heads/main',
+      repository: {full_name: 'shipfox/docs'},
+    });
+
+    expect(matches).toBe(true);
+    expect(misses).toBe(false);
+  });
+
+  test('throws when the stored filter cannot be parsed', () => {
+    const subscription = subscriptionWithConfig({filter: 'event.ref =='});
+
+    const act = () => triggerFilterMatches(subscription, {ref: 'refs/heads/main'});
+
+    expect(act).toThrow();
+  });
+
+  test.each([
+    {name: 'blank', filter: '   '},
+    {name: 'non-string', filter: ['event.ref == "refs/heads/main"']},
+  ])('throws when the stored filter is $name', ({filter}) => {
+    const subscription = subscriptionWithConfig({filter});
+
+    const act = () => triggerFilterMatches(subscription, {ref: 'refs/heads/main'});
+
+    expect(act).toThrow('Trigger subscription filter must be a non-empty string when set');
   });
 });
