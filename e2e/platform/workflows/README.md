@@ -60,25 +60,31 @@ manifest then only asserts the run succeeded.
 
 ## Local run
 
-Runners run in docker and join the compose network; the API runs on the host and the
-runners reach it through `host.docker.internal`. The runner clones from gitea over the
-compose network, which needs `GITEA_CLONE_BASE_URL` set on the API for this suite only.
+Runners run in docker; the API runs on the host. A runner reaches both gitea and the API
+through `host.docker.internal`, because the compose services sit on the default bridge
+network (`network_mode: bridge`), which has no service-name DNS. So the runner clones
+gitea via the host-published gitea port, set through `GITEA_CLONE_BASE_URL` on the API for
+this suite only.
 
 ```sh
 # 1. Infrastructure (postgres, temporal, garage, gitea)
-docker compose up -d
+docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
 # 2. Build the runner image the provisioner launches (loads runner:ci locally)
 turbo image --filter=@shipfox/runner
 
-# 3. API on the host, with E2E routes on and gitea clone URLs pointed at the
-#    compose network. host-based manual runners want the default clone URL, so set
-#    GITEA_CLONE_BASE_URL only when running this suite.
-E2E_ENABLED=true GITEA_CLONE_BASE_URL=http://gitea:3000 pnpm --filter=@shipfox/api dev
+# 3. API on the host, with E2E routes on and a gitea clone URL the runner containers can
+#    reach. Use the gitea port for your setup (3000 by default; a worktree's port is in
+#    .context/local-services/env). Set GITEA_CLONE_BASE_URL only when running this suite,
+#    since host-based manual runners want the default clone URL.
+E2E_ENABLED=true GITEA_CLONE_BASE_URL=http://host.docker.internal:3000 \
+  pnpm --filter=@shipfox/api dev
 
-# 4. Run the suite. E2E_DOCKER_NETWORK is the compose network runners join; locally
-#    that is "<repo-dir>_default" (e.g. shipfox_default).
-E2E_DOCKER_NETWORK=<repo-dir>_default turbo test:e2e --filter=@shipfox/e2e-platform-workflows
+# 4. Run the suite. E2E_DOCKER_NETWORK is the docker network runner containers join
+#    (bridge for the compose default). API_URL and E2E_GITEA_URL default to
+#    http://localhost:16101 and http://localhost:3000; override them when services run on
+#    other ports (a Conductor worktree's ports are in .context/local-services/env).
+E2E_DOCKER_NETWORK=bridge turbo test:e2e --filter=@shipfox/e2e-platform-workflows
 ```
 
 Reruns need no cleanup: every org, repo, project, and workspace name carries a unique
