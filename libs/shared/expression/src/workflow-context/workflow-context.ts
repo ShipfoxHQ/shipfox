@@ -12,18 +12,37 @@ export const workflowContextNames = [
 ] as const;
 export type WorkflowContextName = (typeof workflowContextNames)[number];
 
-export const workflowContextPhases = [
-  'workflow-run-creation',
-  'job-execution-creation',
-  'step-completion',
+export const availabilitySites = [
+  'ingest',
+  'run-creation',
+  'execution-creation',
+  'job-activation',
+  'step-dispatch',
+  'step-report',
+  'execution-resolution',
   'job-resolution',
 ] as const;
-export type WorkflowContextPhase = (typeof workflowContextPhases)[number];
+export type AvailabilitySite = (typeof availabilitySites)[number];
+
+export const runnerFillTarget = 'runner-fill';
+export type FillTarget = AvailabilitySite | typeof runnerFillTarget;
+
+export const workflowContextSensitivities = ['persistable', 'ephemeral'] as const;
+export type WorkflowContextSensitivity = (typeof workflowContextSensitivities)[number];
+
+export const workflowContextHosts = ['server', 'runner'] as const;
+export type WorkflowContextHost = (typeof workflowContextHosts)[number];
+
+export type ReservedRootDefinition =
+  | {readonly host: 'server'; readonly availability: AvailabilitySite}
+  | {readonly host: 'runner'};
 
 export const workflowContextReservedRoots = {
-  steps: 'step-completion',
-  jobs: 'job-resolution',
-} as const satisfies Record<string, WorkflowContextPhase>;
+  steps: {host: 'server', availability: 'step-report'},
+  jobs: {host: 'server', availability: 'job-resolution'},
+  matrix: {host: 'server', availability: 'job-activation'},
+  runner: {host: 'runner'},
+} as const satisfies Record<string, ReservedRootDefinition>;
 export type WorkflowContextReservedRoot = keyof typeof workflowContextReservedRoots;
 
 export const workflowContextTrustTiers = ['trusted', 'untrusted'] as const;
@@ -32,8 +51,10 @@ export type WorkflowContextTrustTier = (typeof workflowContextTrustTiers)[number
 export type WorkflowContextShape = 'known' | 'open';
 
 export interface TypedWorkflowContextDefinition {
-  readonly availability: WorkflowContextPhase;
+  readonly availability: AvailabilitySite;
   readonly trustTier: WorkflowContextTrustTier;
+  readonly sensitivity: WorkflowContextSensitivity;
+  readonly host: 'server';
   readonly shape: 'known';
   readonly checkMode: 'typed';
   readonly typeEnvironment: ExpressionTypeEnvironment;
@@ -41,8 +62,10 @@ export interface TypedWorkflowContextDefinition {
 }
 
 export interface OpenWorkflowContextDefinition {
-  readonly availability: WorkflowContextPhase;
+  readonly availability: AvailabilitySite;
   readonly trustTier: WorkflowContextTrustTier;
+  readonly sensitivity: WorkflowContextSensitivity;
+  readonly host: 'server';
   readonly shape: 'open';
   readonly checkMode: 'syntax';
 }
@@ -136,57 +159,73 @@ const stepTypeEnvironment = {
 
 export const workflowContextDefinitions = {
   run: {
-    availability: 'workflow-run-creation',
+    availability: 'run-creation',
     trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: runTypeEnvironment,
   },
   trigger: {
-    availability: 'workflow-run-creation',
+    availability: 'run-creation',
     trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: triggerTypeEnvironment,
   },
   event: {
-    availability: 'workflow-run-creation',
+    availability: 'run-creation',
     trustTier: 'untrusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'open',
     checkMode: 'syntax',
   },
   inputs: {
-    availability: 'workflow-run-creation',
+    availability: 'run-creation',
     trustTier: 'untrusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'open',
     checkMode: 'syntax',
   },
   job: {
-    availability: 'workflow-run-creation',
+    availability: 'run-creation',
     trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: jobTypeEnvironment,
   },
   executions: {
-    availability: 'job-execution-creation',
+    availability: 'execution-creation',
     trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: executionsTypeEnvironment,
     untrustedPaths: ['events'],
   },
   execution: {
-    availability: 'job-execution-creation',
+    availability: 'execution-creation',
     trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: executionTypeEnvironment,
     untrustedPaths: ['events'],
   },
   step: {
-    availability: 'step-completion',
+    availability: 'step-report',
     trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: stepTypeEnvironment,
@@ -254,17 +293,29 @@ export function getWorkflowContextDefinition(name: WorkflowContextName): Workflo
   return workflowContextDefinitions[name];
 }
 
-export function getWorkflowContextAvailability(name: WorkflowContextName): WorkflowContextPhase {
+export function getWorkflowContextAvailability(name: WorkflowContextName): AvailabilitySite {
   return workflowContextDefinitions[name].availability;
 }
 
-export function rootsAvailableAt(phase: WorkflowContextPhase): readonly WorkflowContextName[] {
-  const targetPhaseIndex = workflowContextPhases.indexOf(phase);
-  return workflowContextNames.filter(
-    (name) =>
-      workflowContextPhases.indexOf(workflowContextDefinitions[name].availability) <=
-      targetPhaseIndex,
-  );
+export function getWorkflowContextHost(name: WorkflowContextName): WorkflowContextHost {
+  return workflowContextDefinitions[name].host;
+}
+
+export function getWorkflowContextSensitivity(
+  name: WorkflowContextName,
+): WorkflowContextSensitivity {
+  return workflowContextDefinitions[name].sensitivity;
+}
+
+export function rootsAvailableAt(site: AvailabilitySite): readonly WorkflowContextName[] {
+  const targetSiteIndex = availabilitySites.indexOf(site);
+  return workflowContextNames.filter((name) => {
+    const definition = workflowContextDefinitions[name];
+    return (
+      definition.host === 'server' &&
+      availabilitySites.indexOf(definition.availability) <= targetSiteIndex
+    );
+  });
 }
 
 export function getWorkflowContextTypeEnvironment(
@@ -300,9 +351,9 @@ export function workflowInterpolationFieldAcceptsContext(
 
 export interface WorkflowContextAvailabilityReferenceEntry {
   readonly root: WorkflowContextName | WorkflowContextReservedRoot;
-  readonly availability: WorkflowContextPhase;
+  readonly availability?: AvailabilitySite;
   readonly reserved: boolean;
-  readonly availableAt: Readonly<Record<WorkflowContextPhase, boolean>>;
+  readonly availableAt: Readonly<Record<AvailabilitySite, boolean>>;
 }
 
 export function workflowContextAvailabilityReference(): readonly WorkflowContextAvailabilityReferenceEntry[] {
@@ -310,24 +361,40 @@ export function workflowContextAvailabilityReference(): readonly WorkflowContext
     ...workflowContextNames.map((root) =>
       availabilityReferenceEntry(root, workflowContextDefinitions[root].availability, false),
     ),
-    ...Object.entries(workflowContextReservedRoots).map(([root, availability]) =>
-      availabilityReferenceEntry(root as WorkflowContextReservedRoot, availability, true),
-    ),
+    ...Object.entries(workflowContextReservedRoots).map(([root, definition]) => {
+      if (definition.host === 'runner') {
+        return noServerAvailabilityReferenceEntry(root as WorkflowContextReservedRoot, true);
+      }
+      return availabilityReferenceEntry(
+        root as WorkflowContextReservedRoot,
+        definition.availability,
+        true,
+      );
+    }),
   ];
 }
 
 function availabilityReferenceEntry(
   root: WorkflowContextName | WorkflowContextReservedRoot,
-  availability: WorkflowContextPhase,
+  availability: AvailabilitySite,
   reserved: boolean,
 ): WorkflowContextAvailabilityReferenceEntry {
-  const availabilityIndex = workflowContextPhases.indexOf(availability);
+  const availabilityIndex = availabilitySites.indexOf(availability);
   const availableAt = Object.fromEntries(
-    workflowContextPhases.map((phase) => [
-      phase,
-      workflowContextPhases.indexOf(phase) >= availabilityIndex,
-    ]),
-  ) as Record<WorkflowContextPhase, boolean>;
+    availabilitySites.map((site) => [site, availabilitySites.indexOf(site) >= availabilityIndex]),
+  ) as Record<AvailabilitySite, boolean>;
 
   return {root, availability, reserved, availableAt};
+}
+
+function noServerAvailabilityReferenceEntry(
+  root: WorkflowContextReservedRoot,
+  reserved: boolean,
+): WorkflowContextAvailabilityReferenceEntry {
+  const availableAt = Object.fromEntries(availabilitySites.map((site) => [site, false])) as Record<
+    AvailabilitySite,
+    boolean
+  >;
+
+  return {root, reserved, availableAt};
 }

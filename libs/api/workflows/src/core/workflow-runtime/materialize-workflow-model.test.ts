@@ -49,7 +49,7 @@ function runContext(overrides: Record<string, unknown> = {}) {
 function creationContext(
   values: Record<string, unknown> = runContext(),
 ): WorkflowEvaluationContext {
-  return {phase: 'workflow-run-creation', values};
+  return {site: 'run-creation', values};
 }
 
 describe('materializeWorkflowModel', () => {

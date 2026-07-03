@@ -15,9 +15,10 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
 - **`extractCelContextRoots`**: Returns the sorted top-level CEL identifiers mentioned
   by an expression for downstream context and trust checks.
 - **Typed errors**: Reports bad text and run failures with stable error classes.
-- **`workflowContextDefinitions`**: Names the v1 workflow contexts (`run`,
-  `trigger`, `event`, `inputs`, `job`) and gives each a trust tier and a check
-  mode. Known-shape contexts ship a typed environment; open ones use `syntax`.
+- **`workflowContextDefinitions`**: Names the workflow contexts (`run`,
+  `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `step`) and
+  gives each a shape, trust tier, availability site, sensitivity, and host.
+  Known-shape contexts ship a typed environment; open ones use `syntax`.
 - **`workflowInterpolationFieldPolicies`**: Says which trust tier each
   interpolatable field accepts, and whether its value needs sanitizing before
   display. Use `workflowInterpolationFieldAcceptsContext` and

@@ -33,7 +33,7 @@ export function materializeWorkflowModel(
 ): readonly MaterializedWorkflowJob[] {
   const {
     model,
-    context = {phase: 'workflow-run-creation', values: {}},
+    context = {site: 'run-creation', values: {}},
     resolveAgentDefaults,
     definitionId = model.name,
   } = params;

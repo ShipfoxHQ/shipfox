@@ -1,17 +1,21 @@
 import {createWorkflowExpression} from '../expression/create-workflow-expression.js';
 import {InvalidWorkflowExpressionError} from '../expression/errors.js';
 import {
+  type AvailabilitySite,
+  availabilitySites,
+  type FillTarget,
   getWorkflowContextTypeEnvironment,
   rootsAvailableAt,
+  runnerFillTarget,
   type WorkflowContextName,
-  type WorkflowContextPhase,
   type WorkflowContextTrustTier,
   type WorkflowInterpolationField,
   workflowContextAvailabilityReference,
   workflowContextDefinitions,
+  workflowContextHosts,
   workflowContextNames,
-  workflowContextPhases,
   workflowContextReservedRoots,
+  workflowContextSensitivities,
   workflowContextTrustTiers,
   workflowInterpolationFieldAcceptsContext,
   workflowInterpolationFieldAcceptsTrustTier,
@@ -33,14 +37,18 @@ describe('workflow context registry', () => {
     ]);
   });
 
-  it('keeps future phase roots reserved out of the referenceable registry', () => {
+  it('keeps future roots reserved out of the referenceable registry', () => {
     expect(workflowContextReservedRoots).toEqual({
-      steps: 'step-completion',
-      jobs: 'job-resolution',
+      steps: {host: 'server', availability: 'step-report'},
+      jobs: {host: 'server', availability: 'job-resolution'},
+      matrix: {host: 'server', availability: 'job-activation'},
+      runner: {host: 'runner'},
     });
     expect(workflowContextNames).toContain('step');
     expect(workflowContextNames).not.toContain('steps');
     expect(workflowContextNames).not.toContain('jobs');
+    expect(workflowContextNames).not.toContain('matrix');
+    expect(workflowContextNames).not.toContain('runner');
   });
 
   it('classifies trusted and untrusted contexts', () => {
@@ -90,7 +98,7 @@ describe('workflow context registry', () => {
       untrustedPaths: ['events'],
     });
     expect(workflowContextDefinitions.step).toMatchObject({
-      availability: 'step-completion',
+      availability: 'step-report',
       trustTier: 'trusted',
       shape: 'known',
       checkMode: 'typed',
@@ -103,6 +111,23 @@ describe('workflow context registry', () => {
       shape: 'open',
       checkMode: 'syntax',
     });
+  });
+
+  it('declares every implemented context with all registry dimensions', () => {
+    for (const root of workflowContextNames) {
+      expect(workflowContextDefinitions[root]).toMatchObject({
+        availability: expect.any(String),
+        trustTier: expect.any(String),
+        sensitivity: 'persistable',
+        host: 'server',
+        shape: expect.any(String),
+        checkMode: expect.any(String),
+      });
+      expect(availabilitySites).toContain(workflowContextDefinitions[root].availability);
+      expect(workflowContextTrustTiers).toContain(workflowContextDefinitions[root].trustTier);
+      expect(workflowContextSensitivities).toContain(workflowContextDefinitions[root].sensitivity);
+      expect(workflowContextHosts).toContain(workflowContextDefinitions[root].host);
+    }
   });
 
   it('exports type environments for the known v1 context fields', () => {
@@ -152,15 +177,10 @@ describe('workflow context registry', () => {
     expect(getWorkflowContextTypeEnvironment('inputs')).toBeUndefined();
   });
 
-  it('returns the roots available at each workflow phase', () => {
-    expect(rootsAvailableAt('workflow-run-creation')).toEqual([
-      'run',
-      'trigger',
-      'event',
-      'inputs',
-      'job',
-    ]);
-    expect(rootsAvailableAt('job-execution-creation')).toEqual([
+  it('returns the roots available at each availability site', () => {
+    expect(rootsAvailableAt('ingest')).toEqual([]);
+    expect(rootsAvailableAt('run-creation')).toEqual(['run', 'trigger', 'event', 'inputs', 'job']);
+    expect(rootsAvailableAt('execution-creation')).toEqual([
       'run',
       'trigger',
       'event',
@@ -169,7 +189,35 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
     ]);
-    expect(rootsAvailableAt('step-completion')).toEqual([
+    expect(rootsAvailableAt('job-activation')).toEqual([
+      'run',
+      'trigger',
+      'event',
+      'inputs',
+      'job',
+      'executions',
+      'execution',
+    ]);
+    expect(rootsAvailableAt('step-dispatch')).toEqual([
+      'run',
+      'trigger',
+      'event',
+      'inputs',
+      'job',
+      'executions',
+      'execution',
+    ]);
+    expect(rootsAvailableAt('step-report')).toEqual([
+      'run',
+      'trigger',
+      'event',
+      'inputs',
+      'job',
+      'executions',
+      'execution',
+      'step',
+    ]);
+    expect(rootsAvailableAt('execution-resolution')).toEqual([
       'run',
       'trigger',
       'event',
@@ -191,20 +239,34 @@ describe('workflow context registry', () => {
     ]);
   });
 
-  it('keeps workflow context availability monotonic across phases', () => {
-    const phaseIndexes = new Map<WorkflowContextPhase, number>(
-      workflowContextPhases.map((phase, index) => [phase, index]),
+  it('never returns runner-host roots at a server availability site', () => {
+    for (const site of availabilitySites) {
+      const availableRoots = rootsAvailableAt(site);
+      for (const root of availableRoots) {
+        expect(workflowContextDefinitions[root].host).toBe('server');
+      }
+      expect(availableRoots).not.toContain('runner');
+    }
+  });
+
+  it('keeps workflow context availability monotonic across sites', () => {
+    const siteIndexes = new Map<AvailabilitySite, number>(
+      availabilitySites.map((site, index) => [site, index]),
     );
 
-    const phasePairs: readonly [WorkflowContextPhase, WorkflowContextPhase][] = [
-      ['workflow-run-creation', 'job-execution-creation'],
-      ['job-execution-creation', 'step-completion'],
-      ['step-completion', 'job-resolution'],
+    const sitePairs: readonly [AvailabilitySite, AvailabilitySite][] = [
+      ['ingest', 'run-creation'],
+      ['run-creation', 'execution-creation'],
+      ['execution-creation', 'job-activation'],
+      ['job-activation', 'step-dispatch'],
+      ['step-dispatch', 'step-report'],
+      ['step-report', 'execution-resolution'],
+      ['execution-resolution', 'job-resolution'],
     ];
 
-    for (const [previousPhase, currentPhase] of phasePairs) {
-      const previous = new Set(rootsAvailableAt(previousPhase));
-      const current = new Set(rootsAvailableAt(currentPhase));
+    for (const [previousSite, currentSite] of sitePairs) {
+      const previous = new Set(rootsAvailableAt(previousSite));
+      const current = new Set(rootsAvailableAt(currentSite));
 
       for (const root of previous) {
         expect(current.has(root)).toBe(true);
@@ -215,8 +277,15 @@ describe('workflow context registry', () => {
       const availability = workflowContextDefinitions[root].availability;
       const available = rootsAvailableAt(availability);
       expect(available).toContain(root);
-      expect(phaseIndexes.get(availability)).toBeDefined();
+      expect(siteIndexes.get(availability)).toBeDefined();
     }
+  });
+
+  it('keeps runner fill as a non-site fill target', () => {
+    const target: FillTarget = runnerFillTarget;
+
+    expect(target).toBe('runner-fill');
+    expect(availabilitySites).not.toContain(target as AvailabilitySite);
   });
 
   it('generates an availability reference from the registry and reserved roots', () => {
@@ -227,112 +296,156 @@ describe('workflow context registry', () => {
         reserved: false,
         availableAt: availableAtReference(workflowContextDefinitions[root].availability),
       })),
-      ...Object.entries(workflowContextReservedRoots).map(([root, availability]) => ({
-        root,
-        availability,
-        reserved: true,
-        availableAt: availableAtReference(availability),
-      })),
+      ...Object.entries(workflowContextReservedRoots).map(([root, definition]) =>
+        definition.host === 'runner'
+          ? {
+              root,
+              reserved: true,
+              availableAt: noServerAvailabilityReference(),
+            }
+          : {
+              root,
+              availability: definition.availability,
+              reserved: true,
+              availableAt: availableAtReference(definition.availability),
+            },
+      ),
     ];
 
     expect(workflowContextAvailabilityReference()).toEqual(expected);
     expect(workflowContextAvailabilityReference()).toMatchInlineSnapshot(`
       [
         {
-          "availability": "workflow-run-creation",
+          "availability": "run-creation",
           "availableAt": {
-            "job-execution-creation": true,
+            "execution-creation": true,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": true,
+            "run-creation": true,
+            "step-dispatch": true,
+            "step-report": true,
           },
           "reserved": false,
           "root": "run",
         },
         {
-          "availability": "workflow-run-creation",
+          "availability": "run-creation",
           "availableAt": {
-            "job-execution-creation": true,
+            "execution-creation": true,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": true,
+            "run-creation": true,
+            "step-dispatch": true,
+            "step-report": true,
           },
           "reserved": false,
           "root": "trigger",
         },
         {
-          "availability": "workflow-run-creation",
+          "availability": "run-creation",
           "availableAt": {
-            "job-execution-creation": true,
+            "execution-creation": true,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": true,
+            "run-creation": true,
+            "step-dispatch": true,
+            "step-report": true,
           },
           "reserved": false,
           "root": "event",
         },
         {
-          "availability": "workflow-run-creation",
+          "availability": "run-creation",
           "availableAt": {
-            "job-execution-creation": true,
+            "execution-creation": true,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": true,
+            "run-creation": true,
+            "step-dispatch": true,
+            "step-report": true,
           },
           "reserved": false,
           "root": "inputs",
         },
         {
-          "availability": "workflow-run-creation",
+          "availability": "run-creation",
           "availableAt": {
-            "job-execution-creation": true,
+            "execution-creation": true,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": true,
+            "run-creation": true,
+            "step-dispatch": true,
+            "step-report": true,
           },
           "reserved": false,
           "root": "job",
         },
         {
-          "availability": "job-execution-creation",
+          "availability": "execution-creation",
           "availableAt": {
-            "job-execution-creation": true,
+            "execution-creation": true,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": false,
+            "run-creation": false,
+            "step-dispatch": true,
+            "step-report": true,
           },
           "reserved": false,
           "root": "executions",
         },
         {
-          "availability": "job-execution-creation",
+          "availability": "execution-creation",
           "availableAt": {
-            "job-execution-creation": true,
+            "execution-creation": true,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": false,
+            "run-creation": false,
+            "step-dispatch": true,
+            "step-report": true,
           },
           "reserved": false,
           "root": "execution",
         },
         {
-          "availability": "step-completion",
+          "availability": "step-report",
           "availableAt": {
-            "job-execution-creation": false,
+            "execution-creation": false,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": false,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": false,
+            "run-creation": false,
+            "step-dispatch": false,
+            "step-report": true,
           },
           "reserved": false,
           "root": "step",
         },
         {
-          "availability": "step-completion",
+          "availability": "step-report",
           "availableAt": {
-            "job-execution-creation": false,
+            "execution-creation": false,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": false,
             "job-resolution": true,
-            "step-completion": true,
-            "workflow-run-creation": false,
+            "run-creation": false,
+            "step-dispatch": false,
+            "step-report": true,
           },
           "reserved": true,
           "root": "steps",
@@ -340,13 +453,46 @@ describe('workflow context registry', () => {
         {
           "availability": "job-resolution",
           "availableAt": {
-            "job-execution-creation": false,
+            "execution-creation": false,
+            "execution-resolution": false,
+            "ingest": false,
+            "job-activation": false,
             "job-resolution": true,
-            "step-completion": false,
-            "workflow-run-creation": false,
+            "run-creation": false,
+            "step-dispatch": false,
+            "step-report": false,
           },
           "reserved": true,
           "root": "jobs",
+        },
+        {
+          "availability": "job-activation",
+          "availableAt": {
+            "execution-creation": false,
+            "execution-resolution": true,
+            "ingest": false,
+            "job-activation": true,
+            "job-resolution": true,
+            "run-creation": false,
+            "step-dispatch": true,
+            "step-report": true,
+          },
+          "reserved": true,
+          "root": "matrix",
+        },
+        {
+          "availableAt": {
+            "execution-creation": false,
+            "execution-resolution": false,
+            "ingest": false,
+            "job-activation": false,
+            "job-resolution": false,
+            "run-creation": false,
+            "step-dispatch": false,
+            "step-report": false,
+          },
+          "reserved": true,
+          "root": "runner",
         },
       ]
     `);
@@ -490,13 +636,17 @@ describe('workflow interpolation field policies', () => {
 });
 
 function availableAtReference(
-  availability: WorkflowContextPhase,
-): Readonly<Record<WorkflowContextPhase, boolean>> {
-  const availabilityIndex = workflowContextPhases.indexOf(availability);
+  availability: AvailabilitySite,
+): Readonly<Record<AvailabilitySite, boolean>> {
+  const availabilityIndex = availabilitySites.indexOf(availability);
   return Object.fromEntries(
-    workflowContextPhases.map((phase) => [
-      phase,
-      workflowContextPhases.indexOf(phase) >= availabilityIndex,
-    ]),
-  ) as Record<WorkflowContextPhase, boolean>;
+    availabilitySites.map((site) => [site, availabilitySites.indexOf(site) >= availabilityIndex]),
+  ) as Record<AvailabilitySite, boolean>;
+}
+
+function noServerAvailabilityReference(): Readonly<Record<AvailabilitySite, boolean>> {
+  return Object.fromEntries(availabilitySites.map((site) => [site, false])) as Record<
+    AvailabilitySite,
+    boolean
+  >;
 }

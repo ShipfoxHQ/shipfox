@@ -18,7 +18,7 @@ function shellRef(name: string): string {
 
 function jobExecutionContext(): WorkflowEvaluationContext {
   return {
-    phase: 'job-execution-creation',
+    site: 'execution-creation',
     values: {
       run: {
         id: 'run-1',

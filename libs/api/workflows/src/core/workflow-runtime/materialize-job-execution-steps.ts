@@ -70,7 +70,7 @@ export function materializeJobExecutionSteps(
         jobEnv: job.env,
         jobEnvTemplates: job.templates?.env,
         context: stepContext,
-        phase: context.phase,
+        site: context.site,
         resolveAgentDefaults,
         definitionId,
       });
