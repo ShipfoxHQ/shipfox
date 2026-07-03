@@ -1212,6 +1212,48 @@ describe('detectAndExpireStuckJobs', () => {
     expect(await outboxForJobs([jobId])).toHaveLength(0);
   });
 
+  it('uses the stale-heartbeat threshold for upgraded rows that heartbeated before first heartbeat tracking', async () => {
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    await db()
+      .update(runningJobExecutions)
+      .set({
+        startedAt: sql`now() - interval '90 seconds'`,
+        firstHeartbeatAt: null,
+        lastHeartbeatAt: sql`now() - interval '30 seconds'`,
+      })
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+
+    await detectAndExpireStuckJobs({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
+
+    expect(await runningJobsForTest()).toHaveLength(1);
+    expect(await outboxForJobs([claimed?.jobId as string])).toHaveLength(0);
+  });
+
+  it('expires upgraded heartbeated rows only after their stale-heartbeat threshold', async () => {
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    await db()
+      .update(runningJobExecutions)
+      .set({
+        startedAt: sql`now() - interval '900 seconds'`,
+        firstHeartbeatAt: null,
+        lastHeartbeatAt: sql`now() - interval '600 seconds'`,
+      })
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+
+    await detectAndExpireStuckJobs({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
+
+    expect(await runningJobsForTest()).toHaveLength(0);
+    expect(await outboxForJobs([claimed?.jobId as string])).toHaveLength(1);
+  });
+
   it('does not expire a job whose heartbeat is still inside the threshold window', async () => {
     const {jobId} = await makeStaleJob(60);
 

@@ -14,10 +14,12 @@ import {
   count,
   desc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
   lt,
+  lte,
   or,
   sql,
 } from 'drizzle-orm';
@@ -315,10 +317,14 @@ export async function expireStuckJobExecutions(params: {
     const stalePredicate = or(
       and(
         isNull(runningJobExecutions.firstHeartbeatAt),
+        lte(runningJobExecutions.lastHeartbeatAt, runningJobExecutions.startedAt),
         lt(runningJobExecutions.startedAt, firstHeartbeatCutoff),
       ),
       and(
-        isNotNull(runningJobExecutions.firstHeartbeatAt),
+        or(
+          isNotNull(runningJobExecutions.firstHeartbeatAt),
+          gt(runningJobExecutions.lastHeartbeatAt, runningJobExecutions.startedAt),
+        ),
         lt(runningJobExecutions.lastHeartbeatAt, heartbeatCutoff),
       ),
     );
@@ -329,7 +335,7 @@ export async function expireStuckJobExecutions(params: {
       .where(stalePredicate)
       .orderBy(
         asc(
-          sql`CASE WHEN ${runningJobExecutions.firstHeartbeatAt} IS NULL THEN ${runningJobExecutions.startedAt} ELSE ${runningJobExecutions.lastHeartbeatAt} END`,
+          sql`CASE WHEN ${runningJobExecutions.firstHeartbeatAt} IS NULL AND ${runningJobExecutions.lastHeartbeatAt} <= ${runningJobExecutions.startedAt} THEN ${runningJobExecutions.startedAt} ELSE ${runningJobExecutions.lastHeartbeatAt} END`,
         ),
       )
       .limit(params.limit ?? 100)
