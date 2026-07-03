@@ -25,7 +25,7 @@ import {
   provisionedRunnerTerminateIntentIssuedCount,
   reservationReleasedCount,
 } from '#metrics/instance.js';
-import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
+import {provisionedRunnerFactory, reservationFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -309,6 +309,8 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     lastHeartbeatAt: Date;
     cancellationRequestedAt?: Date | null;
   }) {
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+
     await db()
       .insert(runningJobExecutions)
       .values({
@@ -318,7 +320,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
         jobExecutionId: crypto.randomUUID(),
         workflowRunAttemptId: params.workflowRunAttemptId,
         projectId: crypto.randomUUID(),
-        runnerSessionId: crypto.randomUUID(),
+        runnerSessionId: runnerSession.id,
         provisionerId: provisionerTokenId,
         provisionedRunnerId: params.provisionedRunnerId,
         requiredLabels: ['linux'],

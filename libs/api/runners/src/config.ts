@@ -53,6 +53,18 @@ export const config = createConfig({
     desc: 'Minimum time, in seconds, between runner session liveness writes from job request polls. Set this lower than RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS so active idle runners stay fresh.',
     default: 10,
   }),
+  RUNNER_SESSION_MANUAL_RETENTION_DAYS: num({
+    desc: 'How long manual runner sessions are retained before maintenance deletes them, in days. Set this longer than AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN so a valid session token never outlives its row.',
+    default: 30,
+  }),
+  RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS: num({
+    desc: 'How long ephemeral runner sessions are retained before maintenance deletes them, in days. Set this longer than AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN so a valid session token never outlives its row.',
+    default: 7,
+  }),
+  RUNNER_SESSION_GC_BATCH_SIZE: num({
+    desc: 'Maximum number of expired runner sessions maintenance deletes in one pass.',
+    default: 1000,
+  }),
   PROVISIONER_ACTIVE_WINDOW_SECONDS: num({
     desc: 'Time window, in seconds, used to list active provisioners from recent authenticated requests.',
     default: 120,
@@ -173,6 +185,33 @@ if (
 ) {
   throw new Error(
     `RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS (${config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS}) must be a whole number of seconds >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_SESSION_MANUAL_RETENTION_DAYS) ||
+  config.RUNNER_SESSION_MANUAL_RETENTION_DAYS < 1
+) {
+  throw new Error(
+    `RUNNER_SESSION_MANUAL_RETENTION_DAYS (${config.RUNNER_SESSION_MANUAL_RETENTION_DAYS}) must be a whole number of days >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS) ||
+  config.RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS < 1
+) {
+  throw new Error(
+    `RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS (${config.RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS}) must be a whole number of days >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_SESSION_GC_BATCH_SIZE) ||
+  config.RUNNER_SESSION_GC_BATCH_SIZE < 1
+) {
+  throw new Error(
+    `RUNNER_SESSION_GC_BATCH_SIZE (${config.RUNNER_SESSION_GC_BATCH_SIZE}) must be a whole number >= 1.`,
   );
 }
 

@@ -1,5 +1,6 @@
 import {
   deleteExpiredRunnerReservations,
+  deleteExpiredRunnerSessions,
   detectAndExpireStuckJobs,
   reapStaleProvisionedRunners,
 } from '#core/maintenance.js';
@@ -21,4 +22,12 @@ export function reapStaleProvisionedRunnersActivity(params?: {
   limit: number;
 }): Promise<{reaped: number; reservationsReleased: number}> {
   return reapStaleProvisionedRunners(params);
+}
+
+export function deleteExpiredRunnerSessionsActivity(params?: {
+  manualRetentionDays?: number;
+  ephemeralRetentionDays?: number;
+  limit?: number;
+}): Promise<{deleted: number}> {
+  return deleteExpiredRunnerSessions(params);
 }

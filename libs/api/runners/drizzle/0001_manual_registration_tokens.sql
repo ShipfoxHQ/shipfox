@@ -48,11 +48,14 @@ CREATE TABLE "runners_runner_sessions" (
 ALTER TABLE "runners_running_jobs" ADD COLUMN "runner_session_id" uuid DEFAULT uuidv7() NOT NULL;--> statement-breakpoint
 ALTER TABLE "runners_running_jobs" DROP COLUMN "runner_token";--> statement-breakpoint
 ALTER TABLE "runners_running_jobs" ALTER COLUMN "runner_session_id" DROP DEFAULT;--> statement-breakpoint
+ALTER TABLE "runners_running_jobs" ADD CONSTRAINT "runners_running_jobs_runner_session_id_runners_runner_sessions_id_fk" FOREIGN KEY ("runner_session_id") REFERENCES "public"."runners_runner_sessions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "runners_pending_jobs_workspace_created_idx" ON "runners_pending_jobs" USING btree ("workspace_id","created_at");--> statement-breakpoint
+CREATE INDEX "runners_running_jobs_runner_session_id_idx" ON "runners_running_jobs" USING btree ("runner_session_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_ephemeral_registration_tokens_hashed_token_unique" ON "runners_ephemeral_registration_tokens" USING btree ("hashed_token");--> statement-breakpoint
 CREATE INDEX "runners_ephemeral_registration_tokens_workspace_id_idx" ON "runners_ephemeral_registration_tokens" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "runners_ephemeral_registration_tokens_provisioner_id_idx" ON "runners_ephemeral_registration_tokens" USING btree ("provisioner_id");--> statement-breakpoint
 CREATE INDEX "runners_ephemeral_registration_tokens_active_provisioned_runner_idx" ON "runners_ephemeral_registration_tokens" USING btree ("workspace_id","provisioner_id","provisioned_runner_id","consumed_at","expires_at");--> statement-breakpoint
+CREATE INDEX "runners_runner_sessions_kind_created_id_idx" ON "runners_runner_sessions" USING btree ("registration_token_kind","created_at","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_manual_registration_tokens_hashed_token_unique" ON "runners_manual_registration_tokens" USING btree ("hashed_token");--> statement-breakpoint
 CREATE INDEX "runners_manual_registration_tokens_workspace_id_idx" ON "runners_manual_registration_tokens" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "runners_manual_registration_tokens_active_lookup_idx" ON "runners_manual_registration_tokens" USING btree ("hashed_token","revoked_at","expires_at");

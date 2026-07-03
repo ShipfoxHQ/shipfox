@@ -2,6 +2,7 @@ import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {check, index, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {pgTable} from './common.js';
+import {runnerSessions} from './runner-sessions.js';
 
 export const runningJobExecutions = pgTable(
   'running_jobs',
@@ -13,7 +14,9 @@ export const runningJobExecutions = pgTable(
     jobId: uuid('job_id').notNull(),
     jobExecutionId: uuid('job_execution_id').notNull().unique(),
     projectId: uuid('project_id').notNull(),
-    runnerSessionId: uuid('runner_session_id').notNull(),
+    runnerSessionId: uuid('runner_session_id')
+      .notNull()
+      .references(() => runnerSessions.id),
     provisionerId: uuid('provisioner_id'),
     provisionedRunnerId: text('provisioned_runner_id'),
     requiredLabels: text('required_labels').array().notNull(),
@@ -35,6 +38,7 @@ export const runningJobExecutions = pgTable(
       .on(table.workspaceId, table.provisionerId, table.provisionedRunnerId)
       .where(sql`"cancellation_requested_at" IS NOT NULL`),
     index('runners_running_jobs_job_id_idx').on(table.jobId),
+    index('runners_running_jobs_runner_session_id_idx').on(table.runnerSessionId),
     check(
       'runners_running_jobs_link_ck',
       sql`(${table.provisionerId} IS NULL) = (${table.provisionedRunnerId} IS NULL)`,

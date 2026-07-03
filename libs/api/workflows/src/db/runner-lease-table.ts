@@ -1,7 +1,29 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {pgTableCreator, text, uuid} from 'drizzle-orm/pg-core';
+import {integer, pgEnum, pgTableCreator, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 
 const pgTable = pgTableCreator((name) => `runners_${name}`);
+
+export const runnerSessionScopeEnum = pgEnum('runners_runner_session_scope', ['workspace']);
+export const runnerSessionRegistrationTokenKindEnum = pgEnum(
+  'runners_runner_session_registration_token_kind',
+  ['manual', 'ephemeral'],
+);
+
+export const runnerSessions = pgTable('runner_sessions', {
+  id: uuidv7PrimaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  scope: runnerSessionScopeEnum('scope').notNull().default('workspace'),
+  registrationTokenId: uuid('registration_token_id').notNull(),
+  registrationTokenKind:
+    runnerSessionRegistrationTokenKindEnum('registration_token_kind').notNull(),
+  provisionerId: uuid('provisioner_id'),
+  provisionedRunnerId: text('provisioned_runner_id'),
+  labels: text('labels').array().notNull(),
+  maxClaims: integer('max_claims'),
+  claimsUsed: integer('claims_used').notNull().default(0),
+  createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
+});
 
 export const runningJobExecutions = pgTable('running_jobs', {
   id: uuidv7PrimaryKey(),

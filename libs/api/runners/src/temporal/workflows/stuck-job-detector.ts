@@ -5,6 +5,7 @@ import type {createRunnersMaintenanceActivities} from '../activities/index.js';
 
 const {
   deleteExpiredReservationsActivity,
+  deleteExpiredRunnerSessionsActivity,
   detectAndExpireStuckJobsActivity,
   reapStaleProvisionedRunnersActivity,
 } = proxyActivities<ReturnType<typeof createRunnersMaintenanceActivities>>({
@@ -19,6 +20,17 @@ export async function stuckJobDetector(): Promise<void> {
     }
   } catch (error) {
     log.warn('Stuck-job detector failed to delete expired runner reservations', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    const {deleted} = await deleteExpiredRunnerSessionsActivity();
+    if (deleted > 0) {
+      log.info('Stuck-job detector deleted expired runner sessions', {deleted});
+    }
+  } catch (error) {
+    log.warn('Stuck-job detector failed to delete expired runner sessions', {
       error: error instanceof Error ? error.message : String(error),
     });
   }

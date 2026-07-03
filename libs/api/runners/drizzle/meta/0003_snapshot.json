@@ -602,7 +602,35 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "runners_runner_sessions_kind_created_id_idx": {
+          "name": "runners_runner_sessions_kind_created_id_idx",
+          "columns": [
+            {
+              "expression": "registration_token_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -909,9 +937,34 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_running_jobs_runner_session_id_idx": {
+          "name": "runners_running_jobs_runner_session_id_idx",
+          "columns": [
+            {
+              "expression": "runner_session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "runners_running_jobs_runner_session_id_runners_runner_sessions_id_fk": {
+          "name": "runners_running_jobs_runner_session_id_runners_runner_sessions_id_fk",
+          "tableFrom": "runners_running_jobs",
+          "tableTo": "runners_runner_sessions",
+          "columnsFrom": ["runner_session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "runners_running_jobs_job_execution_id_unique": {

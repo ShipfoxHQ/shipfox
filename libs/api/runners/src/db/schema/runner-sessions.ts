@@ -28,6 +28,11 @@ export const runnerSessions = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
+    index('runners_runner_sessions_kind_created_id_idx').on(
+      table.registrationTokenKind,
+      table.createdAt,
+      table.id,
+    ),
     check(
       'runners_runner_sessions_claims_ck',
       sql`${table.claimsUsed} >= 0 AND ((${table.registrationTokenKind} = 'manual' AND ${table.maxClaims} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.maxClaims} IS NOT NULL AND ${table.maxClaims} > 0 AND ${table.claimsUsed} <= ${table.maxClaims}))`,

@@ -1,8 +1,9 @@
+import {config} from '#config.js';
 import {expireStuckJobExecutions} from '#db/job-executions.js';
 import {reapStaleProvisionedRunners as reapStaleProvisionedRunnersDb} from '#db/provisioned-runners.js';
 import {deleteExpiredReservations} from '#db/reservations.js';
+import {deleteExpiredRunnerSessions as deleteExpiredRunnerSessionsDb} from '#db/runner-sessions.js';
 import {provisionedRunnerReapedCount, reservationReleasedCount} from '#metrics/instance.js';
-import {config} from '../config.js';
 import {STUCK_JOB_THRESHOLD_SECONDS} from './maintenance-policy.js';
 
 export interface DetectAndExpireStuckJobsParams {
@@ -44,4 +45,18 @@ export async function reapStaleProvisionedRunners(params?: {
   }
 
   return result;
+}
+
+export async function deleteExpiredRunnerSessions(params?: {
+  manualRetentionDays?: number;
+  ephemeralRetentionDays?: number;
+  limit?: number;
+}): Promise<{deleted: number}> {
+  const deleted = await deleteExpiredRunnerSessionsDb({
+    manualRetentionDays: params?.manualRetentionDays ?? config.RUNNER_SESSION_MANUAL_RETENTION_DAYS,
+    ephemeralRetentionDays:
+      params?.ephemeralRetentionDays ?? config.RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS,
+    limit: params?.limit ?? config.RUNNER_SESSION_GC_BATCH_SIZE,
+  });
+  return {deleted};
 }

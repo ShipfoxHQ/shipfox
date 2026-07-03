@@ -72,8 +72,11 @@ export {
   pollDemandAndReserve,
   releaseReservationUnits,
 } from './reservations.js';
-export type {CreateRunnerSessionParams} from './runner-sessions.js';
-export {createRunnerSession} from './runner-sessions.js';
+export type {
+  CreateRunnerSessionParams,
+  DeleteExpiredRunnerSessionsParams,
+} from './runner-sessions.js';
+export {createRunnerSession, deleteExpiredRunnerSessions} from './runner-sessions.js';
 export {runnersOutbox} from './schema/outbox.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');
