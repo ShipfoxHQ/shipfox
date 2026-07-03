@@ -1,3 +1,4 @@
+import {e2eCreateSecretBodySchema, e2eCreateVariableResponseSchema} from './e2e.js';
 import {
   batchSecretsBodySchema,
   batchVariablesBodySchema,
@@ -91,5 +92,25 @@ describe('management schemas', () => {
     });
 
     expect(result.warnings).toEqual([{code: 'short-secret-value', key: 'API_TOKEN'}]);
+  });
+
+  it('validates e2e setup payloads and responses', () => {
+    const body = e2eCreateSecretBodySchema.parse({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+      actor_id: '22222222-2222-4222-8222-222222222222',
+      key: 'API_TOKEN',
+      value: 'seeded-secret',
+    });
+    const variable = e2eCreateVariableResponseSchema.parse({
+      key: 'REGION',
+      project_id: null,
+      value: 'eu-west-1',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_edited_by: '22222222-2222-4222-8222-222222222222',
+    });
+
+    expect(body.key).toBe('API_TOKEN');
+    expect(variable.value).toBe('eu-west-1');
   });
 });

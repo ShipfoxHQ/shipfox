@@ -1,6 +1,7 @@
 import {secretsEventSchemas} from '@shipfox/api-secrets-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, secretsOutbox} from '#db/index.js';
+import {secretsE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {secretsRoutes} from '#presentation/routes/index.js';
 
 export {
@@ -42,5 +43,6 @@ export const secretsModule: ShipfoxModule = {
   name: 'secrets',
   database: {db, migrationsPath},
   routes: secretsRoutes,
+  e2eRoutes: [secretsE2eRoutes],
   publishers: [{name: 'secrets', table: secretsOutbox, db, eventSchemas: secretsEventSchemas}],
 };
