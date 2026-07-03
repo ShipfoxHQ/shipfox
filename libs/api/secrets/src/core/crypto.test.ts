@@ -32,7 +32,7 @@ describe('AES-GCM secret crypto', () => {
     const aad = aadForValue({
       workspaceId: crypto.randomUUID(),
       scope: {projectId: '2df9f89a-98a0-4a4a-8d7d-8f356207b449'},
-      namespace: 'system/agent/openai',
+      namespace: 'system/agent/model-provider/openai',
       key: 'API_KEY',
     });
     const encoded = aesGcmSeal({key, plaintext: Buffer.from('secret'), aad});
@@ -47,7 +47,7 @@ describe('AES-GCM secret crypto', () => {
         aad: aadForValue({
           workspaceId: crypto.randomUUID(),
           scope: {projectId: '2df9f89a-98a0-4a4a-8d7d-8f356207b449'},
-          namespace: 'system/agent/openai',
+          namespace: 'system/agent/model-provider/openai',
           key: 'API_KEY',
         }),
       }),
@@ -58,21 +58,36 @@ describe('AES-GCM secret crypto', () => {
     const key = crypto.randomBytes(32);
     const workspaceId = crypto.randomUUID();
     const scope = {projectId: crypto.randomUUID()};
-    const aad = aadForValue({workspaceId, scope, namespace: 'system/agent/openai', key: 'API_KEY'});
+    const aad = aadForValue({
+      workspaceId,
+      scope,
+      namespace: 'system/agent/model-provider/openai',
+      key: 'API_KEY',
+    });
     const encoded = aesGcmSeal({key, plaintext: Buffer.from('secret'), aad});
 
     expect(() =>
       aesGcmOpen({
         key,
         encoded,
-        aad: aadForValue({workspaceId, scope, namespace: 'system/agent/anthropic', key: 'API_KEY'}),
+        aad: aadForValue({
+          workspaceId,
+          scope,
+          namespace: 'system/agent/model-provider/anthropic',
+          key: 'API_KEY',
+        }),
       }),
     ).toThrow(SecretDecryptionError);
     expect(() =>
       aesGcmOpen({
         key,
         encoded,
-        aad: aadForValue({workspaceId, scope, namespace: 'system/agent/openai', key: 'OTHER_KEY'}),
+        aad: aadForValue({
+          workspaceId,
+          scope,
+          namespace: 'system/agent/model-provider/openai',
+          key: 'OTHER_KEY',
+        }),
       }),
     ).toThrow(SecretDecryptionError);
   });

@@ -171,7 +171,7 @@ describe('secrets management routes', () => {
   it('keeps system-namespaced records invisible to management lists', async () => {
     await setSecrets({
       workspaceId,
-      namespace: 'system/agent/openai',
+      namespace: 'system/agent/model-provider/openai',
       values: {API_TOKEN: 'system-secret'},
     });
     await app.inject({

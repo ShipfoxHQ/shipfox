@@ -36,7 +36,7 @@ await initializeModules({modules: [secretsModule]});
 await setSecrets({
   workspaceId: '018f1c9c-7c30-7f41-9c32-7668a7f3cc11',
   projectId: '018f1c9d-1b3c-7d4a-a5a2-8c2fdf4d7a91',
-  namespace: 'system/agent/openai',
+  namespace: 'system/agent/model-provider/openai',
   values: {API_KEY: 'sk-live-value'},
 });
 
@@ -49,10 +49,37 @@ await setVariables({
 const apiKey = await getSecret({
   workspaceId: '018f1c9c-7c30-7f41-9c32-7668a7f3cc11',
   projectId: '018f1c9d-1b3c-7d4a-a5a2-8c2fdf4d7a91',
-  namespace: 'system/agent/openai',
+  namespace: 'system/agent/model-provider/openai',
   key: 'API_KEY',
 });
 ```
+
+## Namespaces
+
+Namespaces group values that belong to one module-owned purpose. Use lowercase
+slug paths in this shape:
+
+```text
+<module>/<entity>/<id>
+```
+
+Use the module name first, then the entity type, then the entity identifier. For
+module-internal records that should not appear in user-facing management lists,
+prefix the namespace with `system/`:
+
+```text
+system/<module>/<entity>/<id>
+```
+
+For example, agent model-provider credentials for OpenAI live under:
+
+```text
+system/agent/model-provider/openai
+```
+
+Keep the namespace specific to the entity that owns the keys. Do not put several
+unrelated entity types under the same namespace; create separate namespaces such
+as `system/agent/model-provider/openai` and `system/agent/<other-entity>/<id>`.
 
 ## Environment
 

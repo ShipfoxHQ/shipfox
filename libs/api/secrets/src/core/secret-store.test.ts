@@ -21,16 +21,19 @@ describe('secret store', () => {
 
     await setSecrets({
       workspaceId,
-      namespace: 'system/agent/openai',
+      namespace: 'system/agent/model-provider/openai',
       values: {API_KEY: 'sk-live-value'},
     });
 
     const value = await getSecret({
       workspaceId,
-      namespace: 'system/agent/openai',
+      namespace: 'system/agent/model-provider/openai',
       key: 'API_KEY',
     });
-    const values = await getSecretsByNamespace({workspaceId, namespace: 'system/agent/openai'});
+    const values = await getSecretsByNamespace({
+      workspaceId,
+      namespace: 'system/agent/model-provider/openai',
+    });
     const rows = await db()
       .select()
       .from(secretValues)

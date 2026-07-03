@@ -21,7 +21,7 @@ export function fingerprintCredentials(
 }
 
 export function agentSystemNamespace(providerId: string): string {
-  return `system/agent/${providerId}`;
+  return `system/agent/model-provider/${providerId}`;
 }
 
 export function toStoreKey(fieldKey: string): string {
