@@ -3,6 +3,8 @@ import {
   customAgentModelSchema,
   customModelProviderConfigDtoSchema,
   customModelProviderHeaderRequestSchema,
+  discoverCustomModelProviderModelsBodySchema,
+  discoverCustomModelProviderModelsResponseSchema,
   isReservedModelProviderId,
   updateCustomModelProviderBodySchema,
 } from './index.js';
@@ -205,6 +207,21 @@ describe('custom model provider schemas', () => {
     expect(parsed.secret_header_names).toEqual(['authorization']);
     expect(parsed.key_fingerprints).toEqual({'credential:api_key': 'sk-test...abcd'});
     expect(secretFingerprint).not.toThrow();
+  });
+
+  it('parses discovery request and response DTOs', () => {
+    const body = discoverCustomModelProviderModelsBodySchema.parse({
+      api: 'openai-responses',
+      base_url: 'https://llm.example.test/v1',
+      api_key: 'sk-local',
+      headers: [{name: 'X-Region', value: 'local'}],
+    });
+    const response = discoverCustomModelProviderModelsResponseSchema.parse({
+      models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+    });
+
+    expect(body.headers?.[0]?.name).toBe('x-region');
+    expect(response.models[0]?.id).toBe('llama-3.1');
   });
 });
 

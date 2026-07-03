@@ -1,8 +1,8 @@
-import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import type {ModelProviderRef, SupportedModelProviderId} from '@shipfox/api-agent-dto';
 
 export class ModelProviderValidationError extends Error {
   constructor(
-    public readonly providerId: SupportedModelProviderId,
+    public readonly providerId: ModelProviderRef,
     public readonly sanitizedMessage: string,
   ) {
     super(`Model provider validation failed for ${providerId}: ${sanitizedMessage}`);
@@ -36,7 +36,7 @@ export class InvalidCredentialFieldsError extends Error {
 
 export class InvalidAgentModelError extends Error {
   constructor(
-    public readonly providerId: SupportedModelProviderId,
+    public readonly providerId: ModelProviderRef,
     public readonly model: string,
   ) {
     super(`Model provider model is not available in Pi: ${providerId}/${model}`);
@@ -48,5 +48,25 @@ export class ModelProviderValidationUnavailableError extends Error {
   constructor(public readonly providerId: SupportedModelProviderId) {
     super(`Model provider validation is not available for model provider: ${providerId}`);
     this.name = 'ModelProviderValidationUnavailableError';
+  }
+}
+
+export class CustomModelProviderSlugCollisionError extends Error {
+  constructor(
+    public readonly workspaceId: string,
+    public readonly providerId: ModelProviderRef,
+  ) {
+    super(`Custom model provider slug already exists: ${workspaceId}/${providerId}`);
+    this.name = 'CustomModelProviderSlugCollisionError';
+  }
+}
+
+export class CustomModelProviderConfigNotFoundError extends Error {
+  constructor(
+    public readonly workspaceId: string,
+    public readonly providerId: ModelProviderRef,
+  ) {
+    super(`Custom model provider config not found: ${workspaceId}/${providerId}`);
+    this.name = 'CustomModelProviderConfigNotFoundError';
   }
 }

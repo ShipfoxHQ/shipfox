@@ -1,7 +1,10 @@
 import {getModelProviderCredentialKeys} from '@shipfox/api-agent-dto';
 import {SecretValueTooLargeError, WorkspaceSecretCapExceededError} from '@shipfox/api-secrets';
 import {ClientError} from '@shipfox/node-fastify';
+import {EgressDeniedError} from '#core/egress-guard.js';
 import {
+  CustomModelProviderConfigNotFoundError,
+  CustomModelProviderSlugCollisionError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
   ModelProviderConfigNotFoundError,
@@ -17,6 +20,30 @@ export function translateModelProviderRouteError(error: unknown): never {
         provider_id: error.providerId,
         message: error.sanitizedMessage,
       },
+    });
+  }
+
+  if (error instanceof EgressDeniedError) {
+    throw new ClientError('Egress denied', 'egress-denied', {
+      status: 400,
+      details: {
+        reason: error.reason,
+        target: error.target,
+      },
+    });
+  }
+
+  if (error instanceof CustomModelProviderSlugCollisionError) {
+    throw new ClientError('Custom model provider slug already exists', 'slug-collision', {
+      status: 409,
+      details: {provider_id: error.providerId},
+    });
+  }
+
+  if (error instanceof CustomModelProviderConfigNotFoundError) {
+    throw new ClientError('Custom model provider configuration not found', 'not-found', {
+      status: 404,
+      details: {provider_id: error.providerId},
     });
   }
 

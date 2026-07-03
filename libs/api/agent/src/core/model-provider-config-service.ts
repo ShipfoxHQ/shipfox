@@ -12,7 +12,6 @@ import {
   updateModelProviderDefaultModel,
   upsertModelProviderConfig,
 } from '#db/index.js';
-import {modelProviderValidationCount} from '#metrics/index.js';
 import {
   agentSystemNamespace,
   credentialsToStoreValues,
@@ -23,14 +22,10 @@ import {
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
   ModelProviderConfigNotFoundError,
-  ModelProviderValidationError,
   UnsupportedModelProviderError,
 } from './errors.js';
 import {buildModelProviderCatalog} from './model-provider-catalog.js';
-import {
-  probeModelProviderCredentials,
-  sanitizeModelProviderError,
-} from './model-provider-validation.js';
+import {probeModelProviderCredentials, runProviderProbe} from './model-provider-validation.js';
 
 export interface TestAndSaveModelProviderConfigParams {
   workspaceId: string;
@@ -51,7 +46,7 @@ export interface TestAndSaveModelProviderConfigOptions {
 
 export interface UpdateModelProviderConfigDefaultModelParams {
   workspaceId: string;
-  providerId: SupportedModelProviderId;
+  providerId: ModelProviderRef;
   defaultModel: string | null;
 }
 
@@ -79,30 +74,18 @@ export async function testAndSaveModelProviderConfig(
     params.defaultModel !== undefined ? params.defaultModel : existingConfig?.defaultModel,
   );
 
-  try {
-    await probe({
+  await runProviderProbe({
+    probe,
+    args: {
       providerId: params.providerId,
       model: modelSelection.probeModel,
       credentials: params.credentials,
       ...(params.signal ? {signal: params.signal} : {}),
-    });
-  } catch (error) {
-    if (params.signal?.aborted) throw error;
-    modelProviderValidationCount.add(1, {
-      model_provider: params.providerId,
-      outcome: 'failed',
-    });
-    if (error instanceof InvalidAgentModelError) throw error;
-
-    const sanitizedMessage = sanitizeModelProviderError(error, Object.values(params.credentials));
-    // Model provider SDK errors can contain request headers or bodies with the API key, so this
-    // handled validation error deliberately carries only the sanitized message.
-    throw new ModelProviderValidationError(params.providerId, sanitizedMessage);
-  }
-
-  modelProviderValidationCount.add(1, {
-    model_provider: params.providerId,
-    outcome: 'succeeded',
+    },
+    metricLabel: params.providerId,
+    providerId: params.providerId,
+    secrets: Object.values(params.credentials),
+    signal: params.signal,
   });
   const pruneStaleSecrets = options.pruneStaleSecrets ?? pruneStaleProviderCredentialSecrets;
   const namespace = agentSystemNamespace(params.providerId);
@@ -135,13 +118,38 @@ export async function testAndSaveModelProviderConfig(
 export async function updateModelProviderConfigDefaultModel(
   params: UpdateModelProviderConfigDefaultModelParams,
 ): Promise<ModelProviderConfig> {
-  const entry = getModelProviderEntry(params.providerId);
+  const existingConfig = await getModelProviderConfig({
+    workspaceId: params.workspaceId,
+    providerId: params.providerId,
+  });
+  if (!existingConfig) {
+    throw new ModelProviderConfigNotFoundError(params.workspaceId, params.providerId);
+  }
+  if (existingConfig.kind === 'custom') {
+    if (
+      params.defaultModel !== null &&
+      !existingConfig.models?.some((model) => model.id === params.defaultModel)
+    ) {
+      throw new InvalidAgentModelError(params.providerId, params.defaultModel);
+    }
+
+    const config = await updateModelProviderDefaultModel({
+      workspaceId: params.workspaceId,
+      providerId: params.providerId,
+      defaultModel: params.defaultModel,
+    });
+    if (!config) throw new ModelProviderConfigNotFoundError(params.workspaceId, params.providerId);
+    return config;
+  }
+
+  const providerId = params.providerId as SupportedModelProviderId;
+  const entry = getModelProviderEntry(providerId);
   if (entry === undefined || entry.support_status !== 'supported') {
     throw new UnsupportedModelProviderError(params.providerId);
   }
   if (entry.default_model === null) throw new UnsupportedModelProviderError(params.providerId);
 
-  const modelSelection = resolveDefaultModel(params.providerId, params.defaultModel);
+  const modelSelection = resolveDefaultModel(providerId, params.defaultModel);
   const config = await updateModelProviderDefaultModel({
     workspaceId: params.workspaceId,
     providerId: params.providerId,

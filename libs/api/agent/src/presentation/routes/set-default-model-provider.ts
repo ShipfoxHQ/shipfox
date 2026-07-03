@@ -7,7 +7,8 @@ import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {UnsupportedModelProviderError} from '#core/index.js';
-import {setDefaultModelProvider} from '#db/index.js';
+import {getModelProviderConfig, setDefaultModelProvider} from '#db/index.js';
+import {requireCustomProviderAccess} from '#presentation/auth/require-custom-provider-access.js';
 import {translateModelProviderRouteError} from './errors.js';
 
 export const setDefaultModelProviderRoute = defineRoute({
@@ -24,10 +25,18 @@ export const setDefaultModelProviderRoute = defineRoute({
   errorHandler: translateModelProviderRouteError,
   handler: async (request) => {
     const {workspaceId} = request.params;
-    await requireMembership({request, workspaceId});
-    const entry = getModelProviderEntry(request.body.provider_id);
-    if (entry === undefined || entry.support_status !== 'supported') {
-      throw new UnsupportedModelProviderError(request.body.provider_id);
+    const existingConfig = await getModelProviderConfig({
+      workspaceId,
+      providerId: request.body.provider_id,
+    });
+    if (existingConfig?.kind === 'custom') {
+      await requireCustomProviderAccess({request, workspaceId});
+    } else {
+      await requireMembership({request, workspaceId});
+      const entry = getModelProviderEntry(request.body.provider_id);
+      if (entry === undefined || entry.support_status !== 'supported') {
+        throw new UnsupportedModelProviderError(request.body.provider_id);
+      }
     }
 
     const settings = await setDefaultModelProvider({

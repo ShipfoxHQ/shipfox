@@ -9,6 +9,7 @@ export {
   buildModelProviderCatalog,
   type ContextualAgentConfig,
   catalogDefaultAgentResolver,
+  createCustomModelProviderConfig,
   createWorkspaceAgentDefaultsResolver,
   deleteModelProviderConfig,
   InvalidAgentModelError,
@@ -23,6 +24,7 @@ export {
   resolveRuntimeCredentials,
   testAndSaveModelProviderConfig,
   UnsupportedModelProviderError,
+  updateCustomModelProviderConfig,
 } from '#core/index.js';
 export {
   getAgentWorkspaceSettings,

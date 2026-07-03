@@ -1,4 +1,4 @@
-import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 import {eq, or} from 'drizzle-orm';
 import type {ModelProviderConfig} from '#core/entities/model-provider-config.js';
 import {db} from './db.js';
@@ -6,7 +6,7 @@ import {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
 import {modelProviderConfigs, toModelProviderConfig} from './schema/model-provider-configs.js';
 
 export interface AgentWorkspaceDefaultsSnapshot {
-  readonly defaultProviderId?: SupportedModelProviderId | null | undefined;
+  readonly defaultProviderId?: ModelProviderRef | null | undefined;
   readonly providerConfigs: ModelProviderConfig[];
 }
 
@@ -35,7 +35,7 @@ export async function getAgentWorkspaceDefaultsSnapshot(
   const settingsRow = rows.find((row) => row.settingsWorkspaceId !== null);
   return {
     defaultProviderId: settingsRow?.workspaceDefaultProviderId as
-      | SupportedModelProviderId
+      | ModelProviderRef
       | null
       | undefined,
     providerConfigs: rows.flatMap((row) =>

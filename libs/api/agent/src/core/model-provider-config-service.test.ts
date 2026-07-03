@@ -3,6 +3,11 @@ import {getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {getModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
 import {agentSystemNamespace} from './credential-fingerprints.js';
 import {
+  createCustomModelProviderConfig,
+  updateCustomModelProviderConfig,
+} from './custom-model-provider-config-service.js';
+import {
+  CustomModelProviderSlugCollisionError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
   ModelProviderConfigNotFoundError,
@@ -491,3 +496,123 @@ describe('testAndSaveModelProviderConfig', () => {
     expect(secrets).toEqual({});
   });
 });
+
+describe('custom model provider config service', () => {
+  let workspaceId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+  });
+
+  it('creates custom provider configs insert-only and rejects duplicate slugs', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    const first = await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({api_key: 'sk-local-original'}),
+      },
+      {probe},
+    );
+
+    const duplicate = createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({api_key: 'sk-local-replacement'}),
+      },
+      {probe},
+    );
+
+    await expect(duplicate).rejects.toThrow(CustomModelProviderSlugCollisionError);
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
+    expect(stored?.id).toBe(first.id);
+    expect(stored?.keyFingerprints).toEqual({'credential:api_key': 'sk-local...inal'});
+  });
+
+  it('updates custom headers as a full replacement and preserves an omitted api key', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          api_key: 'sk-local-original',
+          headers: [
+            {name: 'authorization', value: 'Bearer old', secret: true},
+            {name: 'x-region', value: 'us', secret: false},
+          ],
+        }),
+      },
+      {probe},
+    );
+
+    const updated = await updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {
+          headers: [
+            {name: 'x-region', value: 'eu', secret: true},
+            {name: 'x-plain', value: 'plain', secret: false},
+          ],
+        },
+      },
+      {probe},
+    );
+
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('local-vllm'),
+    });
+    expect(probe).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        apiKey: 'sk-local-original',
+        headers: {'x-region': 'eu', 'x-plain': 'plain'},
+      }),
+    );
+    expect(secrets).toEqual({API_KEY: 'sk-local-original', HEADER_785F726567696F6E: 'eu'});
+    expect(updated.headers).toEqual([{name: 'x-plain', value: 'plain'}]);
+    expect(updated.keyFingerprints).toEqual({
+      'credential:api_key': 'sk-local...inal',
+      'header:x-region': '...',
+    });
+  });
+
+  it('clears a stored custom default model when replacement models drop it', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({default_model: 'llama-3.1'}),
+      },
+      {probe},
+    );
+
+    const updated = await updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {models: [{id: 'llama-4', label: 'Llama 4'}]},
+      },
+      {probe},
+    );
+
+    expect(updated.defaultModel).toBeNull();
+    expect(probe).toHaveBeenLastCalledWith(
+      expect.objectContaining({model: {id: 'llama-4', label: 'Llama 4'}}),
+    );
+  });
+});
+
+function createCustomBody(
+  overrides: Partial<Parameters<typeof createCustomModelProviderConfig>[0]['body']> = {},
+): Parameters<typeof createCustomModelProviderConfig>[0]['body'] {
+  return {
+    slug: 'local-vllm',
+    display_name: 'Local vLLM',
+    api: 'openai-responses',
+    base_url: 'http://127.0.0.1:11434/v1',
+    api_key: 'sk-local-original',
+    headers: [],
+    models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+    ...overrides,
+  };
+}

@@ -1,6 +1,13 @@
+export {
+  createCustomModelProviderConfig,
+  updateCustomModelProviderConfig,
+} from './custom-model-provider-config-service.js';
+export {discoverCustomModelProviderModels} from './discover-custom-model-provider-models.js';
 export type {AgentWorkspaceSettings} from './entities/agent-workspace-settings.js';
 export type {ModelProviderConfig} from './entities/model-provider-config.js';
 export {
+  CustomModelProviderConfigNotFoundError,
+  CustomModelProviderSlugCollisionError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
   ModelProviderConfigNotFoundError,

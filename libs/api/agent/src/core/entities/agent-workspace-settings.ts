@@ -1,8 +1,8 @@
-import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 
 export interface AgentWorkspaceSettings {
   workspaceId: string;
-  defaultProviderId: SupportedModelProviderId | null;
+  defaultProviderId: ModelProviderRef | null;
   createdAt: Date;
   updatedAt: Date;
 }
