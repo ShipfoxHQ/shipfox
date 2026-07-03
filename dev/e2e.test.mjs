@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {describe, test} from 'node:test';
-import {defaultLogDir, e2eEnv, parseArgs} from './e2e.mjs';
+import {copyPlaywrightTestResults, defaultLogDir, e2eEnv, parseArgs} from './e2e.mjs';
+
+const unknownCommandPattern = /Unknown command/;
 
 describe('parseArgs', () => {
   test('defaults to running all E2E tests', () => {
@@ -35,7 +40,7 @@ describe('parseArgs', () => {
   });
 
   test('rejects unknown commands', () => {
-    assert.throws(() => parseArgs(['down']), /Unknown command/);
+    assert.throws(() => parseArgs(['down']), unknownCommandPattern);
   });
 });
 
@@ -79,5 +84,53 @@ describe('defaultLogDir', () => {
 
   test('falls back to .context locally', () => {
     assert.equal(defaultLogDir({}), '.context/shipfox-e2e-logs');
+  });
+});
+
+describe('copyPlaywrightTestResults', () => {
+  test('stages only Playwright package test results', async () => {
+    const originalCwd = process.cwd();
+    const workspaceDir = await mkdtemp(join(tmpdir(), 'shipfox-e2e-workspace-'));
+    const logDir = join(workspaceDir, 'logs');
+    try {
+      process.chdir(workspaceDir);
+      await mkdir('e2e/api/auth/test-results/auth-flow', {recursive: true});
+      await mkdir('e2e/client/workspaces/test-results/workspace-flow', {recursive: true});
+      await mkdir('e2e/platform/workflows/test-results/scenario', {recursive: true});
+      await mkdir('e2e/helpers/auth/test-results/helper-flow', {recursive: true});
+      await writeFile('e2e/api/auth/test-results/auth-flow/trace.zip', 'api trace');
+      await writeFile(
+        'e2e/client/workspaces/test-results/workspace-flow/trace.zip',
+        'client trace',
+      );
+      await writeFile('e2e/platform/workflows/test-results/scenario/trace.zip', 'platform trace');
+      await writeFile('e2e/helpers/auth/test-results/helper-flow/trace.zip', 'helper trace');
+
+      await copyPlaywrightTestResults(logDir);
+
+      assert.equal(
+        await readFile(
+          join(
+            logDir,
+            'playwright-test-results/e2e/client/workspaces/test-results/workspace-flow/trace.zip',
+          ),
+          'utf8',
+        ),
+        'client trace',
+      );
+      await assert.rejects(
+        readFile(
+          join(
+            logDir,
+            'playwright-test-results/e2e/helpers/auth/test-results/helper-flow/trace.zip',
+          ),
+          'utf8',
+        ),
+        {code: 'ENOENT'},
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspaceDir, {recursive: true, force: true});
+    }
   });
 });

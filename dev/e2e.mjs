@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {spawn, spawnSync} from 'node:child_process';
-import {cp, mkdir} from 'node:fs/promises';
 import {closeSync, openSync} from 'node:fs';
+import {cp, mkdir, readdir, stat} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -11,6 +11,7 @@ const defaultClientUrl = 'http://localhost:5173';
 const defaultReadinessTimeoutMs = 60_000;
 const defaultShutdownTimeoutMs = 15_000;
 const defaultTurboTask = 'test:e2e';
+const trailingSlashPattern = /\/$/;
 
 if (isCliEntryPoint()) {
   main(process.argv.slice(2)).catch((error) => {
@@ -68,7 +69,7 @@ export async function main(argv) {
       }),
     );
 
-    await waitForUrl(`${env.API_URL.replace(/\/$/, '')}/readyz`, {
+    await waitForUrl(`${env.API_URL.replace(trailingSlashPattern, '')}/readyz`, {
       timeoutMs: options.readinessTimeoutMs,
     });
     await waitForUrl(env.CLIENT_URL, {timeoutMs: options.readinessTimeoutMs});
@@ -128,7 +129,8 @@ export function parseArgs(argv) {
       continue;
     }
     if (arg === '--log-dir') {
-      options.logDir = requireValue(args, (index += 1), arg);
+      index += 1;
+      options.logDir = requireValue(args, index, arg);
       continue;
     }
     if (arg.startsWith('--log-dir=')) {
@@ -136,7 +138,8 @@ export function parseArgs(argv) {
       continue;
     }
     if (arg === '--timeout-ms') {
-      options.readinessTimeoutMs = parsePositiveInteger(requireValue(args, (index += 1), arg), arg);
+      index += 1;
+      options.readinessTimeoutMs = parsePositiveInteger(requireValue(args, index, arg), arg);
       continue;
     }
     if (arg.startsWith('--timeout-ms=')) {
@@ -147,7 +150,8 @@ export function parseArgs(argv) {
       continue;
     }
     if (arg === '--task') {
-      options.turboTask = requireValue(args, (index += 1), arg);
+      index += 1;
+      options.turboTask = requireValue(args, index, arg);
       continue;
     }
     if (arg.startsWith('--task=')) {
@@ -285,6 +289,43 @@ export async function collectE2eDiagnostics(logDir) {
     });
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
+  }
+
+  await copyPlaywrightTestResults(logDir);
+}
+
+export async function copyPlaywrightTestResults(logDir) {
+  const packageGroupDirs = ['e2e/api', 'e2e/client', 'e2e/platform'];
+
+  for (const packageGroupDir of packageGroupDirs) {
+    let entries;
+    try {
+      entries = await readdir(packageGroupDir, {withFileTypes: true});
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      throw error;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const source = join(packageGroupDir, entry.name, 'test-results');
+      if (!(await isDirectory(source))) continue;
+
+      await cp(source, join(logDir, 'playwright-test-results', source), {
+        recursive: true,
+        force: true,
+      });
+    }
+  }
+}
+
+async function isDirectory(path) {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false;
+    throw error;
   }
 }
 
