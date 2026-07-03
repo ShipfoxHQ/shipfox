@@ -1,5 +1,6 @@
 import {REGISTRATION_TOKEN_BATCH_HARD_MAX} from '@shipfox/api-runners-dto';
 import {bool, createConfig, num} from '@shipfox/config';
+import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 const EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
 
@@ -30,6 +31,10 @@ export const config = createConfig({
   }),
   RUNNER_ACTIVE_WINDOW_SECONDS: num({
     desc: 'Time window, in seconds, used to list active runners from recent heartbeats and provisioned runner reports.',
+    default: 60,
+  }),
+  RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS: num({
+    desc: 'Grace window, in seconds, before maintenance expires a claimed job that has not sent its first heartbeat. Set this lower than the normal stuck-job threshold so startup crashes release work quickly.',
     default: 60,
   }),
   RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS: num({
@@ -122,6 +127,16 @@ if (
 ) {
   throw new Error(
     `RUNNER_ACTIVE_WINDOW_SECONDS (${config.RUNNER_ACTIVE_WINDOW_SECONDS}) must be a whole number of seconds >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS) ||
+  config.RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS < 1 ||
+  config.RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS >= STUCK_JOB_THRESHOLD_SECONDS
+) {
+  throw new Error(
+    `RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS (${config.RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS}) must be a whole number of seconds >= 1 and < ${STUCK_JOB_THRESHOLD_SECONDS}.`,
   );
 }
 

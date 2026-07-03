@@ -7,9 +7,12 @@ import {
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
+import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {claimJobExecution} from '#core/job-executions.js';
+import {db} from '#db/db.js';
 import {requestJobExecutionCancellation} from '#db/job-executions.js';
+import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
@@ -108,6 +111,11 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       workflowRunAttemptId,
       runnerSessionId,
     });
+    const [running] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
+    expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
   });
 
   it('returns 200 + cancel:true after requestJobExecutionCancellation', async () => {
