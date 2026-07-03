@@ -1,5 +1,5 @@
 name: Hello world
-runner: e2e
+runner: __RUNNER_LABEL__
 triggers:
   on_push:
     source: __GITEA_SOURCE__

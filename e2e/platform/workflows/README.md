@@ -2,7 +2,7 @@
 
 End-to-end tests where each case is a real workflow YAML run through the whole
 platform: a gitea push, the org webhook, definition sync, trigger dispatch, Temporal
-orchestration, a docker-provisioned runner, step execution, and log capture. The suite
+orchestration, a local source runner, step execution, and log capture. The suite
 asserts only on the public observation APIs (`/workflows/runs`, `/workflows/runs/:id`,
 and the step logs route).
 
@@ -23,9 +23,11 @@ registers one Playwright test for it. Each test, against the shared suite arrang
 1. creates a fresh gitea repo and a project bound to it,
 2. seeds the workflow (and any `files/`) in one commit, then waits for the definition
    to resolve (this closes the sync/dispatch race),
-3. triggers a run: a second commit whose head SHA is the correlation key (`trigger:
+3. starts a local `@shipfox/runner` process with a unique label used only by that
+   workflow run,
+4. triggers a run: a second commit whose head SHA is the correlation key (`trigger:
    push`), or `fire-manual` (`trigger: manual`),
-4. waits for the run to reach a terminal state and evaluates `expect.yaml` against the
+5. waits for the run to reach a terminal state and evaluates `expect.yaml` against the
    run detail, fetching step logs only where `logs` expectations exist.
 
 Anything not listed in `expect.yaml` is not asserted. A flow that needs to orchestrate
@@ -60,31 +62,22 @@ manifest then only asserts the run succeeded.
 
 ## Local run
 
-Runners run in docker; the API runs on the host. A runner reaches both gitea and the API
-through `host.docker.internal`, because the compose services sit on the default bridge
-network (`network_mode: bridge`), which has no service-name DNS. So the runner clones
-gitea via the host-published gitea port, set through `GITEA_CLONE_BASE_URL` on the API for
-this suite only.
+Each scenario starts a local runner process from `apps/runner/src/index.ts` through
+`tsx`, registers it with a manual registration token, and injects a unique runner label
+into the workflow YAML. The runner and API both run on the host, so the default
+localhost API and gitea URLs are correct for the standard dev stack.
 
 ```sh
 # 1. Infrastructure (postgres, temporal, garage, gitea)
 docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
-# 2. Build the runner image the provisioner launches (loads runner:ci locally)
-turbo image --filter=@shipfox/runner
-
-# 3. API on the host, with E2E routes on and a gitea clone URL the runner containers can
-#    reach. Use the gitea port for your setup (3000 by default; a worktree's port is in
-#    .context/local-services/env). Set GITEA_CLONE_BASE_URL only when running this suite,
-#    since host-based manual runners want the default clone URL.
-E2E_ENABLED=true GITEA_CLONE_BASE_URL=http://host.docker.internal:3000 \
-  pnpm --filter=@shipfox/api dev
-
-# 4. Run the suite. E2E_DOCKER_NETWORK is the docker network runner containers join
-#    (bridge for the compose default). API_URL and E2E_GITEA_URL default to
+# 2. API on the host, with E2E routes on. API_URL and E2E_GITEA_URL default to
 #    http://localhost:16101 and http://localhost:3000; override them when services run on
 #    other ports (a Conductor worktree's ports are in .context/local-services/env).
-E2E_DOCKER_NETWORK=bridge turbo test:e2e --filter=@shipfox/e2e-platform-workflows
+E2E_ENABLED=true pnpm --filter=@shipfox/api dev
+
+# 3. Run the suite.
+turbo test:e2e --filter=@shipfox/e2e-platform-workflows
 ```
 
 Reruns need no cleanup: every org, repo, project, and workspace name carries a unique
@@ -98,18 +91,11 @@ turbo test --filter=@shipfox/e2e-platform-workflows
 
 ## Configuration
 
-Suite variables (see `src/config.ts`); gitea admin/webhook variables live in
-`@shipfox/e2e-helper-integrations-gitea`, and `API_URL` / `E2E_ADMIN_API_KEY` in
-`@shipfox/e2e-core`.
-
-| Variable | Default | Purpose |
-| -- | -- | -- |
-| `E2E_DOCKER_NETWORK` | (required) | compose network runner containers join |
-| `E2E_RUNNER_IMAGE` | `runner:ci` | image the provisioner launches |
-| `E2E_API_HOST_FROM_CONTAINER` | `host.docker.internal` | host a runner uses to reach the API |
+Gitea admin/webhook variables live in `@shipfox/e2e-helper-integrations-gitea`.
+`API_URL` / `E2E_ADMIN_API_KEY` live in `@shipfox/e2e-core`.
 
 ## Artifacts
 
 On failure a scenario attaches the run detail JSON, the evaluated mismatch diff, and
-the fetched step logs to its Playwright result. Global setup streams the child
-provisioner's output to `.e2e-run/provisioner.log`.
+the fetched step logs to its Playwright result. Each local runner writes stdout and
+stderr to `.e2e-run/runners/<label>.log`; failing scenarios attach that runner log.

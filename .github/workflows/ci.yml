@@ -94,16 +94,10 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
-
       # E2E dev servers still depend on dist/ for Temporal workflow bundles and
       # the shared vite-dev bin.
       - name: Build dev server dependencies
         run: turbo build --filter @shipfox/api --filter @shipfox/vite
-
-      - name: Build runner image
-        run: turbo image --concurrency=1 --filter @shipfox/runner
 
       - name: Run E2E tests
         id: e2e
@@ -111,9 +105,8 @@ jobs:
           API_URL: http://localhost:16101
           CLIENT_URL: http://localhost:5173
           E2E_ADMIN_API_KEY: e2e-admin-api-key
-          E2E_DOCKER_NETWORK: bridge
           E2E_ENABLED: "true"
-          GITEA_CLONE_BASE_URL: http://host.docker.internal:3000
+          GITEA_CLONE_BASE_URL: http://localhost:3000
           HOST: 0.0.0.0
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
@@ -133,20 +126,9 @@ jobs:
             docker network ls > "$diagnostics_dir/networks.txt" 2>&1 || true
             docker network inspect bridge > "$diagnostics_dir/network-bridge.json" 2>&1 || true
 
-            runner_ids_file="$diagnostics_dir/runner-container-ids.txt"
-            if docker ps -aq --filter label=shipfox.provisioned_runner_id > "$runner_ids_file" 2>&1; then
-              while IFS= read -r container_id; do
-                [ -n "$container_id" ] || continue
-                prefix="runner-${container_id:0:12}"
-                docker inspect \
-                  --format $'id={{.Id}}\nname={{.Name}}\nimage={{.Config.Image}}\ncreated={{.Created}}\nstate={{json .State}}\nlabels={{json .Config.Labels}}\nnetworks={{json .NetworkSettings.Networks}}' \
-                  "$container_id" > "$diagnostics_dir/$prefix.inspect.txt" 2>&1 || true
-                docker logs --timestamps "$container_id" > "$diagnostics_dir/$prefix.log" 2>&1 || true
-              done < "$runner_ids_file"
-            fi
-
-            if [ -f e2e/platform/workflows/.e2e-run/provisioner.log ]; then
-              cp e2e/platform/workflows/.e2e-run/provisioner.log "$log_dir/platform-provisioner.log" || true
+            if [ -d e2e/platform/workflows/.e2e-run/runners ]; then
+              mkdir -p "$log_dir/platform-workflow-runners"
+              cp -R e2e/platform/workflows/.e2e-run/runners/. "$log_dir/platform-workflow-runners/" || true
             fi
           }
 

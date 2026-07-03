@@ -603,6 +603,9 @@ importers:
       '@shipfox/provisioner-docker':
         specifier: workspace:*
         version: link:../../../apps/provisioner-docker
+      '@shipfox/runner':
+        specifier: workspace:*
+        version: link:../../../apps/runner
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -712,9 +715,6 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
-      '@shipfox/config':
-        specifier: workspace:*
-        version: link:../../../libs/shared/common/config
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core

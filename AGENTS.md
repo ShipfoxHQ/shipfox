@@ -169,9 +169,10 @@ Turbo includes the referenced package in the task DAG.
 `@shipfox/e2e-platform-workflows` (`e2e/platform/workflows`) is the full-loop suite:
 each scenario pushes a real `workflow.yml` to a gitea repo and asserts on the public
 run and log APIs after it flows through the org webhook, definition sync, trigger
-dispatch, Temporal, a docker-provisioned runner, and step execution. Runners run in
-Docker and reach both gitea and the host API through `host.docker.internal`; the API
-runs on the host.
+dispatch, Temporal, a local source runner, and step execution. Each Playwright test
+starts its own `@shipfox/runner` process with a unique runner label and injects that
+label into the workflow YAML, so scenarios run against the current workspace source
+without building a runner image.
 
 The pure `expect.yaml` evaluator has Vitest node tests that need no infrastructure:
 
@@ -179,38 +180,27 @@ The pure `expect.yaml` evaluator has Vitest node tests that need no infrastructu
 turbo test --filter=@shipfox/e2e-platform-workflows
 ```
 
-The full loop needs the Docker services, the runner image, the API on the host, then
-the suite:
+The full loop needs the Docker services, the API on the host, then the suite:
 
 ```sh
 # 1. Local services (postgres, temporal, garage, gitea).
 docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
-# 2. Build the runner image the provisioner launches (tags it runner:ci).
-turbo image --filter=@shipfox/runner
+# 2. API on the host, with E2E routes on. API_URL and E2E_GITEA_URL default to
+#    http://localhost:16101 and http://localhost:3000; override them when services
+#    run on other ports (a Conductor worktree's ports are in .context/local-services/env).
+E2E_ENABLED=true pnpm --filter=@shipfox/api dev
 
-# 3. API on the host, with E2E routes on and a gitea clone URL the runner containers
-#    can reach. Compose services sit on the default bridge network, which has no
-#    service-name DNS, so runners clone gitea through the host-published port via
-#    host.docker.internal (not http://gitea:3000). Use the gitea port for your setup
-#    (3000 by default; a worktree's port is in .context/local-services/env).
-E2E_ENABLED=true GITEA_CLONE_BASE_URL=http://host.docker.internal:3000 \
-  pnpm --filter=@shipfox/api dev
-
-# 4. Run the suite. E2E_DOCKER_NETWORK is the docker network runner containers join
-#    (bridge for the compose default). API_URL and E2E_GITEA_URL default to
-#    http://localhost:16101 and http://localhost:3000; override them when services run
-#    on other ports (a Conductor worktree's ports are in .context/local-services/env).
-E2E_DOCKER_NETWORK=bridge \
-  turbo test:e2e --filter=@shipfox/e2e-platform-workflows
+# 3. Run the suite.
+turbo test:e2e --filter=@shipfox/e2e-platform-workflows
 ```
 
 `E2E_*`, `API_URL`, and `CLIENT_URL` are in Turbo's `globalPassThroughEnv`, so setting
-them on the `turbo` line reaches the suite. The provisioner is spawned from source via
-tsx (like `pnpm dev`), so no dist build of `@shipfox/provisioner-docker` is needed. A
-green run deletes its gitea org and stops the provisioner; a failing run keeps them and
-attaches the run detail, the expectation diff, and the fetched step logs under
-`test-results/`. See `e2e/platform/workflows/README.md` for the full runbook.
+them on the `turbo` line reaches the suite. Local runner logs are written under
+`e2e/platform/workflows/.e2e-run/runners/` and attached to failed scenario results. A
+green run deletes its gitea org; a failing run keeps it and attaches the run detail,
+the expectation diff, fetched step logs, and runner log under `test-results/`. See
+`e2e/platform/workflows/README.md` for the full runbook.
 
 ### Configuration
 

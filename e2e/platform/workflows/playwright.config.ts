@@ -1,9 +1,8 @@
 import {defineConfig} from '@shipfox/playwright';
 
-// Scenarios share one suite arrangement (workspace, gitea org, connection, and a
-// single docker provisioner) built once in global setup; they isolate through a
-// fresh repo + project + unique names, so they run fully parallel. Keep the worker
-// count at or below the e2e template's max_concurrency (see templates.e2e.yaml).
+// Scenarios share one suite arrangement (workspace, gitea org, and connection)
+// built once in global setup. Each test starts a local source runner with a unique
+// label, so scenarios isolate through fresh repos, projects, names, and runners.
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.e2e.ts',

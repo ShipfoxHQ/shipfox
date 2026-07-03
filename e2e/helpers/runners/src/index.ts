@@ -1,8 +1,22 @@
 export type {
   ActiveProvisionerDto,
+  ActiveRunnerDto,
+  ActiveRunnersResponseDto,
+  CreateManualRegistrationTokenResponseDto,
   CreateProvisionerTokenResponseDto,
   ListActiveProvisionersResponseDto,
 } from '@shipfox/api-runners-dto';
+export {
+  type LocalRunnerHandle,
+  type StartLocalRunnerParams,
+  type StopLocalRunnerOptions,
+  startLocalRunner,
+  stopLocalRunner,
+} from './local-runner-process.js';
+export {
+  type MintManualRegistrationTokenParams,
+  mintManualRegistrationToken,
+} from './manual-registration-token.js';
 export {
   type ProvisionerHandle,
   type StartProvisionerParams,

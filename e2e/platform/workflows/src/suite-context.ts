@@ -1,6 +1,5 @@
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import type {ProvisionerHandle} from '@shipfox/e2e-helper-runners';
 
 /**
  * Everything a worker needs to drive scenarios against the shared suite arrangement.
@@ -15,7 +14,6 @@ export interface SuiteContext {
   connectionId: string;
   // Push workflow YAML must use this as `source`; dispatch matches webhook sources exactly.
   connectionSlug: string;
-  provisionerLogFile: string;
 }
 
 const runDir = fileURLToPath(new URL('../.e2e-run/', import.meta.url));
@@ -38,20 +36,6 @@ export function writeSuiteContext(context: SuiteContext): void {
 
 export function readSuiteContext(): SuiteContext {
   return JSON.parse(readFileSync(contextFile, 'utf8')) as SuiteContext;
-}
-
-// Global setup and teardown run in the same Playwright process, so the live child
-// provisioner handle is passed between them in memory rather than through the context
-// file: a ChildProcess cannot be serialized. Both files must import this module
-// through the same specifier for the singleton to be shared.
-let provisionerHandle: ProvisionerHandle | undefined;
-
-export function setProvisionerHandle(handle: ProvisionerHandle): void {
-  provisionerHandle = handle;
-}
-
-export function getProvisionerHandle(): ProvisionerHandle | undefined {
-  return provisionerHandle;
 }
 
 // A test worker marks the run failed by touching a sentinel file (workers do not share

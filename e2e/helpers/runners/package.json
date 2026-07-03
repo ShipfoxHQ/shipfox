@@ -37,6 +37,7 @@
     "@shipfox/api-runners": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/runner": "workspace:*",
     "@shipfox/provisioner-docker": "workspace:*"
   },
   "devDependencies": {

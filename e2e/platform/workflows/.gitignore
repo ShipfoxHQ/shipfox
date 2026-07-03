@@ -1,3 +1,2 @@
-# Suite context handoff, provisioner log, resolved templates, and failure sentinel,
-# all written per run by global setup and the fixtures.
+# Suite context handoff, local runner logs/workspaces, and failure sentinel.
 .e2e-run/

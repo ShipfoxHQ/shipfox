@@ -10,13 +10,11 @@
   "type": "module",
   "imports": {
     "#test/*": "./tests/*",
-    "#config.js": "./src/config.ts",
     "#create-project.js": "./src/create-project.ts",
     "#expect.js": "./src/expect.ts",
     "#run-scenario.js": "./src/run-scenario.ts",
     "#scenarios.js": "./src/scenarios.ts",
-    "#suite-context.js": "./src/suite-context.ts",
-    "#templates.js": "./src/templates.ts"
+    "#suite-context.js": "./src/suite-context.ts"
   },
   "scripts": {
     "check": "shipfox-biome-check",
@@ -32,7 +30,6 @@
     "@shipfox/api-triggers-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
-    "@shipfox/config": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-helper-auth": "workspace:*",
     "@shipfox/e2e-helper-definitions": "workspace:*",
