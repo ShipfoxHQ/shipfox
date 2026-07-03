@@ -138,12 +138,13 @@ jobs:
 
       - name: Upload E2E diagnostics
         if: failure() && steps.e2e.outcome == 'failure'
+        timeout-minutes: 2
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-diagnostics
           path: |
             ${{ runner.temp }}/shipfox-e2e-logs/
-            e2e/**/test-results/
+            e2e/platform/workflows/test-results/
           if-no-files-found: error
 
   # PR image validation stays separate so it can run without package write
