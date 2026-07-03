@@ -1,3 +1,4 @@
+import type {AvailabilitySite} from '@shipfox/expression';
 import type {WorkflowEnvTemplates, WorkflowFieldTemplate} from '../entities/workflow-model.js';
 import type {
   WorkflowModelValidationIssue,
@@ -9,6 +10,7 @@ export function normalizeEnv(params: {
   env: Readonly<Record<string, string | number | boolean>> | undefined;
   path: readonly WorkflowModelValidationIssuePathSegment[];
   issues: WorkflowModelValidationIssue[];
+  fillSite?: AvailabilitySite;
 }): {env?: Readonly<Record<string, string>>; templates?: {env: WorkflowEnvTemplates}} {
   const env = params.env;
   if (env === undefined || Object.keys(env).length === 0) return {};
@@ -28,6 +30,7 @@ export function normalizeEnv(params: {
       source: value,
       path: [...params.path, key],
       issues: params.issues,
+      ...(params.fillSite === undefined ? {} : {fillSite: params.fillSite}),
     });
     if (template !== undefined) templates[key] = template;
   }

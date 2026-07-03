@@ -1,4 +1,5 @@
 import {getModelProviderEntry} from '@shipfox/api-agent-dto';
+import type {AvailabilitySite} from '@shipfox/expression';
 import {
   canonicalizeLabels,
   findInvalidLabels,
@@ -70,12 +71,17 @@ function normalizeJob(params: {
     job: params.job,
     jobIdBySourceName: params.jobIdBySourceName,
   });
+  // Keep this aligned with materialize-workflow-model.ts and ENG-673's listener loop:
+  // one-shot steps are filled at run creation; listening steps are filled per execution.
+  const stepFillSite: AvailabilitySite =
+    params.job.listening === undefined ? 'run-creation' : 'execution-creation';
   const steps = normalizeJobSteps({
     sourceName: params.sourceName,
     jobId: id,
     job: params.job,
     issues: params.issues,
     stepSourceLocations: params.stepSourceLocations,
+    fillSite: stepFillSite,
   });
   const runner = normalizeRunner({
     document: params.document,
@@ -149,6 +155,7 @@ function normalizeJobSteps(params: {
   job: WorkflowDocumentJob;
   issues: WorkflowModelValidationIssue[];
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
+  fillSite: AvailabilitySite;
 }): readonly WorkflowModelStep[] {
   const usedStepIds = new Map<string, number>();
 
@@ -162,6 +169,7 @@ function normalizeJobSteps(params: {
       usedStepIds,
       issues: params.issues,
       stepSourceLocations: params.stepSourceLocations,
+      fillSite: params.fillSite,
     }),
   );
 }
@@ -175,6 +183,7 @@ function normalizeStep(params: {
   usedStepIds: Map<string, number>;
   issues: WorkflowModelValidationIssue[];
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
+  fillSite: AvailabilitySite;
 }): WorkflowModelStep {
   const stepKey = params.step.key;
   const stepId =
@@ -217,6 +226,7 @@ function normalizeStep(params: {
           source: params.step.name,
           path: ['jobs', params.sourceName, 'steps', params.index, 'name'],
           issues: params.issues,
+          fillSite: params.fillSite,
         });
   const stepBase = {
     id: stepId,
@@ -234,6 +244,7 @@ function normalizeStep(params: {
       stepIndex: params.index,
       name,
       issues: params.issues,
+      fillSite: params.fillSite,
     });
   }
 
@@ -245,6 +256,7 @@ function normalizeStep(params: {
       stepIndex: params.index,
       name,
       issues: params.issues,
+      fillSite: params.fillSite,
     });
   }
 
@@ -260,6 +272,7 @@ function normalizeRunStep(params: {
   stepIndex: number;
   name: WorkflowFieldTemplate | undefined;
   issues: WorkflowModelValidationIssue[];
+  fillSite: AvailabilitySite;
 }): WorkflowModelRunStep {
   if (params.step.run === undefined) {
     throw new Error('Run step normalization requires a run command');
@@ -270,11 +283,13 @@ function normalizeRunStep(params: {
     source: params.step.run,
     path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'run'],
     issues: params.issues,
+    fillSite: params.fillSite,
   });
   const stepEnv = normalizeEnv({
     env: params.step.env,
     path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'env'],
     issues: params.issues,
+    fillSite: params.fillSite,
   });
   const templates = optionalRunStepTemplates({
     command: commandTemplate,
@@ -298,6 +313,7 @@ function normalizeAgentStep(params: {
   stepIndex: number;
   name: WorkflowFieldTemplate | undefined;
   issues: WorkflowModelValidationIssue[];
+  fillSite: AvailabilitySite;
 }): WorkflowModelAgentStep {
   if (params.step.prompt === undefined) {
     throw new Error('Agent step normalization requires a prompt');
@@ -308,6 +324,7 @@ function normalizeAgentStep(params: {
     source: params.step.prompt,
     path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'prompt'],
     issues: params.issues,
+    fillSite: params.fillSite,
   });
   const modelTemplate =
     params.step.model === undefined
@@ -317,6 +334,7 @@ function normalizeAgentStep(params: {
           source: params.step.model,
           path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
           issues: params.issues,
+          fillSite: params.fillSite,
         });
   const providerTemplate =
     params.step.provider === undefined
@@ -326,6 +344,7 @@ function normalizeAgentStep(params: {
           source: params.step.provider,
           path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
           issues: params.issues,
+          fillSite: params.fillSite,
         });
   if (providerTemplate === undefined) {
     validateAgentStep({

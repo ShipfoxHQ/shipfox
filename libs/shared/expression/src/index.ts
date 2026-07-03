@@ -76,6 +76,7 @@ export {
   rootsAvailableAt,
   runnerFillTarget,
   type TypedWorkflowContextDefinition,
+  unavailableRootsAt,
   type WorkflowContextAvailabilityReferenceEntry,
   type WorkflowContextDefinition,
   type WorkflowContextHost,
