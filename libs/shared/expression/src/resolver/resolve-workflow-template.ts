@@ -5,6 +5,7 @@ import {
 } from '../evaluator/index.js';
 import {parseWorkflowTemplate} from '../template/parse-workflow-template.js';
 import type {WorkflowTemplateSegment} from '../template/template-segment.js';
+import {workflowContextNames} from '../workflow-context/workflow-context.js';
 import {coerceWorkflowValueToString} from './coerce-workflow-value-to-string.js';
 import {WorkflowTemplateResolutionError} from './errors.js';
 
@@ -85,5 +86,15 @@ function missingPathRequiresFailure(
 ): boolean {
   if (options.failurePolicy !== 'fail') return false;
   const availableRoots = options.availableRoots ?? [];
-  return segment.contextRoots.every((contextRoot) => availableRoots.includes(contextRoot));
+  const workflowContextRoots = segment.contextRoots.filter(isWorkflowContextName);
+  return (
+    workflowContextRoots.length > 0 &&
+    workflowContextRoots.every((contextRoot) => availableRoots.includes(contextRoot))
+  );
 }
+
+function isWorkflowContextName(contextRoot: string): boolean {
+  return workflowContextNameSet.has(contextRoot);
+}
+
+const workflowContextNameSet: ReadonlySet<string> = new Set(workflowContextNames);

@@ -157,6 +157,29 @@ describe('resolveWorkflowTemplate', () => {
     );
   });
 
+  it('ignores over-included non-workflow roots when applying fail-policy availability', () => {
+    const segments = parseWorkflowTemplate(templateExpression(' {foo: event.ref}.foo '));
+
+    let error: unknown;
+    try {
+      resolveWorkflowTemplate(
+        segments,
+        {event: {}},
+        {failurePolicy: 'fail', availableRoots: ['event']},
+      );
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(segments[0]).toMatchObject({kind: 'expr', contextRoots: ['event', 'foo']});
+    expect(error).toBeInstanceOf(WorkflowTemplateResolutionError);
+    expect(error).toMatchObject({
+      code: 'workflow-template-resolution-failed',
+      name: 'WorkflowTemplateResolutionError',
+      source: '{foo: event.ref}.foo',
+    });
+  });
+
   it('degrades fail-policy missing paths when a segment root is not available yet', () => {
     const segments = parseWorkflowTemplate(
       `deploy-${templateExpression(' event.ref + execution.index ')}`,
