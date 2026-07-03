@@ -112,6 +112,7 @@ jobs:
           E2E_DOCKER_NETWORK: bridge
           E2E_ENABLED: "true"
           GITEA_CLONE_BASE_URL: http://host.docker.internal:3000
+          HOST: 0.0.0.0
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
