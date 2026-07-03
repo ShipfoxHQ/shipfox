@@ -175,6 +175,63 @@ describe('pollDemand', () => {
       vi.resetModules();
     }
   });
+
+  it('includes template_key on divergence metrics when the env flag is enabled', async () => {
+    vi.resetModules();
+    vi.stubEnv('PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED', 'true');
+    const divergenceAdd = vi.fn();
+    const pollDemandAndReserveTx = vi.fn().mockResolvedValue({stats: [], reservations: []});
+    const listProvisionerTerminateIntentRowsTx = vi.fn().mockResolvedValue([]);
+    const listActiveProvisionedRunnerCountsByTemplateTx = vi
+      .fn()
+      .mockResolvedValue([{templateKey: 'linux', state: 'running', count: 2}]);
+    vi.doMock('#db/db.js', () => ({
+      db: () => ({transaction: (callback: (tx: unknown) => Promise<unknown>) => callback({})}),
+    }));
+    vi.doMock('#db/reservations.js', () => ({
+      deleteReservationsByIds: vi.fn(),
+      pollDemandAndReserveTx,
+    }));
+    vi.doMock('#db/provisioned-runners.js', () => ({
+      listActiveProvisionedRunnerCountsByTemplateTx,
+      listProvisionerTerminateIntentRowsTx,
+    }));
+    vi.doMock('#metrics/instance.js', () => ({
+      provisionedRunnerCountDivergenceCount: {add: divergenceAdd},
+      provisionedRunnerTerminateIntentIssuedCount: {add: vi.fn()},
+    }));
+
+    try {
+      const {pollDemand: mockedPollDemand} = await import('#core/demand.js');
+
+      const result = await mockedPollDemand({
+        workspaceId: crypto.randomUUID(),
+        provisionerId: crypto.randomUUID(),
+        maxReservations: 0,
+        waitSeconds: 0,
+        ttlSeconds: 60,
+        terminateIntentLimit: 1000,
+        templates: [
+          {templateKey: 'linux', labels: ['linux'], availableSlots: 1, starting: 0, running: 1},
+        ],
+        signal: new AbortController().signal,
+      });
+
+      expect(result).toEqual({stats: [], reservations: [], terminateProvisionedRunnerIds: []});
+      expect(divergenceAdd).toHaveBeenCalledWith(1, {
+        template_key: 'linux',
+        state: 'running',
+        direction: 'backend-higher',
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.doUnmock('#db/db.js');
+      vi.doUnmock('#db/reservations.js');
+      vi.doUnmock('#db/provisioned-runners.js');
+      vi.doUnmock('#metrics/instance.js');
+      vi.resetModules();
+    }
+  });
 });
 
 describe('calculateProvisionedRunnerCountDivergences', () => {

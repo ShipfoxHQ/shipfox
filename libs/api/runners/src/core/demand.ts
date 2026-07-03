@@ -1,4 +1,5 @@
 import {setTimeout as sleep} from 'node:timers/promises';
+import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {db} from '#db/db.js';
 import {
@@ -113,7 +114,7 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
     lastSnapshot = snapshot;
 
     if (shouldReturn(lastSnapshot.result, params.maxReservations, totalCapacity, deadlinePassed)) {
-      recordPollDemandMetrics(lastSnapshot);
+      recordPollDemandMetrics(params, lastSnapshot);
       return lastSnapshot.result;
     }
 
@@ -190,13 +191,28 @@ export function calculateProvisionedRunnerCountDivergences(params: {
   });
 }
 
-function recordPollDemandMetrics(snapshot: PollDemandSnapshot): void {
+function recordPollDemandMetrics(params: PollDemandParams, snapshot: PollDemandSnapshot): void {
   for (const divergence of snapshot.divergences) {
-    provisionedRunnerCountDivergenceCount.add(divergence.delta, {
-      template_key: divergence.templateKey,
+    logger().info(
+      {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        templateKey: divergence.templateKey,
+        state: divergence.state,
+        direction: divergence.direction,
+        delta: divergence.delta,
+      },
+      'provisioned runner count divergence observed',
+    );
+
+    const attributes = {
       state: divergence.state,
       direction: divergence.direction,
-    });
+      ...(config.PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED
+        ? {template_key: divergence.templateKey}
+        : {}),
+    };
+    provisionedRunnerCountDivergenceCount.add(divergence.delta, attributes);
   }
   for (const intent of snapshot.terminateIntents) {
     provisionedRunnerTerminateIntentIssuedCount.add(1, {

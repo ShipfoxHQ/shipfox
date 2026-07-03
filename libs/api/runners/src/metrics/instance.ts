@@ -33,7 +33,7 @@ export const provisionedRunnerReapedCount = meter.createCounter<Record<string, n
 );
 
 export const provisionedRunnerCountDivergenceCount = meter.createCounter<{
-  template_key: string;
+  template_key?: string;
   state: 'starting' | 'running';
   direction: 'backend-higher' | 'advertised-higher';
 }>('runners_provisioned_runner_count_divergence', {

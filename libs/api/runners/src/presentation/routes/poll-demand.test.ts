@@ -207,7 +207,6 @@ describe('POST /provisioners/demand/poll', () => {
       terminate_provisioned_runner_ids: ['provisioned-runner-1'],
     });
     expect(divergenceSpy).toHaveBeenCalledWith(1, {
-      template_key: 'linux',
       state: 'running',
       direction: 'backend-higher',
     });
