@@ -13,6 +13,8 @@ export interface SuiteContext {
   sessionToken: string;
   org: string;
   connectionId: string;
+  // Push workflow YAML must use this as `source`; dispatch matches webhook sources exactly.
+  connectionSlug: string;
   provisionerLogFile: string;
 }
 

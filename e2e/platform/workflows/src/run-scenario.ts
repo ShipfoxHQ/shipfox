@@ -9,6 +9,8 @@ import {evaluateExpectations, evaluateLogs, logText, type Mismatch} from './expe
 import type {Scenario} from './scenarios.js';
 import type {SuiteContext} from './suite-context.js';
 
+const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
+
 export interface Attachment {
   name: string;
   contentType: string;
@@ -21,6 +23,47 @@ export interface RunScenarioParams {
   // Attaches a debugging artifact to the running test (a thin wrapper over
   // testInfo.attach), so the scenario driver stays free of Playwright types.
   attach: (attachment: Attachment) => Promise<void>;
+}
+
+// Definition sync creates trigger subscriptions asynchronously, so a push can reach
+// dispatch before a subscription exists. Each retry needs a fresh head SHA for correlation.
+async function triggerPushAndAwaitRun(params: {
+  org: string;
+  repo: string;
+  scenario: string;
+  uniqueId: string;
+  projectId: string;
+  token: string;
+}): Promise<string> {
+  const maxAttempts = 8;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const triggerSha = await commitFiles({
+      org: params.org,
+      repo: params.repo,
+      message: `trigger ${params.scenario} ${params.uniqueId} #${attempt}`,
+      files: [
+        {
+          path: `.shipfox-e2e-trigger-${attempt}`,
+          content: `${params.scenario} ${params.uniqueId} ${attempt}\n`,
+        },
+      ],
+    });
+    try {
+      const run = await waitForRunByCommit({
+        projectId: params.projectId,
+        headCommitSha: triggerSha,
+        token: params.token,
+        timeoutMs: 15_000,
+      });
+      return run.id;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`No run appeared for ${params.scenario} after ${maxAttempts} trigger pushes`);
 }
 
 /**
@@ -36,6 +79,10 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
 
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const repo = `${scenario.name}-${uniqueId}`;
+  const workflowYaml = scenario.workflowYaml.replaceAll(
+    GITEA_SOURCE_PLACEHOLDER,
+    suite.connectionSlug,
+  );
 
   await createRepo({org: suite.org, name: repo});
   const project = await createProject({
@@ -46,15 +93,13 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
     externalRepositoryId: giteaExternalRepositoryId(suite.org, repo),
   });
 
-  // Seed commit: the workflow plus any files/ contents. Its own push may or may not
-  // dispatch a run (sync races its subscription creation); the suite ignores that and
-  // correlates on the trigger below, after the definition is resolved.
+  // The seed push can race subscription creation; assertions use the explicit trigger below.
   await commitFiles({
     org: suite.org,
     repo,
     message: `seed ${scenario.name}`,
     files: [
-      {path: scenario.configPath, content: scenario.workflowYaml},
+      {path: scenario.configPath, content: workflowYaml},
       ...scenario.extraFiles.map((file) => ({path: file.path, content: file.content})),
     ],
   });
@@ -74,16 +119,14 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
     );
     runId = response.workflow_run_id;
   } else {
-    // A second commit is the correlation key: its head SHA identifies exactly this
-    // run, so the suite never depends on whether the seed push dispatched.
-    const triggerSha = await commitFiles({
+    runId = await triggerPushAndAwaitRun({
       org: suite.org,
       repo,
-      message: `trigger ${scenario.name} ${uniqueId}`,
-      files: [{path: '.shipfox-e2e-trigger', content: `${scenario.name} ${uniqueId}\n`}],
+      scenario: scenario.name,
+      uniqueId,
+      projectId: project.id,
+      token,
     });
-    const run = await waitForRunByCommit({projectId: project.id, headCommitSha: triggerSha, token});
-    runId = run.id;
   }
 
   const runDetail = await waitForRunTerminal({

@@ -2,7 +2,7 @@ name: Failing step
 runner: e2e
 triggers:
   on_push:
-    source: gitea
+    source: __GITEA_SOURCE__
     event: push
     filter: 'event.ref == "refs/heads/main"'
 jobs:

@@ -28,10 +28,7 @@ export default async function globalSetup(): Promise<void> {
   const cleanups: Array<() => Promise<void>> = [];
   try {
     const user = await createUser();
-    // The workspace must exist before the session is minted: the access token embeds
-    // the user's memberships at sign time (refresh re-fetches them, but the suite uses
-    // the initial token), so a session created first would not carry this workspace and
-    // every workspace-scoped call below would 403.
+    // The access token snapshots memberships at sign time; workspace-scoped calls need it.
     const workspace = await createWorkspace({userId: user.user.id, userEmail: user.email});
     const session = await createSession({user_id: user.user.id});
 
@@ -66,6 +63,7 @@ export default async function globalSetup(): Promise<void> {
       sessionToken: session.token,
       org: org.org,
       connectionId: org.connection.id,
+      connectionSlug: org.connection.slug,
       provisionerLogFile: handle.logFile,
     });
   } catch (error) {
