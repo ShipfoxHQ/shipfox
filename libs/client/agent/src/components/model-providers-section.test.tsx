@@ -35,7 +35,7 @@ function renderModelProviders(element: ReactElement) {
 }
 
 const ANTHROPIC_FINGERPRINT_RE = /\.\.\.abcd/;
-const OPENAI_FINGERPRINT_RE = /sk-proj\.\.\.abcd/;
+const OPENAI_FINGERPRINT_RE = /\.\.\.abcd/;
 const LEGACY_ANTHROPIC_FINGERPRINT_RE = /sk-ant-s\.\.\.legacy/;
 function requestPath(input: RequestInfo | URL): string {
   return new URL((input as Request).url).pathname;

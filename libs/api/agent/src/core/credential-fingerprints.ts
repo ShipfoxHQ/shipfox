@@ -28,10 +28,6 @@ export function toStoreKey(fieldKey: string): string {
   return fieldKey.toUpperCase();
 }
 
-export function toRuntimeCredentialKey(storeKey: string): string {
-  return storeKey.toLowerCase();
-}
-
 export function credentialsToStoreValues(
   providerId: SupportedModelProviderId,
   credentials: Record<string, string>,
