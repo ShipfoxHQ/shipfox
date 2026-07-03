@@ -1739,7 +1739,7 @@ describe('normalizeWorkflowDocument', () => {
           code: 'context-unavailable-at-fill-site',
           path: ['jobs', 'build', 'steps', 0, ...path],
           message: expect.stringContaining(
-            '"execution" is not available at run creation; it becomes available at execution creation.',
+            'context "execution" that is not available at run creation. "execution" becomes available at execution creation.',
           ),
           details: expect.objectContaining({
             contextRoots: ['execution'],
@@ -1840,7 +1840,7 @@ describe('normalizeWorkflowDocument', () => {
           code: 'context-unavailable-at-fill-site',
           path: ['jobs', 'build', 'steps', 0, 'run'],
           message: expect.stringContaining(
-            '"step" is not available at execution creation; it becomes available at step reporting.',
+            'context "step" that is not available at execution creation. "step" becomes available at step reporting.',
           ),
           details: expect.objectContaining({
             contextRoots: ['step'],
@@ -1921,6 +1921,34 @@ describe('normalizeWorkflowDocument', () => {
           details: expect.objectContaining({
             contextRoots: expect.arrayContaining(['run', 'execution']),
             unavailableRoots: ['execution'],
+          }),
+        }),
+      ]);
+    });
+
+    it('reports multiple unavailable roots in one message', () => {
+      const document: WorkflowDocument = {
+        name: 'multiple unavailable roots',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('execution.index + step.status')}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'context-unavailable-at-fill-site',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+          message: expect.stringContaining(
+            'contexts "execution", "step" that are not available at run creation.',
+          ),
+          details: expect.objectContaining({
+            contextRoots: expect.arrayContaining(['execution', 'step']),
+            unavailableRoots: ['execution', 'step'],
+            fillSite: 'run-creation',
           }),
         }),
       ]);

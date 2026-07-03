@@ -256,8 +256,12 @@ function unavailableContextIssue(params: {
 }): WorkflowModelValidationIssue {
   return issue({
     code: 'context-unavailable-at-fill-site',
-    message: `${fieldLabel(params.field)} interpolation references context ${params.unavailableRoots
-      .map((root) => unavailableRootMessage(root, params.fillSite))
+    message: `${fieldLabel(params.field)} interpolation references ${contextNoun(
+      params.unavailableRoots,
+    )} ${formatList(params.unavailableRoots)} that ${availabilityVerb(
+      params.unavailableRoots,
+    )} not available at ${describeAvailabilitySite(params.fillSite)}. ${params.unavailableRoots
+      .map(unavailableRootAvailabilityMessage)
       .join(' ')}`,
     path: params.path,
     details: {
@@ -271,10 +275,18 @@ function unavailableContextIssue(params: {
   });
 }
 
-function unavailableRootMessage(root: WorkflowContextName, fillSite: AvailabilitySite): string {
-  return `"${root}" is not available at ${describeAvailabilitySite(
-    fillSite,
-  )}; it becomes available at ${describeAvailabilitySite(getWorkflowContextAvailability(root))}.`;
+function contextNoun(roots: readonly WorkflowContextName[]): 'context' | 'contexts' {
+  return roots.length === 1 ? 'context' : 'contexts';
+}
+
+function availabilityVerb(roots: readonly WorkflowContextName[]): 'is' | 'are' {
+  return roots.length === 1 ? 'is' : 'are';
+}
+
+function unavailableRootAvailabilityMessage(root: WorkflowContextName): string {
+  return `"${root}" becomes available at ${describeAvailabilitySite(
+    getWorkflowContextAvailability(root),
+  )}.`;
 }
 
 function describeAvailabilitySite(site: AvailabilitySite): string {
