@@ -181,6 +181,8 @@ describe('POST /provisioners/demand/poll', () => {
       provisionedRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
+    const divergenceCallsBefore = divergenceSpy.mock.calls.length;
+    const intentCallsBefore = intentSpy.mock.calls.length;
 
     const res = await app.inject({
       method: 'POST',
@@ -206,14 +208,24 @@ describe('POST /provisioners/demand/poll', () => {
       reservations: [],
       terminate_provisioned_runner_ids: ['provisioned-runner-1'],
     });
-    expect(divergenceSpy).toHaveBeenCalledWith(1, {
-      state: 'running',
-      direction: 'backend-higher',
-    });
-    expect(intentSpy).toHaveBeenCalledWith(1, {
-      surface: 'poll-demand',
-      reason: 'job-cancelled',
-    });
+    const divergenceCalls = divergenceSpy.mock.calls
+      .slice(divergenceCallsBefore)
+      .filter(
+        ([value, attributes]) =>
+          value === 1 &&
+          JSON.stringify(attributes) ===
+            JSON.stringify({state: 'running', direction: 'backend-higher'}),
+      );
+    const intentCalls = intentSpy.mock.calls
+      .slice(intentCallsBefore)
+      .filter(
+        ([value, attributes]) =>
+          value === 1 &&
+          JSON.stringify(attributes) ===
+            JSON.stringify({surface: 'poll-demand', reason: 'job-cancelled'}),
+      );
+    expect(divergenceCalls).toHaveLength(1);
+    expect(intentCalls).toHaveLength(1);
   });
 
   it('returns 400 for max reservations above the request bound', async () => {

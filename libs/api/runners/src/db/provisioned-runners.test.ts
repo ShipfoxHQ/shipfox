@@ -48,6 +48,36 @@ function reservationRowsFor(params: {workspaceId: string; provisionerId: string}
     );
 }
 
+async function insertRunningJobRow(params: {
+  workspaceId: string;
+  provisionerId: string;
+  provisionedRunnerId: string;
+  jobExecutionId?: string;
+  startedAt?: Date;
+  cancellationRequestedAt?: Date | null;
+}) {
+  const startedAt = params.startedAt ?? new Date('2025-01-01T00:00:00.000Z');
+
+  await db()
+    .insert(runningJobExecutions)
+    .values({
+      workspaceId: params.workspaceId,
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
+      jobId: crypto.randomUUID(),
+      jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      runnerSessionId: crypto.randomUUID(),
+      provisionerId: params.provisionerId,
+      provisionedRunnerId: params.provisionedRunnerId,
+      requiredLabels: ['linux'],
+      runnerLabels: ['linux'],
+      startedAt,
+      lastHeartbeatAt: startedAt,
+      cancellationRequestedAt: params.cancellationRequestedAt ?? null,
+    });
+}
+
 describe('reportProvisionedRunners', () => {
   let workspaceId: string;
   let provisionerId: string;
@@ -634,7 +664,9 @@ describe('reportProvisionedRunners', () => {
       provisionedRunnerId: 'provisioned-runner-1',
       state: 'running',
     });
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
@@ -701,30 +733,6 @@ describe('reportProvisionedRunners', () => {
       providerKind: 'docker',
       reportedAt: params.reportedAt ?? new Date(),
     };
-  }
-
-  async function insertRunningJob(params: {
-    provisionedRunnerId: string;
-    cancellationRequestedAt?: Date | null;
-  }) {
-    await db()
-      .insert(runningJobExecutions)
-      .values({
-        workspaceId,
-        workflowRunId: crypto.randomUUID(),
-        workflowRunAttemptId: crypto.randomUUID(),
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        projectId: crypto.randomUUID(),
-        runnerSessionId: crypto.randomUUID(),
-        provisionerId,
-        provisionedRunnerId: params.provisionedRunnerId,
-        requiredLabels: ['linux'],
-        runnerLabels: ['linux'],
-        startedAt: new Date('2025-01-01T00:00:00.000Z'),
-        lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
-        cancellationRequestedAt: params.cancellationRequestedAt ?? null,
-      });
   }
 });
 
@@ -799,7 +807,9 @@ describe('listProvisionerTerminateIntents', () => {
 
   it('includes active provisioned runners whose latest bound job is cancelled', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
@@ -811,7 +821,9 @@ describe('listProvisionerTerminateIntents', () => {
 
   it('returns structured rows with bounded reasons from the shared query', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
@@ -827,7 +839,11 @@ describe('listProvisionerTerminateIntents', () => {
 
   it('excludes active provisioned runners whose latest bound job is healthy', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
-    await insertRunningJob({provisionedRunnerId: 'provisioned-runner-1'});
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
+      provisionedRunnerId: 'provisioned-runner-1',
+    });
 
     const result = await listProvisionerTerminateIntents({workspaceId, provisionerId, limit: 1000});
 
@@ -839,7 +855,9 @@ describe('listProvisionerTerminateIntents', () => {
       provisionedRunnerId: 'provisioned-runner-1',
       state: 'terminated',
     });
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
@@ -851,12 +869,16 @@ describe('listProvisionerTerminateIntents', () => {
 
   it('excludes a cancelled job when it is not the latest bound job', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:02:00.000Z'),
     });
@@ -872,7 +894,8 @@ describe('listProvisionerTerminateIntents', () => {
       provisionedRunnerId: 'provisioned-runner-1',
       provisionerId: otherProvisionerId,
     });
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
       provisionedRunnerId: 'provisioned-runner-1',
       provisionerId: otherProvisionerId,
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
@@ -885,12 +908,16 @@ describe('listProvisionerTerminateIntents', () => {
 
   it('returns one id for duplicate cancelled bound jobs on the same provisioned runner', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
-    await insertRunningJob({
+    await insertRunningJobRow({
+      workspaceId,
+      provisionerId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
@@ -908,7 +935,9 @@ describe('listProvisionerTerminateIntents', () => {
       'provisioned-runner-b',
     ]) {
       await createProvisionedRunner({provisionedRunnerId});
-      await insertRunningJob({
+      await insertRunningJobRow({
+        workspaceId,
+        provisionerId,
         provisionedRunnerId,
         cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
       });
@@ -930,35 +959,6 @@ describe('listProvisionerTerminateIntents', () => {
       provisionedRunnerId: params.provisionedRunnerId,
       state: params.state ?? 'running',
     });
-  }
-
-  async function insertRunningJob(params: {
-    provisionedRunnerId: string;
-    provisionerId?: string;
-    jobExecutionId?: string;
-    startedAt?: Date;
-    cancellationRequestedAt?: Date | null;
-  }) {
-    const startedAt = params.startedAt ?? new Date('2025-01-01T00:00:00.000Z');
-
-    await db()
-      .insert(runningJobExecutions)
-      .values({
-        workspaceId,
-        workflowRunId: crypto.randomUUID(),
-        workflowRunAttemptId: crypto.randomUUID(),
-        jobId: crypto.randomUUID(),
-        jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
-        projectId: crypto.randomUUID(),
-        runnerSessionId: crypto.randomUUID(),
-        provisionerId: params.provisionerId ?? provisionerId,
-        provisionedRunnerId: params.provisionedRunnerId,
-        requiredLabels: ['linux'],
-        runnerLabels: ['linux'],
-        startedAt,
-        lastHeartbeatAt: startedAt,
-        cancellationRequestedAt: params.cancellationRequestedAt ?? null,
-      });
   }
 });
 

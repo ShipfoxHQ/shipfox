@@ -34,9 +34,9 @@ export {
 export type {
   ActiveProvisionedRunnerTemplateCount,
   ProvisionedRunnerReportEvent,
-  ReapStaleProvisionedRunnersResult,
   ProvisionedRunnerTerminateIntent,
   ProvisionedRunnerTerminateIntentReason,
+  ReapStaleProvisionedRunnersResult,
   ReconcileProvisionedRunnersDbResult,
   ReconcileProvisionedRunnersParams,
   ReportProvisionedRunnersParams,

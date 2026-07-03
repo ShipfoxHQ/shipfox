@@ -193,7 +193,7 @@ export function calculateProvisionedRunnerCountDivergences(params: {
 
 function recordPollDemandMetrics(params: PollDemandParams, snapshot: PollDemandSnapshot): void {
   for (const divergence of snapshot.divergences) {
-    logger().info(
+    logger().debug(
       {
         workspaceId: params.workspaceId,
         provisionerId: params.provisionerId,

@@ -165,6 +165,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
+    const intentCallsBefore = intentSpy.mock.calls.length;
 
     const res = await app.inject({
       method: 'POST',
@@ -180,7 +181,15 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
         cancellation_requested_at: '2025-01-01T00:01:00.000Z',
       },
     });
-    expect(intentSpy).toHaveBeenCalledWith(1, {surface: 'reconcile', reason: 'job-cancelled'});
+    const intentCalls = intentSpy.mock.calls
+      .slice(intentCallsBefore)
+      .filter(
+        ([value, attributes]) =>
+          value === 1 &&
+          JSON.stringify(attributes) ===
+            JSON.stringify({surface: 'reconcile', reason: 'job-cancelled'}),
+      );
+    expect(intentCalls).toHaveLength(1);
   });
 
   it('increments the reservation release metric when reconcile reaps an absent runner', async () => {
@@ -193,6 +202,9 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
       reservationId,
       reportedAt: new Date(Date.now() - 300_000),
     });
+    const reconcileCallsBefore = reconcileSpy.mock.calls.length;
+    const absentCallsBefore = absentSpy.mock.calls.length;
+    const addCallsBefore = addSpy.mock.calls.length;
 
     const res = await app.inject({
       method: 'POST',
@@ -203,9 +215,21 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().terminated_absent_provisioned_runner_ids).toEqual(['provisioned-runner-1']);
-    expect(reconcileSpy).toHaveBeenCalledWith(1);
-    expect(absentSpy).toHaveBeenCalledWith(1);
-    expect(addSpy).toHaveBeenCalledWith(1);
+    expect(
+      reconcileSpy.mock.calls
+        .slice(reconcileCallsBefore)
+        .filter(([value, attributes]) => value === 1 && attributes === undefined),
+    ).toHaveLength(3);
+    expect(
+      absentSpy.mock.calls
+        .slice(absentCallsBefore)
+        .filter(([value, attributes]) => value === 1 && attributes === undefined),
+    ).toHaveLength(3);
+    expect(
+      addSpy.mock.calls
+        .slice(addCallsBefore)
+        .filter(([value, attributes]) => value === 1 && attributes === undefined),
+    ).toHaveLength(3);
   });
 
   it('returns 401 without valid provisioner auth', async () => {

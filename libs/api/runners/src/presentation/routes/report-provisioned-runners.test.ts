@@ -162,6 +162,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
         lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
         cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
       });
+    const honoredCallsBefore = honoredSpy.mock.calls.length;
 
     const first = await app.inject({
       method: 'POST',
@@ -196,7 +197,13 @@ describe('POST /provisioners/provisioned-runners/report', () => {
 
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
-    expect(honoredSpy).toHaveBeenCalledWith(1, {reason: 'job-cancelled'});
+    const honoredCalls = honoredSpy.mock.calls
+      .slice(honoredCallsBefore)
+      .filter(
+        ([value, attributes]) =>
+          value === 1 && JSON.stringify(attributes) === JSON.stringify({reason: 'job-cancelled'}),
+      );
+    expect(honoredCalls).toHaveLength(1);
   });
 
   it('returns 400 for provider-sensitive extra fields', async () => {
