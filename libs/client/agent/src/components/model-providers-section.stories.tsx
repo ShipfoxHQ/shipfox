@@ -274,8 +274,11 @@ function providerEntry(
   };
 }
 
-function providerConfig(overrides: Partial<ModelProviderConfigDto> = {}): ModelProviderConfigDto {
+function providerConfig(
+  overrides: Partial<Omit<ModelProviderConfigDto, 'kind'>> = {},
+): ModelProviderConfigDto {
   return {
+    kind: 'builtin',
     provider_id: 'anthropic',
     default_model: null,
     key_fingerprints: {'credential:api_key': '...abcd'},
