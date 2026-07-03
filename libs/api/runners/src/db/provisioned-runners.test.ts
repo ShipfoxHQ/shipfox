@@ -1,3 +1,4 @@
+import {pgClient} from '@shipfox/node-postgres';
 import {and, desc, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {
@@ -821,6 +822,54 @@ describe('reconcileProvisionedRunners', () => {
     expect(provisionedRunner?.state).toBe('running');
   });
 
+  it('respects a fresh report that commits after reconcile selects a stale absent row', async () => {
+    const reservationId = await createReservation(1);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      reservationId,
+      reportedAt: staleReportedAt(),
+    });
+    const releaseReportTransaction = deferred<void>();
+    const reportTransactionUpdated = deferred<void>();
+
+    const reportTransaction = db().transaction(async (tx) => {
+      await tx
+        .update(provisionedRunners)
+        .set({reportedAt: sql`now()`, updatedAt: sql`now()`})
+        .where(
+          and(
+            eq(provisionedRunners.workspaceId, workspaceId),
+            eq(provisionedRunners.provisionerId, provisionerId),
+            eq(provisionedRunners.provisionedRunnerId, 'provisioned-runner-1'),
+          ),
+        );
+      reportTransactionUpdated.resolve();
+      await releaseReportTransaction.promise;
+    });
+
+    await reportTransactionUpdated.promise;
+    const reconcile = reconcileProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      observedProvisionedRunnerIds: [],
+      terminateGraceSeconds: 60,
+    });
+    try {
+      await waitForLockWait({queryLike: '%provisioned_runners%'});
+    } finally {
+      releaseReportTransaction.resolve();
+    }
+    const [result] = await Promise.all([reconcile, reportTransaction]);
+
+    const [provisionedRunner] = await db().select().from(provisionedRunners);
+    const [reservation] = await db().select().from(reservations);
+    expect(result.absentIds).toEqual([]);
+    expect(result.reservationsReleased).toBe(0);
+    expect(provisionedRunner?.state).toBe('running');
+    expect(provisionedRunner?.reservationReleasedAt).toBeNull();
+    expect(reservation?.count).toBe(1);
+  });
+
   it('terminates only stale rows when the observed set is empty', async () => {
     await createProvisionedRunner({
       provisionedRunnerId: 'stale-runner',
@@ -1043,6 +1092,58 @@ describe('reconcileProvisionedRunners', () => {
     expect(provisionedRunner?.state).toBe('terminated');
   });
 
+  it('does not double-release reservations when terminal report and reconcile queue on the workspace lock', async () => {
+    const reservationId = await createReservation(2);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      reservationId,
+      reportedAt: staleReportedAt(),
+    });
+    const releaseWorkspaceLock = deferred<void>();
+    const lockHolderReady = deferred<void>();
+    const lockHolder = db().transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${workspaceId}))`);
+      lockHolderReady.resolve();
+      await releaseWorkspaceLock.promise;
+    });
+
+    await lockHolderReady.promise;
+    const report = reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'failed',
+          reportedAt: new Date(),
+        }),
+      ],
+    });
+    await waitForLockWait({queryLike: '%pg_advisory_xact_lock%'});
+    const reconcile = reconcileProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      observedProvisionedRunnerIds: [],
+      terminateGraceSeconds: 60,
+    });
+    try {
+      await waitForLockWait({minWaiters: 2, queryLike: '%pg_advisory_xact_lock%'});
+    } finally {
+      releaseWorkspaceLock.resolve();
+    }
+    const [reportResult, reconcileResult] = await Promise.all([report, reconcile, lockHolder]);
+
+    const [provisionedRunner] = await db().select().from(provisionedRunners);
+    const [reservation] = await db().select().from(reservations);
+    expect(reportResult.reservationsReleased + reconcileResult.reservationsReleased).toBe(1);
+    expect(provisionedRunner?.state).toSatisfy(
+      (state: string | undefined) => state === 'failed' || state === 'terminated',
+    );
+    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(reservation?.count).toBe(1);
+  });
+
   async function createReservation(count: number, overrides?: {expiresAt?: Date}): Promise<string> {
     await reservationFactory.create({
       workspaceId,
@@ -1114,12 +1215,13 @@ describe('reconcileProvisionedRunners', () => {
 
   function event(params: {
     provisionedRunnerId: string;
+    reservationId?: string | null;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
     reportedAt?: Date;
   }) {
     return {
       provisionedRunnerId: params.provisionedRunnerId,
-      reservationId: null,
+      reservationId: params.reservationId ?? null,
       templateKey: 'linux',
       labels: ['linux'],
       state: params.state ?? 'running',
@@ -1130,3 +1232,38 @@ describe('reconcileProvisionedRunners', () => {
     };
   }
 });
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return {promise, resolve, reject};
+}
+
+async function waitForLockWait(params?: {minWaiters?: number; queryLike?: string}) {
+  const minWaiters = params?.minWaiters ?? 1;
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const result = await pgClient().query<{count: number}>(
+      `
+        SELECT count(*)::int AS count
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND wait_event_type = 'Lock'
+          AND ($1::text IS NULL OR query ILIKE $1)
+      `,
+      [params?.queryLike ?? null],
+    );
+    if ((result.rows[0]?.count ?? 0) >= minWaiters) return;
+    await sleep(10);
+  }
+  throw new Error(`Timed out waiting for ${minWaiters} blocked lock waiter(s)`);
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
