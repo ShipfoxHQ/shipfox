@@ -122,9 +122,11 @@ if (setupIndex !== -1) {
 const imageName = takeImageName();
 const registries = readRegistries();
 
-// When --image is passed without registries, build one arch and --load it
-// locally instead of pushing a multi-arch index.
+// When --image is passed without registries, build one arch. Local validation
+// still loads the image; CI PR validation only needs BuildKit to prove the
+// Dockerfile builds, so it writes cache metadata without importing a tarball.
 const validateOnly = imageName !== undefined && registries.length === 0;
+const ciValidateOnly = validateOnly && process.env.GITHUB_ACTIONS === 'true';
 
 const args: string[] = [];
 
@@ -137,12 +139,14 @@ if (!hasFlag('--provenance')) args.push('--provenance=false');
 if (!hasFlag('--platform'))
   args.push('--platform', validateOnly ? 'linux/amd64' : DEFAULT_PLATFORMS);
 
-// A multi-platform build cannot `--load`, so default to pushing; the validate path
-// loads its single-arch image locally instead.
-if (!hasFlag('--push', '--load', '--output', '-o')) args.push(validateOnly ? '--load' : '--push');
+// A multi-platform build cannot `--load`, so default to pushing; local validation
+// loads its single-arch image, while CI validation avoids the tar export/import.
+if (!hasFlag('--push', '--load', '--output', '-o'))
+  args.push(ciValidateOnly ? '--output=type=cacheonly' : validateOnly ? '--load' : '--push');
 
 // Tags: an explicit --tag wins; otherwise derive the per-commit set from --image.
-if (imageName && !hasFlag('--tag', '-t')) {
+// CI cache-only validation has no image output for BuildKit to tag.
+if (imageName && !ciValidateOnly && !hasFlag('--tag', '-t')) {
   for (const tag of perCommitTags(imageName, registries)) args.push('--tag', tag);
 }
 
