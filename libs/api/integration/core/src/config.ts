@@ -18,7 +18,7 @@ export const config = createConfig({
     default: false,
   }),
   INTEGRATIONS_ENABLE_WEBHOOK_PROVIDER: bool({
-    desc: 'Enables the generic webhook integration provider so users can create inbound webhook URLs.',
-    default: false,
+    desc: 'Enables the generic webhook integration provider so users can create inbound webhook URLs. It is enabled by default because it does not require provider setup.',
+    default: true,
   }),
 });
