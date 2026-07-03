@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/runner-agent",
+  "name": "@shipfox/node-egress-guard",
   "license": "MIT",
   "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/runner/agent"
+    "directory": "libs/shared/node/egress-guard"
   },
   "private": true,
   "type": "module",
@@ -37,13 +37,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.79.6",
-    "@shipfox/api-agent-dto": "workspace:*",
-    "@shipfox/api-workflows-dto": "workspace:*",
-    "@shipfox/config": "workspace:*",
-    "@shipfox/node-egress-guard": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/runner-execution": "workspace:*"
+    "ipaddr.js": "2.3.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

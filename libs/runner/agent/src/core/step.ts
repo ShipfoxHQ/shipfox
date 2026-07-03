@@ -1,3 +1,4 @@
+import type {CustomModelProviderRuntimeConfigDto} from '@shipfox/api-agent-dto';
 import type {
   AgentConfigIssueDto,
   StepDto,
@@ -18,6 +19,7 @@ export function executeAgentStep(
       model: string;
       thinking: string;
       credentials: Record<string, string>;
+      custom_provider?: CustomModelProviderRuntimeConfigDto | undefined;
     };
     onSessionEntry?: (line: string) => void;
   },
@@ -44,6 +46,7 @@ export function executeAgentStep(
     thinking: options.runtime.thinking,
     provider: options.runtime.provider,
     credentials: options.runtime.credentials,
+    customProvider: options.runtime.custom_provider,
     signal: options.signal,
     onSessionEntry: options.onSessionEntry,
   });
@@ -56,10 +59,12 @@ async function runAgentStep(params: {
   thinking: string;
   provider: string;
   credentials: Record<string, string>;
+  customProvider: CustomModelProviderRuntimeConfigDto | undefined;
   signal: AbortSignal | undefined;
   onSessionEntry: ((line: string) => void) | undefined;
 }): Promise<StepResult> {
-  const {cwd, model, prompt, thinking, provider, credentials, onSessionEntry} = params;
+  const {cwd, model, prompt, thinking, provider, credentials, customProvider, onSessionEntry} =
+    params;
   const signal = params.signal ?? new AbortController().signal;
 
   try {
@@ -71,6 +76,7 @@ async function runAgentStep(params: {
         thinking,
         prompt,
         credentials,
+        customProvider,
         signal,
         ...(onSessionEntry ? {onSessionEntry} : {}),
       }),

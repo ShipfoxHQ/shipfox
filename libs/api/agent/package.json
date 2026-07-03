@@ -36,16 +36,6 @@
         "default": "./dist/core/errors.js"
       }
     },
-    "./core/egress-guard": {
-      "development": {
-        "types": "./src/core/egress-guard.ts",
-        "default": "./src/core/egress-guard.ts"
-      },
-      "default": {
-        "types": "./dist/core/egress-guard.d.ts",
-        "default": "./dist/core/egress-guard.js"
-      }
-    },
     "./core/resolve-agent-config": {
       "development": {
         "types": "./src/core/resolve-agent-config.ts",
@@ -95,13 +85,13 @@
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-egress-guard": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/redact": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "ipaddr.js": "2.3.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

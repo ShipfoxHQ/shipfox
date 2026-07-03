@@ -8,6 +8,7 @@ import {
   type UpdateCustomModelProviderBodyDto,
 } from '@shipfox/api-agent-dto';
 import {deleteSecrets, getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
+import {assertEgressAllowed} from '@shipfox/node-egress-guard';
 import {
   getModelProviderConfig,
   insertCustomModelProviderConfig,
@@ -20,7 +21,6 @@ import {
   fingerprintCustomCredentials,
   storeValuesToCustomRuntimeCredentials,
 } from './credential-fingerprints.js';
-import {assertEgressAllowed} from './egress-guard.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {
   CustomModelProviderConfigNotFoundError,

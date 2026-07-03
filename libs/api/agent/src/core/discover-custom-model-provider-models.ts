@@ -4,9 +4,9 @@ import type {
   DiscoverCustomModelProviderModelsResponseDto,
   ModelProviderApi,
 } from '@shipfox/api-agent-dto';
+import {assertEgressAllowed} from '@shipfox/node-egress-guard';
 import {config} from '#config.js';
 import {appendCustomProviderPath, googleDiscoveryUrl} from './custom-provider-url.js';
-import {assertEgressAllowed} from './egress-guard.js';
 import {egressPolicy} from './model-provider-validation.js';
 
 const GOOGLE_MODEL_PREFIX_PATTERN = /^models\//;

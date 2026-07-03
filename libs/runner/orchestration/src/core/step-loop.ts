@@ -331,6 +331,9 @@ export async function executeStep(params: {
           model: runtimeConfig.model,
           thinking: runtimeConfig.thinking,
           credentials: runtimeConfig.credentials,
+          ...(runtimeConfig.custom_provider
+            ? {custom_provider: runtimeConfig.custom_provider}
+            : {}),
         },
         ...(sessionStream
           ? {onSessionEntry: (line: string) => sessionStream?.writeEntry(line)}

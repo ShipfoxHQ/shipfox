@@ -78,6 +78,35 @@ describe('executeAgentStep', () => {
     );
   });
 
+  it('forwards custom provider runtime config to the agent invocation', async () => {
+    runAgentMock.mockResolvedValue({});
+    const customProvider = {
+      api: 'openai-responses' as const,
+      base_url: 'https://models.example.test/v1',
+      headers: [{name: 'x-plain', value: 'plain'}],
+      secret_header_names: ['x-secret'],
+      models: [{id: 'custom-gpt', label: 'Custom GPT'}],
+    };
+
+    await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
+      runtime: {
+        provider: 'workspace-models',
+        model: 'custom-gpt',
+        thinking: 'medium',
+        credentials: {api_key: 'sk-custom'},
+        custom_provider: customProvider,
+      },
+    });
+
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'workspace-models',
+        model: 'custom-gpt',
+        customProvider,
+      }),
+    );
+  });
+
   it('ignores stale provider, model, and thinking values in step config', async () => {
     runAgentMock.mockResolvedValue({});
 

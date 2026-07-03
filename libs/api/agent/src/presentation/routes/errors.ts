@@ -1,7 +1,7 @@
 import {getModelProviderCredentialKeys} from '@shipfox/api-agent-dto';
 import {SecretValueTooLargeError, WorkspaceSecretCapExceededError} from '@shipfox/api-secrets';
+import {EgressDeniedError} from '@shipfox/node-egress-guard';
 import {ClientError} from '@shipfox/node-fastify';
-import {EgressDeniedError} from '#core/egress-guard.js';
 import {
   CustomModelProviderConfigNotFoundError,
   CustomModelProviderDefaultUnsupportedError,

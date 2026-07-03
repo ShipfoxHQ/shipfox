@@ -1,16 +1,37 @@
-const {createAgentSessionMock, findMock, getAllMock, hasConfiguredAuthMock, promptMock, abortMock} =
-  vi.hoisted(() => ({
-    createAgentSessionMock: vi.fn(),
-    findMock: vi.fn(),
-    getAllMock: vi.fn(),
-    hasConfiguredAuthMock: vi.fn(),
-    promptMock: vi.fn(),
-    abortMock: vi.fn(),
-  }));
+const {
+  createAgentSessionMock,
+  findMock,
+  getAllMock,
+  hasConfiguredAuthMock,
+  registerProviderMock,
+  promptMock,
+  abortMock,
+} = vi.hoisted(() => ({
+  createAgentSessionMock: vi.fn(),
+  findMock: vi.fn(),
+  getAllMock: vi.fn(),
+  hasConfiguredAuthMock: vi.fn(),
+  registerProviderMock: vi.fn(),
+  promptMock: vi.fn(),
+  abortMock: vi.fn(),
+}));
 const {authStorageCreateMock, authStorageInMemoryMock} = vi.hoisted(() => ({
   authStorageCreateMock: vi.fn(),
   authStorageInMemoryMock: vi.fn(),
 }));
+const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
+  class EgressDeniedError extends Error {
+    constructor(
+      public readonly reason: string,
+      public readonly target: string,
+    ) {
+      super(`Egress denied for ${target}: ${reason}`);
+      this.name = 'EgressDeniedError';
+    }
+  }
+
+  return {assertEgressAllowedMock: vi.fn(), EgressDeniedErrorMock: EgressDeniedError};
+});
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSession: createAgentSessionMock,
@@ -20,14 +41,32 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
       find: findMock,
       getAll: getAllMock,
       hasConfiguredAuth: hasConfiguredAuthMock,
+      registerProvider: registerProviderMock,
     }),
   },
   SessionManager: {create: () => ({})},
 }));
 
+vi.mock('@shipfox/node-egress-guard', () => ({
+  assertEgressAllowed: assertEgressAllowedMock,
+  EgressDeniedError: EgressDeniedErrorMock,
+  parseEgressHostDenylist: (value: string) =>
+    value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+}));
+
 import {appendFileSync, mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {
+  type CustomModelProviderRuntimeConfigDto,
+  DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
+  DEFAULT_CUSTOM_MODEL_INPUT_IMAGE,
+  DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
+  DEFAULT_CUSTOM_MODEL_REASONING,
+} from '@shipfox/api-agent-dto';
 import {AgentConfigError} from '#core/errors.js';
 import {type AgentInvocation, runAgent} from '#core/run-agent.js';
 
@@ -44,6 +83,19 @@ function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
   };
 }
 
+function customProvider(
+  overrides: Partial<CustomModelProviderRuntimeConfigDto> = {},
+): CustomModelProviderRuntimeConfigDto {
+  return {
+    api: 'openai-responses',
+    base_url: 'https://models.example.test/v1',
+    headers: [{name: 'x-plain', value: 'plain'}],
+    secret_header_names: ['x-secret'],
+    models: [{id: 'custom-gpt', label: 'Custom GPT'}],
+    ...overrides,
+  };
+}
+
 describe('runAgent', () => {
   // Tracked so the temp dir is removed in afterEach even if an assertion throws first.
   let sessionDir: string | undefined;
@@ -53,10 +105,13 @@ describe('runAgent', () => {
     findMock.mockReset();
     getAllMock.mockReset();
     hasConfiguredAuthMock.mockReset();
+    registerProviderMock.mockReset();
     promptMock.mockReset();
     abortMock.mockReset();
+    assertEgressAllowedMock.mockReset();
     authStorageCreateMock.mockReset();
     authStorageInMemoryMock.mockReset();
+    assertEgressAllowedMock.mockResolvedValue(undefined);
     authStorageCreateMock.mockReturnValue({});
     authStorageInMemoryMock.mockReturnValue({});
     findMock.mockReturnValue({provider: 'anthropic', id: 'claude-opus-4-8'});
@@ -104,6 +159,172 @@ describe('runAgent', () => {
       openai: {type: 'api_key', key: 'sk-runtime-secret'},
     });
     expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({model}));
+  });
+
+  it('registers a keyed custom provider with empty auth storage and merged headers', async () => {
+    const model = {provider: 'ollama-workspace', id: 'custom-gpt'};
+    findMock.mockReturnValue(model);
+
+    await runAgent(
+      invocation({
+        provider: 'ollama-workspace',
+        model: 'custom-gpt',
+        credentials: {api_key: 'sk-custom', 'header:x-secret': 'secret-header'},
+        customProvider: customProvider(),
+      }),
+    );
+
+    expect(assertEgressAllowedMock).toHaveBeenCalledWith(
+      'https://models.example.test/v1',
+      expect.objectContaining({allowPrivateNetworks: true}),
+    );
+    expect(authStorageInMemoryMock).toHaveBeenCalledWith({});
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'ollama-workspace',
+      expect.objectContaining({
+        name: 'ollama-workspace',
+        baseUrl: 'https://models.example.test/v1',
+        api: 'openai-responses',
+        apiKey: 'sk-custom',
+        headers: {'x-plain': 'plain', 'x-secret': 'secret-header'},
+      }),
+    );
+    expect(findMock).toHaveBeenCalledWith('ollama-workspace', 'custom-gpt');
+    expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({model}));
+  });
+
+  it('registers keyless custom providers with a placeholder api key', async () => {
+    findMock.mockReturnValue({provider: 'local-ollama', id: 'llama'});
+
+    await runAgent(
+      invocation({
+        provider: 'local-ollama',
+        model: 'llama',
+        credentials: {},
+        customProvider: customProvider({models: [{id: 'llama', label: 'Llama'}]}),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'local-ollama',
+      expect.objectContaining({
+        apiKey: 'shipfox-keyless-custom-provider-placeholder',
+      }),
+    );
+  });
+
+  it('skips missing secret headers when rebuilding custom provider headers', async () => {
+    findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
+
+    await runAgent(
+      invocation({
+        provider: 'custom',
+        model: 'custom-gpt',
+        credentials: {api_key: 'sk-custom'},
+        customProvider: customProvider({secret_header_names: ['x-secret', 'x-missing']}),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'custom',
+      expect.objectContaining({
+        headers: {'x-plain': 'plain'},
+      }),
+    );
+  });
+
+  it.each([
+    'openai-completions',
+    'openai-responses',
+    'anthropic-messages',
+    'google-generative-ai',
+  ] as const)('registers custom provider api "%s"', async (api) => {
+    findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
+
+    await runAgent(
+      invocation({
+        provider: 'custom',
+        model: 'custom-gpt',
+        customProvider: customProvider({api}),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith('custom', expect.objectContaining({api}));
+  });
+
+  it('synthesizes custom provider model defaults from shared constants', async () => {
+    findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
+
+    await runAgent(
+      invocation({
+        provider: 'custom',
+        model: 'custom-gpt',
+        customProvider: customProvider(),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'custom',
+      expect.objectContaining({
+        models: [
+          {
+            id: 'custom-gpt',
+            name: 'Custom GPT',
+            provider: 'custom',
+            api: 'openai-responses',
+            reasoning: DEFAULT_CUSTOM_MODEL_REASONING,
+            input: DEFAULT_CUSTOM_MODEL_INPUT_IMAGE ? ['text', 'image'] : ['text'],
+            cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
+            contextWindow: DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
+            maxTokens: DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
+          },
+        ],
+      }),
+    );
+  });
+
+  it('throws an AgentConfigError when the egress guard blocks a custom provider', async () => {
+    assertEgressAllowedMock.mockRejectedValue(
+      new EgressDeniedErrorMock('private-network', '10.0.0.12'),
+    );
+
+    await expect(
+      runAgent(
+        invocation({
+          provider: 'local-ollama',
+          model: 'llama',
+          credentials: {},
+          customProvider: customProvider({base_url: 'http://10.0.0.12/v1'}),
+        }),
+      ),
+    ).rejects.toThrow(
+      new AgentConfigError(
+        'Custom model provider endpoint blocked by egress policy: private-network (10.0.0.12).',
+      ),
+    );
+    expect(registerProviderMock).not.toHaveBeenCalled();
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('throws an AgentConfigError when pi rejects a custom provider descriptor', async () => {
+    registerProviderMock.mockImplementation(() => {
+      throw new Error('"apiKey" or "oauth" is required when defining models');
+    });
+
+    await expect(
+      runAgent(
+        invocation({
+          provider: 'custom',
+          model: 'custom-gpt',
+          customProvider: customProvider(),
+        }),
+      ),
+    ).rejects.toThrow(
+      new AgentConfigError(
+        'Custom model provider "custom" is invalid: "apiKey" or "oauth" is required when defining models',
+      ),
+    );
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
   it('maps Azure runtime credentials into pi provider env', async () => {
