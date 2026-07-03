@@ -71,14 +71,15 @@ localhost API and gitea URLs are correct for the standard dev stack.
 # 1. Infrastructure (postgres, temporal, garage, gitea)
 docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
-# 2. API on the host, with E2E routes on. API_URL and E2E_GITEA_URL default to
-#    http://localhost:16101 and http://localhost:3000; override them when services run on
-#    other ports (a Conductor worktree's ports are in .context/local-services/env).
-E2E_ENABLED=true pnpm --filter=@shipfox/api dev
-
-# 3. Run the suite.
-turbo test:e2e --filter=@shipfox/e2e-platform-workflows
+# 2. Start the API/client dev servers and run the suite.
+mise run e2e -- --filter=@shipfox/e2e-platform-workflows
 ```
+
+The `e2e` task reads Conductor worktree ports from `.context/local-services/env`
+through mise, starts the API with E2E routes enabled, starts the client with the
+test VCS provider enabled, waits for both to become ready, then runs
+`turbo test:e2e`. API/client logs and failure diagnostics are written under
+`.context/shipfox-e2e-logs/`.
 
 Reruns need no cleanup: every org, repo, project, and workspace name carries a unique
 id. To reset gitea wholesale: `docker compose down && docker volume rm <gitea volume>`.

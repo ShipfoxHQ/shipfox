@@ -195,17 +195,18 @@ E2E tests live under `e2e/` and mirror the application/library module structure.
 They use [Playwright](https://playwright.dev/) and run against an already-started
 local stack.
 
-Start the API and client before running E2E tests:
+Start the local service dependencies, then use the repo E2E harness to start the
+API/client dev servers and run Playwright:
 
 ```sh
 docker compose up -d
-pnpm --filter=@shipfox/api dev
-pnpm --filter=@shipfox/client dev
+mise run e2e -- --filter=@shipfox/e2e-client-auth
 ```
 
-Local E2E defaults are set up for the standard dev ports. The API `.env`
-enables E2E routes with the local admin key, and the client `.env` points at
-the local API. Then run E2E packages directly:
+The harness writes API/client logs and failure diagnostics to
+`.context/shipfox-e2e-logs/` locally. It also reads Conductor worktree ports from
+`.context/local-services/env` through mise, so the same command works in worktrees.
+If the API and client are already running, run E2E packages directly:
 
 ```sh
 turbo test:e2e --filter=@shipfox/e2e-client-auth

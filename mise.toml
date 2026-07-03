@@ -41,6 +41,10 @@ else
 fi
 """
 
+[tasks.e2e]
+description = "Run E2E tests with local API and client dev servers"
+run = 'node dev/e2e.mjs run'
+
 [settings]
 lockfile = true
 minimum_release_age = "48h"

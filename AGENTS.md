@@ -180,23 +180,20 @@ The pure `expect.yaml` evaluator has Vitest node tests that need no infrastructu
 turbo test --filter=@shipfox/e2e-platform-workflows
 ```
 
-The full loop needs the Docker services, the API on the host, then the suite:
+The full loop needs the Docker services, then the repo E2E harness:
 
 ```sh
 # 1. Local services (postgres, temporal, garage, gitea).
 docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
-# 2. API on the host, with E2E routes on. API_URL and E2E_GITEA_URL default to
-#    http://localhost:16101 and http://localhost:3000; override them when services
-#    run on other ports (a Conductor worktree's ports are in .context/local-services/env).
-E2E_ENABLED=true pnpm --filter=@shipfox/api dev
-
-# 3. Run the suite.
-turbo test:e2e --filter=@shipfox/e2e-platform-workflows
+# 2. Start the API/client dev servers and run the suite.
+mise run e2e -- --filter=@shipfox/e2e-platform-workflows
 ```
 
-`E2E_*`, `API_URL`, and `CLIENT_URL` are in Turbo's `globalPassThroughEnv`, so setting
-them on the `turbo` line reaches the suite. Local runner logs are written under
+The `e2e` mise task reads Conductor worktree ports from `.context/local-services/env`,
+starts the API with E2E routes enabled, starts the client with the test VCS provider
+enabled, waits for both to become ready, then runs `turbo test:e2e`. Local runner
+logs are written under
 `e2e/platform/workflows/.e2e-run/runners/` and attached to failed scenario results. A
 green run deletes its gitea org; a failing run keeps it and attaches the run detail,
 the expectation diff, fetched step logs, and runner log under `test-results/`. See
