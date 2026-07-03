@@ -41,14 +41,17 @@ export function toStoreKey(fieldKey: string): string {
 
 export function customCredentialToStoreKey(fieldKey: string): string {
   if (fieldKey === 'api_key') return 'API_KEY';
-  if (fieldKey.startsWith('header:')) return `HEADER_${encodeStoreKey(fieldKey.slice('header:'.length))}`;
+  if (fieldKey.startsWith('header:'))
+    return `HEADER_${encodeStoreKey(fieldKey.slice('header:'.length))}`;
   return `CREDENTIAL_${encodeStoreKey(fieldKey)}`;
 }
 
 export function customStoreKeyToRuntimeKey(storeKey: string): string {
   if (storeKey === 'API_KEY') return 'api_key';
-  if (storeKey.startsWith('HEADER_')) return `header:${decodeStoreKey(storeKey.slice('HEADER_'.length))}`;
-  if (storeKey.startsWith('CREDENTIAL_')) return decodeStoreKey(storeKey.slice('CREDENTIAL_'.length));
+  if (storeKey.startsWith('HEADER_'))
+    return `header:${decodeStoreKey(storeKey.slice('HEADER_'.length))}`;
+  if (storeKey.startsWith('CREDENTIAL_'))
+    return decodeStoreKey(storeKey.slice('CREDENTIAL_'.length));
   return storeKey.toLowerCase();
 }
 

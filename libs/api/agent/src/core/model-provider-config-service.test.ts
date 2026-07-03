@@ -568,7 +568,7 @@ describe('custom model provider config service', () => {
         headers: {'x-region': 'eu', 'x-plain': 'plain'},
       }),
     );
-    expect(secrets).toEqual({API_KEY: 'sk-local-original', HEADER_785F726567696F6E: 'eu'});
+    expect(secrets).toEqual({API_KEY: 'sk-local-original', HEADER_782D726567696F6E: 'eu'});
     expect(updated.headers).toEqual([{name: 'x-plain', value: 'plain'}]);
     expect(updated.keyFingerprints).toEqual({
       'credential:api_key': 'sk-local...inal',

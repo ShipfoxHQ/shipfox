@@ -1,7 +1,4 @@
-import {
-  createCustomModelProviderConfig,
-  testAndSaveModelProviderConfig,
-} from '@shipfox/api-agent';
+import {createCustomModelProviderConfig, testAndSaveModelProviderConfig} from '@shipfox/api-agent';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions';
