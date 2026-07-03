@@ -15,6 +15,7 @@ import {
   ephemeralRegistrationTokens,
   toEphemeralRegistrationToken,
 } from './schema/ephemeral-registration-tokens.js';
+import {provisionedRunners} from './schema/provisioned-runners.js';
 import {reservations} from './schema/reservations.js';
 import {runnerSessions, toRunnerSession} from './schema/runner-sessions.js';
 
@@ -201,6 +202,8 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
   maxClaims: number;
 }) {
   return await db().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
+
     const consumed = await tx
       .update(ephemeralRegistrationTokens)
       .set({consumedAt: sql`now()`})
@@ -266,6 +269,18 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
       .update(ephemeralRegistrationTokens)
       .set({consumedSessionId: session.id})
       .where(eq(ephemeralRegistrationTokens.id, params.ephemeralTokenId));
+
+    await tx
+      .update(provisionedRunners)
+      .set({runnerSessionId: session.id, updatedAt: sql`now()`})
+      .where(
+        and(
+          eq(provisionedRunners.workspaceId, params.workspaceId),
+          eq(provisionedRunners.provisionerId, consumed[0].provisionerId),
+          eq(provisionedRunners.provisionedRunnerId, consumed[0].provisionedRunnerId),
+          isNull(provisionedRunners.reservationReleasedAt),
+        ),
+      );
 
     return toRunnerSession(session);
   });

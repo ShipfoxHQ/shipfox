@@ -1,6 +1,7 @@
 import {pgClient} from '@shipfox/node-postgres';
 import {and, desc, eq, inArray, or, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
+import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
 import {
   listActiveProvisionedRunners,
   listProvisionerTerminateIntents,
@@ -10,7 +11,11 @@ import {
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
-import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
+import {
+  ephemeralRegistrationTokenFactory,
+  provisionedRunnerFactory,
+  reservationFactory,
+} from '#test/index.js';
 
 function provisionedRunnerRowsFor(params: {workspaceId: string; provisionerId: string}) {
   return db()
@@ -542,6 +547,42 @@ describe('reportProvisionedRunners', () => {
     const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(reservationRows[0]?.count).toBe(1);
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
+  });
+
+  it('uses the consumed ephemeral token session before releasing a terminal report', async () => {
+    const reservationId = await createReservation(1);
+    const token = await ephemeralRegistrationTokenFactory.create({
+      workspaceId,
+      provisionerId,
+      reservationId,
+      provisionedRunnerId: 'provisioned-runner-1',
+    });
+    const session = await createRunnerSessionConsumingEphemeralToken({
+      ephemeralTokenId: token.id,
+      workspaceId,
+      labels: ['linux'],
+      maxClaims: 1,
+    });
+
+    const result = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'failed',
+          runnerSessionId: crypto.randomUUID(),
+        }),
+      ],
+    });
+
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(reservationRows[0]?.count).toBe(1);
+    expect(provisionedRunnerRows[0]?.runnerSessionId).toBe(session.id);
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
   });
 

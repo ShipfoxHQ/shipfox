@@ -25,6 +25,7 @@ import {
   type ProvisionedRunnerBoundJobExecution,
 } from './job-executions.js';
 import {releaseReservationUnits} from './reservations.js';
+import {ephemeralRegistrationTokens} from './schema/ephemeral-registration-tokens.js';
 import {provisionedRunners, toProvisionedRunner} from './schema/provisioned-runners.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
@@ -94,12 +95,14 @@ export async function reportProvisionedRunners(params: ReportProvisionedRunnersP
 
   return await db().transaction(async (tx) => {
     const receivedAt = new Date();
-    const events = aggregateEvents(params.events, receivedAt);
-    const hasTerminalEvent = events.some((event) => isTerminalState(event.state));
+    const aggregatedEvents = aggregateEvents(params.events, receivedAt);
+    const hasTerminalEvent = aggregatedEvents.some((event) => isTerminalState(event.state));
 
     if (hasTerminalEvent) {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
     }
+
+    const events = await hydrateRunnerSessionIdsFromConsumedTokens(tx, params, aggregatedEvents);
 
     const values = events.map((event) => ({
       workspaceId: params.workspaceId,
@@ -135,7 +138,7 @@ export async function reportProvisionedRunners(params: ReportProvisionedRunnersP
           labels: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.labels ELSE ${provisionedRunners.labels} END`,
           state: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.state ELSE ${provisionedRunners.state} END`,
           reason: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.reason ELSE ${provisionedRunners.reason} END`,
-          runnerSessionId: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN coalesce(excluded.runner_session_id, ${provisionedRunners.runnerSessionId}) ELSE ${provisionedRunners.runnerSessionId} END`,
+          runnerSessionId: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN coalesce(${provisionedRunners.runnerSessionId}, excluded.runner_session_id) ELSE ${provisionedRunners.runnerSessionId} END`,
           providerKind: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN coalesce(excluded.provider_kind, ${provisionedRunners.providerKind}) ELSE ${provisionedRunners.providerKind} END`,
           reportedAt: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.reported_at ELSE ${provisionedRunners.reportedAt} END`,
           startedAt: firstObservedAt(provisionedRunners.startedAt, sql`excluded.started_at`),
@@ -422,6 +425,7 @@ async function releaseTerminalProvisionedRunnerReservationsByIds(
           provisionedRunners.id,
           rows.map((row) => row.id),
         ),
+        isNull(provisionedRunners.runnerSessionId),
         isNull(provisionedRunners.reservationReleasedAt),
       ),
     )
@@ -445,6 +449,51 @@ async function releaseTerminalProvisionedRunnerReservationsByIds(
       reservationId,
       count,
     })),
+  });
+}
+
+async function hydrateRunnerSessionIdsFromConsumedTokens(
+  tx: Tx,
+  params: ReportProvisionedRunnersParams,
+  events: ProvisionedRunnerReportRow[],
+): Promise<ProvisionedRunnerReportRow[]> {
+  const provisionedRunnerIds = [...new Set(events.map((event) => event.provisionedRunnerId))];
+  if (provisionedRunnerIds.length === 0) return events;
+
+  const tokenRows = await tx
+    .select({
+      provisionedRunnerId: ephemeralRegistrationTokens.provisionedRunnerId,
+      consumedSessionId: ephemeralRegistrationTokens.consumedSessionId,
+    })
+    .from(ephemeralRegistrationTokens)
+    .where(
+      and(
+        eq(ephemeralRegistrationTokens.workspaceId, params.workspaceId),
+        eq(ephemeralRegistrationTokens.provisionerId, params.provisionerId),
+        inArray(ephemeralRegistrationTokens.provisionedRunnerId, provisionedRunnerIds),
+        isNotNull(ephemeralRegistrationTokens.consumedSessionId),
+      ),
+    )
+    .orderBy(
+      desc(ephemeralRegistrationTokens.consumedAt),
+      desc(ephemeralRegistrationTokens.createdAt),
+    );
+
+  const consumedSessionIdsByProvisionedRunnerId = new Map<string, string>();
+  for (const row of tokenRows) {
+    if (!row.consumedSessionId) continue;
+    if (consumedSessionIdsByProvisionedRunnerId.has(row.provisionedRunnerId)) continue;
+    consumedSessionIdsByProvisionedRunnerId.set(row.provisionedRunnerId, row.consumedSessionId);
+  }
+
+  if (consumedSessionIdsByProvisionedRunnerId.size === 0) return events;
+
+  return events.map((event) => {
+    const consumedSessionId = consumedSessionIdsByProvisionedRunnerId.get(
+      event.provisionedRunnerId,
+    );
+    if (!consumedSessionId || event.runnerSessionId === consumedSessionId) return event;
+    return {...event, runnerSessionId: consumedSessionId};
   });
 }
 
