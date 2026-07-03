@@ -5,7 +5,7 @@ import {
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
-import {deleteSecrets, setSecrets} from '@shipfox/api-secrets';
+import {deleteSecrets, getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {
   deleteModelProviderConfig as deleteModelProviderConfigRow,
   getModelProviderConfig,
@@ -102,12 +102,17 @@ export async function testAndSaveModelProviderConfig(
     outcome: 'succeeded',
   });
   const namespace = agentSystemNamespace(params.providerId);
-  await deleteSecrets({workspaceId: params.workspaceId, namespace});
+  const values = credentialsToStoreValues(params.providerId, params.credentials);
   await setSecrets({
     workspaceId: params.workspaceId,
     namespace,
-    values: credentialsToStoreValues(params.providerId, params.credentials),
+    values,
     editedBy: params.editedBy,
+  });
+  await pruneStaleProviderCredentialSecrets({
+    workspaceId: params.workspaceId,
+    namespace,
+    expectedKeys: Object.keys(values),
   });
 
   return await upsertModelProviderConfig({
@@ -169,4 +174,24 @@ function resolveDefaultModel(
     throw new InvalidAgentModelError(providerId, model);
   }
   return {probeModel: model, storedModel: requestedModel ?? null};
+}
+
+async function pruneStaleProviderCredentialSecrets(params: {
+  workspaceId: string;
+  namespace: string;
+  expectedKeys: string[];
+}): Promise<void> {
+  const stored = await getSecretsByNamespace({
+    workspaceId: params.workspaceId,
+    namespace: params.namespace,
+  });
+  const expected = new Set(params.expectedKeys);
+  const staleKeys = Object.keys(stored).filter((key) => !expected.has(key));
+  if (staleKeys.length === 0) return;
+
+  await deleteSecrets({
+    workspaceId: params.workspaceId,
+    namespace: params.namespace,
+    keys: staleKeys,
+  });
 }

@@ -31,18 +31,10 @@ interface ResolveRuntimeCredentialsOptions {
 
 export async function resolveRuntimeCredentials(
   params: ResolveRuntimeCredentialsParams,
-  options?: RuntimeCredentialsConfig | ResolveRuntimeCredentialsOptions,
+  options?: ResolveRuntimeCredentialsOptions,
 ): Promise<AgentRuntimeCredentialsResponseDto> {
-  const runtimeConfig =
-    options === undefined
-      ? config
-      : isOptions(options)
-        ? (options.runtimeConfig ?? config)
-        : options;
-  const getCredentialBag =
-    options !== undefined && isOptions(options)
-      ? (options.getCredentialBag ?? getSecretsByNamespace)
-      : getSecretsByNamespace;
+  const runtimeConfig = options?.runtimeConfig ?? config;
+  const getCredentialBag = options?.getCredentialBag ?? getSecretsByNamespace;
   const providerConfig = await getModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.provider,
@@ -86,12 +78,6 @@ export async function resolveRuntimeCredentials(
     outcome: 'unavailable',
   });
   throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
-}
-
-function isOptions(
-  value: RuntimeCredentialsConfig | ResolveRuntimeCredentialsOptions,
-): value is ResolveRuntimeCredentialsOptions {
-  return 'runtimeConfig' in value || 'getCredentialBag' in value;
 }
 
 export function getInstanceDefaultModelProviderApiKeyField(
