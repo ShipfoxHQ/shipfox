@@ -9,7 +9,6 @@ CREATE TABLE "model_provider_configs" (
 	"base_url" text,
 	"headers" jsonb,
 	"models" jsonb,
-	"encrypted_credentials" jsonb NOT NULL,
 	"key_fingerprints" jsonb NOT NULL,
 	"default_model" text,
 	"default_thinking" text NOT NULL,

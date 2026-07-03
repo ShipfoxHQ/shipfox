@@ -1,20 +1,23 @@
 import {
   DEFAULT_AGENT_THINKING,
   getModelProviderEntry,
+  type ModelProviderRef,
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
+import {deleteSecrets, getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {
+  deleteModelProviderConfig as deleteModelProviderConfigRow,
   getModelProviderConfig,
   updateModelProviderDefaultModel,
   upsertModelProviderConfig,
 } from '#db/index.js';
 import {modelProviderValidationCount} from '#metrics/index.js';
 import {
-  encryptCredentials,
-  ensureCredentialsEncryptionKeyConfigured,
+  agentSystemNamespace,
+  credentialsToStoreValues,
   fingerprintCredentials,
-} from './credential-encryption.js';
+} from './credential-fingerprints.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {
   InvalidAgentModelError,
@@ -34,12 +37,16 @@ export interface TestAndSaveModelProviderConfigParams {
   providerId: SupportedModelProviderId;
   defaultModel?: string | null | undefined;
   credentials: Record<string, string>;
+  editedBy?: string | null | undefined;
   setAsDefault?: boolean | undefined;
   signal?: AbortSignal | undefined;
 }
 
 export interface TestAndSaveModelProviderConfigOptions {
   probe?: typeof probeModelProviderCredentials;
+  pruneStaleSecrets?:
+    | ((params: {workspaceId: string; namespace: string; expectedKeys: string[]}) => Promise<void>)
+    | undefined;
 }
 
 export interface UpdateModelProviderConfigDefaultModelParams {
@@ -62,8 +69,6 @@ export async function testAndSaveModelProviderConfig(
   if (!modelProviderCredentialKeysMatch(params.providerId, params.credentials)) {
     throw new InvalidCredentialFieldsError(params.providerId);
   }
-
-  ensureCredentialsEncryptionKeyConfigured();
 
   const existingConfig = await getModelProviderConfig({
     workspaceId: params.workspaceId,
@@ -99,19 +104,32 @@ export async function testAndSaveModelProviderConfig(
     model_provider: params.providerId,
     outcome: 'succeeded',
   });
-  return await upsertModelProviderConfig({
+  const pruneStaleSecrets = options.pruneStaleSecrets ?? pruneStaleProviderCredentialSecrets;
+  const namespace = agentSystemNamespace(params.providerId);
+  const values = credentialsToStoreValues(params.providerId, params.credentials);
+  await setSecrets({
+    workspaceId: params.workspaceId,
+    namespace,
+    values,
+    editedBy: params.editedBy,
+  });
+
+  const config = await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    encryptedCredentials: encryptCredentials({
-      workspaceId: params.workspaceId,
-      providerId: params.providerId,
-      credentials: params.credentials,
-    }),
     keyFingerprints: fingerprintCredentials(params.providerId, params.credentials),
     defaultModel: modelSelection.storedModel,
     defaultThinking: DEFAULT_AGENT_THINKING,
     setAsDefault: params.setAsDefault,
   });
+
+  await pruneStaleSecrets({
+    workspaceId: params.workspaceId,
+    namespace,
+    expectedKeys: Object.keys(values),
+  }).catch(() => undefined);
+
+  return config;
 }
 
 export async function updateModelProviderConfigDefaultModel(
@@ -133,6 +151,18 @@ export async function updateModelProviderConfigDefaultModel(
   return config;
 }
 
+export async function deleteModelProviderConfig(params: {
+  workspaceId: string;
+  providerId: ModelProviderRef;
+}): Promise<boolean> {
+  const deleted = await deleteModelProviderConfigRow(params);
+  await deleteSecrets({
+    workspaceId: params.workspaceId,
+    namespace: agentSystemNamespace(params.providerId),
+  });
+  return deleted;
+}
+
 function resolveDefaultModel(
   providerId: SupportedModelProviderId,
   requestedModel: string | null | undefined,
@@ -151,4 +181,24 @@ function resolveDefaultModel(
     throw new InvalidAgentModelError(providerId, model);
   }
   return {probeModel: model, storedModel: requestedModel ?? null};
+}
+
+async function pruneStaleProviderCredentialSecrets(params: {
+  workspaceId: string;
+  namespace: string;
+  expectedKeys: string[];
+}): Promise<void> {
+  const stored = await getSecretsByNamespace({
+    workspaceId: params.workspaceId,
+    namespace: params.namespace,
+  });
+  const expected = new Set(params.expectedKeys);
+  const staleKeys = Object.keys(stored).filter((key) => !expected.has(key));
+  if (staleKeys.length === 0) return;
+
+  await deleteSecrets({
+    workspaceId: params.workspaceId,
+    namespace: params.namespace,
+    keys: staleKeys,
+  });
 }

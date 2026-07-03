@@ -1,9 +1,13 @@
 import {getModels, getProviders, type KnownProvider} from '@earendil-works/pi-ai';
 import {
+  getModelProviderEntry,
   MODEL_PROVIDER_CATALOG_SEED,
   MODEL_PROVIDER_IDS,
   type ModelProviderId,
+  SUPPORTED_MODEL_PROVIDER_IDS,
 } from '@shipfox/api-agent-dto';
+
+const STORE_COMPATIBLE_CREDENTIAL_KEY_PATTERN = /^[a-z_][a-z0-9_]*$/;
 
 describe('model provider catalog registry', () => {
   it('keeps catalog provider ids synced with the pinned Pi provider registry', () => {
@@ -25,6 +29,17 @@ describe('model provider catalog registry', () => {
     });
 
     expect(missingDefaults).toEqual([]);
+  });
+
+  it('keeps supported credential field keys compatible with the agent secrets namespace', () => {
+    const invalidKeys = SUPPORTED_MODEL_PROVIDER_IDS.flatMap((providerId) => {
+      const entry = getModelProviderEntry(providerId);
+      return (entry?.credential_fields ?? [])
+        .filter((field) => !STORE_COMPATIBLE_CREDENTIAL_KEY_PATTERN.test(field.key))
+        .map((field) => `${providerId}:${field.key}`);
+    });
+
+    expect(invalidKeys).toEqual([]);
   });
 });
 

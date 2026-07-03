@@ -16,7 +16,6 @@ export interface ModelProviderConfig {
   baseUrl: string | null;
   headers: CustomModelProviderHeaderDto[] | null;
   models: CustomAgentModelDto[] | null;
-  encryptedCredentials: Record<string, string>;
   keyFingerprints: Record<string, string>;
   defaultModel: string | null;
   defaultThinking: AgentThinking;

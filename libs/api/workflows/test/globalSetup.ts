@@ -1,6 +1,7 @@
 import './env.js';
 import {agentModule} from '@shipfox/api-agent';
 import {runnersModule} from '@shipfox/api-runners';
+import {secretsModule} from '@shipfox/api-secrets';
 import {runMigrations} from '@shipfox/node-drizzle';
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
 import {sql} from 'drizzle-orm';
@@ -24,6 +25,14 @@ export async function setup() {
     runnersModule.database.db(),
     runnersModule.database.migrationsPath,
     '__drizzle_migrations_runners',
+  );
+  if (!secretsModule.database || Array.isArray(secretsModule.database)) {
+    throw new Error('Secrets module database is not configured');
+  }
+  await runMigrations(
+    secretsModule.database.db(),
+    secretsModule.database.migrationsPath,
+    '__drizzle_migrations_secrets',
   );
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_workflows');
   await db().execute(sql`TRUNCATE workflows_workflow_runs CASCADE`);

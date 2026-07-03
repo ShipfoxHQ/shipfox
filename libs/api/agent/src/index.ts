@@ -8,10 +8,9 @@ export {
   type AgentWorkspaceSettings,
   buildModelProviderCatalog,
   type ContextualAgentConfig,
-  CredentialDecryptionError,
   catalogDefaultAgentResolver,
   createWorkspaceAgentDefaultsResolver,
-  decryptCredentials,
+  deleteModelProviderConfig,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
   type ModelProviderConfig,
@@ -26,7 +25,6 @@ export {
   UnsupportedModelProviderError,
 } from '#core/index.js';
 export {
-  deleteModelProviderConfig,
   getAgentWorkspaceSettings,
   getModelProviderConfig,
   listModelProviderConfigs,

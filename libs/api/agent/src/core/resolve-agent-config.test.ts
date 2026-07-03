@@ -252,8 +252,7 @@ function createModelProviderConfigParams(params: {
   return {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    encryptedCredentials: {'credential:api_key': `encrypted-${params.providerId}-key`},
-    keyFingerprints: {'credential:api_key': 'sk-test...abcd'},
+    keyFingerprints: {'credential:api_key': '...abcd'},
     defaultModel: params.defaultModel,
     defaultThinking: params.defaultThinking,
   };

@@ -36,13 +36,14 @@ export const upsertModelProviderConfigRoute = defineRoute({
       if (!responseFinished) abortController.abort();
     });
 
-    await requireMembership({request, workspaceId});
+    const membership = await requireMembership({request, workspaceId});
 
     const config = await testAndSaveModelProviderConfig({
       workspaceId,
       providerId,
       ...('default_model' in request.body ? {defaultModel: request.body.default_model} : {}),
       credentials: request.body.credentials,
+      editedBy: membership.userId,
       setAsDefault: request.body.set_as_default,
       signal: abortController.signal,
     });

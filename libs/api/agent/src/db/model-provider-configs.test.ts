@@ -4,7 +4,6 @@ import type {
   ModelProviderRef,
   SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
-import {decryptCredentials, encryptCredentials} from '#core/credential-encryption.js';
 import {
   db,
   deleteModelProviderConfig,
@@ -35,8 +34,7 @@ describe('model provider configs', () => {
     expect(found).toMatchObject({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': 'encrypted-anthropic-key'},
-      keyFingerprints: {'credential:api_key': 'sk-ant-...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-opus-4-8',
       defaultThinking: 'high',
       kind: 'builtin',
@@ -59,8 +57,7 @@ describe('model provider configs', () => {
       createModelProviderConfigParams({
         workspaceId,
         providerId: 'openai',
-        encryptedCredentials: {'credential:api_key': 'encrypted-rotated-key'},
-        keyFingerprints: {'credential:api_key': 'sk-openai-...wxyz'},
+        keyFingerprints: {'credential:api_key': '...wxyz'},
         defaultModel: 'gpt-5.5-pro',
         defaultThinking: 'medium',
       }),
@@ -70,8 +67,7 @@ describe('model provider configs', () => {
     expect(configs).toHaveLength(1);
     expect(configs[0]).toEqual(updated);
     expect(configs[0]).toMatchObject({
-      encryptedCredentials: {'credential:api_key': 'encrypted-rotated-key'},
-      keyFingerprints: {'credential:api_key': 'sk-openai-...wxyz'},
+      keyFingerprints: {'credential:api_key': '...wxyz'},
       defaultThinking: 'medium',
     });
   });
@@ -109,7 +105,6 @@ describe('model provider configs', () => {
     });
 
     expect(updated).toMatchObject({
-      encryptedCredentials: created.encryptedCredentials,
       keyFingerprints: created.keyFingerprints,
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: created.defaultThinking,
@@ -172,15 +167,6 @@ describe('model provider configs', () => {
   });
 
   it('round-trips a custom model provider row without storing secret headers in plaintext headers', async () => {
-    const encryptedCredentials = encryptCredentials({
-      workspaceId,
-      providerId: 'local-vllm',
-      credentials: {
-        api_key: 'sk-local-secret',
-        'header:authorization': 'Bearer header-secret',
-      },
-    });
-
     const created = await upsertModelProviderConfig({
       workspaceId,
       providerId: 'local-vllm',
@@ -190,9 +176,8 @@ describe('model provider configs', () => {
       baseUrl: 'https://llm.example.test/v1',
       headers: [{name: 'x-region', value: 'local'}],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      encryptedCredentials,
       keyFingerprints: {
-        'credential:api_key': 'sk-local...cret',
+        'credential:api_key': '...cret',
         'header:authorization': 'Bearer ...cret',
       },
       defaultModel: 'llama-3.1',
@@ -200,11 +185,6 @@ describe('model provider configs', () => {
     });
 
     const found = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
-    const decrypted = decryptCredentials({
-      workspaceId,
-      providerId: 'local-vllm',
-      encryptedCredentials: found?.encryptedCredentials ?? {},
-    });
 
     expect(found).toEqual(created);
     expect(found).toMatchObject({
@@ -222,15 +202,7 @@ describe('model provider configs', () => {
       name: 'authorization',
       value: 'Bearer header-secret',
     });
-    expect(Object.keys(found?.encryptedCredentials ?? {})).toEqual([
-      'credential:api_key',
-      'header:authorization',
-    ]);
     expect(found?.keyFingerprints['header:authorization']).toBe('Bearer ...cret');
-    expect(decrypted).toEqual({
-      api_key: 'sk-local-secret',
-      'header:authorization': 'Bearer header-secret',
-    });
   });
 
   it('does not clobber custom columns when a later upsert omits them', async () => {
@@ -243,8 +215,7 @@ describe('model provider configs', () => {
       baseUrl: 'https://llm.example.test/v1',
       headers: [{name: 'x-region', value: 'local'}],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      encryptedCredentials: {'credential:api_key': 'encrypted-local-key'},
-      keyFingerprints: {'credential:api_key': 'sk-local...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'llama-3.1',
       defaultThinking: 'high',
     });
@@ -252,8 +223,7 @@ describe('model provider configs', () => {
     const updated = await upsertModelProviderConfig({
       workspaceId,
       providerId: 'local-vllm',
-      encryptedCredentials: {'credential:api_key': 'encrypted-rotated-key'},
-      keyFingerprints: {'credential:api_key': 'sk-rotat...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'medium',
     });
@@ -265,7 +235,7 @@ describe('model provider configs', () => {
       baseUrl: 'https://llm.example.test/v1',
       headers: [{name: 'x-region', value: 'local'}],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      encryptedCredentials: {'credential:api_key': 'encrypted-rotated-key'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'medium',
     });
@@ -291,7 +261,6 @@ describe('model provider configs', () => {
       workspaceId,
       providerId: 'broken-custom',
       kind: 'custom',
-      encryptedCredentials: {},
       keyFingerprints: {},
       defaultModel: null,
       defaultThinking: 'high',
@@ -304,7 +273,6 @@ describe('model provider configs', () => {
 function createModelProviderConfigParams(params: {
   workspaceId: string;
   providerId: SupportedModelProviderId | ModelProviderRef;
-  encryptedCredentials?: Record<string, string> | undefined;
   keyFingerprints?: Record<string, string> | undefined;
   defaultModel?: string | undefined;
   defaultThinking?: AgentThinking | undefined;
@@ -312,10 +280,7 @@ function createModelProviderConfigParams(params: {
   return {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    encryptedCredentials: params.encryptedCredentials ?? {
-      'credential:api_key': `encrypted-${params.providerId}-key`,
-    },
-    keyFingerprints: params.keyFingerprints ?? {'credential:api_key': 'sk-ant-...abcd'},
+    keyFingerprints: params.keyFingerprints ?? {'credential:api_key': '...abcd'},
     defaultModel: params.defaultModel ?? 'claude-opus-4-8',
     defaultThinking: params.defaultThinking ?? 'high',
   };

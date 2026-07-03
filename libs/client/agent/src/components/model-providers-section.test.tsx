@@ -34,8 +34,8 @@ function renderModelProviders(element: ReactElement) {
   );
 }
 
-const ANTHROPIC_FINGERPRINT_RE = /sk-ant-s\.\.\.abcd/;
-const OPENAI_FINGERPRINT_RE = /sk-proj\.\.\.abcd/;
+const ANTHROPIC_FINGERPRINT_RE = /\.\.\.abcd/;
+const OPENAI_FINGERPRINT_RE = /\.\.\.abcd/;
 const LEGACY_ANTHROPIC_FINGERPRINT_RE = /sk-ant-s\.\.\.legacy/;
 function requestPath(input: RequestInfo | URL): string {
   return new URL((input as Request).url).pathname;
@@ -205,7 +205,7 @@ describe('WorkspaceModelProvidersSection', () => {
             modelProviderConfig({
               provider_id: 'openai',
               default_model: 'gpt-5-mini',
-              key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
+              key_fingerprints: {'credential:api_key': '...abcd'},
             }),
           ),
         );
@@ -218,7 +218,7 @@ describe('WorkspaceModelProvidersSection', () => {
                   modelProviderConfig({
                     provider_id: 'openai',
                     default_model: 'gpt-5-mini',
-                    key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
+                    key_fingerprints: {'credential:api_key': '...abcd'},
                   }),
                 ]
               : [],
@@ -298,7 +298,7 @@ describe('WorkspaceModelProvidersSection', () => {
             modelProviderConfig({
               provider_id: 'openai',
               default_model: 'gpt-5.5-pro',
-              key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
+              key_fingerprints: {'credential:api_key': '...abcd'},
             }),
           ),
         );
@@ -313,7 +313,7 @@ describe('WorkspaceModelProvidersSection', () => {
                     modelProviderConfig({
                       provider_id: 'openai',
                       default_model: 'gpt-5.5-pro',
-                      key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
+                      key_fingerprints: {'credential:api_key': '...abcd'},
                     }),
                   ]
                 : []),
@@ -362,7 +362,7 @@ describe('WorkspaceModelProvidersSection', () => {
           modelProviderConfig({
             provider_id: 'openai',
             default_model: null,
-            key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
+            key_fingerprints: {'credential:api_key': '...abcd'},
           }),
         );
       }
@@ -593,7 +593,7 @@ describe('WorkspaceModelProvidersSection', () => {
             modelProviderConfig(),
             modelProviderConfig({
               provider_id: 'openai',
-              key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
+              key_fingerprints: {'credential:api_key': '...abcd'},
             }),
           ],
           default_provider_id: defaultProviderId,
@@ -691,7 +691,7 @@ describe('WorkspaceModelProvidersSection', () => {
               modelProviderConfig(),
               modelProviderConfig({
                 provider_id: 'openai',
-                key_fingerprints: {'credential:api_key': 'sk-proj...abcd'},
+                key_fingerprints: {'credential:api_key': '...abcd'},
               }),
             ],
             default_provider_id: 'openai',
@@ -765,7 +765,7 @@ describe('WorkspaceModelProvidersSection', () => {
               : [
                   modelProviderConfig({
                     provider_id: 'local-vllm',
-                    key_fingerprints: {'credential:api_key': 'sk-local...abcd'},
+                    key_fingerprints: {'credential:api_key': '...abcd'},
                   }),
                 ],
             default_provider_id: null,

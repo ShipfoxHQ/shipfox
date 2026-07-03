@@ -1,7 +1,8 @@
 import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import {SecretDecryptionError, setSecrets} from '@shipfox/api-secrets';
 import {deleteModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
-import {encryptCredentials} from './credential-encryption.js';
-import {CredentialDecryptionError, ModelProviderConfigNotFoundError} from './errors.js';
+import {agentSystemNamespace} from './credential-fingerprints.js';
+import {ModelProviderConfigNotFoundError} from './errors.js';
 import {resolveRuntimeCredentials} from './resolve-runtime-credentials.js';
 
 describe('resolveRuntimeCredentials', () => {
@@ -46,7 +47,7 @@ describe('resolveRuntimeCredentials', () => {
         model: 'claude-opus-4-8',
         thinking: 'high',
       },
-      instanceConfig(),
+      {runtimeConfig: instanceConfig()},
     );
 
     expect(result.credentials).toEqual({api_key: 'sk-workspace-secret'});
@@ -60,7 +61,7 @@ describe('resolveRuntimeCredentials', () => {
         model: 'claude-opus-4-8',
         thinking: 'high',
       },
-      instanceConfig(),
+      {runtimeConfig: instanceConfig()},
     );
     const mismatched = resolveRuntimeCredentials(
       {
@@ -69,7 +70,7 @@ describe('resolveRuntimeCredentials', () => {
         model: 'gpt-5.5-pro',
         thinking: 'high',
       },
-      instanceConfig(),
+      {runtimeConfig: instanceConfig()},
     );
 
     expect(matching.credentials).toEqual({api_key: 'sk-instance-secret'});
@@ -105,19 +106,11 @@ describe('resolveRuntimeCredentials', () => {
     await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
   });
 
-  it('does not expose credential material on corrupt ciphertext errors', async () => {
-    const plaintext = 'sk-workspace-secret';
-    const encryptedCredentials = encryptCredentials({
-      workspaceId,
-      providerId: 'anthropic',
-      credentials: {api_key: plaintext},
-    });
-    const encrypted = encryptedCredentials['credential:api_key'] as string;
+  it('throws when a configured row has no secret bag', async () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': `${encrypted.slice(0, -2)}AA`},
-      keyFingerprints: {'credential:api_key': 'sk-work...cret'},
+      keyFingerprints: {'credential:api_key': '...cret'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -129,12 +122,79 @@ describe('resolveRuntimeCredentials', () => {
       thinking: 'high',
     });
 
-    await expect(result).rejects.toThrow(CredentialDecryptionError);
+    await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
+  });
+
+  it('throws when a multi-field provider secret bag is incomplete', async () => {
+    await setSecrets({
+      workspaceId,
+      namespace: agentSystemNamespace('cloudflare-ai-gateway'),
+      values: {API_KEY: 'cf-secret'},
+    });
+    await upsertModelProviderConfig({
+      workspaceId,
+      providerId: 'cloudflare-ai-gateway',
+      keyFingerprints: {
+        'credential:api_key': '...cret',
+        'credential:account_id': 'account-123',
+        'credential:gateway_id': 'gateway-456',
+      },
+      defaultModel: null,
+      defaultThinking: 'high',
+    });
+
+    const result = resolveRuntimeCredentials({
+      workspaceId,
+      provider: 'cloudflare-ai-gateway',
+      model: '@cf/meta/llama-3.1-8b-instruct',
+      thinking: 'high',
+    });
+
+    await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
+  });
+
+  it('does not resolve an orphaned secret without a provider config row', async () => {
+    await setSecrets({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+      values: {API_KEY: 'sk-orphaned-secret'},
+    });
+
+    const result = resolveRuntimeCredentials({
+      workspaceId,
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+    });
+
+    await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
+  });
+
+  it('does not expose credential material on store decryption errors', async () => {
+    const error = new SecretDecryptionError();
+    await upsertModelProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      keyFingerprints: {'credential:api_key': '...cret'},
+      defaultModel: null,
+      defaultThinking: 'high',
+    });
+
+    const result = resolveRuntimeCredentials(
+      {
+        workspaceId,
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+      },
+      {getCredentialBag: vi.fn().mockRejectedValue(error)},
+    );
+
+    await expect(result).rejects.toThrow(SecretDecryptionError);
     try {
       await result;
     } catch (error) {
-      expect(String(error)).not.toContain(plaintext);
-      expect(String(error)).not.toContain(encrypted);
+      expect(String(error)).not.toContain('sk-workspace-secret');
     }
   });
 });
@@ -142,13 +202,17 @@ describe('resolveRuntimeCredentials', () => {
 async function saveProviderConfig(params: {
   workspaceId: string;
   providerId: SupportedModelProviderId;
-  credentials: Record<string, string>;
+  credentials: {api_key: string};
 }) {
+  await setSecrets({
+    workspaceId: params.workspaceId,
+    namespace: agentSystemNamespace(params.providerId),
+    values: {API_KEY: params.credentials.api_key},
+  });
   return await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    encryptedCredentials: encryptCredentials(params),
-    keyFingerprints: {'credential:api_key': 'sk-test...cret'},
+    keyFingerprints: {'credential:api_key': '...cret'},
     defaultModel: null,
     defaultThinking: 'high',
   });

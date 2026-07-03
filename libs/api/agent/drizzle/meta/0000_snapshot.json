@@ -64,12 +64,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "encrypted_credentials": {
-          "name": "encrypted_credentials",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
         "key_fingerprints": {
           "name": "key_fingerprints",
           "type": "jsonb",
