@@ -125,6 +125,34 @@ describe('resolveRuntimeCredentials', () => {
     await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
   });
 
+  it('throws when a multi-field provider secret bag is incomplete', async () => {
+    await setSecrets({
+      workspaceId,
+      namespace: agentSystemNamespace('cloudflare-ai-gateway'),
+      values: {API_KEY: 'cf-secret'},
+    });
+    await upsertModelProviderConfig({
+      workspaceId,
+      providerId: 'cloudflare-ai-gateway',
+      keyFingerprints: {
+        'credential:api_key': '...cret',
+        'credential:account_id': 'account-123',
+        'credential:gateway_id': 'gateway-456',
+      },
+      defaultModel: null,
+      defaultThinking: 'high',
+    });
+
+    const result = resolveRuntimeCredentials({
+      workspaceId,
+      provider: 'cloudflare-ai-gateway',
+      model: '@cf/meta/llama-3.1-8b-instruct',
+      thinking: 'high',
+    });
+
+    await expect(result).rejects.toThrow(ModelProviderConfigNotFoundError);
+  });
+
   it('does not resolve an orphaned secret without a provider config row', async () => {
     await setSecrets({
       workspaceId,

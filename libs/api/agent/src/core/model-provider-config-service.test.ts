@@ -447,6 +447,33 @@ describe('testAndSaveModelProviderConfig', () => {
     expect(secrets).toEqual({API_KEY: 'sk-ant-rotated-abcd'});
   });
 
+  it('keeps a successful save when stale credential pruning fails', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    const pruneStaleSecrets = vi.fn().mockRejectedValue(new Error('prune failed'));
+
+    const config = await testAndSaveModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        credentials: {api_key: 'sk-ant-secret-abcd'},
+      },
+      {probe, pruneStaleSecrets},
+    );
+
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+    });
+    expect(stored).toEqual(config);
+    expect(secrets).toEqual({API_KEY: 'sk-ant-secret-abcd'});
+    expect(pruneStaleSecrets).toHaveBeenCalledWith({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+      expectedKeys: ['API_KEY'],
+    });
+  });
+
   it('deletes provider secrets even when the config row is already absent', async () => {
     await setSecrets({
       workspaceId,

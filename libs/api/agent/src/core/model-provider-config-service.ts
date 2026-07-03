@@ -44,6 +44,9 @@ export interface TestAndSaveModelProviderConfigParams {
 
 export interface TestAndSaveModelProviderConfigOptions {
   probe?: typeof probeModelProviderCredentials;
+  pruneStaleSecrets?:
+    | ((params: {workspaceId: string; namespace: string; expectedKeys: string[]}) => Promise<void>)
+    | undefined;
 }
 
 export interface UpdateModelProviderConfigDefaultModelParams {
@@ -101,6 +104,7 @@ export async function testAndSaveModelProviderConfig(
     model_provider: params.providerId,
     outcome: 'succeeded',
   });
+  const pruneStaleSecrets = options.pruneStaleSecrets ?? pruneStaleProviderCredentialSecrets;
   const namespace = agentSystemNamespace(params.providerId);
   const values = credentialsToStoreValues(params.providerId, params.credentials);
   await setSecrets({
@@ -109,13 +113,8 @@ export async function testAndSaveModelProviderConfig(
     values,
     editedBy: params.editedBy,
   });
-  await pruneStaleProviderCredentialSecrets({
-    workspaceId: params.workspaceId,
-    namespace,
-    expectedKeys: Object.keys(values),
-  });
 
-  return await upsertModelProviderConfig({
+  const config = await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
     keyFingerprints: fingerprintCredentials(params.providerId, params.credentials),
@@ -123,6 +122,14 @@ export async function testAndSaveModelProviderConfig(
     defaultThinking: DEFAULT_AGENT_THINKING,
     setAsDefault: params.setAsDefault,
   });
+
+  await pruneStaleSecrets({
+    workspaceId: params.workspaceId,
+    namespace,
+    expectedKeys: Object.keys(values),
+  }).catch(() => undefined);
+
+  return config;
 }
 
 export async function updateModelProviderConfigDefaultModel(

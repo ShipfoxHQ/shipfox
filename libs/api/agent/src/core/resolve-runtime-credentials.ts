@@ -3,6 +3,7 @@ import {
   type AgentThinking,
   getModelProviderEntry,
   type ModelProviderRef,
+  modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {getSecretsByNamespace, SecretDecryptionError} from '@shipfox/api-secrets';
@@ -50,7 +51,9 @@ export async function resolveRuntimeCredentials(
         params.provider as SupportedModelProviderId,
         values,
       );
-      if (Object.keys(credentials).length === 0) {
+      if (
+        !modelProviderCredentialKeysMatch(params.provider as SupportedModelProviderId, credentials)
+      ) {
         throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
       }
 
