@@ -381,6 +381,9 @@ importers:
       '@shipfox/e2e-helper-auth':
         specifier: workspace:*
         version: link:../../helpers/auth
+      '@shipfox/e2e-helper-projects':
+        specifier: workspace:*
+        version: link:../../helpers/projects
       '@shipfox/e2e-helper-secrets':
         specifier: workspace:*
         version: link:../../helpers/secrets
