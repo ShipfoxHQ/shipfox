@@ -28,7 +28,16 @@ export {
   removeMembership,
 } from './memberships.js';
 export {workspacesOutbox} from './schema/outbox.js';
-export type {CreateWorkspaceParams, UpdateWorkspaceParams} from './workspaces.js';
-export {createWorkspace, getWorkspaceById, updateWorkspace} from './workspaces.js';
+export type {
+  CreateWorkspaceParams,
+  UpdateWorkspaceParams,
+  WorkspaceServiceMetrics,
+} from './workspaces.js';
+export {
+  createWorkspace,
+  getWorkspaceById,
+  getWorkspaceServiceMetrics,
+  updateWorkspace,
+} from './workspaces.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');

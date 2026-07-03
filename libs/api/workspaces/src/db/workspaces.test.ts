@@ -1,4 +1,11 @@
-import {createWorkspace, getWorkspaceById, updateWorkspace} from './workspaces.js';
+import {acceptInvitation, createInvitation} from './invitations.js';
+import {createMembership} from './memberships.js';
+import {
+  createWorkspace,
+  getWorkspaceById,
+  getWorkspaceServiceMetrics,
+  updateWorkspace,
+} from './workspaces.js';
 
 describe('workspace queries', () => {
   describe('createWorkspace', () => {
@@ -55,6 +62,54 @@ describe('workspace queries', () => {
       const result = await updateWorkspace({id: crypto.randomUUID(), name: 'Ghost'});
 
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe('getWorkspaceServiceMetrics', () => {
+    test('counts current workspace service state', async () => {
+      const baseline = await getWorkspaceServiceMetrics();
+      const activeWorkspace = await createWorkspace({
+        name: `Metrics Active ${crypto.randomUUID()}`,
+      });
+      await createMembership({
+        userId: crypto.randomUUID(),
+        workspaceId: activeWorkspace.id,
+      });
+      const openInvitation = await createInvitation({
+        workspaceId: activeWorkspace.id,
+        email: `open-${crypto.randomUUID()}@example.com`,
+        hashedToken: `open-${crypto.randomUUID()}`,
+        expiresAt: new Date(Date.now() + 60_000),
+        invitedByUserId: crypto.randomUUID(),
+        skipEmail: true,
+      });
+      const acceptedInvitation = await createInvitation({
+        workspaceId: activeWorkspace.id,
+        email: `accepted-${crypto.randomUUID()}@example.com`,
+        hashedToken: `accepted-${crypto.randomUUID()}`,
+        expiresAt: new Date(Date.now() + 60_000),
+        invitedByUserId: crypto.randomUUID(),
+        skipEmail: true,
+      });
+      await createInvitation({
+        workspaceId: activeWorkspace.id,
+        email: `expired-${crypto.randomUUID()}@example.com`,
+        hashedToken: `expired-${crypto.randomUUID()}`,
+        expiresAt: new Date(Date.now() - 60_000),
+        invitedByUserId: crypto.randomUUID(),
+        skipEmail: true,
+      });
+      await acceptInvitation({
+        invitationId: acceptedInvitation.id,
+        acceptedByUserId: crypto.randomUUID(),
+      });
+
+      const metrics = await getWorkspaceServiceMetrics();
+
+      expect(openInvitation.acceptedAt).toBeNull();
+      expect(metrics.activeWorkspaces).toBeGreaterThanOrEqual(baseline.activeWorkspaces + 1);
+      expect(metrics.memberships).toBeGreaterThanOrEqual(baseline.memberships + 2);
+      expect(metrics.openInvitations).toBeGreaterThanOrEqual(baseline.openInvitations + 1);
     });
   });
 });
