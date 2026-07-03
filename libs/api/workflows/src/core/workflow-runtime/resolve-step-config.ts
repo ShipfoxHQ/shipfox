@@ -7,18 +7,22 @@ import type {MaterializedAgentStepConfigDto} from '@shipfox/api-agent-dto';
 import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
 import {
   type AvailabilitySite,
-  getWorkflowContextDefinition,
+  getWorkflowInterpolationFieldFailurePolicy,
   resolveRunCommand,
   resolveWorkflowTemplate,
   rootsAvailableAt,
   UnsafeRunInterpolationError,
-  type WorkflowContextName,
   type WorkflowExpressionEvaluationContext,
+  type WorkflowInterpolationField,
   type WorkflowTemplateDiagnostic,
   WorkflowTemplateResolutionError,
-  workflowContextNames,
+  type WorkflowTemplateResolutionOptions,
 } from '@shipfox/expression';
-import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
+import {
+  AgentConfigUnresolvableError,
+  InterpolationUnresolvableError,
+  type InterpolationUnresolvableField,
+} from '#core/errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
@@ -26,13 +30,7 @@ type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
 type WorkflowModelAgentStep = Extract<WorkflowModelStep, {kind: 'agent'}>;
 type WorkflowFieldTemplate = NonNullable<NonNullable<WorkflowModelRunStep['templates']>['command']>;
 
-export type StepConfigField =
-  | 'run'
-  | 'env'
-  | 'agent.prompt'
-  | 'agent.model'
-  | 'agent.provider'
-  | 'step.name';
+export type StepConfigField = InterpolationUnresolvableField;
 
 export interface WorkflowStepTemplateDiagnostic extends WorkflowTemplateDiagnostic {
   readonly field: StepConfigField;
@@ -64,28 +62,18 @@ interface WinningEnvValue {
 }
 
 export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStepConfig {
-  try {
-    const effective = buildStepConfig({...params, mode: 'effective'});
-    const authoredConfig = effective.hasTemplates
-      ? buildStepConfig({...params, mode: 'authored'}).config
-      : null;
-    const name = resolveStepName(params.step, params.context, params.site);
+  const effective = buildStepConfig({...params, mode: 'effective'});
+  const authoredConfig = effective.hasTemplates
+    ? buildStepConfig({...params, mode: 'authored'}).config
+    : null;
+  const name = resolveStepName(params.step, params.context, params.site, params.definitionId);
 
-    return {
-      config: effective.config,
-      authoredConfig,
-      ...(name.value === undefined ? {} : {name: name.value}),
-      diagnostics: [...effective.diagnostics, ...name.diagnostics],
-    };
-  } catch (error) {
-    if (
-      error instanceof UnsafeRunInterpolationError ||
-      error instanceof WorkflowTemplateResolutionError
-    ) {
-      throw new InterpolationUnresolvableError(params.definitionId, {cause: error});
-    }
-    throw error;
-  }
+  return {
+    config: effective.config,
+    authoredConfig,
+    ...(name.value === undefined || name.value === '' ? {} : {name: name.value}),
+    diagnostics: [...effective.diagnostics, ...name.diagnostics],
+  };
 }
 
 function buildStepConfig(
@@ -99,13 +87,20 @@ function buildStepConfig(
 
   if (params.step.kind === 'run') {
     const env = winningEnv(params);
-    const envResolution = resolveEnv(env, params.context, params.site, params.mode);
+    const envResolution = resolveEnv(
+      env,
+      params.context,
+      params.site,
+      params.mode,
+      params.definitionId,
+    );
     const commandResolution = resolveCommand({
       step: params.step,
       envKeys: Object.keys(envResolution.env),
       context: params.context,
       site: params.site,
       mode: params.mode,
+      definitionId: params.definitionId,
     });
     const mergedEnv = {...envResolution.env, ...commandResolution.env};
     const envConfig = Object.keys(mergedEnv).length === 0 ? {} : {env: mergedEnv};
@@ -131,6 +126,7 @@ function resolveCommand(params: {
   readonly context: WorkflowExpressionEvaluationContext;
   readonly site: AvailabilitySite;
   readonly mode: 'effective' | 'authored';
+  readonly definitionId: string;
 }): {
   readonly command: string;
   readonly env: Readonly<Record<string, string>>;
@@ -146,10 +142,21 @@ function resolveCommand(params: {
     return {command: params.step.command.value, env: {}, diagnostics: [], hasTemplate: true};
   }
 
-  const resolved = resolveRunCommand(template, params.context, {
-    reservedNames: params.envKeys,
-    requiredContextRoots: requiredTrustedRoots(template, params.site),
-  });
+  let resolved: ReturnType<typeof resolveRunCommand>;
+  try {
+    resolved = resolveRunCommand(template, params.context, {
+      reservedNames: params.envKeys,
+      ...resolutionOptions('run', params.site),
+    });
+  } catch (error) {
+    if (
+      error instanceof UnsafeRunInterpolationError ||
+      error instanceof WorkflowTemplateResolutionError
+    ) {
+      throw interpolationError(params.definitionId, 'run', error);
+    }
+    throw error;
+  }
 
   return {
     command: resolved.command,
@@ -164,6 +171,7 @@ function resolveEnv(
   context: WorkflowExpressionEvaluationContext,
   site: AvailabilitySite,
   mode: 'effective' | 'authored',
+  definitionId: string,
 ): {
   readonly env: Readonly<Record<string, string>>;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
@@ -181,9 +189,19 @@ function resolveEnv(
     }
 
     hasTemplates = true;
-    const resolved = resolveWorkflowTemplate(entry.template, context, {
-      requiredContextRoots: requiredTrustedRoots(entry.template, site),
-    });
+    let resolved: ReturnType<typeof resolveWorkflowTemplate>;
+    try {
+      resolved = resolveWorkflowTemplate(
+        entry.template,
+        context,
+        resolutionOptions('env.value', site),
+      );
+    } catch (error) {
+      if (error instanceof WorkflowTemplateResolutionError) {
+        throw interpolationError(definitionId, 'env', error, key);
+      }
+      throw error;
+    }
     resolvedEnv[key] = resolved.value;
     diagnostics.push(
       ...resolved.diagnostics.map((diagnostic) => ({
@@ -215,6 +233,7 @@ function agentStepConfig(
     mode: params.mode,
     site: params.site,
     diagnostics,
+    definitionId: params.definitionId,
   });
   const model = resolveOptionalAgentField({
     field: 'agent.model',
@@ -224,6 +243,7 @@ function agentStepConfig(
     mode: params.mode,
     site: params.site,
     diagnostics,
+    definitionId: params.definitionId,
   });
   const provider = resolveOptionalAgentField({
     field: 'agent.provider',
@@ -233,6 +253,7 @@ function agentStepConfig(
     mode: params.mode,
     site: params.site,
     diagnostics,
+    definitionId: params.definitionId,
   });
   const hasTemplates =
     step.templates?.prompt !== undefined ||
@@ -284,12 +305,23 @@ function resolveAgentField(params: {
   readonly site: AvailabilitySite;
   readonly mode: 'effective' | 'authored';
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+  readonly definitionId: string;
 }): string {
   if (params.template === undefined || params.mode === 'authored') return params.value;
 
-  const resolved = resolveWorkflowTemplate(params.template, params.context, {
-    requiredContextRoots: requiredTrustedRoots(params.template, params.site),
-  });
+  let resolved: ReturnType<typeof resolveWorkflowTemplate>;
+  try {
+    resolved = resolveWorkflowTemplate(
+      params.template,
+      params.context,
+      resolutionOptions(params.field, params.site),
+    );
+  } catch (error) {
+    if (error instanceof WorkflowTemplateResolutionError) {
+      throw interpolationError(params.definitionId, params.field, error);
+    }
+    throw error;
+  }
   params.diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: params.field})),
   );
@@ -304,6 +336,7 @@ function resolveOptionalAgentField(params: {
   readonly site: AvailabilitySite;
   readonly mode: 'effective' | 'authored';
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+  readonly definitionId: string;
 }): string | undefined {
   if (params.value === undefined) return undefined;
   return resolveAgentField({...params, value: params.value});
@@ -313,6 +346,7 @@ function resolveStepName(
   step: WorkflowModelStep,
   context: WorkflowExpressionEvaluationContext,
   site: AvailabilitySite,
+  definitionId: string,
 ): {
   readonly value: string | undefined;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
@@ -320,9 +354,19 @@ function resolveStepName(
   if (step.name === undefined) return {value: undefined, diagnostics: []};
   if (step.templates?.name === undefined) return {value: step.name, diagnostics: []};
 
-  const resolved = resolveWorkflowTemplate(step.templates.name, context, {
-    requiredContextRoots: requiredStepNameRoots(step.templates.name, site),
-  });
+  let resolved: ReturnType<typeof resolveWorkflowTemplate>;
+  try {
+    resolved = resolveWorkflowTemplate(
+      step.templates.name,
+      context,
+      resolutionOptions('step.name', site),
+    );
+  } catch (error) {
+    if (error instanceof WorkflowTemplateResolutionError) {
+      throw interpolationError(definitionId, 'step.name', error);
+    }
+    throw error;
+  }
   return {
     value: resolved.value,
     diagnostics: resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'step.name'})),
@@ -363,52 +407,29 @@ function mergeEnvLayers(
   return merged;
 }
 
-function requiredTrustedRoots(
-  segments: readonly unknown[],
+function resolutionOptions(
+  field: WorkflowInterpolationField,
   site: AvailabilitySite,
-): WorkflowContextName[] {
-  const roots = new Set<WorkflowContextName>();
-  const availableRoots = new Set(rootsAvailableAt(site));
-
-  for (const segment of segments) {
-    if (!hasContextRoots(segment)) continue;
-    for (const root of segment.contextRoots) {
-      if (!isWorkflowContextName(root)) continue;
-      if (!availableRoots.has(root)) continue;
-      if (getWorkflowContextDefinition(root).trustTier === 'trusted') roots.add(root);
-    }
-  }
-
-  return [...roots];
+): WorkflowTemplateResolutionOptions {
+  return {
+    failurePolicy: getWorkflowInterpolationFieldFailurePolicy(field),
+    availableRoots: rootsAvailableAt(site),
+  };
 }
 
-function requiredStepNameRoots(
-  segments: readonly unknown[],
-  site: AvailabilitySite,
-): WorkflowContextName[] {
-  const roots = new Set<WorkflowContextName>(requiredTrustedRoots(segments, site));
-  const availableRoots = new Set(rootsAvailableAt(site));
-
-  for (const segment of segments) {
-    if (!hasContextRoots(segment)) continue;
-    for (const root of segment.contextRoots) {
-      if (!isWorkflowContextName(root)) continue;
-      if (!availableRoots.has(root)) roots.add(root);
-    }
-  }
-
-  return [...roots];
+function interpolationError(
+  definitionId: string,
+  field: InterpolationUnresolvableField,
+  error: WorkflowTemplateResolutionError | UnsafeRunInterpolationError,
+  envKey?: string,
+): InterpolationUnresolvableError {
+  return new InterpolationUnresolvableError(definitionId, {
+    field,
+    source: error.source,
+    ...(envKey === undefined ? {} : {envKey}),
+    cause: error,
+  });
 }
-
-function hasContextRoots(value: unknown): value is {readonly contextRoots: readonly string[]} {
-  return typeof value === 'object' && value !== null && 'contextRoots' in value;
-}
-
-function isWorkflowContextName(value: string): value is WorkflowContextName {
-  return workflowContextNameSet.has(value);
-}
-
-const workflowContextNameSet: ReadonlySet<string> = new Set(workflowContextNames);
 
 function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
   return {

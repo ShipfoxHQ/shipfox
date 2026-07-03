@@ -250,8 +250,13 @@ export type WorkflowInterpolationField =
   | 'job.name'
   | 'step.name';
 
+export const workflowFieldFailurePolicies = ['fail', 'degrade', 'fail-closed'] as const;
+export type WorkflowFieldFailurePolicy = (typeof workflowFieldFailurePolicies)[number];
+export type WorkflowInterpolationFailurePolicy = Exclude<WorkflowFieldFailurePolicy, 'fail-closed'>;
+
 export interface WorkflowInterpolationFieldPolicy {
   readonly acceptedTrustTiers: readonly WorkflowContextTrustTier[];
+  readonly failurePolicy: WorkflowInterpolationFailurePolicy;
   readonly renderSanitize: boolean;
 }
 
@@ -261,34 +266,42 @@ const anyTrustTier: readonly WorkflowContextTrustTier[] = ['trusted', 'untrusted
 export const workflowInterpolationFieldPolicies = {
   run: {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    failurePolicy: 'fail',
     renderSanitize: false,
   },
   'env.value': {
     acceptedTrustTiers: anyTrustTier,
+    failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.prompt': {
     acceptedTrustTiers: anyTrustTier,
+    failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.model': {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.provider': {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.thinking': {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    failurePolicy: 'fail',
     renderSanitize: false,
   },
   'job.name': {
     acceptedTrustTiers: anyTrustTier,
+    failurePolicy: 'degrade',
     renderSanitize: true,
   },
   'step.name': {
     acceptedTrustTiers: anyTrustTier,
+    failurePolicy: 'degrade',
     renderSanitize: true,
   },
 } as const satisfies Record<WorkflowInterpolationField, WorkflowInterpolationFieldPolicy>;
@@ -296,6 +309,12 @@ export const workflowInterpolationFieldPolicies = {
 export const workflowInterpolationFields = Object.keys(
   workflowInterpolationFieldPolicies,
 ) as readonly WorkflowInterpolationField[];
+
+export const workflowPredicateFields = ['step.success_if', 'job.success'] as const;
+export type WorkflowPredicateField = (typeof workflowPredicateFields)[number];
+
+export const workflowPredicateFieldFailurePolicy =
+  'fail-closed' as const satisfies WorkflowFieldFailurePolicy;
 
 export function getWorkflowContextDefinition(name: WorkflowContextName): WorkflowContextDefinition {
   return workflowContextDefinitions[name];
@@ -355,6 +374,12 @@ export function workflowInterpolationFieldAcceptsContext(
     field,
     workflowContextDefinitions[context].trustTier,
   );
+}
+
+export function getWorkflowInterpolationFieldFailurePolicy(
+  field: WorkflowInterpolationField,
+): WorkflowInterpolationFailurePolicy {
+  return workflowInterpolationFieldPolicies[field].failurePolicy;
 }
 
 export interface WorkflowContextAvailabilityReferenceEntry {

@@ -132,12 +132,16 @@ describe('resolveWorkflowTemplate', () => {
     );
   });
 
-  it('wraps missing paths for required context roots in resolution errors', () => {
+  it('wraps missing paths for fail-policy available roots in resolution errors', () => {
     const segments = parseWorkflowTemplate(`run-${templateExpression(' run.id ')}`);
 
     let error: unknown;
     try {
-      resolveWorkflowTemplate(segments, {run: {}}, {requiredContextRoots: ['run']});
+      resolveWorkflowTemplate(
+        segments,
+        {run: {}},
+        {failurePolicy: 'fail', availableRoots: ['run']},
+      );
     } catch (caught) {
       error = caught;
     }
@@ -151,6 +155,55 @@ describe('resolveWorkflowTemplate', () => {
     expect((error as WorkflowTemplateResolutionError).cause).toBeInstanceOf(
       WorkflowExpressionEvaluationError,
     );
+  });
+
+  it('ignores over-included non-workflow roots when applying fail-policy availability', () => {
+    const segments = parseWorkflowTemplate(templateExpression(' {foo: event.ref}.foo '));
+
+    let error: unknown;
+    try {
+      resolveWorkflowTemplate(
+        segments,
+        {event: {}},
+        {failurePolicy: 'fail', availableRoots: ['event']},
+      );
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(segments[0]).toMatchObject({kind: 'expr', contextRoots: ['event', 'foo']});
+    expect(error).toBeInstanceOf(WorkflowTemplateResolutionError);
+    expect(error).toMatchObject({
+      code: 'workflow-template-resolution-failed',
+      name: 'WorkflowTemplateResolutionError',
+      source: '{foo: event.ref}.foo',
+    });
+  });
+
+  it('degrades fail-policy missing paths when a segment root is not available yet', () => {
+    const segments = parseWorkflowTemplate(
+      `deploy-${templateExpression(' event.ref + execution.index ')}`,
+    );
+
+    const result = resolveWorkflowTemplate(
+      segments,
+      {
+        event: {ref: 'refs/heads/main'},
+        execution: {},
+      },
+      {failurePolicy: 'fail', availableRoots: ['event']},
+    );
+
+    expect(result).toEqual({
+      value: 'deploy-',
+      diagnostics: [
+        {
+          reason: 'missing-path',
+          expression: 'event.ref + execution.index',
+          contextRoots: ['event', 'execution'],
+        },
+      ],
+    });
   });
 
   it('resolves caller-provided context sets without a hard-coded context list', () => {

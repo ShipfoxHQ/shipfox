@@ -21,6 +21,14 @@ export const fireManualTriggerRoute = defineRoute({
     body: fireManualTriggerBodySchema,
     response: {
       201: fireManualTriggerResponseSchema,
+      422: z.object({
+        code: z.string(),
+        details: z.object({
+          field: z.string(),
+          source: z.string(),
+          env_key: z.string().optional(),
+        }),
+      }),
     },
   },
   errorHandler: (error) => {
@@ -28,7 +36,14 @@ export const fireManualTriggerRoute = defineRoute({
       throw new ClientError(error.message, 'manual-trigger-not-found', {status: 404});
     }
     if (error instanceof InterpolationUnresolvableError) {
-      throw new ClientError(error.message, 'workflow-interpolation-unresolvable', {status: 422});
+      throw new ClientError(error.message, 'workflow-interpolation-unresolvable', {
+        status: 422,
+        details: {
+          field: error.field,
+          source: error.source,
+          ...(error.envKey === undefined ? {} : {env_key: error.envKey}),
+        },
+      });
     }
     throw error;
   },

@@ -22,3 +22,22 @@ export function evaluateWorkflowPredicate(
 ): boolean {
   return evaluateWorkflowExpression(expression, context) === true;
 }
+
+export interface FailClosedPredicateOutcome {
+  readonly value: boolean;
+  readonly evaluationFailed: boolean;
+}
+
+export function evaluateWorkflowPredicateFailClosed(
+  expression: WorkflowExpression,
+  context: WorkflowExpressionEvaluationContext,
+): FailClosedPredicateOutcome {
+  try {
+    return {value: evaluateWorkflowPredicate(expression, context), evaluationFailed: false};
+  } catch (error) {
+    if (error instanceof WorkflowExpressionEvaluationError) {
+      return {value: false, evaluationFailed: true};
+    }
+    throw error;
+  }
+}

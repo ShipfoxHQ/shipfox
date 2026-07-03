@@ -2,6 +2,8 @@ import type {WorkflowExpressionEvaluationContext} from '../evaluator/evaluate-wo
 import {
   resolveWorkflowTemplate,
   type WorkflowTemplateDiagnostic,
+  type WorkflowTemplateFailurePolicy,
+  type WorkflowTemplateResolutionOptions,
 } from '../resolver/resolve-workflow-template.js';
 import type {
   WorkflowTemplateExprSegment,
@@ -23,7 +25,8 @@ const shellIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export interface RunCommandOptions {
   readonly reservedNames?: Iterable<string>;
-  readonly requiredContextRoots?: readonly string[];
+  readonly failurePolicy?: WorkflowTemplateFailurePolicy;
+  readonly availableRoots?: readonly string[];
 }
 
 export interface ResolvedRunCommand {
@@ -67,16 +70,23 @@ export function resolveRunCommand(
   const diagnostics: WorkflowTemplateDiagnostic[] = [];
 
   for (const binding of hoisted.bindings) {
-    const resolutionOptions =
-      options.requiredContextRoots === undefined
-        ? undefined
-        : {requiredContextRoots: options.requiredContextRoots};
+    const resolutionOptions = runCommandResolutionOptions(options);
     const resolution = resolveWorkflowTemplate([binding.segment], context, resolutionOptions);
     env[binding.name] = resolution.value;
     diagnostics.push(...resolution.diagnostics);
   }
 
   return {command: hoisted.command, env, diagnostics};
+}
+
+function runCommandResolutionOptions(
+  options: RunCommandOptions,
+): WorkflowTemplateResolutionOptions | undefined {
+  if (options.failurePolicy === undefined && options.availableRoots === undefined) return undefined;
+  return {
+    ...(options.failurePolicy === undefined ? {} : {failurePolicy: options.failurePolicy}),
+    ...(options.availableRoots === undefined ? {} : {availableRoots: options.availableRoots}),
+  };
 }
 
 export function hoistRunCommand(

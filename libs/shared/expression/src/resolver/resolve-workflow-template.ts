@@ -5,8 +5,11 @@ import {
 } from '../evaluator/index.js';
 import {parseWorkflowTemplate} from '../template/parse-workflow-template.js';
 import type {WorkflowTemplateSegment} from '../template/template-segment.js';
+import {workflowContextNames} from '../workflow-context/workflow-context.js';
 import {coerceWorkflowValueToString} from './coerce-workflow-value-to-string.js';
 import {WorkflowTemplateResolutionError} from './errors.js';
+
+export type WorkflowTemplateFailurePolicy = 'fail' | 'degrade';
 
 export interface WorkflowTemplateDiagnostic {
   readonly reason: 'missing-path';
@@ -20,7 +23,8 @@ export interface WorkflowTemplateResolution {
 }
 
 export interface WorkflowTemplateResolutionOptions {
-  readonly requiredContextRoots?: readonly string[];
+  readonly failurePolicy?: WorkflowTemplateFailurePolicy;
+  readonly availableRoots?: readonly string[];
 }
 
 export function resolveWorkflowTemplate(
@@ -47,7 +51,7 @@ export function resolveWorkflowTemplate(
           contextRoots: segment.contextRoots,
         } as const satisfies WorkflowTemplateDiagnostic;
 
-        if (missingPathRequiresFailure(diagnostic, options)) {
+        if (missingPathRequiresFailure(segment, options)) {
           throw new WorkflowTemplateResolutionError({
             source: segment.expression.source,
             cause: error,
@@ -77,9 +81,20 @@ export function resolveWorkflowTemplateSource(
 }
 
 function missingPathRequiresFailure(
-  diagnostic: WorkflowTemplateDiagnostic,
+  segment: WorkflowTemplateSegment & {readonly kind: 'expr'},
   options: WorkflowTemplateResolutionOptions,
 ): boolean {
-  const requiredContextRoots = options.requiredContextRoots ?? [];
-  return diagnostic.contextRoots.some((contextRoot) => requiredContextRoots.includes(contextRoot));
+  if (options.failurePolicy !== 'fail') return false;
+  const availableRoots = options.availableRoots ?? [];
+  const workflowContextRoots = segment.contextRoots.filter(isWorkflowContextName);
+  return (
+    workflowContextRoots.length > 0 &&
+    workflowContextRoots.every((contextRoot) => availableRoots.includes(contextRoot))
+  );
 }
+
+function isWorkflowContextName(contextRoot: string): boolean {
+  return workflowContextNameSet.has(contextRoot);
+}
+
+const workflowContextNameSet: ReadonlySet<string> = new Set(workflowContextNames);

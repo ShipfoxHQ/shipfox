@@ -6,6 +6,8 @@ export {
 export {
   evaluateWorkflowExpression,
   evaluateWorkflowPredicate,
+  evaluateWorkflowPredicateFailClosed,
+  type FailClosedPredicateOutcome,
   type WorkflowExpressionEvaluationContext,
   type WorkflowExpressionEvaluationValue,
 } from './evaluator/evaluate-workflow-expression.js';
@@ -35,6 +37,7 @@ export {
   resolveWorkflowTemplate,
   resolveWorkflowTemplateSource,
   type WorkflowTemplateDiagnostic,
+  type WorkflowTemplateFailurePolicy,
   type WorkflowTemplateResolution,
   type WorkflowTemplateResolutionOptions,
 } from './resolver/resolve-workflow-template.js';
@@ -67,6 +70,7 @@ export {
   getWorkflowContextSensitivity,
   getWorkflowContextTypeEnvironment,
   getWorkflowContextUntrustedPaths,
+  getWorkflowInterpolationFieldFailurePolicy,
   type OpenWorkflowContextDefinition,
   type ReservedRootDefinition,
   rootsAvailableAt,
@@ -80,8 +84,11 @@ export {
   type WorkflowContextSensitivity,
   type WorkflowContextShape,
   type WorkflowContextTrustTier,
+  type WorkflowFieldFailurePolicy,
+  type WorkflowInterpolationFailurePolicy,
   type WorkflowInterpolationField,
   type WorkflowInterpolationFieldPolicy,
+  type WorkflowPredicateField,
   workflowContextAvailabilityReference,
   workflowContextDefinitions,
   workflowContextHosts,
@@ -89,8 +96,11 @@ export {
   workflowContextReservedRoots,
   workflowContextSensitivities,
   workflowContextTrustTiers,
+  workflowFieldFailurePolicies,
   workflowInterpolationFieldAcceptsContext,
   workflowInterpolationFieldAcceptsTrustTier,
   workflowInterpolationFieldPolicies,
   workflowInterpolationFields,
+  workflowPredicateFieldFailurePolicy,
+  workflowPredicateFields,
 } from './workflow-context/workflow-context.js';
