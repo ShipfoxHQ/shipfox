@@ -4,26 +4,20 @@ import {afterEach, beforeEach} from '@shipfox/vitest/vi';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {createIntegrationsModule, type IntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(() =>
-    Promise.resolve({
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {
+    ...actual,
+    requireWorkspaceAccess: vi.fn(() => ({
       workspaceId: 'workspace',
-      workspace: {
-        id: 'workspace',
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: 'user-1',
       role: 'admin',
-    }),
-  ),
-}));
+    })),
+  };
+});
 
-const {requireMembership} = await import('@shipfox/api-workspaces');
-export const requireMembershipMock = vi.mocked(requireMembership);
+const {requireWorkspaceAccess} = await import('@shipfox/api-auth-context');
+export const requireWorkspaceAccessMock = vi.mocked(requireWorkspaceAccess);
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -99,16 +93,8 @@ export function useIntegrationRouteTest() {
   beforeEach(async () => {
     await closeApp();
     workspaceId = crypto.randomUUID();
-    requireMembershipMock.mockResolvedValue({
+    requireWorkspaceAccessMock.mockReturnValue({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: 'user-1',
       role: 'admin',
     });

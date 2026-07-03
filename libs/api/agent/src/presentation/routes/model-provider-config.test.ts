@@ -1,8 +1,12 @@
 import {complete} from '@earendil-works/pi-ai';
 import type {ModelProviderRef} from '@shipfox/api-agent-dto';
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {
+  AUTH_USER,
+  buildUserContext,
+  requireWorkspaceAccess,
+  setUserContext,
+} from '@shipfox/api-auth-context';
 import {getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
-import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
@@ -17,9 +21,10 @@ import {
 import {modelProviderConfigs} from '#db/schema/model-provider-configs.js';
 import {agentRoutes} from './index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(),
-}));
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {...actual, requireWorkspaceAccess: vi.fn()};
+});
 
 vi.mock('@earendil-works/pi-ai', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@earendil-works/pi-ai')>();
@@ -73,16 +78,8 @@ describe('model provider config routes', () => {
       stopReason: 'stop',
       timestamp: Date.now(),
     });
-    vi.mocked(requireMembership).mockResolvedValue({
+    vi.mocked(requireWorkspaceAccess).mockReturnValue({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: AUTH_USER_ID,
       role: 'admin',
     });
@@ -114,9 +111,9 @@ describe('model provider config routes', () => {
     });
 
     it('returns 403 when the user is not a workspace member', async () => {
-      vi.mocked(requireMembership).mockRejectedValueOnce(
-        new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
-      );
+      vi.mocked(requireWorkspaceAccess).mockImplementationOnce(() => {
+        throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
+      });
 
       const res = await app.inject({
         method: 'GET',

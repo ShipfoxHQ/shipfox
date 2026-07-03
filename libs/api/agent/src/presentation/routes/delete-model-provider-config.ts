@@ -1,5 +1,5 @@
 import {modelProviderRefSchema} from '@shipfox/api-agent-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {deleteModelProviderConfig} from '#core/index.js';
@@ -23,9 +23,9 @@ export const deleteModelProviderConfigRoute = defineRoute({
     const {workspaceId, providerId} = request.params;
     const existingConfig = await getModelProviderConfig({workspaceId, providerId});
     if (existingConfig?.kind === 'custom') {
-      await requireCustomProviderAccess({request, workspaceId});
+      requireCustomProviderAccess({request, workspaceId});
     } else {
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
     }
 
     const deleted = await deleteModelProviderConfig({workspaceId, providerId});

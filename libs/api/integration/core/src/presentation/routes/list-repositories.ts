@@ -1,10 +1,9 @@
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   listRepositoriesParamsSchema,
   listRepositoriesQuerySchema,
   listRepositoriesResponseSchema,
 } from '@shipfox/api-integration-core-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import type {IntegrationSourceControlService} from '#core/source-control-service.js';
 import {toRepositoryDto} from '#presentation/dto/integrations.js';
@@ -28,7 +27,7 @@ export function createListRepositoriesRoute(sourceControl: IntegrationSourceCont
       const {connectionId} = request.params;
       const connection = await sourceControl.getConnection(connectionId);
 
-      await requireMembership({request, workspaceId: connection.workspaceId});
+      requireWorkspaceAccess({request, workspaceId: connection.workspaceId});
 
       const page = await sourceControl.listRepositories({
         connection,

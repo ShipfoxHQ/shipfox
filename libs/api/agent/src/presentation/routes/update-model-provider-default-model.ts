@@ -3,7 +3,7 @@ import {
   modelProviderRefSchema,
   updateModelProviderDefaultModelBodySchema,
 } from '@shipfox/api-agent-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {updateModelProviderConfigDefaultModel} from '#core/index.js';
@@ -31,9 +31,9 @@ export const updateModelProviderDefaultModelRoute = defineRoute({
     const {workspaceId, providerId} = request.params;
     const existingConfig = await getModelProviderConfig({workspaceId, providerId});
     if (existingConfig?.kind === 'custom') {
-      await requireCustomProviderAccess({request, workspaceId});
+      requireCustomProviderAccess({request, workspaceId});
     } else {
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
     }
 
     const config = await updateModelProviderConfigDefaultModel({

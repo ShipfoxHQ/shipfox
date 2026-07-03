@@ -1,4 +1,4 @@
-import {AUTH_USER, requireUserContext} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createGithubInstallBodySchema,
@@ -6,7 +6,7 @@ import {
   githubCallbackQuerySchema,
   githubCallbackResponseSchema,
 } from '@shipfox/api-integration-github-dto';
-import {requireMembership, requireWorkspaceMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {GithubApiClient} from '#api/client.js';
 import {config} from '#config.js';
@@ -41,11 +41,11 @@ export function createGithubIntegrationRoutes({
         200: createGithubInstallResponseSchema,
       },
     },
-    handler: async (request) => {
+    handler: (request) => {
       const {workspace_id: workspaceId} = request.body;
       const actor = requireUserContext(request);
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
       const state = signGithubInstallState({workspaceId, userId: actor.userId});
       const installUrl = new URL(
         `https://github.com/apps/${config.GITHUB_APP_SLUG}/installations/new`,

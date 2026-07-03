@@ -1,4 +1,4 @@
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   ConnectionSlugConflictError,
   type CreateIntegrationConnectionFn,
@@ -15,7 +15,6 @@ import {
   WEBHOOK_PROVIDER,
   webhookConnectionDtoSchema,
 } from '@shipfox/api-integration-webhook-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import {z} from 'zod';
@@ -53,7 +52,7 @@ async function requireWebhookConnection(params: {
     throw new ClientError('Webhook connection not found', 'not-found', {status: 404});
   }
 
-  await requireMembership({request: params.request, workspaceId: connection.workspaceId});
+  requireWorkspaceAccess({request: params.request, workspaceId: connection.workspaceId});
   return connection;
 }
 
@@ -80,7 +79,7 @@ export function createWebhookConnectionRoutes(
     handler: async (request, reply) => {
       const {workspace_id: workspaceId, name, slug} = request.body;
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
       const connection = await options.createIntegrationConnection({
         workspaceId,
         provider: WEBHOOK_PROVIDER,
@@ -109,7 +108,7 @@ export function createWebhookConnectionRoutes(
     handler: async (request) => {
       const {workspace_id: workspaceId} = request.query;
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
       const connections = (await options.listIntegrationConnections({workspaceId})).filter(
         (connection) => connection.provider === WEBHOOK_PROVIDER,
       );

@@ -18,23 +18,17 @@ type DeleteConnectionFn = CreateWebhookIntegrationProviderOptions['deleteIntegra
 
 const INBOUND_URL_RE = /^https:\/\/api\.example\.com\/webhook\//;
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(({workspaceId}) =>
-    Promise.resolve({
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {
+    ...actual,
+    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: 'user-1',
       role: 'admin',
-    }),
-  ),
-}));
+    })),
+  };
+});
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,

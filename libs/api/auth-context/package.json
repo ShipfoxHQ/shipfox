@@ -27,17 +27,21 @@
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
     "@shipfox/api-auth-dto": "workspace:*",
-    "@shipfox/api-workspaces-dto": "workspace:*"
+    "@shipfox/api-workspaces-dto": "workspace:*",
+    "@shipfox/node-fastify": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
-    "@shipfox/typescript": "workspace:*"
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*"
   }
 }

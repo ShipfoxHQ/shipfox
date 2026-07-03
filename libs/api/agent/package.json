@@ -82,7 +82,6 @@
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-secrets": "workspace:*",
-    "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-egress-guard": "workspace:*",

@@ -2,7 +2,7 @@ import {ClientError} from '@shipfox/node-fastify';
 import {upsertIntegrationConnection} from '#db/connections.js';
 import {
   createTestApp,
-  requireMembershipMock,
+  requireWorkspaceAccessMock,
   sourceProvider,
   useIntegrationRouteTest,
 } from '#test/route-utils.js';
@@ -122,9 +122,9 @@ describe('GET /integration-connections', () => {
 
   it('returns membership errors', async () => {
     const app = await createTestApp([sourceProvider()]);
-    requireMembershipMock.mockRejectedValueOnce(
-      new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
-    );
+    requireWorkspaceAccessMock.mockImplementationOnce(() => {
+      throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
+    });
 
     const res = await app.inject({
       method: 'GET',

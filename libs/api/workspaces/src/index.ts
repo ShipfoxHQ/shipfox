@@ -25,7 +25,6 @@ export {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitat
 export {getWorkspace, requireWorkspaceMembership} from '#core/workspaces.js';
 export {db, migrationsPath} from '#db/index.js';
 export {listMembershipsByUser} from '#db/memberships.js';
-export {requireMembership} from '#presentation/auth/require-membership.js';
 export {workspacesRoutes as routes} from '#presentation/routes/index.js';
 
 const subscriber = subscriberFactory<WorkspacesEventMap>();

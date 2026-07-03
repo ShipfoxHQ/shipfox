@@ -3,7 +3,7 @@ import {
   setDefaultModelProviderBodySchema,
   setDefaultModelProviderResponseSchema,
 } from '@shipfox/api-agent-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {
@@ -33,10 +33,10 @@ export const setDefaultModelProviderRoute = defineRoute({
       providerId: request.body.provider_id,
     });
     if (existingConfig?.kind === 'custom') {
-      await requireCustomProviderAccess({request, workspaceId});
+      requireCustomProviderAccess({request, workspaceId});
       throw new CustomModelProviderDefaultUnsupportedError(request.body.provider_id);
     } else {
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
       const entry = getModelProviderEntry(request.body.provider_id);
       if (entry === undefined || entry.support_status !== 'supported') {
         throw new UnsupportedModelProviderError(request.body.provider_id);

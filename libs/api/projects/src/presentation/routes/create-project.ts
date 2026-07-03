@@ -1,4 +1,4 @@
-import {AUTH_USER, requireUserContext} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   IntegrationCapabilityUnavailableError,
   IntegrationConnectionInactiveError,
@@ -10,7 +10,6 @@ import {
   type IntegrationSourceControlService,
 } from '@shipfox/api-integration-core';
 import {createProjectBodySchema, projectResponseSchema} from '@shipfox/api-projects-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {createProjectFromSource, ProjectAlreadyExistsError} from '#core/index.js';
 import {toProjectDto} from '#presentation/dto/index.js';
@@ -86,7 +85,7 @@ export function createProjectRoute(sourceControl: IntegrationSourceControlServic
       const {workspace_id: workspaceId, name, source} = request.body;
       const actor = requireUserContext(request);
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
       const project = await createProjectFromSource({
         actorId: actor.userId,
         workspaceId,

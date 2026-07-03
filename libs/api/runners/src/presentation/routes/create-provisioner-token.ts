@@ -1,9 +1,8 @@
-import {requireUserContext} from '@shipfox/api-auth-context';
+import {requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   createProvisionerTokenBodySchema,
   createProvisionerTokenResponseSchema,
 } from '@shipfox/api-runners-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {createWorkspaceProvisionerToken} from '#core/index.js';
@@ -22,7 +21,7 @@ export const createProvisionerTokenRoute = defineRoute({
   },
   handler: async (request, reply) => {
     const {workspaceId} = request.params;
-    await requireMembership({request, workspaceId});
+    requireWorkspaceAccess({request, workspaceId});
     const user = requireUserContext(request);
     const {name, ttl_seconds} = request.body;
 

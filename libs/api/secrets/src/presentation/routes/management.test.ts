@@ -1,6 +1,7 @@
 import {
   AUTH_USER,
   buildUserContext,
+  requireWorkspaceAccess,
   setUserContext,
   type UserContextMembership,
 } from '@shipfox/api-auth-context';
@@ -12,7 +13,6 @@ import {
   VARIABLE_CREATED,
   VARIABLE_DELETED,
 } from '@shipfox/api-secrets-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {and, eq, isNull, sql} from 'drizzle-orm';
@@ -20,9 +20,10 @@ import {setSecrets} from '#core/index.js';
 import {db, secretsOutbox, secretValues, secretVariables} from '#db/index.js';
 import {secretsRoutes} from './index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(),
-}));
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {...actual, requireWorkspaceAccess: vi.fn()};
+});
 
 vi.mock('@shipfox/api-projects', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shipfox/api-projects')>();
@@ -62,16 +63,8 @@ describe('secrets management routes', () => {
     await closeApp();
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
-    vi.mocked(requireMembership).mockResolvedValue({
+    vi.mocked(requireWorkspaceAccess).mockReturnValue({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: USER_ID,
       role: 'admin',
     });
@@ -103,9 +96,9 @@ describe('secrets management routes', () => {
       method: 'GET',
       url: `/workspaces/${workspaceId}/secrets`,
     });
-    vi.mocked(requireMembership).mockRejectedValueOnce(
-      new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
-    );
+    vi.mocked(requireWorkspaceAccess).mockImplementationOnce(() => {
+      throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
+    });
 
     const forbidden = await app.inject({
       method: 'GET',
@@ -118,16 +111,8 @@ describe('secrets management routes', () => {
   });
 
   it('requires admin membership for writes', async () => {
-    vi.mocked(requireMembership).mockResolvedValueOnce({
+    vi.mocked(requireWorkspaceAccess).mockReturnValueOnce({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: USER_ID,
       role: 'viewer' as 'admin',
     });

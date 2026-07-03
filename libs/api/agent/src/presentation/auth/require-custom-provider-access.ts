@@ -1,9 +1,9 @@
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import type {FastifyRequest} from '@shipfox/node-fastify';
 
-export async function requireCustomProviderAccess(params: {
+export function requireCustomProviderAccess(params: {
   request: FastifyRequest;
   workspaceId: string;
-}): Promise<void> {
-  await requireMembership(params);
+}): void {
+  requireWorkspaceAccess(params);
 }

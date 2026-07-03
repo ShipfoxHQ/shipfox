@@ -1,10 +1,9 @@
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createGiteaConnectionBodySchema,
   createGiteaConnectionResponseSchema,
 } from '@shipfox/api-integration-gitea-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {GiteaApiClient} from '#api/client.js';
 import {type ConnectGiteaConnectionInput, handleGiteaConnect} from '#core/connect.js';
@@ -42,7 +41,7 @@ export function createGiteaConnectionRoutes({
     handler: async (request) => {
       const {workspace_id: workspaceId, org} = request.body;
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
       const connection = await handleGiteaConnect({
         gitea,
         workspaceId,

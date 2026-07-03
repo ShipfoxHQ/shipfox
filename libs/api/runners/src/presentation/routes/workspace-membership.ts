@@ -1,9 +1,9 @@
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import type {FastifyRequest} from 'fastify';
 
 export function requireManualRegistrationTokenWorkspaceMembership(params: {
   request: FastifyRequest;
   workspaceId: string;
-}): Promise<unknown> {
-  return requireMembership(params);
+}): void {
+  requireWorkspaceAccess(params);
 }

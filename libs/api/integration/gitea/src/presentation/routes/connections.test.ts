@@ -9,26 +9,20 @@ import type {GiteaApiClient} from '#api/client.js';
 import type {ConnectGiteaConnectionInput} from '#core/connect.js';
 import {createGiteaIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(({workspaceId}) =>
-    Promise.resolve({
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {
+    ...actual,
+    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: 'user-1',
       role: 'admin',
-    }),
-  ),
-}));
+    })),
+  };
+});
 
-const {requireMembership} = await import('@shipfox/api-workspaces');
-const requireMembershipMock = vi.mocked(requireMembership);
+const {requireWorkspaceAccess} = await import('@shipfox/api-auth-context');
+const requireWorkspaceAccessMock = vi.mocked(requireWorkspaceAccess);
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -138,7 +132,7 @@ describe('Gitea connection routes', () => {
     expect(res.json().external_account_id).toBe('shipfox');
     expect(res.json().lifecycle_status).toBe('active');
     expect(res.json().external_url).toBe('https://gitea.example.com/shipfox');
-    expect(requireMembershipMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
+    expect(requireWorkspaceAccessMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
   });
 
   it('returns 404 when the org does not exist', async () => {

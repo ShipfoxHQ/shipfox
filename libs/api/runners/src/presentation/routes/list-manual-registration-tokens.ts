@@ -17,7 +17,7 @@ export const listManualRegistrationTokensRoute = defineRoute({
   },
   handler: async (request) => {
     const {workspaceId} = request.params;
-    await requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
+    requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
 
     const tokens = await listUsableManualRegistrationTokens(workspaceId);
     return {manual_registration_tokens: tokens.map(toManualRegistrationTokenDto)};

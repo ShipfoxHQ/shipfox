@@ -1,5 +1,5 @@
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {requireProjectForWorkspace} from '@shipfox/api-projects';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 
@@ -13,7 +13,7 @@ export async function requireManagementRead(params: {
   workspaceId: string;
   projectId?: string | undefined;
 }): Promise<ManagementAccess> {
-  const membership = await requireMembership({
+  const membership = requireWorkspaceAccess({
     request: params.request,
     workspaceId: params.workspaceId,
   });
@@ -32,7 +32,7 @@ export async function requireManagementWrite(params: {
   workspaceId: string;
   projectId?: string | undefined;
 }): Promise<ManagementAccess> {
-  const membership = await requireMembership({
+  const membership = requireWorkspaceAccess({
     request: params.request,
     workspaceId: params.workspaceId,
   });
