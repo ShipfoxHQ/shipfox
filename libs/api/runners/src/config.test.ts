@@ -113,3 +113,23 @@ describe('RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT validation', () => {
     expect(config.RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT).toBe(250);
   });
 });
+
+describe('stale provisioned runner threshold validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    ['300', '300'],
+    ['299', '300'],
+  ])('fails startup when RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS=%s and PROVISIONER_LAST_SEEN_THROTTLE_SECONDS=%s', async (thresholdSeconds, throttleSeconds) => {
+    vi.stubEnv('RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS', thresholdSeconds);
+    vi.stubEnv('PROVISIONER_LAST_SEEN_THROTTLE_SECONDS', throttleSeconds);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(
+      'RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS',
+    );
+  });
+});
