@@ -13,13 +13,21 @@ export const workflowContextNames = [
 export type WorkflowContextName = (typeof workflowContextNames)[number];
 
 export const availabilitySites = [
+  // Server receives an external trigger or manual request before a run row exists.
   'ingest',
+  // Server creates the workflow run and its run-scoped context.
   'run-creation',
+  // Server creates a concrete job execution and its execution-scoped context.
   'execution-creation',
+  // Server activates a queued job after dependencies, matrix expansion, and runner demand are known.
   'job-activation',
+  // Server dispatches a job step to a runner with all server-filled context resolved.
   'step-dispatch',
+  // Server receives a step report and makes step result context available.
   'step-report',
+  // Server resolves one job execution after its steps have settled.
   'execution-resolution',
+  // Server resolves the job after all of its executions are known.
   'job-resolution',
 ] as const;
 export type AvailabilitySite = (typeof availabilitySites)[number];
