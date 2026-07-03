@@ -10,6 +10,7 @@ import type {Scenario} from './scenarios.js';
 import type {SuiteContext} from './suite-context.js';
 
 const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
+const GITEA_REPOSITORY_PLACEHOLDER = '__GITEA_REPOSITORY__';
 
 export interface Attachment {
   name: string;
@@ -79,10 +80,9 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
 
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const repo = `${scenario.name}-${uniqueId}`;
-  const workflowYaml = scenario.workflowYaml.replaceAll(
-    GITEA_SOURCE_PLACEHOLDER,
-    suite.connectionSlug,
-  );
+  const workflowYaml = scenario.workflowYaml
+    .replaceAll(GITEA_SOURCE_PLACEHOLDER, suite.connectionSlug)
+    .replaceAll(GITEA_REPOSITORY_PLACEHOLDER, `${suite.org}/${repo}`);
 
   await createRepo({org: suite.org, name: repo});
   const project = await createProject({
@@ -139,11 +139,21 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
   const allMismatches = [...mismatches];
   const fetchedLogs: Attachment[] = [];
   for (const requirement of logRequirements) {
-    const logs = await fetchStepLogs({
-      stepId: requirement.stepId,
-      attempt: requirement.attempt,
-      token,
-    });
+    let logs: Awaited<ReturnType<typeof fetchStepLogs>>;
+    try {
+      logs = await fetchStepLogs({
+        stepId: requirement.stepId,
+        attempt: requirement.attempt,
+        token,
+      });
+    } catch (error) {
+      allMismatches.push({
+        path: `${requirement.path}.logs`,
+        expected: 'readable',
+        actual: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
     fetchedLogs.push({
       name: `logs-${requirement.path.replaceAll('/', '_')}.ndjson`,
       contentType: 'application/x-ndjson',

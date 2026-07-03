@@ -1,5 +1,5 @@
 import {type ChildProcess, execFile, spawn} from 'node:child_process';
-import {closeSync, openSync} from 'node:fs';
+import {closeSync, openSync, readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {dirname, join} from 'node:path';
 import {promisify} from 'node:util';
@@ -96,6 +96,7 @@ async function waitForActiveProvisioner(params: {
   tokenPrefix: string | undefined;
   timeoutMs: number;
   child: ChildProcess;
+  logFile: string;
 }): Promise<ActiveProvisionerDto> {
   let lastSeen: ActiveProvisionerDto[] = [];
   const abortController = new AbortController();
@@ -111,7 +112,7 @@ async function waitForActiveProvisioner(params: {
       abortController.abort();
       reject(
         new Error(
-          `Provisioner process exited before becoming active (code ${code}, signal ${signal})`,
+          `Provisioner process exited before becoming active (code ${code}, signal ${signal})${logTail(params.logFile)}`,
         ),
       );
     };
@@ -146,6 +147,16 @@ async function waitForActiveProvisioner(params: {
   } finally {
     if (onError) params.child.removeListener('error', onError);
     if (onExit) params.child.removeListener('exit', onExit);
+  }
+}
+
+function logTail(path: string): string {
+  try {
+    const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
+    const tail = lines.slice(-40).join('\n');
+    return tail ? `\n\nProvisioner log tail:\n${tail}` : '';
+  } catch {
+    return '';
   }
 }
 
@@ -185,6 +196,7 @@ export async function startProvisioner(params: StartProvisionerParams): Promise<
       tokenPrefix: params.tokenPrefix,
       timeoutMs: params.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS,
       child,
+      logFile: params.logFile,
     });
     return {
       process: child,

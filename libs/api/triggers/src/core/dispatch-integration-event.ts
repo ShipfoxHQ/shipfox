@@ -5,7 +5,7 @@ import {
   eventReceivedCount,
   subscriptionTriggeredCount,
 } from '#metrics/instance.js';
-import {readConfigInputs} from './config.js';
+import {readConfigInputs, triggerFilterMatches} from './config.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
 
@@ -60,10 +60,20 @@ export async function dispatchIntegrationEvent(
   });
 
   let triggeredCount = 0;
+  let matchedCount = 0;
   let sawTransientError = false;
   let firstTransientError: unknown;
 
   for (const subscription of subscriptions) {
+    try {
+      if (!triggerFilterMatches(subscription, params.payload)) continue;
+      matchedCount += 1;
+    } catch (error) {
+      matchedCount += 1;
+      await history.errored(subscription, toReason(error));
+      continue;
+    }
+
     try {
       const run = await runWorkflow({
         workspaceId: subscription.workspaceId,
@@ -111,13 +121,13 @@ export async function dispatchIntegrationEvent(
 
   if (sawTransientError) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'failed'});
-    await history.failed(subscriptions.length);
+    await history.failed(matchedCount);
     throw firstTransientError;
   }
 
   if (triggeredCount > 0 || listenerResult.acceptedJobCount > 0) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'routed'});
-    await history.routed(subscriptions.length);
+    await history.routed(matchedCount);
     return;
   }
 
@@ -127,6 +137,12 @@ export async function dispatchIntegrationEvent(
     return;
   }
 
+  if (matchedCount === 0) {
+    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
+    await history.discarded();
+    return;
+  }
+
   eventOutcomeCount.add(1, {provider: params.provider, outcome: 'errored'});
-  await history.allErrored(subscriptions.length);
+  await history.allErrored(matchedCount);
 }
