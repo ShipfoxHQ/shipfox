@@ -67,7 +67,8 @@ function collectExactContextRoots(
       }
       return;
     case 'map':
-      for (const [, value] of node.args) {
+      for (const [key, value] of node.args) {
+        collectMapKeyExactContextRoots(key, roots, scopedIdentifiers);
         collectExactContextRoots(value, roots, scopedIdentifiers);
       }
       return;
@@ -92,6 +93,15 @@ function collectBinaryExactContextRoots(
 ): void {
   collectExactContextRoots(left, roots, scopedIdentifiers);
   collectExactContextRoots(right, roots, scopedIdentifiers);
+}
+
+function collectMapKeyExactContextRoots(
+  key: ASTNode,
+  roots: Set<string>,
+  scopedIdentifiers: ReadonlySet<string>,
+): void {
+  if (key.op === 'id') return;
+  collectExactContextRoots(key, roots, scopedIdentifiers);
 }
 
 function bindComprehensionAlias(

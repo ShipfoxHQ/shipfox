@@ -28,6 +28,12 @@ describe('extractExactContextRoots', () => {
     expect(roots).toEqual(['event', 'inputs']);
   });
 
+  it('extracts roots from dynamic map keys', () => {
+    const roots = extractExactContextRoots('{run.id: event.x, trigger.event + inputs.suffix: "x"}');
+
+    expect(roots).toEqual(['event', 'inputs', 'run', 'trigger']);
+  });
+
   it('keeps receiver-call arguments when the method is not a comprehension macro', () => {
     const roots = extractExactContextRoots('event.ref.matches(inputs.pattern)');
 

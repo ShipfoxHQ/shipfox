@@ -9,8 +9,8 @@ function templateExpression(source: string): string {
 }
 
 describe('planInterpolationField', () => {
-  const runnerRootNotBareHint =
-    'split runner-host references into their own adjacent $' + '{{ }} segments';
+  const templateExpressionOpen = '$' + '{{';
+  const runnerRootNotBareHint = `split runner-host references into their own adjacent ${templateExpressionOpen} }} segments`;
 
   it('plans literal-only fields as frozen config with the field failure policy', () => {
     const segments = parseWorkflowTemplate('deploy main');

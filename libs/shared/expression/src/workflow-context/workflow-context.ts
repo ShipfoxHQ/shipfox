@@ -339,7 +339,7 @@ export function resolveContextRootAvailability(root: string): AvailabilitySite |
 
   if (!isWorkflowContextReservedRoot(root)) return undefined;
   const reservedRoot = workflowContextReservedRoots[root];
-  return reservedRoot?.host === 'server' ? reservedRoot.availability : undefined;
+  return reservedRoot.host === 'server' ? reservedRoot.availability : undefined;
 }
 
 export function getWorkflowContextSensitivity(

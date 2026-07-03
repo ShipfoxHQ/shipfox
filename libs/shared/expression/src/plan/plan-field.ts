@@ -8,8 +8,8 @@ import {isBareContextReference} from './bare-reference.js';
 import type {ResolvedField} from './resolved-field.js';
 import {routeExpression} from './route-expression.js';
 
-const runnerRootNotBareHint =
-  'split runner-host references into their own adjacent $' + '{{ }} segments';
+const templateExpressionOpen = '$' + '{{';
+const runnerRootNotBareHint = `split runner-host references into their own adjacent ${templateExpressionOpen} }} segments`;
 
 export type PlanViolation = {
   readonly reason: 'runner-root-not-bare';
