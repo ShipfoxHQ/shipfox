@@ -7,6 +7,7 @@ import {
   getWorkflowContextTypeEnvironment,
   rootsAvailableAt,
   runnerFillTarget,
+  unavailableRootsAt,
   type WorkflowContextName,
   type WorkflowContextTrustTier,
   type WorkflowInterpolationField,
@@ -237,6 +238,40 @@ describe('workflow context registry', () => {
       'execution',
       'step',
     ]);
+  });
+
+  it('returns unavailable known roots at an availability site', () => {
+    expect(unavailableRootsAt(['run', 'execution', 'executions', 'step'], 'run-creation')).toEqual([
+      'execution',
+      'executions',
+      'step',
+    ]);
+    expect(
+      unavailableRootsAt(['run', 'execution', 'executions', 'step'], 'execution-creation'),
+    ).toEqual(['step']);
+    expect(unavailableRootsAt(['run', 'execution', 'executions', 'step'], 'step-report')).toEqual(
+      [],
+    );
+  });
+
+  it.each(
+    availabilitySites,
+  )('returns no unavailable roots when all roots are available at %s', (site) => {
+    const roots = rootsAvailableAt(site);
+
+    const unavailableRoots = unavailableRootsAt(roots, site);
+
+    expect(unavailableRoots).toEqual([]);
+  });
+
+  it.each(
+    availabilitySites.filter(
+      (site) => availabilitySites.indexOf(site) < availabilitySites.indexOf('step-report'),
+    ),
+  )('reports step as unavailable before step-report at %s', (site) => {
+    const unavailableRoots = unavailableRootsAt(['step'], site);
+
+    expect(unavailableRoots).toEqual(['step']);
   });
 
   it('never returns runner-host roots at a server availability site', () => {

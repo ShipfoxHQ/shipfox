@@ -1456,6 +1456,10 @@ describe('normalizeWorkflowDocument', () => {
 
   describe('definition-time interpolation', () => {
     const interpolation = (source: string) => '$'.concat('{{ ', source, ' }}');
+    const listening = () => ({
+      on: [{source: 'github', event: 'pull_request_review'}],
+      max_executions: 1,
+    });
 
     it('stores parsed templates for run, env, prompt, and step name fields', () => {
       const document: WorkflowDocument = {
@@ -1710,11 +1714,252 @@ describe('normalizeWorkflowDocument', () => {
       ]);
     });
 
+    it.each([
+      ['run', {run: `echo ${interpolation('execution.index')}`}, ['run']],
+      [
+        'step-level env',
+        {run: 'echo ok', env: {EXECUTION_INDEX: interpolation('execution.index')}},
+        ['env', 'EXECUTION_INDEX'],
+      ],
+      ['step name', {name: interpolation('execution.index'), run: 'echo ok'}, ['name']],
+    ] as const)('rejects one-shot %s interpolation before its context is available', (_field, step, path) => {
+      const document: WorkflowDocument = {
+        name: 'early execution context',
+        jobs: {
+          build: {
+            steps: [step],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'context-unavailable-at-fill-site',
+          path: ['jobs', 'build', 'steps', 0, ...path],
+          message: expect.stringContaining(
+            '"execution" is not available at run creation; it becomes available at execution creation.',
+          ),
+          details: expect.objectContaining({
+            contextRoots: ['execution'],
+            unavailableRoots: ['execution'],
+            fillSite: 'run-creation',
+          }),
+        }),
+      ]);
+    });
+
+    it.each([
+      ['run', {run: `echo ${interpolation('execution.index')}`}],
+      [
+        'step-level env',
+        {run: 'echo ok', env: {EXECUTION_INDEX: interpolation('execution.index')}},
+      ],
+      ['step name', {name: interpolation('execution.index'), run: 'echo ok'}],
+    ] as const)('allows listening job %s interpolation when execution context is available', (_field, step) => {
+      const document: WorkflowDocument = {
+        name: 'execution context',
+        jobs: {
+          build: {
+            listening: listening(),
+            steps: [step],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.mode).toBe('listening');
+    });
+
+    it.each([
+      ['prompt', {prompt: interpolation('execution.index')}, ['prompt']],
+      ['model', {model: interpolation('execution.name'), prompt: 'Fix it.'}, ['model']],
+      ['provider', {provider: interpolation('execution.name'), prompt: 'Fix it.'}, ['provider']],
+    ] as const)('rejects one-shot agent %s interpolation before its context is available', (_field, step, path) => {
+      const document: WorkflowDocument = {
+        name: 'early agent context',
+        jobs: {
+          fix: {
+            steps: [step],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'context-unavailable-at-fill-site',
+          path: ['jobs', 'fix', 'steps', 0, ...path],
+          details: expect.objectContaining({
+            contextRoots: ['execution'],
+            unavailableRoots: ['execution'],
+            fillSite: 'run-creation',
+          }),
+        }),
+      ]);
+    });
+
+    it.each([
+      ['prompt', {prompt: interpolation('execution.index')}],
+      ['model', {model: interpolation('execution.name'), prompt: 'Fix it.'}],
+      ['provider', {provider: interpolation('execution.name'), prompt: 'Fix it.'}],
+    ] as const)('allows listening job agent %s interpolation when execution context is available', (_field, step) => {
+      const document: WorkflowDocument = {
+        name: 'agent execution context',
+        jobs: {
+          fix: {
+            listening: listening(),
+            steps: [step],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.mode).toBe('listening');
+    });
+
+    it('rejects step context before step reporting', () => {
+      const document: WorkflowDocument = {
+        name: 'early step context',
+        jobs: {
+          build: {
+            listening: listening(),
+            steps: [{run: `echo ${interpolation('step.status')}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'context-unavailable-at-fill-site',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+          message: expect.stringContaining(
+            '"step" is not available at execution creation; it becomes available at step reporting.',
+          ),
+          details: expect.objectContaining({
+            contextRoots: ['step'],
+            unavailableRoots: ['step'],
+            fillSite: 'execution-creation',
+          }),
+        }),
+      ]);
+    });
+
+    it('does not apply availability checks to job names', () => {
+      const document: WorkflowDocument = {
+        name: 'job display context',
+        jobs: {
+          build: {
+            name: interpolation('execution.index'),
+            steps: [{run: 'echo ok'}],
+          },
+          review: {
+            name: interpolation('execution.index'),
+            listening: listening(),
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.name?.[0]).toMatchObject({
+        kind: 'expr',
+        contextRoots: ['execution'],
+      });
+      expect(model.jobs[1]?.name?.[0]).toMatchObject({
+        kind: 'expr',
+        contextRoots: ['execution'],
+      });
+    });
+
+    it('does not apply availability checks to workflow-level or job-level env', () => {
+      const document: WorkflowDocument = {
+        name: 'shared env context',
+        env: {WORKFLOW_EXECUTION: interpolation('execution.index')},
+        jobs: {
+          build: {
+            env: {JOB_EXECUTION: interpolation('execution.index')},
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.templates?.env?.WORKFLOW_EXECUTION?.[0]).toMatchObject({
+        kind: 'expr',
+        contextRoots: ['execution'],
+      });
+      expect(model.jobs[0]?.templates?.env?.JOB_EXECUTION?.[0]).toMatchObject({
+        kind: 'expr',
+        contextRoots: ['execution'],
+      });
+    });
+
+    it('reports only unavailable roots from a multi-root segment', () => {
+      const document: WorkflowDocument = {
+        name: 'mixed availability',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('run.id + execution.index')}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'context-unavailable-at-fill-site',
+          details: expect.objectContaining({
+            contextRoots: expect.arrayContaining(['run', 'execution']),
+            unavailableRoots: ['execution'],
+          }),
+        }),
+      ]);
+    });
+
+    it('keeps one-shot fields valid when they reference run-scoped contexts', () => {
+      const document: WorkflowDocument = {
+        name: 'run context',
+        jobs: {
+          build: {
+            steps: [
+              {
+                name: interpolation('job.key'),
+                run: `echo ${interpolation('run.id + trigger.source')}`,
+                env: {INPUT: interpolation('inputs.value')},
+              },
+            ],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        templates: {
+          command: [{kind: 'literal'}, {kind: 'expr', contextRoots: ['run', 'trigger']}],
+          name: [{kind: 'expr', contextRoots: ['job']}],
+          env: {INPUT: [{kind: 'expr', contextRoots: ['inputs']}]},
+        },
+      });
+    });
+
     it('allows trusted execution metadata in run commands', () => {
       const document: WorkflowDocument = {
         name: 'execution metadata',
         jobs: {
           build: {
+            listening: listening(),
             steps: [{run: `echo ${interpolation('executions[0].name')}`}],
           },
         },
@@ -1743,6 +1988,7 @@ describe('normalizeWorkflowDocument', () => {
         jobs: {
           build: {
             name: `batch ${interpolation('execution.events[0].data.title')}`,
+            listening: listening(),
             steps: [{provider: 'openai', prompt: interpolation('execution.events[0].data.body')}],
           },
         },

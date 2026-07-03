@@ -1,13 +1,16 @@
 import {
+  type AvailabilitySite,
   createWorkflowExpression,
   type ExpressionTypeEnvironment,
   extractCelUntrustedPathAccesses,
+  getWorkflowContextAvailability,
   getWorkflowContextDefinition,
   getWorkflowContextTypeEnvironment,
   getWorkflowContextUntrustedPaths,
   InvalidWorkflowExpressionError,
   InvalidWorkflowTemplateError,
   parseWorkflowTemplate,
+  unavailableRootsAt,
   type WorkflowContextName,
   type WorkflowInterpolationField,
   type WorkflowTemplateExprSegment,
@@ -37,6 +40,7 @@ export function parseInterpolationField(params: {
   source: string;
   path: readonly WorkflowModelValidationIssuePathSegment[];
   issues: WorkflowModelValidationIssue[];
+  fillSite?: AvailabilitySite;
 }): WorkflowFieldTemplate | undefined {
   const segments = parseTemplate(params);
   if (segments === undefined) return undefined;
@@ -88,6 +92,7 @@ function validateExpressionSegment(params: {
   path: readonly WorkflowModelValidationIssuePathSegment[];
   issues: WorkflowModelValidationIssue[];
   segment: WorkflowTemplateExprSegment;
+  fillSite?: AvailabilitySite;
 }): WorkflowTemplateExprSegment | undefined {
   const contextRoots = uniqueStrings(params.segment.contextRoots);
   const knownRoots = contextRoots.filter(isWorkflowContextName);
@@ -127,6 +132,17 @@ function validateExpressionSegment(params: {
       }),
     );
     return undefined;
+  }
+
+  const fillSite = params.fillSite;
+  if (fillSite !== undefined) {
+    const unavailableRoots = unavailableRootsAt(knownRoots, fillSite);
+    if (unavailableRoots.length > 0) {
+      params.issues.push(
+        unavailableContextIssue({...params, contextRoots, unavailableRoots, fillSite}),
+      );
+      return undefined;
+    }
   }
 
   if (knownRoots.length === 0 || knownRoots.some((root) => hasSyntaxOnlyCheckMode(root))) {
@@ -216,6 +232,53 @@ function untrustedContextIssue(params: {
       rejectedRoots: params.rejectedRoots,
     },
   });
+}
+
+const availabilitySiteLabels = {
+  ingest: 'ingest',
+  'run-creation': 'run creation',
+  'execution-creation': 'execution creation',
+  'job-activation': 'job activation',
+  'step-dispatch': 'step dispatch',
+  'step-report': 'step reporting',
+  'execution-resolution': 'execution resolution',
+  'job-resolution': 'job resolution',
+} as const satisfies Record<AvailabilitySite, string>;
+
+function unavailableContextIssue(params: {
+  field: WorkflowInterpolationField;
+  source: string;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  segment: WorkflowTemplateExprSegment;
+  contextRoots: readonly string[];
+  unavailableRoots: readonly WorkflowContextName[];
+  fillSite: AvailabilitySite;
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'context-unavailable-at-fill-site',
+    message: `${fieldLabel(params.field)} interpolation references context ${params.unavailableRoots
+      .map((root) => unavailableRootMessage(root, params.fillSite))
+      .join(' ')}`,
+    path: params.path,
+    details: {
+      field: params.field,
+      source: params.source,
+      expression: params.segment.expression.source,
+      contextRoots: params.contextRoots,
+      unavailableRoots: params.unavailableRoots,
+      fillSite: params.fillSite,
+    },
+  });
+}
+
+function unavailableRootMessage(root: WorkflowContextName, fillSite: AvailabilitySite): string {
+  return `"${root}" is not available at ${describeAvailabilitySite(
+    fillSite,
+  )}; it becomes available at ${describeAvailabilitySite(getWorkflowContextAvailability(root))}.`;
+}
+
+function describeAvailabilitySite(site: AvailabilitySite): string {
+  return availabilitySiteLabels[site];
 }
 
 function hasSyntaxOnlyCheckMode(root: WorkflowContextName): boolean {

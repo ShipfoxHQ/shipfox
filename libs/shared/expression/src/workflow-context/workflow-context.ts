@@ -326,6 +326,14 @@ export function rootsAvailableAt(site: AvailabilitySite): readonly WorkflowConte
   });
 }
 
+export function unavailableRootsAt(
+  roots: readonly WorkflowContextName[],
+  site: AvailabilitySite,
+): readonly WorkflowContextName[] {
+  const availableRoots = new Set(rootsAvailableAt(site));
+  return roots.filter((root) => !availableRoots.has(root));
+}
+
 export function getWorkflowContextTypeEnvironment(
   name: WorkflowContextName,
 ): ExpressionTypeEnvironment | undefined {

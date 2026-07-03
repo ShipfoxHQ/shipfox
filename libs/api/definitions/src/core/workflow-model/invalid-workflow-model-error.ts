@@ -1,6 +1,7 @@
 export const invalidWorkflowModelErrorCode = 'invalid-workflow-model';
 
 export type WorkflowModelValidationIssueCode =
+  | 'context-unavailable-at-fill-site'
   | 'duplicate-job-id'
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
