@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {sql} from 'drizzle-orm';
+import {inArray} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {projectsIntegrationEventDedup} from '#db/schema/integration-event-dedup.js';
 import {pruneIntegrationEventDedupActivity} from './prune-integration-event-dedup.js';
@@ -17,10 +17,6 @@ async function insertDedupRow(receivedAt: Date): Promise<{
 }
 
 describe('pruneIntegrationEventDedupActivity', () => {
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE projects_integration_event_dedup`);
-  });
-
   it('deletes rows older than the retention window and keeps recent ones', async () => {
     const longAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -30,7 +26,15 @@ describe('pruneIntegrationEventDedupActivity', () => {
     const result = await pruneIntegrationEventDedupActivity();
 
     expect(result.deleted).toBe(1);
-    const remaining = await db().select().from(projectsIntegrationEventDedup);
+    const remaining = await db()
+      .select()
+      .from(projectsIntegrationEventDedup)
+      .where(
+        inArray(projectsIntegrationEventDedup.integrationEventId, [
+          old.integrationEventId,
+          recent.integrationEventId,
+        ]),
+      );
     expect(remaining.map((row) => row.integrationEventId)).toEqual([recent.integrationEventId]);
     expect(remaining.map((row) => row.projectId)).toEqual([recent.projectId]);
     expect(old.integrationEventId).not.toEqual(recent.integrationEventId);

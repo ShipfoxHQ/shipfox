@@ -12,10 +12,6 @@ import {
 import {provisionerTokenFactory} from '#test/index.js';
 
 describe('provisioner token db', () => {
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
-  });
-
   it('creates and resolves a token', async () => {
     const workspaceId = crypto.randomUUID();
     const rawToken = 'sf_pt_test-token';

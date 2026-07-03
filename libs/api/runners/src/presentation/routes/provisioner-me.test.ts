@@ -3,9 +3,7 @@ import {getWorkspace, WorkspaceNotFoundError} from '@shipfox/api-workspaces';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
-import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
-import {db} from '#db/db.js';
 import * as provisionerTokenDb from '#db/provisioner-tokens.js';
 import {revokeProvisionerToken} from '#db/provisioner-tokens.js';
 import {createProvisionerTokenAuthMethod} from '#presentation/auth/index.js';
@@ -46,7 +44,6 @@ describe('provisioner me route', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
     mocks.logger.warn.mockReset();
     vi.mocked(getWorkspace).mockImplementation(({workspaceId}) =>
       Promise.resolve(workspace({id: workspaceId})),

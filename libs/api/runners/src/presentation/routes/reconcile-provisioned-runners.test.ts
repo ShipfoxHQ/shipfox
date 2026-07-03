@@ -14,7 +14,7 @@ import {
   extractBearerToken,
 } from '@shipfox/node-fastify';
 import {vi} from '@shipfox/vitest/vi';
-import {and, desc, eq, sql} from 'drizzle-orm';
+import {and, desc, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {reservations} from '#db/schema/reservations.js';
@@ -66,10 +66,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     await closeApp();
   });
 
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_provisioned_runners, runners_reservations, runners_running_jobs CASCADE`,
-    );
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerTokenId = crypto.randomUUID();
   });

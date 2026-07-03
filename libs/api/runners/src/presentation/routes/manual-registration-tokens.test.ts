@@ -12,7 +12,7 @@ import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {revokeManualRegistrationToken} from '#db/manual-registration-tokens.js';
@@ -55,9 +55,6 @@ describe('manual registration token routes', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_manual_registration_tokens CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     vi.mocked(requireMembership).mockResolvedValue({
       workspaceId,

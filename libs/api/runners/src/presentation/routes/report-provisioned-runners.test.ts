@@ -13,7 +13,7 @@ import {
   createApp,
   extractBearerToken,
 } from '@shipfox/node-fastify';
-import {sql} from 'drizzle-orm';
+import {and, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
@@ -62,8 +62,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
     await closeApp();
   });
 
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_provisioned_runners, runners_reservations CASCADE`);
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerTokenId = crypto.randomUUID();
   });
@@ -88,7 +87,15 @@ describe('POST /provisioners/provisioned-runners/report', () => {
       },
     });
 
-    const rows = await db().select().from(provisionedRunners);
+    const rows = await db()
+      .select()
+      .from(provisionedRunners)
+      .where(
+        and(
+          eq(provisionedRunners.workspaceId, workspaceId),
+          eq(provisionedRunners.provisionerId, provisionerTokenId),
+        ),
+      );
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({accepted: 1, reservations_released: 0});
     expect(rows[0]).toMatchObject({

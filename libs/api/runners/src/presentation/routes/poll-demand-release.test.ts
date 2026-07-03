@@ -1,7 +1,7 @@
 import {AUTH_PROVISIONER_TOKEN, setProvisionerContext} from '@shipfox/api-auth-context';
 import {type AuthMethod, closeApp, createApp, extractBearerToken} from '@shipfox/node-fastify';
 import {vi} from '@shipfox/vitest/vi';
-import {sql} from 'drizzle-orm';
+import {and, eq} from 'drizzle-orm';
 import type {FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {reservations} from '#db/schema/reservations.js';
@@ -38,9 +38,6 @@ describe('POST /provisioners/demand/poll reservation cleanup', () => {
       swagger: false,
     });
     await app.ready();
-    await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_reservations, runners_provisioned_runners, runners_running_jobs, runners_outbox CASCADE`,
-    );
     await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});
 
     try {
@@ -63,7 +60,15 @@ describe('POST /provisioners/demand/poll reservation cleanup', () => {
         },
       });
 
-      const reservationRows = await db().select().from(reservations);
+      const reservationRows = await db()
+        .select()
+        .from(reservations)
+        .where(
+          and(
+            eq(reservations.workspaceId, workspaceId),
+            eq(reservations.provisionerId, provisionerTokenId),
+          ),
+        );
       expect(res.statusCode).toBe(500);
       expect(reservationRows).toHaveLength(0);
     } finally {

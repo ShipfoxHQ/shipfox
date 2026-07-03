@@ -1,4 +1,4 @@
-import {sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {reservations} from '#db/schema/reservations.js';
 import {reservationFactory} from '#test/index.js';
@@ -8,8 +8,7 @@ describe('deleteExpiredRunnerReservations', () => {
   let workspaceId: string;
   let provisionerId: string;
 
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_reservations CASCADE`);
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
   });
@@ -32,8 +31,11 @@ describe('deleteExpiredRunnerReservations', () => {
 
     const result = await deleteExpiredRunnerReservations();
 
-    const remaining = await db().select().from(reservations);
-    expect(result.deleted).toBe(1);
+    const remaining = await db()
+      .select()
+      .from(reservations)
+      .where(eq(reservations.workspaceId, workspaceId));
+    expect(result.deleted).toBeGreaterThanOrEqual(1);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.requiredLabels).toEqual(['linux', 'gpu']);
   });

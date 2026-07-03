@@ -1,5 +1,5 @@
 import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {manualRegistrationTokens} from '#db/schema/manual-registration-tokens.js';
 import {manualRegistrationTokenFactory} from '#test/index.js';
@@ -10,12 +10,6 @@ import {
 } from './manual-registration-tokens.js';
 
 describe('manual registration token core', () => {
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_manual_registration_tokens CASCADE`,
-    );
-  });
-
   it('creates a workspace manual registration token and stores only the hash', async () => {
     const workspaceId = crypto.randomUUID();
 

@@ -45,18 +45,23 @@ export async function updateDataKeyWrapCas(
   return rows.length > 0;
 }
 
-export async function listDataKeyVersions(knownVersions: string[]): Promise<string[]> {
-  if (knownVersions.length === 0) {
-    const rows = await db()
-      .selectDistinct({kekVersion: secretDataKeys.kekVersion})
-      .from(secretDataKeys);
-    return rows.map((row) => row.kekVersion);
-  }
+export async function listDataKeyVersions(
+  knownVersions: string[],
+  params: {workspaceIds?: string[] | undefined} = {},
+): Promise<string[]> {
+  if (params.workspaceIds?.length === 0) return [];
 
+  const filters: SQL[] = [];
+  if (knownVersions.length > 0) {
+    filters.push(notInArray(secretDataKeys.kekVersion, knownVersions));
+  }
+  if (params.workspaceIds) {
+    filters.push(inArray(secretDataKeys.workspaceId, params.workspaceIds));
+  }
   const rows = await db()
     .selectDistinct({kekVersion: secretDataKeys.kekVersion})
     .from(secretDataKeys)
-    .where(notInArray(secretDataKeys.kekVersion, knownVersions));
+    .where(filters.length > 0 ? and(...filters) : undefined);
   return rows.map((row) => row.kekVersion);
 }
 
@@ -64,8 +69,10 @@ export async function listDataKeysPage(params: {
   afterWorkspaceId?: string | undefined;
   limit: number;
   versions?: string[] | undefined;
+  workspaceIds?: string[] | undefined;
 }): Promise<DataKey[]> {
   if (params.versions && params.versions.length === 0) return [];
+  if (params.workspaceIds?.length === 0) return [];
 
   const filters: SQL[] = [];
   if (params.afterWorkspaceId) {
@@ -73,6 +80,9 @@ export async function listDataKeysPage(params: {
   }
   if (params.versions) {
     filters.push(inArray(secretDataKeys.kekVersion, params.versions));
+  }
+  if (params.workspaceIds) {
+    filters.push(inArray(secretDataKeys.workspaceId, params.workspaceIds));
   }
   const rows = await db()
     .select()

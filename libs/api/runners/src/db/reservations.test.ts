@@ -1,4 +1,4 @@
-import {sql, sum} from 'drizzle-orm';
+import {and, eq, inArray, or, sql, sum} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {
   deleteReservationsByIds,
@@ -12,10 +12,7 @@ describe('pollDemandAndReserve', () => {
   let workspaceId: string;
   let provisionerId: string;
 
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_reservations, runners_outbox CASCADE`,
-    );
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
   });
@@ -228,7 +225,7 @@ describe('pollDemandAndReserve', () => {
       count: 1,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const beforeDelete = await db().select().from(reservations);
+    const beforeDelete = await reservationsForTest();
     const deletedReservation = beforeDelete.find((reservation) =>
       reservation.requiredLabels.includes('linux'),
     );
@@ -236,7 +233,7 @@ describe('pollDemandAndReserve', () => {
 
     const deleted = await deleteReservationsByIds([deletedReservation.id]);
 
-    const remaining = await db().select().from(reservations);
+    const remaining = await reservationsForTest();
     expect(deleted).toBe(1);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.requiredLabels).toEqual(['macos']);
@@ -250,7 +247,7 @@ describe('pollDemandAndReserve', () => {
       count: 3,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const [reservation] = await db().select().from(reservations);
+    const [reservation] = await reservationsForTest();
     if (!reservation) throw new Error('Expected reservation');
 
     const released = await db().transaction((tx) =>
@@ -261,7 +258,7 @@ describe('pollDemandAndReserve', () => {
       }),
     );
 
-    const rows = await db().select().from(reservations);
+    const rows = await reservationsForTest();
     expect(released).toBe(2);
     expect(rows[0]?.count).toBe(1);
   });
@@ -274,7 +271,7 @@ describe('pollDemandAndReserve', () => {
       count: 1,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const [reservation] = await db().select().from(reservations);
+    const [reservation] = await reservationsForTest();
     if (!reservation) throw new Error('Expected reservation');
 
     const released = await db().transaction((tx) =>
@@ -285,27 +282,41 @@ describe('pollDemandAndReserve', () => {
       }),
     );
 
-    const rows = await db().select().from(reservations);
+    const rows = await reservationsForTest();
     expect(released).toBe(1);
     expect(rows).toHaveLength(0);
   });
 
   it('does not release another workspace or provisioner reservation', async () => {
-    await reservationFactory.create({
+    const otherWorkspace = await reservationFactory.create({
       workspaceId: crypto.randomUUID(),
       provisionerId,
       requiredLabels: ['linux'],
       count: 1,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await reservationFactory.create({
+    const otherProvisioner = await reservationFactory.create({
       workspaceId,
       provisionerId: crypto.randomUUID(),
       requiredLabels: ['linux'],
       count: 1,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const rowsBefore = await db().select().from(reservations);
+    const rowsBefore = await db()
+      .select()
+      .from(reservations)
+      .where(
+        or(
+          and(
+            eq(reservations.workspaceId, otherWorkspace.workspaceId),
+            eq(reservations.provisionerId, otherWorkspace.provisionerId),
+          ),
+          and(
+            eq(reservations.workspaceId, otherProvisioner.workspaceId),
+            eq(reservations.provisionerId, otherProvisioner.provisionerId),
+          ),
+        ),
+      );
 
     const released = await db().transaction((tx) =>
       releaseReservationUnits(tx, {
@@ -315,7 +326,15 @@ describe('pollDemandAndReserve', () => {
       }),
     );
 
-    const rowsAfter = await db().select().from(reservations);
+    const rowsAfter = await db()
+      .select()
+      .from(reservations)
+      .where(
+        inArray(
+          reservations.id,
+          rowsBefore.map((reservation) => reservation.id),
+        ),
+      );
     expect(released).toBe(0);
     expect(rowsAfter.map((reservation) => reservation.id).sort()).toEqual(
       rowsBefore.map((reservation) => reservation.id).sort(),
@@ -330,7 +349,7 @@ describe('pollDemandAndReserve', () => {
       count: 1,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const [reservation] = await db().select().from(reservations);
+    const [reservation] = await reservationsForTest();
     if (!reservation) throw new Error('Expected reservation');
 
     const released = await db().transaction((tx) =>
@@ -341,7 +360,7 @@ describe('pollDemandAndReserve', () => {
       }),
     );
 
-    const rows = await db().select().from(reservations);
+    const rows = await reservationsForTest();
     expect(released).toBe(1);
     expect(rows).toHaveLength(0);
   });
@@ -360,6 +379,18 @@ describe('pollDemandAndReserve', () => {
         sql`${reservations.workspaceId} = ${workspaceId} and ${reservations.expiresAt} > now()`,
       );
     return Number(row?.value ?? 0);
+  }
+
+  async function reservationsForTest() {
+    return await db()
+      .select()
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.workspaceId, workspaceId),
+          eq(reservations.provisionerId, provisionerId),
+        ),
+      );
   }
 
   function template(templateKey: string, labels: string[], availableSlots: number) {

@@ -43,7 +43,6 @@ describe('provisioner token routes', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
     workspaceId = crypto.randomUUID();
     vi.mocked(requireMembership).mockResolvedValue({
       workspaceId,

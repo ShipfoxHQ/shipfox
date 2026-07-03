@@ -10,7 +10,6 @@ import {
 import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
-import {sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
@@ -51,7 +50,6 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE runners_provisioned_runners, runners_running_jobs CASCADE`);
     workspaceId = crypto.randomUUID();
     vi.mocked(requireMembership).mockResolvedValue({
       workspaceId,

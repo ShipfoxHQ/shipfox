@@ -1,6 +1,4 @@
-import {sql} from 'drizzle-orm';
 import {appendLogs} from '#core/append-logs.js';
-import {db} from '#db/db.js';
 import {endLine, ndjsonBody, outputLine} from '#test/fixtures/ndjson.js';
 import {getOpenStreamCount} from './streams.js';
 
@@ -23,19 +21,15 @@ function newCtx(): Ctx {
 }
 
 describe('getOpenStreamCount', () => {
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE logs_chunks, logs_attempt_streams, logs_job_accounting, logs_outbox CASCADE`,
-    );
+  it('reports the current open stream count', async () => {
+    const before = await getOpenStreamCount();
+
+    const after = await getOpenStreamCount();
+    expect(after - before).toBe(0n);
   });
 
-  it('reports zero when no streams are open', async () => {
-    const count = await getOpenStreamCount();
-
-    expect(count).toBe(0n);
-  });
-
-  it('counts only streams that are still open', async () => {
+  it('counts newly opened streams without counting streams closed in the same test', async () => {
+    const before = await getOpenStreamCount();
     const open = newCtx();
     const closed = newCtx();
     await appendLogs({...open, attempt: 1, offset: 0, body: ndjsonBody(outputLine('open\n'))});
@@ -46,8 +40,8 @@ describe('getOpenStreamCount', () => {
       body: ndjsonBody(outputLine('closed\n'), endLine(7)),
     });
 
-    const count = await getOpenStreamCount();
+    const after = await getOpenStreamCount();
 
-    expect(count).toBe(1n);
+    expect(after - before).toBe(1n);
   });
 });

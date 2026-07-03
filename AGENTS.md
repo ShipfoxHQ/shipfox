@@ -581,7 +581,8 @@ If a test needs assertions in multiple places it is likely testing more than one
 
 - Each `describe` block generates a fresh `organizationId` (or other scope key) via `faker` in `beforeEach` so tests don't share data.
 - `vi.restoreAllMocks()` is called automatically in `afterEach`; no need to do it manually.
-- DB state is cleaned by truncating tables in `globalSetup`, not between individual tests, so avoid relying on an empty DB mid-suite.
+- DB state is cleaned by truncating tables in `globalSetup`, not between individual tests. A module's `globalSetup` may only truncate tables owned by that module, so avoid relying on an empty DB mid-suite.
+- Do not truncate from individual test files. Scope test data with fresh identifiers such as `projectId`, `workspaceId`, `organizationId`, or another module-owned key per test, and filter reads/assertions to that scope.
 
 ### Mocking
 
