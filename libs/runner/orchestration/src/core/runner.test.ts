@@ -147,6 +147,7 @@ describe('runJob', () => {
           workflowRunId: JOB.workflow_run_id,
           workflowRunAttemptId: JOB.workflow_run_attempt_id,
           jobId: JOB.job_id,
+          jobExecutionId: JOB.job_execution_id,
         },
       }),
     );

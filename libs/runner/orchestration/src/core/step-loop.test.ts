@@ -65,6 +65,7 @@ const JOB_CONTEXT = {
   workflowRunId: '00000000-0000-0000-0000-000000000004',
   workflowRunAttemptId: RUN_ID,
   jobId: JOB_ID,
+  jobExecutionId: '00000000-0000-0000-0000-0000000000ad',
 };
 const leaseClient = {} as never;
 const STREAM_LENGTH = 128;

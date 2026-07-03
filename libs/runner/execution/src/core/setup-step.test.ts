@@ -1,3 +1,4 @@
+import {logger} from '@shipfox/node-opentelemetry';
 import {HTTPError} from 'ky';
 
 const requestCheckoutTokenMock = vi.fn();
@@ -34,6 +35,7 @@ const jobContext = {
   workflowRunId: '00000000-0000-0000-0000-0000000000ac',
   workflowRunAttemptId: '00000000-0000-0000-0000-0000000000ab',
   jobId: '00000000-0000-0000-0000-0000000000aa',
+  jobExecutionId: '00000000-0000-0000-0000-0000000000ad',
 };
 
 function checkoutResponse(auth?: unknown) {
@@ -45,7 +47,7 @@ function checkoutResponse(auth?: unknown) {
 }
 
 function run(log?: ReturnType<typeof fakeLog>) {
-  return executeSetupStep({cwd: CWD, leaseClient, signal, ...(log ? {log, jobContext} : {})});
+  return executeSetupStep({cwd: CWD, leaseClient, signal, ...(log ? {log} : {}), jobContext});
 }
 
 function fakeLog() {
@@ -118,6 +120,7 @@ describe('executeSetupStep', () => {
         `Workflow run: ${jobContext.workflowRunId}`,
         `Workflow run attempt: ${jobContext.workflowRunAttemptId}`,
         `Job: ${jobContext.jobId}`,
+        `Job execution: ${jobContext.jobExecutionId}`,
       ],
     });
     expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');
@@ -145,6 +148,16 @@ describe('executeSetupStep', () => {
     );
   });
 
+  it('writes structured setup lifecycle logs', async () => {
+    const info = vi.spyOn(logger(), 'info').mockImplementation(() => undefined);
+
+    const result = await run();
+
+    expect(result.success).toBe(true);
+    expect(info).toHaveBeenCalledWith(jobContext, 'Setup step started');
+    expect(info).toHaveBeenCalledWith(jobContext, 'Setup step completed');
+  });
+
   it('routes checkout callbacks to the setup log sink', async () => {
     const log = fakeLog();
 
@@ -170,6 +183,7 @@ describe('executeSetupStep', () => {
 
   it('checks git before minting a credential', async () => {
     const log = fakeLog();
+    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
     assertGitAvailableMock.mockRejectedValue(new Error('git is not available on the runner host'));
 
     const result = await run(log);
@@ -185,6 +199,10 @@ describe('executeSetupStep', () => {
     expect(log.writeOutputLine).toHaveBeenCalledWith(
       'Next step: Install Git in the runner image or use a runner image that includes Git.',
       'stderr',
+    );
+    expect(warn).toHaveBeenCalledWith(
+      {...jobContext, reason: 'git_unavailable'},
+      'Setup step failed',
     );
   });
 
