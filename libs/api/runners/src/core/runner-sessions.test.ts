@@ -1,9 +1,14 @@
 import {verifyRunnerSessionToken} from '@shipfox/api-auth';
-import {eq} from 'drizzle-orm';
+import {and, eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
+import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
-import {ephemeralRegistrationTokenFactory, manualRegistrationTokenFactory} from '#test/index.js';
+import {
+  ephemeralRegistrationTokenFactory,
+  manualRegistrationTokenFactory,
+  provisionedRunnerFactory,
+} from '#test/index.js';
 import {
   EmptyRunnerLabelsError,
   RegistrationTokenConsumedError,
@@ -95,6 +100,41 @@ describe('registerRunnerSession', () => {
 
     const claims = await verifyRunnerSessionToken(result.sessionToken);
     expect(claims?.maxClaims).toBe(1);
+  });
+
+  it('links an existing provisioned runner row when consuming an ephemeral token', async () => {
+    const token = await ephemeralRegistrationTokenFactory.create({workspaceId});
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId: token.provisionerId,
+      provisionedRunnerId: token.provisionedRunnerId,
+      runnerSessionId: null,
+      state: 'starting',
+    });
+
+    const result = await registerRunnerSession({
+      credential: {
+        kind: 'ephemeral',
+        ephemeralTokenId: token.id,
+        workspaceId,
+        provisionerId: token.provisionerId,
+        reservationId: token.reservationId,
+        provisionedRunnerId: token.provisionedRunnerId,
+      },
+      labels: ['linux'],
+    });
+
+    const [provisionedRunner] = await db()
+      .select()
+      .from(provisionedRunners)
+      .where(
+        and(
+          eq(provisionedRunners.workspaceId, workspaceId),
+          eq(provisionedRunners.provisionerId, token.provisionerId),
+          eq(provisionedRunners.provisionedRunnerId, token.provisionedRunnerId),
+        ),
+      );
+    expect(provisionedRunner?.runnerSessionId).toBe(result.session.id);
   });
 
   it('rejects a second consume of the same ephemeral token', async () => {
