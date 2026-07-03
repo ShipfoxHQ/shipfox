@@ -2,17 +2,15 @@ import {type ChildProcess, spawn} from 'node:child_process';
 import {closeSync, openSync, readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {dirname, join} from 'node:path';
-import type {ActiveRunnerDto, ActiveRunnersResponseDto} from '@shipfox/api-runners-dto';
-import {config, requestJson} from '@shipfox/e2e-core';
+import {config} from '@shipfox/e2e-core';
 import {pollUntil} from './poll.js';
 
 const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
 const DEFAULT_SIGTERM_TIMEOUT_MS = 15_000;
+const RUNNER_SESSION_ID_LOG_RE = /"runnerSessionId":"([^"]+)"/;
 
 export interface StartLocalRunnerParams {
   workspaceId: string;
-  /** User session bearer used to poll the workspace's active runners. */
-  userToken: string;
   /** Manual or ephemeral registration token the runner exchanges at startup. */
   registrationToken: string;
   /** Labels the runner registers with. */
@@ -37,7 +35,7 @@ export interface LocalRunnerHandle {
   logFile: string;
   workspaceId: string;
   labels: readonly string[];
-  runner: ActiveRunnerDto;
+  runnerSessionId: string;
 }
 
 export interface StopLocalRunnerOptions {
@@ -82,15 +80,12 @@ function buildRunnerEnv(params: StartLocalRunnerParams): Record<string, string> 
   };
 }
 
-async function waitForActiveRunner(params: {
-  workspaceId: string;
-  userToken: string;
+async function waitForRunnerSessionRegistered(params: {
   labels: readonly string[];
   timeoutMs: number;
   child: ChildProcess;
   logFile: string;
-}): Promise<ActiveRunnerDto> {
-  let lastSeen: ActiveRunnerDto[] = [];
+}): Promise<string> {
   const abortController = new AbortController();
 
   let onError: ((error: Error) => void) | undefined;
@@ -104,7 +99,7 @@ async function waitForActiveRunner(params: {
       abortController.abort();
       reject(
         new Error(
-          `Local runner process exited before becoming active (code ${code}, signal ${signal})${logTail(params.logFile)}`,
+          `Local runner process exited before registering a session (code ${code}, signal ${signal})${logTail(params.logFile)}`,
         ),
       );
     };
@@ -112,25 +107,14 @@ async function waitForActiveRunner(params: {
     params.child.once('exit', onExit);
   });
 
-  const poll = pollUntil<ActiveRunnerDto>(
+  const poll = pollUntil<string>(
     {
       timeoutMs: params.timeoutMs,
       signal: abortController.signal,
       describe: () =>
-        `local runner with labels ${params.labels.join(',')} to become active for workspace ${params.workspaceId} (last active list: ${JSON.stringify(lastSeen)})`,
+        `local runner with labels ${params.labels.join(',')} to register a runner session${logTail(params.logFile)}`,
     },
-    async () => {
-      const {runners} = await requestJson<ActiveRunnersResponseDto>(
-        'get',
-        `/workspaces/${params.workspaceId}/runners/active`,
-        {headers: {authorization: `Bearer ${params.userToken}`}},
-      );
-      lastSeen = runners;
-      const match = runners.find((runner) =>
-        params.labels.every((label) => runner.labels.includes(label)),
-      );
-      return match ?? null;
-    },
+    () => Promise.resolve(readRegisteredRunnerSessionId(params.logFile)),
   );
 
   try {
@@ -139,6 +123,25 @@ async function waitForActiveRunner(params: {
     if (onError) params.child.removeListener('error', onError);
     if (onExit) params.child.removeListener('exit', onExit);
   }
+}
+
+function readRegisteredRunnerSessionId(path: string): string | null {
+  try {
+    const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
+    for (const line of lines.toReversed()) {
+      if (!line.includes('Runner session registered')) continue;
+      try {
+        const entry = JSON.parse(line) as {runnerSessionId?: unknown};
+        if (typeof entry.runnerSessionId === 'string') return entry.runnerSessionId;
+      } catch {
+        const match = RUNNER_SESSION_ID_LOG_RE.exec(line);
+        if (match) return match[1];
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function logTail(path: string): string {
@@ -175,9 +178,7 @@ export async function startLocalRunner(params: StartLocalRunnerParams): Promise<
   }
 
   try {
-    const runner = await waitForActiveRunner({
-      workspaceId: params.workspaceId,
-      userToken: params.userToken,
+    const runnerSessionId = await waitForRunnerSessionRegistered({
       labels: params.labels,
       timeoutMs: params.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS,
       child,
@@ -189,7 +190,7 @@ export async function startLocalRunner(params: StartLocalRunnerParams): Promise<
       logFile: params.logFile,
       workspaceId: params.workspaceId,
       labels: params.labels,
-      runner,
+      runnerSessionId,
     };
   } catch (error) {
     child.kill('SIGKILL');

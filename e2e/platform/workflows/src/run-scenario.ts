@@ -211,7 +211,6 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
     await mkdir(runnerLogDir, {recursive: true});
     runner = await startLocalRunner({
       workspaceId: suite.workspaceId,
-      userToken: token,
       registrationToken: registrationToken.raw_token,
       labels: [runnerLabel],
       logFile: runnerLogFile,
