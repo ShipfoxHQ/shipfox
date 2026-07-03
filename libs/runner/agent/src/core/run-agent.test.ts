@@ -213,6 +213,26 @@ describe('runAgent', () => {
     );
   });
 
+  it('treats an empty custom provider api key as keyless', async () => {
+    findMock.mockReturnValue({provider: 'local-ollama', id: 'llama'});
+
+    await runAgent(
+      invocation({
+        provider: 'local-ollama',
+        model: 'llama',
+        credentials: {api_key: ''},
+        customProvider: customProvider({models: [{id: 'llama', label: 'Llama'}]}),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'local-ollama',
+      expect.objectContaining({
+        apiKey: 'shipfox-keyless-custom-provider-placeholder',
+      }),
+    );
+  });
+
   it('skips missing secret headers when rebuilding custom provider headers', async () => {
     findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
 
@@ -229,6 +249,49 @@ describe('runAgent', () => {
       'custom',
       expect.objectContaining({
         headers: {'x-plain': 'plain'},
+      }),
+    );
+  });
+
+  it('skips empty secret headers when rebuilding custom provider headers', async () => {
+    findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
+
+    await runAgent(
+      invocation({
+        provider: 'custom',
+        model: 'custom-gpt',
+        credentials: {api_key: 'sk-custom', 'header:x-secret': ''},
+        customProvider: customProvider({secret_header_names: ['x-secret']}),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'custom',
+      expect.objectContaining({
+        headers: {'x-plain': 'plain'},
+      }),
+    );
+  });
+
+  it('lets secret headers override plaintext headers with the same name', async () => {
+    findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
+
+    await runAgent(
+      invocation({
+        provider: 'custom',
+        model: 'custom-gpt',
+        credentials: {api_key: 'sk-custom', 'header:x-auth': 'secret-auth'},
+        customProvider: customProvider({
+          headers: [{name: 'x-auth', value: 'plain-auth'}],
+          secret_header_names: ['x-auth'],
+        }),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'custom',
+      expect.objectContaining({
+        headers: {'x-auth': 'secret-auth'},
       }),
     );
   });
@@ -270,13 +333,53 @@ describe('runAgent', () => {
           {
             id: 'custom-gpt',
             name: 'Custom GPT',
-            provider: 'custom',
             api: 'openai-responses',
             reasoning: DEFAULT_CUSTOM_MODEL_REASONING,
             input: DEFAULT_CUSTOM_MODEL_INPUT_IMAGE ? ['text', 'image'] : ['text'],
             cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
             contextWindow: DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
             maxTokens: DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
+          },
+        ],
+      }),
+    );
+  });
+
+  it('passes explicit custom provider model metadata through to pi', async () => {
+    findMock.mockReturnValue({provider: 'custom', id: 'vision-model'});
+
+    await runAgent(
+      invocation({
+        provider: 'custom',
+        model: 'vision-model',
+        customProvider: customProvider({
+          models: [
+            {
+              id: 'vision-model',
+              label: 'Vision Model',
+              context_window: 64_000,
+              max_output_tokens: 8_192,
+              input_image: true,
+              reasoning: true,
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(registerProviderMock).toHaveBeenCalledWith(
+      'custom',
+      expect.objectContaining({
+        models: [
+          {
+            id: 'vision-model',
+            name: 'Vision Model',
+            api: 'openai-responses',
+            reasoning: true,
+            input: ['text', 'image'],
+            cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
+            contextWindow: 64_000,
+            maxTokens: 8_192,
           },
         ],
       }),

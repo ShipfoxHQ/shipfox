@@ -162,9 +162,7 @@ async function registerCustomProvider(
       api: customProvider.api,
       apiKey: customProviderApiKey(credentials),
       headers: customProviderHeaders(customProvider, credentials),
-      models: customProvider.models.map((model) =>
-        toPiCustomProviderModel(provider, customProvider, model),
-      ),
+      models: customProvider.models.map((model) => toPiCustomProviderModel(customProvider, model)),
     });
   } catch (error) {
     throw new AgentConfigError(
@@ -198,22 +196,21 @@ function customProviderHeaders(
 }
 
 function toPiCustomProviderModel(
-  provider: string,
   customProvider: CustomModelProviderRuntimeConfigDto,
   model: CustomAgentModelDto,
 ): CustomProviderModel {
   const inputImage = model.input_image ?? DEFAULT_CUSTOM_MODEL_INPUT_IMAGE;
-  return {
+  const piModel: CustomProviderModel = {
     id: model.id,
     name: model.label,
-    provider,
     api: customProvider.api,
     reasoning: model.reasoning ?? DEFAULT_CUSTOM_MODEL_REASONING,
     input: inputImage ? ['text', 'image'] : ['text'],
     cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
     contextWindow: model.context_window ?? DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
     maxTokens: model.max_output_tokens ?? DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
-  } as CustomProviderModel;
+  };
+  return piModel;
 }
 
 function startForwarding(
