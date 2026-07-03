@@ -22,9 +22,10 @@ function newCtx(): Ctx {
 
 describe('getOpenStreamCount', () => {
   it('reports the current open stream count', async () => {
-    const count = await getOpenStreamCount();
+    const before = await getOpenStreamCount();
 
-    expect(count).toBeGreaterThanOrEqual(0n);
+    const after = await getOpenStreamCount();
+    expect(after - before).toBe(0n);
   });
 
   it('counts newly opened streams without counting streams closed in the same test', async () => {
