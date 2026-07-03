@@ -1,8 +1,8 @@
 import {
   AUTH_USER,
   buildUserContext,
-  requireWorkspaceAccess,
   setUserContext,
+  type UserContextMembership,
 } from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
@@ -16,12 +16,8 @@ import {createProvisionerTokenAuthMethod} from '#presentation/auth/index.js';
 import {provisionerTokenFactory} from '#test/index.js';
 import {provisionerRoutes} from './index.js';
 
-vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
-  return {...actual, requireWorkspaceAccess: vi.fn()};
-});
-
 const userId = crypto.randomUUID();
+let authenticatedMemberships: ReadonlyArray<UserContextMembership> = [];
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -35,7 +31,7 @@ const fakeUserAuth: AuthMethod = {
       buildUserContext({
         userId,
         email: 'user@example.com',
-        memberships: [{workspaceId: 'workspace-from-auth', role: 'admin'}],
+        memberships: authenticatedMemberships,
       }),
     );
     return Promise.resolve();
@@ -49,11 +45,7 @@ describe('provisioner token routes', () => {
   beforeEach(async () => {
     await closeApp();
     workspaceId = crypto.randomUUID();
-    vi.mocked(requireWorkspaceAccess).mockReturnValue({
-      workspaceId,
-      userId,
-      role: 'admin',
-    });
+    authenticatedMemberships = [{workspaceId, role: 'admin'}];
     app = await createApp({
       auth: [fakeUserAuth, createProvisionerTokenAuthMethod()],
       routes: provisionerRoutes,
@@ -82,9 +74,7 @@ describe('provisioner token routes', () => {
     });
 
     it('returns 403 when the user is not a workspace member', async () => {
-      vi.mocked(requireWorkspaceAccess).mockImplementationOnce(() => {
-        throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
-      });
+      authenticatedMemberships = [{workspaceId: crypto.randomUUID(), role: 'admin'}];
 
       const res = await app.inject({
         method: 'GET',

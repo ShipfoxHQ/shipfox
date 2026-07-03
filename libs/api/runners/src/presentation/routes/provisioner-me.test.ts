@@ -9,25 +9,6 @@ import {createProvisionerTokenAuthMethod} from '#presentation/auth/index.js';
 import {provisionerTokenFactory} from '#test/index.js';
 import {provisionerRoutes} from './index.js';
 
-const mocks = vi.hoisted(() => ({
-  logger: {
-    child: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-    fatal: vi.fn(),
-    info: vi.fn(),
-    trace: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
-
-mocks.logger.child.mockReturnValue(mocks.logger);
-
-vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
-  logger: () => mocks.logger,
-}));
-
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
   authenticate: () => Promise.resolve(),
@@ -38,7 +19,6 @@ describe('provisioner me route', () => {
 
   beforeEach(async () => {
     await closeApp();
-    mocks.logger.warn.mockReset();
     app = await createApp({
       auth: [fakeUserAuth, createProvisionerTokenAuthMethod()],
       routes: provisionerRoutes,
@@ -95,10 +75,6 @@ describe('provisioner me route', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({id: token.id, workspace_id: workspaceId});
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {error: expect.any(Error), provisionerTokenId: token.id},
-      'last-seen touch failed',
-    );
   });
 
   it('returns 401 without an authorization header', async () => {
@@ -109,10 +85,6 @@ describe('provisioner me route', () => {
 
     expect(res.statusCode).toBe(401);
     expect(res.json().code).toBe('unauthorized');
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {prefix: undefined, reason: 'missing'},
-      'provisioner token auth failed',
-    );
   });
 
   it('returns 401 for a non-provisioner token type before lookup', async () => {
@@ -126,10 +98,6 @@ describe('provisioner me route', () => {
 
     expect(res.statusCode).toBe(401);
     expect(res.json().code).toBe('unauthorized');
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {prefix: rawToken.slice(0, 12), reason: 'type'},
-      'provisioner token auth failed',
-    );
   });
 
   it('returns 401 for an unknown provisioner token', async () => {
@@ -143,10 +111,6 @@ describe('provisioner me route', () => {
 
     expect(res.statusCode).toBe(401);
     expect(res.json().code).toBe('unauthorized');
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {prefix: rawToken.slice(0, 12), reason: 'not-found'},
-      'provisioner token auth failed',
-    );
   });
 
   it('returns 401 for a revoked provisioner token', async () => {

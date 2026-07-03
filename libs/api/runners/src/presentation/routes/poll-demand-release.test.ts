@@ -73,6 +73,7 @@ describe('POST /provisioners/demand/poll reservation cleanup', () => {
       expect(reservationRows).toHaveLength(0);
     } finally {
       vi.doUnmock('#db/provisioned-runners.js');
+      vi.resetModules();
       await closeApp();
     }
   });
