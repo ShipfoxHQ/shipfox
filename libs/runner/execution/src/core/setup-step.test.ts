@@ -61,6 +61,17 @@ function fakeLog() {
   };
 }
 
+function spySetupWarnings() {
+  return vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+}
+
+function expectSetupFailureWarning(
+  warn: ReturnType<typeof spySetupWarnings>,
+  reason: string,
+): void {
+  expect(warn).toHaveBeenCalledWith({...jobContext, reason}, 'Setup step failed');
+}
+
 // ky populates `error.data` with the pre-parsed body and consumes `error.response`, so
 // the production classifier reads `error.data` — mirror that here rather than faking a
 // re-readable `response.clone().json()`, which production can never do.
@@ -81,6 +92,10 @@ beforeEach(() => {
   createJobDirMock.mockResolvedValue(undefined);
   requestCheckoutTokenMock.mockResolvedValue(checkoutResponse());
   checkoutRepositoryMock.mockResolvedValue('abc123');
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('executeSetupStep', () => {
@@ -183,7 +198,7 @@ describe('executeSetupStep', () => {
 
   it('checks git before minting a credential', async () => {
     const log = fakeLog();
-    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+    const warn = spySetupWarnings();
     assertGitAvailableMock.mockRejectedValue(new Error('git is not available on the runner host'));
 
     const result = await run(log);
@@ -200,14 +215,12 @@ describe('executeSetupStep', () => {
       'Next step: Install Git in the runner image or use a runner image that includes Git.',
       'stderr',
     );
-    expect(warn).toHaveBeenCalledWith(
-      {...jobContext, reason: 'git_unavailable'},
-      'Setup step failed',
-    );
+    expectSetupFailureWarning(warn, 'git_unavailable');
   });
 
   it('reports workspace_prep_failed when creating the directory fails', async () => {
     const log = fakeLog();
+    const warn = spySetupWarnings();
     createJobDirMock.mockRejectedValue(new Error('mkdir denied'));
 
     const result = await run(log);
@@ -222,6 +235,7 @@ describe('executeSetupStep', () => {
       'Next step: Check the runner workspace permissions and available disk space.',
       'stderr',
     );
+    expectSetupFailureWarning(warn, 'workspace_prep_failed');
   });
 
   it.each([
@@ -233,6 +247,7 @@ describe('executeSetupStep', () => {
     {status: 409, reason: 'checkout_failed'},
     {status: 422, reason: 'checkout_failed'},
   ])('maps a $status checkout-token error to $reason', async ({status, reason}) => {
+    const warn = spySetupWarnings();
     requestCheckoutTokenMock.mockRejectedValue(httpError(status));
 
     const result = await run();
@@ -240,6 +255,7 @@ describe('executeSetupStep', () => {
     expect(checkoutRepositoryMock).not.toHaveBeenCalled();
     expect(result.success).toBe(false);
     expect(result.error?.reason).toBe(reason);
+    expectSetupFailureWarning(warn, reason);
   });
 
   it.each([
@@ -247,19 +263,23 @@ describe('executeSetupStep', () => {
     {code: 'rate-limited', reason: 'checkout_unavailable'},
     {code: 'provider-unavailable', reason: 'checkout_unavailable'},
   ])('maps a 422 with code $code to $reason', async ({code, reason}) => {
+    const warn = spySetupWarnings();
     requestCheckoutTokenMock.mockRejectedValue(httpError(422, {code}));
 
     const result = await run();
 
     expect(result.error?.reason).toBe(reason);
+    expectSetupFailureWarning(warn, reason);
   });
 
   it('maps a non-HTTP checkout-token error to checkout_failed', async () => {
+    const warn = spySetupWarnings();
     requestCheckoutTokenMock.mockRejectedValue(new Error('socket hang up'));
 
     const result = await run();
 
     expect(result.error).toEqual({message: 'socket hang up', reason: 'checkout_failed'});
+    expectSetupFailureWarning(warn, 'checkout_failed');
   });
 
   it.each([
@@ -268,16 +288,19 @@ describe('executeSetupStep', () => {
     {kind: 'failed' as const, reason: 'checkout_failed'},
     {kind: 'aborted' as const, reason: 'setup_aborted'},
   ])('maps a $kind checkout failure to $reason', async ({kind, reason}) => {
+    const warn = spySetupWarnings();
     checkoutRepositoryMock.mockRejectedValue(new CheckoutError(kind, 'boom'));
 
     const result = await run();
 
     expect(result.success).toBe(false);
     expect(result.error?.reason).toBe(reason);
+    expectSetupFailureWarning(warn, reason);
   });
 
   it('logs the checkout phase that failed', async () => {
     const log = fakeLog();
+    const warn = spySetupWarnings();
     checkoutRepositoryMock.mockRejectedValue(
       new CheckoutError('failed', 'remote rejected', {phase: 'fetch'}),
     );
@@ -295,13 +318,16 @@ describe('executeSetupStep', () => {
       'Next step: Check that the repository URL and requested ref are valid. The git output above may include provider details.',
       'stderr',
     );
+    expectSetupFailureWarning(warn, 'checkout_failed');
   });
 
   it('maps an unexpected checkout error to checkout_failed', async () => {
+    const warn = spySetupWarnings();
     checkoutRepositoryMock.mockRejectedValue(new Error('weird'));
 
     const result = await run();
 
     expect(result.error).toEqual({message: 'weird', reason: 'checkout_failed'});
+    expectSetupFailureWarning(warn, 'checkout_failed');
   });
 });
