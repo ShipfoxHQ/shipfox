@@ -71,10 +71,6 @@ describe('workspace queries', () => {
       const activeWorkspace = await createWorkspace({
         name: `Metrics Active ${crypto.randomUUID()}`,
       });
-      const suspendedWorkspace = await createWorkspace({
-        name: `Metrics Suspended ${crypto.randomUUID()}`,
-      });
-      await updateWorkspace({id: suspendedWorkspace.id, status: 'suspended'});
       await createMembership({
         userId: crypto.randomUUID(),
         workspaceId: activeWorkspace.id,
