@@ -729,6 +729,57 @@ describe('runJobSteps', () => {
     );
   });
 
+  it('forwards custom provider runtime config and masks secret header credentials', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep();
+    const customProvider = {
+      api: 'openai-responses' as const,
+      base_url: 'https://models.example.test/v1',
+      headers: [{name: 'x-plain', value: 'plain'}],
+      secret_header_names: ['x-secret'],
+      models: [{id: 'custom-gpt', label: 'Custom GPT'}],
+    };
+    requestAgentRuntimeConfigMock.mockResolvedValueOnce({
+      provider_id: 'workspace-models',
+      model: 'custom-gpt',
+      thinking: 'medium',
+      credentials: {
+        api_key: 'sk-custom',
+        'header:x-secret': 'secret-header',
+      },
+      custom_provider: customProvider,
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeAgentStepMock).toHaveBeenCalledWith(
+      agent,
+      expect.objectContaining({
+        runtime: {
+          provider: 'workspace-models',
+          model: 'custom-gpt',
+          thinking: 'medium',
+          credentials: {
+            api_key: 'sk-custom',
+            'header:x-secret': 'secret-header',
+          },
+          custom_provider: customProvider,
+        },
+      }),
+    );
+    expect(createSessionLogStreamMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secrets: ['sk-custom', 'secret-header'],
+      }),
+    );
+  });
+
   it('opens a session stream for an agent step, forwards entries, and settles it', async () => {
     const setup = buildSetupStep();
     const agent = buildAgentStep();

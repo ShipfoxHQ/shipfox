@@ -1,5 +1,5 @@
 import {lookup} from 'node:dns/promises';
-import {assertEgressAllowed, EgressDeniedError, parseEgressHostDenylist} from './egress-guard.js';
+import {assertEgressAllowed, EgressDeniedError, parseEgressHostDenylist} from './index.js';
 
 vi.mock('node:dns/promises', () => ({
   lookup: vi.fn(),

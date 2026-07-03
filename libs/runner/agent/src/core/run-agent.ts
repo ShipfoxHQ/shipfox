@@ -7,10 +7,26 @@ import {
   ModelRegistry,
   SessionManager,
 } from '@earendil-works/pi-coding-agent';
+import {
+  type CustomAgentModelDto,
+  type CustomModelProviderRuntimeConfigDto,
+  DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
+  DEFAULT_CUSTOM_MODEL_INPUT_IMAGE,
+  DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
+  DEFAULT_CUSTOM_MODEL_REASONING,
+} from '@shipfox/api-agent-dto';
+import {assertEgressAllowed, EgressDeniedError} from '@shipfox/node-egress-guard';
+import {runnerEgressPolicy} from '#config.js';
 import {AgentConfigError} from '#core/errors.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 
+const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-keyless-custom-provider-placeholder';
+const SECRET_HEADER_CREDENTIAL_PREFIX = 'header:';
+
 type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
+type ModelRegistryInstance = ReturnType<typeof ModelRegistry.create>;
+type CustomProviderConfig = Parameters<ModelRegistryInstance['registerProvider']>[1];
+type CustomProviderModel = NonNullable<CustomProviderConfig['models']>[number];
 
 export interface AgentInvocation {
   readonly cwd: string;
@@ -19,6 +35,7 @@ export interface AgentInvocation {
   readonly thinking: string;
   readonly prompt: string;
   readonly credentials: Record<string, string>;
+  readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;
   readonly signal: AbortSignal;
   /**
    * Forwards each verbatim pi session entry line as it is persisted, in order. Best-effort
@@ -44,6 +61,7 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
     thinking,
     prompt,
     credentials,
+    customProvider,
     signal,
     onSessionEntry,
   } = invocation;
@@ -54,10 +72,16 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // session exists so a mid-creation abort still stops pi.
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
-  const authStorage = AuthStorage.inMemory({
-    [provider]: toPiRuntimeCredential(provider, credentials),
-  });
+  const authStorage =
+    customProvider === undefined
+      ? AuthStorage.inMemory({
+          [provider]: toPiRuntimeCredential(provider, credentials),
+        })
+      : AuthStorage.inMemory({});
   const modelRegistry = ModelRegistry.create(authStorage);
+  if (customProvider !== undefined) {
+    await registerCustomProvider(modelRegistry, provider, credentials, customProvider);
+  }
   const model = resolveModel(modelRegistry, provider, modelId);
 
   // Surface a missing key up front as a config error: otherwise it fails deep inside the
@@ -110,6 +134,83 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
     signal.removeEventListener('abort', abortSession);
     signal.removeEventListener('abort', stopForwarder);
   }
+}
+
+async function registerCustomProvider(
+  modelRegistry: ModelRegistryInstance,
+  provider: string,
+  credentials: Record<string, string>,
+  customProvider: CustomModelProviderRuntimeConfigDto,
+): Promise<void> {
+  try {
+    // The guard runs before registration; redirects and DNS changes after this point remain
+    // transport-layer SSRF residuals until pi exposes per-request IP pinning hooks.
+    await assertEgressAllowed(customProvider.base_url, runnerEgressPolicy());
+  } catch (error) {
+    if (error instanceof EgressDeniedError) {
+      throw new AgentConfigError(
+        `Custom model provider endpoint blocked by egress policy: ${error.reason} (${error.target}).`,
+      );
+    }
+    throw error;
+  }
+
+  try {
+    modelRegistry.registerProvider(provider, {
+      name: provider,
+      baseUrl: customProvider.base_url,
+      api: customProvider.api,
+      apiKey: customProviderApiKey(credentials),
+      headers: customProviderHeaders(customProvider, credentials),
+      models: customProvider.models.map((model) => toPiCustomProviderModel(customProvider, model)),
+    });
+  } catch (error) {
+    throw new AgentConfigError(
+      error instanceof Error && error.message.length > 0
+        ? `Custom model provider "${provider}" is invalid: ${error.message}`
+        : `Custom model provider "${provider}" is invalid.`,
+    );
+  }
+}
+
+function customProviderApiKey(credentials: Record<string, string>): string {
+  const apiKey = credentials.api_key;
+  return apiKey === undefined || apiKey === '' ? KEYLESS_CUSTOM_PROVIDER_API_KEY : apiKey;
+}
+
+function customProviderHeaders(
+  customProvider: CustomModelProviderRuntimeConfigDto,
+  credentials: Record<string, string>,
+): Record<string, string> {
+  const headers = Object.fromEntries(
+    customProvider.headers.map((header) => [header.name, header.value]),
+  );
+
+  for (const name of customProvider.secret_header_names) {
+    const value = credentials[`${SECRET_HEADER_CREDENTIAL_PREFIX}${name}`];
+    if (value === undefined || value === '') continue;
+    headers[name] = value;
+  }
+
+  return headers;
+}
+
+function toPiCustomProviderModel(
+  customProvider: CustomModelProviderRuntimeConfigDto,
+  model: CustomAgentModelDto,
+): CustomProviderModel {
+  const inputImage = model.input_image ?? DEFAULT_CUSTOM_MODEL_INPUT_IMAGE;
+  const piModel: CustomProviderModel = {
+    id: model.id,
+    name: model.label,
+    api: customProvider.api,
+    reasoning: model.reasoning ?? DEFAULT_CUSTOM_MODEL_REASONING,
+    input: inputImage ? ['text', 'image'] : ['text'],
+    cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
+    contextWindow: model.context_window ?? DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
+    maxTokens: model.max_output_tokens ?? DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
+  };
+  return piModel;
 }
 
 function startForwarding(

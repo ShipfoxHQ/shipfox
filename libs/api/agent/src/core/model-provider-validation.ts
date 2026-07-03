@@ -12,11 +12,11 @@ import {
   type ModelProviderRef,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
+import {type EgressPolicy, parseEgressHostDenylist} from '@shipfox/node-egress-guard';
 import {redactSecrets, secretWireForms} from '@shipfox/redact';
 import {config} from '#config.js';
 import {modelProviderValidationCount} from '#metrics/index.js';
 import {appendCustomProviderPath} from './custom-provider-url.js';
-import {type EgressPolicy, parseEgressHostDenylist} from './egress-guard.js';
 import {
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
