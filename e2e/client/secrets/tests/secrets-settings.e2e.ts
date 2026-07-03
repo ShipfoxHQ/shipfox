@@ -1,4 +1,5 @@
 import type {AuthHelper} from '@shipfox/e2e-helper-auth';
+import type {ProjectsHelper} from '@shipfox/e2e-helper-projects';
 import type {WorkspacesHelper} from '@shipfox/e2e-helper-workspaces';
 import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
@@ -15,40 +16,10 @@ interface ReadyWorkspace {
   workspaceId: string;
 }
 
-async function stubProjectExists(page: Page, workspaceId: string): Promise<void> {
-  await page.route('**/projects?*', async (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('workspace_id') !== workspaceId) {
-      await route.continue();
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        projects: [
-          {
-            id: '00000000-0000-4000-8000-000000000001',
-            workspace_id: workspaceId,
-            name: 'Platform',
-            source: {
-              connection_id: '00000000-0000-4000-8000-000000000002',
-              external_repository_id: 'debug:platform',
-            },
-            created_at: '2026-01-15T12:00:00.000Z',
-            updated_at: '2026-01-15T12:00:00.000Z',
-          },
-        ],
-        next_cursor: null,
-      }),
-    });
-  });
-}
-
 async function createReadyWorkspace(params: {
   auth: AuthHelper;
   page: Page;
+  projects: ProjectsHelper;
   workspaces: WorkspacesHelper;
   name: string;
 }): Promise<ReadyWorkspace> {
@@ -57,8 +28,8 @@ async function createReadyWorkspace(params: {
     userId: user.user.id,
     name: params.name,
   });
+  await params.projects.createProject({workspaceId: workspace.id});
   await params.auth.loginAs(params.page, user);
-  await stubProjectExists(params.page, workspace.id);
 
   return {userId: user.user.id, workspaceId: workspace.id};
 }
@@ -115,10 +86,11 @@ async function createVariableFromSettings(page: Page, key: string, value: string
   await expect(rowByKey(section, key)).toBeVisible();
 }
 
-test('creates a workspace secret from settings', async ({page, auth, workspaces}) => {
+test('creates a workspace secret from settings', async ({page, auth, projects, workspaces}) => {
   const {workspaceId} = await createReadyWorkspace({
     page,
     auth,
+    projects,
     workspaces,
     name: 'Secrets Create Workspace',
   });
@@ -133,10 +105,17 @@ test('creates a workspace secret from settings', async ({page, auth, workspaces}
   await expect(secretsSection(page)).not.toContainText(value);
 });
 
-test('edits a workspace secret from settings', async ({page, auth, workspaces, secrets}) => {
+test('edits a workspace secret from settings', async ({
+  page,
+  auth,
+  projects,
+  workspaces,
+  secrets,
+}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
     page,
     auth,
+    projects,
     workspaces,
     name: 'Secrets Edit Workspace',
   });
@@ -166,10 +145,17 @@ test('edits a workspace secret from settings', async ({page, auth, workspaces, s
   await expect(secretsSection(page)).not.toContainText(newValue);
 });
 
-test('deletes a workspace secret from settings', async ({page, auth, workspaces, secrets}) => {
+test('deletes a workspace secret from settings', async ({
+  page,
+  auth,
+  projects,
+  workspaces,
+  secrets,
+}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
     page,
     auth,
+    projects,
     workspaces,
     name: 'Secrets Delete Workspace',
   });
@@ -193,10 +179,11 @@ test('deletes a workspace secret from settings', async ({page, auth, workspaces,
   await expect(section.getByText('No secrets yet')).toBeVisible();
 });
 
-test('creates a workspace variable from settings', async ({page, auth, workspaces}) => {
+test('creates a workspace variable from settings', async ({page, auth, projects, workspaces}) => {
   const {workspaceId} = await createReadyWorkspace({
     page,
     auth,
+    projects,
     workspaces,
     name: 'Variables Create Workspace',
   });
@@ -210,10 +197,17 @@ test('creates a workspace variable from settings', async ({page, auth, workspace
   await expect(row.getByText(value, {exact: true})).toBeVisible();
 });
 
-test('edits a workspace variable from settings', async ({page, auth, workspaces, secrets}) => {
+test('edits a workspace variable from settings', async ({
+  page,
+  auth,
+  projects,
+  workspaces,
+  secrets,
+}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
     page,
     auth,
+    projects,
     workspaces,
     name: 'Variables Edit Workspace',
   });
@@ -244,10 +238,17 @@ test('edits a workspace variable from settings', async ({page, auth, workspaces,
   await expect(row).not.toContainText(oldValue);
 });
 
-test('deletes a workspace variable from settings', async ({page, auth, workspaces, secrets}) => {
+test('deletes a workspace variable from settings', async ({
+  page,
+  auth,
+  projects,
+  workspaces,
+  secrets,
+}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
     page,
     auth,
+    projects,
     workspaces,
     name: 'Variables Delete Workspace',
   });
