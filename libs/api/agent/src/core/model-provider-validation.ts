@@ -15,6 +15,7 @@ import {
 import {redactSecrets, secretWireForms} from '@shipfox/redact';
 import {config} from '#config.js';
 import {modelProviderValidationCount} from '#metrics/index.js';
+import {appendCustomProviderPath} from './custom-provider-url.js';
 import {type EgressPolicy, parseEgressHostDenylist} from './egress-guard.js';
 import {
   InvalidAgentModelError,
@@ -27,7 +28,6 @@ import {
 const PROBE_MAX_TOKENS = 64;
 const MAX_SANITIZED_ERROR_LENGTH = 500;
 const CUSTOM_PROBE_PROMPT = 'Reply with OK.';
-const TRAILING_SLASHES_PATTERN = /\/+$/;
 
 export interface ProbeModelProviderCredentialsParams {
   providerId: SupportedModelProviderId;
@@ -126,8 +126,12 @@ export async function probeCustomModelProviderCredentials(
     signal: timeoutSignal(params.signal, config.AGENT_PROVIDER_VALIDATION_TIMEOUT_MS),
   });
 
-  if (!response.ok) {
-    throw new Error(`Provider returned HTTP ${response.status}.`);
+  try {
+    if (!response.ok) {
+      throw new Error(`Provider returned HTTP ${response.status}.`);
+    }
+  } finally {
+    await response.body?.cancel();
   }
 }
 
@@ -151,13 +155,16 @@ export function egressPolicy(): EgressPolicy {
 function customProbeUrl(params: ProbeCustomModelProviderCredentialsParams): string {
   switch (params.api) {
     case 'anthropic-messages':
-      return appendPath(params.baseUrl, 'messages').toString();
+      return appendCustomProviderPath(params.baseUrl, 'messages').toString();
     case 'google-generative-ai':
-      return appendPath(params.baseUrl, `models/${params.model.id}:generateContent`).toString();
+      return appendCustomProviderPath(
+        params.baseUrl,
+        `models/${encodeURIComponent(params.model.id)}:generateContent`,
+      ).toString();
     case 'openai-completions':
-      return appendPath(params.baseUrl, 'chat/completions').toString();
+      return appendCustomProviderPath(params.baseUrl, 'chat/completions').toString();
     case 'openai-responses':
-      return appendPath(params.baseUrl, 'responses').toString();
+      return appendCustomProviderPath(params.baseUrl, 'responses').toString();
     default:
       return assertNever(params.api);
   }
@@ -222,13 +229,6 @@ function customProbeBody(params: ProbeCustomModelProviderCredentialsParams): unk
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported custom model provider API: ${value}`);
-}
-
-function appendPath(baseUrl: string, segment: string): URL {
-  const url = new URL(baseUrl);
-  const path = url.pathname.replace(TRAILING_SLASHES_PATTERN, '');
-  url.pathname = `${path}/${segment}`;
-  return url;
 }
 
 function timeoutSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {

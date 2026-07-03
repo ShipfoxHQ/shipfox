@@ -501,6 +501,43 @@ describe('model provider config routes', () => {
       );
     });
 
+    it('uses the Google model discovery endpoint and strips resource-name prefixes', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            models: [{name: 'models/gemini-3-pro', displayName: 'Gemini 3 Pro'}],
+          }),
+          {
+            status: 200,
+            headers: {'content-type': 'application/json'},
+          },
+        ),
+      );
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/workspaces/${workspaceId}/agent/custom-model-providers/discover-models`,
+        headers: {authorization: 'Bearer user'},
+        payload: {
+          api: 'google-generative-ai',
+          base_url: 'https://generativelanguage.googleapis.com/v1beta',
+          api_key: 'google-key',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({models: [{id: 'gemini-3-pro', label: 'Gemini 3 Pro'}]});
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://generativelanguage.googleapis.com/v1beta/models',
+        expect.objectContaining({
+          redirect: 'error',
+          signal: expect.any(AbortSignal),
+        }),
+      );
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect((init.headers as Headers).get('x-goog-api-key')).toBe('google-key');
+    });
+
     it('returns an empty model list on discovery fetch failures', async () => {
       vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new TypeError('redirect'));
 

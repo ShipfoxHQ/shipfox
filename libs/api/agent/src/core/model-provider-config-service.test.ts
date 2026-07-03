@@ -600,6 +600,28 @@ describe('custom model provider config service', () => {
       expect.objectContaining({model: {id: 'llama-4', label: 'Llama 4'}}),
     );
   });
+
+  it('rejects an explicit custom default model outside the custom model list', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({default_model: 'llama-3.1'}),
+      },
+      {probe},
+    );
+
+    const update = updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {default_model: 'missing-model'},
+      },
+      {probe},
+    );
+
+    await expect(update).rejects.toThrow(InvalidAgentModelError);
+  });
 });
 
 function createCustomBody(

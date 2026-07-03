@@ -25,6 +25,7 @@ import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {
   CustomModelProviderConfigNotFoundError,
   CustomModelProviderSlugCollisionError,
+  InvalidAgentModelError,
 } from './errors.js';
 import {
   egressPolicy,
@@ -126,7 +127,12 @@ export async function updateCustomModelProviderConfig(
     providerId: params.providerId,
   });
   const nextModels = params.body.models ?? existing.models ?? [];
-  const nextDefaultModel = resolveNextDefaultModel(existing.defaultModel, nextModels, params.body);
+  const nextDefaultModel = resolveNextDefaultModel(
+    params.providerId,
+    existing.defaultModel,
+    nextModels,
+    params.body,
+  );
   const nextApi = params.body.api ?? existing.api ?? 'openai-responses';
   const nextBaseUrl = params.body.base_url ?? existing.baseUrl ?? '';
   const nextDisplayName = params.body.display_name ?? existing.displayName ?? params.providerId;
@@ -265,14 +271,20 @@ function resolveNextHeaders(
 }
 
 function resolveNextDefaultModel(
+  providerId: ModelProviderRef,
   existingDefaultModel: string | null,
   models: CustomAgentModelDto[],
   body: UpdateCustomModelProviderBodyDto,
 ): string | null {
-  const requestedDefaultModel =
-    'default_model' in body ? (body.default_model ?? null) : existingDefaultModel;
+  if (!('default_model' in body)) {
+    if (existingDefaultModel === null) return null;
+    return models.some((model) => model.id === existingDefaultModel) ? existingDefaultModel : null;
+  }
+
+  const requestedDefaultModel = body.default_model ?? null;
   if (requestedDefaultModel === null) return null;
-  return models.some((model) => model.id === requestedDefaultModel) ? requestedDefaultModel : null;
+  if (models.some((model) => model.id === requestedDefaultModel)) return requestedDefaultModel;
+  throw new InvalidAgentModelError(providerId, requestedDefaultModel);
 }
 
 function selectProbeModel(

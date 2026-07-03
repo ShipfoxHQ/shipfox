@@ -247,6 +247,40 @@ describe('probeCustomModelProviderCredentials', () => {
     expect((init.headers as Headers).get('x-goog-api-key')).toBe('google-key');
   });
 
+  it('encodes Google custom probe model ids as one URL path segment', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}'));
+
+    await probeCustomModelProviderCredentials({
+      providerId: 'local-gemini',
+      api: 'google-generative-ai',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      model: {id: 'models/gemini-3/pro', label: 'Gemini 3 Pro'},
+      apiKey: 'google-key',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://generativelanguage.googleapis.com/v1beta/models/models%2Fgemini-3%2Fpro:generateContent',
+      expect.any(Object),
+    );
+  });
+
+  it('cancels custom probe response bodies after checking the status', async () => {
+    const response = new Response('{}');
+    const body = response.body;
+    if (body === null) throw new Error('Expected response body');
+    const cancelSpy = vi.spyOn(body, 'cancel');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response);
+
+    await probeCustomModelProviderCredentials({
+      providerId: 'local-vllm',
+      api: 'openai-responses',
+      baseUrl: 'https://llm.example.test/v1',
+      model: {id: 'llama-3.1', label: 'Llama 3.1'},
+    });
+
+    expect(cancelSpy).toHaveBeenCalledOnce();
+  });
+
   it('rejects non-2xx custom probe responses', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}', {status: 401}));
 

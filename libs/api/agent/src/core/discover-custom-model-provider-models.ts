@@ -5,10 +5,10 @@ import type {
   ModelProviderApi,
 } from '@shipfox/api-agent-dto';
 import {config} from '#config.js';
+import {appendCustomProviderPath, googleDiscoveryUrl} from './custom-provider-url.js';
 import {assertEgressAllowed} from './egress-guard.js';
 import {egressPolicy} from './model-provider-validation.js';
 
-const TRAILING_SLASHES_PATTERN = /\/+$/;
 const GOOGLE_MODEL_PREFIX_PATTERN = /^models\//;
 const MAX_DISCOVERY_RESPONSE_BYTES = 512 * 1024;
 
@@ -23,7 +23,7 @@ export async function discoverCustomModelProviderModels(
   await assertEgressAllowed(params.base_url, egressPolicy());
 
   try {
-    const response = await fetch(discoveryUrl(params.base_url), {
+    const response = await fetch(discoveryUrl(params.base_url, params.api), {
       method: 'GET',
       headers: discoveryHeaders(params.api, params.api_key, params.headers ?? []),
       redirect: 'error',
@@ -39,9 +39,9 @@ export async function discoverCustomModelProviderModels(
   }
 }
 
-function discoveryUrl(baseUrl: string): string {
-  const url = appendPath(baseUrl, 'models');
-  return url.toString();
+function discoveryUrl(baseUrl: string, api: ModelProviderApi): string {
+  if (api === 'google-generative-ai') return googleDiscoveryUrl(baseUrl);
+  return appendCustomProviderPath(baseUrl, 'models').toString();
 }
 
 function discoveryHeaders(
@@ -100,13 +100,6 @@ async function readBoundedJson(response: Response): Promise<unknown | undefined>
   }
 
   return JSON.parse(new TextDecoder().decode(buffer));
-}
-
-function appendPath(baseUrl: string, segment: string): URL {
-  const url = new URL(baseUrl);
-  const path = url.pathname.replace(TRAILING_SLASHES_PATTERN, '');
-  url.pathname = `${path}/${segment}`;
-  return url;
 }
 
 function parseModelList(payload: unknown): DiscoveredModel[] {
