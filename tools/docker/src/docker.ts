@@ -145,7 +145,8 @@ if (!hasFlag('--push', '--load', '--output', '-o'))
   args.push(ciValidateOnly ? '--output=type=cacheonly' : validateOnly ? '--load' : '--push');
 
 // Tags: an explicit --tag wins; otherwise derive the per-commit set from --image.
-if (imageName && !hasFlag('--tag', '-t')) {
+// CI cache-only validation has no image output for BuildKit to tag.
+if (imageName && !ciValidateOnly && !hasFlag('--tag', '-t')) {
   for (const tag of perCommitTags(imageName, registries)) args.push('--tag', tag);
 }
 

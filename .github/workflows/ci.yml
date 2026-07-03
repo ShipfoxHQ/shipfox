@@ -134,7 +134,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
+        include: &app_image_matrix
           - package: "@shipfox/api"
             image: api
           - package: "@shipfox/client"
@@ -192,13 +192,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - package: "@shipfox/api"
-            image: api
-          - package: "@shipfox/client"
-            image: client
-          - package: "@shipfox/runner"
-            image: runner
+        include: *app_image_matrix
     permissions:
       contents: read
       packages: write # push images to GHCR
