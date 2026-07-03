@@ -1,6 +1,7 @@
-import {and, desc, eq, ilike, lt, or, type SQL} from 'drizzle-orm';
+import {and, count, desc, eq, ilike, lt, or, type SQL} from 'drizzle-orm';
 import type {Project} from '#core/entities/project.js';
 import {ProjectAlreadyExistsError, ProjectNotFoundError} from '#core/errors.js';
+import {recordProjectCreated} from '#metrics/instance.js';
 import {db} from './db.js';
 import {projects, toProject} from './schema/projects.js';
 
@@ -41,7 +42,7 @@ function cursorWhere(params: ListProjectsParams): SQL | undefined {
 }
 
 export async function createProject(params: CreateProjectParams): Promise<Project> {
-  return await db().transaction(async (tx) => {
+  const project = await db().transaction(async (tx) => {
     const [projectRow] = await tx
       .insert(projects)
       .values({
@@ -78,6 +79,8 @@ export async function createProject(params: CreateProjectParams): Promise<Projec
 
     return toProject(projectRow);
   });
+  recordProjectCreated();
+  return project;
 }
 
 export async function getProjectById(id: string): Promise<Project | undefined> {
@@ -147,4 +150,9 @@ export async function listProjects(params: ListProjectsParams): Promise<ListProj
     projects: pageRows.map(toProject),
     nextCursor: hasMore && last ? {createdAt: last.createdAt, id: last.id} : null,
   };
+}
+
+export async function getProjectCount(): Promise<number> {
+  const [row] = await db().select({value: count()}).from(projects);
+  return row?.value ?? 0;
 }

@@ -9,6 +9,7 @@ import {and, eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
 import {projects, toProject} from '#db/schema/projects.js';
+import {recordProjectCreated} from '#metrics/instance.js';
 import type {Project} from './entities/project.js';
 import {ProjectAlreadyExistsError} from './errors.js';
 
@@ -30,7 +31,7 @@ export async function createProjectFromSource(
     externalRepositoryId: params.sourceExternalRepositoryId,
   });
 
-  return await db().transaction(async (tx) => {
+  const project = await db().transaction(async (tx) => {
     const [projectRow] = await tx
       .insert(projects)
       .values({
@@ -91,4 +92,6 @@ export async function createProjectFromSource(
 
     return project;
   });
+  recordProjectCreated();
+  return project;
 }

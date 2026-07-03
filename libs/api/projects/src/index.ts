@@ -8,6 +8,7 @@ import {
 import {projectsEventSchemas} from '@shipfox/api-projects-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
+import {registerProjectsServiceMetrics} from '#metrics/index.js';
 import {projectsE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
 import {onSourceCommitPushed} from '#presentation/subscribers/index.js';
@@ -49,6 +50,7 @@ export function createProjectsModule({sourceControl}: CreateProjectsModuleOption
     database: {db, migrationsPath},
     routes: createProjectRoutes(sourceControl),
     e2eRoutes: [projectsE2eRoutes],
+    metrics: registerProjectsServiceMetrics,
     publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],
     subscribers: [subscriber(INTEGRATION_SOURCE_COMMIT_PUSHED, onSourceCommitPushed)],
     workers: [

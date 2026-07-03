@@ -16,6 +16,7 @@ export {
   createProject,
   getProjectById,
   getProjectBySource,
+  getProjectCount,
   listProjects,
   requireProjectForWorkspace,
 } from './projects.js';

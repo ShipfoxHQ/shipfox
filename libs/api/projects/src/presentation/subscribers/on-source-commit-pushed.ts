@@ -6,6 +6,7 @@ import {db} from '#db/db.js';
 import {recordIntegrationEventForProject} from '#db/integration-event-dedup.js';
 import {getProjectBySource} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
+import {recordSourceCommitPushed, type SourceCommitPushedOutcome} from '#metrics/instance.js';
 
 export async function onSourceCommitPushed(
   payload: IntegrationSourceCommitPushedEvent,
@@ -15,6 +16,7 @@ export async function onSourceCommitPushed(
 
   // Projects only track the default branch; other branches are someone else's policy.
   if (!push.isDefaultBranch) {
+    recordSourceCommitPushed('non_default_branch');
     return;
   }
 
@@ -32,16 +34,17 @@ export async function onSourceCommitPushed(
       },
       'source commit pushed: no project bound to source, dropping',
     );
+    recordSourceCommitPushed('unbound_source');
     return;
   }
 
-  await db().transaction(async (tx) => {
+  const outcome = await db().transaction<SourceCommitPushedOutcome>(async (tx) => {
     const {firstSeen} = await recordIntegrationEventForProject({
       tx,
       integrationEventId: event.id,
       projectId: project.id,
     });
-    if (!firstSeen) return;
+    if (!firstSeen) return 'duplicate';
 
     await writeOutboxEvent(tx, projectsOutbox, {
       type: PROJECT_SOURCE_COMMIT_OBSERVED,
@@ -55,5 +58,7 @@ export async function onSourceCommitPushed(
         headCommitSha: push.headCommitSha,
       },
     });
+    return 'observed';
   });
+  recordSourceCommitPushed(outcome);
 }
