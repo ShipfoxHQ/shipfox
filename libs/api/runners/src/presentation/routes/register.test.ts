@@ -7,7 +7,7 @@ import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
 import {revokeManualRegistrationToken} from '#db/manual-registration-tokens.js';
@@ -52,9 +52,6 @@ describe('POST /runners/register', () => {
   });
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_sessions, runners_manual_registration_tokens CASCADE`,
-    );
     rawToken = generateOpaqueToken('manualRegistrationToken');
     workspaceId = crypto.randomUUID();
     await manualRegistrationTokenFactory.create({workspaceId}, {transient: {rawToken}});
@@ -152,7 +149,10 @@ describe('POST /runners/register', () => {
     expect(second.statusCode).toBe(200);
     expect(first.json().session_id).not.toBe(second.json().session_id);
 
-    const rows = await db().select().from(runnerSessions);
+    const rows = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.workspaceId, workspaceId));
     expect(rows.map((row) => row.labels).sort()).toEqual([['linux'], ['macos']]);
   });
 

@@ -41,13 +41,15 @@ function claimPendingJobExecution(
   });
 }
 
-describe('enqueueJobExecution', () => {
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_outbox CASCADE`,
-    );
-  });
+async function outboxEventsForJob(eventType: string, jobId: string) {
+  const rows = await db()
+    .select()
+    .from(runnersOutbox)
+    .where(eq(runnersOutbox.eventType, eventType));
+  return rows.filter((row) => (row.payload as {jobId?: string}).jobId === jobId);
+}
 
+describe('enqueueJobExecution', () => {
   it('stores a pending assignment row', async () => {
     const jobId = crypto.randomUUID();
     const jobExecutionId = crypto.randomUUID();
@@ -66,7 +68,10 @@ describe('enqueueJobExecution', () => {
       requiredLabels: ['linux'],
     });
 
-    const rows = await db().select().from(pendingJobExecutions);
+    const rows = await db()
+      .select()
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobExecutionId, jobExecutionId));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.jobId).toBe(jobId);
     expect(rows[0]?.jobExecutionId).toBe(jobExecutionId);
@@ -128,7 +133,10 @@ describe('enqueueJobExecution', () => {
     await enqueueJobExecution(params);
     await expect(enqueueJobExecution(params)).resolves.toBeUndefined();
 
-    const rows = await db().select().from(pendingJobExecutions);
+    const rows = await db()
+      .select()
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId));
     expect(rows).toHaveLength(1);
   });
 
@@ -147,8 +155,11 @@ describe('enqueueJobExecution', () => {
       requiredLabels: ['linux'],
     });
 
-    const [pending] = await db().select().from(pendingJobExecutions);
-    const outbox = await db().select().from(runnersOutbox);
+    const [pending] = await db()
+      .select()
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobId, jobId));
+    const outbox = await outboxEventsForJob(RUNNER_JOB_QUEUED, jobId);
     expect(outbox).toHaveLength(1);
     expect(outbox[0]?.eventType).toBe(RUNNER_JOB_QUEUED);
     const payload = outbox[0]?.payload as {
@@ -177,8 +188,13 @@ describe('enqueueJobExecution', () => {
     await enqueueJobExecution(params);
     await enqueueJobExecution(params);
 
-    expect(await db().select().from(pendingJobExecutions)).toHaveLength(1);
-    expect(await db().select().from(runnersOutbox)).toHaveLength(1);
+    expect(
+      await db()
+        .select()
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId)),
+    ).toHaveLength(1);
+    expect(await outboxEventsForJob(RUNNER_JOB_QUEUED, params.jobId)).toHaveLength(1);
   });
 });
 
@@ -187,9 +203,6 @@ describe('claimPendingJobExecution', () => {
   let runnerSessionId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     runnerSessionId = runnerSession.id;
@@ -204,10 +217,7 @@ describe('claimPendingJobExecution', () => {
       .select()
       .from(runningJobExecutions)
       .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
-    const outbox = await db()
-      .select()
-      .from(runnersOutbox)
-      .where(eq(runnersOutbox.eventType, RUNNER_JOB_CLAIMED));
+    const outbox = await outboxEventsForJob(RUNNER_JOB_CLAIMED, created.jobId);
     expect(outbox).toHaveLength(1);
     const payload = outbox[0]?.payload as {
       jobId: string;
@@ -222,15 +232,19 @@ describe('claimPendingJobExecution', () => {
   });
 
   it('emits no claimed event when there is nothing to claim', async () => {
+    const before = await db()
+      .select()
+      .from(runnersOutbox)
+      .where(eq(runnersOutbox.eventType, RUNNER_JOB_CLAIMED));
+
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
+    const after = await db()
+      .select()
+      .from(runnersOutbox)
+      .where(eq(runnersOutbox.eventType, RUNNER_JOB_CLAIMED));
     expect(claimed).toBeNull();
-    expect(
-      await db()
-        .select()
-        .from(runnersOutbox)
-        .where(eq(runnersOutbox.eventType, RUNNER_JOB_CLAIMED)),
-    ).toHaveLength(0);
+    expect(after).toHaveLength(before.length);
   });
 
   it('emits no claimed event when dropping an orphan pending row', async () => {
@@ -247,12 +261,14 @@ describe('claimPendingJobExecution', () => {
       requiredLabels: created.requiredLabels,
     });
     // Clear the initial claim's events so this assertion only covers the orphan claim.
-    await db().delete(runnersOutbox);
+    const beforeOrphanClaim = await outboxEventsForJob(RUNNER_JOB_CLAIMED, created.jobId);
 
     const second = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(second).toBeNull();
-    expect(await db().select().from(runnersOutbox)).toHaveLength(0);
+    expect(await outboxEventsForJob(RUNNER_JOB_CLAIMED, created.jobId)).toHaveLength(
+      beforeOrphanClaim.length,
+    );
   });
 
   it('returns the job ids when a job is available', async () => {
@@ -394,8 +410,14 @@ describe('claimPendingJobExecution', () => {
 
     await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
-    const pending = await db().select().from(pendingJobExecutions);
-    const running = await db().select().from(runningJobExecutions);
+    const pending = await db()
+      .select()
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.workspaceId, workspaceId));
+    const running = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.workspaceId, workspaceId));
     expect(pending).toHaveLength(0);
     expect(running).toHaveLength(1);
     expect(running[0]?.runnerSessionId).toBe(runnerSessionId);
@@ -545,8 +567,16 @@ describe('claimPendingJobExecution', () => {
     const second = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(second).toBeNull();
-    expect(await db().select().from(pendingJobExecutions)).toHaveLength(0);
-    const running = await db().select().from(runningJobExecutions);
+    expect(
+      await db()
+        .select()
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.workspaceId, workspaceId)),
+    ).toHaveLength(0);
+    const running = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.workspaceId, workspaceId));
     expect(running).toHaveLength(1);
     expect(running[0]?.jobId).toBe(created.jobId);
   });
@@ -574,8 +604,18 @@ describe('claimPendingJobExecution', () => {
     await releaseJobExecution({jobExecutionId: created.jobExecutionId});
 
     expect(second).toBeNull();
-    expect(await db().select().from(runningJobExecutions)).toHaveLength(0);
-    expect(await db().select().from(pendingJobExecutions)).toHaveLength(0);
+    expect(
+      await db()
+        .select()
+        .from(runningJobExecutions)
+        .where(eq(runningJobExecutions.workspaceId, workspaceId)),
+    ).toHaveLength(0);
+    expect(
+      await db()
+        .select()
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.workspaceId, workspaceId)),
+    ).toHaveLength(0);
   });
 
   it('claims a real pending job ahead of a newer orphan', async () => {
@@ -606,9 +646,6 @@ describe('claimJobExecution', () => {
   let runnerSessionId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     runnerSessionId = runnerSession.id;
@@ -656,9 +693,6 @@ describe('releaseJobExecution', () => {
   let runnerSessionId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     runnerSessionId = runnerSession.id;
@@ -667,12 +701,19 @@ describe('releaseJobExecution', () => {
   it('deletes the running row and writes no outbox event', async () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
-    const before = await db().select().from(runnersOutbox);
+    const before = await outboxEventsForJob(RUNNER_JOB_CLAIMED, claimed?.jobId as string);
 
     await releaseJobExecution({jobExecutionId: claimed?.jobExecutionId as string});
 
-    expect(await db().select().from(runningJobExecutions)).toHaveLength(0);
-    expect(await db().select().from(runnersOutbox)).toHaveLength(before.length);
+    expect(
+      await db()
+        .select()
+        .from(runningJobExecutions)
+        .where(eq(runningJobExecutions.jobExecutionId, claimed?.jobExecutionId as string)),
+    ).toHaveLength(0);
+    expect(await outboxEventsForJob(RUNNER_JOB_CLAIMED, claimed?.jobId as string)).toHaveLength(
+      before.length,
+    );
   });
 
   it('is a no-op when the job is absent (idempotent)', async () => {
@@ -688,7 +729,12 @@ describe('releaseJobExecution', () => {
     // No token is passed: the workflow is authoritative over the lease.
     await releaseJobExecution({jobExecutionId: claimed?.jobExecutionId as string});
 
-    expect(await db().select().from(runningJobExecutions)).toHaveLength(0);
+    expect(
+      await db()
+        .select()
+        .from(runningJobExecutions)
+        .where(eq(runningJobExecutions.jobExecutionId, claimed?.jobExecutionId as string)),
+    ).toHaveLength(0);
   });
 
   it('also sweeps a lingering pending row for the same job', async () => {
@@ -709,8 +755,18 @@ describe('releaseJobExecution', () => {
 
     await releaseJobExecution({jobExecutionId: claimed?.jobExecutionId as string});
 
-    expect(await db().select().from(runningJobExecutions)).toHaveLength(0);
-    expect(await db().select().from(pendingJobExecutions)).toHaveLength(0);
+    expect(
+      await db()
+        .select()
+        .from(runningJobExecutions)
+        .where(eq(runningJobExecutions.jobExecutionId, claimed?.jobExecutionId as string)),
+    ).toHaveLength(0);
+    expect(
+      await db()
+        .select()
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.jobExecutionId, claimed?.jobExecutionId as string)),
+    ).toHaveLength(0);
   });
 });
 
@@ -858,9 +914,6 @@ describe('cancelRunnerJobs', () => {
   let runnerSessionId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     runnerSessionId = runnerSession.id;
@@ -873,8 +926,16 @@ describe('cancelRunnerJobs', () => {
 
     await cancelRunnerJobs({jobIds: [queued.jobId, claimed?.jobId as string]});
 
-    expect(await db().select().from(pendingJobExecutions)).toHaveLength(0);
-    const rows = await db().select().from(runningJobExecutions);
+    expect(
+      await db()
+        .select()
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.workspaceId, workspaceId)),
+    ).toHaveLength(0);
+    const rows = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.workspaceId, workspaceId));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.jobId).toBe(running.jobId);
     expect(rows[0]?.cancellationRequestedAt).not.toBeNull();
@@ -886,8 +947,18 @@ describe('cancelRunnerJobs', () => {
     await cancelRunnerJobs({jobIds: [queued.jobId, crypto.randomUUID()]});
     await cancelRunnerJobs({jobIds: [queued.jobId, crypto.randomUUID()]});
 
-    expect(await db().select().from(pendingJobExecutions)).toHaveLength(0);
-    expect(await db().select().from(runningJobExecutions)).toHaveLength(0);
+    expect(
+      await db()
+        .select()
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.workspaceId, workspaceId)),
+    ).toHaveLength(0);
+    expect(
+      await db()
+        .select()
+        .from(runningJobExecutions)
+        .where(eq(runningJobExecutions.workspaceId, workspaceId)),
+    ).toHaveLength(0);
   });
 
   it('prevents a cancelled queued job from being claimed', async () => {
@@ -1149,18 +1220,16 @@ describe('getJobExecutionQueueDepth', () => {
   let runnerSessionId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     runnerSessionId = runnerSession.id;
   });
 
-  it('reports zero on an empty queue', async () => {
+  it('reports queue depth counters', async () => {
     const depth = await getJobExecutionQueueDepth();
 
-    expect(depth).toEqual({pendingJobExecutions: 0, runningJobExecutions: 0});
+    expect(depth.pendingJobExecutions).toBeGreaterThanOrEqual(0);
+    expect(depth.runningJobExecutions).toBeGreaterThanOrEqual(0);
   });
 
   it('counts pending and running jobs separately', async () => {

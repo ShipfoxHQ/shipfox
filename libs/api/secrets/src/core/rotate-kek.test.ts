@@ -34,7 +34,9 @@ describe('rotateWorkspaceDataKeysWithProvider', () => {
       kekVersion: previousWrapped.kekVersion,
     });
 
-    const result = await rotateWorkspaceDataKeysWithProvider(currentProvider);
+    const result = await rotateWorkspaceDataKeysWithProvider(currentProvider, {
+      workspaceIds: [workspaceId],
+    });
     const rows = await db()
       .select()
       .from(secretDataKeys)
@@ -43,7 +45,7 @@ describe('rotateWorkspaceDataKeysWithProvider', () => {
     if (!row) throw new Error('Expected rotated row');
     const unwrapped = currentProvider.unwrapDek(row.workspaceId, row.wrappedDek, row.kekVersion);
 
-    expect(result.rotated).toBeGreaterThanOrEqual(1);
+    expect(result.rotated).toBe(1);
     expect(row.kekVersion).toBe(currentProvider.currentKeyVersion);
     expect(row.wrappedDek).not.toBe(previousWrapped.wrappedDek);
     expect(row.rotatedAt).toBeInstanceOf(Date);
@@ -80,7 +82,7 @@ describe('rotateWorkspaceDataKeysWithProvider', () => {
         }),
       });
 
-    await rotateWorkspaceDataKeysWithProvider(currentProvider);
+    await rotateWorkspaceDataKeysWithProvider(currentProvider, {workspaceIds: [workspaceId]});
     const localStore = createLocalSecretStore({
       dekManager: new DekManager(currentProvider, {maxEntries: 10, ttlMs: 60_000}),
     });
@@ -90,11 +92,11 @@ describe('rotateWorkspaceDataKeysWithProvider', () => {
   });
 
   it('is idempotent after rotating and is a no-op over an empty key set', async () => {
+    const workspaceId = crypto.randomUUID();
     const emptyResult = await rotateWorkspaceDataKeysWithProvider(
       createLocalKeyProvider({currentKek: crypto.randomBytes(32)}),
+      {workspaceIds: [workspaceId]},
     );
-
-    const workspaceId = crypto.randomUUID();
     const currentKek = crypto.randomBytes(32);
     const previousKek = crypto.randomBytes(32);
     const currentProvider = createLocalKeyProvider({currentKek, previousKek});
@@ -106,8 +108,12 @@ describe('rotateWorkspaceDataKeysWithProvider', () => {
       kekVersion: previousWrapped.kekVersion,
     });
 
-    const first = await rotateWorkspaceDataKeysWithProvider(currentProvider);
-    const second = await rotateWorkspaceDataKeysWithProvider(currentProvider);
+    const first = await rotateWorkspaceDataKeysWithProvider(currentProvider, {
+      workspaceIds: [workspaceId],
+    });
+    const second = await rotateWorkspaceDataKeysWithProvider(currentProvider, {
+      workspaceIds: [workspaceId],
+    });
 
     expect(emptyResult).toEqual({rotated: 0, skipped: 0});
     expect(first.rotated).toBe(1);
@@ -170,6 +176,7 @@ describe('rotateWorkspaceDataKeysWithProvider', () => {
     await expect(
       rotateWorkspaceDataKeysWithProvider(
         createLocalKeyProvider({currentKek: crypto.randomBytes(32)}),
+        {workspaceIds: [workspaceId]},
       ),
     ).rejects.toThrow(KekVersionStrandedError);
   });

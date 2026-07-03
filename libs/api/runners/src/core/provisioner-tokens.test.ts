@@ -1,5 +1,5 @@
 import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {provisionerTokenFactory} from '#test/index.js';
@@ -10,10 +10,6 @@ import {
 } from './provisioner-tokens.js';
 
 describe('provisioner token core', () => {
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
-  });
-
   it('creates a workspace provisioner token and stores only the hash', async () => {
     const workspaceId = crypto.randomUUID();
     const createdByUserId = crypto.randomUUID();

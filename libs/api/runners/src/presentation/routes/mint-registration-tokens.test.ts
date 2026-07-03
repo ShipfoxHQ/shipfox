@@ -14,7 +14,7 @@ import {
   extractBearerToken,
 } from '@shipfox/node-fastify';
 import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
-import {count, sql} from 'drizzle-orm';
+import {and, count, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {config} from '#config.js';
 import {db} from '#db/db.js';
@@ -75,10 +75,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     await closeApp();
   });
 
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_sessions, runners_reservations CASCADE`,
-    );
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerTokenId = crypto.randomUUID();
   });
@@ -351,7 +348,15 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
   }
 
   async function countEphemeralTokens(): Promise<number> {
-    const [row] = await db().select({value: count()}).from(ephemeralRegistrationTokens);
+    const [row] = await db()
+      .select({value: count()})
+      .from(ephemeralRegistrationTokens)
+      .where(
+        and(
+          eq(ephemeralRegistrationTokens.workspaceId, workspaceId),
+          eq(ephemeralRegistrationTokens.provisionerId, provisionerTokenId),
+        ),
+      );
     return row?.value ?? 0;
   }
 

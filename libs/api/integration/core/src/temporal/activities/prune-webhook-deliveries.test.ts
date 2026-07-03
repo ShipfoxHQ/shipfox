@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {sql} from 'drizzle-orm';
+import {inArray} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {integrationsWebhookDeliveries} from '#db/schema/webhook-deliveries.js';
 import {pruneWebhookDeliveriesActivity} from './prune-webhook-deliveries.js';
@@ -11,10 +11,6 @@ async function insertDelivery(deliveryId: string, receivedAt: Date): Promise<voi
 }
 
 describe('pruneWebhookDeliveriesActivity', () => {
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE integrations_webhook_deliveries`);
-  });
-
   it('deletes rows older than the retention window and keeps recent ones', async () => {
     const oldId = randomUUID();
     const recentId = randomUUID();
@@ -26,7 +22,10 @@ describe('pruneWebhookDeliveriesActivity', () => {
     const result = await pruneWebhookDeliveriesActivity();
 
     expect(result.deleted).toBe(1);
-    const remaining = await db().select().from(integrationsWebhookDeliveries);
+    const remaining = await db()
+      .select()
+      .from(integrationsWebhookDeliveries)
+      .where(inArray(integrationsWebhookDeliveries.deliveryId, [oldId, recentId]));
     expect(remaining.map((row) => row.deliveryId)).toEqual([recentId]);
   });
 

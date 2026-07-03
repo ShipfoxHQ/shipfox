@@ -13,7 +13,6 @@ import {
   createApp,
   extractBearerToken,
 } from '@shipfox/node-fastify';
-import {sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
@@ -63,10 +62,7 @@ describe('POST /provisioners/demand/poll', () => {
     await closeApp();
   });
 
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_reservations, runners_provisioned_runners, runners_running_jobs, runners_outbox CASCADE`,
-    );
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerTokenId = crypto.randomUUID();
   });

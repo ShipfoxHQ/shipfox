@@ -1,5 +1,5 @@
 import {extractDisplayPrefix, generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
-import {sql} from 'drizzle-orm';
+import {and, eq} from 'drizzle-orm';
 import {ActiveEphemeralRegistrationTokensExistError} from '#core/errors.js';
 import {db} from '#db/db.js';
 import {
@@ -16,9 +16,6 @@ describe('createEphemeralRegistrationTokensBatch', () => {
   let reservationId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_reservations CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
     reservationId = await createReservation({count: 3});
@@ -74,7 +71,15 @@ describe('createEphemeralRegistrationTokensBatch', () => {
       }),
     ).rejects.toBeInstanceOf(ActiveEphemeralRegistrationTokensExistError);
 
-    const rows = await db().select().from(ephemeralRegistrationTokens);
+    const rows = await db()
+      .select()
+      .from(ephemeralRegistrationTokens)
+      .where(
+        and(
+          eq(ephemeralRegistrationTokens.workspaceId, workspaceId),
+          eq(ephemeralRegistrationTokens.provisionerId, provisionerId),
+        ),
+      );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.provisionedRunnerId).toBe('provisioned-runner-a');
   });

@@ -9,13 +9,20 @@ export interface RotateWorkspaceDataKeysResult {
   skipped: number;
 }
 
+export interface RotateWorkspaceDataKeysOptions {
+  workspaceIds?: string[] | undefined;
+}
+
 export async function rotateWorkspaceDataKeysWithProvider(
   keyProvider: KeyProvider,
+  options: RotateWorkspaceDataKeysOptions = {},
 ): Promise<RotateWorkspaceDataKeysResult> {
   const knownVersions = [keyProvider.currentKeyVersion, keyProvider.previousKeyVersion].filter(
     (version): version is string => Boolean(version),
   );
-  const unknownVersions = await listDataKeyVersions(knownVersions);
+  const unknownVersions = await listDataKeyVersions(knownVersions, {
+    workspaceIds: options.workspaceIds,
+  });
   if (unknownVersions.length > 0) throw new KekVersionStrandedError(unknownVersions[0] as string);
 
   let rotated = 0;
@@ -23,7 +30,11 @@ export async function rotateWorkspaceDataKeysWithProvider(
   let afterWorkspaceId: string | undefined;
 
   while (true) {
-    const page = await listDataKeysPage({afterWorkspaceId, limit: PAGE_SIZE});
+    const page = await listDataKeysPage({
+      afterWorkspaceId,
+      limit: PAGE_SIZE,
+      workspaceIds: options.workspaceIds,
+    });
     if (page.length === 0) break;
 
     for (const row of page) {

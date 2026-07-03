@@ -1,6 +1,4 @@
-import {sql} from 'drizzle-orm';
 import {nextBackoffInterval, pollDemand, shouldReturn} from '#core/demand.js';
-import {db} from '#db/db.js';
 
 describe('shouldReturn', () => {
   const emptyResult = {stats: [], reservations: [], terminateProvisionedRunnerIds: []};
@@ -59,12 +57,6 @@ describe('shouldReturn', () => {
 });
 
 describe('pollDemand', () => {
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_reservations, runners_outbox CASCADE`,
-    );
-  });
-
   it('returns immediately when wait seconds is zero', async () => {
     const result = await pollDemand({
       workspaceId: crypto.randomUUID(),

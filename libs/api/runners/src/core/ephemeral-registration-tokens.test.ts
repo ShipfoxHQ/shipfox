@@ -1,15 +1,11 @@
 import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
 import {mintEphemeralRegistrationToken} from './ephemeral-registration-tokens.js';
 import {ActiveEphemeralRegistrationTokenExistsError} from './errors.js';
 
 describe('mintEphemeralRegistrationToken', () => {
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_ephemeral_registration_tokens CASCADE`);
-  });
-
   it('mints a token, stores only the hash, and carries the ert prefix', async () => {
     const workspaceId = crypto.randomUUID();
     const provisionerId = crypto.randomUUID();

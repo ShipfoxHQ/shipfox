@@ -1,5 +1,5 @@
 import {pgClient} from '@shipfox/node-postgres';
-import {and, desc, eq, sql} from 'drizzle-orm';
+import {and, desc, eq, inArray, or, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {
   listActiveProvisionedRunners,
@@ -12,12 +12,35 @@ import {reservations} from '#db/schema/reservations.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
 
+function provisionedRunnerRowsFor(params: {workspaceId: string; provisionerId: string}) {
+  return db()
+    .select()
+    .from(provisionedRunners)
+    .where(
+      and(
+        eq(provisionedRunners.workspaceId, params.workspaceId),
+        eq(provisionedRunners.provisionerId, params.provisionerId),
+      ),
+    );
+}
+
+function reservationRowsFor(params: {workspaceId: string; provisionerId: string}) {
+  return db()
+    .select()
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.workspaceId, params.workspaceId),
+        eq(reservations.provisionerId, params.provisionerId),
+      ),
+    );
+}
+
 describe('reportProvisionedRunners', () => {
   let workspaceId: string;
   let provisionerId: string;
 
-  beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_provisioned_runners, runners_reservations CASCADE`);
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
   });
@@ -38,7 +61,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await db().select().from(provisionedRunners);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(rows).toHaveLength(1);
     expect(rows[0]?.state).toBe('running');
@@ -58,10 +81,9 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await db()
-      .select()
-      .from(provisionedRunners)
-      .orderBy(provisionedRunners.provisionedRunnerId);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId}).orderBy(
+      provisionedRunners.provisionedRunnerId,
+    );
     expect(result).toEqual({accepted: 2, reservationsReleased: 0});
     expect(rows.map((row) => row.state)).toEqual(['failed', 'failed']);
   });
@@ -89,7 +111,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await db().select().from(provisionedRunners);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('failed');
     expect(rows[0]?.reason).toBe('late stale failure');
   });
@@ -122,7 +144,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await db().select().from(provisionedRunners);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('running');
     expect(rows[0]?.reason).toBe('fresh');
   });
@@ -168,8 +190,8 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
-    const reservationRows = await db().select().from(reservations);
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     expect(terminal).toEqual({accepted: 1, reservationsReleased: 1});
     expect(revived).toEqual({accepted: 1, reservationsReleased: 0});
     expect(provisionedRunnerRows[0]?.state).toBe('failed');
@@ -202,7 +224,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await db().select().from(provisionedRunners);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('running');
     expect(rows[0]?.reportedAt.getTime()).toBeLessThan(Date.now() + 10_000);
   });
@@ -240,7 +262,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await db().select().from(provisionedRunners);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(rows[0]?.state).toBe('terminated');
     expect(rows[0]?.reportedAt.toISOString()).toBe(terminatedAt.toISOString());
@@ -278,7 +300,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await db().select().from(provisionedRunners);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('terminated');
     expect(rows[0]?.reportedAt.toISOString()).toBe(terminatedAt.toISOString());
     expect(rows[0]?.startedAt?.toISOString()).toBe(startedAt.toISOString());
@@ -317,8 +339,8 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 1});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
@@ -351,7 +373,10 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
+    const reservationRows = await db()
+      .select()
+      .from(reservations)
+      .where(inArray(reservations.id, [otherWorkspaceReservationId, peerProvisionerReservationId]));
     expect(result).toEqual({accepted: 2, reservationsReleased: 0});
     expect(reservationRows).toHaveLength(2);
     expect(reservationRows.every((reservation) => reservation.count === 1)).toBe(true);
@@ -375,7 +400,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(reservationRows[0]?.count).toBe(1);
   });
@@ -409,8 +434,8 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
-    const reservationRows = await db().select().from(reservations);
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     expect(provisionedRunnerRows[0]?.state).toBe('failed');
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservationRows[0]?.count).toBe(1);
@@ -427,8 +452,8 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 1});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.state).toBe('terminated');
@@ -448,7 +473,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 2, reservationsReleased: 2});
     expect(reservationRows[0]?.count).toBe(1);
   });
@@ -464,7 +489,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 1});
     expect(reservationRows).toHaveLength(0);
   });
@@ -477,7 +502,7 @@ describe('reportProvisionedRunners', () => {
       count: 1,
       expiresAt: new Date(Date.now() - 60_000),
     });
-    const [reservation] = await db().select().from(reservations);
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     if (!reservation) throw new Error('Expected reservation');
 
     const result = await reportProvisionedRunners({
@@ -492,7 +517,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
@@ -513,8 +538,8 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
@@ -545,8 +570,8 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const reservationRows = await db().select().from(reservations);
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(reservationRows[0]?.count).toBe(1);
     expect(provisionedRunnerRows[0]?.state).toBe('failed');
@@ -606,10 +631,7 @@ describe('listProvisionerTerminateIntents', () => {
   let workspaceId: string;
   let provisionerId: string;
 
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_provisioned_runners, runners_reservations, runners_running_jobs CASCADE`,
-    );
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
   });
@@ -653,15 +675,13 @@ describe('listProvisionerTerminateIntents', () => {
   it('excludes a cancelled job when it is not the latest bound job', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
-      jobExecutionId: '10000000-0000-4000-8000-000000000001',
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
     await insertRunningJob({
-      jobExecutionId: '10000000-0000-4000-8000-000000000002',
       provisionedRunnerId: 'provisioned-runner-1',
-      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      startedAt: new Date('2025-01-01T00:02:00.000Z'),
     });
 
     const result = await listProvisionerTerminateIntents({workspaceId, provisionerId, limit: 1000});
@@ -689,13 +709,11 @@ describe('listProvisionerTerminateIntents', () => {
   it('returns one id for duplicate cancelled bound jobs on the same provisioned runner', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
-      jobExecutionId: '10000000-0000-4000-8000-000000000001',
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
     await insertRunningJob({
-      jobExecutionId: '10000000-0000-4000-8000-000000000002',
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
@@ -771,10 +789,7 @@ describe('reconcileProvisionedRunners', () => {
   let workspaceId: string;
   let provisionerId: string;
 
-  beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_provisioned_runners, runners_reservations, runners_running_jobs CASCADE`,
-    );
+  beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
   });
@@ -794,8 +809,8 @@ describe('reconcileProvisionedRunners', () => {
       terminateGraceSeconds: 60,
     });
 
-    const [provisionedRunner] = await db().select().from(provisionedRunners);
-    const [reservation] = await db().select().from(reservations);
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result.absentIds).toEqual(['provisioned-runner-1']);
     expect(result.reservationsReleased).toBe(1);
     expect(provisionedRunner?.state).toBe('terminated');
@@ -816,7 +831,7 @@ describe('reconcileProvisionedRunners', () => {
       terminateGraceSeconds: 60,
     });
 
-    const [provisionedRunner] = await db().select().from(provisionedRunners);
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result.absentIds).toEqual([]);
     expect(result.reservationsReleased).toBe(0);
     expect(provisionedRunner?.state).toBe('running');
@@ -861,8 +876,8 @@ describe('reconcileProvisionedRunners', () => {
     }
     const [result] = await Promise.all([reconcile, reportTransaction]);
 
-    const [provisionedRunner] = await db().select().from(provisionedRunners);
-    const [reservation] = await db().select().from(reservations);
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result.absentIds).toEqual([]);
     expect(result.reservationsReleased).toBe(0);
     expect(provisionedRunner?.state).toBe('running');
@@ -887,10 +902,9 @@ describe('reconcileProvisionedRunners', () => {
       terminateGraceSeconds: 60,
     });
 
-    const rows = await db()
-      .select()
-      .from(provisionedRunners)
-      .orderBy(provisionedRunners.provisionedRunnerId);
+    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId}).orderBy(
+      provisionedRunners.provisionedRunnerId,
+    );
     expect(result.absentIds).toEqual(['stale-runner']);
     expect(rows.map((row) => [row.provisionedRunnerId, row.state])).toEqual([
       ['fresh-runner', 'running'],
@@ -932,8 +946,8 @@ describe('reconcileProvisionedRunners', () => {
       terminateGraceSeconds: 60,
     });
 
-    const reservationRows = await db().select().from(reservations);
-    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
+    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(result.reservationsReleased).toBe(3);
     expect(reservationRows).toHaveLength(2);
     expect(reservationRows.find((row) => row.id === sharedReservationId)?.count).toBe(1);
@@ -965,7 +979,7 @@ describe('reconcileProvisionedRunners', () => {
       terminateGraceSeconds: 60,
     });
 
-    const [reservation] = await db().select().from(reservations);
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(first.reservationsReleased).toBe(1);
     expect(second.reservationsReleased).toBe(0);
     expect(reservation?.count).toBe(1);
@@ -1003,6 +1017,22 @@ describe('reconcileProvisionedRunners', () => {
     const rows = await db()
       .select()
       .from(provisionedRunners)
+      .where(
+        or(
+          and(
+            eq(provisionedRunners.workspaceId, workspaceId),
+            eq(provisionedRunners.provisionerId, provisionerId),
+          ),
+          and(
+            eq(provisionedRunners.workspaceId, otherWorkspaceId),
+            eq(provisionedRunners.provisionerId, provisionerId),
+          ),
+          and(
+            eq(provisionedRunners.workspaceId, workspaceId),
+            eq(provisionedRunners.provisionerId, otherProvisionerId),
+          ),
+        ),
+      )
       .orderBy(provisionedRunners.provisionedRunnerId);
     expect(rows.map((row) => [row.provisionedRunnerId, row.state])).toEqual([
       ['other-provisioner-runner', 'running'],
@@ -1027,8 +1057,8 @@ describe('reconcileProvisionedRunners', () => {
       terminateGraceSeconds: 60,
     });
 
-    const [provisionedRunner] = await db().select().from(provisionedRunners);
-    const [reservation] = await db().select().from(reservations);
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result.reservationsReleased).toBe(0);
     expect(provisionedRunner?.state).toBe('terminated');
     expect(provisionedRunner?.reservationReleasedAt).toBeNull();
@@ -1088,7 +1118,7 @@ describe('reconcileProvisionedRunners', () => {
       ],
     });
 
-    const [provisionedRunner] = await db().select().from(provisionedRunners);
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
     expect(provisionedRunner?.state).toBe('terminated');
   });
 
@@ -1134,8 +1164,8 @@ describe('reconcileProvisionedRunners', () => {
     }
     const [reportResult, reconcileResult] = await Promise.all([report, reconcile, lockHolder]);
 
-    const [provisionedRunner] = await db().select().from(provisionedRunners);
-    const [reservation] = await db().select().from(reservations);
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(reportResult.reservationsReleased + reconcileResult.reservationsReleased).toBe(1);
     expect(provisionedRunner?.state).toSatisfy(
       (state: string | undefined) => state === 'failed' || state === 'terminated',

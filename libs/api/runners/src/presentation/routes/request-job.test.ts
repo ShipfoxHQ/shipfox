@@ -9,9 +9,7 @@ import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {signHs256} from '@shipfox/node-jwt';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
-import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
-import {db} from '#db/db.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {
   ephemeralRegistrationTokenFactory,
@@ -57,9 +55,6 @@ describe('POST /runners/jobs/request', () => {
   });
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens CASCADE`,
-    );
     rawToken = `sf_mrt_${crypto.randomUUID()}`;
     workspaceId = crypto.randomUUID();
     await manualRegistrationTokenFactory.create({workspaceId}, {transient: {rawToken}});
