@@ -87,12 +87,21 @@ jobs:
         uses: ./.github/actions/setup-playwright
 
       - name: Start test services
-        run: docker compose up --wait -d postgres temporal garage garage-init
+        run: docker compose up --wait -d postgres temporal garage garage-init gitea gitea-init
+
+      - name: Install Playwright browsers
+        run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
       # E2E dev servers still depend on dist/ for Temporal workflow bundles and
       # the shared vite-dev bin.
       - name: Build dev server dependencies
         run: turbo build --filter @shipfox/api --filter @shipfox/vite
+
+      - name: Build runner image
+        run: turbo image --concurrency=1 --filter @shipfox/runner
 
       - name: Run E2E tests
         id: e2e
@@ -100,7 +109,9 @@ jobs:
           API_URL: http://localhost:16101
           CLIENT_URL: http://localhost:5173
           E2E_ADMIN_API_KEY: e2e-admin-api-key
+          E2E_DOCKER_NETWORK: bridge
           E2E_ENABLED: "true"
+          GITEA_CLONE_BASE_URL: http://host.docker.internal:3000
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}

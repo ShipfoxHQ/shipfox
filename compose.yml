@@ -68,6 +68,8 @@ services:
     # This release fixes CVE-2026-28744 / CVE-2026-28699 on the git-http checkout path.
     image: gitea/gitea:1.26.2
     network_mode: bridge
+    extra_hosts:
+      - host.docker.internal:host-gateway
     environment:
       USER_UID: "1000"
       USER_GID: "1000"
