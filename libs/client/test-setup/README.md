@@ -25,5 +25,5 @@ It:
 `matchMedia` reports `min-width` queries as matching (desktop) and everything
 else as not matching.
 
-A package that needs extra Testing Library configuration (for example a widened
-`asyncUtilTimeout`) adds it in its own `test/setup.ts` after the call.
+A package that needs extra DOM test configuration adds it in its own
+`test/setup.ts` after the call.
