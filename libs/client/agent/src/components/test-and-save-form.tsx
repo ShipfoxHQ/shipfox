@@ -11,6 +11,7 @@ import {Code, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
 import {useUpsertModelProviderConfigMutation} from '#hooks/api/model-providers.js';
+import {credentialFingerprint} from './credential-fingerprint.js';
 import {
   DefaultModelField,
   defaultModelFormValue,
@@ -177,11 +178,4 @@ function defaultFormValues(
     default_model: defaultModelFormValue(existingConfig?.default_model),
     ...Object.fromEntries(entry.credential_fields.map((field) => [field.key, ''])),
   };
-}
-
-function credentialFingerprint(
-  fingerprints: Record<string, string>,
-  credentialKey: string,
-): string | undefined {
-  return fingerprints[`credential:${credentialKey}`] ?? fingerprints[credentialKey];
 }

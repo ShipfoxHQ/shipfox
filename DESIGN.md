@@ -264,7 +264,7 @@ The system ships with batteries — use them. The `@shipfox/react-ui` package in
 
 `accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`, `card`, `code-block`, `collapsible`, `combobox`, `command`, `date-picker`, `date-range-picker`, `dot`, `dropdown-menu`, `empty-state`, `form-field`, `icon`, `inline-tips`, `input`, `kbd`, `label`, `load-error-state`, `loader`, `log`, `logo`, `modal`, `popover`, `radio-group`, `relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `skeleton`, `table`, `tabs`, `theme`, `toast`, `tooltip`, `typography`.
 
-Still absent from this package and living only in the broader external catalog: `button-group`, `checkbox`, `confetti`, `count-up`, `dashboard`, `dot-grid`, `dynamic-item`, `form`, `interval-selector`, `item`, `moving-border`, `shipql-editor`, `slider`, `switch`, `textarea`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
+Still absent from this package and living only in the broader external catalog: `button-group`, `checkbox`, `confetti`, `count-up`, `dashboard`, `dot-grid`, `dynamic-item`, `form`, `interval-selector`, `item`, `moving-border`, `shipql-editor`, `slider`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
 
 ### Buttons (the one most people get wrong)
 

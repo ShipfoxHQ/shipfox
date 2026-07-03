@@ -37,13 +37,18 @@ export {
   DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
   DEFAULT_CUSTOM_MODEL_REASONING,
   type DiscoverCustomModelProviderModelsBodyDto,
+  type DiscoverCustomModelProviderModelsBySlugBodyDto,
   type DiscoverCustomModelProviderModelsResponseDto,
   discoverCustomModelProviderModelsBodySchema,
+  discoverCustomModelProviderModelsBySlugBodySchema,
   discoverCustomModelProviderModelsResponseSchema,
+  MAX_MODEL_COUNT,
   type ModelProviderApi,
   modelProviderApiSchema,
   type UpdateCustomModelProviderBodyDto,
+  type UpdateCustomModelProviderHeaderRequestDto,
   updateCustomModelProviderBodySchema,
+  updateCustomModelProviderHeaderRequestSchema,
 } from './custom-model-provider.js';
 export {
   type MaterializedAgentStepConfigDto,

@@ -1,3 +1,4 @@
+import type {CustomModelProviderConfigDto} from '@shipfox/api-agent-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui/toast';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
@@ -45,6 +46,26 @@ async function openProviderActions(user: ReturnType<typeof userEvent.setup>, lab
   await user.click(screen.getByRole('button', {name: `Open ${label} provider actions`}));
 }
 
+function customProviderConfig(): CustomModelProviderConfigDto {
+  return {
+    kind: 'custom',
+    provider_id: 'local-vllm',
+    display_name: 'Local vLLM',
+    api: 'openai-completions',
+    base_url: 'http://localhost:8000/v1',
+    headers: [{name: 'x-region', value: 'us'}],
+    secret_header_names: ['authorization'],
+    models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+    default_model: 'llama-3.1',
+    key_fingerprints: {
+      'credential:api_key': '...abcd',
+      'header:authorization': '...oken',
+    },
+    created_at: '2026-05-08T00:00:00.000Z',
+    updated_at: '2026-05-08T00:00:00.000Z',
+  };
+}
+
 describe('WorkspaceModelProvidersSection', () => {
   test('renders configured, available, and unsupported providers', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
@@ -82,6 +103,35 @@ describe('WorkspaceModelProvidersSection', () => {
     expect(screen.getByText('Unsupported providers')).toBeVisible();
     expect(screen.getByText('Amazon Bedrock')).toBeVisible();
     expect(screen.getByText('AWS cloud credentials are not supported yet.')).toBeVisible();
+  });
+
+  test('renders custom configured providers and preserves built-in model actions', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input).endsWith('/agent/model-provider-catalog')) {
+        return Promise.resolve(jsonResponse(modelProviderCatalogResponse()));
+      }
+      return Promise.resolve(
+        jsonResponse(
+          modelProviderConfigsResponse({
+            configs: [modelProviderConfig(), customProviderConfig()],
+            default_provider_id: 'local-vllm',
+          }),
+        ),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+
+    expect(await screen.findByText('Local vLLM')).toBeVisible();
+    expect(screen.getByText('Custom')).toBeVisible();
+    expect(screen.getByText('localhost:8000')).toBeVisible();
+    expect(screen.getByText('OpenAI Chat Completions')).toBeVisible();
+    expect(screen.getByText('1 secret header')).toBeVisible();
+
+    await openProviderActions(user, 'Anthropic');
+    expect(screen.getByRole('menuitem', {name: 'Change default model'})).toBeVisible();
   });
 
   test('filters available providers and clears back to the full available list', async () => {

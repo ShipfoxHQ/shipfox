@@ -4,6 +4,7 @@ import type {
   DiscoverCustomModelProviderModelsResponseDto,
   ModelProviderApi,
 } from '@shipfox/api-agent-dto';
+import {MAX_MODEL_COUNT} from '@shipfox/api-agent-dto';
 import {assertEgressAllowed} from '@shipfox/node-egress-guard';
 import {config} from '#config.js';
 import {appendCustomProviderPath, googleDiscoveryUrl} from './custom-provider-url.js';
@@ -106,11 +107,13 @@ function parseModelList(payload: unknown): DiscoveredModel[] {
   const candidates = extractModelCandidates(payload);
   const models = candidates.map(parseModelCandidate).filter(isDiscoveredModel);
   const seen = new Set<string>();
-  return models.filter((model) => {
-    if (seen.has(model.id)) return false;
-    seen.add(model.id);
-    return true;
-  });
+  return models
+    .filter((model) => {
+      if (seen.has(model.id)) return false;
+      seen.add(model.id);
+      return true;
+    })
+    .slice(0, MAX_MODEL_COUNT);
 }
 
 function extractModelCandidates(payload: unknown): unknown[] {

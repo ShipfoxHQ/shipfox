@@ -2,6 +2,7 @@ import {fireEvent, render, screen, waitFor, within} from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import {modelProviderEntry} from '#test/fixtures/model-providers.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
+import {usageTargetFromCatalogEntry} from './model-provider-usage-target.js';
 
 const CLAUDE_MODEL_ROW_NAME = 'Copy Claude Opus 4.8 model id claude-opus-4-8';
 const KIMI_MODEL_ROW_NAME = 'Copy Kimi K2.7 Code model id @cf/moonshotai/kimi-k2.7-code';
@@ -18,7 +19,7 @@ function renderUsageModal() {
 
   render(
     <ModelProviderUsageModal
-      entry={entry}
+      target={usageTargetFromCatalogEntry(entry)}
       initialModel="claude-opus-4-8"
       open
       onOpenChange={onOpenChange}

@@ -4,12 +4,16 @@ import {
   type CustomModelProviderHeaderDto,
   type CustomModelProviderHeaderRequestDto,
   DEFAULT_AGENT_THINKING,
+  type DiscoverCustomModelProviderModelsBodyDto,
+  type DiscoverCustomModelProviderModelsBySlugBodyDto,
   type ModelProviderRef,
   type UpdateCustomModelProviderBodyDto,
+  type UpdateCustomModelProviderHeaderRequestDto,
 } from '@shipfox/api-agent-dto';
 import {deleteSecrets, getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {assertEgressAllowed} from '@shipfox/node-egress-guard';
 import {
+  deleteModelProviderConfig,
   getModelProviderConfig,
   insertCustomModelProviderConfig,
   upsertModelProviderConfig,
@@ -25,7 +29,9 @@ import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {
   CustomModelProviderConfigNotFoundError,
   CustomModelProviderSlugCollisionError,
+  CustomModelProviderStoredSecretBaseUrlChangeError,
   InvalidAgentModelError,
+  InvalidCustomModelProviderHeaderKeepError,
 } from './errors.js';
 import {
   egressPolicy,
@@ -62,6 +68,14 @@ export async function createCustomModelProviderConfig(
   options: CustomModelProviderConfigServiceOptions = {},
 ): Promise<ModelProviderConfig> {
   const probe = options.probe ?? probeCustomModelProviderCredentials;
+
+  const existing = await getModelProviderConfig({
+    workspaceId: params.workspaceId,
+    providerId: params.body.slug,
+  });
+  if (existing !== undefined) {
+    throw new CustomModelProviderSlugCollisionError(params.workspaceId, params.body.slug);
+  }
 
   const splitHeaders = splitCustomHeaders(params.body.headers ?? []);
   const secretCredentials = {
@@ -106,13 +120,24 @@ export async function createCustomModelProviderConfig(
     throw new CustomModelProviderSlugCollisionError(params.workspaceId, params.body.slug);
   }
 
-  await setSecrets({
-    workspaceId: params.workspaceId,
-    namespace: agentSystemNamespace(params.body.slug),
-    values: customCredentialsToStoreValues(secretCredentials),
-  });
-
-  return config;
+  try {
+    await setSecrets({
+      workspaceId: params.workspaceId,
+      namespace: agentSystemNamespace(params.body.slug),
+      values: customCredentialsToStoreValues(secretCredentials),
+    });
+    return config;
+  } catch (error) {
+    await deleteModelProviderConfig({
+      workspaceId: params.workspaceId,
+      providerId: params.body.slug,
+    });
+    await deleteSecrets({
+      workspaceId: params.workspaceId,
+      namespace: agentSystemNamespace(params.body.slug),
+    });
+    throw error;
+  }
 }
 
 export async function updateCustomModelProviderConfig(
@@ -136,7 +161,18 @@ export async function updateCustomModelProviderConfig(
   const nextApi = params.body.api ?? existing.api ?? 'openai-responses';
   const nextBaseUrl = params.body.base_url ?? existing.baseUrl ?? '';
   const nextDisplayName = params.body.display_name ?? existing.displayName ?? params.providerId;
-  const nextHeaders = resolveNextHeaders(params.body.headers, existing, existingSecrets);
+  assertStoredSecretsNotReusedAfterBaseUrlChange({
+    body: params.body,
+    existing,
+    existingSecrets,
+    providerId: params.providerId,
+  });
+  const nextHeaders = resolveNextHeaders({
+    requestHeaders: params.body.headers,
+    existing,
+    existingSecrets,
+    providerId: params.providerId,
+  });
   const nextApiKey = params.body.api_key ?? existingSecrets.api_key;
   const newSecretCredentials = {
     ...(params.body.api_key ? {api_key: params.body.api_key} : {}),
@@ -171,6 +207,12 @@ export async function updateCustomModelProviderConfig(
     replaceHeaders: params.body.headers !== undefined,
   });
 
+  await setSecrets({
+    workspaceId: params.workspaceId,
+    namespace: agentSystemNamespace(params.providerId),
+    values: customCredentialsToStoreValues(newSecretCredentials),
+  });
+
   const updated = await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
@@ -185,11 +227,6 @@ export async function updateCustomModelProviderConfig(
     defaultThinking: existing.defaultThinking,
   });
 
-  await setSecrets({
-    workspaceId: params.workspaceId,
-    namespace: agentSystemNamespace(params.providerId),
-    values: customCredentialsToStoreValues(newSecretCredentials),
-  });
   await pruneStaleCustomHeaderSecrets({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
@@ -199,6 +236,39 @@ export async function updateCustomModelProviderConfig(
   });
 
   return updated;
+}
+
+export async function resolveCustomModelProviderDiscoveryParams(params: {
+  workspaceId: string;
+  providerId: ModelProviderRef;
+  body: DiscoverCustomModelProviderModelsBySlugBodyDto;
+}): Promise<DiscoverCustomModelProviderModelsBodyDto> {
+  const existing = await getExistingCustomConfig(params.workspaceId, params.providerId);
+  const existingSecrets = await getCustomProviderSecrets({
+    workspaceId: params.workspaceId,
+    providerId: params.providerId,
+  });
+  assertStoredSecretsNotReusedAfterBaseUrlChange({
+    body: params.body,
+    existing,
+    existingSecrets,
+    providerId: params.providerId,
+  });
+  const headers = resolveNextHeaders({
+    requestHeaders: params.body.headers,
+    existing,
+    existingSecrets,
+    providerId: params.providerId,
+  });
+
+  return {
+    api: params.body.api ?? existing.api ?? 'openai-responses',
+    base_url: params.body.base_url ?? existing.baseUrl ?? '',
+    ...((params.body.api_key ?? existingSecrets.api_key)
+      ? {api_key: params.body.api_key ?? existingSecrets.api_key}
+      : {}),
+    headers: Object.entries(headers.runtimeHeaders).map(([name, value]) => ({name, value})),
+  };
 }
 
 async function getExistingCustomConfig(
@@ -229,33 +299,32 @@ function splitCustomHeaders(headers: CustomModelProviderHeaderRequestDto[]): Spl
   return {plaintextHeaders, secretCredentials, runtimeHeaders};
 }
 
-function resolveNextHeaders(
-  requestHeaders: CustomModelProviderHeaderRequestDto[] | undefined,
-  existing: ModelProviderConfig,
-  existingSecrets: Record<string, string>,
-): {
+function resolveNextHeaders(params: {
+  requestHeaders: UpdateCustomModelProviderHeaderRequestDto[] | undefined;
+  existing: ModelProviderConfig;
+  existingSecrets: Record<string, string>;
+  providerId: ModelProviderRef;
+}): {
   plaintextHeaders: CustomModelProviderHeaderDto[];
   runtimeHeaders: Record<string, string>;
   probeSecretCredentials: Record<string, string>;
   newSecretCredentials: Record<string, string>;
 } {
-  if (requestHeaders !== undefined) {
-    const splitHeaders = splitCustomHeaders(requestHeaders);
-    return {
-      plaintextHeaders: splitHeaders.plaintextHeaders,
-      runtimeHeaders: splitHeaders.runtimeHeaders,
-      probeSecretCredentials: splitHeaders.secretCredentials,
-      newSecretCredentials: splitHeaders.secretCredentials,
-    };
+  if (params.requestHeaders !== undefined) {
+    return splitUpdateHeaders({
+      requestHeaders: params.requestHeaders,
+      existingSecrets: params.existingSecrets,
+      providerId: params.providerId,
+    });
   }
 
   const runtimeHeaders: Record<string, string> = {};
-  for (const header of existing.headers ?? []) {
+  for (const header of params.existing.headers ?? []) {
     runtimeHeaders[header.name] = header.value;
   }
 
   const probeSecretCredentials: Record<string, string> = {};
-  for (const [key, value] of Object.entries(existingSecrets)) {
+  for (const [key, value] of Object.entries(params.existingSecrets)) {
     if (!key.startsWith('header:')) continue;
     const name = key.slice('header:'.length);
     runtimeHeaders[name] = value;
@@ -263,10 +332,60 @@ function resolveNextHeaders(
   }
 
   return {
-    plaintextHeaders: existing.headers ?? [],
+    plaintextHeaders: params.existing.headers ?? [],
     runtimeHeaders,
     probeSecretCredentials,
     newSecretCredentials: {},
+  };
+}
+
+function splitUpdateHeaders(params: {
+  requestHeaders: UpdateCustomModelProviderHeaderRequestDto[];
+  existingSecrets: Record<string, string>;
+  providerId: ModelProviderRef;
+}): {
+  plaintextHeaders: CustomModelProviderHeaderDto[];
+  runtimeHeaders: Record<string, string>;
+  probeSecretCredentials: Record<string, string>;
+  newSecretCredentials: Record<string, string>;
+} {
+  const plaintextHeaders: CustomModelProviderHeaderDto[] = [];
+  const runtimeHeaders: Record<string, string> = {};
+  const probeSecretCredentials: Record<string, string> = {};
+  const newSecretCredentials: Record<string, string> = {};
+
+  for (const header of params.requestHeaders) {
+    if (header.keep === true) {
+      const key = `header:${header.name}`;
+      const value = params.existingSecrets[key];
+      if (value === undefined) {
+        throw new InvalidCustomModelProviderHeaderKeepError(params.providerId, header.name);
+      }
+      runtimeHeaders[header.name] = value;
+      probeSecretCredentials[key] = value;
+      newSecretCredentials[key] = value;
+      continue;
+    }
+
+    const value = header.value;
+    if (value === undefined) {
+      throw new InvalidCustomModelProviderHeaderKeepError(params.providerId, header.name);
+    }
+    runtimeHeaders[header.name] = value;
+    if (header.secret) {
+      const key = `header:${header.name}`;
+      probeSecretCredentials[key] = value;
+      newSecretCredentials[key] = value;
+    } else {
+      plaintextHeaders.push({name: header.name, value});
+    }
+  }
+
+  return {
+    plaintextHeaders,
+    runtimeHeaders,
+    probeSecretCredentials,
+    newSecretCredentials,
   };
 }
 
@@ -305,6 +424,39 @@ async function getCustomProviderSecrets(params: {
     namespace: agentSystemNamespace(params.providerId),
   });
   return storeValuesToCustomRuntimeCredentials(values);
+}
+
+function assertStoredSecretsNotReusedAfterBaseUrlChange(params: {
+  body: UpdateCustomModelProviderBodyDto | DiscoverCustomModelProviderModelsBySlugBodyDto;
+  existing: ModelProviderConfig;
+  existingSecrets: Record<string, string>;
+  providerId: ModelProviderRef;
+}): void {
+  if (
+    params.body.base_url === undefined ||
+    normalizedUrl(params.body.base_url) === normalizedUrl(params.existing.baseUrl ?? '')
+  ) {
+    return;
+  }
+
+  const reusesStoredApiKey =
+    params.existingSecrets.api_key !== undefined && params.body.api_key === undefined;
+  const reusesStoredSecretHeader =
+    params.body.headers === undefined
+      ? Object.keys(params.existingSecrets).some((key) => key.startsWith('header:'))
+      : params.body.headers.some((header) => header.keep === true);
+
+  if (reusesStoredApiKey || reusesStoredSecretHeader) {
+    throw new CustomModelProviderStoredSecretBaseUrlChangeError(params.providerId);
+  }
+}
+
+function normalizedUrl(value: string): string {
+  try {
+    return new URL(value).href;
+  } catch {
+    return value;
+  }
 }
 
 async function pruneStaleCustomHeaderSecrets(params: {

@@ -1,15 +1,18 @@
 import crypto from 'node:crypto';
-import {getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
+import * as secretStore from '@shipfox/api-secrets';
 import {getModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
 import {agentSystemNamespace} from './credential-fingerprints.js';
 import {
   createCustomModelProviderConfig,
+  resolveCustomModelProviderDiscoveryParams,
   updateCustomModelProviderConfig,
 } from './custom-model-provider-config-service.js';
 import {
   CustomModelProviderSlugCollisionError,
+  CustomModelProviderStoredSecretBaseUrlChangeError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
+  InvalidCustomModelProviderHeaderKeepError,
   ModelProviderConfigNotFoundError,
   ModelProviderValidationError,
 } from './errors.js';
@@ -18,6 +21,8 @@ import {
   testAndSaveModelProviderConfig,
   updateModelProviderConfigDefaultModel,
 } from './model-provider-config-service.js';
+
+const {getSecretsByNamespace, setSecrets} = secretStore;
 
 describe('testAndSaveModelProviderConfig', () => {
   let workspaceId: string;
@@ -528,6 +533,46 @@ describe('custom model provider config service', () => {
     expect(stored?.keyFingerprints).toEqual({'credential:api_key': 'sk-local...inal'});
   });
 
+  it('does not let concurrent duplicate custom creates overwrite the winner secrets', async () => {
+    let probeCalls = 0;
+    let releaseProbes: () => void = () => undefined;
+    const bothProbesStarted = new Promise<void>((resolve) => {
+      releaseProbes = resolve;
+    });
+    const probe = vi.fn(async () => {
+      probeCalls += 1;
+      if (probeCalls === 2) releaseProbes();
+      await bothProbesStarted;
+    });
+    const firstSecret = 'sk-local-original-abcd';
+    const secondSecret = 'sk-local-replacement-wxyz';
+
+    const results = await Promise.allSettled([
+      createCustomModelProviderConfig(
+        {workspaceId, body: createCustomBody({api_key: firstSecret})},
+        {probe},
+      ),
+      createCustomModelProviderConfig(
+        {workspaceId, body: createCustomBody({api_key: secondSecret})},
+        {probe},
+      ),
+    ]);
+
+    const fulfilled = results.filter((result) => result.status === 'fulfilled');
+    const rejected = results.filter((result) => result.status === 'rejected');
+    const stored = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('local-vllm'),
+    });
+    const storedFingerprint = stored?.keyFingerprints['credential:api_key'];
+    const expectedSecret = storedFingerprint?.endsWith('abcd') ? firstSecret : secondSecret;
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBeInstanceOf(CustomModelProviderSlugCollisionError);
+    expect(secrets).toEqual({API_KEY: expectedSecret});
+  });
+
   it('updates custom headers as a full replacement and preserves an omitted api key', async () => {
     const probe = vi.fn().mockResolvedValue(undefined);
     await createCustomModelProviderConfig(
@@ -574,6 +619,170 @@ describe('custom model provider config service', () => {
       'credential:api_key': 'sk-local...inal',
       'header:x-region': '...',
     });
+  });
+
+  it('keeps stored secret header values during custom provider updates', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          headers: [
+            {name: 'authorization', value: 'Bearer old', secret: true},
+            {name: 'x-region', value: 'us', secret: false},
+          ],
+        }),
+      },
+      {probe},
+    );
+
+    const updated = await updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {
+          headers: [
+            {name: 'authorization', secret: true, keep: true},
+            {name: 'x-region', value: 'eu', secret: false},
+          ],
+        },
+      },
+      {probe},
+    );
+
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('local-vllm'),
+    });
+    expect(probe).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        headers: {authorization: 'Bearer old', 'x-region': 'eu'},
+      }),
+    );
+    expect(secrets).toEqual({
+      API_KEY: 'sk-local-original',
+      HEADER_617574686F72697A6174696F6E: 'Bearer old',
+    });
+    expect(updated.headers).toEqual([{name: 'x-region', value: 'eu'}]);
+    expect(updated.keyFingerprints['header:authorization']).toBe('... old');
+  });
+
+  it('rejects custom updates that reuse stored secrets after changing the base URL', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          api_key: 'sk-local-original',
+          headers: [{name: 'authorization', value: 'Bearer old', secret: true}],
+        }),
+      },
+      {probe},
+    );
+
+    const update = updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {
+          base_url: 'https://attacker.example.com/v1',
+          headers: [{name: 'authorization', secret: true, keep: true}],
+        },
+      },
+      {probe},
+    );
+
+    await expect(update).rejects.toThrow(CustomModelProviderStoredSecretBaseUrlChangeError);
+    expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects kept secret headers that are renamed or missing', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          headers: [{name: 'authorization', value: 'Bearer old', secret: true}],
+        }),
+      },
+      {probe},
+    );
+
+    const update = updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {headers: [{name: 'x-authorization', secret: true, keep: true}]},
+      },
+      {probe},
+    );
+
+    await expect(update).rejects.toThrow(InvalidCustomModelProviderHeaderKeepError);
+  });
+
+  it('resolves slug-scoped discovery params from stored custom provider secrets', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          api_key: 'sk-local-original',
+          headers: [
+            {name: 'authorization', value: 'Bearer old', secret: true},
+            {name: 'x-region', value: 'us', secret: false},
+          ],
+        }),
+      },
+      {probe},
+    );
+
+    const discoveryParams = await resolveCustomModelProviderDiscoveryParams({
+      workspaceId,
+      providerId: 'local-vllm',
+      body: {
+        headers: [
+          {name: 'authorization', secret: true, keep: true},
+          {name: 'x-region', value: 'eu', secret: false},
+        ],
+      },
+    });
+
+    expect(discoveryParams).toEqual({
+      api: 'openai-responses',
+      base_url: 'http://127.0.0.1:11434/v1',
+      api_key: 'sk-local-original',
+      headers: [
+        {name: 'authorization', value: 'Bearer old'},
+        {name: 'x-region', value: 'eu'},
+      ],
+    });
+  });
+
+  it('rejects slug-scoped discovery that reuses stored secrets after changing the base URL', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          api_key: 'sk-local-original',
+          headers: [{name: 'authorization', value: 'Bearer old', secret: true}],
+        }),
+      },
+      {probe},
+    );
+
+    const discoveryParams = resolveCustomModelProviderDiscoveryParams({
+      workspaceId,
+      providerId: 'local-vllm',
+      body: {
+        base_url: 'https://attacker.example.com/v1',
+        headers: [{name: 'authorization', secret: true, keep: true}],
+      },
+    });
+
+    await expect(discoveryParams).rejects.toThrow(
+      CustomModelProviderStoredSecretBaseUrlChangeError,
+    );
   });
 
   it('clears a stored custom default model when replacement models drop it', async () => {

@@ -68,7 +68,7 @@ function defaultModelDescription(
   return selectedModel;
 }
 
-function FormFieldSelect({className, ...props}: ComponentProps<'select'>) {
+export function FormFieldSelect({className, ...props}: ComponentProps<'select'>) {
   const wiring = useFormField();
   return (
     <select

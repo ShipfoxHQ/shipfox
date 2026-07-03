@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {isReservedModelProviderId, modelProviderRefSchema} from './model-provider-id.js';
 
 const MAX_HEADER_COUNT = 32;
-const MAX_MODEL_COUNT = 128;
+export const MAX_MODEL_COUNT = 128;
 
 export const DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW = 128_000;
 export const DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS = 16_384;
@@ -56,8 +56,52 @@ export type CustomModelProviderHeaderRequestDto = z.infer<
   typeof customModelProviderHeaderRequestSchema
 >;
 
+export const updateCustomModelProviderHeaderRequestSchema = z
+  .object({
+    name: headerNameSchema,
+    value: headerValueSchema.optional(),
+    secret: z.boolean(),
+    keep: z.boolean().optional(),
+  })
+  .superRefine((header, ctx) => {
+    if (header.keep === true) {
+      if (!header.secret) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['secret'],
+          message: 'Kept headers must be secret.',
+        });
+      }
+      if (header.value !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['value'],
+          message: 'Kept headers must not include a value.',
+        });
+      }
+      return;
+    }
+
+    if (header.value === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: 'Header value is required.',
+      });
+    }
+  });
+
+export type UpdateCustomModelProviderHeaderRequestDto = z.infer<
+  typeof updateCustomModelProviderHeaderRequestSchema
+>;
+
 const customModelProviderHeadersRequestSchema = z
   .array(customModelProviderHeaderRequestSchema)
+  .max(MAX_HEADER_COUNT)
+  .superRefine(assertUniqueHeaderNames);
+
+const updateCustomModelProviderHeadersRequestSchema = z
+  .array(updateCustomModelProviderHeaderRequestSchema)
   .max(MAX_HEADER_COUNT)
   .superRefine(assertUniqueHeaderNames);
 
@@ -77,7 +121,6 @@ const customModelProviderBodyFields = {
   api: modelProviderApiSchema,
   base_url: z.string().url().max(2048),
   api_key: z.string().min(1).max(8192).optional(),
-  headers: customModelProviderHeadersRequestSchema.optional(),
   models: customModelProviderModelsSchema,
   default_model: modelIdSchema.nullable().optional(),
 };
@@ -88,6 +131,7 @@ export const createCustomModelProviderBodySchema = z
       message: 'Provider id is reserved.',
     }),
     ...customModelProviderBodyFields,
+    headers: customModelProviderHeadersRequestSchema.optional(),
   })
   .superRefine(assertDefaultModelInModels);
 
@@ -96,6 +140,7 @@ export type CreateCustomModelProviderBodyDto = z.infer<typeof createCustomModelP
 export const updateCustomModelProviderBodySchema = z
   .object({
     ...customModelProviderBodyFields,
+    headers: updateCustomModelProviderHeadersRequestSchema.optional(),
     models: customModelProviderModelsSchema.optional(),
   })
   .partial()
@@ -115,6 +160,17 @@ export const discoverCustomModelProviderModelsBodySchema = z.object({
 
 export type DiscoverCustomModelProviderModelsBodyDto = z.infer<
   typeof discoverCustomModelProviderModelsBodySchema
+>;
+
+export const discoverCustomModelProviderModelsBySlugBodySchema = z.object({
+  api: modelProviderApiSchema.optional(),
+  base_url: z.string().url().max(2048).optional(),
+  api_key: z.string().min(1).max(8192).optional(),
+  headers: updateCustomModelProviderHeadersRequestSchema.optional(),
+});
+
+export type DiscoverCustomModelProviderModelsBySlugBodyDto = z.infer<
+  typeof discoverCustomModelProviderModelsBySlugBodySchema
 >;
 
 export const discoverCustomModelProviderModelsResponseSchema = z.object({

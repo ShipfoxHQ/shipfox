@@ -132,7 +132,7 @@ describe('model provider config routes', () => {
         headers: {authorization: 'Bearer user'},
       });
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode, res.body).toBe(200);
       expect(res.json()).toEqual({configs: [], default_provider_id: null});
     });
 
@@ -147,7 +147,7 @@ describe('model provider config routes', () => {
         headers: {authorization: 'Bearer user'},
       });
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode, res.body).toBe(200);
       expect(res.json().default_provider_id).toBe('openai');
       expect(res.json().configs.map((config: {provider_id: string}) => config.provider_id)).toEqual(
         ['anthropic', 'openai'],
@@ -551,6 +551,69 @@ describe('model provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json()).toEqual({models: []});
     });
+
+    it('caps large discovery responses at the response DTO model limit', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: Array.from({length: 130}, (_, index) => ({id: `model-${index}`})),
+          }),
+          {
+            status: 200,
+            headers: {'content-type': 'application/json'},
+          },
+        ),
+      );
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/workspaces/${workspaceId}/agent/custom-model-providers/discover-models`,
+        headers: {authorization: 'Bearer user'},
+        payload: {
+          api: 'openai-responses',
+          base_url: 'http://127.0.0.1:11434/v1',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().models).toHaveLength(128);
+    });
+  });
+
+  describe('POST /workspaces/:workspaceId/agent/custom-model-providers/:slug/discover-models', () => {
+    it('discovers models with stored custom provider credentials', async () => {
+      await seedCustomModelProviderConfig({providerId: 'local-vllm'});
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({data: [{id: 'llama-3.1'}]}), {
+          status: 200,
+          headers: {'content-type': 'application/json'},
+        }),
+      );
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/workspaces/${workspaceId}/agent/custom-model-providers/local-vllm/discover-models`,
+        headers: {authorization: 'Bearer user'},
+        payload: {},
+      });
+
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json()).toEqual({models: [{id: 'llama-3.1', label: 'llama-3.1'}]});
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect((init.headers as Headers).get('authorization')).toBe('Bearer seeded-secret');
+    });
+
+    it('returns not-found for a non-custom provider slug', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/workspaces/${workspaceId}/agent/custom-model-providers/local-vllm/discover-models`,
+        headers: {authorization: 'Bearer user'},
+        payload: {},
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().code).toBe('not-found');
+    });
   });
 
   describe('PUT /workspaces/:workspaceId/agent/model-providers/:providerId/default-model', () => {
@@ -643,7 +706,7 @@ describe('model provider config routes', () => {
       expect(res.json().details.provider_id).toBe('anthropic');
     });
 
-    it('rejects a configured custom model provider as the workspace default until execution is wired', async () => {
+    it('sets a configured custom model provider as the workspace default', async () => {
       await seedCustomModelProviderConfig({providerId: 'local-vllm'});
 
       const res = await app.inject({
@@ -653,9 +716,8 @@ describe('model provider config routes', () => {
         payload: {provider_id: 'local-vllm'},
       });
 
-      expect(res.statusCode).toBe(422);
-      expect(res.json().code).toBe('custom-provider-default-unsupported');
-      expect(res.json().details.provider_id).toBe('local-vllm');
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({default_provider_id: 'local-vllm'});
     });
   });
 
@@ -693,7 +755,7 @@ describe('model provider config routes', () => {
       kind: 'custom',
       displayName: 'Local vLLM',
       api: 'openai-responses',
-      baseUrl: 'https://llm.example.test/v1',
+      baseUrl: 'http://127.0.0.1:11434/v1',
       headers: [],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
       keyFingerprints: {'credential:api_key': '...abcd'},

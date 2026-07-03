@@ -4,9 +4,11 @@ import {
   customModelProviderConfigDtoSchema,
   customModelProviderHeaderRequestSchema,
   discoverCustomModelProviderModelsBodySchema,
+  discoverCustomModelProviderModelsBySlugBodySchema,
   discoverCustomModelProviderModelsResponseSchema,
   isReservedModelProviderId,
   updateCustomModelProviderBodySchema,
+  updateCustomModelProviderHeaderRequestSchema,
 } from './index.js';
 import {MODEL_PROVIDER_IDS} from './model-provider-id.js';
 
@@ -150,6 +152,45 @@ describe('custom model provider schemas', () => {
     });
   });
 
+  it('parses update header keep rows for stored secret headers', () => {
+    const parsed = updateCustomModelProviderHeaderRequestSchema.parse({
+      name: 'Authorization',
+      secret: true,
+      keep: true,
+    });
+
+    expect(parsed).toEqual({
+      name: 'authorization',
+      secret: true,
+      keep: true,
+    });
+  });
+
+  it('rejects update header rows that keep non-secret or valued headers', () => {
+    const nonSecretKeep = () =>
+      updateCustomModelProviderHeaderRequestSchema.parse({
+        name: 'authorization',
+        secret: false,
+        keep: true,
+      });
+    const valuedKeep = () =>
+      updateCustomModelProviderHeaderRequestSchema.parse({
+        name: 'authorization',
+        value: 'Bearer secret',
+        secret: true,
+        keep: true,
+      });
+    const missingValue = () =>
+      updateCustomModelProviderHeaderRequestSchema.parse({
+        name: 'x-region',
+        secret: false,
+      });
+
+    expect(nonSecretKeep).toThrow();
+    expect(valuedKeep).toThrow();
+    expect(missingValue).toThrow();
+  });
+
   it('rejects duplicate header names case-insensitively', () => {
     const parse = () =>
       createCustomModelProviderBodySchema.parse({
@@ -222,6 +263,14 @@ describe('custom model provider schemas', () => {
 
     expect(body.headers?.[0]?.name).toBe('x-region');
     expect(response.models[0]?.id).toBe('llama-3.1');
+  });
+
+  it('parses slug-scoped discovery request DTOs with keep headers', () => {
+    const body = discoverCustomModelProviderModelsBySlugBodySchema.parse({
+      headers: [{name: 'Authorization', secret: true, keep: true}],
+    });
+
+    expect(body.headers?.[0]).toEqual({name: 'authorization', secret: true, keep: true});
   });
 });
 

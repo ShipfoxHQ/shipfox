@@ -1,0 +1,42 @@
+import {
+  discoverCustomModelProviderModelsBySlugBodySchema,
+  discoverCustomModelProviderModelsResponseSchema,
+  modelProviderRefSchema,
+} from '@shipfox/api-agent-dto';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
+import {defineRoute} from '@shipfox/node-fastify';
+import {z} from 'zod';
+import {
+  discoverCustomModelProviderModels,
+  resolveCustomModelProviderDiscoveryParams,
+} from '#core/index.js';
+import {translateModelProviderRouteError} from './errors.js';
+
+export const discoverCustomModelProviderModelsBySlugRoute = defineRoute({
+  method: 'POST',
+  path: '/custom-model-providers/:slug/discover-models',
+  description: 'Discover models for a stored custom model provider configuration',
+  schema: {
+    params: z.object({
+      workspaceId: z.string().uuid(),
+      slug: modelProviderRefSchema,
+    }),
+    body: discoverCustomModelProviderModelsBySlugBodySchema,
+    response: {
+      200: discoverCustomModelProviderModelsResponseSchema,
+    },
+  },
+  errorHandler: translateModelProviderRouteError,
+  handler: async (request) => {
+    const {workspaceId, slug} = request.params;
+    requireWorkspaceAccess({request, workspaceId});
+
+    const discoveryParams = await resolveCustomModelProviderDiscoveryParams({
+      workspaceId,
+      providerId: slug,
+      body: request.body ?? {},
+    });
+
+    return await discoverCustomModelProviderModels(discoveryParams);
+  },
+});

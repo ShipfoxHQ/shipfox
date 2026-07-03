@@ -1,4 +1,3 @@
-import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {
   CodeBlock,
@@ -24,19 +23,20 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {buildAgentWorkflowExample} from './agent-workflow-example.js';
+import type {ModelProviderUsageTarget} from './model-provider-usage-target.js';
 
 type CopyState = 'idle' | 'copied' | 'failed';
 
 const WORKFLOW_EXAMPLE_FILENAME = '.shipfox/workflows/agent.yml';
 
 export function ModelProviderUsageModal({
-  entry,
+  target,
   initialModel,
   open,
   onOpenChange,
   closeFocusTarget,
 }: {
-  entry: ModelProviderCatalogEntryDto | null;
+  target: ModelProviderUsageTarget | null;
   initialModel?: string | null | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,16 +45,16 @@ export function ModelProviderUsageModal({
   const [selectedModel, setSelectedModel] = useState('');
 
   useEffect(() => {
-    if (!entry) return;
-    setSelectedModel(initialModel ?? entry.default_model ?? entry.models[0]?.id ?? '');
-  }, [entry, initialModel]);
+    if (!target) return;
+    setSelectedModel(initialModel ?? target.default_model ?? target.models[0]?.id ?? '');
+  }, [target, initialModel]);
 
   const modelOptions = useMemo(
-    () => entry?.models.map((model) => ({value: model.id, label: model.label})) ?? [],
-    [entry],
+    () => target?.models.map((model) => ({value: model.id, label: model.label})) ?? [],
+    [target],
   );
-  const example = entry
-    ? buildAgentWorkflowExample({providerId: entry.id, model: selectedModel})
+  const example = target
+    ? buildAgentWorkflowExample({providerId: target.id, model: selectedModel})
     : null;
   const data =
     example === null
@@ -69,25 +69,22 @@ export function ModelProviderUsageModal({
   }
 
   return (
-    <Modal open={open && entry !== null} onOpenChange={handleOpenChange}>
-      <ModalContent
-        aria-describedby={undefined}
-        className="max-h-[calc(100vh-32px)] max-w-[640px] [&>div]:flex [&>div]:min-h-0 [&>div]:flex-col"
-      >
+    <Modal open={open && target !== null} onOpenChange={handleOpenChange}>
+      <ModalContent aria-describedby={undefined} className="max-h-[calc(100vh-32px)] max-w-[640px]">
         <ModalTitle className="sr-only">
-          {entry ? `Use ${entry.label} in a workflow` : 'Use provider in a workflow'}
+          {target ? `Use ${target.label} in a workflow` : 'Use provider in a workflow'}
         </ModalTitle>
         <ModalHeader>
           <div className="flex min-w-0 flex-col gap-2">
             <Text size="lg" aria-hidden="true" className="truncate">
-              {entry ? `Use ${entry.label} in a workflow` : 'Use provider in a workflow'}
+              {target ? `Use ${target.label} in a workflow` : 'Use provider in a workflow'}
             </Text>
             <Text size="sm" className="text-foreground-neutral-muted">
               Reference this provider from a workflow agent step.
             </Text>
           </div>
         </ModalHeader>
-        {entry && example ? (
+        {target && example ? (
           <>
             <ModalBody className="min-h-0 flex-1 gap-0 overflow-y-auto overflow-x-clip scrollbar">
               <div className="flex w-full flex-col gap-20">
@@ -144,10 +141,10 @@ export function ModelProviderUsageModal({
 
                 <div className="flex flex-col gap-8">
                   <Text size="sm" bold>
-                    Available models ({entry.models.length})
+                    Available models ({target.models.length})
                   </Text>
                   <ul className="rounded-8 border border-border-neutral-base">
-                    {entry.models.map((model) => (
+                    {target.models.map((model) => (
                       <ModelProviderModelRow key={model.id} label={model.label} id={model.id} />
                     ))}
                   </ul>

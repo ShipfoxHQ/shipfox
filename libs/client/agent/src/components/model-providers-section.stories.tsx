@@ -1,4 +1,5 @@
 import type {
+  CustomModelProviderConfigDto,
   ModelProviderCatalogEntryDto,
   ModelProviderConfigDto,
   SupportedModelProviderId,
@@ -17,6 +18,7 @@ type Scenario =
   | 'mixed'
   | 'empty-configured'
   | 'all-configured'
+  | 'custom-configured'
   | 'loading'
   | 'configs-error'
   | 'catalog-error'
@@ -144,6 +146,10 @@ export const AllConfigured: Story = {
   args: {scenario: 'all-configured'},
 };
 
+export const CustomConfigured: Story = {
+  args: {scenario: 'custom-configured'},
+};
+
 export const Loading: Story = {
   args: {scenario: 'loading'},
 };
@@ -190,6 +196,15 @@ export const ConfigureModalOpen: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', {name: 'Configure Anthropic'}));
     await screen.findByLabelText('API key');
+  },
+};
+
+export const CustomProviderModalOpen: Story = {
+  args: {scenario: 'empty-configured'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', {name: 'Configure custom provider'}));
+    await screen.findByRole('dialog', {name: 'Add custom provider'});
   },
 };
 
@@ -253,9 +268,38 @@ function configsForScenario(scenario: Scenario) {
       default_provider_id: 'anthropic',
     };
   }
+  if (scenario === 'custom-configured') {
+    return {
+      configs: [providerConfig({provider_id: 'anthropic'}), customProviderConfig()],
+      default_provider_id: 'local-vllm',
+    };
+  }
   return {
     configs: [providerConfig({provider_id: 'anthropic'})],
     default_provider_id: 'anthropic',
+  };
+}
+
+function customProviderConfig(): CustomModelProviderConfigDto {
+  return {
+    kind: 'custom',
+    provider_id: 'local-vllm',
+    display_name: 'Local vLLM',
+    api: 'openai-completions',
+    base_url: 'http://localhost:8000/v1',
+    headers: [{name: 'x-region', value: 'us'}],
+    secret_header_names: ['authorization'],
+    models: [
+      {id: 'llama-3.1', label: 'Llama 3.1'},
+      {id: 'qwen-coder', label: 'Qwen Coder'},
+    ],
+    default_model: 'llama-3.1',
+    key_fingerprints: {
+      'credential:api_key': '...abcd',
+      'header:authorization': '...oken',
+    },
+    created_at: '2026-05-08T00:00:00.000Z',
+    updated_at: '2026-05-08T00:00:00.000Z',
   };
 }
 
