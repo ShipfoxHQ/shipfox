@@ -34,26 +34,53 @@ function createWorkerPoolConfig(): {maxWorkers?: number} {
   return maxWorkers === undefined ? {} : {maxWorkers};
 }
 
+function mergeProjectPlugins(projects: unknown, plugins: unknown[]): unknown {
+  if (!Array.isArray(projects) || plugins.length === 0) return projects;
+
+  return projects.map((project) => {
+    if (!project || typeof project !== 'object' || Array.isArray(project)) return project;
+
+    const projectConfig = project as {plugins?: unknown[]};
+    return {
+      ...projectConfig,
+      plugins: [...(projectConfig.plugins || []), ...plugins],
+    };
+  });
+}
+
 function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): ConfigInput {
   const mergeableConfig = resolvedConfig as MergeableConfigInput;
   const useBuiltWorkspaceDeps = process.env.CI === 'true';
   const workerPoolConfig = createWorkerPoolConfig();
   const existingPlugins = mergeableConfig.plugins || [];
   const testConfig = mergeableConfig.test || {};
+  const optimizeDepsConfig = mergeableConfig.optimizeDeps || {};
+  const optimizeDepsRolldownOptionsConfig = optimizeDepsConfig.rolldownOptions || {};
   const workspaceDistConfig = useBuiltWorkspaceDeps
     ? createWorkspaceDistConfig(mergeableConfig, projectRoot)
     : undefined;
+  const workspaceOptimizeDepsConfig = workspaceDistConfig?.optimizeDeps;
+  const workspaceOptimizeDepsRolldownOptionsConfig =
+    workspaceOptimizeDepsConfig?.rolldownOptions || {};
+  const workspacePlugins = workspaceDistConfig?.plugins || [];
+  const testProjects = mergeProjectPlugins(
+    (testConfig as {projects?: unknown[]}).projects,
+    workspacePlugins,
+  );
   const merged = {
     ...resolvedConfig,
-    plugins: [...existingPlugins, ...(workspaceDistConfig?.plugins || [])],
+    plugins: [...existingPlugins, ...workspacePlugins],
     ...(workspaceDistConfig?.resolve ? {resolve: workspaceDistConfig.resolve} : {}),
     ...(workspaceDistConfig?.ssr ? {ssr: workspaceDistConfig.ssr} : {}),
     optimizeDeps: {
-      ...(mergeableConfig.optimizeDeps || {}),
+      ...optimizeDepsConfig,
+      ...(workspaceOptimizeDepsConfig || {}),
       rolldownOptions: {
-        ...(mergeableConfig.optimizeDeps?.rolldownOptions || {}),
+        ...optimizeDepsRolldownOptionsConfig,
+        ...workspaceOptimizeDepsRolldownOptionsConfig,
         checks: {
-          ...(mergeableConfig.optimizeDeps?.rolldownOptions?.checks || {}),
+          ...(optimizeDepsRolldownOptionsConfig.checks || {}),
+          ...(workspaceOptimizeDepsRolldownOptionsConfig.checks || {}),
           pluginTimings: false,
         },
       },
@@ -63,6 +90,7 @@ function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): 
       globals: true,
       ...workerPoolConfig,
       ...(workspaceDistConfig?.test || {}),
+      ...(testProjects ? {projects: testProjects} : {}),
       exclude: [
         '**/node_modules/**',
         '**/dist/**',

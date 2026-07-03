@@ -1,5 +1,5 @@
 import {existsSync, readdirSync, readFileSync} from 'node:fs';
-import {join} from 'node:path';
+import {dirname, isAbsolute, join, relative, resolve} from 'node:path';
 import {getWorkspaceRootPath} from '@shipfox/tool-utils';
 import {
   mergeConditions,
@@ -8,10 +8,18 @@ import {
   mergeProjectSourceAliases,
   mergeStringList,
 } from './config-merge.js';
-import type {EnvironmentConfig, MergeableConfigInput, PackageJson} from './config-types.js';
+import type {
+  EnvironmentConfig,
+  MergeableConfigFragment,
+  MergeableConfigInput,
+  PackageJson,
+} from './config-types.js';
 
 const workspacePackagePattern = /^@shipfox\/.+/;
 const workspaceDistFilePattern = /\/(?:apps|e2e|infra|libs|tools|turbo)\/.*\/dist\/.*\.m?js$/;
+const workspaceDistInternalImportPattern = /^#\/?(.+)$/;
+const workspaceDistInternalImportSpecifierPattern = /(['"])#\/?([^'"]+)\1/g;
+const viteFsPrefix = '/@fs';
 const clientDistConditions = ['module', 'browser'];
 const serverDistConditions = ['node'];
 const serverModuleDistConditions = ['module', 'node'];
@@ -23,6 +31,13 @@ const esmOptimizerPackages = [
 ];
 const esmOptimizerInlinePattern = /@opentelemetry\/(?:api|core)/;
 let cachedWorkspacePackageNames: string[] | undefined;
+
+type WorkspaceDistInternalImportResolverPlugin = {
+  name: string;
+  enforce: 'pre';
+  resolveId(source: string, importer?: string): string | undefined;
+  transform(code: string, id: string): string | undefined;
+};
 
 function getDirectDependencyNames(projectRoot: string | undefined): Set<string> {
   if (!projectRoot) return new Set();
@@ -95,6 +110,100 @@ function mergeServerConditions(
   return mergeConditions(conditions, fallbackConditions, excludedConditions);
 }
 
+function normalizeImporterPath(
+  importer: string | undefined,
+  projectRoot: string | undefined,
+): string | undefined {
+  const importerPath = importer?.split('?')[0];
+  if (!importerPath) return undefined;
+
+  const filePath = importerPath.startsWith(`${viteFsPrefix}/`)
+    ? importerPath.slice(viteFsPrefix.length)
+    : importerPath;
+
+  return isAbsolute(filePath) || !projectRoot ? filePath : resolve(projectRoot, filePath);
+}
+
+function findWorkspacePackageRoot(filePath: string): string | undefined {
+  const workspaceRoot = getWorkspaceRootPath();
+  let currentDir = dirname(filePath);
+
+  while (currentDir.startsWith(workspaceRoot)) {
+    if (existsSync(join(currentDir, 'package.json'))) return currentDir;
+
+    const parentDir = dirname(currentDir);
+    if (parentDir === currentDir) return undefined;
+    currentDir = parentDir;
+  }
+
+  return undefined;
+}
+
+function resolveWorkspaceDistInternalImport(
+  source: string,
+  importer: string | undefined,
+  projectRoot: string | undefined,
+): string | undefined {
+  if (source.startsWith('#test/')) return undefined;
+
+  const sourceMatch = workspaceDistInternalImportPattern.exec(source);
+  const importerPath = normalizeImporterPath(importer, projectRoot);
+  if (!sourceMatch || !importerPath || !workspaceDistFilePattern.test(importerPath)) {
+    return undefined;
+  }
+
+  const importPath = sourceMatch[1];
+  if (!importPath) return undefined;
+
+  const packageRoot = findWorkspacePackageRoot(importerPath);
+  if (!packageRoot) return undefined;
+
+  return join(packageRoot, 'dist', importPath);
+}
+
+function toRelativeImportPath(importerPath: string, resolvedPath: string): string {
+  const importPath = relative(dirname(importerPath), resolvedPath).replaceAll('\\', '/');
+  return importPath.startsWith('.') ? importPath : `./${importPath}`;
+}
+
+function rewriteWorkspaceDistInternalImports(
+  code: string,
+  id: string,
+  projectRoot: string | undefined,
+): string | undefined {
+  const importerPath = normalizeImporterPath(id, projectRoot);
+  if (!importerPath || !workspaceDistFilePattern.test(importerPath)) return undefined;
+
+  let rewritten = false;
+  const output = code.replace(
+    workspaceDistInternalImportSpecifierPattern,
+    (match, quote: string, importPath: string) => {
+      const resolvedPath = resolveWorkspaceDistInternalImport(`#${importPath}`, id, projectRoot);
+      if (!resolvedPath) return match;
+
+      rewritten = true;
+      return `${quote}${toRelativeImportPath(importerPath, resolvedPath)}${quote}`;
+    },
+  );
+
+  return rewritten ? output : undefined;
+}
+
+export function createWorkspaceDistInternalImportResolverPlugin(
+  projectRoot: string | undefined,
+): WorkspaceDistInternalImportResolverPlugin {
+  return {
+    name: 'shipfox-vitest-workspace-dist-internal-imports',
+    enforce: 'pre',
+    resolveId(source: string, importer: string | undefined) {
+      return resolveWorkspaceDistInternalImport(source, importer, projectRoot);
+    },
+    transform(code: string, id: string) {
+      return rewriteWorkspaceDistInternalImports(code, id, projectRoot);
+    },
+  };
+}
+
 // Vite owns separate resolvers for environments such as `client` and `ssr`, so
 // top-level `resolve`/`ssr.resolve` settings are not enough for workspace projects.
 function createWorkspaceDistResolutionPlugin(
@@ -104,6 +213,13 @@ function createWorkspaceDistResolutionPlugin(
 ) {
   return {
     name: 'shipfox-vitest-workspace-dist-resolution',
+    enforce: 'pre',
+    resolveId(source: string, importer: string | undefined) {
+      return resolveWorkspaceDistInternalImport(source, importer, projectRoot);
+    },
+    transform(code: string, id: string) {
+      return rewriteWorkspaceDistInternalImports(code, id, projectRoot);
+    },
     configEnvironment(name: string, environmentConfig: EnvironmentConfig) {
       const resolveConfig = environmentConfig.resolve || {};
       const fallbackConditions =
@@ -132,6 +248,10 @@ function createWorkspaceDistResolutionPlugin(
   };
 }
 
+function mergeRolldownPlugins(existing: unknown[] | undefined, plugins: unknown[]): unknown[] {
+  return [...(existing || []), ...plugins];
+}
+
 // OpenTelemetry's `module` entry currently reaches extensionless ESM imports
 // that Node cannot load directly. Direct dependants can let Vite optimize that
 // ESM graph, but downstream packages need the Node/default condition instead.
@@ -152,7 +272,7 @@ function createOpenTelemetrySsrPolicy(projectRoot: string | undefined) {
 export function createWorkspaceDistConfig(
   config: MergeableConfigInput,
   projectRoot: string | undefined,
-) {
+): MergeableConfigFragment {
   const workspacePackageNames = getWorkspacePackageNames();
   const openTelemetrySsrPolicy = createOpenTelemetrySsrPolicy(projectRoot);
   const resolveConfig = config.resolve || {};
@@ -164,6 +284,8 @@ export function createWorkspaceDistConfig(
   const testDepsSsrOptimizerConfig = testDepsOptimizerConfig.ssr || {};
   const testServerConfig = testConfig.server || {};
   const testServerDepsConfig = testServerConfig.deps || {};
+  const optimizeDepsConfig = config.optimizeDeps || {};
+  const optimizeDepsRolldownOptionsConfig = optimizeDepsConfig.rolldownOptions || {};
 
   return {
     plugins: [
@@ -173,6 +295,15 @@ export function createWorkspaceDistConfig(
         openTelemetrySsrPolicy.serverExcludedConditions,
       ),
     ],
+    optimizeDeps: {
+      ...optimizeDepsConfig,
+      rolldownOptions: {
+        ...optimizeDepsRolldownOptionsConfig,
+        plugins: mergeRolldownPlugins(optimizeDepsRolldownOptionsConfig.plugins, [
+          createWorkspaceDistInternalImportResolverPlugin(projectRoot),
+        ]),
+      },
+    },
     resolve: {
       ...resolveConfig,
       alias: mergeProjectSourceAliases(resolveConfig.alias, projectRoot),

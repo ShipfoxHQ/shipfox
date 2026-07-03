@@ -26,6 +26,7 @@ export type MergeableConfigInput = ConfigInput & {
   optimizeDeps?: {
     rolldownOptions?: {
       checks?: Record<string, unknown>;
+      plugins?: unknown[];
     };
   };
   test?: {
@@ -48,6 +49,14 @@ export type MergeableConfigInput = ConfigInput & {
       debug?: unknown;
     };
   };
+};
+
+export type MergeableConfigFragment = {
+  plugins?: unknown[];
+  resolve?: MergeableConfigInput['resolve'];
+  ssr?: MergeableConfigInput['ssr'];
+  optimizeDeps?: MergeableConfigInput['optimizeDeps'];
+  test?: MergeableConfigInput['test'];
 };
 
 export type EnvironmentConfig = {

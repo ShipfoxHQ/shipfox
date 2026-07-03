@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import {afterEach, describe, expect, it} from 'vitest';
 import {defineConfig} from '../src/config.js';
 
@@ -8,6 +9,9 @@ const esmOptimizerInlinePattern = /@opentelemetry\/(?:api|core)/;
 const projectRootSlashImportPattern = /^#\/(.+)$/;
 const projectRootImportPattern = /^#(?!test\/)(.+)$/;
 const vitestSrcReplacementPattern = /\/tools\/vitest\/src\/\$1$/;
+const reactUiDistThemePathPattern = /\/libs\/shared\/react\/ui\/dist\/state\/theme\.js$/;
+const existingProjectPlugin = {name: 'existing-project-plugin'};
+const existingRolldownPlugin = {name: 'existing-rolldown-plugin'};
 const nodeOpentelemetryConfigUrl = new URL(
   '../../../libs/shared/node/opentelemetry/vitest.config.ts',
   import.meta.url,
@@ -16,6 +20,13 @@ const runnerProtocolConfigUrl = new URL(
   '../../../libs/runner/protocol/vitest.config.ts',
   import.meta.url,
 ).href;
+const clientLogsConfigUrl = new URL('../../../libs/client/logs/vitest.config.ts', import.meta.url)
+  .href;
+const reactUiDistThemeProviderPath = fileURLToPath(
+  new URL('../../../libs/shared/react/ui/dist/components/theme/theme-provider.js', import.meta.url),
+);
+const relativeReactUiDistThemeProviderPath =
+  '../../shared/react/ui/dist/components/theme/theme-provider.js';
 
 describe('defineConfig', () => {
   const originalCi = process.env.CI;
@@ -66,7 +77,21 @@ describe('defineConfig', () => {
             conditions: ['module', 'node', 'development|production', 'custom-ssr'],
           },
         },
+        optimizeDeps: {
+          rolldownOptions: {
+            plugins: [existingRolldownPlugin],
+          },
+        },
         test: {
+          projects: [
+            {
+              extends: true,
+              plugins: [existingProjectPlugin],
+              test: {
+                name: 'storybook',
+              },
+            },
+          ],
           deps: {
             optimizer: {
               ssr: {
@@ -86,6 +111,8 @@ describe('defineConfig', () => {
     ) as {
       plugins?: Array<{
         name?: string;
+        resolveId?: (source: string, importer?: string) => string | undefined;
+        transform?: (code: string, id: string) => string | undefined;
         configEnvironment?: (
           name: string,
           config: {resolve?: {alias?: Array<{find: RegExp}>; conditions?: string[]}},
@@ -104,8 +131,23 @@ describe('defineConfig', () => {
           externalConditions?: string[];
         };
       };
+      optimizeDeps?: {
+        rolldownOptions?: {
+          checks?: Record<string, unknown>;
+          plugins?: Array<{
+            name?: string;
+            resolveId?: (source: string, importer?: string) => string | undefined;
+            transform?: (code: string, id: string) => string | undefined;
+          }>;
+        };
+      };
       test?: {
         maxWorkers?: number;
+        projects?: Array<{
+          plugins?: Array<{
+            name?: string;
+          }>;
+        }>;
         deps?: {
           optimizer?: {
             ssr?: {
@@ -119,6 +161,9 @@ describe('defineConfig', () => {
     };
     const workspaceDistPlugin = config.plugins?.find(
       (plugin) => plugin.name === 'shipfox-vitest-workspace-dist-resolution',
+    );
+    const optimizerResolverPlugin = config.optimizeDeps?.rolldownOptions?.plugins?.find(
+      (plugin) => plugin.name === 'shipfox-vitest-workspace-dist-internal-imports',
     );
     const environmentConfig: {
       resolve: {alias?: Array<{find: RegExp}>; conditions: string[]};
@@ -141,6 +186,17 @@ describe('defineConfig', () => {
     expect(config.ssr?.external).toContain('existing-ssr-package');
     expect(config.ssr?.external).toContain('@shipfox/vitest');
     expect(config.ssr?.external).toContain('@shipfox/react-ui');
+    expect(config.optimizeDeps?.rolldownOptions?.checks).toEqual({
+      pluginTimings: false,
+    });
+    expect(config.optimizeDeps?.rolldownOptions?.plugins?.[0]).toBe(existingRolldownPlugin);
+    expect(optimizerResolverPlugin).toBeDefined();
+    expect(config.test?.projects?.[0]?.plugins?.[0]).toBe(existingProjectPlugin);
+    expect(
+      config.test?.projects?.[0]?.plugins?.some(
+        (plugin) => plugin.name === 'shipfox-vitest-workspace-dist-resolution',
+      ),
+    ).toBe(true);
     expect(config.test?.server?.deps?.external).toEqual([
       existingExternalPattern,
       workspaceExternalPattern,
@@ -151,14 +207,53 @@ describe('defineConfig', () => {
       esmOptimizerInlinePattern,
     ]);
     expect(config.test?.deps?.optimizer?.ssr?.enabled).toBe(true);
-    expect(config.test?.deps?.optimizer?.ssr?.include).toEqual([
-      'existing-optimizer-package',
-    ]);
+    expect(config.test?.deps?.optimizer?.ssr?.include).toEqual(['existing-optimizer-package']);
     expect(config.test?.maxWorkers).toBe(2);
     workspaceDistPlugin?.configEnvironment?.('ssr', environmentConfig);
     expect(environmentConfig.resolve.alias?.[0]?.find).toEqual(projectRootSlashImportPattern);
     expect(environmentConfig.resolve.alias?.[1]?.find).toEqual(projectRootImportPattern);
     expect(environmentConfig.resolve.conditions).toEqual(['custom-env', 'node']);
+    expect(
+      workspaceDistPlugin?.resolveId?.('#state/theme.js', reactUiDistThemeProviderPath),
+    ).toMatch(reactUiDistThemePathPattern);
+    expect(
+      workspaceDistPlugin?.resolveId?.('#state/theme.js', `/@fs${reactUiDistThemeProviderPath}`),
+    ).toMatch(reactUiDistThemePathPattern);
+    expect(
+      workspaceDistPlugin?.transform?.(
+        'import { ThemeProviderContext } from "#state/theme.js";',
+        reactUiDistThemeProviderPath,
+      ),
+    ).toBe('import { ThemeProviderContext } from "../../state/theme.js";');
+  });
+
+  it('resolves built workspace package internals during optimizer scans', () => {
+    process.env.CI = 'true';
+
+    const config = defineConfig({}, clientLogsConfigUrl) as {
+      optimizeDeps?: {
+        rolldownOptions?: {
+          plugins?: Array<{
+            name?: string;
+            resolveId?: (source: string, importer?: string) => string | undefined;
+            transform?: (code: string, id: string) => string | undefined;
+          }>;
+        };
+      };
+    };
+    const optimizerResolverPlugin = config.optimizeDeps?.rolldownOptions?.plugins?.find(
+      (plugin) => plugin.name === 'shipfox-vitest-workspace-dist-internal-imports',
+    );
+
+    expect(
+      optimizerResolverPlugin?.resolveId?.('#state/theme.js', relativeReactUiDistThemeProviderPath),
+    ).toMatch(reactUiDistThemePathPattern);
+    expect(
+      optimizerResolverPlugin?.transform?.(
+        'import { ThemeProviderContext } from "#state/theme.js";',
+        relativeReactUiDistThemeProviderPath,
+      ),
+    ).toBe('import { ThemeProviderContext } from "../../state/theme.js";');
   });
 
   it('optimizes direct OpenTelemetry dependencies when a package lists them', () => {
