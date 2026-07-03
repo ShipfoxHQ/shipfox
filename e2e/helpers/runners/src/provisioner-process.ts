@@ -43,7 +43,7 @@ export interface StartProvisionerParams {
   /** Token prefix to match in the active list; falls back to the first provisioner. */
   tokenPrefix?: string;
   readinessTimeoutMs?: number;
-  /** Overrides the resolved `@shipfox/provisioner-docker` dist entry. */
+  /** Overrides the resolved `@shipfox/provisioner-docker` source entry (run via tsx). */
   entryPath?: string;
 }
 
@@ -74,10 +74,20 @@ function buildProvisionerEnv(params: StartProvisionerParams): Record<string, str
   return env;
 }
 
-function resolveProvisionerEntry(): string {
+interface ProvisionerModule {
+  /** Package directory, used as the child's cwd so tsx and the dev condition resolve there. */
+  cwd: string;
+  /** Source entry the child runs. */
+  entry: string;
+}
+
+// The app's dist closure still contains `#*` imports whose package maps point at source.
+// Run the same source entry as `pnpm dev` so tsx resolves those imports consistently.
+function resolveProvisionerModule(): ProvisionerModule {
   const require = createRequire(import.meta.url);
   const packageJsonPath = require.resolve('@shipfox/provisioner-docker/package.json');
-  return join(dirname(packageJsonPath), 'dist/index.js');
+  const cwd = dirname(packageJsonPath);
+  return {cwd, entry: join(cwd, 'src/index.ts')};
 }
 
 async function waitForActiveProvisioner(params: {
@@ -140,17 +150,20 @@ async function waitForActiveProvisioner(params: {
 }
 
 /**
- * Spawns the `@shipfox/provisioner-docker` dist as a child process, streams its
+ * Spawns `@shipfox/provisioner-docker` from source via tsx as a child process, streams its
  * output to `logFile`, and resolves once the provisioner reports as active for the
  * workspace. Rejects (after killing the child) if it exits before becoming active.
  */
 export async function startProvisioner(params: StartProvisionerParams): Promise<ProvisionerHandle> {
-  const entryPath = params.entryPath ?? resolveProvisionerEntry();
+  const {cwd, entry} = params.entryPath
+    ? {cwd: dirname(params.entryPath), entry: params.entryPath}
+    : resolveProvisionerModule();
 
   const logFd = openSync(params.logFile, 'a');
   let child: ChildProcess;
   try {
-    child = spawn(process.execPath, [entryPath], {
+    child = spawn(process.execPath, ['--import', 'tsx', '--conditions=development', entry], {
+      cwd,
       stdio: ['ignore', logFd, logFd],
       env: {...process.env, ...buildProvisionerEnv(params)},
     });
