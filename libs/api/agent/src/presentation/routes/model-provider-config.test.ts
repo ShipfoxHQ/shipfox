@@ -494,7 +494,10 @@ describe('model provider config routes', () => {
       expect(res.json()).toEqual({models: [{id: 'llama-3.1', label: 'llama-3.1'}]});
       expect(fetchSpy).toHaveBeenCalledWith(
         'http://127.0.0.1:11434/v1/models',
-        expect.objectContaining({redirect: 'error'}),
+        expect.objectContaining({
+          redirect: 'error',
+          signal: expect.any(AbortSignal),
+        }),
       );
     });
 

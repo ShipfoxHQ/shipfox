@@ -4,6 +4,7 @@ import type {
   DiscoverCustomModelProviderModelsResponseDto,
   ModelProviderApi,
 } from '@shipfox/api-agent-dto';
+import {config} from '#config.js';
 import {assertEgressAllowed} from './egress-guard.js';
 import {egressPolicy} from './model-provider-validation.js';
 
@@ -26,6 +27,7 @@ export async function discoverCustomModelProviderModels(
       method: 'GET',
       headers: discoveryHeaders(params.api, params.api_key, params.headers ?? []),
       redirect: 'error',
+      signal: AbortSignal.timeout(config.AGENT_PROVIDER_VALIDATION_TIMEOUT_MS),
     });
     if (!response.ok) return {models: []};
 

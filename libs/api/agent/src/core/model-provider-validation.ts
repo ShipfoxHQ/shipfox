@@ -158,6 +158,8 @@ function customProbeUrl(params: ProbeCustomModelProviderCredentialsParams): stri
       return appendPath(params.baseUrl, 'chat/completions').toString();
     case 'openai-responses':
       return appendPath(params.baseUrl, 'responses').toString();
+    default:
+      return assertNever(params.api);
   }
 }
 
@@ -174,9 +176,12 @@ function customProbeHeaders(params: ProbeCustomModelProviderCredentialsParams): 
     case 'google-generative-ai':
       headers.set('x-goog-api-key', params.apiKey);
       break;
-    default:
+    case 'openai-completions':
+    case 'openai-responses':
       headers.set('authorization', `Bearer ${params.apiKey}`);
       break;
+    default:
+      assertNever(params.api);
   }
 
   return headers;
@@ -210,7 +215,13 @@ function customProbeBody(params: ProbeCustomModelProviderCredentialsParams): unk
         stream: false,
         store: false,
       };
+    default:
+      return assertNever(params.api);
   }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unsupported custom model provider API: ${value}`);
 }
 
 function appendPath(baseUrl: string, segment: string): URL {
