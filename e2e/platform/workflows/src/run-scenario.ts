@@ -11,6 +11,7 @@ import type {SuiteContext} from './suite-context.js';
 
 const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
 const GITEA_REPOSITORY_PLACEHOLDER = '__GITEA_REPOSITORY__';
+const LOG_ATTACHMENT_NAME_PART_RE = /[^a-zA-Z0-9._-]+/g;
 
 export interface Attachment {
   name: string;
@@ -24,6 +25,60 @@ export interface RunScenarioParams {
   // Attaches a debugging artifact to the running test (a thin wrapper over
   // testInfo.attach), so the scenario driver stays free of Playwright types.
   attach: (attachment: Attachment) => Promise<void>;
+}
+
+interface StepLogAttachmentRequest {
+  path: string;
+  stepId: string;
+  attempt: number;
+}
+
+function logAttachmentName(path: string): string {
+  return path.replaceAll(LOG_ATTACHMENT_NAME_PART_RE, '_').replace(/^_+|_+$/g, '');
+}
+
+function collectStepLogAttachmentRequests(
+  runDetail: Awaited<ReturnType<typeof waitForRunTerminal>>,
+) {
+  const requests: StepLogAttachmentRequest[] = [];
+  for (const job of runDetail.jobs) {
+    for (const execution of job.job_executions) {
+      for (const step of execution.steps) {
+        requests.push({
+          path: `jobs.${job.key}.executions.${execution.sequence}.steps.${
+            step.key ?? logAttachmentName(step.name)
+          }`,
+          stepId: step.id,
+          attempt: step.current_attempt,
+        });
+      }
+    }
+  }
+  return requests;
+}
+
+async function fetchLogAttachment(
+  request: StepLogAttachmentRequest,
+  token: string,
+): Promise<Attachment> {
+  try {
+    const logs = await fetchStepLogs({
+      stepId: request.stepId,
+      attempt: request.attempt,
+      token,
+    });
+    return {
+      name: `logs-${logAttachmentName(request.path)}.ndjson`,
+      contentType: 'application/x-ndjson',
+      body: logs.ndjson,
+    };
+  } catch (error) {
+    return {
+      name: `logs-${logAttachmentName(request.path)}.error.txt`,
+      contentType: 'text/plain',
+      body: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 // Definition sync creates trigger subscriptions asynchronously, so a push can reach
@@ -181,6 +236,15 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       body: JSON.stringify(allMismatches, null, 2),
     });
     for (const log of fetchedLogs) await params.attach(log);
+
+    const fetchedLogKeys = new Set(
+      logRequirements.map((requirement) => `${requirement.stepId}:${requirement.attempt}`),
+    );
+    for (const request of collectStepLogAttachmentRequests(runDetail)) {
+      const key = `${request.stepId}:${request.attempt}`;
+      if (fetchedLogKeys.has(key)) continue;
+      await params.attach(await fetchLogAttachment(request, token));
+    }
   }
 
   return allMismatches;
