@@ -117,10 +117,12 @@ export async function claimPendingJobExecution(params: {
   runnerSessionId: string;
   sessionLabels: string[];
   maxClaims: number | null;
+  runnerSessionLivenessThrottleSeconds: number;
 }): Promise<ClaimedJobExecution | null> {
   await touchRunnerSessionLiveness({
     workspaceId: params.workspaceId,
     runnerSessionId: params.runnerSessionId,
+    throttleSeconds: params.runnerSessionLivenessThrottleSeconds,
   });
 
   if (params.sessionLabels.length === 0) return null;
@@ -232,6 +234,7 @@ export async function claimPendingJobExecution(params: {
 async function touchRunnerSessionLiveness(params: {
   workspaceId: string;
   runnerSessionId: string;
+  throttleSeconds: number;
 }): Promise<void> {
   await db()
     .update(runnerSessions)
@@ -240,6 +243,7 @@ async function touchRunnerSessionLiveness(params: {
       and(
         eq(runnerSessions.id, params.runnerSessionId),
         eq(runnerSessions.workspaceId, params.workspaceId),
+        sql`${runnerSessions.updatedAt} < now() - (${params.throttleSeconds} || ' seconds')::interval`,
       ),
     );
 }

@@ -1,6 +1,7 @@
 import {issueJobLeaseToken} from '@shipfox/api-auth';
 import {claimPendingJobExecution} from '#db/job-executions.js';
 import {jobExecutionClaimedCount} from '#metrics/instance.js';
+import {config} from '../config.js';
 
 export interface ClaimJobExecutionResult {
   workflowRunId: string;
@@ -16,7 +17,10 @@ export async function claimJobExecution(params: {
   sessionLabels: string[];
   maxClaims: number | null;
 }): Promise<ClaimJobExecutionResult | null> {
-  const claimed = await claimPendingJobExecution(params);
+  const claimed = await claimPendingJobExecution({
+    ...params,
+    runnerSessionLivenessThrottleSeconds: config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS,
+  });
   if (!claimed) {
     jobExecutionClaimedCount.add(1, {outcome: 'empty'});
     return null;

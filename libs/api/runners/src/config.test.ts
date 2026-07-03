@@ -114,6 +114,33 @@ describe('RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT validation', () => {
   });
 });
 
+describe('RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    '0',
+    '-5',
+    '1.5',
+  ])('fails startup when RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS is %s', async (value) => {
+    vi.stubEnv('RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS', value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS');
+  });
+
+  it('accepts a positive whole-second throttle', async () => {
+    vi.stubEnv('RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS', '30');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS).toBe(30);
+  });
+});
+
 describe('stale provisioned runner threshold validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -126,6 +153,19 @@ describe('stale provisioned runner threshold validation', () => {
   ])('fails startup when RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS=%s and PROVISIONER_LAST_SEEN_THROTTLE_SECONDS=%s', async (thresholdSeconds, throttleSeconds) => {
     vi.stubEnv('RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS', thresholdSeconds);
     vi.stubEnv('PROVISIONER_LAST_SEEN_THROTTLE_SECONDS', throttleSeconds);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(
+      'RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS',
+    );
+  });
+
+  it.each([
+    ['300', '300'],
+    ['299', '300'],
+  ])('fails startup when RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS=%s and RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS=%s', async (thresholdSeconds, throttleSeconds) => {
+    vi.stubEnv('RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS', thresholdSeconds);
+    vi.stubEnv('RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS', throttleSeconds);
     vi.resetModules();
 
     await expect(import('#config.js')).rejects.toThrow(

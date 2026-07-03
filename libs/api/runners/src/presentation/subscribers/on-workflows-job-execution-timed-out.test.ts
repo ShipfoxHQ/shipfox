@@ -31,6 +31,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
       maxClaims: null,
+      runnerSessionLivenessThrottleSeconds: 10,
     });
     expect(claimed).not.toBeNull();
 
@@ -56,6 +57,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
       maxClaims: null,
+      runnerSessionLivenessThrottleSeconds: 10,
     });
     expect(claimed).not.toBeNull();
     const siblingJobExecutionId = crypto.randomUUID();
@@ -103,6 +105,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
       maxClaims: null,
+      runnerSessionLivenessThrottleSeconds: 10,
     });
 
     await onWorkflowsJobExecutionTimedOut(
