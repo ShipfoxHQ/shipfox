@@ -20,15 +20,11 @@ vi.mock('@shipfox/client-projects', () => ({
   useProjectQuery: () => ({data: {id: 'project-1', name: 'Platform'}}),
 }));
 
-vi.mock('@shipfox/react-ui/logo', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/react-ui/logo')>();
-  return {
-    ...actual,
-    Logo: ({variant = 'wordmark', className}: {variant?: string; className?: string}) => (
-      <span data-testid={`logo:${variant}`} className={className} />
-    ),
-  };
-});
+vi.mock('@shipfox/react-ui/logo', () => ({
+  Logo: ({variant = 'wordmark', className}: {variant?: string; className?: string}) => (
+    <span data-testid={`logo:${variant}`} className={className} />
+  ),
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({

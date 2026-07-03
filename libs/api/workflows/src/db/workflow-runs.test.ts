@@ -8,7 +8,6 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import {createWorkflowExpression} from '@shipfox/expression';
-import * as opentelemetry from '@shipfox/node-opentelemetry';
 import {and, eq, inArray, sql} from 'drizzle-orm';
 import {
   JobNotFoundError,
@@ -528,7 +527,6 @@ describe('workflow run queries', () => {
 
     test('logs enriched diagnostics for missing untrusted interpolation paths', async () => {
       const warn = vi.fn();
-      vi.spyOn(opentelemetry, 'logger').mockReturnValue({warn} as never);
       const model = normalizeWorkflowDocument({
         name: 'Diagnostic workflow',
         runner: 'ubuntu-latest',
@@ -545,6 +543,7 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         model,
+        diagnosticsLogger: {warn} as never,
         triggerPayload: {
           source: 'github',
           event: 'push',

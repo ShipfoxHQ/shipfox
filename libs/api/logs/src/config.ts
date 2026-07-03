@@ -111,12 +111,14 @@ if (!Number.isInteger(config.LOG_RETENTION_DAYS) || config.LOG_RETENTION_DAYS < 
 // truncate live logs. Validate against the real lease TTL read from auth's config (not a
 // hardcoded floor), so raising AUTH_JOB_LEASE_TOKEN_EXPIRES_IN can never silently outrun the
 // reaper window.
-const jobLeaseTtlSeconds = durationToSeconds(authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN);
+const authJobLeaseTokenExpiresIn =
+  process.env.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN ?? authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN;
+const jobLeaseTtlSeconds = durationToSeconds(authJobLeaseTokenExpiresIn);
 if (
   !Number.isFinite(config.LOG_STREAM_REAP_AFTER_SECONDS) ||
   config.LOG_STREAM_REAP_AFTER_SECONDS <= jobLeaseTtlSeconds
 ) {
   throw new Error(
-    `LOG_STREAM_REAP_AFTER_SECONDS (${config.LOG_STREAM_REAP_AFTER_SECONDS}) must be greater than the job lease TTL (${jobLeaseTtlSeconds}s, from AUTH_JOB_LEASE_TOKEN_EXPIRES_IN=${authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN}); a smaller value would let the reaper force-close a stream a still-valid lease is appending to and silently truncate live logs.`,
+    `LOG_STREAM_REAP_AFTER_SECONDS (${config.LOG_STREAM_REAP_AFTER_SECONDS}) must be greater than the job lease TTL (${jobLeaseTtlSeconds}s, from AUTH_JOB_LEASE_TOKEN_EXPIRES_IN=${authJobLeaseTokenExpiresIn}); a smaller value would let the reaper force-close a stream a still-valid lease is appending to and silently truncate live logs.`,
   );
 }

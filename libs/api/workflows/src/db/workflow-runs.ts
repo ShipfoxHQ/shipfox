@@ -102,6 +102,8 @@ const TERMINAL_WORKFLOW_RUN_STATUSES: WorkflowRunStatus[] = ['succeeded', 'faile
 const TERMINAL_JOB_STATUSES: JobStatus[] = ['succeeded', 'failed', 'cancelled', 'skipped'];
 const TERMINAL_EXECUTION_STATUSES: JobExecutionStatus[] = ['succeeded', 'failed', 'cancelled'];
 
+type WorkflowDiagnosticsLogger = Pick<ReturnType<typeof logger>, 'warn'>;
+
 export interface CreateWorkflowRunParams {
   workspaceId: string;
   projectId: string;
@@ -113,6 +115,7 @@ export interface CreateWorkflowRunParams {
   sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   triggerIdempotencyKey?: string | undefined;
   resolveAgentDefaults?: AgentDefaultsResolver | undefined;
+  diagnosticsLogger?: WorkflowDiagnosticsLogger | undefined;
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
@@ -274,6 +277,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
 
     logTemplateDiagnostics({
       workflowRunId: runRow.id,
+      diagnosticsLogger: params.diagnosticsLogger,
       diagnostics: materializedJobs.flatMap((job) =>
         job.steps.flatMap((step) =>
           (step.diagnostics ?? []).map((diagnostic) => ({
@@ -573,6 +577,7 @@ function workflowTemplateSource(template: MaterializedWorkflowJob['name']): stri
 
 function logTemplateDiagnostics(params: {
   readonly workflowRunId: string;
+  readonly diagnosticsLogger?: WorkflowDiagnosticsLogger | undefined;
   readonly diagnostics: readonly (WorkflowStepTemplateDiagnostic & {
     readonly jobKey: string;
     readonly stepName: string;
@@ -580,7 +585,8 @@ function logTemplateDiagnostics(params: {
 }): void {
   if (params.diagnostics.length === 0) return;
 
-  logger().warn(
+  const diagnosticsLogger = params.diagnosticsLogger ?? logger();
+  diagnosticsLogger.warn(
     {workflowRunId: params.workflowRunId, diagnostics: params.diagnostics},
     'Workflow interpolation resolved with diagnostics',
   );
