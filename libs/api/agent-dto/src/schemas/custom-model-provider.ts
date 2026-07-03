@@ -118,7 +118,9 @@ export type DiscoverCustomModelProviderModelsBodyDto = z.infer<
 >;
 
 export const discoverCustomModelProviderModelsResponseSchema = z.object({
-  models: z.array(z.object({id: modelIdSchema, label: z.string().min(1).max(160)})),
+  models: z
+    .array(z.object({id: modelIdSchema, label: z.string().min(1).max(160)}))
+    .max(MAX_MODEL_COUNT),
 });
 
 export type DiscoverCustomModelProviderModelsResponseDto = z.infer<

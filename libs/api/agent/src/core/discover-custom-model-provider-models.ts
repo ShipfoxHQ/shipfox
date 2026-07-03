@@ -9,6 +9,7 @@ import {egressPolicy} from './model-provider-validation.js';
 
 const TRAILING_SLASHES_PATTERN = /\/+$/;
 const GOOGLE_MODEL_PREFIX_PATTERN = /^models\//;
+const MAX_DISCOVERY_RESPONSE_BYTES = 512 * 1024;
 
 interface DiscoveredModel {
   id: string;
@@ -21,25 +22,23 @@ export async function discoverCustomModelProviderModels(
   await assertEgressAllowed(params.base_url, egressPolicy());
 
   try {
-    const response = await fetch(discoveryUrl(params.api, params.base_url, params.api_key), {
+    const response = await fetch(discoveryUrl(params.base_url), {
       method: 'GET',
       headers: discoveryHeaders(params.api, params.api_key, params.headers ?? []),
       redirect: 'error',
     });
     if (!response.ok) return {models: []};
 
-    const payload = await response.json();
+    const payload = await readBoundedJson(response);
+    if (payload === undefined) return {models: []};
     return {models: parseModelList(payload)};
   } catch {
     return {models: []};
   }
 }
 
-function discoveryUrl(api: ModelProviderApi, baseUrl: string, apiKey: string | undefined): string {
+function discoveryUrl(baseUrl: string): string {
   const url = appendPath(baseUrl, 'models');
-  if (api !== 'google-generative-ai' || !apiKey) return url.toString();
-
-  url.searchParams.set('key', apiKey);
   return url.toString();
 }
 
@@ -57,6 +56,7 @@ function discoveryHeaders(
       result.set('anthropic-version', '2023-06-01');
       break;
     case 'google-generative-ai':
+      result.set('x-goog-api-key', apiKey);
       break;
     default:
       result.set('authorization', `Bearer ${apiKey}`);
@@ -64,6 +64,40 @@ function discoveryHeaders(
   }
 
   return result;
+}
+
+async function readBoundedJson(response: Response): Promise<unknown | undefined> {
+  if (!response.body) return undefined;
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      if (value === undefined) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_DISCOVERY_RESPONSE_BYTES) {
+        await reader.cancel();
+        return undefined;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const buffer = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return JSON.parse(new TextDecoder().decode(buffer));
 }
 
 function appendPath(baseUrl: string, segment: string): URL {

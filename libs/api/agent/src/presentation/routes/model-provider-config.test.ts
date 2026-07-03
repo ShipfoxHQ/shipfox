@@ -433,6 +433,7 @@ describe('model provider config routes', () => {
   describe('POST /workspaces/:workspaceId/agent/custom-model-providers', () => {
     it('tests and creates a custom model provider without exposing secrets', async () => {
       const secret = 'sk-local-secret-abcd';
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}'));
 
       const res = await app.inject({
         method: 'POST',
@@ -452,7 +453,7 @@ describe('model provider config routes', () => {
         },
       });
 
-      const [model, , options] = vi.mocked(complete).mock.calls.at(-1) ?? [];
+      const [probeUrl, probeInit] = fetchSpy.mock.calls.at(-1) as [string, RequestInit];
       expect(res.statusCode).toBe(200);
       expect(res.json()).toMatchObject({
         kind: 'custom',
@@ -461,15 +462,10 @@ describe('model provider config routes', () => {
         secret_header_names: ['authorization'],
         headers: [{name: 'x-region', value: 'local'}],
       });
-      expect(model).toMatchObject({
-        id: 'llama-3.1',
-        api: 'openai-responses',
-        baseUrl: 'http://127.0.0.1:11434/v1',
-      });
-      expect(options).toMatchObject({
-        apiKey: secret,
-        headers: {authorization: 'Bearer local', 'x-region': 'local'},
-      });
+      expect(probeUrl).toBe('http://127.0.0.1:11434/v1/responses');
+      expect(probeInit).toMatchObject({method: 'POST', redirect: 'error'});
+      expect((probeInit.headers as Headers).get('authorization')).toBe(`Bearer ${secret}`);
+      expect((probeInit.headers as Headers).get('x-region')).toBe('local');
       expect(res.body).not.toContain(secret);
     });
   });
@@ -610,7 +606,7 @@ describe('model provider config routes', () => {
       expect(res.json().details.provider_id).toBe('anthropic');
     });
 
-    it('sets a configured custom model provider as the workspace default', async () => {
+    it('rejects a configured custom model provider as the workspace default until execution is wired', async () => {
       await seedCustomModelProviderConfig({providerId: 'local-vllm'});
 
       const res = await app.inject({
@@ -620,8 +616,9 @@ describe('model provider config routes', () => {
         payload: {provider_id: 'local-vllm'},
       });
 
-      expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({default_provider_id: 'local-vllm'});
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('custom-provider-default-unsupported');
+      expect(res.json().details.provider_id).toBe('local-vllm');
     });
   });
 

@@ -70,3 +70,10 @@ export class CustomModelProviderConfigNotFoundError extends Error {
     this.name = 'CustomModelProviderConfigNotFoundError';
   }
 }
+
+export class CustomModelProviderDefaultUnsupportedError extends Error {
+  constructor(public readonly providerId: ModelProviderRef) {
+    super(`Custom model provider cannot be the workspace default yet: ${providerId}`);
+    this.name = 'CustomModelProviderDefaultUnsupportedError';
+  }
+}

@@ -3,15 +3,10 @@ import {
   type Context,
   complete,
   getModels,
-  type Model,
   type ProviderStreamOptions,
 } from '@earendil-works/pi-ai';
 import {
   type CustomAgentModelDto,
-  DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
-  DEFAULT_CUSTOM_MODEL_INPUT_IMAGE,
-  DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
-  DEFAULT_CUSTOM_MODEL_REASONING,
   getModelProviderEntry,
   type ModelProviderApi,
   type ModelProviderRef,
@@ -31,7 +26,8 @@ import {
 
 const PROBE_MAX_TOKENS = 64;
 const MAX_SANITIZED_ERROR_LENGTH = 500;
-const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-custom-provider-keyless-probe';
+const CUSTOM_PROBE_PROMPT = 'Reply with OK.';
+const TRAILING_SLASHES_PATTERN = /\/+$/;
 
 export interface ProbeModelProviderCredentialsParams {
   providerId: SupportedModelProviderId;
@@ -122,26 +118,17 @@ export async function probeModelProviderCredentials(
 export async function probeCustomModelProviderCredentials(
   params: ProbeCustomModelProviderCredentialsParams,
 ): Promise<void> {
-  const context: Context = {
-    messages: [
-      {
-        role: 'user',
-        content: 'Reply with OK.',
-        timestamp: Date.now(),
-      },
-    ],
-  };
-  const options: ProviderStreamOptions = {
-    apiKey: params.apiKey ?? KEYLESS_CUSTOM_PROVIDER_API_KEY,
-    maxTokens: PROBE_MAX_TOKENS,
-    maxRetries: 0,
-    timeoutMs: config.AGENT_PROVIDER_VALIDATION_TIMEOUT_MS,
-    ...(params.headers ? {headers: params.headers} : {}),
-    ...(params.signal ? {signal: params.signal} : {}),
-  };
+  const response = await fetch(customProbeUrl(params), {
+    method: 'POST',
+    headers: customProbeHeaders(params),
+    body: JSON.stringify(customProbeBody(params)),
+    redirect: 'error',
+    signal: timeoutSignal(params.signal, config.AGENT_PROVIDER_VALIDATION_TIMEOUT_MS),
+  });
 
-  const result = await complete(buildCustomProbeModel(params), context, options);
-  rejectModelProviderErrorResult(result);
+  if (!response.ok) {
+    throw new Error(`Provider returned HTTP ${response.status}.`);
+  }
 }
 
 export function sanitizeModelProviderError(error: unknown, secrets: string[]): string {
@@ -161,31 +148,82 @@ export function egressPolicy(): EgressPolicy {
   };
 }
 
-function buildCustomProbeModel(
-  params: ProbeCustomModelProviderCredentialsParams,
-): Model<ModelProviderApi> {
-  const input: ('text' | 'image')[] = ['text'];
-  if (params.model.input_image ?? DEFAULT_CUSTOM_MODEL_INPUT_IMAGE) {
-    input.push('image');
+function customProbeUrl(params: ProbeCustomModelProviderCredentialsParams): string {
+  switch (params.api) {
+    case 'anthropic-messages':
+      return appendPath(params.baseUrl, 'messages').toString();
+    case 'google-generative-ai':
+      return appendPath(params.baseUrl, `models/${params.model.id}:generateContent`).toString();
+    case 'openai-completions':
+      return appendPath(params.baseUrl, 'chat/completions').toString();
+    case 'openai-responses':
+      return appendPath(params.baseUrl, 'responses').toString();
+  }
+}
+
+function customProbeHeaders(params: ProbeCustomModelProviderCredentialsParams): Headers {
+  const headers = new Headers(params.headers);
+  headers.set('content-type', 'application/json');
+  if (!params.apiKey) return headers;
+
+  switch (params.api) {
+    case 'anthropic-messages':
+      headers.set('x-api-key', params.apiKey);
+      headers.set('anthropic-version', '2023-06-01');
+      break;
+    case 'google-generative-ai':
+      headers.set('x-goog-api-key', params.apiKey);
+      break;
+    default:
+      headers.set('authorization', `Bearer ${params.apiKey}`);
+      break;
   }
 
-  return {
-    id: params.model.id,
-    name: params.model.label,
-    api: params.api,
-    provider: params.providerId,
-    baseUrl: params.baseUrl,
-    reasoning: params.model.reasoning ?? DEFAULT_CUSTOM_MODEL_REASONING,
-    input,
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    contextWindow: params.model.context_window ?? DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
-    maxTokens: params.model.max_output_tokens ?? DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
-  };
+  return headers;
+}
+
+function customProbeBody(params: ProbeCustomModelProviderCredentialsParams): unknown {
+  switch (params.api) {
+    case 'anthropic-messages':
+      return {
+        model: params.model.id,
+        max_tokens: PROBE_MAX_TOKENS,
+        messages: [{role: 'user', content: CUSTOM_PROBE_PROMPT}],
+      };
+    case 'google-generative-ai':
+      return {
+        contents: [{role: 'user', parts: [{text: CUSTOM_PROBE_PROMPT}]}],
+        generationConfig: {maxOutputTokens: PROBE_MAX_TOKENS},
+      };
+    case 'openai-completions':
+      return {
+        model: params.model.id,
+        messages: [{role: 'user', content: CUSTOM_PROBE_PROMPT}],
+        max_tokens: PROBE_MAX_TOKENS,
+        stream: false,
+      };
+    case 'openai-responses':
+      return {
+        model: params.model.id,
+        input: CUSTOM_PROBE_PROMPT,
+        max_output_tokens: PROBE_MAX_TOKENS,
+        stream: false,
+        store: false,
+      };
+  }
+}
+
+function appendPath(baseUrl: string, segment: string): URL {
+  const url = new URL(baseUrl);
+  const path = url.pathname.replace(TRAILING_SLASHES_PATTERN, '');
+  url.pathname = `${path}/${segment}`;
+  return url;
+}
+
+function timeoutSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  return signal === undefined
+    ? AbortSignal.timeout(timeoutMs)
+    : AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
 }
 
 function modelProviderCredentialOptions(

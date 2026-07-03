@@ -4,6 +4,7 @@ import {ClientError} from '@shipfox/node-fastify';
 import {EgressDeniedError} from '#core/egress-guard.js';
 import {
   CustomModelProviderConfigNotFoundError,
+  CustomModelProviderDefaultUnsupportedError,
   CustomModelProviderSlugCollisionError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
@@ -45,6 +46,17 @@ export function translateModelProviderRouteError(error: unknown): never {
       status: 404,
       details: {provider_id: error.providerId},
     });
+  }
+
+  if (error instanceof CustomModelProviderDefaultUnsupportedError) {
+    throw new ClientError(
+      'Custom model providers cannot be workspace defaults yet',
+      'custom-provider-default-unsupported',
+      {
+        status: 422,
+        details: {provider_id: error.providerId},
+      },
+    );
   }
 
   if (error instanceof InvalidCredentialFieldsError) {

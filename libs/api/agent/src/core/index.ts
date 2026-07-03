@@ -7,6 +7,7 @@ export type {AgentWorkspaceSettings} from './entities/agent-workspace-settings.j
 export type {ModelProviderConfig} from './entities/model-provider-config.js';
 export {
   CustomModelProviderConfigNotFoundError,
+  CustomModelProviderDefaultUnsupportedError,
   CustomModelProviderSlugCollisionError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
