@@ -6,6 +6,7 @@ import {config} from '@shipfox/e2e-core';
 import {pollUntil} from './poll.js';
 
 const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
+const DEFAULT_READINESS_POLL_INTERVAL_MS = 500;
 const DEFAULT_SIGTERM_TIMEOUT_MS = 15_000;
 const RUNNER_SESSION_ID_LOG_RE = /"runnerSessionId":"([^"]+)"/;
 
@@ -110,6 +111,8 @@ async function waitForRunnerSessionRegistered(params: {
   const poll = pollUntil<string>(
     {
       timeoutMs: params.timeoutMs,
+      intervalMs: DEFAULT_READINESS_POLL_INTERVAL_MS,
+      maxIntervalMs: DEFAULT_READINESS_POLL_INTERVAL_MS,
       signal: abortController.signal,
       describe: () =>
         `local runner with labels ${params.labels.join(',')} to register a runner session${logTail(params.logFile)}`,
