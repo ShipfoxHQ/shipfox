@@ -357,9 +357,6 @@ importers:
       '@shipfox/api-secrets':
         specifier: workspace:*
         version: link:../../../libs/api/secrets
-      '@shipfox/api-secrets-dto':
-        specifier: workspace:*
-        version: link:../../../libs/api/secrets-dto
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
