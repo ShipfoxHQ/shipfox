@@ -20,7 +20,6 @@ export interface UpsertModelProviderConfigParams {
   baseUrl?: string | null | undefined;
   headers?: CustomModelProviderHeaderDto[] | null | undefined;
   models?: CustomAgentModelDto[] | null | undefined;
-  encryptedCredentials: Record<string, string>;
   keyFingerprints: Record<string, string>;
   defaultModel: string | null;
   defaultThinking: AgentThinking;
@@ -42,7 +41,6 @@ export async function upsertModelProviderConfig(
         ...(params.baseUrl !== undefined ? {baseUrl: params.baseUrl} : {}),
         ...(params.headers !== undefined ? {headers: params.headers} : {}),
         ...(params.models !== undefined ? {models: params.models} : {}),
-        encryptedCredentials: params.encryptedCredentials,
         keyFingerprints: params.keyFingerprints,
         defaultModel: params.defaultModel,
         defaultThinking: params.defaultThinking,
@@ -50,7 +48,6 @@ export async function upsertModelProviderConfig(
       .onConflictDoUpdate({
         target: [modelProviderConfigs.workspaceId, modelProviderConfigs.providerId],
         set: {
-          encryptedCredentials: params.encryptedCredentials,
           keyFingerprints: params.keyFingerprints,
           ...(params.kind !== undefined ? {kind: params.kind} : {}),
           ...(params.displayName !== undefined ? {displayName: params.displayName} : {}),

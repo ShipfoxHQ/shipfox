@@ -1,6 +1,8 @@
-import {testAndSaveModelProviderConfig, upsertModelProviderConfig} from '@shipfox/api-agent';
+import {testAndSaveModelProviderConfig} from '@shipfox/api-agent';
+import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import {SecretDecryptionError} from '@shipfox/api-secrets';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
 import {eq} from 'drizzle-orm';
@@ -15,6 +17,11 @@ import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {leaseTokenRouteGroup} from './index.js';
 
 const {captureExceptionMock} = vi.hoisted(() => ({captureExceptionMock: vi.fn()}));
+vi.mock('@shipfox/api-agent/core/resolve-runtime-credentials', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@shipfox/api-agent/core/resolve-runtime-credentials')>();
+  return {...actual, resolveRuntimeCredentials: vi.fn(actual.resolveRuntimeCredentials)};
+});
 vi.mock('@shipfox/node-error-monitoring', () => ({captureException: captureExceptionMock}));
 
 const URL = '/runs/jobs/current/agent-runtime-config';
@@ -36,6 +43,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   beforeEach(() => {
     clearLogLines();
     captureExceptionMock.mockReset();
+    vi.mocked(resolveRuntimeCredentials).mockClear();
   });
 
   afterAll(async () => {
@@ -276,15 +284,8 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   });
 
   test('returns 409 and reports when workspace credentials cannot be decrypted', async () => {
-    const {run, job, step} = await createRunningAgentStep();
-    await upsertModelProviderConfig({
-      workspaceId: run.workspaceId,
-      providerId: 'anthropic',
-      encryptedCredentials: {api_key: 'v1:not-valid-ciphertext'},
-      keyFingerprints: {api_key: 'sk-test...cret'},
-      defaultModel: null,
-      defaultThinking: 'high',
-    });
+    const {job, step} = await createRunningAgentStep();
+    vi.mocked(resolveRuntimeCredentials).mockRejectedValueOnce(new SecretDecryptionError());
     const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
@@ -296,9 +297,9 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('model-provider-credentials-invalid');
     expect(captureExceptionMock).toHaveBeenCalledWith(
-      expect.objectContaining({name: 'CredentialDecryptionError'}),
+      expect.objectContaining({name: 'SecretDecryptionError'}),
     );
-    expect(JSON.stringify(res.json())).not.toContain('not-valid-ciphertext');
+    expect(JSON.stringify(res.json())).not.toContain('sk-');
   });
 
   test('does not write returned credential material to logs', async () => {

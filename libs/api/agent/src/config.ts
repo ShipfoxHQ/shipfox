@@ -9,9 +9,6 @@ import {bool, createConfig, num, str} from '@shipfox/config';
 const AGENT_THINKING_CHOICES = agentThinkingSchema.options;
 
 export const config = createConfig({
-  AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY: str({
-    desc: 'Master key used to protect saved model provider credentials. Required. Generate a unique value per environment with openssl rand -base64 32 and provide it from a secret manager. The committed .env value is only for local development. Losing this key makes saved model provider credentials unrecoverable.',
-  }),
   AGENT_DEFAULT_PROVIDER: str({
     desc: 'Instance-wide default model provider ID used when a workflow and workspace do not choose one. Optional. Use one of the supported model provider IDs from the model provider catalog.',
     choices: SUPPORTED_MODEL_PROVIDER_IDS,

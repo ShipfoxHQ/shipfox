@@ -1,4 +1,5 @@
 import {getModelProviderCredentialKeys} from '@shipfox/api-agent-dto';
+import {SecretValueTooLargeError, WorkspaceSecretCapExceededError} from '@shipfox/api-secrets';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   InvalidAgentModelError,
@@ -52,6 +53,20 @@ export function translateModelProviderRouteError(error: unknown): never {
       details: {
         provider_id: error.providerId,
       },
+    });
+  }
+
+  if (error instanceof WorkspaceSecretCapExceededError) {
+    throw new ClientError('Workspace secret cap exceeded', 'workspace-secret-cap-exceeded', {
+      status: 409,
+      details: {cap: error.cap},
+    });
+  }
+
+  if (error instanceof SecretValueTooLargeError) {
+    throw new ClientError(error.message, 'value-too-large', {
+      status: 400,
+      details: {max_bytes: error.maxBytes},
     });
   }
 

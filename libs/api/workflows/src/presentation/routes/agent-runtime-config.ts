@@ -1,7 +1,4 @@
-import {
-  CredentialDecryptionError,
-  ModelProviderConfigNotFoundError,
-} from '@shipfox/api-agent/core/errors';
+import {ModelProviderConfigNotFoundError} from '@shipfox/api-agent/core/errors';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {
   agentRuntimeCredentialsResponseSchema,
@@ -10,6 +7,7 @@ import {
 } from '@shipfox/api-agent-dto';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {isJobLeaseActive} from '@shipfox/api-runners';
+import {SecretDecryptionError} from '@shipfox/api-secrets';
 import {agentRuntimeConfigQuerySchema} from '@shipfox/api-workflows-dto';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -28,7 +26,7 @@ export const agentRuntimeConfigRoute = defineRoute({
     },
   },
   errorHandler: (error) => {
-    if (error instanceof CredentialDecryptionError) {
+    if (error instanceof SecretDecryptionError) {
       captureException(error);
       throw new ClientError(
         'Model provider credentials could not be decrypted',

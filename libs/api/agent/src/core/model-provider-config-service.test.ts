@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
+import {getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {getModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
-import {decryptCredentials} from './credential-encryption.js';
+import {agentSystemNamespace} from './credential-fingerprints.js';
 import {
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
@@ -8,6 +9,7 @@ import {
   ModelProviderValidationError,
 } from './errors.js';
 import {
+  deleteModelProviderConfig,
   testAndSaveModelProviderConfig,
   updateModelProviderConfigDefaultModel,
 } from './model-provider-config-service.js';
@@ -23,32 +25,34 @@ describe('testAndSaveModelProviderConfig', () => {
     vi.unstubAllEnvs();
   });
 
-  it('validates, encrypts, fingerprints, and stores a provider config', async () => {
+  it('validates, stores secrets, fingerprints, and stores a provider config', async () => {
     const credentials = {api_key: 'sk-ant-secret-abcd'};
     const probe = vi.fn().mockResolvedValue(undefined);
 
     const config = await testAndSaveModelProviderConfig(
-      {workspaceId, providerId: 'anthropic', credentials},
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        credentials,
+        editedBy: '11111111-1111-4111-8111-111111111111',
+      },
       {probe},
     );
 
     const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+    });
+
     expect(probe).toHaveBeenCalledWith({
       providerId: 'anthropic',
       model: 'claude-opus-4-8',
       credentials,
     });
     expect(stored).toEqual(config);
-    expect(stored?.encryptedCredentials).not.toEqual(credentials);
-    expect(stored?.encryptedCredentials['credential:api_key']).not.toContain(credentials.api_key);
-    expect(
-      decryptCredentials({
-        workspaceId,
-        providerId: 'anthropic',
-        encryptedCredentials: stored?.encryptedCredentials ?? {},
-      }),
-    ).toEqual(credentials);
-    expect(stored?.keyFingerprints).toEqual({'credential:api_key': 'sk-ant-s...abcd'});
+    expect(secrets).toEqual({API_KEY: credentials.api_key});
+    expect(stored?.keyFingerprints).toEqual({'credential:api_key': '...abcd'});
     expect(stored?.defaultModel).toBeNull();
     expect(stored?.defaultThinking).toBe('high');
   });
@@ -120,8 +124,7 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
-      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -151,8 +154,7 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
-      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -215,8 +217,7 @@ describe('testAndSaveModelProviderConfig', () => {
     const existing = await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
-      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-opus-4-8',
       defaultThinking: 'high',
     });
@@ -269,8 +270,7 @@ describe('testAndSaveModelProviderConfig', () => {
     const existing = await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
-      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -282,7 +282,6 @@ describe('testAndSaveModelProviderConfig', () => {
     });
 
     expect(updated).toMatchObject({
-      encryptedCredentials: existing.encryptedCredentials,
       keyFingerprints: existing.keyFingerprints,
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: existing.defaultThinking,
@@ -293,8 +292,7 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
-      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -322,8 +320,7 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
-      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -357,17 +354,19 @@ describe('testAndSaveModelProviderConfig', () => {
       workspaceId,
       providerId: 'azure-openai-responses',
     });
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('azure-openai-responses'),
+    });
+
     expect(stored).toEqual(config);
-    expect(
-      decryptCredentials({
-        workspaceId,
-        providerId: 'azure-openai-responses',
-        encryptedCredentials: stored?.encryptedCredentials ?? {},
-      }),
-    ).toEqual(credentials);
+    expect(secrets).toEqual({
+      ENDPOINT: credentials.endpoint,
+      API_KEY: credentials.api_key,
+    });
     expect(stored?.keyFingerprints).toEqual({
       'credential:endpoint': 'https://azure.example.test/openai/v1',
-      'credential:api_key': 'sk-azure...abcd',
+      'credential:api_key': '...abcd',
     });
   });
 
@@ -392,16 +391,19 @@ describe('testAndSaveModelProviderConfig', () => {
       workspaceId,
       providerId: 'cloudflare-ai-gateway',
     });
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('cloudflare-ai-gateway'),
+    });
+
     expect(stored).toEqual(config);
-    expect(
-      decryptCredentials({
-        workspaceId,
-        providerId: 'cloudflare-ai-gateway',
-        encryptedCredentials: stored?.encryptedCredentials ?? {},
-      }),
-    ).toEqual(credentials);
+    expect(secrets).toEqual({
+      API_KEY: credentials.api_key,
+      ACCOUNT_ID: credentials.account_id,
+      GATEWAY_ID: credentials.gateway_id,
+    });
     expect(stored?.keyFingerprints).toEqual({
-      'credential:api_key': 'cf-secre...abcd',
+      'credential:api_key': '...abcd',
       'credential:account_id': 'account-123',
       'credential:gateway_id': 'gateway-456',
     });
@@ -421,20 +423,44 @@ describe('testAndSaveModelProviderConfig', () => {
     expect(stored).toBeUndefined();
   });
 
-  it('validates the local encryption key before probing the provider', async () => {
-    vi.resetModules();
-    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', '');
-    const module = await import('./model-provider-config-service.js');
-    const probe = vi.fn();
+  it('replaces the provider namespace exactly on credential rotation', async () => {
+    await setSecrets({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+      values: {API_KEY: 'sk-old-secret', STALE_KEY: 'stale-secret'},
+    });
+    const probe = vi.fn().mockResolvedValue(undefined);
 
-    const save = module.testAndSaveModelProviderConfig(
-      {workspaceId, providerId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
+    await testAndSaveModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        credentials: {api_key: 'sk-ant-rotated-abcd'},
+      },
       {probe},
     );
 
-    await expect(save).rejects.toThrow(
-      'AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY is required',
-    );
-    expect(probe).not.toHaveBeenCalled();
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+    });
+    expect(secrets).toEqual({API_KEY: 'sk-ant-rotated-abcd'});
+  });
+
+  it('deletes provider secrets even when the config row is already absent', async () => {
+    await setSecrets({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+      values: {API_KEY: 'orphaned-secret'},
+    });
+
+    const deleted = await deleteModelProviderConfig({workspaceId, providerId: 'anthropic'});
+
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('anthropic'),
+    });
+    expect(deleted).toBe(false);
+    expect(secrets).toEqual({});
   });
 });

@@ -1,10 +1,12 @@
 import {complete} from '@earendil-works/pi-ai';
 import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
+import {agentSystemNamespace} from '#core/credential-fingerprints.js';
 import {db} from '#db/db.js';
 import {
   getAgentWorkspaceSettings,
@@ -24,6 +26,8 @@ vi.mock('@earendil-works/pi-ai', async (importOriginal) => {
   return {...actual, complete: vi.fn()};
 });
 
+const AUTH_USER_ID = '11111111-1111-4111-8111-111111111111';
+
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
   authenticate: (request: FastifyRequest) => {
@@ -34,7 +38,7 @@ const fakeUserAuth: AuthMethod = {
     setUserContext(
       request,
       buildUserContext({
-        userId: 'user-1',
+        userId: AUTH_USER_ID,
         email: 'user@example.com',
         memberships: [{workspaceId: 'workspace-from-auth', role: 'admin'}],
       }),
@@ -79,7 +83,7 @@ describe('model provider config routes', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       },
-      userId: 'user-1',
+      userId: AUTH_USER_ID,
       role: 'admin',
     });
     app = await createApp({
@@ -174,15 +178,18 @@ describe('model provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().provider_id).toBe('anthropic');
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-s...abcd'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...abcd'});
       expect(res.body).not.toContain(secret);
       expect(res.body).not.toContain('encrypted_credentials');
       expect(replace.statusCode).toBe(200);
       expect(replace.json().default_model).toBeNull();
-      expect(replace.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
+      expect(replace.json().key_fingerprints).toEqual({'credential:api_key': '...wxyz'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
-      expect(stored?.encryptedCredentials['credential:api_key']).not.toBeUndefined();
-      expect(stored?.encryptedCredentials['credential:api_key']).not.toContain(secret);
+      const secrets = await getSecretsByNamespace({
+        workspaceId,
+        namespace: agentSystemNamespace('anthropic'),
+      });
+      expect(secrets).toEqual({API_KEY: 'sk-ant-rotated-wxyz'});
       expect(stored?.defaultModel).toBeNull();
     });
 
@@ -281,7 +288,7 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-opus-4-8');
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...wxyz'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-opus-4-8');
     });
@@ -298,7 +305,7 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...wxyz'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBeNull();
     });
@@ -333,6 +340,18 @@ describe('model provider config routes', () => {
       expect(res.json().details.expected_keys).toEqual(['account_id', 'api_key', 'gateway_id']);
     });
 
+    it('maps store value-size errors to a client error', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/model-providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {credentials: {api_key: 'a'.repeat(64 * 1024 + 1)}},
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('value-too-large');
+    });
+
     it('returns 400 for an unsupported provider id', async () => {
       const res = await app.inject({
         method: 'PUT',
@@ -357,7 +376,12 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(204);
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
+      const secrets = await getSecretsByNamespace({
+        workspaceId,
+        namespace: agentSystemNamespace('anthropic'),
+      });
       expect(stored).toBeUndefined();
+      expect(secrets).toEqual({});
     });
 
     it('returns 404 for a missing or foreign provider config', async () => {
@@ -419,10 +443,9 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-haiku-4-5');
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-secre...abcd'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...abcd'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-haiku-4-5');
-      expect(stored?.encryptedCredentials).toEqual({'credential:api_key': 'encrypted-secret'});
     });
 
     it('stores Latest as a null provider default model', async () => {
@@ -520,8 +543,7 @@ describe('model provider config routes', () => {
     const config = await upsertModelProviderConfig({
       workspaceId: params.workspaceId ?? workspaceId,
       providerId: params.providerId,
-      encryptedCredentials: {'credential:api_key': 'encrypted-secret'},
-      keyFingerprints: {'credential:api_key': 'sk-secre...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: params.providerId === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.5-pro',
       defaultThinking: 'high',
     });
@@ -530,6 +552,11 @@ describe('model provider config routes', () => {
       .select()
       .from(modelProviderConfigs)
       .where(eq(modelProviderConfigs.id, config.id));
+    await setSecrets({
+      workspaceId: params.workspaceId ?? workspaceId,
+      namespace: agentSystemNamespace(params.providerId),
+      values: {API_KEY: 'seeded-secret'},
+    });
     expect(rows).toHaveLength(1);
   }
 
@@ -546,8 +573,7 @@ describe('model provider config routes', () => {
       baseUrl: 'https://llm.example.test/v1',
       headers: [],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      encryptedCredentials: {'credential:api_key': 'encrypted-secret'},
-      keyFingerprints: {'credential:api_key': 'sk-secre...abcd'},
+      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'llama-3.1',
       defaultThinking: 'off',
     });
@@ -556,6 +582,11 @@ describe('model provider config routes', () => {
       .select()
       .from(modelProviderConfigs)
       .where(eq(modelProviderConfigs.id, config.id));
+    await setSecrets({
+      workspaceId: params.workspaceId ?? workspaceId,
+      namespace: agentSystemNamespace(params.providerId),
+      values: {API_KEY: 'seeded-secret'},
+    });
     expect(rows).toHaveLength(1);
   }
 });

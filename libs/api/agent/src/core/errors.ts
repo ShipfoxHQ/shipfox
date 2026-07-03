@@ -50,10 +50,3 @@ export class ModelProviderValidationUnavailableError extends Error {
     this.name = 'ModelProviderValidationUnavailableError';
   }
 }
-
-export class CredentialDecryptionError extends Error {
-  constructor() {
-    super('Failed to decrypt model provider credential');
-    this.name = 'CredentialDecryptionError';
-  }
-}

@@ -1,20 +1,23 @@
 import {
   DEFAULT_AGENT_THINKING,
   getModelProviderEntry,
+  type ModelProviderRef,
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
+import {deleteSecrets, setSecrets} from '@shipfox/api-secrets';
 import {
+  deleteModelProviderConfig as deleteModelProviderConfigRow,
   getModelProviderConfig,
   updateModelProviderDefaultModel,
   upsertModelProviderConfig,
 } from '#db/index.js';
 import {modelProviderValidationCount} from '#metrics/index.js';
 import {
-  encryptCredentials,
-  ensureCredentialsEncryptionKeyConfigured,
+  agentSystemNamespace,
+  credentialsToStoreValues,
   fingerprintCredentials,
-} from './credential-encryption.js';
+} from './credential-fingerprints.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {
   InvalidAgentModelError,
@@ -34,6 +37,7 @@ export interface TestAndSaveModelProviderConfigParams {
   providerId: SupportedModelProviderId;
   defaultModel?: string | null | undefined;
   credentials: Record<string, string>;
+  editedBy?: string | null | undefined;
   setAsDefault?: boolean | undefined;
   signal?: AbortSignal | undefined;
 }
@@ -62,8 +66,6 @@ export async function testAndSaveModelProviderConfig(
   if (!modelProviderCredentialKeysMatch(params.providerId, params.credentials)) {
     throw new InvalidCredentialFieldsError(params.providerId);
   }
-
-  ensureCredentialsEncryptionKeyConfigured();
 
   const existingConfig = await getModelProviderConfig({
     workspaceId: params.workspaceId,
@@ -99,14 +101,18 @@ export async function testAndSaveModelProviderConfig(
     model_provider: params.providerId,
     outcome: 'succeeded',
   });
+  const namespace = agentSystemNamespace(params.providerId);
+  await deleteSecrets({workspaceId: params.workspaceId, namespace});
+  await setSecrets({
+    workspaceId: params.workspaceId,
+    namespace,
+    values: credentialsToStoreValues(params.providerId, params.credentials),
+    editedBy: params.editedBy,
+  });
+
   return await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    encryptedCredentials: encryptCredentials({
-      workspaceId: params.workspaceId,
-      providerId: params.providerId,
-      credentials: params.credentials,
-    }),
     keyFingerprints: fingerprintCredentials(params.providerId, params.credentials),
     defaultModel: modelSelection.storedModel,
     defaultThinking: DEFAULT_AGENT_THINKING,
@@ -131,6 +137,18 @@ export async function updateModelProviderConfigDefaultModel(
   });
   if (!config) throw new ModelProviderConfigNotFoundError(params.workspaceId, params.providerId);
   return config;
+}
+
+export async function deleteModelProviderConfig(params: {
+  workspaceId: string;
+  providerId: ModelProviderRef;
+}): Promise<boolean> {
+  const deleted = await deleteModelProviderConfigRow(params);
+  await deleteSecrets({
+    workspaceId: params.workspaceId,
+    namespace: agentSystemNamespace(params.providerId),
+  });
+  return deleted;
 }
 
 function resolveDefaultModel(

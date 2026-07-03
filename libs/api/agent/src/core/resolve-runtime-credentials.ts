@@ -5,11 +5,12 @@ import {
   type ModelProviderRef,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
+import {getSecretsByNamespace, SecretDecryptionError} from '@shipfox/api-secrets';
 import {config} from '#config.js';
 import {getModelProviderConfig} from '#db/index.js';
 import {agentRuntimeConfigResolvedCount} from '#metrics/index.js';
-import {decryptCredentials} from './credential-encryption.js';
-import {CredentialDecryptionError, ModelProviderConfigNotFoundError} from './errors.js';
+import {agentSystemNamespace, storeValuesToRuntimeCredentials} from './credential-fingerprints.js';
+import {ModelProviderConfigNotFoundError} from './errors.js';
 
 export interface ResolveRuntimeCredentialsParams {
   workspaceId: string;
@@ -23,10 +24,25 @@ interface RuntimeCredentialsConfig {
   AGENT_DEFAULT_PROVIDER_API_KEY?: string | undefined;
 }
 
+interface ResolveRuntimeCredentialsOptions {
+  runtimeConfig?: RuntimeCredentialsConfig | undefined;
+  getCredentialBag?: typeof getSecretsByNamespace | undefined;
+}
+
 export async function resolveRuntimeCredentials(
   params: ResolveRuntimeCredentialsParams,
-  runtimeConfig: RuntimeCredentialsConfig = config,
+  options?: RuntimeCredentialsConfig | ResolveRuntimeCredentialsOptions,
 ): Promise<AgentRuntimeCredentialsResponseDto> {
+  const runtimeConfig =
+    options === undefined
+      ? config
+      : isOptions(options)
+        ? (options.runtimeConfig ?? config)
+        : options;
+  const getCredentialBag =
+    options !== undefined && isOptions(options)
+      ? (options.getCredentialBag ?? getSecretsByNamespace)
+      : getSecretsByNamespace;
   const providerConfig = await getModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.provider,
@@ -34,16 +50,22 @@ export async function resolveRuntimeCredentials(
 
   if (providerConfig) {
     try {
-      const credentials = decryptCredentials({
+      const values = await getCredentialBag({
         workspaceId: params.workspaceId,
-        providerId: params.provider,
-        encryptedCredentials: providerConfig.encryptedCredentials,
+        namespace: agentSystemNamespace(params.provider),
       });
+      const credentials = storeValuesToRuntimeCredentials(
+        params.provider as SupportedModelProviderId,
+        values,
+      );
+      if (Object.keys(credentials).length === 0) {
+        throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
+      }
 
       agentRuntimeConfigResolvedCount.add(1, {source: 'workspace', outcome: 'resolved'});
       return toResponse(params, credentials);
     } catch (error) {
-      if (error instanceof CredentialDecryptionError) {
+      if (error instanceof SecretDecryptionError) {
         agentRuntimeConfigResolvedCount.add(1, {
           source: 'workspace',
           outcome: 'decryption_failed',
@@ -64,6 +86,12 @@ export async function resolveRuntimeCredentials(
     outcome: 'unavailable',
   });
   throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
+}
+
+function isOptions(
+  value: RuntimeCredentialsConfig | ResolveRuntimeCredentialsOptions,
+): value is ResolveRuntimeCredentialsOptions {
+  return 'runtimeConfig' in value || 'getCredentialBag' in value;
 }
 
 export function getInstanceDefaultModelProviderApiKeyField(

@@ -1,5 +1,3 @@
-const ENCRYPTION_KEY = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
-
 describe('agent config', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -7,7 +5,6 @@ describe('agent config', () => {
 
   it('imports with an API-key-only instance default provider key', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
     vi.stubEnv('AGENT_DEFAULT_PROVIDER', 'openai');
     vi.stubEnv('AGENT_DEFAULT_PROVIDER_API_KEY', 'sk-instance-secret');
 
@@ -19,7 +16,6 @@ describe('agent config', () => {
 
   it('throws when an instance key is set for a multi-field provider', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
     vi.stubEnv('AGENT_DEFAULT_PROVIDER', 'azure-openai-responses');
     vi.stubEnv('AGENT_DEFAULT_PROVIDER_API_KEY', 'sk-instance-secret');
 
@@ -32,7 +28,6 @@ describe('agent config', () => {
 
   it('throws when an instance key is set without an instance default provider', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
     vi.stubEnv('AGENT_DEFAULT_PROVIDER_API_KEY', 'sk-instance-secret');
 
     const importConfig = import('./config.js');
@@ -44,7 +39,6 @@ describe('agent config', () => {
 
   it('imports without an instance key', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
     vi.stubEnv('AGENT_DEFAULT_PROVIDER', 'azure-openai-responses');
 
     const module = await import('./config.js');
@@ -55,7 +49,6 @@ describe('agent config', () => {
 
   it('defaults custom provider egress to local-development friendly settings', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
 
     const module = await import('./config.js');
 
@@ -65,7 +58,6 @@ describe('agent config', () => {
 
   it('imports custom provider egress cloud overrides', async () => {
     vi.resetModules();
-    vi.stubEnv('AGENT_MODEL_PROVIDER_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
     vi.stubEnv('AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS', 'false');
     vi.stubEnv('AGENT_CUSTOM_PROVIDER_HOST_DENYLIST', 'metadata.google.internal,10.0.0.0/8');
 

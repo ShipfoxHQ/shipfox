@@ -2,7 +2,7 @@ import {modelProviderRefSchema} from '@shipfox/api-agent-dto';
 import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {deleteModelProviderConfig} from '#db/index.js';
+import {deleteModelProviderConfig} from '#core/index.js';
 
 export const deleteModelProviderConfigRoute = defineRoute({
   method: 'DELETE',
