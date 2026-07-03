@@ -126,15 +126,27 @@ jobs:
 
   # PR image validation stays separate so it can run without package write
   # permission. Main publishes images in `publish-images`.
-  build-images:
-    name: Build images
+  build-image:
+    name: Build image (${{ matrix.image }})
     if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: "@shipfox/api"
+            image: api
+          - package: "@shipfox/client"
+            image: client
+          - package: "@shipfox/runner"
+            image: runner
 
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
 
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
@@ -145,23 +157,48 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
-      # Extra turbo args enter every task hash; shipfox-docker reads image
-      # metadata from the environment instead. Serialize Docker builds to avoid
-      # runner CPU and memory contention.
+      # --affected skips images untouched by the PR. The Docker wrapper validates
+      # PR builds with BuildKit's cache-only output, so no local image import runs.
       - name: Build images
-        run: turbo image --concurrency=1 --filter @shipfox/api --filter @shipfox/client --filter @shipfox/runner
+        run: turbo image --affected --filter "${{ matrix.package }}"
+
+  build-images:
+    name: Build images
+    needs: [build-image]
+    if: always() && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Report image validation
+        run: |
+          if [ "${{ needs.build-image.result }}" != "success" ]; then
+            echo "Image validation matrix result: ${{ needs.build-image.result }}"
+            exit 1
+          fi
+          echo "Image validation matrix completed."
 
   # Publishing stays in a main-only job so package write permission is granted
   # only after verification and E2E pass. It restores build output from Turbo's
   # cache instead of inheriting artifacts from less-privileged jobs.
   publish-images:
-    name: Publish app images
+    name: Publish app image (${{ matrix.image }})
     needs: [static-verification, tests, e2e]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
     # cache (the runner image's apt layer most of all); the cache makes later runs fast.
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: "@shipfox/api"
+            image: api
+          - package: "@shipfox/client"
+            image: client
+          - package: "@shipfox/runner"
+            image: runner
     permissions:
       contents: read
       packages: write # push images to GHCR
@@ -201,9 +238,4 @@ jobs:
           # would bust the build cache). Only GHCR is configured; add Docker Hub by
           # appending its base to IMAGE_REGISTRIES and adding a matching login step.
           export IMAGE_REGISTRIES="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          # --concurrency=1: serialize the three multi-arch QEMU builds so they don't
-          # contend for the runner's CPUs (build deps are cache hits regardless).
-          turbo image --concurrency=1 \
-            --filter @shipfox/api \
-            --filter @shipfox/client \
-            --filter @shipfox/runner
+          turbo image --filter "${{ matrix.package }}"
