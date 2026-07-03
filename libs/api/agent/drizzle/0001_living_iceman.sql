@@ -1,1 +1,0 @@
-ALTER TABLE "model_provider_configs" DROP COLUMN "encrypted_credentials";
