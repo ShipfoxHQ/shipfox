@@ -33,6 +33,7 @@ export {
 } from './manual-registration-tokens.js';
 export type {
   ProvisionedRunnerReportEvent,
+  ReapStaleProvisionedRunnersResult,
   ReconcileProvisionedRunnersDbResult,
   ReconcileProvisionedRunnersParams,
   ReportProvisionedRunnersParams,

@@ -24,7 +24,6 @@ CREATE TABLE "runners_provisioned_runners" (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "runners_provisioned_runners_workspace_provisioner_runner_unique" ON "runners_provisioned_runners" USING btree ("workspace_id","provisioner_id","provisioned_runner_id");--> statement-breakpoint
 CREATE INDEX "runners_provisioned_runners_workspace_state_updated_idx" ON "runners_provisioned_runners" USING btree ("workspace_id","state","updated_at");--> statement-breakpoint
-CREATE INDEX "runners_provisioned_runners_stale_reaper_idx" ON "runners_provisioned_runners" USING btree ("state","updated_at","reported_at","workspace_id");--> statement-breakpoint
 CREATE INDEX "runners_provisioned_runners_reservation_id_idx" ON "runners_provisioned_runners" USING btree ("reservation_id");
 --> statement-breakpoint
 CREATE TABLE "runners_provisioner_tokens" (
