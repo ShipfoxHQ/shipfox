@@ -3,6 +3,7 @@ import {WorkflowExpressionEvaluationError} from './errors.js';
 import {
   evaluateWorkflowExpression,
   evaluateWorkflowPredicate,
+  evaluateWorkflowPredicateFailClosed,
 } from './evaluate-workflow-expression.js';
 
 describe('evaluateWorkflowExpression', () => {
@@ -58,6 +59,42 @@ describe('evaluateWorkflowExpression', () => {
     });
 
     expect(result).toBe(true);
+  });
+
+  it('returns fail-closed predicate outcomes for clean evaluations', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.conclusion == "success"',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
+      },
+    });
+
+    const result = evaluateWorkflowPredicateFailClosed(expression, {
+      event: {conclusion: 'success'},
+    });
+
+    expect(result).toEqual({value: true, evaluationFailed: false});
+  });
+
+  it('returns condition-false when fail-closed predicate evaluation fails', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.conclusion == "success"',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
+      },
+    });
+
+    const result = evaluateWorkflowPredicateFailClosed(expression, {
+      event: {},
+    });
+
+    expect(result).toEqual({value: false, evaluationFailed: true});
   });
 
   it('wraps evaluation errors when supplied values do not match the checked context', () => {

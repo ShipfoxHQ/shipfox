@@ -9,9 +9,19 @@ const fireManualSubscriptionMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@shipfox/api-workflows', () => {
   class InterpolationUnresolvableError extends Error {
-    constructor(definitionId: string) {
+    readonly field: string;
+    readonly source: string;
+    readonly envKey?: string;
+
+    constructor(
+      definitionId: string,
+      params: {readonly field: string; readonly source: string; readonly envKey?: string},
+    ) {
       super(`Workflow interpolation cannot be resolved for definition ${definitionId}`);
       this.name = 'InterpolationUnresolvableError';
+      this.field = params.field;
+      this.source = params.source;
+      if (params.envKey !== undefined) this.envKey = params.envKey;
     }
   }
   return {InterpolationUnresolvableError};
@@ -70,7 +80,13 @@ describe('POST /:definitionId/fire-manual', () => {
   test('maps unresolvable workflow interpolation to 422', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockRejectedValue(new InterpolationUnresolvableError(definitionId));
+    fireManualSubscriptionMock.mockRejectedValue(
+      new InterpolationUnresolvableError(definitionId, {
+        field: 'env',
+        source: 'event.ref',
+        envKey: 'REF',
+      }),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -79,7 +95,14 @@ describe('POST /:definitionId/fire-manual', () => {
     });
 
     expect(res.statusCode).toBe(422);
-    expect(res.json().code).toBe('workflow-interpolation-unresolvable');
+    expect(res.json()).toMatchObject({
+      code: 'workflow-interpolation-unresolvable',
+      details: {
+        field: 'env',
+        source: 'event.ref',
+        env_key: 'REF',
+      },
+    });
   });
 
   test('returns 404 when the manual trigger is unavailable', async () => {

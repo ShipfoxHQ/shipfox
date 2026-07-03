@@ -5,6 +5,7 @@ import {
   availabilitySites,
   type FillTarget,
   getWorkflowContextTypeEnvironment,
+  getWorkflowInterpolationFieldFailurePolicy,
   rootsAvailableAt,
   runnerFillTarget,
   type WorkflowContextName,
@@ -17,10 +18,13 @@ import {
   workflowContextReservedRoots,
   workflowContextSensitivities,
   workflowContextTrustTiers,
+  workflowFieldFailurePolicies,
   workflowInterpolationFieldAcceptsContext,
   workflowInterpolationFieldAcceptsTrustTier,
   workflowInterpolationFieldPolicies,
   workflowInterpolationFields,
+  workflowPredicateFieldFailurePolicy,
+  workflowPredicateFields,
 } from './workflow-context.js';
 
 describe('workflow context registry', () => {
@@ -496,6 +500,33 @@ describe('workflow context registry', () => {
         },
       ]
     `);
+  });
+
+  describe('workflow field failure policies', () => {
+    it('declares the supported failure-policy classes', () => {
+      expect(workflowFieldFailurePolicies).toEqual(['fail', 'degrade', 'fail-closed']);
+    });
+
+    it('maps interpolation fields to fail or degrade policies', () => {
+      expect(getWorkflowInterpolationFieldFailurePolicy('run')).toBe('fail');
+      expect(getWorkflowInterpolationFieldFailurePolicy('env.value')).toBe('fail');
+      expect(getWorkflowInterpolationFieldFailurePolicy('agent.prompt')).toBe('fail');
+      expect(getWorkflowInterpolationFieldFailurePolicy('agent.model')).toBe('fail');
+      expect(getWorkflowInterpolationFieldFailurePolicy('agent.provider')).toBe('fail');
+      expect(getWorkflowInterpolationFieldFailurePolicy('agent.thinking')).toBe('fail');
+      expect(getWorkflowInterpolationFieldFailurePolicy('job.name')).toBe('degrade');
+      expect(getWorkflowInterpolationFieldFailurePolicy('step.name')).toBe('degrade');
+      expect(
+        workflowInterpolationFields.map(
+          (field) => workflowInterpolationFieldPolicies[field].failurePolicy,
+        ),
+      ).not.toContain('fail-closed');
+    });
+
+    it('declares predicate fields as fail-closed', () => {
+      expect(workflowPredicateFields).toEqual(['step.success_if', 'job.success']);
+      expect(workflowPredicateFieldFailurePolicy).toBe('fail-closed');
+    });
   });
 
   it('supports CEL type-checking against the known context fields', () => {

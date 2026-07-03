@@ -8,9 +8,9 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import {createWorkflowExpression} from '@shipfox/expression';
-import * as opentelemetry from '@shipfox/node-opentelemetry';
 import {and, eq, inArray, sql} from 'drizzle-orm';
 import {
+  InterpolationUnresolvableError,
   JobNotFoundError,
   NoFailedJobsError,
   RunNotTerminalError,
@@ -526,9 +526,7 @@ describe('workflow run queries', () => {
       });
     });
 
-    test('logs enriched diagnostics for missing untrusted interpolation paths', async () => {
-      const warn = vi.fn();
-      vi.spyOn(opentelemetry, 'logger').mockReturnValue({warn} as never);
+    test('fails for missing available untrusted interpolation paths', async () => {
       const model = normalizeWorkflowDocument({
         name: 'Diagnostic workflow',
         runner: 'ubuntu-latest',
@@ -540,36 +538,40 @@ describe('workflow run queries', () => {
         },
       });
 
-      const run = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model,
-        triggerPayload: {
-          source: 'github',
-          event: 'push',
-          deliveryId: 'delivery-1',
-          data: {},
-        },
-      });
+      let error: unknown;
+      try {
+        await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model,
+          triggerPayload: {
+            source: 'github',
+            event: 'push',
+            deliveryId: 'delivery-1',
+            data: {},
+          },
+        });
+      } catch (caught) {
+        error = caught;
+      }
 
-      expect(warn).toHaveBeenCalledWith(
-        {
-          workflowRunId: run.id,
-          diagnostics: [
-            {
-              jobKey: 'build',
-              stepName: 'echo ok',
-              reason: 'missing-path',
-              expression: 'event.ref',
-              contextRoots: ['event'],
-              field: 'env',
-              envKey: 'REF',
-            },
-          ],
-        },
-        'Workflow interpolation resolved with diagnostics',
-      );
+      expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+      expect(error).toMatchObject({
+        field: 'env',
+        source: 'event.ref',
+        envKey: 'REF',
+      });
+      const runs = await db()
+        .select()
+        .from(workflowRuns)
+        .where(
+          and(
+            eq(workflowRuns.workspaceId, workspaceId),
+            eq(workflowRuns.definitionId, definitionId),
+          ),
+        );
+      expect(runs).toEqual([]);
     });
 
     test('rolls back outbox event when transaction fails', async () => {

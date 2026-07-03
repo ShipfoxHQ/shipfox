@@ -15,11 +15,7 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
-import {
-  createWorkflowExpression,
-  evaluateWorkflowPredicate,
-  WorkflowExpressionEvaluationError,
-} from '@shipfox/expression';
+import {createWorkflowExpression, evaluateWorkflowPredicateFailClosed} from '@shipfox/expression';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
@@ -1746,21 +1742,12 @@ export async function resolveJobStatusFromJobExecutions(params: {
       check: {mode: 'syntax'},
     });
     const context = assembleExecutionsContext(jobExecutionRows.map(toJobExecution));
-    // Fail closed so a runtime-only predicate error cannot abort job resolution.
-    let passed: boolean;
-    let predicateEvaluationFailed = false;
-    try {
-      passed = evaluateWorkflowPredicate(expression, context);
-    } catch (error) {
-      if (!(error instanceof WorkflowExpressionEvaluationError)) throw error;
-      passed = false;
-      predicateEvaluationFailed = true;
-    }
-    const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
+    const predicateOutcome = evaluateWorkflowPredicateFailClosed(expression, context);
+    const status: RuntimeCompletionStatus = predicateOutcome.value ? 'succeeded' : 'failed';
     // A thrown predicate is a job-level failure, not evidence that any execution failed.
     const statusReason =
       status === 'failed'
-        ? predicateEvaluationFailed
+        ? predicateOutcome.evaluationFailed
           ? 'unknown'
           : (jobExecutionRows.find((jobExecution) => jobExecution.statusReason)?.statusReason ??
             'step_failed')

@@ -27,14 +27,46 @@ export class AgentConfigUnresolvableError extends Error {
   }
 }
 
+export type InterpolationUnresolvableField =
+  | 'run'
+  | 'env'
+  | 'agent.prompt'
+  | 'agent.model'
+  | 'agent.provider'
+  | 'step.name';
+
 export class InterpolationUnresolvableError extends Error {
+  readonly field: InterpolationUnresolvableField;
+  readonly source: string;
+  readonly envKey?: string;
+
   constructor(
     readonly definitionId: string,
-    options?: ErrorOptions | undefined,
+    params: {
+      readonly field: InterpolationUnresolvableField;
+      readonly source: string;
+      readonly envKey?: string;
+      readonly cause?: unknown;
+    },
   ) {
-    super(`Workflow interpolation cannot be resolved for definition ${definitionId}`, options);
+    super(interpolationUnresolvableMessage(definitionId, params), {cause: params.cause});
     this.name = 'InterpolationUnresolvableError';
+    this.field = params.field;
+    this.source = params.source;
+    if (params.envKey !== undefined) this.envKey = params.envKey;
   }
+}
+
+function interpolationUnresolvableMessage(
+  definitionId: string,
+  params: {
+    readonly field: InterpolationUnresolvableField;
+    readonly source: string;
+    readonly envKey?: string;
+  },
+): string {
+  const envSuffix = params.envKey === undefined ? '' : ` (${params.envKey})`;
+  return `Workflow interpolation cannot be resolved for definition ${definitionId}: ${params.field}${envSuffix} uses \`${params.source}\`. Use has(x) ? x : '' for optional references.`;
 }
 
 /**

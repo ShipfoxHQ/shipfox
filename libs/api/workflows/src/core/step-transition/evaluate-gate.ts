@@ -1,8 +1,4 @@
-import {
-  evaluateWorkflowPredicate,
-  type WorkflowExpression,
-  WorkflowExpressionEvaluationError,
-} from '@shipfox/expression';
+import {evaluateWorkflowPredicateFailClosed, type WorkflowExpression} from '@shipfox/expression';
 import type {GateOutcome, StepResult} from './decide-step-transition.js';
 
 // The exact `uncheckable` reason recorded when the gate's CEL expression itself
@@ -64,20 +60,16 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
     return {kind: 'uncheckable', reason: 'step produced no exit code'};
   }
 
-  try {
-    const passed = evaluateWorkflowPredicate(gate.successIf, {
-      step: {
-        exit_code: BigInt(result.exitCode),
-        status: result.status,
-      },
-    });
-    return passed ? {kind: 'passed', source} : {kind: 'failed', source};
-  } catch (error) {
-    if (error instanceof WorkflowExpressionEvaluationError) {
-      return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON};
-    }
-    throw error;
+  const outcome = evaluateWorkflowPredicateFailClosed(gate.successIf, {
+    step: {
+      exit_code: BigInt(result.exitCode),
+      status: result.status,
+    },
+  });
+  if (outcome.evaluationFailed) {
+    return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON};
   }
+  return outcome.value ? {kind: 'passed', source} : {kind: 'failed', source};
 }
 
 // Build the audit payload recorded on the step attempt for a gate evaluation.

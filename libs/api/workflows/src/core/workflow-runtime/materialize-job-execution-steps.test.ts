@@ -114,6 +114,38 @@ describe('materializeJobExecutionSteps', () => {
     ]);
   });
 
+  it('throws a permanent interpolation error for available missing value paths', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          steps: [{run: 'echo ok', env: {TICKET: template('inputs.ticket')}}],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+    const baseContext = jobExecutionContext();
+
+    let error: unknown;
+    try {
+      materializeJobExecutionSteps({
+        model,
+        job,
+        context: {...baseContext, values: {...baseContext.values, inputs: {}}},
+        definitionId: 'def-1',
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+    expect(error).toMatchObject({
+      field: 'env',
+      source: 'inputs.ticket',
+      envKey: 'TICKET',
+    });
+  });
+
   it.each([
     new UnsupportedModelProviderError('unknown-provider'),
     new InvalidAgentModelError('anthropic', 'missing-model'),

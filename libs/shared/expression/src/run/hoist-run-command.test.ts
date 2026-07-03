@@ -198,10 +198,11 @@ describe('resolveRunCommand', () => {
     });
   });
 
-  it('passes required context roots through to the resolver', () => {
+  it('passes failure policy and available roots through to the resolver', () => {
     const segments = parseWorkflowTemplate(`echo ${templateExpression(' run.missing ')}`);
 
-    const act = () => resolveRunCommand(segments, {run: {}}, {requiredContextRoots: ['run']});
+    const act = () =>
+      resolveRunCommand(segments, {run: {}}, {failurePolicy: 'fail', availableRoots: ['run']});
 
     expect(act).toThrow(WorkflowTemplateResolutionError);
   });

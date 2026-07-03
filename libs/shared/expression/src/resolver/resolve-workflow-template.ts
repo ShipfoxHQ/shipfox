@@ -8,6 +8,8 @@ import type {WorkflowTemplateSegment} from '../template/template-segment.js';
 import {coerceWorkflowValueToString} from './coerce-workflow-value-to-string.js';
 import {WorkflowTemplateResolutionError} from './errors.js';
 
+export type WorkflowTemplateFailurePolicy = 'fail' | 'degrade';
+
 export interface WorkflowTemplateDiagnostic {
   readonly reason: 'missing-path';
   readonly expression: string;
@@ -20,7 +22,8 @@ export interface WorkflowTemplateResolution {
 }
 
 export interface WorkflowTemplateResolutionOptions {
-  readonly requiredContextRoots?: readonly string[];
+  readonly failurePolicy?: WorkflowTemplateFailurePolicy;
+  readonly availableRoots?: readonly string[];
 }
 
 export function resolveWorkflowTemplate(
@@ -47,7 +50,7 @@ export function resolveWorkflowTemplate(
           contextRoots: segment.contextRoots,
         } as const satisfies WorkflowTemplateDiagnostic;
 
-        if (missingPathRequiresFailure(diagnostic, options)) {
+        if (missingPathRequiresFailure(segment, options)) {
           throw new WorkflowTemplateResolutionError({
             source: segment.expression.source,
             cause: error,
@@ -77,9 +80,10 @@ export function resolveWorkflowTemplateSource(
 }
 
 function missingPathRequiresFailure(
-  diagnostic: WorkflowTemplateDiagnostic,
+  segment: WorkflowTemplateSegment & {readonly kind: 'expr'},
   options: WorkflowTemplateResolutionOptions,
 ): boolean {
-  const requiredContextRoots = options.requiredContextRoots ?? [];
-  return diagnostic.contextRoots.some((contextRoot) => requiredContextRoots.includes(contextRoot));
+  if (options.failurePolicy !== 'fail') return false;
+  const availableRoots = options.availableRoots ?? [];
+  return segment.contextRoots.every((contextRoot) => availableRoots.includes(contextRoot));
 }

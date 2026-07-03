@@ -486,7 +486,7 @@ describe('materializeWorkflowModel', () => {
     expect(rows[0]?.steps[1]?.diagnostics).toBeUndefined();
   });
 
-  it('records missing untrusted env paths as diagnostics', () => {
+  it('throws a permanent interpolation error for available missing untrusted env paths', () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -495,24 +495,24 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
-      model,
-      context: creationContext({...runContext(), event: {}}),
-    });
+    let error: unknown;
+    try {
+      materializeWorkflowModel({
+        model,
+        context: creationContext({...runContext(), event: {}}),
+        definitionId: 'def-1',
+      });
+    } catch (caught) {
+      error = caught;
+    }
 
-    expect(rows[0]?.steps[1]?.config).toEqual({
-      run: 'echo ok',
-      env: {REF: ''},
+    expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+    expect(error).toMatchObject({
+      field: 'env',
+      source: 'event.ref',
+      envKey: 'REF',
     });
-    expect(rows[0]?.steps[1]?.diagnostics).toEqual([
-      {
-        reason: 'missing-path',
-        expression: 'event.ref',
-        contextRoots: ['event'],
-        field: 'env',
-        envKey: 'REF',
-      },
-    ]);
+    expect((error as Error).message).toContain("Use has(x) ? x : ''");
   });
 
   it('records unavailable execution paths in non-step-name fields as diagnostics at creation', () => {
@@ -636,7 +636,57 @@ describe('materializeWorkflowModel', () => {
     expect(materialize).toThrow(InterpolationUnresolvableError);
   });
 
-  it('throws a permanent interpolation error for a missing execution path in step names', () => {
+  it('throws a permanent interpolation error for missing available agent prompt paths', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {steps: [{prompt: template('inputs.ticket')}]},
+      },
+    });
+
+    let error: unknown;
+    try {
+      materializeWorkflowModel({
+        model,
+        context: creationContext({...runContext(), inputs: {}}),
+        definitionId: 'def-1',
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+    expect(error).toMatchObject({
+      field: 'agent.prompt',
+      source: 'inputs.ticket',
+    });
+  });
+
+  it('throws a permanent interpolation error for a missing trusted agent model path', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {steps: [{model: template('run.missing'), prompt: 'Fix it.'}]},
+      },
+    });
+
+    let error: unknown;
+    try {
+      materializeWorkflowModel({
+        model,
+        context: creationContext(),
+        definitionId: 'def-1',
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+    expect(error).toMatchObject({
+      field: 'agent.model',
+      source: 'run.missing',
+    });
+  });
+
+  it('degrades missing execution paths in step names', () => {
     const model = workflowModel({
       jobs: {
         review: {
@@ -650,10 +700,89 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const materialize = () =>
-      materializeWorkflowModel({model, context: creationContext(), definitionId: 'def-1'});
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext(),
+      definitionId: 'def-1',
+    });
 
-    expect(materialize).toThrow(InterpolationUnresolvableError);
+    expect(rows[0]?.steps[1]).toMatchObject({
+      name: 'Review ',
+      diagnostics: [
+        {
+          reason: 'missing-path',
+          expression: 'execution.events[0].data.body',
+          contextRoots: ['execution'],
+          field: 'step.name',
+        },
+      ],
+    });
+  });
+
+  it('degrades missing available untrusted paths in step names', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              name: `Review ${template('event.title')}`,
+              prompt: 'Summarize the review',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext({...runContext(), event: {}}),
+      definitionId: 'def-1',
+    });
+
+    expect(rows[0]?.steps[1]).toMatchObject({
+      name: 'Review ',
+      diagnostics: [
+        {
+          reason: 'missing-path',
+          expression: 'event.title',
+          contextRoots: ['event'],
+          field: 'step.name',
+        },
+      ],
+    });
+  });
+
+  it('uses the display-name fallback when a degraded step name resolves empty', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {
+              name: template('event.title'),
+              run: 'npm test',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext({...runContext(), event: {}}),
+      definitionId: 'def-1',
+    });
+
+    expect(rows[0]?.steps[1]).toMatchObject({
+      name: 'npm test',
+      diagnostics: [
+        {
+          reason: 'missing-path',
+          expression: 'event.title',
+          contextRoots: ['event'],
+          field: 'step.name',
+        },
+      ],
+    });
   });
 
   it('skips listening job steps at workflow-run creation', () => {
