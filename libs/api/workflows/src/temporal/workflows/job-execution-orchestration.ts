@@ -59,8 +59,11 @@ const {releaseLeaseActivity} = proxyActivities<ReturnType<typeof createOrchestra
 const DEFAULT_EXECUTION_MAX_DURATION = '6 hours';
 
 export const jobFinishedSignal =
-  defineSignal<[{status: RuntimeCompletionStatus}]>(JOB_FINISHED_SIGNAL);
-export const jobLeaseExpiredSignal = defineSignal<[]>(JOB_LEASE_EXPIRED_SIGNAL);
+  defineSignal<[{status: RuntimeCompletionStatus; jobExecutionId?: string | undefined}]>(
+    JOB_FINISHED_SIGNAL,
+  );
+export const jobLeaseExpiredSignal =
+  defineSignal<[{jobExecutionId?: string | undefined}]>(JOB_LEASE_EXPIRED_SIGNAL);
 
 export interface JobExecutionOrchestrationInput {
   workspaceId: string;
@@ -72,6 +75,7 @@ export interface JobExecutionOrchestrationInput {
   jobVersion: number;
   executionVersion: number;
   executionTimeoutMs?: number | null | undefined;
+  resolveJobStatus?: boolean | undefined;
   requiredLabels: string[];
 }
 
@@ -149,13 +153,18 @@ async function markJobExecutionRunningAndEnqueue(
 
 // Both signals can arrive before condition() resumes (independent outboxes, no
 // ordering), so callers must evaluate `finished` before `leaseExpired`.
-async function awaitJobOutcome(timeout: string | number): Promise<JobExecutionOutcomeSignals> {
-  let finished: {status: RuntimeCompletionStatus} | undefined;
+async function awaitJobOutcome(
+  jobExecutionId: string,
+  timeout: string | number,
+): Promise<JobExecutionOutcomeSignals> {
+  let finished: {status: RuntimeCompletionStatus; jobExecutionId?: string | undefined} | undefined;
   let leaseExpired = false;
   setHandler(jobFinishedSignal, (payload) => {
+    if (payload.jobExecutionId !== undefined && payload.jobExecutionId !== jobExecutionId) return;
     finished ??= payload;
   });
-  setHandler(jobLeaseExpiredSignal, () => {
+  setHandler(jobLeaseExpiredSignal, (payload = {}) => {
+    if (payload.jobExecutionId !== undefined && payload.jobExecutionId !== jobExecutionId) return;
     leaseExpired = true;
   });
 
@@ -182,6 +191,16 @@ async function resolveFinishedJobExecution({
     version: runningVersion,
     statusReason: status === 'failed' ? 'step_failed' : null,
   });
+  if (input.resolveJobStatus === false) {
+    log.info('job execution terminated', {
+      jobId: input.jobId,
+      jobExecutionId: input.jobExecutionId,
+      terminationReason: 'finished',
+      status,
+    });
+    await releaseLeaseBestEffort(input.jobExecutionId);
+    return {status, jobVersion: input.jobVersion};
+  }
   const resolved = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
@@ -197,10 +216,20 @@ async function resolveLeaseExpiredJobExecution({
   input,
   runningVersion,
 }: JobExecutionResolution): Promise<JobExecutionOrchestrationResult> {
-  await resolveLeaseExpiredJobExecutionActivity({
+  const leaseExpired = await resolveLeaseExpiredJobExecutionActivity({
     jobExecutionId: input.jobExecutionId,
     expectedVersion: runningVersion,
   });
+  if (input.resolveJobStatus === false) {
+    log.info('job execution terminated', {
+      jobId: input.jobId,
+      jobExecutionId: input.jobExecutionId,
+      terminationReason: 'lease_expired',
+      status: leaseExpired.status,
+    });
+    await releaseLeaseBestEffort(input.jobExecutionId);
+    return {status: leaseExpired.status, jobVersion: input.jobVersion};
+  }
   const {status, jobVersion} = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
@@ -225,6 +254,15 @@ async function resolveTimedOutJobExecution({
     expectedVersion: runningVersion,
   });
   await bulkSetStepStatuses({jobExecutionId: input.jobExecutionId, status: 'failed'});
+  if (input.resolveJobStatus === false) {
+    log.info('job execution terminated', {
+      jobId: input.jobId,
+      jobExecutionId: input.jobExecutionId,
+      terminationReason: 'max_duration',
+      status: 'failed',
+    });
+    return {status: 'failed', jobVersion: input.jobVersion};
+  }
   const {jobVersion} = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
@@ -239,11 +277,16 @@ export async function jobExecutionOrchestration(
   input: JobExecutionOrchestrationInput,
 ): Promise<JobExecutionOrchestrationResult> {
   const running = await markJobExecutionRunningAndEnqueue(input);
-  if (running.kind === 'terminal') return running.result;
+  if (running.kind === 'terminal') {
+    if (input.resolveJobStatus === false) {
+      return {status: running.result.status, jobVersion: input.jobVersion};
+    }
+    return running.result;
+  }
   const {runningVersion} = running;
 
   const timeout = input.executionTimeoutMs ?? DEFAULT_EXECUTION_MAX_DURATION;
-  const signals = await awaitJobOutcome(timeout);
+  const signals = await awaitJobOutcome(input.jobExecutionId, timeout);
 
   // Precedence ladder: a genuinely-finished job is never flipped to failed by a
   // late lease-expiry, so `finished` wins over `leaseExpired`.

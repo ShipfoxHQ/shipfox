@@ -33,6 +33,7 @@ export type InterpolationUnresolvableField =
   | 'agent.prompt'
   | 'agent.model'
   | 'agent.provider'
+  | 'job.name'
   | 'step.name';
 
 export class InterpolationUnresolvableError extends Error {

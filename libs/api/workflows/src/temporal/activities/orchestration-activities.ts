@@ -1,6 +1,6 @@
 import {cancelRunnerJobs, enqueueJobExecution, releaseJobExecution} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
-import type {JobStatus, JobStatusReason} from '#core/entities/job.js';
+import type {JobStatus, JobStatusReason, ResolutionReason} from '#core/entities/job.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
@@ -9,14 +9,19 @@ import type {
   RuntimeDagNode,
 } from '#core/workflow-scheduling/runtime-dag.js';
 import {
+  activateJobListener,
   bulkUpdateStepStatuses,
+  drainListenerEventsIntoExecution,
   failJobExecutionAsTimedOut,
+  failWorkflowRunAsTimedOut,
   getJobExecutionsByWorkflowRunAttemptId,
   getJobsByWorkflowRunAttemptId,
   getWorkflowRunAttemptById,
   getWorkflowRunByAttemptId,
   resolveJobExecutionAfterLeaseExpiry,
+  resolveJobListener,
   resolveJobStatusFromJobExecutions,
+  settleListenerJobExecution,
   updateJobExecutionStatus,
   updateJobStatus,
   updateWorkflowRunStatus,
@@ -30,6 +35,9 @@ export interface DagJob extends RuntimeDagNode {
   jobExecutionId?: string | undefined;
   executionVersion?: number;
   executionTimeoutMs?: number | null | undefined;
+  listeningTimeoutMs?: number | null | undefined;
+  maxExecutions?: number | null | undefined;
+  onResolve?: 'finish' | 'cancel' | null | undefined;
   dependencies: string[];
   runner: string[];
   version: number;
@@ -41,6 +49,7 @@ export interface RunDag {
   workspaceId: string;
   projectId: string;
   runVersion: number;
+  runTimeoutMs: number;
   jobs: DagJob[];
 }
 
@@ -65,6 +74,7 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
     workspaceId: run.workspaceId,
     projectId: run.projectId,
     runVersion: attempt.version,
+    runTimeoutMs: run.timeoutMs,
     jobs: jobs.flatMap((job) => {
       const jobExecution = firstJobExecutions.get(job.id);
       if (!jobExecution && job.mode !== 'listening') return [];
@@ -78,6 +88,9 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
             ? {}
             : {jobExecutionId: jobExecution.id, executionVersion: jobExecution.version}),
           executionTimeoutMs: job.executionTimeoutMs,
+          listeningTimeoutMs: job.listeningTimeoutMs,
+          maxExecutions: job.maxExecutions,
+          onResolve: job.onResolve,
           dependencies: job.dependencies,
           runner: job.runner ?? [],
           version: job.version,
@@ -202,8 +215,40 @@ export async function failJobExecutionAsTimedOutActivity(params: {
   return {newVersion: jobExecution.version};
 }
 
+export async function failRunAsTimedOutActivity(params: {runAttemptId: string}): Promise<void> {
+  await failWorkflowRunAsTimedOut({runAttemptId: params.runAttemptId});
+}
+
 export async function resolveJobStatusFromJobExecutionsActivity(params: {
   jobId: string;
 }): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
   return await resolveJobStatusFromJobExecutions(params);
+}
+
+export async function activateJobListenerActivity(params: {
+  jobId: string;
+  expectedVersion: number;
+}) {
+  return await activateJobListener(params);
+}
+
+export async function drainListenerEventsActivity(params: {
+  jobId: string;
+  expectedSequence: number;
+}) {
+  return await drainListenerEventsIntoExecution(params);
+}
+
+export async function resolveJobListenerActivity(params: {
+  jobId: string;
+  reason: ResolutionReason;
+}) {
+  return await resolveJobListener(params);
+}
+
+export async function settleListenerJobExecutionActivity(params: {
+  jobExecutionId: string;
+  status: 'failed' | 'cancelled';
+}) {
+  await settleListenerJobExecution(params);
 }

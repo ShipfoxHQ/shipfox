@@ -1,5 +1,6 @@
 export {workflowRoutes as routes} from './routes/index.js';
 export {
+  onJobEventDelivered,
   onJobStepsSettled,
   onRunnerJobClaimed,
   onRunnerJobLeaseExpired,

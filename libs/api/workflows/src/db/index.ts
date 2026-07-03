@@ -7,12 +7,26 @@ export {
   type DeliverEventToListenerResult,
   deliverEventToListener,
 } from './job-listener-events.js';
+export type {
+  ActivateJobListenerParams,
+  ActivateJobListenerResult,
+  DrainListenerEventsParams,
+  DrainListenerEventsResult,
+} from './job-listeners.js';
+export {
+  activateJobListener,
+  countActiveListeners,
+  drainListenerEventsIntoExecution,
+  resolveJobListener,
+  settleListenerJobExecution,
+} from './job-listeners.js';
 export {workflowsOutbox} from './schema/outbox.js';
 export type {
   BulkUpdateStepStatusesParams,
   CancelWorkflowRunParams,
   CreateRerunWorkflowRunParams,
   CreateWorkflowRunParams,
+  FailWorkflowRunAsTimedOutParams,
   ListWorkflowRunsParams,
   ListWorkflowRunsResult,
   UpdateJobExecutionStatusParams,
@@ -29,6 +43,7 @@ export {
   createRerunWorkflowRun,
   createWorkflowRun,
   failJobExecutionAsTimedOut,
+  failWorkflowRunAsTimedOut,
   getFirstJobExecutionByJobId,
   getJobById,
   getJobExecutionById,

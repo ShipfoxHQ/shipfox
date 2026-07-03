@@ -19,7 +19,10 @@ export async function onJobStepsSettled(payload: WorkflowsJobStepsSettledEventDt
   );
   const handle = temporalClient().workflow.getHandle(`job:${payload.jobId}`);
   try {
-    await handle.signal(JOB_FINISHED_SIGNAL, {status: payload.status});
+    await handle.signal(JOB_FINISHED_SIGNAL, {
+      status: payload.status,
+      jobExecutionId: payload.jobExecutionId,
+    });
   } catch (err) {
     // Workflow already terminated (e.g. timeout path); its status is
     // authoritative, drop this late event.

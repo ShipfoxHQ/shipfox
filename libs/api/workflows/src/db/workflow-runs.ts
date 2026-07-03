@@ -15,7 +15,11 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
-import {createWorkflowExpression, evaluatePlannedPredicateAtSite} from '@shipfox/expression';
+import {
+  createWorkflowExpression,
+  evaluateWorkflowPredicate,
+  WorkflowExpressionEvaluationError,
+} from '@shipfox/expression';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
@@ -37,13 +41,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm';
-import {
-  isJobTerminal,
-  type Job,
-  type JobStatus,
-  type JobStatusReason,
-  toJobStatusReason,
-} from '#core/entities/job.js';
+import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import {
@@ -67,7 +65,7 @@ import {
 } from '#core/errors.js';
 import {
   assembleCreationContext,
-  assembleJobResolutionContext,
+  assembleExecutionsContext,
 } from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
 import {materializeWorkflowModel} from '#core/step-config/materialize-workflow-model.js';
@@ -814,10 +812,14 @@ export interface WorkflowJobExecutionDepthParams {
 }
 
 export async function getWorkflowJobExecutionDepth(
-  _params: WorkflowJobExecutionDepthParams = {},
+  params: WorkflowJobExecutionDepthParams = {},
 ): Promise<WorkflowJobExecutionDepth> {
   const runConditions = [eq(workflowRuns.status, 'running')];
   const jobConditions = [eq(jobExecutions.status, 'running')];
+  if (params.workspaceId) {
+    runConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
+    jobConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
+  }
 
   const [runRows, jobRows] = await Promise.all([
     db()
@@ -827,6 +829,9 @@ export async function getWorkflowJobExecutionDepth(
     db()
       .select({value: count()})
       .from(jobExecutions)
+      .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+      .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+      .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
       .where(and(...jobConditions)),
   ]);
 
@@ -1120,6 +1125,144 @@ export interface CancelWorkflowRunParams {
   workflowRunId: string;
 }
 
+export interface FailWorkflowRunAsTimedOutParams {
+  runAttemptId: string;
+}
+
+export async function failWorkflowRunAsTimedOut(
+  params: FailWorkflowRunAsTimedOutParams,
+): Promise<WorkflowRun> {
+  const result = await db().transaction(async (tx) => {
+    const [lockedAttempt] = await tx
+      .select()
+      .from(workflowRunAttempts)
+      .where(eq(workflowRunAttempts.id, params.runAttemptId))
+      .limit(1)
+      .for('update');
+    if (!lockedAttempt) throw new WorkflowRunNotFoundError(params.runAttemptId);
+
+    const [lockedRun] = await tx
+      .select()
+      .from(workflowRuns)
+      .where(eq(workflowRuns.id, lockedAttempt.workflowRunId))
+      .limit(1)
+      .for('update');
+    if (!lockedRun) throw new WorkflowRunNotFoundError(lockedAttempt.workflowRunId);
+    if (isWorkflowRunTerminal(lockedRun.status)) return {run: toWorkflowRun(lockedRun), jobs: []};
+
+    const runJobExecutionIds = tx
+      .select({id: jobExecutions.id})
+      .from(jobExecutions)
+      .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+      .where(eq(jobs.workflowRunAttemptId, lockedAttempt.id));
+
+    await tx
+      .select({id: steps.id})
+      .from(steps)
+      .where(inArray(steps.jobExecutionId, runJobExecutionIds))
+      .orderBy(asc(steps.jobExecutionId), asc(steps.position))
+      .for('update');
+
+    const jobRows = await tx
+      .select()
+      .from(jobs)
+      .where(eq(jobs.workflowRunAttemptId, lockedAttempt.id))
+      .orderBy(asc(jobs.position), asc(jobs.id))
+      .for('update');
+
+    const timedOutJobs: Job[] = [];
+    for (const jobRow of jobRows) {
+      if (!isJobTerminal(jobRow.status)) {
+        const updated = await updateJobStatusAtVersion(tx, {
+          jobId: jobRow.id,
+          status: 'failed',
+          expectedVersion: jobRow.version,
+          statusReason: 'timed_out',
+        });
+        if (updated?.changed) timedOutJobs.push(updated.job);
+      }
+
+      await tx
+        .update(jobs)
+        .set({
+          listenerStatus: jobRow.mode === 'listening' ? 'resolved' : jobRow.listenerStatus,
+          resolutionReason: jobRow.mode === 'listening' ? 'cancelled' : jobRow.resolutionReason,
+          updatedAt: new Date(),
+        })
+        .where(eq(jobs.id, jobRow.id));
+
+      const timedOutExecutions = await tx
+        .update(jobExecutions)
+        .set({
+          status: 'failed',
+          statusReason: 'timed_out',
+          version: sql`${jobExecutions.version} + 1`,
+          updatedAt: new Date(),
+          finishedAt: sql`now()`,
+          timedOutAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(jobExecutions.jobId, jobRow.id),
+            notInArray(jobExecutions.status, TERMINAL_EXECUTION_STATUSES),
+          ),
+        )
+        .returning({id: jobExecutions.id});
+      for (const jobExecution of timedOutExecutions) {
+        await bulkUpdateStepStatuses({jobExecutionId: jobExecution.id, status: 'failed'}, tx);
+      }
+    }
+
+    await tx
+      .update(workflowRunAttempts)
+      .set({
+        status: 'failed',
+        version: sql`${workflowRunAttempts.version} + 1`,
+        updatedAt: new Date(),
+        finishedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(workflowRunAttempts.id, lockedAttempt.id),
+          notInArray(workflowRunAttempts.status, TERMINAL_WORKFLOW_RUN_STATUSES),
+        ),
+      );
+
+    const [failedRunRow] = await tx
+      .update(workflowRuns)
+      .set({
+        status: 'failed',
+        version: sql`${workflowRuns.version} + 1`,
+        updatedAt: new Date(),
+        finishedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(workflowRuns.id, lockedRun.id),
+          notInArray(workflowRuns.status, TERMINAL_WORKFLOW_RUN_STATUSES),
+        ),
+      )
+      .returning();
+
+    const failedRun = toWorkflowRun(failedRunRow ?? lockedRun);
+    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+      type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
+      payload: {
+        workflowRunId: failedRun.id,
+        workflowRunAttemptId: lockedAttempt.id,
+        projectId: failedRun.projectId,
+        status: 'failed',
+      },
+    });
+
+    return {run: failedRun, jobs: timedOutJobs};
+  });
+
+  recordWorkflowRunStatusChanged(result.run.status);
+  for (const job of result.jobs) recordWorkflowJobStatusChanged(job.status);
+  return result.run;
+}
+
 export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promise<WorkflowRun> {
   const result = await db().transaction(async (tx) => {
     const [lockedRun] = await tx
@@ -1184,6 +1327,14 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
         statusReason: 'run_cancelled',
       });
       if (updated?.changed) cancelledJobs.push(updated.job);
+      await tx
+        .update(jobs)
+        .set({
+          listenerStatus: jobRow.mode === 'listening' ? 'resolved' : jobRow.listenerStatus,
+          resolutionReason: jobRow.mode === 'listening' ? 'cancelled' : jobRow.resolutionReason,
+          updatedAt: new Date(),
+        })
+        .where(eq(jobs.id, jobRow.id));
       const cancelledJobExecutions = await tx
         .update(jobExecutions)
         .set({
@@ -1487,7 +1638,7 @@ export async function updateJobExecutionStatus(
 }
 
 // Returns null on version mismatch so callers can choose throw vs treat-as-success.
-async function updateJobStatusAtVersion(
+export async function updateJobStatusAtVersion(
   tx: Tx,
   params: UpdateJobStatusAtVersionParams,
 ): Promise<{job: Job; changed: boolean} | null> {
@@ -1723,6 +1874,41 @@ function statusReasonForStepCompletion(status: RuntimeCompletionStatus): JobStat
   return status === 'failed' ? 'step_failed' : null;
 }
 
+export interface EvaluateJobSuccessResult {
+  status: RuntimeCompletionStatus;
+  statusReason: JobStatusReason | null;
+}
+
+export function evaluateJobSuccess(params: {
+  success: string | null;
+  executions: readonly JobExecution[];
+}): EvaluateJobSuccessResult {
+  const expression = createWorkflowExpression({
+    source: params.success ?? DEFAULT_JOB_SUCCESS,
+    check: {mode: 'syntax'},
+  });
+  const context = assembleExecutionsContext(params.executions);
+  let passed: boolean;
+  let predicateEvaluationFailed = false;
+  try {
+    passed = evaluateWorkflowPredicate(expression, context);
+  } catch (error) {
+    if (!(error instanceof WorkflowExpressionEvaluationError)) throw error;
+    passed = false;
+    predicateEvaluationFailed = true;
+  }
+  const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
+  if (status === 'succeeded') return {status, statusReason: null};
+
+  return {
+    status,
+    statusReason: predicateEvaluationFailed
+      ? 'unknown'
+      : (params.executions.find((execution) => execution.statusReason)?.statusReason ??
+        'step_failed'),
+  };
+}
+
 export async function resolveJobStatusFromJobExecutions(params: {
   jobId: string;
 }): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
@@ -1740,32 +1926,16 @@ export async function resolveJobStatusFromJobExecutions(params: {
       throw new Error(`Cannot resolve job ${params.jobId}: no job executions found`);
     }
 
-    const expression = createWorkflowExpression({
-      source: jobRow.success ?? DEFAULT_JOB_SUCCESS,
-      check: {mode: 'syntax'},
+    const {status, statusReason} = evaluateJobSuccess({
+      success: jobRow.success,
+      executions: jobExecutionRows.map(toJobExecution),
     });
-    const context = assembleJobResolutionContext(jobExecutionRows.map(toJobExecution));
-    const predicateOutcome = evaluatePlannedPredicateAtSite({
-      expression,
-      field: 'job.success',
-      site: context.site,
-      context: context.values,
-    });
-    const status: RuntimeCompletionStatus = predicateOutcome.value ? 'succeeded' : 'failed';
-    // A thrown predicate is a job-level failure, not evidence that any execution failed.
-    const statusReason =
-      status === 'failed'
-        ? predicateOutcome.evaluationFailed
-          ? 'unknown'
-          : (jobExecutionRows.find((jobExecution) => jobExecution.statusReason)?.statusReason ??
-            'step_failed')
-        : null;
 
     const updated = await updateJobStatusAtVersion(tx, {
       jobId: params.jobId,
       status,
       expectedVersion: jobRow.version,
-      statusReason: toJobStatusReason(statusReason),
+      statusReason,
     });
     if (updated) return {job: updated.job, changed: updated.changed};
 

@@ -1,5 +1,6 @@
 import {
   WORKFLOWS_JOB_ACTIVATED,
+  WORKFLOWS_JOB_EVENT_DELIVERED,
   WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
@@ -10,6 +11,7 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   workflowsEventSchemas,
   workflowsJobActivatedSchema,
+  workflowsJobEventDeliveredSchema,
   workflowsJobExecutionTimedOutSchema,
   workflowsJobStepsSettledSchema,
   workflowsJobTerminatedSchema,
@@ -63,6 +65,13 @@ const validJobActivated = {
   mode: 'listening',
   on: [{source: 'github', event: 'pull_request_review', inputs: {state: 'approved'}}],
   until: [{source: 'github', event: 'pull_request_closed'}],
+};
+
+const validJobEventDelivered = {
+  jobId: 'job-1',
+  disposition: 'fire',
+  eventRef: 'delivery-1',
+  eventName: 'pull_request_review',
 };
 
 const validJobStepsSettled = {
@@ -230,6 +239,12 @@ describe.each([
   ],
   ['workflowsJobActivatedSchema', workflowsJobActivatedSchema, validJobActivated, 'mode'],
   [
+    'workflowsJobEventDeliveredSchema',
+    workflowsJobEventDeliveredSchema,
+    validJobEventDelivered,
+    'eventRef',
+  ],
+  [
     'workflowsJobStepsSettledSchema',
     workflowsJobStepsSettledSchema,
     validJobStepsSettled,
@@ -276,6 +291,7 @@ describe('workflowsEventSchemas', () => {
         WORKFLOWS_WORKFLOW_RUN_CANCELLED,
         WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
         WORKFLOWS_JOB_ACTIVATED,
+        WORKFLOWS_JOB_EVENT_DELIVERED,
         WORKFLOWS_JOB_TERMINATED,
         WORKFLOWS_JOB_STEPS_SETTLED,
         WORKFLOWS_STEP_RESTART_ENQUEUED,

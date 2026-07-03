@@ -9,6 +9,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {createWorkflowExpression} from '@shipfox/expression';
 import {and, eq, inArray, sql} from 'drizzle-orm';
+import type {JobExecution} from '#core/entities/job-execution.js';
 import {
   InterpolationUnresolvableError,
   JobNotFoundError,
@@ -31,6 +32,7 @@ import {
   cancelWorkflowRun,
   createRerunWorkflowRun,
   createWorkflowRun,
+  evaluateJobSuccess,
   getFirstJobExecutionByJobId,
   getJobExecutionsByJobId,
   getJobsByWorkflowRunId,
@@ -1680,8 +1682,7 @@ jobs:
   });
 
   describe('getWorkflowJobExecutionDepth', () => {
-    test('counts running runs and job executions globally from the current baseline', async () => {
-      const baseline = await getWorkflowJobExecutionDepth({});
+    test('counts running runs and job executions within a workspace', async () => {
       const runningRun = await createTestRun({workspaceId, projectId, definitionId});
       const pendingRun = await createTestRun({workspaceId, projectId, definitionId});
       const otherWorkspaceRun = await createTestRun({
@@ -1718,17 +1719,44 @@ jobs:
         expectedVersion: otherWorkspaceExecution.version,
       });
 
-      const depth = await getWorkflowJobExecutionDepth({});
+      const depth = await getWorkflowJobExecutionDepth({workspaceId});
 
       expect(pendingRun.status).toBe('pending');
       expect(depth).toEqual({
-        runningRuns: baseline.runningRuns + 2,
-        runningJobExecutions: baseline.runningJobExecutions + 2,
+        runningRuns: 1,
+        runningJobExecutions: 1,
       });
     });
   });
 
   describe('resolveJobStatusFromJobExecutions', () => {
+    function execution(status: 'succeeded' | 'failed' | 'cancelled'): JobExecution {
+      return {
+        id: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        sequence: 1,
+        name: 'build',
+        status,
+        statusReason: status === 'failed' ? 'step_failed' : null,
+        triggerEvents: [],
+        version: 1,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        queuedAt: null,
+        startedAt: null,
+        finishedAt: null,
+        timedOutAt: null,
+      };
+    }
+
+    test('treats zero or cancelled listener executions as successful by default', () => {
+      const empty = evaluateJobSuccess({success: null, executions: []});
+      const cancelled = evaluateJobSuccess({success: null, executions: [execution('cancelled')]});
+
+      expect(empty).toEqual({status: 'succeeded', statusReason: null});
+      expect(cancelled).toEqual({status: 'succeeded', statusReason: null});
+    });
+
     test('fails closed when a job has no executions', async () => {
       const run = await createWorkflowRun({
         workspaceId,

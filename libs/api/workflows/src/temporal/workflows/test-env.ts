@@ -113,6 +113,9 @@ export function dagJob(
     status: options.status ?? 'pending',
     ...(mode === 'listening' ? {} : {jobExecutionId: id, executionVersion: 1}),
     executionTimeoutMs: null,
+    listeningTimeoutMs: null,
+    maxExecutions: null,
+    onResolve: null,
     dependencies: deps,
     runner: ['ubuntu22'],
     version: 1,
@@ -126,6 +129,7 @@ export function makeDag(jobs: RunDag['jobs'], workflowRunId = 'run-1'): RunDag {
     workspaceId: 'workspace-1',
     projectId: 'project-1',
     runVersion: 1,
+    runTimeoutMs: 30 * 24 * 60 * 60 * 1000,
     jobs,
   };
 }
@@ -233,20 +237,23 @@ function createMockActivities() {
       const handle = testEnv.client.workflow.getHandle(`job:${params.jobId}`);
 
       if (cfg.signalLeaseExpired) {
-        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL);
+        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL, {jobExecutionId: params.jobExecutionId});
         return;
       }
 
       if (cfg.signalBoth) {
-        await handle.signal(JOB_FINISHED_SIGNAL, {status});
-        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL);
+        await handle.signal(JOB_FINISHED_SIGNAL, {status, jobExecutionId: params.jobExecutionId});
+        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL, {jobExecutionId: params.jobExecutionId});
         return;
       }
 
-      await handle.signal(JOB_FINISHED_SIGNAL, {status});
+      await handle.signal(JOB_FINISHED_SIGNAL, {status, jobExecutionId: params.jobExecutionId});
 
       if (cfg.duplicateSignal) {
-        await handle.signal(JOB_FINISHED_SIGNAL, {status: 'failed'});
+        await handle.signal(JOB_FINISHED_SIGNAL, {
+          status: 'failed',
+          jobExecutionId: params.jobExecutionId,
+        });
       }
     },
 

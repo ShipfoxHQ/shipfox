@@ -67,6 +67,7 @@ export interface WorkflowRun {
   inputs: Record<string, unknown> | null;
   sourceSnapshot: WorkflowSourceSnapshot | null;
   triggerIdempotencyKey: string | null;
+  timeoutMs: number;
   version: number;
   createdAt: Date;
   updatedAt: Date;

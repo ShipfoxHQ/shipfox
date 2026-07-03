@@ -17,6 +17,7 @@ export {
   UNRESOLVED_SYNC_REF,
   WORKFLOW_PREFIX,
 } from './sync-definitions.js';
+export {DEFAULT_RUN_TIMEOUT_MS} from './workflow-model/constants.js';
 export {normalizeWorkflowDocument} from './workflow-model/index.js';
 export {DEFAULT_JOB_CHECKOUT} from './workflow-model/normalize-job-checkout.js';
 export {DEFAULT_JOB_SUCCESS} from './workflow-model/normalize-job-success.js';

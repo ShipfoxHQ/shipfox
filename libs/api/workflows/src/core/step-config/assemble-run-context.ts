@@ -47,7 +47,7 @@ export function assembleCreationContext(
  * Keeps job-success predicate values aligned with the registry's `executions`
  * type environment.
  */
-function assembleExecutionsContextValues(
+export function assembleExecutionsContext(
   executions: readonly JobExecution[],
 ): WorkflowExpressionEvaluationContext {
   return {
@@ -122,6 +122,6 @@ export function assembleJobResolutionContext(
 ): WorkflowEvaluationContext {
   return {
     site: 'job-resolution',
-    values: assembleExecutionsContextValues(executions),
+    values: assembleExecutionsContext(executions),
   };
 }

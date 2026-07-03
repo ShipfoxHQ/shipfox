@@ -34,7 +34,10 @@ describe('onJobStepsSettled', () => {
     await onJobStepsSettled(payload);
 
     expect(getHandleMock).toHaveBeenCalledWith(`job:${payload.jobId}`);
-    expect(signalMock).toHaveBeenCalledWith('job-finished', {status: 'failed'});
+    expect(signalMock).toHaveBeenCalledWith('job-finished', {
+      status: 'failed',
+      jobExecutionId: payload.jobExecutionId,
+    });
   });
 
   it('routes a stale-attempt event only to the payload job workflow', async () => {
