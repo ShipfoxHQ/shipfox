@@ -17,16 +17,15 @@ describe('materializedAgentStepConfigSchema', () => {
     });
   });
 
-  it('rejects a custom provider ref until custom runtime resolution is supported', () => {
-    const parse = () =>
-      materializedAgentStepConfigSchema.parse({
-        provider: 'local-vllm',
-        model: 'llama-3.1',
-        thinking: 'high',
-        prompt: 'Fix the failing tests.',
-      });
+  it('accepts a custom provider ref', () => {
+    const parsed = materializedAgentStepConfigSchema.parse({
+      provider: 'local-vllm',
+      model: 'llama-3.1',
+      thinking: 'high',
+      prompt: 'Fix the failing tests.',
+    });
 
-    expect(parse).toThrow();
+    expect(parsed.provider).toBe('local-vllm');
   });
 
   it('rejects missing fields and strips extra fields', () => {

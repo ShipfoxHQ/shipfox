@@ -1,6 +1,7 @@
 import type {AssistantMessage, Context, ProviderStreamOptions} from '@earendil-works/pi-ai';
 import {InvalidAgentModelError} from './errors.js';
 import {
+  probeCustomModelProviderCredentials,
   probeModelProviderCredentials,
   sanitizeModelProviderError,
 } from './model-provider-validation.js';
@@ -197,6 +198,100 @@ describe('probeModelProviderCredentials', () => {
         CLOUDFLARE_ACCOUNT_ID: 'account-123',
       },
     });
+  });
+});
+
+describe('probeCustomModelProviderCredentials', () => {
+  it('probes OpenAI-compatible custom providers with redirects disabled', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}'));
+
+    await probeCustomModelProviderCredentials({
+      providerId: 'local-vllm',
+      api: 'openai-responses',
+      baseUrl: 'https://llm.example.test/v1',
+      model: {id: 'llama-3.1', label: 'Llama 3.1'},
+      apiKey: 'sk-local',
+      headers: {'x-region': 'local'},
+    });
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://llm.example.test/v1/responses',
+      expect.objectContaining({method: 'POST', redirect: 'error'}),
+    );
+    expect((init.headers as Headers).get('authorization')).toBe('Bearer sk-local');
+    expect((init.headers as Headers).get('x-region')).toBe('local');
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      model: 'llama-3.1',
+      input: 'Reply with OK.',
+      stream: false,
+    });
+  });
+
+  it('uses provider-specific auth headers for Google custom probes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}'));
+
+    await probeCustomModelProviderCredentials({
+      providerId: 'local-gemini',
+      api: 'google-generative-ai',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      model: {id: 'gemini-3-pro', label: 'Gemini 3 Pro'},
+      apiKey: 'google-key',
+    });
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro:generateContent',
+      expect.objectContaining({redirect: 'error'}),
+    );
+    expect((init.headers as Headers).get('x-goog-api-key')).toBe('google-key');
+  });
+
+  it('encodes Google custom probe model ids as one URL path segment', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}'));
+
+    await probeCustomModelProviderCredentials({
+      providerId: 'local-gemini',
+      api: 'google-generative-ai',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      model: {id: 'models/gemini-3/pro', label: 'Gemini 3 Pro'},
+      apiKey: 'google-key',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://generativelanguage.googleapis.com/v1beta/models/models%2Fgemini-3%2Fpro:generateContent',
+      expect.any(Object),
+    );
+  });
+
+  it('cancels custom probe response bodies after checking the status', async () => {
+    const response = new Response('{}');
+    const body = response.body;
+    if (body === null) throw new Error('Expected response body');
+    const cancelSpy = vi.spyOn(body, 'cancel');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response);
+
+    await probeCustomModelProviderCredentials({
+      providerId: 'local-vllm',
+      api: 'openai-responses',
+      baseUrl: 'https://llm.example.test/v1',
+      model: {id: 'llama-3.1', label: 'Llama 3.1'},
+    });
+
+    expect(cancelSpy).toHaveBeenCalledOnce();
+  });
+
+  it('rejects non-2xx custom probe responses', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}', {status: 401}));
+
+    const probe = probeCustomModelProviderCredentials({
+      providerId: 'local-vllm',
+      api: 'openai-responses',
+      baseUrl: 'https://llm.example.test/v1',
+      model: {id: 'llama-3.1', label: 'Llama 3.1'},
+    });
+
+    await expect(probe).rejects.toThrow('Provider returned HTTP 401.');
   });
 });
 

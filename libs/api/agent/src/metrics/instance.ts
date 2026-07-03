@@ -4,7 +4,7 @@ import {instanceMetrics} from '@shipfox/node-opentelemetry';
 const meter = instanceMetrics.getMeter('agent');
 
 export const modelProviderValidationCount = meter.createCounter<{
-  model_provider: SupportedModelProviderId;
+  model_provider: SupportedModelProviderId | 'custom';
   outcome: 'succeeded' | 'failed';
 }>('model_provider_validation_attempted', {
   description: 'Model provider credential test attempts by model provider and outcome',

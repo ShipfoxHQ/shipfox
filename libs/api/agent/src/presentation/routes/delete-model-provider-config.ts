@@ -3,6 +3,8 @@ import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {deleteModelProviderConfig} from '#core/index.js';
+import {getModelProviderConfig} from '#db/index.js';
+import {requireCustomProviderAccess} from '#presentation/auth/require-custom-provider-access.js';
 
 export const deleteModelProviderConfigRoute = defineRoute({
   method: 'DELETE',
@@ -19,7 +21,12 @@ export const deleteModelProviderConfigRoute = defineRoute({
   },
   handler: async (request, reply) => {
     const {workspaceId, providerId} = request.params;
-    await requireMembership({request, workspaceId});
+    const existingConfig = await getModelProviderConfig({workspaceId, providerId});
+    if (existingConfig?.kind === 'custom') {
+      await requireCustomProviderAccess({request, workspaceId});
+    } else {
+      await requireMembership({request, workspaceId});
+    }
 
     const deleted = await deleteModelProviderConfig({workspaceId, providerId});
     if (!deleted) {

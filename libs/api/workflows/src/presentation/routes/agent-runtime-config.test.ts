@@ -1,4 +1,4 @@
-import {testAndSaveModelProviderConfig} from '@shipfox/api-agent';
+import {createCustomModelProviderConfig, testAndSaveModelProviderConfig} from '@shipfox/api-agent';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions';
@@ -156,6 +156,64 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().credentials.api_key).toBe('sk-gated-workspace-secret');
+  });
+
+  test('returns custom provider descriptors for a running leased custom agent step', async () => {
+    const workspaceId = crypto.randomUUID();
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: {
+          slug: 'local-vllm',
+          display_name: 'Local vLLM',
+          api: 'openai-responses',
+          base_url: 'http://127.0.0.1:11434/v1',
+          api_key: 'sk-local-secret',
+          headers: [{name: 'authorization', value: 'Bearer local', secret: true}],
+          models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+        },
+      },
+      {probe: async () => undefined},
+    );
+    const {job, step} = await createRunningAgentStep({
+      workspaceId,
+      resolveAgentDefaults: () => ({
+        provider: 'local-vllm',
+        model: 'llama-3.1',
+        thinking: 'high',
+      }),
+      steps: [
+        {
+          provider: 'local-vllm',
+          model: 'llama-3.1',
+          thinking: 'high',
+          prompt: 'Fix the tests.',
+        },
+      ],
+    });
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: runtimeConfigUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      provider_id: 'local-vllm',
+      model: 'llama-3.1',
+      credentials: {
+        api_key: 'sk-local-secret',
+        'header:authorization': 'Bearer local',
+      },
+      custom_provider: {
+        api: 'openai-responses',
+        base_url: 'http://127.0.0.1:11434/v1',
+        secret_header_names: ['authorization'],
+        models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      },
+    });
   });
 
   test('returns 404 when the lease token is no longer the active job lease', async () => {
@@ -355,12 +413,19 @@ function expression(source: string): TestWorkflowExpression {
 }
 
 async function createRunningAgentStep(
-  options: {status?: StepStatus; steps?: readonly TestStepInput[]} = {},
+  options: {
+    status?: StepStatus;
+    steps?: readonly TestStepInput[];
+    workspaceId?: string;
+    resolveAgentDefaults?: Parameters<typeof createWorkflowRun>[0]['resolveAgentDefaults'];
+  } = {},
 ) {
   return await createStep({
     steps: options.steps ?? [{prompt: 'Fix the failing tests.'}],
     targetType: 'agent',
     status: options.status ?? 'running',
+    workspaceId: options.workspaceId,
+    resolveAgentDefaults: options.resolveAgentDefaults,
   });
 }
 
@@ -376,12 +441,15 @@ async function createStep(params: {
   steps: readonly TestStepInput[];
   targetType: 'agent' | 'run';
   status: StepStatus;
+  workspaceId?: string | undefined;
+  resolveAgentDefaults?: Parameters<typeof createWorkflowRun>[0]['resolveAgentDefaults'];
 }) {
   const run = await createWorkflowRun({
-    workspaceId: crypto.randomUUID(),
+    workspaceId: params.workspaceId ?? crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     definitionId: crypto.randomUUID(),
     model: workflowModel({jobs: {build: {steps: params.steps}}}),
+    resolveAgentDefaults: params.resolveAgentDefaults,
     triggerPayload: {
       source: 'manual',
       event: 'fire',

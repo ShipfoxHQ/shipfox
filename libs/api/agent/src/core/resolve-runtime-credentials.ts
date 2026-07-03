@@ -10,7 +10,12 @@ import {getSecretsByNamespace, SecretDecryptionError} from '@shipfox/api-secrets
 import {config} from '#config.js';
 import {getModelProviderConfig} from '#db/index.js';
 import {agentRuntimeConfigResolvedCount} from '#metrics/index.js';
-import {agentSystemNamespace, storeValuesToRuntimeCredentials} from './credential-fingerprints.js';
+import {
+  agentSystemNamespace,
+  storeValuesToCustomRuntimeCredentials,
+  storeValuesToRuntimeCredentials,
+} from './credential-fingerprints.js';
+import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {ModelProviderConfigNotFoundError} from './errors.js';
 
 export interface ResolveRuntimeCredentialsParams {
@@ -47,18 +52,19 @@ export async function resolveRuntimeCredentials(
         workspaceId: params.workspaceId,
         namespace: agentSystemNamespace(params.provider),
       });
-      const credentials = storeValuesToRuntimeCredentials(
-        params.provider as SupportedModelProviderId,
-        values,
-      );
-      if (
-        !modelProviderCredentialKeysMatch(params.provider as SupportedModelProviderId, credentials)
-      ) {
-        throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
+      if (providerConfig.kind === 'custom') {
+        const credentials = storeValuesToCustomRuntimeCredentials(values);
+        agentRuntimeConfigResolvedCount.add(1, {source: 'workspace', outcome: 'resolved'});
+        return toResponse(params, credentials, providerConfig);
       }
 
+      const providerId = params.provider as SupportedModelProviderId;
+      const credentials = storeValuesToRuntimeCredentials(providerId, values);
+      if (!modelProviderCredentialKeysMatch(providerId, credentials)) {
+        throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
+      }
       agentRuntimeConfigResolvedCount.add(1, {source: 'workspace', outcome: 'resolved'});
-      return toResponse(params, credentials);
+      return toResponse(params, credentials, providerConfig);
     } catch (error) {
       if (error instanceof SecretDecryptionError) {
         agentRuntimeConfigResolvedCount.add(1, {
@@ -111,11 +117,27 @@ function instanceFallbackCredentials(
 function toResponse(
   params: ResolveRuntimeCredentialsParams,
   credentials: Record<string, string>,
+  providerConfig?: ModelProviderConfig | undefined,
 ): AgentRuntimeCredentialsResponseDto {
-  return {
+  const response: AgentRuntimeCredentialsResponseDto = {
     provider_id: params.provider,
     model: params.model,
     thinking: params.thinking,
     credentials,
   };
+
+  if (providerConfig?.kind === 'custom') {
+    response.custom_provider = {
+      api: providerConfig.api ?? 'openai-responses',
+      base_url: providerConfig.baseUrl ?? '',
+      headers: providerConfig.headers ?? [],
+      secret_header_names: Object.keys(credentials)
+        .filter((key) => key.startsWith('header:'))
+        .map((key) => key.slice('header:'.length))
+        .sort(),
+      models: providerConfig.models ?? [],
+    };
+  }
+
+  return response;
 }

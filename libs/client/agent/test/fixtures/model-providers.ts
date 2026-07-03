@@ -61,9 +61,10 @@ export function testModelProviderEntries(count: number): ModelProviderCatalogEnt
 }
 
 export function modelProviderConfig(
-  overrides: Partial<ModelProviderConfigDto> = {},
+  overrides: Partial<Omit<ModelProviderConfigDto, 'kind'>> = {},
 ): ModelProviderConfigDto {
   return {
+    kind: 'builtin',
     provider_id: 'anthropic',
     default_model: null,
     key_fingerprints: {'credential:api_key': '...abcd'},

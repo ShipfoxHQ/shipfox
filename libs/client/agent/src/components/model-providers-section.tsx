@@ -1,4 +1,8 @@
-import type {ModelProviderCatalogEntryDto, ModelProviderConfigDto} from '@shipfox/api-agent-dto';
+import type {
+  ModelProviderCatalogEntryDto,
+  ModelProviderConfigDto,
+  ModelProviderConfigResponseDto,
+} from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Alert} from '@shipfox/react-ui/alert';
 import {Button, IconButton} from '@shipfox/react-ui/button';
@@ -148,6 +152,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
           <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
             {configs.map((config) => {
               const entry = toSupportedCatalogEntry(providerById.get(config.provider_id));
+              const builtinConfig = isBuiltinModelProviderConfig(config) ? config : undefined;
               return (
                 <ConfiguredProviderRow
                   key={config.provider_id}
@@ -156,17 +161,19 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
                   entry={entry}
                   isDefault={config.provider_id === defaultProviderId}
                   onEdit={() => {
-                    if (entry) setFormState({mode: 'edit', entry, config});
+                    if (entry && builtinConfig) {
+                      setFormState({mode: 'edit', entry, config: builtinConfig});
+                    }
                   }}
                   onChangeDefaultModel={() => {
-                    if (entry) setModelFormState({entry, config});
+                    if (entry && builtinConfig) setModelFormState({entry, config: builtinConfig});
                   }}
                   onShowUsage={() => {
-                    if (entry) {
+                    if (entry && builtinConfig) {
                       setPendingUsageTarget(null);
                       setUsageTarget({
                         entry,
-                        initialModel: config.default_model,
+                        initialModel: builtinConfig.default_model,
                         restoreFocusToConfiguredProviders: false,
                       });
                     }
@@ -332,6 +339,12 @@ function modelProviderFormTitle(formState: ModelProviderFormState | null): strin
   return `Configure ${formState.entry.label}`;
 }
 
+function isBuiltinModelProviderConfig(
+  config: ModelProviderConfigResponseDto,
+): config is ModelProviderConfigDto {
+  return config.kind === 'builtin';
+}
+
 function ConfiguredProviderRow({
   workspaceId,
   config,
@@ -342,7 +355,7 @@ function ConfiguredProviderRow({
   onShowUsage,
 }: {
   workspaceId: string;
-  config: ModelProviderConfigDto;
+  config: ModelProviderConfigResponseDto;
   entry: SupportedModelProviderCatalogEntry | undefined;
   isDefault: boolean;
   onEdit: () => void;

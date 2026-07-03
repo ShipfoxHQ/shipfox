@@ -10,10 +10,14 @@ export {
   setDefaultModelProvider,
 } from './agent-workspace-settings.js';
 export {closeDb, db, schema} from './db.js';
-export type {UpsertModelProviderConfigParams} from './model-provider-configs.js';
+export type {
+  InsertCustomModelProviderConfigParams,
+  UpsertModelProviderConfigParams,
+} from './model-provider-configs.js';
 export {
   deleteModelProviderConfig,
   getModelProviderConfig,
+  insertCustomModelProviderConfig,
   listModelProviderConfigs,
   updateModelProviderDefaultModel,
   upsertModelProviderConfig,

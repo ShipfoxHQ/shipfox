@@ -26,6 +26,58 @@ export interface UpsertModelProviderConfigParams {
   setAsDefault?: boolean | undefined;
 }
 
+export type InsertCustomModelProviderConfigParams = Omit<
+  UpsertModelProviderConfigParams,
+  'kind'
+> & {kind: 'custom'};
+
+export async function insertCustomModelProviderConfig(
+  params: InsertCustomModelProviderConfigParams,
+): Promise<ModelProviderConfig | undefined> {
+  return await db().transaction(async (tx) => {
+    const rows = await tx
+      .insert(modelProviderConfigs)
+      .values({
+        workspaceId: params.workspaceId,
+        providerId: params.providerId,
+        kind: params.kind,
+        displayName: params.displayName,
+        api: params.api,
+        baseUrl: params.baseUrl,
+        headers: params.headers,
+        models: params.models,
+        keyFingerprints: params.keyFingerprints,
+        defaultModel: params.defaultModel,
+        defaultThinking: params.defaultThinking,
+      })
+      .onConflictDoNothing({
+        target: [modelProviderConfigs.workspaceId, modelProviderConfigs.providerId],
+      })
+      .returning();
+
+    const row = rows[0];
+    if (!row) return undefined;
+
+    if (params.setAsDefault) {
+      await tx
+        .insert(agentWorkspaceSettings)
+        .values({
+          workspaceId: params.workspaceId,
+          defaultProviderId: params.providerId,
+        })
+        .onConflictDoUpdate({
+          target: agentWorkspaceSettings.workspaceId,
+          set: {
+            defaultProviderId: params.providerId,
+            updatedAt: sql`NOW()`,
+          },
+        });
+    }
+
+    return toModelProviderConfig(row);
+  });
+}
+
 export async function upsertModelProviderConfig(
   params: UpsertModelProviderConfigParams,
 ): Promise<ModelProviderConfig> {

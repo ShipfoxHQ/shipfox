@@ -104,6 +104,7 @@ describe('model provider config schemas', () => {
 
   it('parses config rows and list responses with a nullable default model provider', () => {
     const row = {
+      kind: 'builtin',
       provider_id: 'openai',
       default_model: null,
       key_fingerprints: {'credential:api_key': 'sk-...abcd'},
@@ -122,9 +123,35 @@ describe('model provider config schemas', () => {
     expect(parsedList.default_provider_id).toBeNull();
   });
 
+  it('parses custom config rows in list responses', () => {
+    const parsedList = listModelProviderConfigsResponseSchema.parse({
+      configs: [
+        {
+          kind: 'custom',
+          provider_id: 'local-vllm',
+          display_name: 'Local vLLM',
+          api: 'openai-responses',
+          base_url: 'https://llm.example.test/v1',
+          headers: [],
+          secret_header_names: ['authorization'],
+          models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+          default_model: null,
+          key_fingerprints: {'header:authorization': 'Bearer...abcd'},
+          created_at: '2026-06-27T10:30:00.000Z',
+          updated_at: '2026-06-27T10:45:00.000Z',
+        },
+      ],
+      default_provider_id: 'local-vllm',
+    });
+
+    expect(parsedList.configs[0]?.kind).toBe('custom');
+    expect(parsedList.default_provider_id).toBe('local-vllm');
+  });
+
   it('rejects config rows with empty fingerprint keys', () => {
     const parse = () =>
       modelProviderConfigDtoSchema.parse({
+        kind: 'builtin',
         provider_id: 'openai',
         default_model: 'gpt-5.5-pro',
         key_fingerprints: {'': 'sk-...abcd'},

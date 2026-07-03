@@ -3,7 +3,7 @@ import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {getAgentWorkspaceSettings, listModelProviderConfigs} from '#db/index.js';
-import {toModelProviderConfigDto} from '#presentation/dto/index.js';
+import {toModelProviderConfigResponseDto} from '#presentation/dto/index.js';
 
 export const listModelProviderConfigsRoute = defineRoute({
   method: 'GET',
@@ -25,7 +25,7 @@ export const listModelProviderConfigsRoute = defineRoute({
     ]);
 
     return {
-      configs: configs.map(toModelProviderConfigDto),
+      configs: configs.map(toModelProviderConfigResponseDto),
       default_provider_id: settings?.defaultProviderId ?? null,
     };
   },

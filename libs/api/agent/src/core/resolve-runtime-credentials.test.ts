@@ -1,7 +1,11 @@
-import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 import {SecretDecryptionError, setSecrets} from '@shipfox/api-secrets';
 import {deleteModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
-import {agentSystemNamespace} from './credential-fingerprints.js';
+import {
+  agentSystemNamespace,
+  customCredentialsToStoreValues,
+  fingerprintCustomCredentials,
+} from './credential-fingerprints.js';
 import {ModelProviderConfigNotFoundError} from './errors.js';
 import {resolveRuntimeCredentials} from './resolve-runtime-credentials.js';
 
@@ -75,6 +79,41 @@ describe('resolveRuntimeCredentials', () => {
 
     expect(matching.credentials).toEqual({api_key: 'sk-instance-secret'});
     await expect(mismatched).rejects.toMatchObject({name: 'ModelProviderConfigNotFoundError'});
+  });
+
+  it('returns custom provider runtime descriptors for custom rows', async () => {
+    await saveProviderConfig({
+      workspaceId,
+      providerId: 'local-vllm',
+      kind: 'custom',
+      displayName: 'Local vLLM',
+      api: 'openai-responses',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      headers: [{name: 'x-region', value: 'local'}],
+      models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      credentials: {api_key: 'sk-local-secret', 'header:authorization': 'Bearer local'},
+    });
+
+    const result = await resolveRuntimeCredentials({
+      workspaceId,
+      provider: 'local-vllm',
+      model: 'llama-3.1',
+      thinking: 'high',
+    });
+
+    expect(result).toEqual({
+      provider_id: 'local-vllm',
+      model: 'llama-3.1',
+      thinking: 'high',
+      credentials: {api_key: 'sk-local-secret', 'header:authorization': 'Bearer local'},
+      custom_provider: {
+        api: 'openai-responses',
+        base_url: 'http://127.0.0.1:11434/v1',
+        headers: [{name: 'x-region', value: 'local'}],
+        secret_header_names: ['authorization'],
+        models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      },
+    });
   });
 
   it('throws when no workspace or instance credential is available', async () => {
@@ -201,18 +240,36 @@ describe('resolveRuntimeCredentials', () => {
 
 async function saveProviderConfig(params: {
   workspaceId: string;
-  providerId: SupportedModelProviderId;
-  credentials: {api_key: string};
+  providerId: ModelProviderRef;
+  kind?: 'builtin' | 'custom' | undefined;
+  displayName?: string | undefined;
+  api?: 'openai-responses' | undefined;
+  baseUrl?: string | undefined;
+  headers?: {name: string; value: string}[] | undefined;
+  models?: {id: string; label: string}[] | undefined;
+  credentials: Record<string, string>;
 }) {
   await setSecrets({
     workspaceId: params.workspaceId,
     namespace: agentSystemNamespace(params.providerId),
-    values: {API_KEY: params.credentials.api_key},
+    values:
+      params.kind === 'custom'
+        ? customCredentialsToStoreValues(params.credentials)
+        : {API_KEY: params.credentials.api_key ?? ''},
   });
   return await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    keyFingerprints: {'credential:api_key': '...cret'},
+    kind: params.kind,
+    displayName: params.displayName,
+    api: params.api,
+    baseUrl: params.baseUrl,
+    headers: params.headers,
+    models: params.models,
+    keyFingerprints:
+      params.kind === 'custom'
+        ? fingerprintCustomCredentials(params.credentials)
+        : {'credential:api_key': '...cret'},
     defaultModel: null,
     defaultThinking: 'high',
   });

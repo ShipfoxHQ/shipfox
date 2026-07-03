@@ -69,6 +69,37 @@ describe('resolveAgentConfig', () => {
     expect(catalog.model).toBe('deepseek-v4-pro');
   });
 
+  test('resolves custom provider models from workspace configs', () => {
+    const workspaceProviderConfigs = new Map([
+      [
+        'local-vllm',
+        {
+          kind: 'custom' as const,
+          defaultModel: null,
+          defaultThinking: 'medium' as const,
+          models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+        },
+      ],
+    ]);
+
+    const resolved = resolveAgentConfig(
+      {provider: 'local-vllm'},
+      {workspaceProviderConfigs, workspaceDefaultProviderId: 'local-vllm'},
+    );
+    const invalidModel = () =>
+      resolveAgentConfig(
+        {provider: 'local-vllm', model: 'missing-model'},
+        {workspaceProviderConfigs},
+      );
+
+    expect(resolved).toEqual({
+      provider: 'local-vllm',
+      model: 'llama-3.1',
+      thinking: 'medium',
+    });
+    expect(invalidModel).toThrow(InvalidAgentModelError);
+  });
+
   test('uses instance model and thinking only for the resolved instance model provider', () => {
     const resolved = resolveAgentConfig(
       {provider: 'openai'},
@@ -239,6 +270,32 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
+    });
+  });
+
+  test('uses custom workspace defaults without filtering the provider config', async () => {
+    await upsertModelProviderConfig({
+      workspaceId,
+      providerId: 'local-vllm',
+      kind: 'custom',
+      displayName: 'Local vLLM',
+      api: 'openai-responses',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      headers: [],
+      models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      keyFingerprints: {'credential:api_key': 'sk-test...abcd'},
+      defaultModel: null,
+      defaultThinking: 'low',
+    });
+    await setDefaultModelProvider({workspaceId, providerId: 'local-vllm'});
+
+    const resolver = await createWorkspaceAgentDefaultsResolver(workspaceId);
+    const resolved = resolver({});
+
+    expect(resolved).toEqual({
+      provider: 'local-vllm',
+      model: 'llama-3.1',
+      thinking: 'low',
     });
   });
 });

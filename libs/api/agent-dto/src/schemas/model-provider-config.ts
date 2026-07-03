@@ -1,11 +1,13 @@
 import {z} from 'zod';
 import {getModelProviderEntry} from './catalog.js';
+import {customModelProviderConfigDtoSchema} from './custom-model-provider.js';
 import {modelProviderRefSchema, type SupportedModelProviderId} from './model-provider-id.js';
 
 const credentialKeySchema = z.string().min(1);
 const credentialRecordSchema = z.record(credentialKeySchema, z.string().min(1));
 
 export const modelProviderConfigDtoSchema = z.object({
+  kind: z.literal('builtin'),
   provider_id: modelProviderRefSchema,
   default_model: z.string().min(1).nullable(),
   key_fingerprints: z.record(credentialKeySchema, z.string()),
@@ -15,8 +17,15 @@ export const modelProviderConfigDtoSchema = z.object({
 
 export type ModelProviderConfigDto = z.infer<typeof modelProviderConfigDtoSchema>;
 
+export const modelProviderConfigResponseSchema = z.discriminatedUnion('kind', [
+  modelProviderConfigDtoSchema,
+  customModelProviderConfigDtoSchema,
+]);
+
+export type ModelProviderConfigResponseDto = z.infer<typeof modelProviderConfigResponseSchema>;
+
 export const listModelProviderConfigsResponseSchema = z.object({
-  configs: z.array(modelProviderConfigDtoSchema),
+  configs: z.array(modelProviderConfigResponseSchema),
   default_provider_id: modelProviderRefSchema.nullable(),
 });
 

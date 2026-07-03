@@ -4,6 +4,11 @@ import {isReservedModelProviderId, modelProviderRefSchema} from './model-provide
 const MAX_HEADER_COUNT = 32;
 const MAX_MODEL_COUNT = 128;
 
+export const DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW = 128_000;
+export const DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS = 16_384;
+export const DEFAULT_CUSTOM_MODEL_INPUT_IMAGE = false;
+export const DEFAULT_CUSTOM_MODEL_REASONING = false;
+
 const headerNameSchema = z
   .string()
   .trim()
@@ -100,6 +105,27 @@ export const updateCustomModelProviderBodySchema = z
   });
 
 export type UpdateCustomModelProviderBodyDto = z.infer<typeof updateCustomModelProviderBodySchema>;
+
+export const discoverCustomModelProviderModelsBodySchema = z.object({
+  api: modelProviderApiSchema,
+  base_url: z.string().url().max(2048),
+  api_key: z.string().min(1).max(8192).optional(),
+  headers: customModelProviderHeadersDtoSchema.optional(),
+});
+
+export type DiscoverCustomModelProviderModelsBodyDto = z.infer<
+  typeof discoverCustomModelProviderModelsBodySchema
+>;
+
+export const discoverCustomModelProviderModelsResponseSchema = z.object({
+  models: z
+    .array(z.object({id: modelIdSchema, label: z.string().min(1).max(160)}))
+    .max(MAX_MODEL_COUNT),
+});
+
+export type DiscoverCustomModelProviderModelsResponseDto = z.infer<
+  typeof discoverCustomModelProviderModelsResponseSchema
+>;
 
 export const customModelProviderRuntimeConfigSchema = z.object({
   api: modelProviderApiSchema,
