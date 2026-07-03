@@ -1,4 +1,4 @@
-import {type ApiFetch, createApiClient, type E2eApiError} from './client.js';
+import {type ApiFetch, createApiClient, type E2eApiError, requestJson} from './client.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return Response.json(body, init);
@@ -98,5 +98,26 @@ describe('createApiClient', () => {
     });
 
     await expect(client.requestJson('get', '/definitions')).rejects.toBe(abortError);
+  });
+});
+
+describe('requestJson', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('wraps ky HTTP errors without reading the consumed response body again', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({code: 'not-found'}, {status: 404}),
+    );
+
+    await expect(
+      requestJson('post', '/__e2e/integrations/gitea/connect', {}),
+    ).rejects.toMatchObject({
+      name: 'E2eApiError',
+      message: 'E2E API request failed: 404',
+      status: 404,
+      details: {code: 'not-found'},
+    } satisfies Partial<E2eApiError>);
   });
 });
