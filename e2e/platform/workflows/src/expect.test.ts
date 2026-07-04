@@ -395,6 +395,15 @@ describe('parseExpectation', () => {
     expect(expectation.timeout_seconds).toBe(180);
   });
 
+  test('accepts a push commit message override', () => {
+    const expectation = parseExpectation({
+      push: {message: "literal $(printf I''NJECTED)"},
+      run: {status: 'succeeded'},
+    });
+
+    expect(expectation.push?.message).toBe("literal $(printf I''NJECTED)");
+  });
+
   test('rejects unknown keys', () => {
     expect(() => parseExpectation({run: {status: 'succeeded'}, unexpected: true})).toThrow();
   });

@@ -36,6 +36,12 @@ const logsExpectationSchema = z
   })
   .strict();
 
+const pushExpectationSchema = z
+  .object({
+    message: z.string().min(1).optional(),
+  })
+  .strict();
+
 const stepExpectationSchema = z
   .object({
     status: stepStatusSchema.optional(),
@@ -54,6 +60,7 @@ const jobExpectationSchema = z
 export const expectationSchema = z
   .object({
     trigger: z.enum(['push', 'manual']).default('push'),
+    push: pushExpectationSchema.optional(),
     inputs: z.record(z.string(), z.unknown()).optional(),
     timeout_seconds: z.number().int().positive().default(180),
     run: z.object({status: runStatusSchema}).strict(),
