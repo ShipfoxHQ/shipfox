@@ -2,7 +2,7 @@ import {Context} from '@temporalio/activity';
 import {compactedObjectKey, deleteObject, putCompactedObject} from '#api/object-storage.js';
 import {compactedGzipStream} from '#core/compaction.js';
 import {chunkStats} from '#db/chunks.js';
-import {db} from '#db/db.js';
+import {db, type Transaction} from '#db/db.js';
 import {getAttemptStreamById, setObjectKeyAndDeleteChunks} from '#db/streams.js';
 import {type CompactionMetricOutcome, compactionCount} from '#metrics/instance.js';
 
@@ -12,6 +12,19 @@ export type CompactStreamResult =
   | {outcome: 'superseded'}
   | {outcome: 'retention-raced'}
   | {outcome: 'compacted'; objectKey: string; chunkCount: number; uncompressedBytes: number};
+
+interface CompactStreamDependencies {
+  compactedGzipStream: typeof compactedGzipStream;
+  setObjectKeyAndDeleteChunks: (
+    tx: Transaction,
+    params: {streamId: string; objectKey: string},
+  ) => Promise<{updated: boolean}>;
+}
+
+const defaultDependencies: CompactStreamDependencies = {
+  compactedGzipStream,
+  setObjectKeyAndDeleteChunks,
+};
 
 /**
  * Compacts one closed stream into a single gzip NDJSON object, then deletes its chunk rows.
@@ -32,7 +45,10 @@ export type CompactStreamResult =
  * check (count, maxSeq, and byte total) guards a read bug from publishing a truncated object
  * before the only copy of the source is gone (S3 part checksums cover byte transfer).
  */
-async function compactStream(params: {streamId: string}): Promise<CompactStreamResult> {
+async function compactStream(
+  params: {streamId: string},
+  dependencies: CompactStreamDependencies,
+): Promise<CompactStreamResult> {
   const stream = await getAttemptStreamById(params.streamId);
   if (!stream) return {outcome: 'gone'};
   if (stream.objectKey) return {outcome: 'already-compacted'};
@@ -40,7 +56,10 @@ async function compactStream(params: {streamId: string}): Promise<CompactStreamR
   const ctx = Context.current();
   const uploadKey = compactedObjectKey(stream, crypto.randomUUID());
   const expected = await chunkStats(stream.id);
-  const {body, stats} = compactedGzipStream({streamId: stream.id, onPage: () => ctx.heartbeat()});
+  const {body, stats} = dependencies.compactedGzipStream({
+    streamId: stream.id,
+    onPage: () => ctx.heartbeat(),
+  });
 
   await putCompactedObject({
     key: uploadKey,
@@ -67,7 +86,10 @@ async function compactStream(params: {streamId: string}): Promise<CompactStreamR
   }
 
   const {updated} = await db().transaction((tx) =>
-    setObjectKeyAndDeleteChunks(tx, {streamId: stream.id, objectKey: uploadKey}),
+    dependencies.setObjectKeyAndDeleteChunks(tx, {
+      streamId: stream.id,
+      objectKey: uploadKey,
+    }),
   );
   if (!updated) {
     await deleteObject(uploadKey);
@@ -83,15 +105,19 @@ async function compactStream(params: {streamId: string}): Promise<CompactStreamR
   };
 }
 
-export async function compactStreamActivity(params: {
-  streamId: string;
-}): Promise<CompactStreamResult> {
-  let outcome: CompactionMetricOutcome = 'failed';
-  try {
-    const result = await compactStream(params);
-    outcome = result.outcome;
-    return result;
-  } finally {
-    compactionCount.add(1, {outcome});
-  }
+export function createCompactStreamActivity(
+  dependencies: CompactStreamDependencies = defaultDependencies,
+): (params: {streamId: string}) => Promise<CompactStreamResult> {
+  return async (params) => {
+    let outcome: CompactionMetricOutcome = 'failed';
+    try {
+      const result = await compactStream(params, dependencies);
+      outcome = result.outcome;
+      return result;
+    } finally {
+      compactionCount.add(1, {outcome});
+    }
+  };
 }
+
+export const compactStreamActivity = createCompactStreamActivity();

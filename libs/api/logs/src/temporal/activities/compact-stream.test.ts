@@ -6,28 +6,26 @@ import {MockActivityEnvironment} from '@temporalio/testing';
 import {eq} from 'drizzle-orm';
 import {deleteObject, s3Client} from '#api/object-storage.js';
 import {config} from '#config.js';
+import {compactedGzipStream} from '#core/compaction.js';
 import {logObjectKey} from '#core/entities/log-object.js';
 import {db} from '#db/db.js';
 import {attemptStreams} from '#db/schema/attempt-streams.js';
-import {getAttemptStreamById} from '#db/streams.js';
+import {getAttemptStreamById, setObjectKeyAndDeleteChunks} from '#db/streams.js';
 import {arrangeClosedStream, type ClosedStreamIdentity} from '#test/fixtures/closed-stream.js';
 import {ndjsonBody, outputLine} from '#test/fixtures/ndjson.js';
 import {listChunks} from '#test/queries.js';
-import {type CompactStreamResult, compactStreamActivity} from './compact-stream.js';
+import {
+  type CompactStreamResult,
+  compactStreamActivity,
+  createCompactStreamActivity,
+} from './compact-stream.js';
 
-// Mocks default to the real implementation (via importActual); individual tests override
-// once to exercise the integrity-check and publish-race branches deterministically.
-vi.mock('#core/compaction.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#core/compaction.js')>();
-  return {...actual, compactedGzipStream: vi.fn(actual.compactedGzipStream)};
+const compactedGzipStreamMock = vi.fn<typeof compactedGzipStream>();
+const setObjectKeyAndDeleteChunksMock = vi.fn<typeof setObjectKeyAndDeleteChunks>();
+const compactStreamActivityWithMocks = createCompactStreamActivity({
+  compactedGzipStream: compactedGzipStreamMock,
+  setObjectKeyAndDeleteChunks: setObjectKeyAndDeleteChunksMock,
 });
-vi.mock('#db/streams.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#db/streams.js')>();
-  return {...actual, setObjectKeyAndDeleteChunks: vi.fn(actual.setObjectKeyAndDeleteChunks)};
-});
-
-import {compactedGzipStream} from '#core/compaction.js';
-import {setObjectKeyAndDeleteChunks} from '#db/streams.js';
 
 function newIdentity(): ClosedStreamIdentity {
   return {
@@ -40,8 +38,11 @@ function newIdentity(): ClosedStreamIdentity {
   };
 }
 
-function runCompaction(streamId: string): Promise<CompactStreamResult> {
-  return new MockActivityEnvironment().run(compactStreamActivity, {streamId});
+function runCompaction(
+  streamId: string,
+  activity = compactStreamActivity,
+): Promise<CompactStreamResult> {
+  return new MockActivityEnvironment().run(activity, {streamId});
 }
 
 async function getObjectBytes(key: string): Promise<Buffer> {
@@ -74,6 +75,13 @@ function compactedKey(result: CompactStreamResult): string {
 }
 
 describe('compactStreamActivity', () => {
+  beforeEach(() => {
+    compactedGzipStreamMock.mockReset();
+    setObjectKeyAndDeleteChunksMock.mockReset();
+    compactedGzipStreamMock.mockImplementation(compactedGzipStream);
+    setObjectKeyAndDeleteChunksMock.mockImplementation(setObjectKeyAndDeleteChunks);
+  });
+
   it('compacts many chunks into one gzip object and deletes the chunk rows', async () => {
     const chunks = [outputLine('one\n'), outputLine('two\n'), outputLine('three\n')].map((l) =>
       ndjsonBody(l),
@@ -168,12 +176,14 @@ describe('compactStreamActivity', () => {
       chunks: [ndjsonBody(outputLine('a\n')), ndjsonBody(outputLine('b\n'))],
     });
     // Upload a (wrong) empty body whose stats claim zero chunks; the table has two.
-    vi.mocked(compactedGzipStream).mockReturnValueOnce({
+    compactedGzipStreamMock.mockReturnValueOnce({
       body: Readable.from([]).pipe(createGzip()),
       stats: {chunkCount: 0, lastSeq: 0, uncompressedBytes: 0},
     });
 
-    await expect(runCompaction(stream.id)).rejects.toThrow('integrity check');
+    await expect(runCompaction(stream.id, compactStreamActivityWithMocks)).rejects.toThrow(
+      'integrity check',
+    );
 
     const after = await getAttemptStreamById(stream.id);
     expect(after?.objectKey).toBeNull();
@@ -186,9 +196,9 @@ describe('compactStreamActivity', () => {
     const stream = await arrangeClosedStream(identity, {chunks: [ndjsonBody(outputLine('x\n'))]});
     // Simulate a concurrent attempt publishing first: the guarded update matches 0 rows while
     // the row still exists.
-    vi.mocked(setObjectKeyAndDeleteChunks).mockResolvedValueOnce({updated: false});
+    setObjectKeyAndDeleteChunksMock.mockResolvedValueOnce({updated: false});
 
-    const result = await runCompaction(stream.id);
+    const result = await runCompaction(stream.id, compactStreamActivityWithMocks);
 
     expect(result.outcome).toBe('superseded');
     expect(await listKeysUnderStream(identity)).toEqual([]);
@@ -198,12 +208,12 @@ describe('compactStreamActivity', () => {
     const identity = newIdentity();
     const stream = await arrangeClosedStream(identity, {chunks: [ndjsonBody(outputLine('x\n'))]});
     // Simulate retention hard-deleting the row mid-upload: the guarded update finds 0 rows.
-    vi.mocked(setObjectKeyAndDeleteChunks).mockImplementationOnce(async (_tx, params) => {
+    setObjectKeyAndDeleteChunksMock.mockImplementationOnce(async (_tx, params) => {
       await db().delete(attemptStreams).where(eq(attemptStreams.id, params.streamId));
       return {updated: false};
     });
 
-    const result = await runCompaction(stream.id);
+    const result = await runCompaction(stream.id, compactStreamActivityWithMocks);
 
     expect(result.outcome).toBe('retention-raced');
     expect(await listKeysUnderStream(identity)).toEqual([]);
