@@ -228,6 +228,8 @@ export function nextBackoffInterval(ms: number): number {
 }
 
 export function withJitter(ms: number): number {
+  // Floor the jitter at half the interval so a fast-returning poll (for example with
+  // wait_seconds=0) cannot collapse the delay toward zero and busy-loop the API.
   return applyJitter(ms, {minFactor: 0.5});
 }
 

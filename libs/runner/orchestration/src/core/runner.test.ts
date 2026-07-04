@@ -231,8 +231,10 @@ describe('startRunner', () => {
   });
 
   it('resolves cleanly when no jobs arrive before the poll deadline', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(2);
     mockRequestJob.mockResolvedValue(null);
+    vi.spyOn(Date, 'now').mockImplementation(() =>
+      mockRequestJob.mock.calls.length === 0 ? 0 : 2,
+    );
 
     await startRunner();
 
@@ -243,8 +245,10 @@ describe('startRunner', () => {
 
   it('rejects when poll errors continue past the poll deadline', async () => {
     const pollError = new Error('api unavailable');
-    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(2);
     mockRequestJob.mockRejectedValue(pollError);
+    vi.spyOn(Date, 'now').mockImplementation(() =>
+      mockRequestJob.mock.calls.length === 0 ? 0 : 2,
+    );
 
     await expect(startRunner()).rejects.toBe(pollError);
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(1);
@@ -275,8 +279,8 @@ describe('startRunner', () => {
 
   it('rejects when unauthorized responses continue past the poll deadline', async () => {
     const unauthorized = httpError(401);
-    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(2);
     mockRequestJob.mockRejectedValue(unauthorized);
+    vi.spyOn(Date, 'now').mockImplementation(() => (mockRequestJob.mock.calls.length < 2 ? 0 : 2));
 
     await expect(startRunner()).rejects.toBe(unauthorized);
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(2);
