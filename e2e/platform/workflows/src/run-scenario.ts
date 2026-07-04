@@ -149,6 +149,7 @@ async function triggerPushAndAwaitRun(params: {
   repo: string;
   scenario: string;
   uniqueId: string;
+  message?: string | undefined;
   projectId: string;
   token: string;
 }): Promise<string> {
@@ -158,7 +159,7 @@ async function triggerPushAndAwaitRun(params: {
     const triggerSha = await commitFiles({
       org: params.org,
       repo: params.repo,
-      message: `trigger ${params.scenario} ${params.uniqueId} #${attempt}`,
+      message: params.message ?? `trigger ${params.scenario} ${params.uniqueId} #${attempt}`,
       files: [
         {
           path: `.shipfox-e2e-trigger-${attempt}`,
@@ -264,6 +265,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
         repo,
         scenario: scenario.name,
         uniqueId,
+        message: scenario.expectation.push?.message,
         projectId: project.id,
         token,
       });

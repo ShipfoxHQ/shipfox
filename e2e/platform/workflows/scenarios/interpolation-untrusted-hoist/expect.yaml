@@ -1,0 +1,17 @@
+trigger: push
+push:
+  message: "literal $(printf I''NJECTED) and `printf I''NJECTED`"
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      echo-message:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "msg=literal $(printf I''NJECTED) and `printf I''NJECTED`"
+          exclude:
+            - "INJECTED"
