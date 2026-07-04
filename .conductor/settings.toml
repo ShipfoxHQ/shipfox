@@ -20,3 +20,8 @@ if [ "${CONDUCTOR_IS_LOCAL:-1}" = "1" ]; then
   mise exec -- node dev/worktree-services.mjs destroy
 fi
 """
+
+[scripts.run.dev]
+command = "SHIPFOX_CLIENT_OPEN=1 mise exec -- turbo dev --filter=@shipfox/api --filter=@shipfox/client"
+default = true
+icon = "play"

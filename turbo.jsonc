@@ -18,6 +18,26 @@
       "outputs": ["dist/**/*", "!dist/**/*.d.ts", "!dist/**/*.d.ts.map", ".vercel/**/*"],
       "dependsOn": ["^build"]
     },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"],
+      "passThroughEnv": [
+        "API_PORT",
+        "BROWSER",
+        "BROWSER_ARGS",
+        "CLIENT_BASE_URL",
+        "GITEA_BASE_URL",
+        "HOST",
+        "LOG_STORAGE_S3_ENDPOINT",
+        "OTEL_INSTANCE_METRICS_PORT",
+        "OTEL_SERVICE_METRICS_PORT",
+        "POSTGRES_*",
+        "SHIPFOX_*",
+        "TEMPORAL_ADDRESS",
+        "VITE_*"
+      ]
+    },
     "check": {
       "cache": true,
       "dependsOn": ["@shipfox/biome#build"]
