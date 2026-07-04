@@ -3,7 +3,7 @@ import {
   supportedModelProviderIdSchema,
   updateModelProviderConfigBodySchema,
 } from '@shipfox/api-agent-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {testAndSaveModelProviderConfig} from '#core/index.js';
@@ -36,7 +36,7 @@ export const upsertModelProviderConfigRoute = defineRoute({
       if (!responseFinished) abortController.abort();
     });
 
-    const membership = await requireMembership({request, workspaceId});
+    const membership = requireWorkspaceAccess({request, workspaceId});
 
     const config = await testAndSaveModelProviderConfig({
       workspaceId,

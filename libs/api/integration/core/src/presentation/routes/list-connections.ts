@@ -1,9 +1,8 @@
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   listIntegrationConnectionsQuerySchema,
   listIntegrationConnectionsResponseSchema,
 } from '@shipfox/api-integration-core-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {listIntegrationConnections} from '#db/connections.js';
@@ -24,7 +23,7 @@ export function createListIntegrationConnectionsRoute(registry: IntegrationProvi
     handler: async (request) => {
       const {workspace_id: workspaceId, capability} = request.query;
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
       const connections = await listIntegrationConnections({workspaceId});
       const providers = new Map(
         registry.list(capability).map((provider) => [provider.provider, provider]),

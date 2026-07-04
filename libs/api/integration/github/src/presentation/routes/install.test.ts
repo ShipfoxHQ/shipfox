@@ -10,27 +10,25 @@ import type {ConnectGithubInstallationInput} from '#core/install.js';
 import {verifyGithubInstallState} from '#core/state.js';
 import {createGithubIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(({workspaceId}) =>
-    Promise.resolve({
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {
+    ...actual,
+    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: 'user-1',
       role: 'admin',
-    }),
-  ),
+    })),
+  };
+});
+
+vi.mock('@shipfox/api-workspaces', () => ({
   requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
 }));
 
-const {requireMembership, requireWorkspaceMembership} = await import('@shipfox/api-workspaces');
-const requireMembershipMock = vi.mocked(requireMembership);
+const {requireWorkspaceAccess} = await import('@shipfox/api-auth-context');
+const {requireWorkspaceMembership} = await import('@shipfox/api-workspaces');
+const requireWorkspaceAccessMock = vi.mocked(requireWorkspaceAccess);
 const requireWorkspaceMembershipMock = vi.mocked(requireWorkspaceMembership);
 
 const fakeUserAuth: AuthMethod = {
@@ -168,7 +166,7 @@ describe('GitHub integration routes', () => {
     );
     expect(claims.workspaceId).toBe(workspaceId);
     expect(claims.userId).toBe('user-1');
-    expect(requireMembershipMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
+    expect(requireWorkspaceAccessMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
   });
 
   it('requires auth on the GitHub callback API', async () => {

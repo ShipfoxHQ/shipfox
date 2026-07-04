@@ -2,10 +2,10 @@ import {
   discoverCustomModelProviderModelsBodySchema,
   discoverCustomModelProviderModelsResponseSchema,
 } from '@shipfox/api-agent-dto';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {discoverCustomModelProviderModels} from '#core/index.js';
-import {requireCustomProviderAccess} from '#presentation/auth/require-custom-provider-access.js';
 import {translateModelProviderRouteError} from './errors.js';
 
 export const discoverCustomModelProviderModelsRoute = defineRoute({
@@ -22,7 +22,7 @@ export const discoverCustomModelProviderModelsRoute = defineRoute({
   errorHandler: translateModelProviderRouteError,
   handler: async (request) => {
     const {workspaceId} = request.params;
-    await requireCustomProviderAccess({request, workspaceId});
+    requireWorkspaceAccess({request, workspaceId});
 
     return await discoverCustomModelProviderModels(request.body);
   },

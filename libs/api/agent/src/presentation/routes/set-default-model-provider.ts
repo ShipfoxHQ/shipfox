@@ -3,7 +3,7 @@ import {
   setDefaultModelProviderBodySchema,
   setDefaultModelProviderResponseSchema,
 } from '@shipfox/api-agent-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {
@@ -11,7 +11,6 @@ import {
   UnsupportedModelProviderError,
 } from '#core/index.js';
 import {getModelProviderConfig, setDefaultModelProvider} from '#db/index.js';
-import {requireCustomProviderAccess} from '#presentation/auth/require-custom-provider-access.js';
 import {translateModelProviderRouteError} from './errors.js';
 
 export const setDefaultModelProviderRoute = defineRoute({
@@ -28,19 +27,19 @@ export const setDefaultModelProviderRoute = defineRoute({
   errorHandler: translateModelProviderRouteError,
   handler: async (request) => {
     const {workspaceId} = request.params;
+    requireWorkspaceAccess({request, workspaceId});
+
     const existingConfig = await getModelProviderConfig({
       workspaceId,
       providerId: request.body.provider_id,
     });
     if (existingConfig?.kind === 'custom') {
-      await requireCustomProviderAccess({request, workspaceId});
       throw new CustomModelProviderDefaultUnsupportedError(request.body.provider_id);
-    } else {
-      await requireMembership({request, workspaceId});
-      const entry = getModelProviderEntry(request.body.provider_id);
-      if (entry === undefined || entry.support_status !== 'supported') {
-        throw new UnsupportedModelProviderError(request.body.provider_id);
-      }
+    }
+
+    const entry = getModelProviderEntry(request.body.provider_id);
+    if (entry === undefined || entry.support_status !== 'supported') {
+      throw new UnsupportedModelProviderError(request.body.provider_id);
     }
 
     const settings = await setDefaultModelProvider({

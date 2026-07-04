@@ -2,7 +2,7 @@ import {IntegrationProviderError} from '#core/errors.js';
 import {upsertIntegrationConnection} from '#db/connections.js';
 import {
   createTestApp,
-  requireMembershipMock,
+  requireWorkspaceAccessMock,
   sourceProvider,
   useIntegrationRouteTest,
 } from '#test/route-utils.js';
@@ -27,7 +27,7 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(requireMembershipMock).toHaveBeenCalledWith(
+    expect(requireWorkspaceAccessMock).toHaveBeenCalledWith(
       expect.objectContaining({workspaceId: connection.workspaceId}),
     );
     expect(res.json().repositories[0].full_name).toBe('gitea-owner/platform');

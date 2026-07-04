@@ -1,6 +1,5 @@
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {listProjectsQuerySchema, listProjectsResponseSchema} from '@shipfox/api-projects-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {listProjects} from '#db/index.js';
 import {toProjectDto} from '#presentation/dto/index.js';
@@ -24,7 +23,7 @@ export const listProjectsRoute = defineRoute({
       throw new ClientError('Invalid cursor', 'invalid-cursor', {status: 400});
     }
 
-    await requireMembership({request, workspaceId});
+    requireWorkspaceAccess({request, workspaceId});
     const result = await listProjects({workspaceId, limit, cursor: decodedCursor, search});
 
     return {

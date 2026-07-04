@@ -1,5 +1,6 @@
 import type {JobLeaseTokenClaims, RunnerSessionTokenClaims} from '@shipfox/api-auth-dto';
 import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
+import {ClientError} from '@shipfox/node-fastify';
 
 export const AUTH_USER = 'user';
 export const AUTH_RUNNER_REGISTRATION_TOKEN = 'runner-registration-token';
@@ -74,6 +75,38 @@ export function requireUserContext(request: RequestWithContext): UserContext {
     throw new Error('User context is not available on this request');
   }
   return context;
+}
+
+export interface RequireWorkspaceAccessParams {
+  request: RequestWithContext;
+  workspaceId: string;
+}
+
+export interface RequireWorkspaceAccessResult {
+  workspaceId: string;
+  userId: string;
+  role: WorkspaceRole;
+}
+
+/**
+ * Authorizes the request's user for a workspace using only the verified session
+ * token. Membership and role come from the token claims, so the check stays
+ * stateless and does not read the database on the request path.
+ */
+export function requireWorkspaceAccess(
+  params: RequireWorkspaceAccessParams,
+): RequireWorkspaceAccessResult {
+  const context = getUserContext(params.request);
+  if (!context) {
+    throw new ClientError('Authentication required', 'unauthorized', {status: 401});
+  }
+
+  const membership = context.memberships.find((m) => m.workspaceId === params.workspaceId);
+  if (!membership) {
+    throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
+  }
+
+  return {workspaceId: params.workspaceId, userId: context.userId, role: membership.role};
 }
 
 export function setProvisionerContext(

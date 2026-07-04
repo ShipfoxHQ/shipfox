@@ -17,7 +17,7 @@ export const listActiveRunnersRoute = defineRoute({
   },
   handler: async (request) => {
     const {workspaceId} = request.params;
-    await requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
+    requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
 
     const runners = await listActiveRunners({workspaceId});
     return toActiveRunnersResponseDto(runners);

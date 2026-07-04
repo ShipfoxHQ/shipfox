@@ -11,26 +11,20 @@ import type {ConnectSentryInstallationInput} from '#core/install.js';
 import type {SentryInstallation} from '#db/installations.js';
 import {createSentryIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(({workspaceId}) =>
-    Promise.resolve({
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {
+    ...actual,
+    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId: 'user-1',
       role: 'admin',
-    }),
-  ),
-}));
+    })),
+  };
+});
 
-const {requireMembership} = await import('@shipfox/api-workspaces');
-const requireMembershipMock = vi.mocked(requireMembership);
+const {requireWorkspaceAccess} = await import('@shipfox/api-auth-context');
+const requireWorkspaceAccessMock = vi.mocked(requireWorkspaceAccess);
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -126,7 +120,7 @@ function connectPayload() {
 
 describe('Sentry integration routes', () => {
   beforeEach(async () => {
-    requireMembershipMock.mockClear();
+    requireWorkspaceAccessMock.mockClear();
     await closeApp();
   });
 
@@ -161,7 +155,7 @@ describe('Sentry integration routes', () => {
     expect(res.json().install_url).toBe(
       'https://sentry.io/sentry-apps/shipfox-test/external-install/',
     );
-    expect(requireMembershipMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
+    expect(requireWorkspaceAccessMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
   });
 
   it('requires auth for connect', async () => {
@@ -194,9 +188,9 @@ describe('Sentry integration routes', () => {
   });
 
   it('returns 403 when the caller is not a workspace member', async () => {
-    requireMembershipMock.mockRejectedValueOnce(
-      new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
-    );
+    requireWorkspaceAccessMock.mockImplementationOnce(() => {
+      throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
+    });
     const app = await createTestApp();
 
     const res = await app.inject({

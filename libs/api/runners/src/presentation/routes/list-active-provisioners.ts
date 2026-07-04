@@ -1,5 +1,5 @@
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {listActiveProvisionersResponseSchema} from '@shipfox/api-runners-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {listActiveProvisioners} from '#core/index.js';
@@ -17,7 +17,7 @@ export const listActiveProvisionersRoute = defineRoute({
   },
   handler: async (request) => {
     const {workspaceId} = request.params;
-    await requireMembership({request, workspaceId});
+    requireWorkspaceAccess({request, workspaceId});
 
     const provisioners = await listActiveProvisioners(workspaceId);
     return {provisioners: provisioners.map(toActiveProvisionerDto)};

@@ -1,6 +1,5 @@
-import {requireUserContext} from '@shipfox/api-auth-context';
+import {requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {revokeProvisionerTokenResponseSchema} from '@shipfox/api-runners-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {ProvisionerTokenNotFoundError, revokeWorkspaceProvisionerToken} from '#core/index.js';
@@ -24,7 +23,7 @@ export const revokeProvisionerTokenRoute = defineRoute({
   },
   handler: async (request) => {
     const {workspaceId, tokenId} = request.params;
-    await requireMembership({request, workspaceId});
+    requireWorkspaceAccess({request, workspaceId});
     const user = requireUserContext(request);
 
     const revoked = await revokeWorkspaceProvisionerToken({

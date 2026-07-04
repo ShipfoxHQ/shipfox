@@ -1,9 +1,8 @@
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   integrationConnectionDtoSchema,
   updateIntegrationConnectionBodySchema,
 } from '@shipfox/api-integration-core-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
@@ -37,7 +36,7 @@ export function createUpdateIntegrationConnectionRoute(registry: IntegrationProv
         throw new ClientError('Integration connection not found', 'not-found', {status: 404});
       }
 
-      await requireMembership({request, workspaceId: connection.workspaceId});
+      requireWorkspaceAccess({request, workspaceId: connection.workspaceId});
       const updated = await updateIntegrationConnectionLifecycleStatus({
         id: connection.id,
         lifecycleStatus: request.body.lifecycle_status,
@@ -70,7 +69,7 @@ export function createDeleteIntegrationConnectionRoute() {
         throw new ClientError('Integration connection not found', 'not-found', {status: 404});
       }
 
-      await requireMembership({request, workspaceId: connection.workspaceId});
+      requireWorkspaceAccess({request, workspaceId: connection.workspaceId});
       await deleteIntegrationConnection({id: connection.id});
       reply.status(204);
     },

@@ -1,5 +1,5 @@
 import {listModelProviderConfigsResponseSchema} from '@shipfox/api-agent-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {getAgentWorkspaceSettings, listModelProviderConfigs} from '#db/index.js';
@@ -17,7 +17,7 @@ export const listModelProviderConfigsRoute = defineRoute({
   },
   handler: async (request) => {
     const {workspaceId} = request.params;
-    await requireMembership({request, workspaceId});
+    requireWorkspaceAccess({request, workspaceId});
 
     const [configs, settings] = await Promise.all([
       listModelProviderConfigs(workspaceId),

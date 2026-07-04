@@ -784,9 +784,6 @@ importers:
       '@shipfox/api-secrets':
         specifier: workspace:*
         version: link:../secrets
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -970,6 +967,9 @@ importers:
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../workspaces-dto
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../shared/node/fastify
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -983,6 +983,9 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
 
   libs/api/auth-dto:
     dependencies:
@@ -1258,9 +1261,6 @@ importers:
       '@shipfox/api-integration-webhook':
         specifier: workspace:*
         version: link:../webhook
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -1383,9 +1383,6 @@ importers:
       '@shipfox/api-integration-gitea-dto':
         specifier: workspace:*
         version: link:../gitea-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -1579,9 +1576,6 @@ importers:
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../sentry-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -1686,9 +1680,6 @@ importers:
       '@shipfox/api-integration-webhook-dto':
         specifier: workspace:*
         version: link:../webhook-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -1903,9 +1894,6 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../workspaces
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -2159,9 +2147,6 @@ importers:
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config

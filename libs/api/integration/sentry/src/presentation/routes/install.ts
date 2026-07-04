@@ -1,4 +1,4 @@
-import {AUTH_USER, requireUserContext} from '@shipfox/api-auth-context';
+import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createSentryInstallBodySchema,
@@ -6,7 +6,6 @@ import {
   sentryConnectBodySchema,
   sentryConnectResponseSchema,
 } from '@shipfox/api-integration-sentry-dto';
-import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {SentryApiClient} from '#api/client.js';
 import {config} from '#config.js';
@@ -50,10 +49,10 @@ export function createSentryIntegrationRoutes({
         200: createSentryInstallResponseSchema,
       },
     },
-    handler: async (request) => {
+    handler: (request) => {
       const {workspace_id: workspaceId} = request.body;
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
 
       // Sentry has no state param to embed; the server owns the slug.
       const installUrl = `https://sentry.io/sentry-apps/${config.SENTRY_APP_SLUG}/external-install/`;
@@ -77,7 +76,7 @@ export function createSentryIntegrationRoutes({
       const {workspace_id: workspaceId, code, installation_id: installationUuid} = request.body;
       const actor = requireUserContext(request);
 
-      await requireMembership({request, workspaceId});
+      requireWorkspaceAccess({request, workspaceId});
 
       const connection = await handleSentryConnect({
         sentry,

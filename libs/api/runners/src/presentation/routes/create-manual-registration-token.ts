@@ -20,7 +20,7 @@ export const createManualRegistrationTokenRoute = defineRoute({
   },
   handler: async (request, reply) => {
     const {workspaceId} = request.params;
-    await requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
+    requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
     const {name, ttl_seconds} = request.body;
 
     const {token, rawToken} = await createWorkspaceManualRegistrationToken({

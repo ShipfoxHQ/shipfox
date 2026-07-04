@@ -3,10 +3,10 @@ import {
   modelProviderRefSchema,
   updateCustomModelProviderBodySchema,
 } from '@shipfox/api-agent-dto';
+import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {updateCustomModelProviderConfig} from '#core/index.js';
-import {requireCustomProviderAccess} from '#presentation/auth/require-custom-provider-access.js';
 import {toCustomModelProviderConfigDto} from '#presentation/dto/index.js';
 import {translateModelProviderRouteError} from './errors.js';
 
@@ -36,7 +36,7 @@ export const updateCustomModelProviderRoute = defineRoute({
       if (!responseFinished) abortController.abort();
     });
 
-    await requireCustomProviderAccess({request, workspaceId});
+    requireWorkspaceAccess({request, workspaceId});
 
     const config = await updateCustomModelProviderConfig({
       workspaceId,

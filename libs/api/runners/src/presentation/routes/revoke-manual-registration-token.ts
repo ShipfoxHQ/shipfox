@@ -26,7 +26,7 @@ export const revokeManualRegistrationTokenRoute = defineRoute({
   },
   handler: async (request) => {
     const {workspaceId, tokenId} = request.params;
-    await requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
+    requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
 
     const revoked = await revokeWorkspaceManualRegistrationToken({tokenId, workspaceId});
 

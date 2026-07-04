@@ -1,5 +1,9 @@
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {
+  AUTH_USER,
+  buildUserContext,
+  requireWorkspaceAccess,
+  setUserContext,
+} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
@@ -12,9 +16,10 @@ import {createProvisionerTokenAuthMethod} from '#presentation/auth/index.js';
 import {provisionerTokenFactory} from '#test/index.js';
 import {provisionerRoutes} from './index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireMembership: vi.fn(),
-}));
+vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
+  return {...actual, requireWorkspaceAccess: vi.fn()};
+});
 
 const userId = crypto.randomUUID();
 
@@ -44,16 +49,8 @@ describe('provisioner token routes', () => {
   beforeEach(async () => {
     await closeApp();
     workspaceId = crypto.randomUUID();
-    vi.mocked(requireMembership).mockResolvedValue({
+    vi.mocked(requireWorkspaceAccess).mockReturnValue({
       workspaceId,
-      workspace: {
-        id: workspaceId,
-        name: 'Workspace',
-        status: 'active',
-        settings: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
       userId,
       role: 'admin',
     });
@@ -85,9 +82,9 @@ describe('provisioner token routes', () => {
     });
 
     it('returns 403 when the user is not a workspace member', async () => {
-      vi.mocked(requireMembership).mockRejectedValueOnce(
-        new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
-      );
+      vi.mocked(requireWorkspaceAccess).mockImplementationOnce(() => {
+        throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
+      });
 
       const res = await app.inject({
         method: 'GET',

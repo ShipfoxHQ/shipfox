@@ -1,5 +1,4 @@
-import {getUserContext} from '@shipfox/api-auth-context';
-import {requireMembership} from '@shipfox/api-workspaces';
+import {getUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import type {Project} from '#core/entities/index.js';
@@ -25,6 +24,6 @@ export async function requireProjectAccess(
 
   const project = await getProjectById(params.projectId);
   if (!project) throw new ClientError('Project not found', 'project-not-found', {status: 404});
-  await requireMembership({request: params.request, workspaceId: project.workspaceId});
+  requireWorkspaceAccess({request: params.request, workspaceId: project.workspaceId});
   return {project, workspaceId: project.workspaceId};
 }
