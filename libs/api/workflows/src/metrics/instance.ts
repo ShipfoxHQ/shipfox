@@ -78,6 +78,15 @@ const listenerResolvedCount = meter.createCounter<{reason: ResolutionReason}>(
   {description: 'Listener resolutions by bounded reason'},
 );
 
+const listenerEventsCoalesced = meter.createHistogram<Record<string, never>>(
+  'workflows_listener_events_coalesced',
+  {
+    description: 'Listener firing batch sizes',
+    unit: '1',
+    advice: {explicitBucketBoundaries: [1, 2, 5, 10, 25, 50, 100, 250]},
+  },
+);
+
 export function recordWorkflowRunCreated(provider: string): void {
   runCreatedCount.add(1, {provider});
 }
@@ -134,4 +143,8 @@ export function recordWorkflowListenerExecution(
 
 export function recordWorkflowListenerResolved(reason: ResolutionReason): void {
   listenerResolvedCount.add(1, {reason});
+}
+
+export function recordListenerEventsCoalesced(batchSize: number): void {
+  listenerEventsCoalesced.record(batchSize);
 }

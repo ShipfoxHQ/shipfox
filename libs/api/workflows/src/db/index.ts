@@ -12,11 +12,13 @@ export type {
   ActivateJobListenerResult,
   DrainListenerEventsParams,
   DrainListenerEventsResult,
+  ListenerBufferPeek,
 } from './job-listeners.js';
 export {
   activateJobListener,
   countActiveListeners,
   drainListenerEventsIntoExecution,
+  peekListenerBuffer,
   resolveJobListener,
   settleListenerJobExecution,
 } from './job-listeners.js';

@@ -18,6 +18,7 @@ import {jobExecutionOrchestration} from './job-execution-orchestration.js';
 const {
   activateJobListenerActivity,
   drainListenerEventsActivity,
+  peekListenerBufferActivity,
   resolveJobListenerActivity,
   settleListenerJobExecutionActivity,
   recordListenerFiringOutcomeActivity,
@@ -41,6 +42,9 @@ export interface JobListenerOrchestrationInput {
   listeningTimeoutMs?: number | null | undefined;
   maxExecutions?: number | null | undefined;
   onResolve?: 'finish' | 'cancel' | null | undefined;
+  batchDebounceMs?: number | null | undefined;
+  batchMaxSize?: number | null | undefined;
+  batchMaxWaitMs?: number | null | undefined;
 }
 
 export interface JobListenerOrchestrationResult {
@@ -49,6 +53,29 @@ export interface JobListenerOrchestrationResult {
 }
 
 type ResolutionLatch = Exclude<ResolutionReason, 'cancelled'> | undefined;
+type BatchFiringDecision = 'fire' | 'resolve' | 'deadline';
+
+interface ListenerBatchConfig {
+  debounceMs?: number | undefined;
+  maxSizeEvents?: number | undefined;
+  maxWaitMs?: number | undefined;
+}
+
+interface BatchFiringWindowParams {
+  jobId: string;
+  batchConfig: ListenerBatchConfig;
+  listenerDeadline: number | undefined;
+  hasEventsHint: () => boolean;
+  clearEventsHint: () => void;
+  hasResolutionHint: () => boolean;
+}
+
+interface ListenerBufferPeek {
+  fireCount: number;
+  resolvePending: boolean;
+  oldestAgeMs: number;
+  newestAgeMs: number;
+}
 
 export async function jobListenerOrchestration(
   input: JobListenerOrchestrationInput,
@@ -81,6 +108,7 @@ export async function jobListenerOrchestration(
 
   let nextSequence = activated.executionCount + 1;
   const maxExecutions = input.maxExecutions ?? undefined;
+  const batchConfig = listenerBatchConfig(input);
   while (true) {
     if (deadlineReached(listenerDeadline)) latchedReason ??= 'timeout';
     if (latchedReason !== undefined) break;
@@ -91,10 +119,32 @@ export async function jobListenerOrchestration(
       }
     }
 
+    if (batchConfig !== undefined) {
+      const decision = await awaitBatchFiringWindow({
+        jobId: input.jobId,
+        batchConfig,
+        listenerDeadline,
+        hasEventsHint: () => eventsAvailable,
+        clearEventsHint: () => {
+          eventsAvailable = false;
+        },
+        hasResolutionHint: () => latchedReason !== undefined,
+      });
+      if (decision === 'resolve') {
+        latchedReason ??= 'until';
+        break;
+      }
+      if (decision === 'deadline') {
+        latchedReason ??= 'timeout';
+        break;
+      }
+    }
+
     eventsAvailable = false;
     const drained = await drainListenerEventsActivity({
       jobId: input.jobId,
       expectedSequence: nextSequence,
+      ...(batchConfig?.maxSizeEvents === undefined ? {} : {maxSize: batchConfig.maxSizeEvents}),
     });
 
     if (drained.kind === 'resolve-requested') {
@@ -144,6 +194,128 @@ export async function jobListenerOrchestration(
   const reason = latchedReason ?? 'timeout';
   const resolved = await resolveJobListenerActivity({jobId: input.jobId, reason});
   return {status: resolved.status, jobVersion: resolved.jobVersion};
+}
+
+function listenerBatchConfig(
+  input: JobListenerOrchestrationInput,
+): ListenerBatchConfig | undefined {
+  const debounceMs = positiveNumber(input.batchDebounceMs);
+  const maxSizeEvents = positiveNumber(input.batchMaxSize);
+  const maxWaitMs = positiveNumber(input.batchMaxWaitMs);
+  if (debounceMs === undefined && maxSizeEvents === undefined && maxWaitMs === undefined) {
+    return undefined;
+  }
+  return {debounceMs, maxSizeEvents, maxWaitMs};
+}
+
+async function awaitBatchFiringWindow(
+  params: BatchFiringWindowParams,
+): Promise<BatchFiringDecision> {
+  while (true) {
+    const prePeekDecision = resolutionOrDeadlineDecision(params);
+    if (prePeekDecision !== undefined) return prePeekDecision;
+
+    const peek = await peekBatchBuffer(params);
+    const peekDecision = bufferedResolveOrDeadlineDecision(params, peek);
+    if (peekDecision !== undefined) return peekDecision;
+
+    if (peek.fireCount === 0) {
+      const waitDecision = await waitForAnyBatchWakeup(params);
+      if (waitDecision !== undefined) return waitDecision;
+      continue;
+    }
+
+    if (batchIsReadyToFire(params.batchConfig, peek)) return 'fire';
+
+    const sleepMs = nextBatchWindowMs(params.batchConfig, peek);
+    if (sleepMs === undefined) {
+      const waitDecision = await waitForAnyBatchWakeup(params);
+      if (waitDecision !== undefined) return waitDecision;
+      continue;
+    }
+
+    const waitDecision = await waitForBatchWindow(params, sleepMs);
+    if (waitDecision !== undefined) return waitDecision;
+  }
+}
+
+function resolutionOrDeadlineDecision(
+  params: BatchFiringWindowParams,
+): Exclude<BatchFiringDecision, 'fire'> | undefined {
+  if (params.hasResolutionHint()) return 'resolve';
+  if (deadlineReached(params.listenerDeadline)) return 'deadline';
+  return undefined;
+}
+
+async function peekBatchBuffer(params: BatchFiringWindowParams): Promise<ListenerBufferPeek> {
+  params.clearEventsHint();
+  return await peekListenerBufferActivity({jobId: params.jobId});
+}
+
+function bufferedResolveOrDeadlineDecision(
+  params: BatchFiringWindowParams,
+  peek: ListenerBufferPeek,
+): Exclude<BatchFiringDecision, 'fire'> | undefined {
+  if (peek.resolvePending || params.hasResolutionHint()) return 'resolve';
+  if (deadlineReached(params.listenerDeadline)) return 'deadline';
+  return undefined;
+}
+
+function batchIsReadyToFire(config: ListenerBatchConfig, peek: ListenerBufferPeek): boolean {
+  const sizeReached = config.maxSizeEvents !== undefined && peek.fireCount >= config.maxSizeEvents;
+  const debounceQuiet = config.debounceMs !== undefined && peek.newestAgeMs >= config.debounceMs;
+  const maxWaitReached = config.maxWaitMs !== undefined && peek.oldestAgeMs >= config.maxWaitMs;
+  return sizeReached || debounceQuiet || maxWaitReached;
+}
+
+function nextBatchWindowMs(
+  config: ListenerBatchConfig,
+  peek: ListenerBufferPeek,
+): number | undefined {
+  const timeWindows = [
+    remainingWindowMs(config.debounceMs, peek.newestAgeMs),
+    remainingWindowMs(config.maxWaitMs, peek.oldestAgeMs),
+  ].filter((value): value is number => value !== undefined);
+  return timeWindows.length === 0 ? undefined : Math.min(...timeWindows);
+}
+
+async function waitForAnyBatchWakeup(
+  params: BatchFiringWindowParams,
+): Promise<Exclude<BatchFiringDecision, 'fire'> | undefined> {
+  const woke = await waitForListenerWakeup(
+    () => params.hasEventsHint() || params.hasResolutionHint(),
+    {deadline: params.listenerDeadline},
+  );
+  if (!woke && deadlineReached(params.listenerDeadline)) return 'deadline';
+  return undefined;
+}
+
+async function waitForBatchWindow(
+  params: BatchFiringWindowParams,
+  sleepMs: number,
+): Promise<Exclude<BatchFiringDecision, 'fire'> | undefined> {
+  const deadlineRemaining = remainingMs(params.listenerDeadline);
+  const boundedSleepMs =
+    deadlineRemaining === undefined ? sleepMs : Math.min(sleepMs, deadlineRemaining);
+  const wakesOnEvents =
+    params.batchConfig.debounceMs !== undefined || params.batchConfig.maxSizeEvents !== undefined;
+  const woke = await condition(
+    () =>
+      params.hasResolutionHint() ||
+      (wakesOnEvents && params.hasEventsHint()) ||
+      deadlineReached(params.listenerDeadline),
+    boundedSleepMs,
+  );
+  if (!woke && deadlineReached(params.listenerDeadline)) return 'deadline';
+  return undefined;
+}
+
+function positiveNumber(value: number | null | undefined): number | undefined {
+  return value === undefined || value === null || value <= 0 ? undefined : value;
+}
+
+function remainingWindowMs(limitMs: number | undefined, ageMs: number): number | undefined {
+  return limitMs === undefined ? undefined : Math.max(0, limitMs - ageMs);
 }
 
 async function runListenerExecution(params: {

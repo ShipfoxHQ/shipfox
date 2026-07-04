@@ -2,7 +2,11 @@ import {resolve} from 'node:path';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
-import type {ActivateJobListenerResult, DrainListenerEventsResult} from '#db/job-listeners.js';
+import type {
+  ActivateJobListenerResult,
+  DrainListenerEventsResult,
+  ListenerBufferPeek,
+} from '#db/job-listeners.js';
 import type {RunDag} from '../activities/orchestration-activities.js';
 import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
 
@@ -46,6 +50,8 @@ export interface TestConfig {
   listenerActivated?: ActivateJobListenerResult;
   /** Scripted drain results consumed in order; once exhausted, drain returns {kind: 'empty'} */
   drainResults?: DrainListenerEventsResult[];
+  /** Scripted listener buffer peeks consumed in order; once exhausted, returns an empty buffer */
+  peekResults?: ListenerBufferPeek[];
   /** Result returned by resolveJobListenerActivity (defaults to succeeded) */
   listenerResolved?: {status: 'succeeded' | 'failed'; jobVersion: number};
 }
@@ -345,9 +351,25 @@ function createMockActivities() {
 
     // Each call consumes the next scripted drain result. An exhausted script means
     // "no events buffered", which parks the listener until a signal or its deadline.
-    drainListenerEventsActivity: (params: {jobId: string; expectedSequence: number}) => {
+    drainListenerEventsActivity: (params: {
+      jobId: string;
+      expectedSequence: number;
+      maxSize?: number;
+    }) => {
       calls.push({name: 'drainListenerEventsActivity', params});
       return cfg.drainResults?.shift() ?? {kind: 'empty'};
+    },
+
+    peekListenerBufferActivity: (params: {jobId: string}) => {
+      calls.push({name: 'peekListenerBufferActivity', params});
+      return (
+        cfg.peekResults?.shift() ?? {
+          fireCount: 0,
+          resolvePending: false,
+          oldestAgeMs: 0,
+          newestAgeMs: 0,
+        }
+      );
     },
 
     resolveJobListenerActivity: (params: {jobId: string; reason: string}) => {
