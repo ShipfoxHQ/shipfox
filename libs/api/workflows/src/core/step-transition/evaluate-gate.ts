@@ -61,7 +61,11 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
     return {kind: 'uncheckable', reason: 'step produced no exit code'};
   }
 
-  const context = assembleGateContext({status: result.status, exitCode: result.exitCode});
+  const context = assembleGateContext({
+    status: result.status,
+    exitCode: result.exitCode,
+    output: result.output,
+  });
   const outcome = evaluatePlannedPredicateAtSite({
     expression: gate.successIf,
     field: 'step.success_if',

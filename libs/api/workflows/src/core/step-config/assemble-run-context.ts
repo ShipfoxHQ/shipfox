@@ -147,6 +147,7 @@ export function assembleStepDispatchContext(params: {
 export function assembleGateContext(params: {
   readonly status: StepStatus;
   readonly exitCode: number;
+  readonly output?: Record<string, unknown> | null | undefined;
 }): WorkflowEvaluationContext {
   return {
     site: 'step-report',
@@ -154,6 +155,7 @@ export function assembleGateContext(params: {
       step: {
         exit_code: BigInt(params.exitCode),
         status: params.status,
+        outputs: params.output ?? {},
       },
     },
   };

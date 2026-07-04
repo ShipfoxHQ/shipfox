@@ -689,7 +689,7 @@ describe('normalizeWorkflowDocument', () => {
   });
 
   it('normalizes step gates with success conditions and failure actions', () => {
-    const reviewOutput = 'Agent rejected the PR $' + '{{ step.output.review }}';
+    const reviewOutput = 'Agent rejected the PR $' + '{{ step.outputs.review }}';
     const document: WorkflowDocument = {
       name: 'review loop',
       jobs: {
@@ -1151,25 +1151,23 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('reports invalid gate success_if expressions', () => {
+  it('accepts step outputs in gate success_if expressions', () => {
     const document: WorkflowDocument = {
-      name: 'invalid gate',
+      name: 'output gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'step.output.pass == true'}}],
+          steps: [{run: 'npm run build', gate: {success_if: 'step.outputs.pass == true'}}],
         },
       },
     };
 
-    const error = expectInvalid(document);
+    const model = normalizeWorkflowDocument(document);
 
-    expect(error.issues).toEqual([
-      expect.objectContaining({
-        code: 'invalid-step-gate-success-if',
-        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
-        details: expect.objectContaining({source: 'step.output.pass == true'}),
-      }),
-    ]);
+    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+      language: 'cel',
+      source: 'step.outputs.pass == true',
+      check: 'typed',
+    });
   });
 
   it('reports non-boolean gate success_if expressions', () => {

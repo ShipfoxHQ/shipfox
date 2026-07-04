@@ -115,6 +115,7 @@ describe('workflow context registry', () => {
       trustTier: 'trusted',
       shape: 'known',
       checkMode: 'typed',
+      untrustedPaths: ['outputs'],
     });
     expect(workflowContextDefinitions.steps).toMatchObject({
       availability: 'step-dispatch',
@@ -207,6 +208,7 @@ describe('workflow context registry', () => {
         fields: {
           exit_code: 'int',
           status: 'string',
+          outputs: {kind: 'map'},
         },
       },
     });

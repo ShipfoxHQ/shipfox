@@ -174,6 +174,7 @@ const stepTypeEnvironment = {
     fields: {
       exit_code: 'int',
       status: 'string',
+      outputs: {kind: 'map'},
     },
   },
 } as const satisfies ExpressionTypeEnvironment;
@@ -258,6 +259,7 @@ export const workflowContextDefinitions = {
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: stepTypeEnvironment,
+    untrustedPaths: ['outputs'],
   },
   vars: {
     availability: 'run-creation',

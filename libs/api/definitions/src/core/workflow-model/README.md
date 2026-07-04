@@ -93,9 +93,10 @@ catalog; explicit model ids are preserved because the shared seed catalog does
 not yet carry each provider's full model list.
 
 For now, run-step gates can use typed roots such as `step.exit_code`,
-`step.status`, and other server roots that are available by step reporting.
-Fields such as `step.output.pass` need a declared output schema, so they belong
-to later agent-step work.
+`step.status`, open output fields such as `step.outputs.pass`, and other server
+roots that are available by step reporting. Guard optional output keys with
+`has(step.outputs.pass)` before reading them so missing keys fail as a normal
+false predicate instead of an uncheckable evaluation error.
 
 `on_failure.restart_from` must name an earlier step in the same job. The runtime
 host does not execute restart semantics yet. This module only records the

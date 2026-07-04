@@ -270,8 +270,23 @@ describe('assembleGateContext', () => {
         step: {
           exit_code: 1n,
           status: 'failed',
+          outputs: {},
         },
       },
+    });
+  });
+
+  it('includes reported step output', () => {
+    const context = assembleGateContext({
+      status: 'succeeded',
+      exitCode: 0,
+      output: {pass: true},
+    });
+
+    expect(context.values.step).toEqual({
+      exit_code: 0n,
+      status: 'succeeded',
+      outputs: {pass: true},
     });
   });
 });

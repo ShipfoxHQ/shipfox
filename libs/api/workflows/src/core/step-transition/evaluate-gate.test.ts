@@ -80,6 +80,47 @@ describe('evaluateGate', () => {
     expect(evaluateGate(gate, {status: 'failed', exitCode: 0})).toMatchObject({kind: 'failed'});
   });
 
+  test('step.outputs gates on reported output values', () => {
+    const gate = readStepGate(gateConfig('step.outputs.pass == true'));
+
+    const passed = evaluateGate(gate, {
+      status: 'succeeded',
+      exitCode: 0,
+      output: {pass: true},
+    });
+    const failed = evaluateGate(gate, {
+      status: 'succeeded',
+      exitCode: 0,
+      output: {pass: false},
+    });
+
+    expect(passed).toEqual({
+      kind: 'passed',
+      source: 'step.outputs.pass == true',
+    });
+    expect(failed).toEqual({
+      kind: 'failed',
+      source: 'step.outputs.pass == true',
+    });
+  });
+
+  test('unguarded missing step output keys fail closed as uncheckable', () => {
+    const gate = readStepGate(gateConfig('step.outputs.pass == true'));
+
+    const result = evaluateGate(gate, {status: 'succeeded', exitCode: 0, output: {}});
+
+    expect(result).toMatchObject({kind: 'uncheckable'});
+  });
+
+  test('has-guarded missing step output keys evaluate as a checkable failure', () => {
+    const source = 'has(step.outputs.pass) && step.outputs.pass == true';
+    const gate = readStepGate(gateConfig(source));
+
+    const result = evaluateGate(gate, {status: 'succeeded', exitCode: 0, output: {}});
+
+    expect(result).toEqual({kind: 'failed', source});
+  });
+
   test('a missing exit code is uncheckable (never evaluated)', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 0'));
     expect(evaluateGate(gate, {status: 'failed', exitCode: null})).toMatchObject({
