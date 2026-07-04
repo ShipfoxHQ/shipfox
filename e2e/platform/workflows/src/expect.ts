@@ -1,8 +1,8 @@
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import type {
   JobStatusReasonDto,
-  StepErrorDto,
   StepErrorReasonDto,
+  StepGateResultDto,
   WorkflowRunDetailResponseDto,
   WorkflowRunJobDetailDto,
   WorkflowRunStepDetailDto,
@@ -87,11 +87,30 @@ const stepErrorExpectationSchema = z
   })
   .strict();
 
+const stepGateResultKindSchema = z.enum([
+  'none',
+  'not_evaluated',
+  'passed',
+  'failed',
+  'uncheckable',
+  'evaluation_error',
+  'unknown',
+]);
+
+const stepGateResultExpectationSchema = z
+  .object({
+    kind: stepGateResultKindSchema.optional(),
+    reason: z.string().optional(),
+    exit_code: z.number().int().nullable().optional(),
+  })
+  .strict();
+
 const stepExpectationSchema = z
   .object({
     status: stepStatusSchema.optional(),
     exit_code: z.number().int().optional(),
     error: stepErrorExpectationSchema.optional(),
+    gate_result: stepGateResultExpectationSchema.optional(),
     logs: logsExpectationSchema.optional(),
   })
   .strict();
@@ -177,9 +196,21 @@ function latestExitCode(step: WorkflowRunStepDetailDto): number | null {
   return attempt?.exit_code ?? null;
 }
 
-function stringField(value: NonNullable<StepErrorDto>, field: string): string | null {
+function latestGateResult(step: WorkflowRunStepDetailDto): StepGateResultDto | null {
+  const current = step.attempts.find((attempt) => attempt.attempt === step.current_attempt);
+  const attempt = current ?? step.attempts.at(-1);
+  return attempt?.gate_result ?? null;
+}
+
+function stringField(value: Record<string, unknown>, field: string): string | null {
   const fieldValue = (value as Record<string, unknown>)[field];
   return typeof fieldValue === 'string' ? fieldValue : null;
+}
+
+function intOrNullField(value: Record<string, unknown>, field: string): number | null | undefined {
+  const fieldValue = value[field];
+  if (fieldValue === null) return null;
+  return typeof fieldValue === 'number' && Number.isInteger(fieldValue) ? fieldValue : undefined;
 }
 
 /**
@@ -294,6 +325,58 @@ export function evaluateExpectations(
                 path: `${stepPath}.error.source`,
                 expected: `include ${stepExpectation.error.source}`,
                 actual: source ?? 'null',
+              });
+            }
+          }
+        }
+      }
+
+      if (stepExpectation.gate_result) {
+        const gateResult = latestGateResult(step);
+        if (gateResult === null) {
+          mismatches.push({
+            path: `${stepPath}.gate_result`,
+            expected: 'present',
+            actual: 'null',
+          });
+        } else {
+          if (
+            stepExpectation.gate_result.kind !== undefined &&
+            gateResult.kind !== stepExpectation.gate_result.kind
+          ) {
+            mismatches.push({
+              path: `${stepPath}.gate_result.kind`,
+              expected: stepExpectation.gate_result.kind,
+              actual: gateResult.kind,
+            });
+          }
+
+          if (stepExpectation.gate_result.reason !== undefined) {
+            const reason = stringField(gateResult, 'reason');
+            if (reason !== stepExpectation.gate_result.reason) {
+              mismatches.push({
+                path: `${stepPath}.gate_result.reason`,
+                expected: stepExpectation.gate_result.reason,
+                actual: reason ?? 'null',
+              });
+            }
+          }
+
+          if (stepExpectation.gate_result.exit_code !== undefined) {
+            const exitCode = intOrNullField(gateResult, 'exit_code');
+            if (exitCode !== stepExpectation.gate_result.exit_code) {
+              mismatches.push({
+                path: `${stepPath}.gate_result.exit_code`,
+                expected:
+                  stepExpectation.gate_result.exit_code === null
+                    ? 'null'
+                    : String(stepExpectation.gate_result.exit_code),
+                actual:
+                  exitCode === undefined
+                    ? 'missing'
+                    : exitCode === null
+                      ? 'null'
+                      : String(exitCode),
               });
             }
           }

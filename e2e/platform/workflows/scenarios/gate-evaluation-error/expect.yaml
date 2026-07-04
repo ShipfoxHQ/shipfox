@@ -1,0 +1,17 @@
+trigger: push
+run:
+  status: failed
+jobs:
+  build:
+    status: failed
+    status_reason: step_failed
+    steps:
+      gate-error:
+        status: failed
+        exit_code: 0
+        gate_result:
+          kind: evaluation_error
+          reason: gate expression evaluation failed
+          exit_code: 0
+        logs:
+          include: ["gate expression will fail"]

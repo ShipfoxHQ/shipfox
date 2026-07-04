@@ -1,0 +1,15 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      produce:
+        status: succeeded
+        exit_code: 0
+      echo name-fallback-ran:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["name-fallback-ran"]
