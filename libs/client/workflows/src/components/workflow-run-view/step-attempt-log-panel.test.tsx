@@ -98,13 +98,16 @@ describe('StepAttemptLogPanel', () => {
       fetchImpl,
     });
 
-    renderPanel({
+    const {queryClient} = renderPanel({
       attemptStatus: 'succeeded',
       initialErrorRetryCount: 2,
-      initialErrorRetryDelayMs: 10,
+      initialErrorRetryDelayMs: 60_000,
     });
 
     expect(await screen.findByRole('status', {name: 'Waiting for logs'})).toBeInTheDocument();
+    await act(async () => {
+      await queryClient.refetchQueries({queryKey: stepLogsQueryKeys.detail(STEP_ID, 1)});
+    });
     expect(await screen.findByText('eventual terminal logs')).toBeInTheDocument();
     expect(screen.queryByText('Could not load logs.')).not.toBeInTheDocument();
   });
@@ -115,13 +118,16 @@ describe('StepAttemptLogPanel', () => {
       fetchImpl: vi.fn(async () => jsonResponse({code: 'not-found'}, {status: 404})),
     });
 
-    renderPanel({
+    const {queryClient} = renderPanel({
       attemptStatus: 'succeeded',
       initialErrorRetryCount: 1,
-      initialErrorRetryDelayMs: 10,
+      initialErrorRetryDelayMs: 60_000,
     });
 
     expect(await screen.findByRole('status', {name: 'Waiting for logs'})).toBeInTheDocument();
+    await act(async () => {
+      await queryClient.refetchQueries({queryKey: stepLogsQueryKeys.detail(STEP_ID, 1)});
+    });
     expect(await screen.findByText('Step produced no output')).toBeInTheDocument();
     expect(screen.queryByText('Could not load logs.')).not.toBeInTheDocument();
   });
