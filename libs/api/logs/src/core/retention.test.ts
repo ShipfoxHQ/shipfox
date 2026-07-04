@@ -1,6 +1,7 @@
 import {Buffer} from 'node:buffer';
 import {HeadObjectCommand, PutObjectCommand} from '@aws-sdk/client-s3';
 import {eq, sql} from 'drizzle-orm';
+import * as objectStorage from '#api/object-storage.js';
 import {s3Client} from '#api/object-storage.js';
 import {config} from '#config.js';
 import {logObjectKey} from '#core/entities/log-object.js';
@@ -153,7 +154,7 @@ describe('runRetentionSweep', () => {
     expect(await findAccounting(shared.jobId)).toBeNull();
   });
 
-  it('deletes a closed-but-never-compacted stream (object_key null), doing no object work', async () => {
+  it('deletes a closed-but-never-compacted stream (object_key null)', async () => {
     const id = newIdentity();
     const stream = await arrangeClosedStream(id, {chunks: [ndjsonBody(outputLine('x'))]});
     await backdateClosedAt(stream.id, '100 days');
@@ -163,6 +164,32 @@ describe('runRetentionSweep', () => {
     expect(await findStream(id)).toBeNull();
     expect(await listChunks(stream.id)).toHaveLength(0);
     expect(result.failed).toBe(0);
+  });
+
+  it('keeps the row when prefix deletion fails, so a later sweep can rediscover the object', async () => {
+    const poison = newIdentity();
+    const healthy = newIdentity();
+    const poisonStream = await arrangeClosedStream(poison);
+    const healthyStream = await arrangeClosedStream(healthy);
+    const poisonKey = `${attemptPrefix(poison)}/${crypto.randomUUID()}`;
+    await putObject(poisonKey, Buffer.from('poison'));
+    await setObjectKey(poisonStream.id, poisonKey);
+    await backdateClosedAt(poisonStream.id, '200 days');
+    await backdateClosedAt(healthyStream.id, '100 days');
+    const poisonPrefix = `${attemptPrefix(poison)}/`;
+    const realDeleteObjectsByPrefix = objectStorage.deleteObjectsByPrefix;
+    vi.spyOn(objectStorage, 'deleteObjectsByPrefix').mockImplementation((prefix) =>
+      prefix === poisonPrefix
+        ? Promise.reject(new Error('object delete failed'))
+        : realDeleteObjectsByPrefix(prefix),
+    );
+
+    const result = await sweep({batchLimit: 1});
+
+    expect(await findStream(poison)).not.toBeNull();
+    expect(await objectExists(poisonKey)).toBe(true);
+    expect(await findStream(healthy)).toBeNull();
+    expect(result.failed).toBeGreaterThanOrEqual(1);
   });
 
   it('deletes the whole attempt prefix, reclaiming a lost compaction attempt orphan leaf', async () => {
@@ -187,6 +214,9 @@ describe('runRetentionSweep', () => {
     const healthy = newIdentity();
     const poisonStream = await arrangeClosedStream(poison);
     const healthyStream = await arrangeClosedStream(healthy);
+    const poisonKey = `${attemptPrefix(poison)}/${crypto.randomUUID()}`;
+    await putObject(poisonKey, Buffer.from('poison'));
+    await setObjectKey(poisonStream.id, poisonKey);
     await backdateClosedAt(poisonStream.id, '200 days');
     await backdateClosedAt(healthyStream.id, '100 days');
     const realDeleteExpiredStream = streams.deleteExpiredStream;
@@ -200,7 +230,31 @@ describe('runRetentionSweep', () => {
 
     expect(await findStream(healthy)).toBeNull();
     expect(await findStream(poison)).not.toBeNull();
+    expect(await objectExists(poisonKey)).toBe(false);
     expect(result.failed).toBeGreaterThanOrEqual(1);
+  });
+
+  it('self-heals a row delete failure after the object prefix was already deleted', async () => {
+    const id = newIdentity();
+    const stream = await arrangeClosedStream(id);
+    const key = `${attemptPrefix(id)}/${crypto.randomUUID()}`;
+    await putObject(key, Buffer.from('compacted'));
+    await setObjectKey(stream.id, key);
+    await backdateClosedAt(stream.id, '300 days');
+    vi.spyOn(streams, 'deleteExpiredStream').mockImplementationOnce(() =>
+      Promise.reject(new Error('row delete failed')),
+    );
+
+    const failed = await sweep({batchLimit: 1});
+
+    expect(await objectExists(key)).toBe(false);
+    expect(await findStream(id)).not.toBeNull();
+    expect(failed.failed).toBe(1);
+
+    const recovered = await sweep({batchLimit: 1});
+
+    expect(await findStream(id)).toBeNull();
+    expect(recovered.failed).toBe(0);
   });
 
   it('does not reset a live job budget: deletes its expired streams but keeps fresh accounting', async () => {

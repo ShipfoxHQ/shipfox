@@ -11,11 +11,11 @@ import {
 } from '#db/streams.js';
 
 export interface RetentionSweepResult {
-  /** Streams whose row was deleted; their objects are reclaimed after (a rare object-cleanup failure is logged). */
+  /** Streams whose objects and row were deleted. */
   deleted: number;
   /** Streams skipped because compaction changed `object_key` after we read it (retried next run). */
   raced: number;
-  /** Streams whose guarded row delete threw; logged, skipped, and retried next run. */
+  /** Streams whose object cleanup or guarded row delete threw; logged, skipped, and retried next run. */
   failed: number;
   accountingPruned: number;
   iterations: number;
@@ -38,9 +38,9 @@ export interface RunRetentionSweepParams {
  * Deletes expired closed streams and prunes accounting for emptied jobs.
  *
  * The loop self-bounds because a Temporal `startToCloseTimeout` marks the activity failed but
- * does not stop already-running JS. Rows are deleted before objects, guarded on the observed
- * `object_key`, so a racing compaction publish leaves the stream for the next sweep instead of
- * deleting its fresh object.
+ * does not stop already-running JS. Objects are deleted before rows so a cleanup failure leaves
+ * the row discoverable for the next sweep; the row delete stays guarded on the observed
+ * `object_key`, so a racing compaction publish leaves the stream for the next sweep.
  */
 export async function runRetentionSweep(
   params: RunRetentionSweepParams,
@@ -81,6 +81,18 @@ export async function runRetentionSweep(
         break;
       }
 
+      try {
+        await deleteObjectsByPrefix(`${logObjectKey(config.LOG_STORAGE_S3_PREFIX, stream)}/`);
+      } catch (error) {
+        result.failed += 1;
+        skip.add(stream.id);
+        logger().error(
+          {err: error, streamId: stream.id},
+          'Failed to delete expired log stream objects',
+        );
+        continue;
+      }
+
       let outcome: {deleted: boolean; prunedAccounting: boolean};
       try {
         outcome = await db().transaction(async (tx) => {
@@ -116,16 +128,6 @@ export async function runRetentionSweep(
 
       result.deleted += 1;
       if (outcome.prunedAccounting) result.accountingPruned += 1;
-
-      // The guarded row delete won, so reclaim the recorded object plus orphan leaves.
-      try {
-        await deleteObjectsByPrefix(`${logObjectKey(config.LOG_STORAGE_S3_PREFIX, stream)}/`);
-      } catch (error) {
-        logger().error(
-          {err: error, streamId: stream.id},
-          'Deleted expired stream row but failed to delete its objects',
-        );
-      }
     }
 
     if (timedOutMidBatch) break;
