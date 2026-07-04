@@ -1,5 +1,10 @@
-import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
+import {
+  withJitter as applyJitter,
+  nextBackoffInterval as calculateNextBackoffInterval,
+  createGracefulShutdownController,
+  interruptibleSleep,
+} from '@shipfox/node-resilient-loop';
 import {
   createLeaseClient,
   HTTPError,
@@ -21,17 +26,26 @@ import {startHeartbeatLoop} from '#core/heartbeat-loop.js';
 import {runJobSteps} from '#core/step-loop.js';
 
 let running = true;
-let shuttingDown = false;
-let signalHandlersRegistered = false;
 // Module-level so the long-lived SIGINT handler can reach the in-flight job's
 // controller; locally-scoped capture isn't possible from a process-global handler.
 let currentJobAbortController: AbortController | undefined;
 type RunnerSession = Awaited<ReturnType<typeof registerRunnerSession>>;
+const shutdownController = createGracefulShutdownController({
+  onFirstSignal: (signal) => {
+    running = false;
+    logger().info({signal}, 'Shutting down gracefully, waiting for current job to finish...');
+  },
+  onSecondSignal: (signal) => {
+    logger().info({signal}, 'Second signal received, aborting current job');
+    currentJobAbortController?.abort('shutdown');
+    process.exit(1);
+  },
+});
 
 export async function startRunner(): Promise<void> {
   running = true;
-  shuttingDown = false;
-  setupSignalHandlers();
+  shutdownController.reset();
+  shutdownController.start();
 
   // Fail fast at startup: a dangerous root should crash the process at deploy,
   // not silently fail every job.
@@ -116,11 +130,11 @@ export async function startRunner(): Promise<void> {
 }
 
 export function nextBackoffInterval(ms: number): number {
-  return Math.min(ms * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);
+  return calculateNextBackoffInterval(ms, {maxMs: config.SHIPFOX_POLL_MAX_INTERVAL_MS});
 }
 
 export function withJitter(ms: number): number {
-  return Math.random() * ms;
+  return applyJitter(ms);
 }
 
 export function nextPollDeadline(): number | undefined {
@@ -217,50 +231,7 @@ function hasPollDeadlinePassed(deadline: number | undefined): boolean {
   return deadline !== undefined && Date.now() >= deadline;
 }
 
-function setupSignalHandlers(): void {
-  if (signalHandlersRegistered) return;
-
-  process.on('SIGINT', handleSigint);
-  process.on('SIGTERM', handleSigterm);
-  signalHandlersRegistered = true;
-}
-
-function handleSigint(): void {
-  handleSignal('SIGINT');
-}
-
-function handleSigterm(): void {
-  handleSignal('SIGTERM');
-}
-
-function handleSignal(signal: string): void {
-  if (shuttingDown) {
-    logger().info({signal}, 'Second signal received, aborting current job');
-    currentJobAbortController?.abort('shutdown');
-    // Also exit promptly — the runner loop's interruptableSleep wakes on signals.
-    process.exit(1);
-  }
-
-  shuttingDown = true;
-  running = false;
-  logger().info({signal}, 'Shutting down gracefully, waiting for current job to finish...');
-}
-
 async function interruptableSleep(ms: number): Promise<void> {
-  const ac = new AbortController();
-  const onStop = () => ac.abort();
-
   if (!running) return;
-
-  process.once('SIGINT', onStop);
-  process.once('SIGTERM', onStop);
-
-  try {
-    await setTimeoutPromise(ms, undefined, {signal: ac.signal});
-  } catch {
-    // AbortError from signal interruption — expected
-  } finally {
-    process.removeListener('SIGINT', onStop);
-    process.removeListener('SIGTERM', onStop);
-  }
+  await interruptibleSleep(ms, shutdownController.signal);
 }

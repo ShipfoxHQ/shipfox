@@ -40,6 +40,7 @@
     "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/node-resilient-loop": "workspace:*",
     "ky": "^2.0.0"
   },
   "devDependencies": {
