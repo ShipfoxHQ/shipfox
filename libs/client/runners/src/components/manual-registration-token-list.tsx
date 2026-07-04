@@ -180,7 +180,7 @@ function RevokeManualRegistrationTokenButton({
             size="sm"
             variant="transparent"
             icon="more2Line"
-            aria-label={`Open ${tokenName} token actions`}
+            aria-label={`Open ${tokenName} registration token actions`}
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" size="sm">

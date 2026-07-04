@@ -2,10 +2,10 @@ import {argosScreenshot} from '@shipfox/playwright';
 import {createShipfoxTokenPrefixRegexes} from '@shipfox/regex';
 import {expect, test} from './test.js';
 
-const RUNNER_TOKEN_PREFIX_RE = createShipfoxTokenPrefixRegexes(['mrt']).unqualified;
+const REGISTRATION_TOKEN_PREFIX_RE = createShipfoxTokenPrefixRegexes(['mrt']).unqualified;
 const VISUAL_TEST_NOW = new Date('2026-01-15T12:00:00Z');
-const VISUAL_TEST_RUNNER_TOKEN_PREFIX = 'sf_mrt_visual';
-const VISUAL_TEST_RUNNER_TOKEN = 'sf_mrt_visual_regression_token';
+const VISUAL_TEST_REGISTRATION_TOKEN_PREFIX = 'sf_mrt_visual';
+const VISUAL_TEST_REGISTRATION_TOKEN = 'sf_mrt_visual_regression_token';
 const VISUAL_TEST_CREATED_AT = 'Jan 15, 2026, 12:00 PM';
 const VISUAL_TEST_EXPIRES_AT = 'Jan 16, 2026, 12:00 PM';
 
@@ -46,19 +46,19 @@ test('manages workspace manual registration tokens from settings', async ({
   await expect(page.getByText('Token created')).toBeVisible();
   const rawToken = createTokenDialog
     .locator('p.font-code')
-    .filter({hasText: RUNNER_TOKEN_PREFIX_RE});
+    .filter({hasText: REGISTRATION_TOKEN_PREFIX_RE});
   await expect(rawToken).toBeVisible();
   await rawToken.evaluate((element: Element, token) => {
     element.textContent = token;
-  }, VISUAL_TEST_RUNNER_TOKEN);
-  await expect(createTokenDialog.getByText(VISUAL_TEST_RUNNER_TOKEN)).toBeVisible();
+  }, VISUAL_TEST_REGISTRATION_TOKEN);
+  await expect(createTokenDialog.getByText(VISUAL_TEST_REGISTRATION_TOKEN)).toBeVisible();
 
   const manualRegistrationTokenRow = page.locator('tr', {hasText: 'E2E runner'});
   await expect(manualRegistrationTokenRow).toBeVisible();
   const manualRegistrationTokenCells = manualRegistrationTokenRow.locator('td');
   await manualRegistrationTokenCells.nth(1).evaluate((element: Element, prefix) => {
     element.textContent = prefix;
-  }, VISUAL_TEST_RUNNER_TOKEN_PREFIX);
+  }, VISUAL_TEST_REGISTRATION_TOKEN_PREFIX);
   await manualRegistrationTokenCells.nth(2).evaluate((element: Element, expiresAt) => {
     element.textContent = expiresAt;
   }, VISUAL_TEST_EXPIRES_AT);
@@ -71,7 +71,7 @@ test('manages workspace manual registration tokens from settings', async ({
   await expect(manualRegistrationTokenRow).toBeVisible();
 
   await manualRegistrationTokenRow
-    .getByRole('button', {name: 'Open E2E runner token actions'})
+    .getByRole('button', {name: 'Open E2E runner registration token actions'})
     .click();
   await page.getByRole('menuitem', {name: 'Revoke token'}).click();
   const revokeDialog = page.getByRole('dialog', {name: 'Revoke token'});
