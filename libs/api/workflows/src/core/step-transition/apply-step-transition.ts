@@ -2,10 +2,10 @@ import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import type {Tx} from '#db/db.js';
 import {
   applyStepResult,
-  cancelRemainingSteps,
   finishStepAttempt,
   getStepsByJobExecutionIdForUpdate,
   rewindStepsToPending,
+  settleJobFailed,
   writeJobStepsSettledOutbox,
   writeStepRestartEnqueuedOutbox,
 } from '#db/workflow-runs.js';
@@ -92,18 +92,19 @@ export async function applyStepTransition(
         },
         tx,
       );
-      await applyStepResult(
-        {
-          jobExecutionId: ctx.jobExecutionId,
-          stepId: decision.failedStepId,
-          status: 'failed',
-          error: decision.failureError,
-        },
-        tx,
-      );
-      // The just-failed step is terminal, so this cancels only the steps after it.
-      await cancelRemainingSteps({jobExecutionId: ctx.jobExecutionId}, tx);
-      break;
+      const status = await settleJobFailed(tx, {
+        jobId: ctx.jobId,
+        jobExecutionId: ctx.jobExecutionId,
+        failedStepId: decision.failedStepId,
+        error: decision.failureError ?? {message: 'Step failed'},
+      });
+      if (status !== null) {
+        return {
+          outcome: {jobFinished: true, status},
+          metrics: {jobStepsSettledStatus: status},
+        };
+      }
+      return {outcome: {jobFinished: false}, metrics: {}};
     }
     case 'restart-job-from-step': {
       // Record the failed attempt FIRST (audit, with the restart reason), then

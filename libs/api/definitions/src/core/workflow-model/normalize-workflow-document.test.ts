@@ -1717,16 +1717,15 @@ describe('normalizeWorkflowDocument', () => {
     });
 
     it.each([
-      ['run', {run: `echo ${interpolation('execution.index')}`}, ['run']],
+      ['run', {run: `echo ${interpolation('execution.index')}`}],
       [
         'step-level env',
         {run: 'echo ok', env: {EXECUTION_INDEX: interpolation('execution.index')}},
-        ['env', 'EXECUTION_INDEX'],
       ],
-      ['step name', {name: interpolation('execution.index'), run: 'echo ok'}, ['name']],
-    ] as const)('rejects one-shot %s interpolation before its context is available', (_field, step, path) => {
+      ['step name', {name: interpolation('execution.index'), run: 'echo ok'}],
+    ] as const)('allows one-shot %s interpolation when execution context is available by dispatch', (_field, step) => {
       const document: WorkflowDocument = {
-        name: 'early execution context',
+        name: 'dispatch execution context',
         jobs: {
           build: {
             steps: [step],
@@ -1734,22 +1733,9 @@ describe('normalizeWorkflowDocument', () => {
         },
       };
 
-      const error = expectInvalid(document);
+      const model = normalizeWorkflowDocument(document);
 
-      expect(error.issues).toEqual([
-        expect.objectContaining({
-          code: 'context-unavailable-at-fill-site',
-          path: ['jobs', 'build', 'steps', 0, ...path],
-          message: expect.stringContaining(
-            'context "execution" that is not available at run creation. "execution" becomes available at execution creation.',
-          ),
-          details: expect.objectContaining({
-            contextRoots: ['execution'],
-            unavailableRoots: ['execution'],
-            fillSite: 'run-creation',
-          }),
-        }),
-      ]);
+      expect(model.jobs[0]?.steps).toHaveLength(1);
     });
 
     it.each([
@@ -1776,12 +1762,12 @@ describe('normalizeWorkflowDocument', () => {
     });
 
     it.each([
-      ['prompt', {prompt: interpolation('execution.index')}, ['prompt']],
-      ['model', {model: interpolation('execution.name'), prompt: 'Fix it.'}, ['model']],
-      ['provider', {provider: interpolation('execution.name'), prompt: 'Fix it.'}, ['provider']],
-    ] as const)('rejects one-shot agent %s interpolation before its context is available', (_field, step, path) => {
+      ['prompt', {prompt: interpolation('execution.index')}],
+      ['model', {model: interpolation('execution.name'), prompt: 'Fix it.'}],
+      ['provider', {provider: interpolation('execution.name'), prompt: 'Fix it.'}],
+    ] as const)('allows one-shot agent %s interpolation when execution context is available by dispatch', (_field, step) => {
       const document: WorkflowDocument = {
-        name: 'early agent context',
+        name: 'dispatch agent context',
         jobs: {
           fix: {
             steps: [step],
@@ -1789,19 +1775,9 @@ describe('normalizeWorkflowDocument', () => {
         },
       };
 
-      const error = expectInvalid(document);
+      const model = normalizeWorkflowDocument(document);
 
-      expect(error.issues).toEqual([
-        expect.objectContaining({
-          code: 'context-unavailable-at-fill-site',
-          path: ['jobs', 'fix', 'steps', 0, ...path],
-          details: expect.objectContaining({
-            contextRoots: ['execution'],
-            unavailableRoots: ['execution'],
-            fillSite: 'run-creation',
-          }),
-        }),
-      ]);
+      expect(model.jobs[0]?.steps).toHaveLength(1);
     });
 
     it.each([
@@ -1842,12 +1818,12 @@ describe('normalizeWorkflowDocument', () => {
           code: 'context-unavailable-at-fill-site',
           path: ['jobs', 'build', 'steps', 0, 'run'],
           message: expect.stringContaining(
-            'context "step" that is not available at execution creation. "step" becomes available at step reporting.',
+            'context "step" that is not available at step dispatch. "step" becomes available at step reporting.',
           ),
           details: expect.objectContaining({
             contextRoots: ['step'],
             unavailableRoots: ['step'],
-            fillSite: 'execution-creation',
+            fillSite: 'step-dispatch',
           }),
         }),
       ]);
@@ -1905,27 +1881,24 @@ describe('normalizeWorkflowDocument', () => {
       });
     });
 
-    it('reports only unavailable roots from a multi-root segment', () => {
+    it('allows multi-root step fields when all roots are available by dispatch', () => {
       const document: WorkflowDocument = {
         name: 'mixed availability',
         jobs: {
           build: {
-            steps: [{run: `echo ${interpolation('run.id + execution.index')}`}],
+            steps: [
+              {
+                run: 'echo ok',
+                env: {MIXED: interpolation('run.id + execution.name')},
+              },
+            ],
           },
         },
       };
 
-      const error = expectInvalid(document);
+      const model = normalizeWorkflowDocument(document);
 
-      expect(error.issues).toEqual([
-        expect.objectContaining({
-          code: 'context-unavailable-at-fill-site',
-          details: expect.objectContaining({
-            contextRoots: expect.arrayContaining(['run', 'execution']),
-            unavailableRoots: ['execution'],
-          }),
-        }),
-      ]);
+      expect(model.jobs[0]?.steps).toHaveLength(1);
     });
 
     it('reports multiple unavailable roots in one message', () => {
@@ -1945,12 +1918,12 @@ describe('normalizeWorkflowDocument', () => {
           code: 'context-unavailable-at-fill-site',
           path: ['jobs', 'build', 'steps', 0, 'run'],
           message: expect.stringContaining(
-            'contexts "execution", "step" that are not available at run creation.',
+            'context "step" that is not available at step dispatch.',
           ),
           details: expect.objectContaining({
             contextRoots: expect.arrayContaining(['execution', 'step']),
-            unavailableRoots: ['execution', 'step'],
-            fillSite: 'run-creation',
+            unavailableRoots: ['step'],
+            fillSite: 'step-dispatch',
           }),
         }),
       ]);

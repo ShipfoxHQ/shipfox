@@ -835,6 +835,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "config_plan": {
+          "name": "config_plan",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "authored_config": {
           "name": "authored_config",
           "type": "jsonb",

@@ -10,6 +10,7 @@ function step(overrides: Partial<Step> & {id: string; position: number}): Step {
     status: 'pending',
     type: 'run',
     config: {},
+    configPlan: null,
     authoredConfig: null,
     output: null,
     error: null,

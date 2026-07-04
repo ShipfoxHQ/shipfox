@@ -71,10 +71,8 @@ function normalizeJob(params: {
     job: params.job,
     jobIdBySourceName: params.jobIdBySourceName,
   });
-  // Keep this aligned with materialize-workflow-model.ts and ENG-673's listener loop:
-  // one-shot steps are filled at run creation; listening steps are filled per execution.
-  const stepFillSite: AvailabilitySite =
-    params.job.listening === undefined ? 'run-creation' : 'execution-creation';
+  // Step config can reference peer step outputs, which are completed at dispatch.
+  const stepFillSite: AvailabilitySite = 'step-dispatch';
   const steps = normalizeJobSteps({
     sourceName: params.sourceName,
     jobId: id,

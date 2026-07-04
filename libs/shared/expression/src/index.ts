@@ -36,6 +36,8 @@ export {fillResolvedFieldAtSite} from './plan/fill.js';
 export {
   type FrozenResolvedField,
   freezeResolvedFieldAtSite,
+  resolveFieldAtSite,
+  type SiteResolvedField,
   type WorkflowTemplateDiagnostic,
   type WorkflowTemplateFailurePolicy,
 } from './plan/freeze.js';

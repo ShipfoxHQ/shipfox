@@ -11,7 +11,11 @@ import {
   type WorkflowInterpolationFailurePolicy,
 } from '../workflow-context/workflow-context.js';
 import {shouldFillAtSite} from './fill.js';
-import type {ResolvedField, ResolvedFieldDeferredSegment} from './resolved-field.js';
+import type {
+  ResolvedField,
+  ResolvedFieldDeferredSegment,
+  ResolvedFieldSegment,
+} from './resolved-field.js';
 
 export type WorkflowTemplateFailurePolicy = WorkflowInterpolationFailurePolicy;
 
@@ -25,6 +29,18 @@ export interface FrozenResolvedField {
   readonly value: string;
   readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
 }
+
+export type SiteResolvedField =
+  | {
+      readonly kind: 'frozen';
+      readonly value: string;
+      readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
+    }
+  | {
+      readonly kind: 'residual';
+      readonly field: ResolvedField;
+      readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
+    };
 
 /**
  * Segment lifecycle:
@@ -80,6 +96,61 @@ export function freezeResolvedFieldAtSite(params: {
   }
 
   return {value, diagnostics};
+}
+
+export function resolveFieldAtSite(params: {
+  readonly field: ResolvedField;
+  readonly failurePolicy: WorkflowInterpolationFailurePolicy;
+  readonly site: AvailabilitySite;
+  readonly context: WorkflowExpressionEvaluationContext;
+}): SiteResolvedField {
+  let value = '';
+  const diagnostics: WorkflowTemplateDiagnostic[] = [];
+  const segments: ResolvedFieldSegment[] = [];
+  let hasResidual = false;
+
+  for (const segment of params.field.segments) {
+    if (segment.kind === 'literal') {
+      value += segment.value;
+      segments.push(segment);
+      continue;
+    }
+
+    if (!shouldFillAtSite(segment.fillTarget, params.site)) {
+      hasResidual = true;
+      segments.push(segment);
+      continue;
+    }
+
+    try {
+      const literal = coerceWorkflowValueToString(
+        evaluateWorkflowExpression(segment.expression, params.context),
+      );
+      value += literal;
+      segments.push({kind: 'literal', value: literal});
+    } catch (error) {
+      if (error instanceof WorkflowExpressionEvaluationError && error.reason === 'missing-path') {
+        if (missingPathRequiresFailure(segment, params.failurePolicy, params.site)) {
+          throw new WorkflowTemplateResolutionError({
+            source: segment.expression.source,
+            cause: error,
+          });
+        }
+
+        diagnostics.push(missingPathDiagnostic(segment));
+        segments.push({kind: 'literal', value: ''});
+        continue;
+      }
+
+      throw new WorkflowTemplateResolutionError({
+        source: segment.expression.source,
+        cause: error,
+      });
+    }
+  }
+
+  if (hasResidual) return {kind: 'residual', field: {segments}, diagnostics};
+  return {kind: 'frozen', value, diagnostics};
 }
 
 function missingPathDiagnostic(segment: ResolvedFieldDeferredSegment): WorkflowTemplateDiagnostic {

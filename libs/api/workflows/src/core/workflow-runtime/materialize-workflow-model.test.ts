@@ -515,7 +515,7 @@ describe('materializeWorkflowModel', () => {
     expect((error as Error).message).toContain("Use has(x) ? x : ''");
   });
 
-  it('records unavailable execution paths in non-step-name fields as diagnostics at creation', () => {
+  it('preserves dispatch-time execution paths in the config plan at creation', () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -532,17 +532,15 @@ describe('materializeWorkflowModel', () => {
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: 'echo ok',
-      env: {BODY: ''},
     });
-    expect(rows[0]?.steps[1]?.diagnostics).toEqual([
-      {
-        reason: 'missing-path',
-        expression: 'execution.events[0].data.body',
-        contextRoots: ['execution'],
-        field: 'env',
-        envKey: 'BODY',
-      },
+    expect(rows[0]?.steps[1]?.configPlan?.env?.BODY?.segments).toEqual([
+      expect.objectContaining({
+        kind: 'deferred',
+        roots: ['execution'],
+        fillTarget: 'execution-creation',
+      }),
     ]);
+    expect(rows[0]?.steps[1]?.diagnostics).toBeUndefined();
   });
 
   it('reserves user env names when generating run interpolation env vars', () => {

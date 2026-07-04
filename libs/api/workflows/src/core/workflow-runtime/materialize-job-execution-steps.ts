@@ -3,6 +3,7 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -19,6 +20,7 @@ export interface MaterializedWorkflowStep {
   readonly status: 'pending';
   readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
+  readonly configPlan?: StepConfigDispatchPlan;
   readonly authoredConfig: Readonly<Record<string, unknown>> | null;
   readonly diagnostics?: readonly WorkflowStepTemplateDiagnostic[];
   readonly position: number;
@@ -82,6 +84,7 @@ export function materializeJobExecutionSteps(
         type: step.kind,
         config: resolved.config,
         authoredConfig: resolved.authoredConfig,
+        ...(resolved.configPlan === null ? {} : {configPlan: resolved.configPlan}),
         ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
         position: stepPosition + 1,
       };

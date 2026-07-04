@@ -1,3 +1,6 @@
+import type {AgentThinking} from '@shipfox/api-agent-dto';
+import type {ResolvedField} from '@shipfox/expression';
+
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type StepAttemptLogOutcome = 'drained' | 'abandoned';
 
@@ -10,6 +13,17 @@ export interface StepSourceLocation {
   endLine: number;
 }
 
+export interface StepConfigDispatchPlan {
+  run?: ResolvedField;
+  env?: Readonly<Record<string, ResolvedField>>;
+  agent?: {
+    prompt?: ResolvedField;
+    model?: ResolvedField;
+    provider?: ResolvedField;
+    thinking?: AgentThinking;
+  };
+}
+
 export interface Step {
   id: string;
   jobExecutionId: string;
@@ -19,6 +33,7 @@ export interface Step {
   status: StepStatus;
   type: string;
   config: Record<string, unknown>;
+  configPlan: StepConfigDispatchPlan | null;
   authoredConfig: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;

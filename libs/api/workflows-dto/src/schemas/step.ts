@@ -15,6 +15,7 @@ export const stepErrorReasonSchema = z.enum([
   'git_unavailable',
   'workspace_prep_failed',
   'setup_aborted',
+  'config_unresolvable',
   'agent_config_invalid',
   'agent_invocation_failed',
 ]);

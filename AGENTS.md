@@ -283,12 +283,32 @@ of sync. Only when the *why* genuinely can't live in the code does it become a
 comment, and if that why needs a paragraph, the awkwardness is usually the code;
 refactor first.
 
+### Keep control flow readable
+
+When a conditional expression is doing real work, name the decision before the
+branch. Prefer a small, intention-revealing variable such as `hasPendingStep`,
+`usesAuthoredMode`, or `shouldRetry` over repeating a compound expression inside
+`if`, ternary, or object-spread conditionals. Inline checks are fine for obvious
+single comparisons, but once a condition combines multiple concepts, give it a
+name so the branch reads like a sentence.
+
+Split long functions into focused units when they mix distinct responsibilities,
+such as loading state, validating preconditions, building a payload, handling an
+error branch, and applying the state change. Keep the top-level function as the
+orchestration path and move self-contained branches into helpers with names that
+describe the decision or action. Do not extract tiny helpers for their own sake;
+extract when it removes nesting, clarifies a branch, or gives a meaningful name
+to a reusable piece of logic.
+
 ### Use JSDoc for documentation, not narration
 
 Reserve `/** ... */` for the public API of shared packages (exported functions,
 types, and config that other packages consume), where editor hover-docs add real
-value. Document parameters and behaviour that the signature can't convey; do not
-restate the type or the name:
+value. JSDoc is also appropriate for usage documentation when a function is
+intended to be called outside its immediate module or local context and the
+caller needs to know constraints, ordering, side effects, or examples that are
+not obvious from the signature. Document parameters and behaviour that the
+signature can't convey; do not restate the type or the name:
 
 ```ts
 /**
