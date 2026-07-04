@@ -22,7 +22,7 @@ describe('agent e2e helper', () => {
 
     expect(config).toEqual({
       baseUrl: 'http://127.0.0.1:11434',
-      model: 'qwen3.5:0.8b',
+      model: 'smollm2:135m-instruct-q2_K',
       openAiBaseUrl: 'http://127.0.0.1:11434/v1',
     });
   });
@@ -45,7 +45,7 @@ describe('agent e2e helper', () => {
 
   it('passes when Ollama exposes the configured model', async () => {
     const fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({models: [{name: 'qwen3.5:0.8b'}]}), {
+      new Response(JSON.stringify({models: [{name: 'smollm2:135m-instruct-q2_K'}]}), {
         status: 200,
         headers: {'content-type': 'application/json'},
       }),
@@ -55,7 +55,7 @@ describe('agent e2e helper', () => {
     const result = await requireOllamaModel({fetch});
 
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/tags');
-    expect(result.model).toBe('qwen3.5:0.8b');
+    expect(result.model).toBe('smollm2:135m-instruct-q2_K');
   });
 
   it('fails clearly when Ollama is unavailable', async () => {
@@ -76,7 +76,7 @@ describe('agent e2e helper', () => {
     );
     const {requireOllamaModel} = await import('./index.js');
 
-    await expect(requireOllamaModel({fetch, model: 'qwen3.5:0.8b'})).rejects.toThrow(
+    await expect(requireOllamaModel({fetch, model: 'smollm2:135m-instruct-q2_K'})).rejects.toThrow(
       'Available models: llama3.2:1b.',
     );
   });
@@ -86,7 +86,7 @@ describe('agent e2e helper', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({models: [{name: 'qwen3.5:0.8b'}]}), {
+        new Response(JSON.stringify({models: [{name: 'smollm2:135m-instruct-q2_K'}]}), {
           status: 200,
           headers: {'content-type': 'application/json'},
         }),
@@ -111,8 +111,8 @@ describe('agent e2e helper', () => {
           display_name: 'Local Ollama E2E',
           api: 'openai-completions',
           base_url: 'http://127.0.0.1:11434/v1',
-          models: [{id: 'qwen3.5:0.8b', label: 'qwen3.5:0.8b'}],
-          default_model: 'qwen3.5:0.8b',
+          models: [{id: 'smollm2:135m-instruct-q2_K', label: 'smollm2:135m-instruct-q2_K'}],
+          default_model: 'smollm2:135m-instruct-q2_K',
         },
       },
     );
