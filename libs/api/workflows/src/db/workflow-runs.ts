@@ -67,7 +67,7 @@ import {
 } from '#core/errors.js';
 import {
   assembleCreationContext,
-  assembleExecutionsContext,
+  assembleJobResolutionContext,
 } from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
 import {materializeWorkflowModel} from '#core/step-config/materialize-workflow-model.js';
@@ -1744,12 +1744,12 @@ export async function resolveJobStatusFromJobExecutions(params: {
       source: jobRow.success ?? DEFAULT_JOB_SUCCESS,
       check: {mode: 'syntax'},
     });
-    const context = assembleExecutionsContext(jobExecutionRows.map(toJobExecution));
+    const context = assembleJobResolutionContext(jobExecutionRows.map(toJobExecution));
     const predicateOutcome = evaluatePlannedPredicateAtSite({
       expression,
       field: 'job.success',
-      site: 'job-resolution',
-      context,
+      site: context.site,
+      context: context.values,
     });
     const status: RuntimeCompletionStatus = predicateOutcome.value ? 'succeeded' : 'failed';
     // A thrown predicate is a job-level failure, not evidence that any execution failed.

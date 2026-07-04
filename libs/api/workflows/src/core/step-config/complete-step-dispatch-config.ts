@@ -8,58 +8,20 @@ import {
   freezePlannedRunCommandAtSite,
   getWorkflowInterpolationFieldFailurePolicy,
   resolveFieldAtSite,
-  type WorkflowExpressionEvaluationContext,
   type WorkflowInterpolationField,
   WorkflowTemplateResolutionError,
 } from '@shipfox/expression';
-import type {JobExecution} from '#core/entities/job-execution.js';
-import type {Step, StepAttempt, StepConfigDispatchPlan} from '#core/entities/step.js';
+import type {Step, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {
   AgentConfigUnresolvableError,
   InterpolationUnresolvableError,
   type InterpolationUnresolvableField,
 } from '#core/errors.js';
-
-export function assembleStepDispatchContext(params: {
-  readonly steps: readonly Step[];
-  readonly attempts: readonly StepAttempt[];
-  readonly targetStepId: string;
-  readonly jobExecution?: JobExecution;
-}): WorkflowExpressionEvaluationContext {
-  const attemptsByStepId = new Map(
-    params.attempts
-      .filter((attempt) => attempt.status !== 'running')
-      .map((attempt) => [attempt.stepId, attempt]),
-  );
-  const stepsContext: Record<string, {outputs: Record<string, unknown>}> = {};
-
-  for (const step of params.steps) {
-    if (step.id === params.targetStepId || step.key === null) continue;
-    const attempt = attemptsByStepId.get(step.id);
-    if (attempt === undefined) continue;
-    stepsContext[step.key] = {outputs: attempt.output ?? {}};
-  }
-
-  return {
-    ...(params.jobExecution === undefined
-      ? {}
-      : {
-          execution: {
-            index: params.jobExecution.sequence,
-            name: params.jobExecution.name,
-            status: params.jobExecution.status,
-            started_at: params.jobExecution.startedAt,
-            finished_at: params.jobExecution.finishedAt,
-            events: params.jobExecution.triggerEvents,
-          },
-        }),
-    steps: stepsContext,
-  };
-}
+import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 export function completeStepDispatchConfig(params: {
   readonly step: Step;
-  readonly context: WorkflowExpressionEvaluationContext;
+  readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly definitionId: string;
 }): Record<string, unknown> {
@@ -72,8 +34,8 @@ export function completeStepDispatchConfig(params: {
   if (plan.run !== undefined) {
     const resolved = freezePlannedRunCommandAtSite({
       field: plan.run,
-      site: 'step-dispatch',
-      context: params.context,
+      site: params.context.site,
+      context: params.context.values,
       failurePolicy: getWorkflowInterpolationFieldFailurePolicy('run'),
       reservedNames: Object.keys(env),
     });
@@ -109,7 +71,7 @@ export function completeStepDispatchConfig(params: {
 function completeAgentConfig(params: {
   readonly config: Record<string, unknown>;
   readonly plan: StepConfigDispatchPlan;
-  readonly context: WorkflowExpressionEvaluationContext;
+  readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly definitionId: string;
 }): void {
@@ -169,7 +131,7 @@ function completeField(params: {
   readonly field: WorkflowInterpolationField;
   readonly errorField: InterpolationUnresolvableField;
   readonly template: StepConfigDispatchPlan['run'];
-  readonly context: WorkflowExpressionEvaluationContext;
+  readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly envKey?: string;
 }): string {
@@ -177,8 +139,8 @@ function completeField(params: {
   try {
     const resolved = resolveFieldAtSite({
       field: params.template,
-      site: 'step-dispatch',
-      context: params.context,
+      site: params.context.site,
+      context: params.context.values,
       failurePolicy: getWorkflowInterpolationFieldFailurePolicy(params.field),
     });
     if (resolved.kind === 'frozen') return resolved.value;

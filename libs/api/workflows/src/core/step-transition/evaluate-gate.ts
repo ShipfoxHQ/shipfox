@@ -1,4 +1,5 @@
 import {evaluatePlannedPredicateAtSite, type WorkflowExpression} from '@shipfox/expression';
+import {assembleGateContext} from '../step-config/assemble-run-context.js';
 import type {GateOutcome, StepResult} from './decide-step-transition.js';
 
 // The exact `uncheckable` reason recorded when the gate's CEL expression itself
@@ -60,16 +61,12 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
     return {kind: 'uncheckable', reason: 'step produced no exit code'};
   }
 
+  const context = assembleGateContext({status: result.status, exitCode: result.exitCode});
   const outcome = evaluatePlannedPredicateAtSite({
     expression: gate.successIf,
     field: 'step.success_if',
-    site: 'step-report',
-    context: {
-      step: {
-        exit_code: BigInt(result.exitCode),
-        status: result.status,
-      },
-    },
+    site: context.site,
+    context: context.values,
   });
   if (outcome.evaluationFailed) {
     return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON};
