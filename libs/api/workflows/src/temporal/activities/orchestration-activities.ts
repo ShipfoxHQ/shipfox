@@ -26,6 +26,7 @@ import {
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '#db/index.js';
+import {recordWorkflowListenerExecution} from '#metrics/instance.js';
 
 export interface DagJob extends RuntimeDagNode {
   id: string;
@@ -251,4 +252,17 @@ export async function settleListenerJobExecutionActivity(params: {
   status: 'failed' | 'cancelled';
 }) {
   await settleListenerJobExecution(params);
+}
+
+// The listener workflow owns every firing's terminal outcome, but a workflow
+// sandbox cannot emit metrics. This activity is the single recording point so
+// each firing is counted exactly once, including successes that settle through
+// the child's own resolution path rather than a listener DB write. The body is
+// synchronous; it returns a resolved promise because Temporal invokes activities
+// asynchronously.
+export function recordListenerFiringOutcomeActivity(params: {
+  outcome: 'succeeded' | 'failed' | 'cancelled';
+}): Promise<void> {
+  recordWorkflowListenerExecution(params.outcome);
+  return Promise.resolve();
 }

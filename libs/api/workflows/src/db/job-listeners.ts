@@ -6,7 +6,7 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 import {WORKFLOWS_JOB_ACTIVATED, type WorkflowsEventMapDto} from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
-import type {ResolutionReason} from '#core/entities/job.js';
+import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {
@@ -18,7 +18,6 @@ import {
 import type {WorkflowEvaluationContext} from '#core/step-config/workflow-evaluation-context.js';
 import {
   recordWorkflowJobExecutionStatusChanged,
-  recordWorkflowListenerExecution,
   recordWorkflowListenerResolved,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
@@ -44,6 +43,7 @@ export interface ActivateJobListenerParams {
 
 export interface ActivateJobListenerResult {
   status: 'running' | 'terminal';
+  jobStatus: JobStatus;
   jobVersion: number;
   executionCount: number;
 }
@@ -68,7 +68,12 @@ export async function activateJobListener(
       .where(eq(jobExecutions.jobId, params.jobId));
 
     if (['succeeded', 'failed', 'cancelled', 'skipped'].includes(target.job.status)) {
-      return {status: 'terminal', jobVersion: target.job.version, executionCount};
+      return {
+        status: 'terminal',
+        jobStatus: target.job.status,
+        jobVersion: target.job.version,
+        executionCount,
+      };
     }
 
     let job = toJob(target.job);
@@ -111,7 +116,7 @@ export async function activateJobListener(
       });
     }
 
-    return {status: 'running', jobVersion: job.version, executionCount};
+    return {status: 'running', jobStatus: job.status, jobVersion: job.version, executionCount};
   });
 }
 
@@ -273,7 +278,6 @@ export async function drainListenerEventsIntoExecution(
 
     if (status === 'failed') {
       recordWorkflowJobExecutionStatusChanged(status);
-      recordWorkflowListenerExecution('failed');
     }
 
     return {
@@ -369,7 +373,6 @@ export async function settleListenerJobExecution(params: {
 
   if (changed) {
     recordWorkflowJobExecutionStatusChanged(params.status);
-    recordWorkflowListenerExecution(params.status);
   }
 }
 

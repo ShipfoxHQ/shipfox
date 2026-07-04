@@ -9,6 +9,7 @@ import {
   setHandler,
 } from '@temporalio/workflow';
 import type {ResolutionReason} from '#core/entities/job.js';
+import {runtimeStatusForTerminalJobExecutionStatus} from '#core/job-execution-orchestration.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import type {createOrchestrationActivities} from '../activities/index.js';
 import {LISTENER_EVENTS_AVAILABLE_SIGNAL, LISTENER_RESOLVE_SIGNAL} from '../constants.js';
@@ -19,6 +20,7 @@ const {
   drainListenerEventsActivity,
   resolveJobListenerActivity,
   settleListenerJobExecutionActivity,
+  recordListenerFiringOutcomeActivity,
   cancelRunnerJobsActivity,
 } = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
   startToCloseTimeout: '30s',
@@ -71,7 +73,10 @@ export async function jobListenerOrchestration(
     expectedVersion: input.jobVersion,
   });
   if (activated.status === 'terminal') {
-    return {status: 'failed', jobVersion: activated.jobVersion};
+    return {
+      status: runtimeStatusForTerminalJobExecutionStatus(activated.jobStatus),
+      jobVersion: activated.jobVersion,
+    };
   }
 
   let nextSequence = activated.executionCount + 1;
@@ -107,6 +112,7 @@ export async function jobListenerOrchestration(
     }
 
     if (drained.status === 'failed') {
+      await recordListenerFiringOutcomeActivity({outcome: 'failed'});
       nextSequence = drained.sequence + 1;
       if (maxExecutions !== undefined && drained.sequence >= maxExecutions) {
         latchedReason = 'max_executions';
@@ -187,13 +193,15 @@ async function runListenerExecution(params: {
         jobExecutionId: params.jobExecutionId,
         status: 'cancelled',
       });
+      await recordListenerFiringOutcomeActivity({outcome: 'cancelled'});
       await cancelRunnerJobsActivity({jobIds: [params.input.jobId]});
       return;
     }
   }
 
   try {
-    await child;
+    const result = await child;
+    await recordListenerFiringOutcomeActivity({outcome: result.status});
   } catch (error) {
     log.warn('listener execution child failed; recording failed firing and continuing', {
       jobId: params.input.jobId,
@@ -204,6 +212,7 @@ async function runListenerExecution(params: {
       jobExecutionId: params.jobExecutionId,
       status: 'failed',
     });
+    await recordListenerFiringOutcomeActivity({outcome: 'failed'});
   }
 }
 
