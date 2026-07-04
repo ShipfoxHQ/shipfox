@@ -124,8 +124,11 @@ describe('WorkspaceModelProvidersSection', () => {
 
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
 
-    expect(await screen.findByText('Local vLLM')).toBeVisible();
-    expect(screen.getByText('Custom')).toBeVisible();
+    const customProviderRow = (await screen.findByText('Local vLLM')).closest('li');
+    if (customProviderRow === null) {
+      throw new Error('Expected custom provider row to render');
+    }
+    expect(within(customProviderRow).getByText('Custom')).toBeVisible();
     expect(screen.getByText('localhost:8000')).toBeVisible();
     expect(screen.getByText('OpenAI Chat Completions')).toBeVisible();
     expect(screen.getByText('1 secret header')).toBeVisible();

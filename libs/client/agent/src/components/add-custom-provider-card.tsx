@@ -1,4 +1,3 @@
-import {Icon} from '@shipfox/react-ui/icon';
 import {Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 
@@ -17,20 +16,9 @@ export function AddCustomProviderCard({onConfigure}: {onConfigure: () => void}) 
         aria-label="Configure custom provider"
         onClick={onConfigure}
       >
-        <div className="flex h-full min-w-0 flex-col justify-between gap-16">
-          <div className="flex min-w-0 flex-col gap-4">
-            <Text size="md" bold className="min-w-0 truncate">
-              Custom provider
-            </Text>
-            <Text size="sm" className="text-foreground-neutral-muted">
-              Connect an OpenAI-, Anthropic-, or Gemini-compatible endpoint.
-            </Text>
-          </div>
-          <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
-            <Text size="sm">Configure</Text>
-            <Icon name="chevronRight" className="size-16" />
-          </div>
-        </div>
+        <Text size="md" bold className="min-w-0 truncate">
+          Custom
+        </Text>
       </button>
     </li>
   );
