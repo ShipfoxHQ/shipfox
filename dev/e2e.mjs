@@ -291,6 +291,7 @@ export async function collectE2eDiagnostics(logDir) {
     writeCommandOutput('docker', ['network', 'inspect', 'bridge'], {
       file: join(diagnosticsDir, 'network-bridge.json'),
     }),
+    copySharedOllamaLog(logDir),
   ]);
 
   const runnerLogs = 'e2e/platform/workflows/.e2e-run/runners';
@@ -304,6 +305,19 @@ export async function collectE2eDiagnostics(logDir) {
   }
 
   await copyPlaywrightTestResults(logDir);
+}
+
+export async function copySharedOllamaLog(logDir, env = process.env, cwd = process.cwd()) {
+  const rootPath = resolve(env.CONDUCTOR_ROOT_PATH || cwd);
+  const source = join(rootPath, '.context/shared-ollama/ollama.log');
+  const target = join(logDir, 'shared-ollama/ollama.log');
+
+  try {
+    await mkdir(dirname(target), {recursive: true});
+    await cp(source, target, {force: true});
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
 }
 
 export async function copyPlaywrightTestResults(logDir) {

@@ -175,7 +175,11 @@ async function preloadModel(context) {
   if (!response.ok) {
     fail(`Failed to preload ${context.model}: ${response.status} ${response.statusText}`);
   }
-  await response.body?.cancel();
+  try {
+    await response.json();
+  } catch {
+    fail(`Failed to preload ${context.model}: invalid JSON response`);
+  }
 }
 
 async function waitForHealthy(baseUrl) {
