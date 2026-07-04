@@ -1,5 +1,4 @@
 import {randomUUID} from 'node:crypto';
-import type {GiteaHelper} from '@shipfox/e2e-helper-integrations-gitea';
 import {argosScreenshot, type Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
@@ -8,22 +7,9 @@ const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
 const CREATE_WORKSPACE_LABEL_RE = /Create workspace/u;
 const LAST_WORKSPACE_KEY = 'shipfox.lastWorkspaceId';
 const SETUP_NAVIGATION_TIMEOUT_MS = 15_000;
-const PLATFORM_REPOSITORY = 'platform';
 
 function workspaceUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}(/|$)`, 'u');
-}
-
-function projectsNewUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/projects/new/?$`, 'u');
-}
-
-function modelProviderUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/model-provider/?$`, 'u');
-}
-
-function setupDestinationUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/(model-provider|projects/new)/?$`, 'u');
 }
 
 async function readLastWorkspaceId(page: Page): Promise<string> {
@@ -37,37 +23,6 @@ async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByRole('tab', {name: 'Settings'})).toHaveCount(0);
   await expect(page.getByLabel('Switch project')).toHaveCount(0);
   await expect(page.getByLabel('Switch workspace')).toBeVisible();
-}
-
-async function completeWorkspaceSetup(
-  page: Page,
-  workspaceId: string,
-  gitea: GiteaHelper,
-): Promise<void> {
-  const org = await gitea.createOrg();
-  await gitea.createRepo({org: org.org, name: PLATFORM_REPOSITORY});
-
-  await page.goto(`/workspaces/${workspaceId}/integrations/gitea`);
-  await page.getByLabel('Organization').fill(org.org);
-  await page.getByRole('button', {name: 'Install'}).click();
-  await expect(page).toHaveURL(setupDestinationUrlRe(workspaceId), {
-    timeout: SETUP_NAVIGATION_TIMEOUT_MS,
-  });
-  if (modelProviderUrlRe(workspaceId).test(page.url())) {
-    await expect(page.getByRole('heading', {name: 'Configure model provider'})).toBeVisible();
-    await expectSetupNavigationHidden(page);
-    await page.getByRole('button', {name: 'Skip for now'}).click();
-  }
-
-  await expect(page).toHaveURL(projectsNewUrlRe(workspaceId));
-  await expect(page.getByRole('radio', {name: `${org.org}/${PLATFORM_REPOSITORY}`})).toBeVisible();
-  await expect(page.getByRole('button', {name: 'Create project'})).toBeEnabled();
-  await page.getByRole('button', {name: 'Create project'}).click();
-
-  await expect(page.getByText('Project created.')).toBeVisible();
-  await expect(page).toHaveURL(
-    new RegExp(`/workspaces/${workspaceId}/projects/[^/]+/runs/?$`, 'u'),
-  );
 }
 
 test('redirects a no-workspace user from / to onboarding', async ({page, auth}) => {
@@ -159,11 +114,16 @@ test('persists the active workspace across reload and via /', async ({page, auth
   expect(page.url()).not.toMatch(workspaceUrlRe(wsA.id));
 });
 
-test('routes workspace settings to members by default', async ({page, auth, gitea, workspaces}) => {
+test('routes workspace settings to members by default', async ({
+  page,
+  auth,
+  projects,
+  workspaces,
+}) => {
   const user = await auth.createUser();
   const workspace = await workspaces.create({userId: user.user.id, name: 'Settings Workspace'});
+  await projects.createProject({workspaceId: workspace.id});
   await auth.loginAs(page, user);
-  await completeWorkspaceSetup(page, workspace.id, gitea);
 
   await page.goto(`/workspaces/${workspace.id}/settings`);
 
@@ -192,11 +152,11 @@ test('routes setup workspace settings back to source-control onboarding', async 
   await expectSetupNavigationHidden(page);
 });
 
-test('settings tab opens members settings', async ({page, auth, gitea, workspaces}) => {
+test('settings tab opens members settings', async ({page, auth, projects, workspaces}) => {
   const user = await auth.createUser();
   const workspace = await workspaces.create({userId: user.user.id, name: 'Settings Tab Workspace'});
+  await projects.createProject({workspaceId: workspace.id});
   await auth.loginAs(page, user);
-  await completeWorkspaceSetup(page, workspace.id, gitea);
 
   await page.goto(`/workspaces/${workspace.id}`);
   await page.getByRole('tab', {name: 'Settings'}).click();
