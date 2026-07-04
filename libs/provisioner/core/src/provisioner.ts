@@ -1,5 +1,10 @@
-import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
+import {
+  withJitter as applyJitter,
+  nextBackoffInterval as calculateNextBackoffInterval,
+  createGracefulShutdownController,
+  interruptibleSleep,
+} from '@shipfox/node-resilient-loop';
 import {
   createProvisionerClient,
   ProvisionerAuthenticationError,
@@ -14,11 +19,20 @@ import type {ProvisionerAdapter, ProvisionerTemplate} from '#types.js';
 const MAX_TEMPLATES_PER_POLL = 100;
 
 let running = true;
-let shuttingDown = false;
-let signalHandlersRegistered = false;
 // Module-level so the long-lived signal handler can cancel the in-flight long-poll;
 // a locally-scoped capture isn't reachable from a process-global handler.
 let pollAbortController: AbortController | undefined;
+const shutdownController = createGracefulShutdownController({
+  onFirstSignal: (signal) => {
+    running = false;
+    logger().info({signal}, 'Shutting down gracefully');
+    pollAbortController?.abort('shutdown');
+  },
+  onSecondSignal: (signal) => {
+    logger().info({signal}, 'Second signal received, exiting now');
+    process.exit(1);
+  },
+});
 
 export interface StartProvisionerOptions<Spec> {
   readonly adapter: ProvisionerAdapter<Spec>;
@@ -49,8 +63,8 @@ export async function startProvisioner<Spec>(
   options: StartProvisionerOptions<Spec>,
 ): Promise<void> {
   running = true;
-  shuttingDown = false;
-  setupSignalHandlers();
+  shutdownController.reset();
+  shutdownController.start();
 
   const templates = await options.adapter.loadTemplates();
   if (templates.length === 0) {
@@ -208,59 +222,18 @@ export const buildRunnerEnv: RunnerEnvFactory<unknown> = ({template, registratio
 });
 
 export function nextBackoffInterval(ms: number): number {
-  return Math.min(ms * 1.5, config.SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS);
+  return calculateNextBackoffInterval(ms, {
+    maxMs: config.SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS,
+  });
 }
 
 export function withJitter(ms: number): number {
-  // Keep a floor of half the interval so a fast-returning poll (for example with
+  // Floor the jitter at half the interval so a fast-returning poll (for example with
   // wait_seconds=0) cannot collapse the delay toward zero and busy-loop the API.
-  return ms * (0.5 + Math.random() * 0.5);
-}
-
-function setupSignalHandlers(): void {
-  if (signalHandlersRegistered) return;
-
-  process.on('SIGINT', handleSigint);
-  process.on('SIGTERM', handleSigterm);
-  signalHandlersRegistered = true;
-}
-
-function handleSigint(): void {
-  handleSignal('SIGINT');
-}
-
-function handleSigterm(): void {
-  handleSignal('SIGTERM');
-}
-
-function handleSignal(signal: string): void {
-  if (shuttingDown) {
-    logger().info({signal}, 'Second signal received, exiting now');
-    process.exit(1);
-  }
-
-  shuttingDown = true;
-  running = false;
-  logger().info({signal}, 'Shutting down gracefully');
-  // Cancel the in-flight long-poll so the loop wakes without waiting out wait_seconds.
-  pollAbortController?.abort('shutdown');
+  return applyJitter(ms, {minFactor: 0.5});
 }
 
 async function interruptableSleep(ms: number): Promise<void> {
-  const ac = new AbortController();
-  const onStop = () => ac.abort();
-
   if (!running) return;
-
-  process.once('SIGINT', onStop);
-  process.once('SIGTERM', onStop);
-
-  try {
-    await setTimeoutPromise(ms, undefined, {signal: ac.signal});
-  } catch {
-    // AbortError from signal interruption — expected
-  } finally {
-    process.removeListener('SIGINT', onStop);
-    process.removeListener('SIGTERM', onStop);
-  }
+  await interruptibleSleep(ms, shutdownController.signal);
 }

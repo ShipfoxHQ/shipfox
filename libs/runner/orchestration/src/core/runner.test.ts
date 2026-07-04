@@ -63,13 +63,7 @@ import {
 } from '@shipfox/runner-workspace';
 import {config as runnerConfig} from '#config.js';
 import {startHeartbeatLoop} from '#core/heartbeat-loop.js';
-import {
-  nextBackoffInterval,
-  nextPollDeadline,
-  runJob,
-  startRunner,
-  withJitter,
-} from '#core/runner.js';
+import {nextPollDeadline, runJob, startRunner} from '#core/runner.js';
 import {runJobSteps} from '#core/step-loop.js';
 
 const mockJobWorkspacePath = vi.mocked(jobWorkspacePath);
@@ -237,8 +231,10 @@ describe('startRunner', () => {
   });
 
   it('resolves cleanly when no jobs arrive before the poll deadline', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(2);
     mockRequestJob.mockResolvedValue(null);
+    vi.spyOn(Date, 'now').mockImplementation(() =>
+      mockRequestJob.mock.calls.length === 0 ? 0 : 2,
+    );
 
     await startRunner();
 
@@ -249,8 +245,10 @@ describe('startRunner', () => {
 
   it('rejects when poll errors continue past the poll deadline', async () => {
     const pollError = new Error('api unavailable');
-    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(2);
     mockRequestJob.mockRejectedValue(pollError);
+    vi.spyOn(Date, 'now').mockImplementation(() =>
+      mockRequestJob.mock.calls.length === 0 ? 0 : 2,
+    );
 
     await expect(startRunner()).rejects.toBe(pollError);
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(1);
@@ -281,8 +279,8 @@ describe('startRunner', () => {
 
   it('rejects when unauthorized responses continue past the poll deadline', async () => {
     const unauthorized = httpError(401);
-    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(2);
     mockRequestJob.mockRejectedValue(unauthorized);
+    vi.spyOn(Date, 'now').mockImplementation(() => (mockRequestJob.mock.calls.length < 2 ? 0 : 2));
 
     await expect(startRunner()).rejects.toBe(unauthorized);
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(2);
@@ -321,38 +319,6 @@ describe('startRunner', () => {
 });
 
 describe('poll helpers', () => {
-  it('grows backoff intervals before reaching the configured cap', () => {
-    const next = nextBackoffInterval(2);
-
-    expect(next).toBe(3);
-  });
-
-  it('grows backoff intervals up to the configured cap', () => {
-    const next = nextBackoffInterval(4);
-
-    expect(next).toBe(5);
-  });
-
-  it.each([
-    {random: 0, expected: 0},
-    {random: 0.25, expected: 2},
-    {random: 0.999, expected: 7.992},
-  ])('applies full jitter at random=$random', ({random, expected}) => {
-    vi.spyOn(Math, 'random').mockReturnValue(random);
-
-    const sleep = withJitter(8);
-
-    expect(sleep).toBe(expected);
-  });
-
-  it('keeps zero sleeps at zero when jittered', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.999);
-
-    const sleep = withJitter(0);
-
-    expect(sleep).toBe(0);
-  });
-
   it('computes a poll deadline from the configured max duration', () => {
     vi.spyOn(Date, 'now').mockReturnValue(41);
 

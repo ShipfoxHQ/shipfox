@@ -4161,6 +4161,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/node-resilient-loop':
+        specifier: workspace:*
+        version: link:../../shared/node/resilient-loop
       ky:
         specifier: ^2.0.0
         version: 2.0.2
@@ -4352,6 +4355,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/node-resilient-loop':
+        specifier: workspace:*
+        version: link:../../shared/node/resilient-loop
       '@shipfox/redact':
         specifier: workspace:*
         version: link:../../shared/common/redact
@@ -4968,6 +4974,24 @@ importers:
         version: 8.20.0
 
   libs/shared/node/rate-limit:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/shared/node/resilient-loop:
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
