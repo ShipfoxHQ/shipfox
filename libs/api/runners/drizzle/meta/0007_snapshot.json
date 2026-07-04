@@ -1,5 +1,5 @@
 {
-  "id": "77159114-5118-4a11-adae-0513721c7522",
+  "id": "1fc45aa6-7700-46a3-98a5-4f9be355734a",
   "prevId": "c0278e57-95b7-4c5e-a0ce-8122a20b75d0",
   "version": "7",
   "dialect": "postgresql",
@@ -177,13 +177,13 @@
           "method": "btree",
           "with": {}
         },
-        "runners_ephemeral_registration_tokens_created_id_idx": {
-          "name": "runners_ephemeral_registration_tokens_created_id_idx",
+        "runners_ephemeral_registration_tokens_terminal_idx": {
+          "name": "runners_ephemeral_registration_tokens_terminal_idx",
           "columns": [
             {
-              "expression": "created_at",
-              "isExpression": false,
+              "expression": "coalesce(\"consumed_at\", \"expires_at\")",
               "asc": true,
+              "isExpression": true,
               "nulls": "last"
             },
             {

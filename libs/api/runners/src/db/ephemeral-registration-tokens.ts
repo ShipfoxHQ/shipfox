@@ -1,4 +1,4 @@
-import {and, asc, eq, gt, inArray, isNotNull, isNull, lt, or, sql} from 'drizzle-orm';
+import {and, asc, eq, gt, inArray, isNull, lt, sql} from 'drizzle-orm';
 import type {EphemeralRegistrationToken} from '#core/entities/ephemeral-registration-token.js';
 import {
   ActiveEphemeralRegistrationTokenExistsError,
@@ -230,24 +230,18 @@ export interface DeleteExpiredEphemeralRegistrationTokensParams {
 export async function deleteExpiredEphemeralRegistrationTokens(
   params: DeleteExpiredEphemeralRegistrationTokensParams,
 ): Promise<number> {
+  // coalesce(consumed_at, expires_at) is the terminal timestamp: consumed_at
+  // when the token was spent, otherwise its expiry. Comparing it to the cutoff
+  // both selects deletable rows and orders the batch, and it matches the
+  // terminal index so idle GC ticks never scan live rows.
+  const terminalAt = sql`coalesce(${ephemeralRegistrationTokens.consumedAt}, ${ephemeralRegistrationTokens.expiresAt})`;
   const retentionCutoff = sql`now() - (${params.retentionDays} || ' days')::interval`;
 
   const deletableIds = db()
     .select({id: ephemeralRegistrationTokens.id})
     .from(ephemeralRegistrationTokens)
-    .where(
-      or(
-        and(
-          isNotNull(ephemeralRegistrationTokens.consumedAt),
-          lt(ephemeralRegistrationTokens.consumedAt, retentionCutoff),
-        ),
-        and(
-          isNull(ephemeralRegistrationTokens.consumedAt),
-          lt(ephemeralRegistrationTokens.expiresAt, retentionCutoff),
-        ),
-      ),
-    )
-    .orderBy(asc(ephemeralRegistrationTokens.createdAt), asc(ephemeralRegistrationTokens.id))
+    .where(lt(terminalAt, retentionCutoff))
+    .orderBy(asc(terminalAt), asc(ephemeralRegistrationTokens.id))
     .limit(params.limit ?? 1000);
 
   const deleted = await db()
