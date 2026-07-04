@@ -162,19 +162,29 @@ describe('integration source-control service', () => {
   });
 
   it('creates a checkout spec through an active source-control connection', async () => {
-    const service = createService();
+    const createCheckoutSpec = vi.fn(
+      async (input: Parameters<NonNullable<SourceControlProvider['createCheckoutSpec']>>[0]) => {
+        await Promise.resolve();
+        return {repositoryUrl: repository.cloneUrl, ref: input.ref ?? repository.defaultBranch};
+      },
+    );
+    const service = createService({createCheckoutSpec});
 
     const result = await service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
       externalRepositoryId: 'gitea:gitea-owner/platform',
       ref: 'feature/x',
+      permissions: {contents: 'write'},
     });
 
     expect(result).toEqual({
       repositoryUrl: 'https://gitea.local/gitea-owner/platform.git',
       ref: 'feature/x',
     });
+    expect(createCheckoutSpec).toHaveBeenCalledWith(
+      expect.objectContaining({permissions: {contents: 'write'}}),
+    );
   });
 
   it('rejects a checkout spec for a connection in another workspace', async () => {

@@ -1,15 +1,22 @@
 import {execFile, spawn} from 'node:child_process';
+import {access, chmod, mkdir, writeFile} from 'node:fs/promises';
+import {homedir} from 'node:os';
+import {dirname, join} from 'node:path';
 import {promisify} from 'node:util';
 import type {CheckoutTokenAuthDto} from '@shipfox/api-workflows-dto';
 
 const execFileAsync = promisify(execFile);
 const URL_CREDENTIAL_RE = /(https?:\/\/)[^/@\s]+@/gi;
 const SHELL_SAFE_ARG_RE = /^[A-Za-z0-9_./:=@+-]+$/;
+const GIT_VERSION_RE = /^git version (\d+)\.(\d+)\.(\d+)/;
+const CONFIG_LINE_BREAK_RE = /[\r\n]/;
+const MIN_GIT_VERSION = {major: 2, minor: 31, patch: 0};
+const GIT_CONFIG_INDEXED_ENV_RE = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/;
 
 /** Thrown when `git` is not on the runner host's PATH; surfaced as `git_unavailable`. */
 export class GitUnavailableError extends Error {
-  constructor(options?: ErrorOptions) {
-    super('git is not available on the runner host', options);
+  constructor(message = 'git is not available on the runner host', options?: ErrorOptions) {
+    super(message, options);
     this.name = 'GitUnavailableError';
   }
 }
@@ -48,9 +55,12 @@ export interface CheckoutCommandStartMetadata {
 export async function assertGitAvailable(): Promise<string> {
   try {
     const {stdout} = await execFileAsync('git', ['--version']);
-    return stdout.trim();
+    const version = stdout.trim();
+    assertSupportedGitVersion(version);
+    return version;
   } catch (error) {
-    throw new GitUnavailableError({cause: error});
+    if (error instanceof GitUnavailableError) throw error;
+    throw new GitUnavailableError('git is not available on the runner host', {cause: error});
   }
 }
 
@@ -77,11 +87,11 @@ const PROVIDER_UNAVAILABLE =
 /**
  * Initializes `cwd` and checks out `ref` of `repositoryUrl` into it.
  *
- * The credential is injected with a one-shot `-c http.extraHeader`, never embedded in the
- * remote URL, so it is not persisted to `.git/config` where later user steps could read it.
- * `GIT_TERMINAL_PROMPT=0` turns a missing or denied credential into an immediate error
- * instead of a hang on an interactive prompt. Failures are classified into a
- * {@link CheckoutError} and have any token material redacted from their message.
+ * The credential is injected through `GIT_CONFIG_*` environment entries, never argv or the
+ * remote URL, so it is not persisted to `.git/config` and does not appear in process listings.
+ * `GIT_TERMINAL_PROMPT=0` turns a missing or denied credential into an immediate error instead
+ * of a hang on an interactive prompt. Failures are classified into a {@link CheckoutError}
+ * and have any token material redacted from their message.
  */
 export async function checkoutRepository(params: {
   repositoryUrl: string;
@@ -121,14 +131,23 @@ export async function checkoutRepository(params: {
     const fetchArgs = ['fetch', '--progress', '--no-tags', '--prune', '--depth=1', 'origin', ref];
     await runGitCommand({
       phase: 'fetch',
-      args: auth
-        ? ['-c', `http.extraHeader=Authorization: ${authorizationValue(auth)}`, ...fetchArgs]
-        : fetchArgs,
+      args: fetchArgs,
       displayArgs: fetchArgs,
       cwd,
       signal,
       onCommandStart,
       onOutput,
+      ...(auth
+        ? {
+            configEnv: {
+              GIT_CONFIG_COUNT: '2',
+              GIT_CONFIG_KEY_0: `http.${repositoryUrl}.extraHeader`,
+              GIT_CONFIG_VALUE_0: `Authorization: ${authorizationValue(auth)}`,
+              GIT_CONFIG_KEY_1: 'http.followRedirects',
+              GIT_CONFIG_VALUE_1: 'false',
+            },
+          }
+        : {}),
     });
     await runGitCommand({
       phase: 'checkout',
@@ -152,6 +171,27 @@ export async function checkoutRepository(params: {
   } catch (error) {
     throw classifyCheckoutError(error, auth);
   }
+}
+
+export async function writeAmbientGitCredential(params: {
+  configPath: string;
+  repositoryUrl: string;
+  auth: CheckoutTokenAuthDto;
+}): Promise<void> {
+  const {configPath, repositoryUrl, auth} = params;
+  const includePath = await ambientIncludePath();
+  const lines = [
+    ...(includePath ? ['[include]', `\tpath = ${gitConfigQuotedValue(includePath)}`] : []),
+    `[http "${gitConfigSubsection(repositoryUrl)}"]`,
+    `\textraHeader = ${gitConfigQuotedValue(`Authorization: ${authorizationValue(auth)}`)}`,
+    '[http]',
+    '\tfollowRedirects = false',
+    '',
+  ];
+
+  await mkdir(dirname(configPath), {recursive: true});
+  await writeFile(configPath, lines.join('\n'), {mode: 0o600});
+  await chmod(configPath, 0o600);
 }
 
 function basicCredential(auth: {username: string; token: string}): string {
@@ -201,17 +241,18 @@ function runGitCommand(params: {
   args: string[];
   displayArgs: string[];
   cwd: string;
+  configEnv?: Record<string, string> | undefined;
   signal?: AbortSignal | undefined;
   onOutput?: CheckoutOutputSink | undefined;
   onCommandStart?: ((metadata: CheckoutCommandStartMetadata) => void) | undefined;
 }): Promise<{stdout: string; stderr: string}> {
-  const {phase, args, displayArgs, cwd, signal, onCommandStart, onOutput} = params;
+  const {phase, args, displayArgs, cwd, configEnv, signal, onCommandStart, onOutput} = params;
   onCommandStart?.({phase, command: formatGitCommand(displayArgs), cwd});
 
   return new Promise((resolve, reject) => {
     const child = spawn('git', args, {
       cwd,
-      env: {...process.env, GIT_TERMINAL_PROMPT: '0'},
+      env: gitCommandEnv(configEnv),
       stdio: ['ignore', 'pipe', 'pipe'],
       ...(signal ? {signal} : {}),
     });
@@ -246,6 +287,15 @@ function runGitCommand(params: {
       reject(new GitCommandError(phase, stderr, code, signalName));
     });
   });
+}
+
+function gitCommandEnv(configEnv: Record<string, string> | undefined): NodeJS.ProcessEnv {
+  const env = {...process.env};
+  delete env.GIT_CONFIG_PARAMETERS;
+  for (const key of Object.keys(env)) {
+    if (GIT_CONFIG_INDEXED_ENV_RE.test(key)) delete env[key];
+  }
+  return {...env, GIT_TERMINAL_PROMPT: '0', ...configEnv};
 }
 
 class GitSpawnError extends Error {
@@ -319,4 +369,71 @@ function stderrOf(error: unknown): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function assertSupportedGitVersion(version: string): void {
+  const parsed = GIT_VERSION_RE.exec(version);
+  if (!parsed) {
+    throw new GitUnavailableError(`Unsupported Git version output: ${version}`);
+  }
+
+  const [, majorRaw, minorRaw, patchRaw] = parsed;
+  const major = Number(majorRaw);
+  const minor = Number(minorRaw);
+  const patch = Number(patchRaw);
+  if (isAtLeastVersion({major, minor, patch}, MIN_GIT_VERSION)) return;
+
+  throw new GitUnavailableError(
+    `Git ${formatVersion(MIN_GIT_VERSION)} or newer is required on the runner host; found ${major}.${minor}.${patch}`,
+  );
+}
+
+function isAtLeastVersion(
+  value: {major: number; minor: number; patch: number},
+  minimum: {major: number; minor: number; patch: number},
+): boolean {
+  if (value.major !== minimum.major) return value.major > minimum.major;
+  if (value.minor !== minimum.minor) return value.minor > minimum.minor;
+  return value.patch >= minimum.patch;
+}
+
+function formatVersion(version: {major: number; minor: number; patch: number}): string {
+  return `${version.major}.${version.minor}.${version.patch}`;
+}
+
+async function ambientIncludePath(): Promise<string | undefined> {
+  const prior = process.env.GIT_CONFIG_GLOBAL;
+  if (prior) return (await pathExists(prior)) ? prior : undefined;
+
+  const homeConfig = join(homedir(), '.gitconfig');
+  return (await pathExists(homeConfig)) ? homeConfig : undefined;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function gitConfigSubsection(value: string): string {
+  assertSingleLineGitConfigValue(value);
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+function gitConfigQuotedValue(value: string): string {
+  assertSingleLineGitConfigValue(value);
+  return `"${value
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\t', '\\t')
+    .replaceAll('\b', '\\b')}"`;
+}
+
+function assertSingleLineGitConfigValue(value: string): void {
+  if (CONFIG_LINE_BREAK_RE.test(value)) {
+    throw new Error('Git config values must be single-line');
+  }
 }

@@ -256,6 +256,7 @@ describe('GithubSourceControlProvider', () => {
       connection: connection(),
       externalRepositoryId: 'github:42',
       ref: 'feature/x',
+      permissions: {contents: 'write'},
     });
 
     expect(result).toEqual({
@@ -271,6 +272,7 @@ describe('GithubSourceControlProvider', () => {
     expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
       installationId,
       repositoryId: 42,
+      permissions: {contents: 'write'},
     });
   });
 

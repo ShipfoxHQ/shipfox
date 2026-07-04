@@ -25,6 +25,8 @@ describe('resolveCheckoutIntent', () => {
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
       externalRepositoryId: project.sourceExternalRepositoryId,
+      persistCredentials: true,
+      permissions: {contents: 'read'},
     });
   });
 
@@ -80,12 +82,31 @@ describe('createJobCheckoutSpec', () => {
 
     const result = await createJobCheckoutSpec({jobId: job.id, sourceControl});
 
-    expect(result).toBe(spec);
+    expect(result).toEqual({spec, persistCredentials: true});
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
       externalRepositoryId: project.sourceExternalRepositoryId,
       ref: undefined,
+      permissions: {contents: 'read'},
     });
+  });
+
+  it('passes requested write contents permission to the service', async () => {
+    const project = projectFactory.build();
+    mockGetProjectById.mockResolvedValue(project);
+    const job = await jobFactory.create(
+      {},
+      {transient: {projectId: project.id, checkout: {permissions: {contents: 'write'}}}},
+    );
+    const spec: CheckoutSpec = {repositoryUrl: 'https://github.com/acme/repo.git', ref: 'main'};
+    const createCheckoutSpec = vi.fn().mockResolvedValue(spec);
+    const sourceControl = {createCheckoutSpec} as unknown as IntegrationSourceControlService;
+
+    await createJobCheckoutSpec({jobId: job.id, sourceControl});
+
+    expect(createCheckoutSpec).toHaveBeenCalledWith(
+      expect.objectContaining({permissions: {contents: 'write'}}),
+    );
   });
 });

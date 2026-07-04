@@ -1,14 +1,16 @@
 import {eq} from 'drizzle-orm';
 import {Factory} from 'fishery';
-import type {Job, JobStatus} from '#core/entities/job.js';
+import type {Job, JobCheckout, JobStatus} from '#core/entities/job.js';
 import {db} from '#db/db.js';
 import {jobs} from '#db/schema/jobs.js';
 import {getJobsByWorkflowRunId} from '#db/workflow-runs.js';
+import {workflowModel} from './workflow-model.js';
 import {workflowRunFactory} from './workflow-run.js';
 
 interface JobTransientParams {
   projectId?: string;
   status?: JobStatus;
+  checkout?: Partial<JobCheckout>;
 }
 
 // Provisions a workflow run for `projectId` and returns its first job moved to
@@ -18,8 +20,27 @@ interface JobTransientParams {
 // a lease for a job it has claimed and is executing.
 export const jobFactory = Factory.define<Job, JobTransientParams>(({transientParams, onCreate}) => {
   onCreate(async () => {
-    const {projectId = crypto.randomUUID(), status = 'running'} = transientParams;
-    const run = await workflowRunFactory.create({projectId});
+    const {projectId = crypto.randomUUID(), status = 'running', checkout} = transientParams;
+    const run = await workflowRunFactory.create(
+      {projectId},
+      checkout === undefined
+        ? undefined
+        : {
+            transient: {
+              model: workflowModel({
+                jobs: {
+                  build: {
+                    checkout: {
+                      permissions: checkout.permissions ?? {contents: 'read'},
+                      persistCredentials: checkout.persistCredentials ?? true,
+                    },
+                    steps: [{run: 'echo hello'}],
+                  },
+                },
+              }),
+            },
+          },
+    );
     const [job] = await getJobsByWorkflowRunId(run.id);
     if (!job) throw new Error('jobFactory: run created no jobs');
     await db().update(jobs).set({status}).where(eq(jobs.id, job.id));
@@ -35,6 +56,10 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
     status: 'running',
     statusReason: null,
     carriedOver: false,
+    checkout: {
+      permissions: {contents: 'read'},
+      persistCredentials: true,
+    },
     success: null,
     executionTimeoutMs: null,
     listeningTimeoutMs: null,

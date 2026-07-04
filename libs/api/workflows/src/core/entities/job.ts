@@ -6,6 +6,13 @@ export type ListenerStatus = 'inactive' | 'listening' | 'resolved';
 
 export type ResolutionReason = 'until' | 'timeout' | 'max_executions' | 'cancelled';
 
+export interface JobCheckout {
+  permissions: {
+    contents: 'read' | 'write';
+  };
+  persistCredentials: boolean;
+}
+
 export const JOB_STATUS_REASONS = [
   'dependency_not_completed',
   'condition_false',
@@ -30,6 +37,7 @@ export interface Job {
   status: JobStatus;
   statusReason: JobStatusReason | null;
   carriedOver: boolean;
+  checkout: JobCheckout;
   success?: string | null;
   executionTimeoutMs?: number | null;
   listeningTimeoutMs: number | null;

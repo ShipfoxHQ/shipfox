@@ -56,6 +56,7 @@ export {redactCheckoutSpec} from '#core/providers/redact-checkout-spec.js';
 export type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 export type {
   CheckoutCredentials,
+  CheckoutPermissions,
   CheckoutSpec,
   CreateCheckoutSpecInput,
   FetchFileInput,

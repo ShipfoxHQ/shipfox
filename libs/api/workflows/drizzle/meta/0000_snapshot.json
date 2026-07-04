@@ -375,6 +375,19 @@
           "notNull": true,
           "default": false
         },
+        "checkout_persist_credentials": {
+          "name": "checkout_persist_credentials",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checkout_permissions_contents": {
+          "name": "checkout_permissions_contents",
+          "type": "workflows_checkout_contents",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
         "success": {
           "name": "success",
           "type": "text",
@@ -1456,6 +1469,11 @@
       "name": "workflows_job_mode",
       "schema": "public",
       "values": ["one_shot", "listening"]
+    },
+    "public.workflows_checkout_contents": {
+      "name": "workflows_checkout_contents",
+      "schema": "public",
+      "values": ["read", "write"]
     },
     "public.workflows_job_on_resolve": {
       "name": "workflows_job_on_resolve",

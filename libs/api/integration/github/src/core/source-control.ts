@@ -151,6 +151,7 @@ export class GithubSourceControlProvider
     const {token, expiresAt} = await this.github.createInstallationAccessToken({
       installationId,
       repositoryId,
+      permissions: input.permissions,
     });
 
     return {

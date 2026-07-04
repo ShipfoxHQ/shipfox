@@ -47,16 +47,18 @@ export async function runJobSteps(params: {
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   signal: AbortSignal;
   cwd: string;
+  gitConfigPath: string;
   logsDir: string;
   jobContext: SetupJobContext;
   onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
-  const {jobId, leaseClient, secrets, signal, cwd, logsDir, jobContext} = params;
+  const {jobId, leaseClient, secrets, signal, cwd, gitConfigPath, logsDir, jobContext} = params;
 
   // The setup step prepares the workspace; every run step assumes it ran. A run
   // step pulled before a successful setup is failed cleanly rather than spawned
   // against an unprepared cwd.
   let workspacePrepared = false;
+  let ambientGitConfigPath: string | undefined;
 
   // The most recent step's stream, kept until the next
   // iteration settles it (or the finally does at job end). The step loop is sequential, so
@@ -91,13 +93,16 @@ export async function runJobSteps(params: {
         ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
         signal,
         workspacePrepared,
+        ambientGitConfigPath,
         jobId,
         stepLabel,
         logsDir,
         jobContext,
+        gitConfigPath,
       });
       activeStream = execution.stream;
       if (execution.preparedWorkspace) workspacePrepared = true;
+      if (execution.ambientGitConfigPath) ambientGitConfigPath = execution.ambientGitConfigPath;
 
       if (signal.aborted) return;
 
@@ -171,6 +176,7 @@ export interface StepExecution {
   logOutcome?: LogOutcomeDto | undefined;
   /** True when a setup step succeeded, unlocking the run steps that follow it. */
   preparedWorkspace: boolean;
+  ambientGitConfigPath?: string | undefined;
 }
 
 // Runs one step and always yields a StepResult, never throws: a crash before a result
@@ -188,6 +194,8 @@ export async function executeStep(params: {
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   signal: AbortSignal;
   workspacePrepared: boolean;
+  ambientGitConfigPath?: string | undefined;
+  gitConfigPath: string;
   jobId: string;
   stepLabel: string;
 }): Promise<StepExecution> {
@@ -202,6 +210,8 @@ export async function executeStep(params: {
     subscribeSecrets,
     signal,
     workspacePrepared,
+    ambientGitConfigPath,
+    gitConfigPath,
     jobId,
     stepLabel,
   } = params;
@@ -257,18 +267,20 @@ export async function executeStep(params: {
       stream = setupStream;
       registerStreamSecrets(setupStream);
 
-      const result = await executeSetupStep({
+      const setup = await executeSetupStep({
         cwd,
+        gitConfigPath,
         leaseClient,
         signal,
         ...(setupStream ? {log: setupStream} : {}),
         jobContext,
       });
       return {
-        result,
+        result: setup.result,
         stream,
         logOutcome: setupStream ? undefined : 'abandoned',
-        preparedWorkspace: result.success,
+        preparedWorkspace: setup.result.success,
+        ...(setup.ambientGitConfigPath ? {ambientGitConfigPath: setup.ambientGitConfigPath} : {}),
       };
     }
 
@@ -329,6 +341,7 @@ export async function executeStep(params: {
       const result = await executeAgentStep(step, {
         signal,
         cwd,
+        ...(ambientGitConfigPath ? {gitConfigGlobal: ambientGitConfigPath} : {}),
         runtime: {
           provider: runtimeConfig.provider_id,
           model: runtimeConfig.model,

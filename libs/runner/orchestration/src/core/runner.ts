@@ -1,3 +1,4 @@
+import {join} from 'node:path';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   withJitter as applyJitter,
@@ -15,8 +16,10 @@ import {
   runnerRegistrationToken,
 } from '@shipfox/runner-protocol';
 import {
+  cleanupJobCredentials,
   cleanupJobLogs,
   cleanupWorkspace,
+  jobCredentialsPath,
   jobLogsPath,
   jobWorkspacePath,
   resolveWorkspaceRootFromEnv,
@@ -151,13 +154,16 @@ export async function runJob(
   // an internal/claim error: bail before starting any per-job resources.
   let cwd: string;
   let logsDir: string;
+  let credentialsDir: string;
   try {
     cwd = jobWorkspacePath(job.job_id, workspaceRoot);
     logsDir = jobLogsPath(job.job_id, workspaceRoot);
+    credentialsDir = jobCredentialsPath(job.job_id, workspaceRoot);
   } catch (error) {
     logger().error({err: error, jobId: job.job_id}, 'Invalid job id; skipping job');
     return;
   }
+  const gitConfigPath = join(credentialsDir, 'git-cred.config');
 
   const ac = new AbortController();
   currentJobAbortController = ac;
@@ -189,6 +195,8 @@ export async function runJob(
   });
 
   try {
+    await cleanupJobCredentials(credentialsDir);
+
     const leaseClient = createLeaseClient(() => currentLeaseToken);
     await runJobSteps({
       jobId: job.job_id,
@@ -200,6 +208,7 @@ export async function runJob(
       },
       signal: ac.signal,
       cwd,
+      gitConfigPath,
       logsDir,
       jobContext: {
         workflowRunId: job.workflow_run_id,
@@ -222,6 +231,7 @@ export async function runJob(
   } finally {
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
+    await cleanupJobCredentials(credentialsDir);
     await cleanupWorkspace(cwd);
     await cleanupJobLogs(logsDir);
   }

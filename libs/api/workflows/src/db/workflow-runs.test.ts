@@ -227,6 +227,10 @@ describe('workflow run queries', () => {
       expect(runJobs).toHaveLength(1);
       expect(runJobs[0]?.key).toBe('build');
       expect(runJobs[0]?.name).toBeNull();
+      expect(runJobs[0]?.checkout).toEqual({
+        permissions: {contents: 'read'},
+        persistCredentials: true,
+      });
 
       const jobExecutions = await getJobExecutionsByJobId(runJobs[0]?.id as string);
       expect(jobExecutions).toHaveLength(1);
@@ -311,6 +315,37 @@ describe('workflow run queries', () => {
       expect(detail?.runAttempt.model).toEqual(model);
       expect(detail?.jobs).toHaveLength(1);
       expect(detail?.jobs[0]?.jobExecutions[0]?.steps).toHaveLength(3);
+    });
+
+    test('persists explicit checkout policy on jobs', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              checkout: {
+                permissions: {contents: 'write'},
+                persistCredentials: false,
+              },
+              steps: [{run: 'echo hello'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      expect(runJobs[0]?.checkout).toEqual({
+        permissions: {contents: 'write'},
+        persistCredentials: false,
+      });
     });
 
     test('persists listening job config without initial execution or steps', async () => {
@@ -1352,6 +1387,50 @@ jobs:
       expect(reloadedRerunAttempt?.model).toEqual(sourceAttempt?.model);
     });
 
+    test('reruns preserve each source job checkout policy', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              checkout: {
+                permissions: {contents: 'write'},
+                persistCredentials: false,
+              },
+              steps: [{run: 'echo build'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      await markJob(sourceJobs, 'build', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
+      expect(rerunJobs[0]?.checkout).toEqual({
+        permissions: {contents: 'write'},
+        persistCredentials: false,
+      });
+    });
+
     test('reruns preserve the original resolved agent step config', async () => {
       const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
         provider: 'openai',
@@ -1905,6 +1984,8 @@ jobs:
           workflowRunAttemptId: existingJob.workflowRunAttemptId,
           key: 'no-execution',
           name: null,
+          checkoutPersistCredentials: true,
+          checkoutPermissionsContents: 'read',
           dependencies: [],
           runner: ['ubuntu-latest'],
           position: 99,

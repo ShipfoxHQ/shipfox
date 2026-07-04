@@ -13,7 +13,7 @@ describe('toCheckoutTokenDto', () => {
       },
     };
 
-    const dto = toCheckoutTokenDto(spec);
+    const dto = toCheckoutTokenDto(spec, {persist: true});
 
     expect(dto).toEqual({
       repository_url: 'https://github.com/acme/repo.git',
@@ -23,14 +23,33 @@ describe('toCheckoutTokenDto', () => {
         username: 'x-access-token',
         token: 'ghs-token',
         expires_at: '2026-06-10T12:00:00.000Z',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
       },
     });
+  });
+
+  it('maps persist false into credential auth', () => {
+    const spec: CheckoutSpec = {
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      ref: 'main',
+      credentials: {
+        username: 'x-access-token',
+        token: 'ghs-token',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      },
+    };
+
+    const dto = toCheckoutTokenDto(spec, {persist: false});
+
+    expect(dto.auth).toMatchObject({carry: 'header', host: 'github.com', persist: false});
   });
 
   it('omits auth when the spec has no credentials', () => {
     const spec: CheckoutSpec = {repositoryUrl: 'https://example.com/acme/repo.git', ref: 'trunk'};
 
-    const dto = toCheckoutTokenDto(spec);
+    const dto = toCheckoutTokenDto(spec, {persist: true});
 
     expect(dto).toEqual({repository_url: 'https://example.com/acme/repo.git', ref: 'trunk'});
     expect(dto.auth).toBeUndefined();
@@ -42,7 +61,7 @@ describe('toCheckoutTokenDto', () => {
       ref: 'main',
     };
 
-    expect(() => toCheckoutTokenDto(spec)).toThrow();
+    expect(() => toCheckoutTokenDto(spec, {persist: true})).toThrow();
   });
 
   it('rejects an scp-like URL that embeds credentials', () => {
@@ -51,14 +70,30 @@ describe('toCheckoutTokenDto', () => {
       ref: 'main',
     };
 
-    expect(() => toCheckoutTokenDto(spec)).toThrow();
+    expect(() => toCheckoutTokenDto(spec, {persist: true})).toThrow();
   });
 
   it('accepts a credential-free scp-like URL', () => {
     const spec: CheckoutSpec = {repositoryUrl: 'git@github.com:acme/repo.git', ref: 'main'};
 
-    const dto = toCheckoutTokenDto(spec);
+    const dto = toCheckoutTokenDto(spec, {persist: true});
 
     expect(dto).toEqual({repository_url: 'git@github.com:acme/repo.git', ref: 'main'});
+  });
+
+  it('maps the host from an scp-like credentialed URL', () => {
+    const spec: CheckoutSpec = {
+      repositoryUrl: 'git@github.com:acme/repo.git',
+      ref: 'main',
+      credentials: {
+        username: 'x-access-token',
+        token: 'ghs-token',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      },
+    };
+
+    const dto = toCheckoutTokenDto(spec, {persist: true});
+
+    expect(dto.auth).toMatchObject({host: 'github.com'});
   });
 });

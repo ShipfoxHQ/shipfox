@@ -1,6 +1,8 @@
 import type {CheckoutSpec} from '@shipfox/api-integration-core';
 import type {CheckoutTokenResponseDto} from '@shipfox/api-workflows-dto';
 
+const SCP_LIKE_HOST_RE = /^(?:[^@:/]+@)?([^:/]+):/;
+
 // Defense in depth: createCheckoutSpec's contract is that `repositoryUrl` never
 // embeds credentials (they live in `credentials` so redaction can mask them). A
 // provider bug that put a token in the URL would bypass redaction and leak it
@@ -37,7 +39,10 @@ function assertNoScpCredentials(repositoryUrl: string): void {
   }
 }
 
-export function toCheckoutTokenDto(spec: CheckoutSpec): CheckoutTokenResponseDto {
+export function toCheckoutTokenDto(
+  spec: CheckoutSpec,
+  options: {persist: boolean},
+): CheckoutTokenResponseDto {
   assertNoEmbeddedCredentials(spec.repositoryUrl);
 
   // Every provider that returns credentials uses a username (GitHub:
@@ -53,8 +58,25 @@ export function toCheckoutTokenDto(spec: CheckoutSpec): CheckoutTokenResponseDto
             username: spec.credentials.username,
             token: spec.credentials.token,
             expires_at: spec.credentials.expiresAt.toISOString(),
+            carry: 'header' as const,
+            host: checkoutHost(spec.repositoryUrl),
+            persist: options.persist,
           },
         }
       : {}),
   };
+}
+
+function checkoutHost(repositoryUrl: string): string {
+  try {
+    const host = new URL(repositoryUrl).host;
+    if (host) return host;
+  } catch {
+    // Fall through to scp-like parsing.
+  }
+
+  const scpLike = SCP_LIKE_HOST_RE.exec(repositoryUrl);
+  if (scpLike?.[1]) return scpLike[1];
+
+  throw new Error('Checkout repository URL must include a host');
 }

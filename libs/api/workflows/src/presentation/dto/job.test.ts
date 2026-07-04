@@ -51,6 +51,10 @@ function jobEntity(overrides: Partial<Job> = {}): Job {
     status: 'pending',
     statusReason: null,
     carriedOver: false,
+    checkout: {
+      permissions: {contents: 'read'},
+      persistCredentials: true,
+    },
     success: null,
     executionTimeoutMs: null,
     listeningTimeoutMs: null,

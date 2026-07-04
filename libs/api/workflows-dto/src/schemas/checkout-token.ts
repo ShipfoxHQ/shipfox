@@ -1,16 +1,24 @@
 import {z} from 'zod';
 
+const carryFields = {
+  carry: z.enum(['header', 'userinfo']),
+  host: z.string().min(1),
+  persist: z.boolean(),
+};
+
 const checkoutTokenBasicAuthSchema = z.object({
   kind: z.literal('basic'),
   username: z.string().min(1),
   token: z.string().min(1),
   expires_at: z.string().datetime({offset: true}),
+  ...carryFields,
 });
 
 const checkoutTokenBearerAuthSchema = z.object({
   kind: z.literal('bearer'),
   token: z.string().min(1),
   expires_at: z.string().datetime({offset: true}),
+  ...carryFields,
 });
 
 export const checkoutTokenAuthSchema = z.discriminatedUnion('kind', [

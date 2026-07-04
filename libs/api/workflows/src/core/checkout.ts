@@ -11,6 +11,8 @@ export interface CheckoutIntent {
   workspaceId: string;
   connectionId: string;
   externalRepositoryId: string;
+  persistCredentials: boolean;
+  permissions: {contents: 'read' | 'write'};
 }
 
 /**
@@ -32,13 +34,15 @@ export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutInte
     workspaceId: project.workspaceId,
     connectionId: project.sourceConnectionId,
     externalRepositoryId: project.sourceExternalRepositoryId,
+    persistCredentials: job.checkout.persistCredentials,
+    permissions: job.checkout.permissions,
   };
 }
 
 /**
  * Resolves the job's checkout intent and exchanges it for a short-lived,
- * read-only checkout spec. `ref` is left undefined so the provider defaults to
- * the repository's default branch.
+ * scoped checkout spec. `ref` is left undefined so the provider defaults to the
+ * repository's default branch.
  */
 export async function createJobCheckoutSpec({
   jobId,
@@ -46,12 +50,14 @@ export async function createJobCheckoutSpec({
 }: {
   jobId: string;
   sourceControl: IntegrationSourceControlService;
-}): Promise<CheckoutSpec> {
+}): Promise<{spec: CheckoutSpec; persistCredentials: boolean}> {
   const intent = await resolveCheckoutIntent(jobId);
-  return sourceControl.createCheckoutSpec({
+  const spec = await sourceControl.createCheckoutSpec({
     workspaceId: intent.workspaceId,
     connectionId: intent.connectionId,
     externalRepositoryId: intent.externalRepositoryId,
     ref: undefined,
+    permissions: intent.permissions,
   });
+  return {spec, persistCredentials: intent.persistCredentials};
 }
