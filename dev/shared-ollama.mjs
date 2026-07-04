@@ -127,6 +127,11 @@ function startServer(context) {
       env: {
         ...process.env,
         OLLAMA_HOST: context.listenHost,
+        // Pin the model in memory for the whole run. Requests that omit
+        // keep_alive (such as the app's provider validation probe) fall back to
+        // this server default instead of the built-in 5m, so the model is not
+        // evicted and cold-reloaded under load mid-suite.
+        OLLAMA_KEEP_ALIVE: context.keepAlive,
       },
       stdio: ['ignore', log, log],
     },
