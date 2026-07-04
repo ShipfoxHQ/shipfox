@@ -298,10 +298,11 @@ describe('runRetentionSweep', () => {
         ? Promise.resolve({deleted: false, jobId: null})
         : realDeleteExpiredStream(tx, params),
     );
+    const realGetAttemptStreamById = streams.getAttemptStreamById;
     vi.spyOn(streams, 'getAttemptStreamById').mockImplementation((streamId) =>
       streamId === poisonStream.id
         ? Promise.reject(new Error('reload failed'))
-        : streams.getAttemptStreamById(streamId),
+        : realGetAttemptStreamById(streamId),
     );
 
     const result = await sweep({batchLimit: 1});
