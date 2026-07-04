@@ -447,6 +447,33 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('freezes vars from the run-creation context into step config', () => {
+    const model = normalizeWorkflowDocument({
+      name: 'vars workflow',
+      runner: 'ubuntu-latest',
+      jobs: {
+        deploy: {
+          steps: [
+            {
+              run: 'deploy',
+              env: {REGION: template('"eu-" + vars.REGION')},
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext({...runContext(), vars: {REGION: 'west'}}),
+    });
+
+    expect(rows[0]?.steps[1]?.config).toMatchObject({
+      env: {REGION: 'eu-west'},
+    });
+    expect(rows[0]?.steps[1]?.configPlan).toBeUndefined();
+  });
+
   it('merges env before resolving and only resolves the winning values', () => {
     const model = workflowModel({
       env: {SHARED: template('event.missing'), WORKFLOW_ONLY: template('run.id')},

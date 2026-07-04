@@ -427,6 +427,133 @@ describe('workflow run queries', () => {
       expect(attempt?.model).toEqual(model);
     });
 
+    test('does not load variables referenced only by listening job executions at run creation', async () => {
+      const model = normalizeWorkflowDocument({
+        name: 'Listening vars workflow',
+        runner: 'ubuntu-latest',
+        jobs: {
+          listen: {
+            listening: {
+              on: [{source: 'github', event: 'pull_request_review'}],
+              until: [{source: 'github', event: 'pull_request'}],
+            },
+            steps: [
+              {
+                run: 'echo region',
+                env: {REGION: template('vars.REGION')},
+              },
+            ],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const listen = runJobs[0];
+      expect(listen).toMatchObject({mode: 'listening'});
+      await expect(getJobExecutionsByJobId(listen?.id as string)).resolves.toEqual([]);
+    });
+
+    test.each([
+      {
+        field: 'run',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing run var',
+            runner: 'ubuntu-latest',
+            jobs: {build: {steps: [{run: `echo ${template('vars.REQUIRED')}`}]}},
+          }),
+        expected: {field: 'run', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'env',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing env var',
+            runner: 'ubuntu-latest',
+            jobs: {
+              build: {
+                steps: [{run: 'echo ok', env: {REGION: template('vars.REQUIRED')}}],
+              },
+            },
+          }),
+        expected: {field: 'env', envKey: 'REGION', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'agent.prompt',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing prompt var',
+            runner: 'ubuntu-latest',
+            jobs: {fix: {steps: [{prompt: template('vars.REQUIRED')}]}},
+          }),
+        expected: {field: 'agent.prompt', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'agent.model',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing model var',
+            runner: 'ubuntu-latest',
+            jobs: {fix: {steps: [{prompt: 'Fix it', model: template('vars.REQUIRED')}]}},
+          }),
+        expected: {field: 'agent.model', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'agent.provider',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing provider var',
+            runner: 'ubuntu-latest',
+            jobs: {fix: {steps: [{prompt: 'Fix it', provider: template('vars.REQUIRED')}]}},
+          }),
+        expected: {field: 'agent.provider', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'step.name',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing step name var',
+            runner: 'ubuntu-latest',
+            jobs: {build: {steps: [{name: template('vars.REQUIRED'), run: 'echo ok'}]}},
+          }),
+        expected: {field: 'step.name', source: 'vars.REQUIRED'},
+      },
+    ] as const)('reports missing variables against $field', async ({model, expected}) => {
+      let error: unknown;
+      try {
+        await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: model(),
+          triggerPayload: {
+            source: 'manual',
+            event: 'fire',
+            subscriptionId: crypto.randomUUID(),
+            userId: crypto.randomUUID(),
+          },
+        });
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+      expect(error).toMatchObject(expected);
+    });
+
     test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
       const run = await createWorkflowRun({
         workspaceId,

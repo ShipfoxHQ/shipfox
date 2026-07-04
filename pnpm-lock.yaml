@@ -1136,6 +1136,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -2455,6 +2458,9 @@ importers:
       '@shipfox/api-secrets':
         specifier: workspace:*
         version: link:../secrets
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto

@@ -813,6 +813,33 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('rejects vars in gate success_if with a server-predicate issue', () => {
+    const document: WorkflowDocument = {
+      name: 'vars-context gate',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', gate: {success_if: 'vars.REQUIRED == "true"'}}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'vars-context-in-server-predicate',
+        message: expect.stringContaining('cannot reference vars'),
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        details: expect.objectContaining({
+          field: 'step.success_if',
+          source: 'vars.REQUIRED == "true"',
+          rejectedRoots: ['vars'],
+          site: 'step-report',
+        }),
+      }),
+    ]);
+  });
+
   it('rejects contexts unavailable at the gate predicate site', () => {
     const document: WorkflowDocument = {
       name: 'future-context gate',
@@ -978,6 +1005,34 @@ describe('normalizeWorkflowDocument', () => {
           field: 'job.success',
           source: 'runner.os == "linux"',
           runnerRoots: ['runner'],
+          site: 'job-resolution',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects vars in job success with a server-predicate issue', () => {
+    const document: WorkflowDocument = {
+      name: 'vars-context job success',
+      jobs: {
+        build: {
+          success: 'vars.ENVIRONMENT == "prod"',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'vars-context-in-server-predicate',
+        message: expect.stringContaining('cannot reference vars'),
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({
+          field: 'job.success',
+          source: 'vars.ENVIRONMENT == "prod"',
+          rejectedRoots: ['vars'],
           site: 'job-resolution',
         }),
       }),
@@ -1763,6 +1818,72 @@ describe('normalizeWorkflowDocument', () => {
             field: 'run',
             rejectedRoots: ['event'],
           }),
+        }),
+      ]);
+    });
+
+    it('rejects secrets in agent fields', () => {
+      const document: WorkflowDocument = {
+        name: 'agent secret',
+        jobs: {
+          build: {
+            steps: [{prompt: interpolation('secrets.OPENAI_API_KEY')}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'runner-context-in-field',
+          details: expect.objectContaining({rejectedRoots: ['secrets']}),
+        }),
+      ]);
+    });
+
+    it('rejects computed vars keys', () => {
+      const document: WorkflowDocument = {
+        name: 'computed vars',
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok', env: {REGION: interpolation('vars[event.region]')}}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'computed-context-key',
+            details: expect.objectContaining({root: 'vars'}),
+          }),
+        ]),
+      );
+      expect(error.issues.map((issue) => issue.code)).toEqual([
+        'computed-context-key',
+        'computed-context-key',
+      ]);
+    });
+
+    it('rejects unknown secret stores', () => {
+      const document: WorkflowDocument = {
+        name: 'unknown secret store',
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok', env: {TOKEN: interpolation('secrets.vault.TOKEN')}}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'unknown-secret-store',
+          details: expect.objectContaining({store: 'vault'}),
         }),
       ]);
     });

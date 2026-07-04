@@ -23,6 +23,7 @@ import {
   workflowContextTrustTiers,
   workflowFieldFailurePolicies,
   workflowInterpolationFieldAcceptsContext,
+  workflowInterpolationFieldAcceptsHost,
   workflowInterpolationFieldAcceptsTrustTier,
   workflowInterpolationFieldPolicies,
   workflowInterpolationFields,
@@ -42,6 +43,8 @@ describe('workflow context registry', () => {
       'execution',
       'steps',
       'step',
+      'vars',
+      'secrets',
     ]);
   });
 
@@ -78,6 +81,8 @@ describe('workflow context registry', () => {
       'execution',
       'steps',
       'step',
+      'vars',
+      'secrets',
     ]);
     expect(contextsByTrust.untrusted).toEqual(['event', 'inputs']);
   });
@@ -125,19 +130,40 @@ describe('workflow context registry', () => {
       shape: 'open',
       checkMode: 'syntax',
     });
+    expect(workflowContextDefinitions.vars).toMatchObject({
+      availability: 'run-creation',
+      trustTier: 'trusted',
+      sensitivity: 'persistable',
+      host: 'server',
+      shape: 'open',
+      checkMode: 'syntax',
+      literalKeyOnly: true,
+    });
+    expect(workflowContextDefinitions.secrets).toMatchObject({
+      trustTier: 'trusted',
+      sensitivity: 'ephemeral',
+      host: 'runner',
+      shape: 'open',
+      checkMode: 'syntax',
+      literalKeyOnly: true,
+    });
   });
 
   it('declares every implemented context with all registry dimensions', () => {
     for (const root of workflowContextNames) {
       expect(workflowContextDefinitions[root]).toMatchObject({
-        availability: expect.any(String),
         trustTier: expect.any(String),
-        sensitivity: 'persistable',
-        host: 'server',
+        sensitivity: expect.any(String),
+        host: expect.any(String),
         shape: expect.any(String),
         checkMode: expect.any(String),
       });
-      expect(availabilitySites).toContain(workflowContextDefinitions[root].availability);
+      const availability = resolveContextRootAvailability(root);
+      if (workflowContextDefinitions[root].host === 'server') {
+        expect(availabilitySites).toContain(availability);
+      } else {
+        expect(availability).toBeUndefined();
+      }
       expect(workflowContextTrustTiers).toContain(workflowContextDefinitions[root].trustTier);
       expect(workflowContextSensitivities).toContain(workflowContextDefinitions[root].sensitivity);
       expect(workflowContextHosts).toContain(workflowContextDefinitions[root].host);
@@ -190,11 +216,20 @@ describe('workflow context registry', () => {
     expect(getWorkflowContextTypeEnvironment('event')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('inputs')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('steps')).toBeUndefined();
+    expect(getWorkflowContextTypeEnvironment('vars')).toBeUndefined();
+    expect(getWorkflowContextTypeEnvironment('secrets')).toBeUndefined();
   });
 
   it('returns the roots available at each availability site', () => {
     expect(rootsAvailableAt('ingest')).toEqual([]);
-    expect(rootsAvailableAt('run-creation')).toEqual(['run', 'trigger', 'event', 'inputs', 'job']);
+    expect(rootsAvailableAt('run-creation')).toEqual([
+      'run',
+      'trigger',
+      'event',
+      'inputs',
+      'job',
+      'vars',
+    ]);
     expect(rootsAvailableAt('execution-creation')).toEqual([
       'run',
       'trigger',
@@ -203,6 +238,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'vars',
     ]);
     expect(rootsAvailableAt('job-activation')).toEqual([
       'run',
@@ -212,6 +248,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'vars',
     ]);
     expect(rootsAvailableAt('step-dispatch')).toEqual([
       'run',
@@ -222,6 +259,7 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
       'steps',
+      'vars',
     ]);
     expect(rootsAvailableAt('step-report')).toEqual([
       'run',
@@ -233,6 +271,7 @@ describe('workflow context registry', () => {
       'execution',
       'steps',
       'step',
+      'vars',
     ]);
     expect(rootsAvailableAt('execution-resolution')).toEqual([
       'run',
@@ -244,6 +283,7 @@ describe('workflow context registry', () => {
       'execution',
       'steps',
       'step',
+      'vars',
     ]);
     expect(rootsAvailableAt('job-resolution')).toEqual([
       'run',
@@ -255,6 +295,7 @@ describe('workflow context registry', () => {
       'execution',
       'steps',
       'step',
+      'vars',
     ]);
   });
 
@@ -299,6 +340,7 @@ describe('workflow context registry', () => {
         expect(workflowContextDefinitions[root].host).toBe('server');
       }
       expect(availableRoots).not.toContain('runner');
+      expect(availableRoots).not.toContain('secrets');
     }
   });
 
@@ -327,7 +369,9 @@ describe('workflow context registry', () => {
     }
 
     for (const root of workflowContextNames) {
-      const availability = workflowContextDefinitions[root].availability;
+      const availability = resolveContextRootAvailability(root);
+      if (availability === undefined) continue;
+
       const available = rootsAvailableAt(availability);
       expect(available).toContain(root);
       expect(siteIndexes.get(availability)).toBeDefined();
@@ -343,12 +387,21 @@ describe('workflow context registry', () => {
 
   it('generates an availability reference from the registry and reserved roots', () => {
     const expected = [
-      ...workflowContextNames.map((root) => ({
-        root,
-        availability: workflowContextDefinitions[root].availability,
-        reserved: false,
-        availableAt: availableAtReference(workflowContextDefinitions[root].availability),
-      })),
+      ...workflowContextNames.map((root) => {
+        const availability = resolveContextRootAvailability(root);
+        return availability === undefined
+          ? {
+              root,
+              reserved: false,
+              availableAt: noServerAvailabilityReference(),
+            }
+          : {
+              root,
+              availability,
+              reserved: false,
+              availableAt: availableAtReference(availability),
+            };
+      }),
       ...Object.entries(workflowContextReservedRoots).map(([root, definition]) =>
         definition.host === 'runner'
           ? {
@@ -366,189 +419,6 @@ describe('workflow context registry', () => {
     ];
 
     expect(workflowContextAvailabilityReference()).toEqual(expected);
-    expect(workflowContextAvailabilityReference()).toMatchInlineSnapshot(`
-      [
-        {
-          "availability": "run-creation",
-          "availableAt": {
-            "execution-creation": true,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": true,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "run",
-        },
-        {
-          "availability": "run-creation",
-          "availableAt": {
-            "execution-creation": true,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": true,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "trigger",
-        },
-        {
-          "availability": "run-creation",
-          "availableAt": {
-            "execution-creation": true,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": true,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "event",
-        },
-        {
-          "availability": "run-creation",
-          "availableAt": {
-            "execution-creation": true,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": true,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "inputs",
-        },
-        {
-          "availability": "run-creation",
-          "availableAt": {
-            "execution-creation": true,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": true,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "job",
-        },
-        {
-          "availability": "execution-creation",
-          "availableAt": {
-            "execution-creation": true,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": false,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "executions",
-        },
-        {
-          "availability": "execution-creation",
-          "availableAt": {
-            "execution-creation": true,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": false,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "execution",
-        },
-        {
-          "availability": "step-dispatch",
-          "availableAt": {
-            "execution-creation": false,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": false,
-            "job-resolution": true,
-            "run-creation": false,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "steps",
-        },
-        {
-          "availability": "step-report",
-          "availableAt": {
-            "execution-creation": false,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": false,
-            "job-resolution": true,
-            "run-creation": false,
-            "step-dispatch": false,
-            "step-report": true,
-          },
-          "reserved": false,
-          "root": "step",
-        },
-        {
-          "availability": "job-resolution",
-          "availableAt": {
-            "execution-creation": false,
-            "execution-resolution": false,
-            "ingest": false,
-            "job-activation": false,
-            "job-resolution": true,
-            "run-creation": false,
-            "step-dispatch": false,
-            "step-report": false,
-          },
-          "reserved": true,
-          "root": "jobs",
-        },
-        {
-          "availability": "job-activation",
-          "availableAt": {
-            "execution-creation": false,
-            "execution-resolution": true,
-            "ingest": false,
-            "job-activation": true,
-            "job-resolution": true,
-            "run-creation": false,
-            "step-dispatch": true,
-            "step-report": true,
-          },
-          "reserved": true,
-          "root": "matrix",
-        },
-        {
-          "availableAt": {
-            "execution-creation": false,
-            "execution-resolution": false,
-            "ingest": false,
-            "job-activation": false,
-            "job-resolution": false,
-            "run-creation": false,
-            "step-dispatch": false,
-            "step-report": false,
-          },
-          "reserved": true,
-          "root": "runner",
-        },
-      ]
-    `);
   });
 
   it('resolves root host and availability across implemented and reserved roots', () => {
@@ -556,6 +426,10 @@ describe('workflow context registry', () => {
     expect(resolveContextRootAvailability('run')).toBe('run-creation');
     expect(resolveContextRootHost('steps')).toBe('server');
     expect(resolveContextRootAvailability('steps')).toBe('step-dispatch');
+    expect(resolveContextRootHost('vars')).toBe('server');
+    expect(resolveContextRootAvailability('vars')).toBe('run-creation');
+    expect(resolveContextRootHost('secrets')).toBe('runner');
+    expect(resolveContextRootAvailability('secrets')).toBeUndefined();
     expect(resolveContextRootHost('runner')).toBe('runner');
     expect(resolveContextRootAvailability('runner')).toBeUndefined();
     expect(resolveContextRootHost('unknown')).toBeUndefined();
@@ -687,6 +561,22 @@ describe('workflow interpolation field policies', () => {
     expect(workflowInterpolationFieldPolicies[field].acceptedTrustTiers).toEqual(trustTiers);
   });
 
+  it.each([
+    ['run', ['server', 'runner']],
+    ['env.value', ['server', 'runner']],
+    ['agent.prompt', ['server']],
+    ['agent.model', ['server']],
+    ['agent.provider', ['server']],
+    ['agent.thinking', ['server']],
+    ['job.name', ['server']],
+    ['step.name', ['server']],
+  ] satisfies readonly [
+    WorkflowInterpolationField,
+    readonly string[],
+  ][])('allows %s interpolation from the expected hosts', (field, hosts) => {
+    expect(workflowInterpolationFieldPolicies[field].acceptedHosts).toEqual(hosts);
+  });
+
   it('rejects untrusted contexts from trusted-only fields', () => {
     expect(workflowInterpolationFieldAcceptsTrustTier('run', 'untrusted')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('run', 'event')).toBe(false);
@@ -702,6 +592,16 @@ describe('workflow interpolation field policies', () => {
         expect(workflowInterpolationFieldAcceptsContext(field, context)).toBe(true);
       }
     }
+  });
+
+  it('rejects runner-host contexts from server-only fields', () => {
+    expect(workflowInterpolationFieldAcceptsHost('run', 'runner')).toBe(true);
+    expect(workflowInterpolationFieldAcceptsHost('env.value', 'runner')).toBe(true);
+    expect(workflowInterpolationFieldAcceptsHost('agent.prompt', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('agent.model', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('agent.provider', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('job.name', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('step.name', 'runner')).toBe(false);
   });
 
   it('marks display names for render sanitization', () => {
@@ -721,6 +621,10 @@ describe('workflow interpolation field policies', () => {
       expect(policy.acceptedTrustTiers.length).toBeGreaterThan(0);
       for (const trustTier of policy.acceptedTrustTiers) {
         expect(workflowContextTrustTiers).toContain(trustTier);
+      }
+      expect(policy.acceptedHosts.length).toBeGreaterThan(0);
+      for (const host of policy.acceptedHosts) {
+        expect(workflowContextHosts).toContain(host);
       }
     }
   });

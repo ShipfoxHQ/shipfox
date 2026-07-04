@@ -30,6 +30,12 @@ export type {
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
 export {isBareContextReference} from './plan/bare-reference.js';
+export {
+  analyzeContextKeyAccess,
+  type ContextKeyAccessAnalysis,
+  type ContextKeyAccessReference,
+  type ContextKeyAccessViolation,
+} from './plan/context-key-access.js';
 export {evaluatePlannedPredicateAtSite} from './plan/evaluate-planned-predicate.js';
 export {extractExactContextRoots} from './plan/extract-exact-context-roots.js';
 export {
@@ -98,6 +104,7 @@ export {
   getWorkflowInterpolationFieldFailurePolicy,
   type OpenWorkflowContextDefinition,
   type ReservedRootDefinition,
+  type RunnerWorkflowContextDefinition,
   resolveContextRootAvailability,
   resolveContextRootHost,
   rootsAvailableAt,
@@ -122,10 +129,12 @@ export {
   workflowContextHosts,
   workflowContextNames,
   workflowContextReservedRoots,
+  workflowContextRootRequiresLiteralKey,
   workflowContextSensitivities,
   workflowContextTrustTiers,
   workflowFieldFailurePolicies,
   workflowInterpolationFieldAcceptsContext,
+  workflowInterpolationFieldAcceptsHost,
   workflowInterpolationFieldAcceptsTrustTier,
   workflowInterpolationFieldPolicies,
   workflowInterpolationFields,

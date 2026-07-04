@@ -1,15 +1,23 @@
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
-  freezePlannedRunCommandAtSite,
-  getWorkflowInterpolationFieldFailurePolicy,
+  type MaterializedSecretBindingDto,
+  materializedSecretBindingSchema,
+  type SecretBindingSegmentDto,
+  secretStoreSchema,
+} from '@shipfox/api-secrets-dto';
+import {
+  analyzeContextKeyAccess,
   hoistPlannedRunCommand,
   type ResolvedField,
+  type ResolvedFieldSegment,
+  runnerFillTarget,
   UnsafeRunInterpolationError,
 } from '@shipfox/expression';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import {InterpolationUnresolvableError} from '#core/errors.js';
 import {
-  completeStepField,
   resolveStepField,
+  type StepConfigField,
   stepConfigInterpolationError,
   type WorkflowStepTemplateDiagnostic,
 } from './fields.js';
@@ -79,22 +87,23 @@ export function completeRunDispatchConfig(params: {
   readonly definitionId: string;
 }): void {
   const env = {...readConfigEnv(params.config)};
+  const secretBindings: MaterializedSecretBindingDto[] = [];
 
   if (params.plan.run !== undefined) {
-    const resolved = freezePlannedRunCommandAtSite({
+    const resolved = completeRunCommand({
       field: params.plan.run,
-      site: params.context.site,
-      context: params.context.values,
-      failurePolicy: getWorkflowInterpolationFieldFailurePolicy('run'),
+      context: params.context,
+      definitionId: params.definitionId,
       reservedNames: Object.keys(env),
     });
     params.config.run = resolved.command;
     Object.assign(env, resolved.env);
+    secretBindings.push(...resolved.secretBindings);
   }
 
   if (params.plan.env !== undefined) {
     for (const [key, field] of Object.entries(params.plan.env)) {
-      env[key] = completeStepField({
+      const completed = completeDispatchField({
         field: 'env.value',
         errorField: 'env',
         template: field,
@@ -102,10 +111,116 @@ export function completeRunDispatchConfig(params: {
         definitionId: params.definitionId,
         envKey: key,
       });
+      if (completed.kind === 'binding') secretBindings.push(completed.binding);
+      else env[key] = completed.value;
     }
   }
 
   if (Object.keys(env).length > 0) params.config.env = env;
+  if (secretBindings.length > 0) params.config.secret_bindings = secretBindings;
+}
+
+function completeRunCommand(params: {
+  readonly field: ResolvedField;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+  readonly reservedNames: Iterable<string>;
+}): {
+  readonly command: string;
+  readonly env: Readonly<Record<string, string>>;
+  readonly secretBindings: readonly MaterializedSecretBindingDto[];
+} {
+  const hoisted = hoistPlannedRunCommand({
+    field: params.field,
+    reservedNames: params.reservedNames,
+  });
+  const env: Record<string, string> = {};
+  const secretBindings: MaterializedSecretBindingDto[] = [];
+
+  for (const binding of hoisted.bindings) {
+    const completed = completeDispatchField({
+      field: 'run',
+      errorField: 'run',
+      template: {segments: [binding.segment]},
+      context: params.context,
+      definitionId: params.definitionId,
+      envKey: binding.name,
+    });
+    if (completed.kind === 'binding') secretBindings.push(completed.binding);
+    else env[binding.name] = completed.value;
+  }
+
+  return {command: hoisted.command, env, secretBindings};
+}
+
+type CompletedDispatchField =
+  | {readonly kind: 'value'; readonly value: string}
+  | {readonly kind: 'binding'; readonly binding: MaterializedSecretBindingDto};
+
+function completeDispatchField(params: {
+  readonly field: 'run' | 'env.value';
+  readonly errorField: StepConfigField;
+  readonly template: ResolvedField;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+  readonly envKey?: string;
+}): CompletedDispatchField {
+  const resolved = resolveStepField(params);
+  if (resolved.kind === 'frozen') return {kind: 'value', value: resolved.value};
+  if (params.envKey !== undefined && containsOnlyRunnerSecretSegments(resolved.field)) {
+    return {
+      kind: 'binding',
+      binding: secretBindingFromField(params.envKey, resolved.field),
+    };
+  }
+
+  const source = resolved.field.segments.find((segment) => segment.kind === 'deferred')?.expression
+    .source;
+  throw new InterpolationUnresolvableError(params.definitionId, {
+    field: params.errorField,
+    source: source ?? params.field,
+    ...(params.envKey === undefined ? {} : {envKey: params.envKey}),
+  });
+}
+
+function containsOnlyRunnerSecretSegments(field: ResolvedField): boolean {
+  return field.segments.every((segment) => {
+    if (segment.kind === 'literal') return true;
+    return (
+      segment.fillTarget === runnerFillTarget &&
+      segment.roots.length === 1 &&
+      segment.roots[0] === 'secrets'
+    );
+  });
+}
+
+function secretBindingFromField(
+  target: string,
+  field: ResolvedField,
+): MaterializedSecretBindingDto {
+  const binding = {
+    target,
+    segments: field.segments.map(secretBindingSegment),
+  };
+  return materializedSecretBindingSchema.parse(binding);
+}
+
+function secretBindingSegment(segment: ResolvedFieldSegment): SecretBindingSegmentDto {
+  if (segment.kind === 'literal') return {kind: 'literal', value: segment.value};
+
+  const keyAccess = analyzeContextKeyAccess(segment.expression);
+  const reference = keyAccess.references.find((candidate) => candidate.root === 'secrets');
+  if (reference === undefined) {
+    throw new Error(
+      `Runner secret segment did not contain a secret reference: ${segment.expression.source}`,
+    );
+  }
+
+  return {
+    kind: 'secret',
+    store: secretStoreSchema.parse(reference.store ?? 'local'),
+    key: reference.key,
+  };
 }
 
 function resolveCommand(params: {
