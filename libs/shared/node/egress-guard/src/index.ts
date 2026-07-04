@@ -1,5 +1,5 @@
 import {lookup} from 'node:dns/promises';
-import * as ipaddr from 'ipaddr.js';
+import ipaddr from 'ipaddr.js';
 
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const METADATA_ADDRESS = '169.254.169.254';

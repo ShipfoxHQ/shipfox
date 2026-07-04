@@ -203,6 +203,14 @@ docker compose up -d
 mise run e2e -- --filter=@shipfox/e2e-client-auth
 ```
 
+Agent E2E tests that validate custom model providers against local Ollama also
+require the shared Ollama service and default model:
+
+```sh
+mise run ollama:up
+mise run e2e -- --filter=@shipfox/e2e-client-agent
+```
+
 The harness writes API/client logs and failure diagnostics to
 `.context/shipfox-e2e-logs/` locally. It also reads Conductor worktree ports from
 `.context/local-services/env` through mise, so the same command works in worktrees.
