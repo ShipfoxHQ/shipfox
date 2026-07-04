@@ -1,12 +1,16 @@
 import {type LogRecord, parseLogRecordLine, type ReadLogsResponseDto} from '@shipfox/api-logs-dto';
-import {type ApiFetch, createApiClient} from '@shipfox/e2e-core';
+import {type ApiFetch, createApiClient, E2eApiError} from '@shipfox/e2e-core';
 
 const NDJSON_LINE_SPLIT_RE = /\r?\n/u;
+const MISSING_STREAM_RETRY_ATTEMPTS = 5;
+const MISSING_STREAM_RETRY_DELAY_MS = 750;
 
 export interface FetchStepLogsOptions {
   apiUrl?: string | undefined;
   attempt: number;
   fetch?: ApiFetch | undefined;
+  missingStreamRetryAttempts?: number | undefined;
+  missingStreamRetryDelayMs?: number | undefined;
   signal?: AbortSignal | undefined;
   stepId: string;
   token: string;
@@ -50,15 +54,34 @@ export async function fetchStepLogs(options: FetchStepLogsOptions): Promise<Step
   let cursor = 0;
   let ndjson = '';
   let truncated = false;
+  let missingStreamRetries = 0;
+  const missingStreamRetryAttempts =
+    options.missingStreamRetryAttempts ?? MISSING_STREAM_RETRY_ATTEMPTS;
+  const missingStreamRetryDelayMs =
+    options.missingStreamRetryDelayMs ?? MISSING_STREAM_RETRY_DELAY_MS;
 
   while (true) {
     options.signal?.throwIfAborted();
     const params = new URLSearchParams({cursor: String(cursor)});
-    const response = await client.requestJson<ReadLogsResponseDto>(
-      'get',
-      `/steps/${encodeURIComponent(options.stepId)}/attempts/${options.attempt}/logs?${params}`,
-      {signal: options.signal},
-    );
+    let response: ReadLogsResponseDto;
+    try {
+      response = await client.requestJson<ReadLogsResponseDto>(
+        'get',
+        `/steps/${encodeURIComponent(options.stepId)}/attempts/${options.attempt}/logs?${params}`,
+        {signal: options.signal},
+      );
+    } catch (error) {
+      if (
+        cursor === 0 &&
+        missingStreamRetries < missingStreamRetryAttempts &&
+        isMissingStreamError(error)
+      ) {
+        missingStreamRetries += 1;
+        await delay(missingStreamRetryDelayMs, options.signal);
+        continue;
+      }
+      throw error;
+    }
 
     truncated ||= response.truncated;
 
@@ -81,6 +104,32 @@ export async function fetchStepLogs(options: FetchStepLogsOptions): Promise<Step
     records: parseLogNdjson(ndjson),
     truncated,
   };
+}
+
+function isMissingStreamError(error: unknown): boolean {
+  return (
+    error instanceof E2eApiError &&
+    error.status === 404 &&
+    typeof error.details === 'object' &&
+    error.details !== null &&
+    'code' in error.details &&
+    error.details.code === 'not-found'
+  );
+}
+
+function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timeout);
+        reject(signal.reason);
+      },
+      {once: true},
+    );
+  });
 }
 
 export function createLogsHelper(options: {

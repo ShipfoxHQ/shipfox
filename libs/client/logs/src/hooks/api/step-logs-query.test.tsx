@@ -203,6 +203,21 @@ describe('useStepAttemptLogsQuery', () => {
     expect(urls.map((url) => url.searchParams.get('cursor'))).toEqual(['0', '0', '5']);
   });
 
+  test('settles a bounded missing stream retry window as complete empty logs', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({code: 'not-found'}, {status: 404}));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result} = renderStepLogsHook(
+      {stepId: STEP_ID, attempt: 1},
+      {retryMissingStream: true, missingStreamRetryCount: 2, missingStreamRetryDelayMs: 10},
+    );
+
+    await waitFor(() => expect(result.current.data?.complete).toBe(true));
+    expect(result.current.data?.records).toEqual([]);
+    expect(result.current.data?.state).toBe('closed');
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
   test('does not keep polling server errors when missing-stream retry is requested', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({code: 'server-error'}, {status: 500}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});

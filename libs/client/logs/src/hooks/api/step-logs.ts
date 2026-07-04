@@ -1,6 +1,7 @@
 import type {ReadLogsResponseDto} from '@shipfox/api-logs-dto';
 import {ApiError, apiRequest} from '@shipfox/client-api';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {useRef} from 'react';
 import {
   mergeLogRead,
   STEP_LOG_LIVE_REFETCH_MS,
@@ -56,6 +57,8 @@ export function isMissingStepLogStreamError(error: unknown): boolean {
 
 export interface UseStepAttemptLogsQueryOptions {
   retryMissingStream?: boolean;
+  missingStreamRetryCount?: number | undefined;
+  missingStreamRetryDelayMs?: number | undefined;
   initialErrorRetryCount?: number;
   initialErrorRetryDelayMs?: number;
 }
@@ -66,25 +69,51 @@ export function useStepAttemptLogsQuery(
   options: UseStepAttemptLogsQueryOptions = {},
 ) {
   const queryClient = useQueryClient();
+  const missingStreamFailureCountRef = useRef(0);
+  const missingStreamScopeRef = useRef<string | null>(null);
   const enabled = Boolean(stepId && attempt && Number.isInteger(attempt) && attempt > 0);
   const queryKey =
     enabled && stepId && attempt
       ? stepLogsQueryKeys.detail(stepId, attempt)
       : [...stepLogsQueryKeys.all, 'detail'];
+  const missingStreamScope = enabled && stepId && attempt ? `${stepId}:${attempt}` : null;
+  if (missingStreamScopeRef.current !== missingStreamScope) {
+    missingStreamScopeRef.current = missingStreamScope;
+    missingStreamFailureCountRef.current = 0;
+  }
   const initialErrorRetryCount = options.initialErrorRetryCount ?? 0;
   const initialErrorRetryDelayMs = options.initialErrorRetryDelayMs ?? STEP_LOG_LIVE_REFETCH_MS;
+  const missingStreamRetryDelayMs = options.missingStreamRetryDelayMs ?? STEP_LOG_LIVE_REFETCH_MS;
 
   return useQuery({
     queryKey,
     enabled,
     queryFn: async ({signal}) => {
       const previous = queryClient.getQueryData<StepLogSnapshot>(queryKey);
-      const response = await readStepAttemptLogsPage({
-        stepId: stepId ?? '',
-        attempt: attempt ?? 0,
-        cursor: previous?.nextCursor ?? 0,
-        signal,
-      });
+      let response: ReadLogsResponseDto;
+      try {
+        response = await readStepAttemptLogsPage({
+          stepId: stepId ?? '',
+          attempt: attempt ?? 0,
+          cursor: previous?.nextCursor ?? 0,
+          signal,
+        });
+      } catch (error) {
+        if (
+          options.retryMissingStream &&
+          previous === undefined &&
+          isMissingStepLogStreamError(error)
+        ) {
+          const retryCount = options.missingStreamRetryCount;
+          if (retryCount !== undefined && missingStreamFailureCountRef.current >= retryCount) {
+            return emptyCompleteLogSnapshot();
+          }
+          missingStreamFailureCountRef.current += 1;
+        }
+        throw error;
+      }
+
+      missingStreamFailureCountRef.current = 0;
 
       if (response.mode === 'presigned') {
         const ndjson = await readPresignedLogObject(response.url, signal);
@@ -106,7 +135,7 @@ export function useStepAttemptLogsQuery(
         query.state.data === undefined &&
         isMissingStepLogStreamError(query.state.error)
       ) {
-        return STEP_LOG_LIVE_REFETCH_MS;
+        return missingStreamRetryDelayMs;
       }
 
       return stepLogRefetchInterval(query.state.data, query.state.status === 'error');
@@ -116,4 +145,18 @@ export function useStepAttemptLogsQuery(
     refetchOnWindowFocus: (query) => !query.state.data?.complete,
     refetchOnReconnect: (query) => !query.state.data?.complete,
   });
+}
+
+function emptyCompleteLogSnapshot(): StepLogSnapshot {
+  return {
+    records: [],
+    nextCursor: 0,
+    source: 'inline',
+    state: 'closed',
+    complete: true,
+    hasMore: false,
+    truncated: false,
+    totalBytes: null,
+    expiresAt: null,
+  };
 }

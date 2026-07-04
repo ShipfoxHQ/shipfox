@@ -11,12 +11,7 @@ import {db} from '#db/db.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
 import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {
-  bulkUpdateStepStatuses,
-  getStepAttempts,
-  getStepsByJobId,
-  getTerminalStepAttemptLogState,
-} from '#db/workflow-runs.js';
+import {bulkUpdateStepStatuses, getStepAttempts, getStepsByJobId} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {
   JobNotFoundError,
@@ -523,14 +518,18 @@ describe('step attempts', () => {
 
     const [attempt] = await getStepAttempts(jobId);
     expect(attempt).toMatchObject({attempt: 1, status: 'failed', logOutcome: 'abandoned'});
-    const terminal = await getTerminalStepAttemptLogState({stepId, attempt: 1});
-    expect(terminal).toMatchObject({
-      jobId,
-      stepId,
-      attempt: 1,
-      logOutcome: 'abandoned',
-    });
-    expect(await stepAttemptTerminatedEvents(jobId)).toEqual([terminal]);
+    expect(await stepAttemptTerminatedEvents(jobId)).toEqual([
+      {
+        jobId,
+        workflowRunId: expect.any(String),
+        workflowRunAttemptId: expect.any(String),
+        workspaceId: expect.any(String),
+        projectId: expect.any(String),
+        stepId,
+        attempt: 1,
+        logOutcome: 'abandoned',
+      },
+    ]);
   });
 
   test('a failed report finalizes the attempt with its error and exit code', async () => {
