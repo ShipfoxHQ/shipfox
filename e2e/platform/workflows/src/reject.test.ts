@@ -78,4 +78,25 @@ describe('evaluateRejection', () => {
       {path: 'runs', expected: 'none', actual: '1'},
     ]);
   });
+
+  test('reports missing sync state as mismatches', () => {
+    const result = evaluateRejection(
+      {sync: null, runs: []},
+      parseRejection({message_includes: ['unknown-interpolation-context']}),
+    );
+
+    expect(result).toEqual([
+      {path: 'definition.sync.status', expected: 'failed', actual: 'null'},
+      {
+        path: 'definition.sync.last_error_code',
+        expected: 'invalid-definition',
+        actual: 'null',
+      },
+      {
+        path: 'definition.sync.last_error_message',
+        expected: 'include unknown-interpolation-context',
+        actual: 'null',
+      },
+    ]);
+  });
 });
