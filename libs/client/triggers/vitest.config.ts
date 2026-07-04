@@ -20,6 +20,7 @@ export default defineConfig(
           test: {
             name: 'node',
             environment: 'node',
+            isolate: false,
             include: ['src/**/*.test.ts'],
           },
         },
@@ -54,7 +55,6 @@ export default defineConfig(
           test: {
             name: 'storybook',
             fileParallelism: true,
-            isolate: false,
             browser: {
               enabled: true,
               headless: true,
