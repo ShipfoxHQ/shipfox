@@ -17,6 +17,12 @@ export const nextStepResponseSchema = z.discriminatedUnion('kind', [
       .describe(
         'Attempt number for this step dispatch. Echo it back when reporting the step result so stale reports from older attempts can be ignored.',
       ),
+    lease_token: z
+      .string()
+      .min(1)
+      .describe(
+        'Job-lease token re-scoped to this dispatched step attempt. The runner presents it as its lease for log-append authorization and carries it on later step requests.',
+      ),
   }),
   z.object({
     kind: z.literal('done'),

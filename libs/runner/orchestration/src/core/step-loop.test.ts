@@ -56,7 +56,7 @@ vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 
-const {executeStep, runJobSteps} = await import('#core/step-loop.js');
+const {executeStep, pullNextStep, runJobSteps} = await import('#core/step-loop.js');
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
@@ -145,6 +145,7 @@ function runLoop(params: {
   secrets?: string[];
   cwd?: string;
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
+  onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
   return runJobSteps({
     jobId: JOB_ID,
@@ -155,6 +156,7 @@ function runLoop(params: {
     cwd: params.cwd ?? '/work',
     logsDir: LOGS_DIR,
     jobContext: JOB_CONTEXT,
+    ...(params.onLeaseTokenAdopted ? {onLeaseTokenAdopted: params.onLeaseTokenAdopted} : {}),
   });
 }
 
@@ -225,6 +227,41 @@ describe('runJobSteps', () => {
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('pullNextStep returns the step-scoped lease token', async () => {
+    const setup = buildSetupStep();
+    requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 4, 'lease-pulled'));
+    const ac = new AbortController();
+
+    const pulled = await pullNextStep({leaseClient, jobId: JOB_ID, signal: ac.signal});
+
+    expect(pulled).toEqual({step: setup, attempt: 4, leaseToken: 'lease-pulled'});
+  });
+
+  it('adopts the pulled step lease token before opening the step log stream', async () => {
+    const setup = buildSetupStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1, 'lease-step'))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    const ac = new AbortController();
+
+    await runLoop({
+      signal: ac.signal,
+      onLeaseTokenAdopted: (leaseToken) => events.push(`adopt:${leaseToken}`),
+    });
+
+    expect(events.indexOf('adopt:lease-step')).toBeLessThan(events.indexOf(`create:${setup.id}`));
+  });
+
+  it('does not adopt a token for a done response', async () => {
+    requestNextStepMock.mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    const onLeaseTokenAdopted = vi.fn();
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, onLeaseTokenAdopted});
+
+    expect(onLeaseTokenAdopted).not.toHaveBeenCalled();
   });
 
   it('opens a per-attempt log stream for the run step and disposes it at the end', async () => {
@@ -993,8 +1030,12 @@ function buildStep(overrides: Partial<StepDto> = {}): StepDto {
   };
 }
 
-function stepResponse(step: StepDto, attempt: number): NextStepResponseDto {
-  return {kind: 'step', step, attempt};
+function stepResponse(
+  step: StepDto,
+  attempt: number,
+  leaseToken = `lease-${step.id}-${attempt}`,
+): NextStepResponseDto {
+  return {kind: 'step', step, attempt, lease_token: leaseToken};
 }
 
 function buildHTTPError(status: number): HTTPError {

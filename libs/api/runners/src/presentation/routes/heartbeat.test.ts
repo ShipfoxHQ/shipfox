@@ -2,6 +2,7 @@ import {
   createLeaseTokenAuthMethod,
   createRunnerSessionAuthMethod,
   issueJobLeaseToken,
+  jobLeaseParamsFrom,
   verifyJobLeaseToken,
 } from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
@@ -111,6 +112,8 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       workflowRunAttemptId,
       runnerSessionId,
     });
+    expect(refreshedLease?.currentStepId).toBeUndefined();
+    expect(refreshedLease?.currentStepAttempt).toBeUndefined();
     const [running] = await db()
       .select()
       .from(runningJobExecutions)
@@ -140,6 +143,25 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       workflowRunAttemptId,
       runnerSessionId,
     });
+  });
+
+  it('preserves current step scope when renewing a step-scoped lease', async () => {
+    const {jobId, leaseToken} = await claimAvailableJob();
+    const lease = await verifyJobLeaseToken(leaseToken);
+    if (!lease) throw new Error('Expected valid lease token');
+    const stepScope = {currentStepId: crypto.randomUUID(), currentStepAttempt: 3};
+    const stepScopedLeaseToken = await issueJobLeaseToken(jobLeaseParamsFrom(lease, stepScope));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${jobId}/heartbeat`,
+      headers: {authorization: `Bearer ${stepScopedLeaseToken}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{cancel: boolean; lease_token: string}>();
+    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    expect(refreshedLease).toMatchObject(stepScope);
   });
 
   it('returns 404 when the jobId is unknown', async () => {

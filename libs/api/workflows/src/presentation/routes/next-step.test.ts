@@ -1,4 +1,4 @@
-import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
+import {createLeaseTokenAuthMethod, verifyJobLeaseToken} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
@@ -143,6 +143,14 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(body.kind).toBe('step');
     expect(body.step.id).toBe(steps[0]?.id);
     expect(body.step.status).toBe('running');
+    expect(body.lease_token).toEqual(expect.any(String));
+    const scopedLease = await verifyJobLeaseToken(body.lease_token);
+    expect(scopedLease).toMatchObject({
+      jobId,
+      jobExecutionId: steps[0]?.jobExecutionId,
+      currentStepId: steps[0]?.id,
+      currentStepAttempt: 1,
+    });
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.status).toBe('running');
     expect(after[1]?.status).toBe('pending');
@@ -291,6 +299,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().attempt).toBe(2);
+    const body = res.json();
+    expect(body.attempt).toBe(2);
+    const scopedLease = await verifyJobLeaseToken(body.lease_token);
+    expect(scopedLease?.currentStepId).toBe(steps[0]?.id);
+    expect(scopedLease?.currentStepAttempt).toBe(body.attempt);
   });
 });

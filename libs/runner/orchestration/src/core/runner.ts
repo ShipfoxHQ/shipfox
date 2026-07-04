@@ -168,7 +168,7 @@ export async function runJob(
     for (const subscriber of leaseTokenSecretSubscribers) subscriber(rotatingLeaseSecrets());
   };
 
-  const heartbeatLoop = startHeartbeatLoop(job.job_id, job.lease_token, ac, {
+  const heartbeatLoop = startHeartbeatLoop(job.job_id, () => currentLeaseToken, ac, {
     intervalMs: config.SHIPFOX_HEARTBEAT_INTERVAL_MS,
     maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
     onLeaseTokenRenewed: rememberLeaseToken,
@@ -192,6 +192,10 @@ export async function runJob(
         workflowRunAttemptId: job.workflow_run_attempt_id,
         jobId: job.job_id,
         jobExecutionId: job.job_execution_id,
+      },
+      onLeaseTokenAdopted: (leaseToken) => {
+        rememberLeaseToken(leaseToken);
+        heartbeatLoop.bumpGeneration();
       },
     });
     logger().info({jobId: job.job_id}, 'Job step loop finished');

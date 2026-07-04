@@ -1,4 +1,4 @@
-import {issueJobLeaseToken} from '@shipfox/api-auth';
+import {issueJobLeaseToken, jobLeaseParamsFrom} from '@shipfox/api-auth';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {heartbeatResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -37,15 +37,17 @@ export const heartbeatRoute = defineRoute({
       runnerSessionId: lease.runnerSessionId,
     });
 
-    const leaseToken = await issueJobLeaseToken({
-      workflowRunId: runningJobExecution.workflowRunId,
-      workflowRunAttemptId: runningJobExecution.workflowRunAttemptId,
-      jobId: runningJobExecution.jobId,
-      jobExecutionId: runningJobExecution.jobExecutionId,
-      projectId: runningJobExecution.projectId,
-      workspaceId: runningJobExecution.workspaceId,
-      runnerSessionId: runningJobExecution.runnerSessionId,
-    });
+    const leaseToken = await issueJobLeaseToken(
+      jobLeaseParamsFrom(
+        runningJobExecution,
+        lease.currentStepId && lease.currentStepAttempt !== undefined
+          ? {
+              currentStepId: lease.currentStepId,
+              currentStepAttempt: lease.currentStepAttempt,
+            }
+          : undefined,
+      ),
+    );
 
     return {cancel: cancellationRequested, lease_token: leaseToken};
   },

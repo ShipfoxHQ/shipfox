@@ -15,6 +15,8 @@ export interface HeartbeatLoopOptions {
 export interface HeartbeatLoopHandle {
   /** Aborts any in-flight heartbeat and clears the pending timer. Idempotent. */
   stop: () => void;
+  /** Marks externally adopted lease tokens so stale heartbeat renewals are ignored. */
+  bumpGeneration: () => void;
 }
 
 /**
@@ -30,12 +32,12 @@ export interface HeartbeatLoopHandle {
  */
 export function startHeartbeatLoop(
   jobId: string,
-  leaseToken: string,
+  getLeaseToken: () => string,
   jobAbortController: AbortController,
   options: HeartbeatLoopOptions,
 ): HeartbeatLoopHandle {
   let stopped = false;
-  let currentLeaseToken = leaseToken;
+  let generation = 0;
   let pendingTimer: NodeJS.Timeout | undefined;
   let currentHttpAc: AbortController | undefined;
 
@@ -49,6 +51,8 @@ export function startHeartbeatLoop(
 
     const httpAc = new AbortController();
     currentHttpAc = httpAc;
+    const sentGeneration = generation;
+    const sentLeaseToken = getLeaseToken();
 
     const staleTimer = setTimeout(() => {
       logger().warn(
@@ -59,12 +63,11 @@ export function startHeartbeatLoop(
     }, options.maxStaleMs);
 
     try {
-      const {cancel, lease_token: renewedLeaseToken} = await heartbeat(jobId, currentLeaseToken, {
+      const {cancel, lease_token: renewedLeaseToken} = await heartbeat(jobId, sentLeaseToken, {
         signal: httpAc.signal,
       });
       if (stopped) return;
-      if (renewedLeaseToken !== currentLeaseToken) {
-        currentLeaseToken = renewedLeaseToken;
+      if (generation === sentGeneration && renewedLeaseToken !== getLeaseToken()) {
         options.onLeaseTokenRenewed?.(renewedLeaseToken);
       }
       if (cancel) {
@@ -104,6 +107,9 @@ export function startHeartbeatLoop(
       stopped = true;
       if (pendingTimer) clearTimeout(pendingTimer);
       if (currentHttpAc) currentHttpAc.abort();
+    },
+    bumpGeneration: () => {
+      generation += 1;
     },
   };
 }

@@ -9,7 +9,7 @@ vi.mock('#config.js', () => ({
 }));
 
 vi.mock('#core/heartbeat-loop.js', () => ({
-  startHeartbeatLoop: vi.fn(() => ({stop: vi.fn()})),
+  startHeartbeatLoop: vi.fn(() => ({stop: vi.fn(), bumpGeneration: vi.fn()})),
 }));
 
 vi.mock('@shipfox/runner-workspace', async (importActual) => ({
@@ -129,7 +129,7 @@ describe('runJob', () => {
 
     expect(mockStartHeartbeatLoop).toHaveBeenCalledWith(
       JOB.job_id,
-      JOB.lease_token,
+      expect.any(Function),
       expect.any(AbortController),
       expect.objectContaining({
         intervalMs: 10_000,
@@ -189,6 +189,29 @@ describe('runJob', () => {
       'lease-third',
       'lease-fourth',
     ]);
+  });
+
+  it('adopts next-step lease tokens for requests, redaction, and heartbeat generation', async () => {
+    const heartbeatHandle = {stop: vi.fn(), bumpGeneration: vi.fn()};
+    mockStartHeartbeatLoop.mockReturnValueOnce(heartbeatHandle);
+    mockJobWorkspacePath.mockReturnValue(JOB_CWD);
+    mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
+
+    await runJob(JOB, WORKSPACE_ROOT);
+
+    const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
+    const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
+    expect(typeof leaseTokenSource).toBe('function');
+
+    stepParams?.onLeaseTokenAdopted?.('lease-step-scoped');
+
+    expect((leaseTokenSource as () => string)()).toBe('lease-step-scoped');
+    expect(stepParams?.secrets).toEqual([
+      'sf_mrt_runner-registration-token',
+      JOB.lease_token,
+      'lease-step-scoped',
+    ]);
+    expect(heartbeatHandle.bumpGeneration).toHaveBeenCalledTimes(1);
   });
 
   it('cleans up the per-job cwd when the step loop throws', async () => {

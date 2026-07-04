@@ -149,6 +149,32 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.authorization).toBe('Bearer lease-abc');
   });
 
+  it('requestNextStep parses the step-scoped lease token on step responses', async () => {
+    const step = {
+      id: STEP_ID,
+      job_execution_id: JOB_EXECUTION_ID,
+      key: 'test-step',
+      name: 'Test step',
+      source_location: null,
+      status: 'running',
+      type: 'run',
+      config: {run: 'echo ok'},
+      error: null,
+      position: 1,
+      current_attempt: 2,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    };
+    stubFetch(() =>
+      jsonResponse({kind: 'step', step, attempt: 2, lease_token: 'lease-step-scoped'}),
+    );
+    const leaseClient = createLeaseClient('lease-abc');
+
+    const next = await requestNextStep(leaseClient);
+
+    expect(next).toEqual({kind: 'step', step, attempt: 2, lease_token: 'lease-step-scoped'});
+  });
+
   it('lease clients read rotated lease tokens before each request', async () => {
     stubFetch(() => jsonResponse({kind: 'done', status: 'succeeded'}));
     let leaseToken = 'lease-initial';

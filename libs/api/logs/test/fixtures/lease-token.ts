@@ -11,6 +11,8 @@ export interface MintLeaseTokenParams {
   projectId?: string;
   workflowRunId?: string;
   workflowRunAttemptId?: string;
+  currentStepId?: string;
+  currentStepAttempt?: number;
   secret?: string;
   expiresIn?: string;
   audience?: string;
@@ -26,6 +28,12 @@ export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),
       runnerSessionId: crypto.randomUUID(),
+      ...(params.currentStepId && params.currentStepAttempt !== undefined
+        ? {
+            currentStepId: params.currentStepId,
+            currentStepAttempt: params.currentStepAttempt,
+          }
+        : {}),
     },
     secret: params.secret ?? SECRET,
     expiresIn: params.expiresIn ?? '90m',

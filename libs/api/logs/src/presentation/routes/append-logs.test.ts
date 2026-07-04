@@ -1,18 +1,11 @@
 import {Buffer} from 'node:buffer';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {AUTH_USER} from '@shipfox/api-auth-context';
-import {getStepByIdForJobExecution} from '@shipfox/api-workflows';
 import {type AuthMethod, closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {endLine, ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
 import {logsRoutes} from './index.js';
 
-vi.mock('@shipfox/api-workflows', () => ({
-  getStepByIdForJobExecution: vi.fn(),
-  getTerminalStepAttemptLogState: vi.fn(),
-}));
-
-const mockedGetStepByIdForJobExecution = vi.mocked(getStepByIdForJobExecution);
 const NDJSON = 'application/x-ndjson';
 const JOB_EXECUTION_ID = '00000000-0000-4000-8000-0000000000ee';
 
@@ -24,8 +17,17 @@ function logsUrl(stepId: string, attempt: number, offset: number): string {
   return `/runs/jobs/current/steps/${stepId}/logs?attempt=${attempt}&offset=${offset}`;
 }
 
-function mintTestLeaseToken(jobId = crypto.randomUUID()): Promise<string> {
-  return mintLeaseToken({jobId, jobExecutionId: JOB_EXECUTION_ID});
+function mintTestLeaseToken(params: {
+  jobId?: string;
+  stepId: string;
+  attempt?: number;
+}): Promise<string> {
+  return mintLeaseToken({
+    jobId: params.jobId ?? crypto.randomUUID(),
+    jobExecutionId: JOB_EXECUTION_ID,
+    currentStepId: params.stepId,
+    currentStepAttempt: params.attempt ?? 1,
+  });
 }
 
 describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
@@ -38,10 +40,6 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
       swagger: false,
     });
     await app.ready();
-  });
-
-  beforeEach(() => {
-    mockedGetStepByIdForJobExecution.mockResolvedValue({id: crypto.randomUUID()} as never);
   });
 
   afterAll(async () => {
@@ -63,13 +61,8 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   it('accepts an in-order append and returns the committed length', async () => {
     const jobId = crypto.randomUUID();
     const stepId = crypto.randomUUID();
-    const token = await mintTestLeaseToken(jobId);
+    const token = await mintTestLeaseToken({jobId, stepId});
     const body = ndjsonBody(outputLine('installing\n'));
-    mockedGetStepByIdForJobExecution.mockImplementation((params) =>
-      params.stepId === stepId && params.jobExecutionId === JOB_EXECUTION_ID
-        ? Promise.resolve({id: stepId} as never)
-        : Promise.resolve(undefined),
-    );
 
     const res = await app.inject({
       method: 'POST',
@@ -83,15 +76,48 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects appends for a step outside the leased execution', async () => {
+    const leasedStepId = crypto.randomUUID();
+    const requestedStepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId: leasedStepId});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: logsUrl(requestedStepId, 1, 0),
+      headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
+      payload: ndjsonBody(outputLine('wrong execution\n')),
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('step-not-found');
+  });
+
+  it('rejects appends for a different attempt than the leased step scope', async () => {
     const stepId = crypto.randomUUID();
-    const token = await mintTestLeaseToken();
-    mockedGetStepByIdForJobExecution.mockResolvedValue(undefined);
+    const token = await mintTestLeaseToken({stepId, attempt: 1});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: logsUrl(stepId, 2, 0),
+      headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
+      payload: ndjsonBody(outputLine('wrong attempt\n')),
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('step-not-found');
+  });
+
+  it('rejects appends with a job-scoped lease token', async () => {
+    const stepId = crypto.randomUUID();
+    const token = await mintLeaseToken({
+      jobId: crypto.randomUUID(),
+      jobExecutionId: JOB_EXECUTION_ID,
+    });
 
     const res = await app.inject({
       method: 'POST',
       url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
-      payload: ndjsonBody(outputLine('wrong execution\n')),
+      payload: ndjsonBody(outputLine('job scoped\n')),
     });
 
     expect(res.statusCode).toBe(404);
@@ -101,7 +127,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   it('acks a re-sent append at an earlier offset', async () => {
     const jobId = crypto.randomUUID();
     const stepId = crypto.randomUUID();
-    const token = await mintTestLeaseToken(jobId);
+    const token = await mintTestLeaseToken({jobId, stepId});
     const body = ndjsonBody(outputLine('once\n'));
     await app.inject({
       method: 'POST',
@@ -124,7 +150,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   it('rejects an offset gap with 409 and the committed length', async () => {
     const jobId = crypto.randomUUID();
     const stepId = crypto.randomUUID();
-    const token = await mintTestLeaseToken(jobId);
+    const token = await mintTestLeaseToken({jobId, stepId});
     const body = ndjsonBody(outputLine('first\n'));
     await app.inject({
       method: 'POST',
@@ -146,11 +172,12 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a forged server-only tombstone with 400', async () => {
-    const token = await mintTestLeaseToken();
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId});
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: ndjsonBody(recordLine({type: 'capped'})),
     });
@@ -160,11 +187,12 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a body that is not newline-terminated with 400', async () => {
-    const token = await mintTestLeaseToken();
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId});
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: '{"v":1,"ts":1,"type":"output","stream":"stdout","data":"no newline"}',
     });
@@ -174,11 +202,12 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a record whose data exceeds the per-record byte cap with 400', async () => {
-    const token = await mintTestLeaseToken();
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId});
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: ndjsonBody(outputLine('x'.repeat(16 * 1024 + 1))),
     });
@@ -188,11 +217,12 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('treats an empty body as a no-op', async () => {
-    const token = await mintTestLeaseToken();
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId});
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: '',
     });
@@ -202,11 +232,12 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a non-ndjson content type with 415', async () => {
-    const token = await mintTestLeaseToken();
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId});
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': 'application/json'},
       payload: '{"hello":"world"}',
     });
@@ -215,13 +246,14 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a body over the configured size limit with 413', async () => {
-    const token = await mintTestLeaseToken();
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId});
     // Test body limit is 64 KiB (LOG_APPEND_BODY_LIMIT_BYTES in test/env.ts).
     const oversize = Buffer.alloc(65536 + 1024, 0x61).toString('utf8');
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: oversize,
     });
@@ -231,11 +263,12 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
   it('reports capped once the budget is crossed', async () => {
     const jobId = crypto.randomUUID();
-    const token = await mintTestLeaseToken(jobId);
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({jobId, stepId});
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: ndjsonBody(outputLine('x'.repeat(150)), endLine(150)),
     });

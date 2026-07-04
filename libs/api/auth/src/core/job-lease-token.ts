@@ -10,6 +10,33 @@ import {recordTokenIssued, recordTokenVerified} from '#metrics/index.js';
 // `aud`, `iat` and `exp` are set by the codec (jose); callers supply the business ids only.
 export type IssueJobLeaseTokenParams = Omit<JobLeaseTokenClaims, 'aud' | 'iat' | 'exp'>;
 
+type JobLeaseParamSource = Pick<
+  JobLeaseTokenClaims,
+  | 'workflowRunId'
+  | 'workflowRunAttemptId'
+  | 'jobId'
+  | 'jobExecutionId'
+  | 'projectId'
+  | 'workspaceId'
+  | 'runnerSessionId'
+>;
+
+export function jobLeaseParamsFrom(
+  source: JobLeaseParamSource,
+  stepScope?: {currentStepId: string; currentStepAttempt: number},
+): IssueJobLeaseTokenParams {
+  return {
+    workflowRunId: source.workflowRunId,
+    workflowRunAttemptId: source.workflowRunAttemptId,
+    jobId: source.jobId,
+    jobExecutionId: source.jobExecutionId,
+    projectId: source.projectId,
+    workspaceId: source.workspaceId,
+    runnerSessionId: source.runnerSessionId,
+    ...(stepScope ? stepScope : {}),
+  };
+}
+
 export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Promise<string> {
   const token = await signHs256({
     payload: {
@@ -20,6 +47,12 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
       projectId: claims.projectId,
       workspaceId: claims.workspaceId,
       runnerSessionId: claims.runnerSessionId,
+      ...(claims.currentStepId && claims.currentStepAttempt !== undefined
+        ? {
+            currentStepId: claims.currentStepId,
+            currentStepAttempt: claims.currentStepAttempt,
+          }
+        : {}),
     },
     secret: config.AUTH_JOB_LEASE_TOKEN_SECRET,
     expiresIn: config.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN,

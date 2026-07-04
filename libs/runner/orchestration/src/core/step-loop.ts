@@ -49,6 +49,7 @@ export async function runJobSteps(params: {
   cwd: string;
   logsDir: string;
   jobContext: SetupJobContext;
+  onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
   const {jobId, leaseClient, secrets, signal, cwd, logsDir, jobContext} = params;
 
@@ -73,6 +74,7 @@ export async function runJobSteps(params: {
       if (!pulled) return;
       if (signal.aborted) return;
 
+      params.onLeaseTokenAdopted?.(pulled.leaseToken);
       const {step, attempt} = pulled;
       const stepLabel = step.name ?? `step #${step.position}`;
       logger().info(
@@ -131,6 +133,7 @@ export async function runJobSteps(params: {
 export interface PulledStep {
   step: StepDto;
   attempt: number;
+  leaseToken: string;
 }
 
 // Pulls the next step, translating the loop's two quiet stop conditions into `undefined`:
@@ -159,7 +162,7 @@ export async function pullNextStep(params: {
     return undefined;
   }
 
-  return {step: next.step, attempt: next.attempt};
+  return {step: next.step, attempt: next.attempt, leaseToken: next.lease_token};
 }
 
 export interface StepExecution {
