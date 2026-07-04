@@ -1,4 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {toJobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
@@ -33,7 +34,15 @@ export const jobExecutions = pgTable(
     finishedAt: timestamp('finished_at', {withTimezone: true}),
     timedOutAt: timestamp('timed_out_at', {withTimezone: true}),
   },
-  (table) => [index('workflows_job_executions_job_id_idx').on(table.jobId)],
+  (table) => [
+    index('workflows_job_executions_job_id_idx').on(table.jobId),
+    // Partial index backing the running-executions depth gauge, which counts on
+    // every Prometheus scrape. Indexes only active rows so the count stays cheap
+    // as the historical table grows.
+    index('workflows_job_executions_running_idx')
+      .on(table.status)
+      .where(sql`${table.status} = 'running'`),
+  ],
 );
 
 export type JobExecutionDb = typeof jobExecutions.$inferSelect;

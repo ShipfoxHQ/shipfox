@@ -1,5 +1,5 @@
 {
-  "id": "3026afb5-6878-4a36-9288-ecff5f15b2ae",
+  "id": "d499edbd-b3b6-4d33-9934-22471a9a2e6a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -113,6 +113,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflows_job_executions_running_idx": {
+          "name": "workflows_job_executions_running_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"workflows_job_executions\".\"status\" = 'running'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -709,23 +725,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "workflows_step_attempts_job_execution_id_idx": {
-          "name": "workflows_step_attempts_job_execution_id_idx",
-          "columns": [
-            {
-              "expression": "job_execution_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "workflows_step_attempts_step_id_workflows_steps_id_fk": {
           "name": "workflows_step_attempts_step_id_workflows_steps_id_fk",
@@ -1363,6 +1363,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflows_wr_running_idx": {
+          "name": "workflows_wr_running_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"workflows_workflow_runs\".\"status\" = 'running'",
           "concurrently": false,
           "method": "btree",
           "with": {}

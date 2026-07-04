@@ -72,6 +72,10 @@ export const workflowRuns = pgTable(
       table.createdAt,
       table.id,
     ),
+    // Partial index backing the running-runs depth gauge, which counts on every
+    // Prometheus scrape. Indexes only active rows so the count stays cheap as the
+    // historical table grows.
+    index('workflows_wr_running_idx').on(table.status).where(sql`${table.status} = 'running'`),
     check('workflows_wr_current_attempt_positive_ck', sql`${table.currentAttempt} > 0`),
   ],
 );

@@ -176,12 +176,12 @@ ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_st
 ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_job_execution_id_workflows_job_executions_id_fk" FOREIGN KEY ("job_execution_id") REFERENCES "public"."workflows_job_executions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows_workflow_run_attempts" ADD CONSTRAINT "workflows_workflow_run_attempts_workflow_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("workflow_run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "workflows_job_executions_job_id_idx" ON "workflows_job_executions" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "workflows_job_executions_running_idx" ON "workflows_job_executions" USING btree ("status") WHERE "workflows_job_executions"."status" = 'running';--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_job_listener_events_job_event_ref_unique" ON "workflows_job_listener_events" USING btree ("job_id","event_ref");--> statement-breakpoint
 CREATE INDEX "workflows_job_listener_events_job_received_idx" ON "workflows_job_listener_events" USING btree ("job_id","received_at");--> statement-breakpoint
 CREATE INDEX "workflows_jobs_workflow_run_attempt_id_idx" ON "workflows_jobs" USING btree ("workflow_run_attempt_id");--> statement-breakpoint
 CREATE INDEX "workflows_outbox_pending_idx" ON "workflows_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "workflows_outbox_dispatched_retention_idx" ON "workflows_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "workflows_step_attempts_job_execution_id_idx" ON "workflows_step_attempts" USING btree ("job_execution_id");--> statement-breakpoint
 CREATE INDEX "workflows_steps_job_execution_id_idx" ON "workflows_steps" USING btree ("job_execution_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wra_workflow_run_attempt_unique" ON "workflows_workflow_run_attempts" USING btree ("workflow_run_id","attempt");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wra_one_active_attempt_unique" ON "workflows_workflow_run_attempts" USING btree ("workflow_run_id") WHERE "workflows_workflow_run_attempts"."status" in ('pending', 'running');--> statement-breakpoint
@@ -189,4 +189,5 @@ CREATE UNIQUE INDEX "workflows_wr_trigger_idempotency_key_unique" ON "workflows_
 CREATE INDEX "workflows_wr_project_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "workflows_wr_project_status_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","status","created_at","id");--> statement-breakpoint
 CREATE INDEX "workflows_wr_project_definition_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","definition_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "workflows_wr_project_trigger_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","trigger_source","created_at","id");
+CREATE INDEX "workflows_wr_project_trigger_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","trigger_source","created_at","id");--> statement-breakpoint
+CREATE INDEX "workflows_wr_running_idx" ON "workflows_workflow_runs" USING btree ("status") WHERE "workflows_workflow_runs"."status" = 'running';

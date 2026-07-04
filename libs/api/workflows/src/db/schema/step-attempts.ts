@@ -3,7 +3,6 @@ import {sql} from 'drizzle-orm';
 import {
   check,
   foreignKey,
-  index,
   integer,
   jsonb,
   text,
@@ -48,7 +47,6 @@ export const stepAttempts = pgTable(
       table.jobExecutionId,
       table.executionOrder,
     ),
-    index('workflows_step_attempts_job_execution_id_idx').on(table.jobExecutionId),
     foreignKey({
       name: 'workflows_step_attempts_step_id_job_execution_id_workflows_steps_fk',
       columns: [table.stepId, table.jobExecutionId],
