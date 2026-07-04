@@ -1,0 +1,20 @@
+trigger: webhook
+webhook:
+  body:
+    payment_id: pay_webhook_e2e
+  headers:
+    x-e2e-event: payment.created
+  query:
+    mode: test
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      show-webhook:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - payment_id=pay_webhook_e2e

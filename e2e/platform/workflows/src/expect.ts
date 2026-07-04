@@ -79,6 +79,14 @@ const pushExpectationSchema = z
   })
   .strict();
 
+const webhookExpectationSchema = z
+  .object({
+    body: z.unknown().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    query: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+
 const stepErrorExpectationSchema = z
   .object({
     reason: stepErrorReasonSchema.optional(),
@@ -125,8 +133,9 @@ const jobExpectationSchema = z
 
 export const expectationSchema = z
   .object({
-    trigger: z.enum(['push', 'manual']).default('push'),
+    trigger: z.enum(['push', 'manual', 'webhook']).default('push'),
     push: pushExpectationSchema.optional(),
+    webhook: webhookExpectationSchema.optional(),
     inputs: z.record(z.string(), z.unknown()).optional(),
     timeout_seconds: z.number().int().positive().default(180),
     run: z.object({status: runStatusSchema}).strict(),

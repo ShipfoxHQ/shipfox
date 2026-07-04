@@ -66,6 +66,7 @@ describe('e2eEnv', () => {
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
     assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, undefined);
     assert.equal(env.VITE_API_URL, 'http://localhost:55351');
+    assert.equal(env.WEBHOOK_PUBLIC_URL, 'http://localhost:55351');
   });
 
   test('keeps explicit CI URLs over local-service defaults', () => {
@@ -76,12 +77,14 @@ describe('e2eEnv', () => {
       GITEA_CLONE_BASE_URL: 'http://localhost:3000',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
+      WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
     });
 
     assert.equal(env.API_URL, 'http://localhost:16101');
     assert.equal(env.CLIENT_URL, 'http://localhost:5173');
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:3001');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:3000');
+    assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
   });
 
   test('keeps explicit turbo concurrency', () => {

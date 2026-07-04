@@ -686,6 +686,25 @@ describe('parseExpectation', () => {
     expect(expectation.push?.message).toBe("literal $(printf I''NJECTED)");
   });
 
+  test('accepts webhook request options', () => {
+    const expectation = parseExpectation({
+      trigger: 'webhook',
+      webhook: {
+        body: {payment_id: 'pay_123'},
+        headers: {'x-e2e-event': 'payment.created'},
+        query: {mode: 'test'},
+      },
+      run: {status: 'succeeded'},
+    });
+
+    expect(expectation.trigger).toBe('webhook');
+    expect(expectation.webhook).toEqual({
+      body: {payment_id: 'pay_123'},
+      headers: {'x-e2e-event': 'payment.created'},
+      query: {mode: 'test'},
+    });
+  });
+
   test('rejects unknown keys', () => {
     expect(() => parseExpectation({run: {status: 'succeeded'}, unexpected: true})).toThrow();
   });

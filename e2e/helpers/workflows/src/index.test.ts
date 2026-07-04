@@ -4,7 +4,7 @@ import type {
   WorkflowRunListResponseDto,
   WorkflowRunStatusDto,
 } from '@shipfox/api-workflows-dto';
-import {waitForRunByCommit, waitForRunTerminal} from './index.js';
+import {waitForRunByCommit, waitForRunByDeliveryId, waitForRunTerminal} from './index.js';
 
 const projectId = '11111111-1111-4111-8111-111111111111';
 const definitionId = '22222222-2222-4222-8222-222222222222';
@@ -13,6 +13,9 @@ const attemptId = '44444444-4444-4444-8444-444444444444';
 const RUN_BY_COMMIT_TIMEOUT_RE =
   /Timed out waiting for workflow run by commit: expectedHeadCommitSha=abc123/u;
 const RUN_BY_COMMIT_OBSERVED_RE = /headCommitSha=other/u;
+const RUN_BY_DELIVERY_TIMEOUT_RE =
+  /Timed out waiting for workflow run by delivery ID: expectedDeliveryId=delivery-1/u;
+const RUN_BY_DELIVERY_OBSERVED_RE = /deliveryId=other-delivery/u;
 const RUN_TERMINAL_TIMEOUT_RE =
   /Timed out waiting for workflow run terminal status: runId=33333333/u;
 const RUN_TERMINAL_OBSERVED_RE = /status=running/u;
@@ -146,6 +149,51 @@ describe('waitForRunByCommit', () => {
     });
 
     await expect(result).rejects.toMatchObject({name: 'AbortError'});
+  });
+});
+
+describe('waitForRunByDeliveryId', () => {
+  test('polls until a run with the matching delivery ID appears', async () => {
+    let calls = 0;
+
+    const result = await waitForRunByDeliveryId({
+      fetch: () => {
+        calls += 1;
+        return Promise.resolve(
+          response(
+            calls === 1
+              ? listResponse({
+                  runs: [run({trigger_payload: {deliveryId: 'other-delivery', data: {}}})],
+                })
+              : listResponse({runs: [run()]}),
+          ),
+        );
+      },
+      deliveryId: 'delivery-1',
+      initialDelayMs: 1,
+      projectId,
+      token: 'user-token',
+    });
+
+    expect(result.id).toBe(runId);
+    expect(calls).toBe(2);
+  });
+
+  test('times out with a bounded run list summary', async () => {
+    const result = waitForRunByDeliveryId({
+      fetch: () =>
+        response(
+          listResponse({runs: [run({trigger_payload: {deliveryId: 'other-delivery', data: {}}})]}),
+        ),
+      deliveryId: 'delivery-1',
+      initialDelayMs: 1,
+      projectId,
+      timeoutMs: 1,
+      token: 'user-token',
+    });
+
+    await expect(result).rejects.toThrow(RUN_BY_DELIVERY_TIMEOUT_RE);
+    await expect(result).rejects.toThrow(RUN_BY_DELIVERY_OBSERVED_RE);
   });
 });
 

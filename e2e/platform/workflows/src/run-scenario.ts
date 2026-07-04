@@ -2,7 +2,12 @@ import {mkdir, readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import type {DefinitionListResponseDto} from '@shipfox/api-definitions-dto';
-import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
+import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
+import type {
+  FireManualTriggerResponseDto,
+  TriggerEventDetailResponseDto,
+  TriggerEventListResponseDto,
+} from '@shipfox/api-triggers-dto';
 import type {WorkflowRunListResponseDto} from '@shipfox/api-workflows-dto';
 import {type ApiFetch, createApiClient, E2eApiError} from '@shipfox/e2e-core';
 import {waitForDefinition} from '@shipfox/e2e-helper-definitions';
@@ -17,7 +22,11 @@ import {
   stopLocalRunner,
   waitForLocalRunnerExit,
 } from '@shipfox/e2e-helper-runners';
-import {waitForRunByCommit, waitForRunTerminal} from '@shipfox/e2e-helper-workflows';
+import {
+  waitForRunByCommit,
+  waitForRunByDeliveryId,
+  waitForRunTerminal,
+} from '@shipfox/e2e-helper-workflows';
 import {createProject, giteaExternalRepositoryId} from './create-project.js';
 import {evaluateExpectations, evaluateLogs, logText, type Mismatch} from './expect.js';
 import {evaluateRejection} from './reject.js';
@@ -26,9 +35,11 @@ import {type SuiteContext, suiteRunDir} from './suite-context.js';
 
 const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
 const GITEA_REPOSITORY_PLACEHOLDER = '__GITEA_REPOSITORY__';
+const WEBHOOK_SOURCE_PLACEHOLDER = '__WEBHOOK_SOURCE__';
 const RUNNER_LABEL_PLACEHOLDER = '__RUNNER_LABEL__';
 const LOG_ATTACHMENT_NAME_PART_RE = /[^a-zA-Z0-9._-]+/g;
 const REJECTION_NO_RUN_TIMEOUT_MS = 15_000;
+const WEBHOOK_RECEIVED_EVENT = 'received';
 
 export interface Attachment {
   name: string;
@@ -56,6 +67,11 @@ interface PollingOptions {
   signal?: AbortSignal | undefined;
   timeoutMs: number;
   token: string;
+}
+
+interface WebhookDiagnosticsRequest {
+  deliveryIds: string[];
+  source: string;
 }
 
 function logAttachmentName(path: string): string {
@@ -244,6 +260,154 @@ async function triggerPushAndAwaitRun(params: {
     : new Error(`No run appeared for ${params.scenario} after ${maxAttempts} trigger pushes`);
 }
 
+async function createWebhookConnection(params: {
+  client: ReturnType<typeof createApiClient>;
+  scenario: string;
+  slug: string;
+  uniqueId: string;
+  workspaceId: string;
+}): Promise<WebhookConnectionDto> {
+  return await params.client.requestJson<WebhookConnectionDto>(
+    'post',
+    '/integrations/webhook/connections',
+    {
+      json: {
+        workspace_id: params.workspaceId,
+        name: `E2E ${params.scenario} ${params.uniqueId}`,
+        slug: params.slug,
+      },
+    },
+  );
+}
+
+function webhookUrlWithQuery(
+  inboundUrl: string,
+  query: Record<string, string> | undefined,
+): string {
+  const url = new URL(inboundUrl);
+  for (const [key, value] of Object.entries(query ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+function webhookHeaders(
+  configuredHeaders: Record<string, string> | undefined,
+  deliveryId: string,
+): Headers {
+  const headers = new Headers(configuredHeaders);
+  headers.set('x-delivery-id', deliveryId);
+  return headers;
+}
+
+async function attachWebhookTriggerDiagnostics(params: {
+  attach: RunScenarioParams['attach'];
+  client: ReturnType<typeof createApiClient>;
+  deliveryIds: string[];
+  source: string;
+  workspaceId: string;
+}): Promise<void> {
+  try {
+    const search = new URLSearchParams({
+      workspace_id: params.workspaceId,
+      source: params.source,
+      event: WEBHOOK_RECEIVED_EVENT,
+      limit: '50',
+    });
+    const events = await params.client.requestJson<TriggerEventListResponseDto>(
+      'get',
+      `/trigger-events?${search}`,
+    );
+    await params.attach({
+      name: 'webhook-trigger-events.json',
+      contentType: 'application/json',
+      body: JSON.stringify(events, null, 2),
+    });
+
+    const deliveryIds = new Set(params.deliveryIds);
+    for (const event of events.trigger_events) {
+      if (!event.delivery_id || !deliveryIds.has(event.delivery_id)) continue;
+      const detail = await params.client.requestJson<TriggerEventDetailResponseDto>(
+        'get',
+        `/trigger-events/${event.id}`,
+      );
+      await params.attach({
+        name: `webhook-trigger-event-${logAttachmentName(event.delivery_id)}.json`,
+        contentType: 'application/json',
+        body: JSON.stringify(detail, null, 2),
+      });
+    }
+  } catch (error) {
+    await params
+      .attach({
+        name: 'webhook-trigger-events.error.txt',
+        contentType: 'text/plain',
+        body: error instanceof Error ? error.message : String(error),
+      })
+      .catch(() => undefined);
+  }
+}
+
+async function triggerWebhookAndAwaitRun(params: {
+  attach: RunScenarioParams['attach'];
+  client: ReturnType<typeof createApiClient>;
+  connection: WebhookConnectionDto;
+  projectId: string;
+  scenario: string;
+  token: string;
+  webhook:
+    | {
+        body?: unknown;
+        headers?: Record<string, string> | undefined;
+        query?: Record<string, string> | undefined;
+      }
+    | undefined;
+  workspaceId: string;
+}): Promise<{deliveryIds: string[]; runId: string}> {
+  const maxAttempts = 8;
+  const deliveryIds: string[] = [];
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const deliveryId = crypto.randomUUID();
+    deliveryIds.push(deliveryId);
+    await params.client.requestJson<{delivery_id: string}>(
+      'post',
+      webhookUrlWithQuery(params.connection.inbound_url, params.webhook?.query),
+      {
+        headers: webhookHeaders(params.webhook?.headers, deliveryId),
+        json: params.webhook?.body ?? {
+          scenario: params.scenario,
+          attempt,
+          delivery_id: deliveryId,
+        },
+      },
+    );
+
+    try {
+      const run = await waitForRunByDeliveryId({
+        projectId: params.projectId,
+        deliveryId,
+        token: params.token,
+        timeoutMs: 15_000,
+      });
+      return {deliveryIds, runId: run.id};
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  await attachWebhookTriggerDiagnostics({
+    attach: params.attach,
+    client: params.client,
+    deliveryIds,
+    source: params.connection.slug,
+    workspaceId: params.workspaceId,
+  });
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`No run appeared for ${params.scenario} after ${maxAttempts} webhook deliveries`);
+}
+
 async function fireManualAndAwaitRun(params: {
   client: ReturnType<typeof createApiClient>;
   definitionId: string;
@@ -275,9 +439,9 @@ async function fireManualAndAwaitRun(params: {
 
 /**
  * Drives one declarative scenario end to end: fresh repo and project, seed commit,
- * definition-resolved poll, trigger (push commit or fire-manual), terminal-run poll,
- * then expect.yaml evaluation. Returns every mismatch (empty means the scenario
- * matched) and attaches the run detail, the diff, and fetched logs when it did not.
+ * definition-resolved poll, trigger, terminal-run poll, then expect.yaml evaluation.
+ * Returns every mismatch (empty means the scenario matched) and attaches the run
+ * detail, the diff, and fetched logs when it did not.
  */
 export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]> {
   const {scenario, suite} = params;
@@ -287,15 +451,29 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const runnerLabel = `e2e-${scenario.name}-${uniqueId}`;
   const repo = `${scenario.name}-${uniqueId}`;
+  const webhookSlug = `webhook-${scenario.name}-${uniqueId}`;
   const workflowYaml = scenario.workflowYaml
     .replaceAll(GITEA_SOURCE_PLACEHOLDER, suite.connectionSlug)
     .replaceAll(GITEA_REPOSITORY_PLACEHOLDER, `${suite.org}/${repo}`)
+    .replaceAll(WEBHOOK_SOURCE_PLACEHOLDER, webhookSlug)
     .replaceAll(RUNNER_LABEL_PLACEHOLDER, runnerLabel);
 
   let runner: LocalRunnerHandle | undefined;
   let runnerLogFile: string | undefined;
+  let webhookDiagnostics: WebhookDiagnosticsRequest | undefined;
 
   try {
+    const webhookConnection =
+      scenario.kind === 'expect' && scenario.expectation.trigger === 'webhook'
+        ? await createWebhookConnection({
+            client,
+            scenario: scenario.name,
+            slug: webhookSlug,
+            uniqueId,
+            workspaceId: suite.workspaceId,
+          })
+        : undefined;
+
     await createRepo({org: suite.org, name: repo});
     // Project binding starts a definition sync, so the repo must already contain the workflow.
     await commitFiles({
@@ -385,6 +563,20 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
         inputs: scenario.expectation.inputs ?? {},
         scenario: scenario.name,
       });
+    } else if (scenario.expectation.trigger === 'webhook') {
+      if (!webhookConnection) throw new Error(`Webhook connection missing for ${scenario.name}`);
+      const result = await triggerWebhookAndAwaitRun({
+        attach: params.attach,
+        client,
+        connection: webhookConnection,
+        projectId: project.id,
+        scenario: scenario.name,
+        token,
+        webhook: scenario.expectation.webhook,
+        workspaceId: suite.workspaceId,
+      });
+      webhookDiagnostics = {deliveryIds: result.deliveryIds, source: webhookConnection.slug};
+      runId = result.runId;
     } else {
       runId = await triggerPushAndAwaitRun({
         org: suite.org,
@@ -451,6 +643,15 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       });
       for (const log of fetchedLogs) await params.attach(log);
       if (runnerLogFile !== undefined) await attachLocalRunnerLog(params.attach, runnerLogFile);
+      if (webhookDiagnostics !== undefined) {
+        await attachWebhookTriggerDiagnostics({
+          attach: params.attach,
+          client,
+          deliveryIds: webhookDiagnostics.deliveryIds,
+          source: webhookDiagnostics.source,
+          workspaceId: suite.workspaceId,
+        });
+      }
 
       const fetchedLogKeys = new Set(
         logRequirements.map((requirement) => `${requirement.stepId}:${requirement.attempt}`),
@@ -464,6 +665,15 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
 
     return allMismatches;
   } catch (error) {
+    if (webhookDiagnostics !== undefined) {
+      await attachWebhookTriggerDiagnostics({
+        attach: params.attach,
+        client,
+        deliveryIds: webhookDiagnostics.deliveryIds,
+        source: webhookDiagnostics.source,
+        workspaceId: suite.workspaceId,
+      });
+    }
     if (runnerLogFile !== undefined) await attachLocalRunnerLog(params.attach, runnerLogFile);
     throw error;
   } finally {

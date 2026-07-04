@@ -181,6 +181,7 @@ export function e2eEnv(sourceEnv) {
     HOST: sourceEnv.HOST ?? '0.0.0.0',
     VITE_API_URL: sourceEnv.VITE_API_URL ?? apiUrl,
     VITE_ENABLE_TEST_VCS_PROVIDER: sourceEnv.VITE_ENABLE_TEST_VCS_PROVIDER ?? 'true',
+    WEBHOOK_PUBLIC_URL: sourceEnv.WEBHOOK_PUBLIC_URL ?? apiUrl,
   };
 }
 

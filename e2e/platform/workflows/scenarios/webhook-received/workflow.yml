@@ -1,0 +1,13 @@
+name: Webhook received
+runner: __RUNNER_LABEL__
+triggers:
+  on_webhook:
+    source: __WEBHOOK_SOURCE__
+    event: received
+jobs:
+  build:
+    steps:
+      - key: show-webhook
+        env:
+          PAYMENT_ID: '${{ event.body.payment_id }}'
+        run: echo "payment_id=$PAYMENT_ID"

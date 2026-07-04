@@ -779,6 +779,9 @@ importers:
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../../../libs/api/definitions-dto
+      '@shipfox/api-integration-webhook-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/webhook-dto
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../../../libs/api/logs-dto
