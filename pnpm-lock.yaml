@@ -387,6 +387,9 @@ importers:
       '@shipfox/e2e-helper-projects':
         specifier: workspace:*
         version: link:../../helpers/projects
+      '@shipfox/e2e-helper-runners':
+        specifier: workspace:*
+        version: link:../../helpers/runners
       '@shipfox/e2e-helper-workspaces':
         specifier: workspace:*
         version: link:../../helpers/workspaces
