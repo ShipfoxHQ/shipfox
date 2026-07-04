@@ -1,5 +1,5 @@
 import {extractDisplayPrefix, generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
-import {and, eq} from 'drizzle-orm';
+import {and, eq, inArray} from 'drizzle-orm';
 import {
   ActiveEphemeralRegistrationTokensExistError,
   type RegistrationTokenBatchExceedsReservationError,
@@ -7,6 +7,7 @@ import {
 import {db} from '#db/db.js';
 import {
   createEphemeralRegistrationTokensBatch,
+  deleteExpiredEphemeralRegistrationTokens,
   resolveEphemeralRegistrationTokenByHash,
 } from '#db/ephemeral-registration-tokens.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
@@ -214,5 +215,118 @@ describe('createEphemeralRegistrationTokensBatch', () => {
       hashedToken: hashOpaqueToken(rawToken),
       prefix: extractDisplayPrefix(rawToken),
     };
+  }
+});
+
+describe('deleteExpiredEphemeralRegistrationTokens', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let workspaceId: string;
+  let provisionerId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    provisionerId = crypto.randomUUID();
+  });
+
+  it('deletes consumed tokens whose consumption is older than the retention window', async () => {
+    const stale = await insertToken({consumedAt: daysAgo(8), expiresAt: daysAgo(8)});
+    const fresh = await insertToken({consumedAt: daysAgo(6), expiresAt: daysAgo(6)});
+
+    const deleted = await deleteExpiredEphemeralRegistrationTokens({retentionDays: 7, limit: 100});
+
+    const remaining = await listTokenIds([stale, fresh]);
+    expect(deleted).toBe(1);
+    expect(remaining).toEqual([fresh]);
+  });
+
+  it('deletes expired unconsumed tokens older than the retention window', async () => {
+    const stale = await insertToken({consumedAt: null, expiresAt: daysAgo(8)});
+    const fresh = await insertToken({consumedAt: null, expiresAt: daysAgo(6)});
+
+    const deleted = await deleteExpiredEphemeralRegistrationTokens({retentionDays: 7, limit: 100});
+
+    const remaining = await listTokenIds([stale, fresh]);
+    expect(deleted).toBe(1);
+    expect(remaining).toEqual([fresh]);
+  });
+
+  it('keeps active tokens that are neither consumed nor expired', async () => {
+    const active = await insertToken({consumedAt: null, expiresAt: daysFromNow(1)});
+
+    const deleted = await deleteExpiredEphemeralRegistrationTokens({retentionDays: 7, limit: 100});
+
+    const remaining = await listTokenIds([active]);
+    expect(deleted).toBe(0);
+    expect(remaining).toEqual([active]);
+  });
+
+  it('keeps recently consumed tokens even when their expiry has already passed', async () => {
+    const recentlyConsumed = await insertToken({consumedAt: daysAgo(1), expiresAt: daysAgo(6)});
+
+    const deleted = await deleteExpiredEphemeralRegistrationTokens({retentionDays: 7, limit: 100});
+
+    const remaining = await listTokenIds([recentlyConsumed]);
+    expect(deleted).toBe(0);
+    expect(remaining).toEqual([recentlyConsumed]);
+  });
+
+  it('honors the deletion limit', async () => {
+    const first = await insertToken({consumedAt: daysAgo(30), expiresAt: daysAgo(30)});
+    const second = await insertToken({consumedAt: daysAgo(20), expiresAt: daysAgo(20)});
+    const third = await insertToken({consumedAt: daysAgo(10), expiresAt: daysAgo(10)});
+
+    const deleted = await deleteExpiredEphemeralRegistrationTokens({retentionDays: 7, limit: 2});
+
+    const remaining = await listTokenIds([first, second, third]);
+    expect(deleted).toBe(2);
+    expect(remaining).toEqual([third]);
+  });
+
+  function daysAgo(days: number): Date {
+    return new Date(Date.now() - days * DAY_MS);
+  }
+
+  function daysFromNow(days: number): Date {
+    return new Date(Date.now() + days * DAY_MS);
+  }
+
+  async function insertToken(params: {
+    consumedAt: Date | null;
+    expiresAt: Date;
+    createdAt?: Date;
+  }): Promise<string> {
+    const id = crypto.randomUUID();
+
+    await db()
+      .insert(ephemeralRegistrationTokens)
+      .values({
+        id,
+        workspaceId,
+        provisionerId,
+        provisionedRunnerId: `provisioned-${id}`,
+        hashedToken: crypto.randomUUID(),
+        prefix: 'sfxr_test',
+        expiresAt: params.expiresAt,
+        consumedAt: params.consumedAt,
+        createdAt: params.createdAt ?? params.expiresAt,
+      });
+
+    return id;
+  }
+
+  async function listTokenIds(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+
+    const rows = await db()
+      .select({id: ephemeralRegistrationTokens.id})
+      .from(ephemeralRegistrationTokens)
+      .where(
+        and(
+          eq(ephemeralRegistrationTokens.workspaceId, workspaceId),
+          inArray(ephemeralRegistrationTokens.id, ids),
+        ),
+      );
+
+    return ids.filter((id) => rows.some((row) => row.id === id));
   }
 });

@@ -313,3 +313,33 @@ describe('runner session retention config', () => {
     await expect(import('#config.js')).rejects.toThrow(name);
   });
 });
+
+describe('ephemeral registration token retention config', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('uses the default retention window and batch size', async () => {
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS).toBe(7);
+    expect(config.RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE).toBe(1000);
+  });
+
+  it.each([
+    ['RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS', '0'],
+    ['RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS', '-5'],
+    ['RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS', '1.5'],
+    ['RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE', '0'],
+    ['RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE', '-5'],
+    ['RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE', '1.5'],
+  ])('fails startup when %s is %s', async (name, value) => {
+    vi.stubEnv(name, value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(name);
+  });
+});

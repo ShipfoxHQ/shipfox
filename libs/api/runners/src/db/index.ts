@@ -2,10 +2,14 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
-export type {CreateEphemeralRegistrationTokenParams} from './ephemeral-registration-tokens.js';
+export type {
+  CreateEphemeralRegistrationTokenParams,
+  DeleteExpiredEphemeralRegistrationTokensParams,
+} from './ephemeral-registration-tokens.js';
 export {
   createEphemeralRegistrationToken,
   createRunnerSessionConsumingEphemeralToken,
+  deleteExpiredEphemeralRegistrationTokens,
   resolveEphemeralRegistrationTokenByHash,
 } from './ephemeral-registration-tokens.js';
 export type {

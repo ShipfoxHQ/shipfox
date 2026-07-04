@@ -1,4 +1,5 @@
 import {
+  deleteExpiredEphemeralRegistrationTokens,
   deleteExpiredRunnerReservations,
   deleteExpiredRunnerSessions,
   detectAndExpireStuckJobs,
@@ -30,4 +31,11 @@ export function deleteExpiredRunnerSessionsActivity(params?: {
   limit?: number;
 }): Promise<{deleted: number}> {
   return deleteExpiredRunnerSessions(params);
+}
+
+export function deleteExpiredEphemeralRegistrationTokensActivity(params?: {
+  retentionDays?: number;
+  limit?: number;
+}): Promise<{deleted: number}> {
+  return deleteExpiredEphemeralRegistrationTokens(params);
 }

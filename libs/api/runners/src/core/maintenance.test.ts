@@ -1,6 +1,7 @@
 import {vi} from '@shipfox/vitest/vi';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
+import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
@@ -11,6 +12,7 @@ import {
   reservationFactory,
 } from '#test/index.js';
 import {
+  deleteExpiredEphemeralRegistrationTokens,
   deleteExpiredRunnerReservations,
   deleteExpiredRunnerSessions,
   reapStaleProvisionedRunners,
@@ -177,6 +179,73 @@ describe('deleteExpiredRunnerSessions', () => {
       claimsUsed: 0,
       createdAt: params.createdAt,
       updatedAt: params.createdAt,
+    };
+  }
+});
+
+describe('deleteExpiredEphemeralRegistrationTokens', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let workspaceId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+  });
+
+  it('deletes expired ephemeral tokens using the default retention policy', async () => {
+    const staleId = crypto.randomUUID();
+    await db()
+      .insert(ephemeralRegistrationTokens)
+      .values(
+        buildEphemeralToken({
+          id: staleId,
+          expiresAt: new Date(Date.now() - 8 * DAY_MS),
+        }),
+      );
+
+    const result = await deleteExpiredEphemeralRegistrationTokens();
+
+    const remaining = await db()
+      .select({id: ephemeralRegistrationTokens.id})
+      .from(ephemeralRegistrationTokens)
+      .where(eq(ephemeralRegistrationTokens.workspaceId, workspaceId));
+    expect(result.deleted).toBeGreaterThanOrEqual(1);
+    expect(remaining).toEqual([]);
+  });
+
+  it('passes explicit retention and limit values to the DB cleanup', async () => {
+    const deletableId = crypto.randomUUID();
+    const keptId = crypto.randomUUID();
+    await db()
+      .insert(ephemeralRegistrationTokens)
+      .values([
+        buildEphemeralToken({id: deletableId, expiresAt: new Date(Date.now() - 3650 * DAY_MS)}),
+        buildEphemeralToken({id: keptId, expiresAt: new Date(Date.now() - 4 * DAY_MS)}),
+      ]);
+
+    const result = await deleteExpiredEphemeralRegistrationTokens({retentionDays: 5, limit: 1});
+
+    const remaining = await db()
+      .select({id: ephemeralRegistrationTokens.id})
+      .from(ephemeralRegistrationTokens)
+      .where(eq(ephemeralRegistrationTokens.workspaceId, workspaceId));
+    expect(result.deleted).toBe(1);
+    expect(remaining.map((row) => row.id)).toEqual([keptId]);
+  });
+
+  function buildEphemeralToken(params: {
+    id: string;
+    expiresAt: Date;
+  }): typeof ephemeralRegistrationTokens.$inferInsert {
+    return {
+      id: params.id,
+      workspaceId,
+      provisionerId: crypto.randomUUID(),
+      provisionedRunnerId: `provisioned-${params.id}`,
+      hashedToken: crypto.randomUUID(),
+      prefix: 'sfxr_test',
+      expiresAt: params.expiresAt,
+      consumedAt: null,
+      createdAt: params.expiresAt,
     };
   }
 });

@@ -1,4 +1,5 @@
 const mocks = vi.hoisted(() => ({
+  deleteExpiredEphemeralRegistrationTokensActivity: vi.fn(),
   deleteExpiredReservationsActivity: vi.fn(),
   deleteExpiredRunnerSessionsActivity: vi.fn(),
   detectAndExpireStuckJobsActivity: vi.fn(),
@@ -13,6 +14,8 @@ vi.mock('@temporalio/workflow', () => ({
     warn: mocks.warn,
   },
   proxyActivities: vi.fn(() => ({
+    deleteExpiredEphemeralRegistrationTokensActivity:
+      mocks.deleteExpiredEphemeralRegistrationTokensActivity,
     deleteExpiredReservationsActivity: mocks.deleteExpiredReservationsActivity,
     deleteExpiredRunnerSessionsActivity: mocks.deleteExpiredRunnerSessionsActivity,
     detectAndExpireStuckJobsActivity: mocks.detectAndExpireStuckJobsActivity,
@@ -23,6 +26,7 @@ vi.mock('@temporalio/workflow', () => ({
 describe('stuckJobDetector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.deleteExpiredEphemeralRegistrationTokensActivity.mockResolvedValue({deleted: 0});
     mocks.deleteExpiredReservationsActivity.mockResolvedValue({deleted: 0});
     mocks.deleteExpiredRunnerSessionsActivity.mockResolvedValue({deleted: 0});
     mocks.detectAndExpireStuckJobsActivity.mockResolvedValue({expired: 0});
@@ -53,6 +57,35 @@ describe('stuckJobDetector', () => {
 
     expect(mocks.warn).toHaveBeenCalledWith(
       'Stuck-job detector failed to delete expired runner sessions',
+      {error: 'database down'},
+    );
+    expect(mocks.detectAndExpireStuckJobsActivity).toHaveBeenCalledWith({thresholdSeconds: 180});
+  });
+
+  it('runs expired ephemeral token GC before stuck job expiry and logs deletions', async () => {
+    const {stuckJobDetector} = await import('./stuck-job-detector.js');
+    mocks.deleteExpiredEphemeralRegistrationTokensActivity.mockResolvedValueOnce({deleted: 3});
+
+    await stuckJobDetector();
+
+    expect(mocks.deleteExpiredEphemeralRegistrationTokensActivity).toHaveBeenCalledWith();
+    expect(mocks.detectAndExpireStuckJobsActivity).toHaveBeenCalledWith({thresholdSeconds: 180});
+    expect(mocks.info).toHaveBeenCalledWith(
+      'Stuck-job detector deleted expired ephemeral registration tokens',
+      {deleted: 3},
+    );
+  });
+
+  it('continues stuck job expiry when expired ephemeral token GC fails', async () => {
+    const {stuckJobDetector} = await import('./stuck-job-detector.js');
+    mocks.deleteExpiredEphemeralRegistrationTokensActivity.mockRejectedValueOnce(
+      new Error('database down'),
+    );
+
+    await stuckJobDetector();
+
+    expect(mocks.warn).toHaveBeenCalledWith(
+      'Stuck-job detector failed to delete expired ephemeral registration tokens',
       {error: 'database down'},
     );
     expect(mocks.detectAndExpireStuckJobsActivity).toHaveBeenCalledWith({thresholdSeconds: 180});

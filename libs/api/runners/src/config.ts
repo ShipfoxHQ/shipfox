@@ -89,6 +89,14 @@ export const config = createConfig({
     desc: 'Maximum number of expired runner sessions maintenance deletes in one pass.',
     default: 1000,
   }),
+  RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS: num({
+    desc: 'How long consumed or expired ephemeral registration tokens are retained for audit and debugging before maintenance deletes them, in days. Active tokens that are neither consumed nor expired are never deleted. This window is independent of the runner-session retention windows.',
+    default: 7,
+  }),
+  RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE: num({
+    desc: 'Maximum number of consumed or expired ephemeral registration tokens maintenance deletes in one pass.',
+    default: 1000,
+  }),
   PROVISIONER_ACTIVE_WINDOW_SECONDS: num({
     desc: 'Time window, in seconds, used to list active provisioners from recent authenticated requests.',
     default: 120,
@@ -251,6 +259,24 @@ if (
 ) {
   throw new Error(
     `RUNNER_SESSION_GC_BATCH_SIZE (${config.RUNNER_SESSION_GC_BATCH_SIZE}) must be a whole number >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS) ||
+  config.RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS < 1
+) {
+  throw new Error(
+    `RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS (${config.RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS}) must be a whole number of days >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE) ||
+  config.RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE < 1
+) {
+  throw new Error(
+    `RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE (${config.RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE}) must be a whole number >= 1.`,
   );
 }
 

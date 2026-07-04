@@ -1,4 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {EphemeralRegistrationToken} from '#core/entities/ephemeral-registration-token.js';
 import {pgTable} from './common.js';
@@ -29,6 +30,10 @@ export const ephemeralRegistrationTokens = pgTable(
       table.provisionedRunnerId,
       table.consumedAt,
       table.expiresAt,
+    ),
+    index('runners_ephemeral_registration_tokens_terminal_idx').on(
+      sql`coalesce(${table.consumedAt}, ${table.expiresAt})`,
+      table.id,
     ),
   ],
 );
