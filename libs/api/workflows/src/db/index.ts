@@ -55,7 +55,6 @@ export {
   getJobScope,
   getJobsByWorkflowRunAttemptId,
   getJobsByWorkflowRunId,
-  getJobWorkspaceId,
   getLatestAttempt,
   getStepAttempts,
   getStepAttemptsByJobIds,

@@ -1202,10 +1202,6 @@ export async function getJobScope(jobId: string): Promise<JobScope | undefined> 
   return rows[0];
 }
 
-export async function getJobWorkspaceId(jobId: string): Promise<string | undefined> {
-  return (await getJobScope(jobId))?.workspaceId;
-}
-
 export async function getStepsByJobId(jobId: string): Promise<Step[]> {
   const rows = await db()
     .select({step: steps})
