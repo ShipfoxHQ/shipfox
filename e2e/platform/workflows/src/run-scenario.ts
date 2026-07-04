@@ -1,7 +1,7 @@
 import {mkdir, readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
-import {createApiClient} from '@shipfox/e2e-core';
+import {createApiClient, E2eApiError} from '@shipfox/e2e-core';
 import {waitForDefinition} from '@shipfox/e2e-helper-definitions';
 import {commitFiles, createRepo} from '@shipfox/e2e-helper-integrations-gitea';
 import {fetchStepLogs} from '@shipfox/e2e-helper-logs';
@@ -183,6 +183,39 @@ async function triggerPushAndAwaitRun(params: {
     : new Error(`No run appeared for ${params.scenario} after ${maxAttempts} trigger pushes`);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fireManualAndAwaitRun(params: {
+  client: ReturnType<typeof createApiClient>;
+  definitionId: string;
+  inputs: Record<string, unknown>;
+  scenario: string;
+}): Promise<string> {
+  const maxAttempts = 8;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await params.client.requestJson<FireManualTriggerResponseDto>(
+        'post',
+        `/workflow-definitions/${params.definitionId}/fire-manual`,
+        {json: {inputs: params.inputs}},
+      );
+      return response.workflow_run_id;
+    } catch (error) {
+      if (!(error instanceof E2eApiError) || error.status !== 404) throw error;
+      lastError = error;
+      await sleep(500);
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(
+        `Manual trigger for ${params.scenario} was not ready after ${maxAttempts} attempts`,
+      );
+}
+
 /**
  * Drives one declarative scenario end to end: fresh repo and project, seed commit,
  * definition-resolved poll, trigger (push commit or fire-manual), terminal-run poll,
@@ -252,12 +285,12 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
 
     let runId: string;
     if (scenario.expectation.trigger === 'manual') {
-      const response = await client.requestJson<FireManualTriggerResponseDto>(
-        'post',
-        `/workflow-definitions/${definition.id}/fire-manual`,
-        {json: {inputs: scenario.expectation.inputs ?? {}}},
-      );
-      runId = response.workflow_run_id;
+      runId = await fireManualAndAwaitRun({
+        client,
+        definitionId: definition.id,
+        inputs: scenario.expectation.inputs ?? {},
+        scenario: scenario.name,
+      });
     } else {
       runId = await triggerPushAndAwaitRun({
         org: suite.org,
