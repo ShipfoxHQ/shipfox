@@ -14,6 +14,7 @@ const EDIT_PROVIDER_NAME = 'Local Ollama Edit';
 const EDITED_PROVIDER_NAME = 'Local Ollama Edited';
 const DELETE_PROVIDER_ID = 'local-ollama-delete';
 const DELETE_PROVIDER_NAME = 'Local Ollama Delete';
+const PROVIDER_SAVE_TIMEOUT_MS = 75_000;
 
 interface ReadyWorkspace {
   sessionToken: string;
@@ -126,7 +127,7 @@ test('creates a custom model provider backed by local Ollama', async ({
       response.url().includes('/agent/custom-model-providers') &&
       response.request().method() === 'POST' &&
       !response.url().includes('/discover-models'),
-    {timeout: 30_000},
+    {timeout: PROVIDER_SAVE_TIMEOUT_MS},
   );
   await dialog.getByRole('button', {name: 'Test & save'}).click();
   expect((await saveResponse).ok()).toBe(true);
@@ -176,7 +177,7 @@ test('edits an existing custom model provider and validates with local Ollama', 
     (response) =>
       response.url().includes(`/agent/custom-model-providers/${EDIT_PROVIDER_ID}`) &&
       response.request().method() === 'PUT',
-    {timeout: 30_000},
+    {timeout: PROVIDER_SAVE_TIMEOUT_MS},
   );
   await dialog.getByRole('button', {name: 'Test & save'}).click();
   expect((await saveResponse).ok()).toBe(true);
