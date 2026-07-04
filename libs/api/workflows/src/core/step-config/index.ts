@@ -5,6 +5,10 @@ export {
   assembleWorkflowRunContext,
 } from './assemble-run-context.js';
 export {
+  assembleStepDispatchContext,
+  completeStepDispatchConfig,
+} from './complete-step-dispatch-config.js';
+export {
   type MaterializedWorkflowStep,
   type MaterializeJobExecutionStepsParams,
   materializeJobExecutionSteps,
@@ -16,10 +20,4 @@ export {
   modelHasAgentStep,
 } from './materialize-workflow-model.js';
 export type {WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
-export type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
-export type {RuntimeSchedulingCommand} from './runtime-scheduling-command.js';
-export {
-  type ScheduleRuntimeDagInput,
-  scheduleRuntimeDag,
-} from './schedule-runtime-dag.js';
 export type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';

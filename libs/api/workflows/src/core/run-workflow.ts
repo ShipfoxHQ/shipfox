@@ -4,7 +4,7 @@ import {getDefinitionById} from '@shipfox/api-definitions';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
-import {modelHasAgentStep} from './workflow-runtime/index.js';
+import {modelHasAgentStep} from './step-config/materialize-workflow-model.js';
 
 export interface RunWorkflowParams {
   workspaceId: string;

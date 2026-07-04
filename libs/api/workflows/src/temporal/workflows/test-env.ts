@@ -1,7 +1,7 @@
 import {resolve} from 'node:path';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
-import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import type {RunDag} from '../activities/orchestration-activities.js';
 import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
 

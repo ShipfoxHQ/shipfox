@@ -4,7 +4,10 @@ import type {JobStatus, JobStatusReason} from '#core/entities/job.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
-import type {RuntimeCompletionStatus, RuntimeDagNode} from '#core/workflow-runtime/runtime-dag.js';
+import type {
+  RuntimeCompletionStatus,
+  RuntimeDagNode,
+} from '#core/workflow-scheduling/runtime-dag.js';
 import {
   bulkUpdateStepStatuses,
   failJobExecutionAsTimedOut,
