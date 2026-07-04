@@ -37,7 +37,7 @@ export function AvailableProvidersGrid<TEntry extends ModelProviderCatalogEntryD
   const providerListLabel =
     trimmedSearch !== '' ? 'Available providers matching search' : 'Available providers';
   const resultCountText =
-    trimmedSearch === '' ? '' : providerResultCountText(visibleCount, trimmedSearch);
+    trimmedSearch === '' ? '' : providerResultCountText(filteredEntries.length, trimmedSearch);
 
   function clearSearch() {
     setSearch('');

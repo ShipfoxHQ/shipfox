@@ -189,13 +189,10 @@ function ModalHeader({
 }
 
 function ModalBody({className, children, ...props}: ComponentProps<'div'>) {
-  const {isDesktop} = useModalContext();
-
   return (
     <div
       className={cn(
-        'bg-background-neutral-base flex flex-col items-start px-24 pb-24 pt-16 w-full',
-        isDesktop ? 'overflow-clip' : 'overflow-y-auto overflow-x-clip flex-1',
+        'bg-background-neutral-base flex min-h-0 flex-1 flex-col items-start overflow-y-auto overflow-x-clip px-24 pb-24 pt-16 w-full',
         className,
       )}
       {...props}

@@ -24,6 +24,7 @@ import {
   customCredentialToStoreKey,
   storeValuesToCustomRuntimeCredentials,
 } from './credential-fingerprints.js';
+import {normalizeCustomProviderBaseUrl} from './custom-provider-url.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {
   CustomModelProviderConfigNotFoundError,
@@ -201,25 +202,37 @@ export async function updateCustomModelProviderConfig(
     signal: params.signal,
   });
 
+  const namespace = agentSystemNamespace(params.providerId);
   await setSecrets({
     workspaceId: params.workspaceId,
-    namespace: agentSystemNamespace(params.providerId),
+    namespace,
     values: customCredentialsToStoreValues(newSecretCredentials),
   });
 
-  const updated = await upsertModelProviderConfig({
-    workspaceId: params.workspaceId,
-    providerId: params.providerId,
-    kind: 'custom',
-    displayName: nextDisplayName,
-    api: nextApi,
-    baseUrl: nextBaseUrl,
-    headers: nextHeaders.plaintextHeaders,
-    secretHeaderNames: nextHeaders.secretHeaderNames,
-    models: nextModels,
-    defaultModel: nextDefaultModel,
-    defaultThinking: existing.defaultThinking,
-  });
+  let updated: ModelProviderConfig;
+  try {
+    updated = await upsertModelProviderConfig({
+      workspaceId: params.workspaceId,
+      providerId: params.providerId,
+      kind: 'custom',
+      displayName: nextDisplayName,
+      api: nextApi,
+      baseUrl: nextBaseUrl,
+      headers: nextHeaders.plaintextHeaders,
+      secretHeaderNames: nextHeaders.secretHeaderNames,
+      models: nextModels,
+      defaultModel: nextDefaultModel,
+      defaultThinking: existing.defaultThinking,
+    });
+  } catch (error) {
+    await rollbackCustomProviderSecretUpdate({
+      workspaceId: params.workspaceId,
+      namespace,
+      existingSecrets,
+      attemptedSecrets: newSecretCredentials,
+    }).catch(() => undefined);
+    throw error;
+  }
 
   await pruneStaleCustomHeaderSecrets({
     workspaceId: params.workspaceId,
@@ -456,11 +469,40 @@ function assertStoredSecretsNotReusedAfterBaseUrlChange(params: {
 }
 
 function normalizedUrl(value: string): string {
-  try {
-    return new URL(value).href;
-  } catch {
-    return value;
+  return normalizeCustomProviderBaseUrl(value);
+}
+
+async function rollbackCustomProviderSecretUpdate(params: {
+  workspaceId: string;
+  namespace: string;
+  existingSecrets: Record<string, string>;
+  attemptedSecrets: Record<string, string>;
+}): Promise<void> {
+  const attemptedKeys = Object.keys(params.attemptedSecrets);
+  if (attemptedKeys.length === 0) return;
+
+  const secretsToRestore = Object.fromEntries(
+    attemptedKeys.flatMap((key) => {
+      const value = params.existingSecrets[key];
+      return value === undefined ? [] : [[key, value]];
+    }),
+  );
+  if (Object.keys(secretsToRestore).length > 0) {
+    await setSecrets({
+      workspaceId: params.workspaceId,
+      namespace: params.namespace,
+      values: customCredentialsToStoreValues(secretsToRestore),
+    });
   }
+
+  const newKeys = attemptedKeys.filter((key) => params.existingSecrets[key] === undefined);
+  if (newKeys.length === 0) return;
+
+  await deleteSecrets({
+    workspaceId: params.workspaceId,
+    namespace: params.namespace,
+    keys: newKeys.map(customCredentialToStoreKey),
+  });
 }
 
 async function pruneStaleCustomHeaderSecrets(params: {

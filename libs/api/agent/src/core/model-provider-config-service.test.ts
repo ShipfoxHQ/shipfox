@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import * as secretStore from '@shipfox/api-secrets';
+import * as modelProviderDb from '#db/index.js';
 import {getModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
 import {agentSystemNamespace} from './credential-fingerprints.js';
 import {
@@ -597,6 +598,45 @@ describe('custom model provider config service', () => {
     expect(updated.secretHeaderNames).toEqual(['x-region']);
   });
 
+  it('rolls back custom provider secrets when config update persistence fails', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          api_key: 'sk-local-original',
+          headers: [{name: 'authorization', value: 'Bearer old', secret: true}],
+        }),
+      },
+      {probe},
+    );
+    vi.spyOn(modelProviderDb, 'upsertModelProviderConfig').mockRejectedValueOnce(
+      new Error('config write failed'),
+    );
+
+    const update = updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {
+          api_key: 'sk-local-replacement',
+          headers: [{name: 'x-replacement', value: 'new secret', secret: true}],
+        },
+      },
+      {probe},
+    );
+
+    await expect(update).rejects.toThrow('config write failed');
+    const secrets = await getSecretsByNamespace({
+      workspaceId,
+      namespace: agentSystemNamespace('local-vllm'),
+    });
+    expect(secrets).toEqual({
+      API_KEY: 'sk-local-original',
+      HEADER_617574686F72697A6174696F6E: 'Bearer old',
+    });
+  });
+
   it('keeps stored secret header values during custom provider updates', async () => {
     const probe = vi.fn().mockResolvedValue(undefined);
     await createCustomModelProviderConfig(
@@ -670,6 +710,35 @@ describe('custom model provider config service', () => {
 
     await expect(update).rejects.toThrow(CustomModelProviderStoredSecretBaseUrlChangeError);
     expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows stored secret reuse when the base URL only changes trailing slashes', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    const provider = await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({
+          api_key: 'sk-local-original',
+          headers: [{name: 'authorization', value: 'Bearer old', secret: true}],
+        }),
+      },
+      {probe},
+    );
+
+    const updated = await updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: provider.providerId,
+        body: {
+          base_url: 'http://127.0.0.1:11434/v1/',
+          headers: [{name: 'authorization', secret: true, keep: true}],
+        },
+      },
+      {probe},
+    );
+
+    expect(updated.baseUrl).toBe('http://127.0.0.1:11434/v1/');
+    expect(probe).toHaveBeenCalledTimes(2);
   });
 
   it('rejects kept secret headers that are renamed or missing', async () => {
