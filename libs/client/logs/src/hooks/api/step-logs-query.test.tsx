@@ -227,11 +227,14 @@ describe('useStepAttemptLogsQuery', () => {
     const wrapper = ({children}: {children: ReactNode}) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
+    const initialProps: {options: UseStepAttemptLogsQueryOptions} = {
+      options: {retryMissingStream: true},
+    };
 
     const {result, rerender} = renderHook(
       ({options}: {options: UseStepAttemptLogsQueryOptions}) =>
         useStepAttemptLogsQuery(STEP_ID, 1, options),
-      {wrapper, initialProps: {options: {retryMissingStream: true}}},
+      {wrapper, initialProps},
     );
     await waitFor(() => expect(result.current.isError).toBe(true));
     await result.current.refetch();
