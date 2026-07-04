@@ -51,7 +51,7 @@ export function resolveRunStepConfig(params: ResolveRunStepConfigParams): RunSte
   const envResolution = resolveEnv(env, params.context, params.mode, params.definitionId);
   const commandResolution = resolveCommand({
     step: params.step,
-    envKeys: Object.keys(envResolution.env),
+    envKeys: [...Object.keys(envResolution.env), ...Object.keys(envResolution.configPlan)],
     context: params.context,
     mode: params.mode,
     definitionId: params.definitionId,
