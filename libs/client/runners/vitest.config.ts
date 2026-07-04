@@ -55,6 +55,8 @@ export default defineConfig(
           ],
           test: {
             name: 'storybook',
+            fileParallelism: true,
+            isolate: false,
             browser: {
               enabled: true,
               headless: true,
