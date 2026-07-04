@@ -1,4 +1,9 @@
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+  type UserContextMembership,
+} from '@shipfox/api-auth-context';
 import {
   ConnectionSlugConflictError,
   type IntegrationConnection,
@@ -11,20 +16,7 @@ import type {ConnectSentryInstallationInput} from '#core/install.js';
 import type {SentryInstallation} from '#db/installations.js';
 import {createSentryIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
-  return {
-    ...actual,
-    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
-      workspaceId,
-      userId: 'user-1',
-      role: 'admin',
-    })),
-  };
-});
-
-const {requireWorkspaceAccess} = await import('@shipfox/api-auth-context');
-const requireWorkspaceAccessMock = vi.mocked(requireWorkspaceAccess);
+let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -34,7 +26,11 @@ const fakeUserAuth: AuthMethod = {
     }
     setUserContext(
       request,
-      buildUserContext({userId: 'user-1', email: 'user@example.com', memberships: []}),
+      buildUserContext({
+        userId: 'user-1',
+        email: 'user@example.com',
+        memberships: authenticatedMemberships,
+      }),
     );
     return Promise.resolve();
   },
@@ -110,9 +106,13 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
   return app;
 }
 
-function connectPayload() {
+function connectPayload(options: {authorize?: boolean} = {}) {
+  const workspaceId = crypto.randomUUID();
+  if (options.authorize !== false) {
+    authenticatedMemberships = [{workspaceId, role: 'admin'}];
+  }
   return {
-    workspace_id: crypto.randomUUID(),
+    workspace_id: workspaceId,
     code: 'the-code',
     installation_id: 'install-uuid-1',
   };
@@ -120,7 +120,7 @@ function connectPayload() {
 
 describe('Sentry integration routes', () => {
   beforeEach(async () => {
-    requireWorkspaceAccessMock.mockClear();
+    authenticatedMemberships = [];
     await closeApp();
   });
 
@@ -143,6 +143,7 @@ describe('Sentry integration routes', () => {
   it('returns the external-install URL for a member', async () => {
     const app = await createTestApp();
     const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin'}];
 
     const res = await app.inject({
       method: 'POST',
@@ -155,7 +156,6 @@ describe('Sentry integration routes', () => {
     expect(res.json().install_url).toBe(
       'https://sentry.io/sentry-apps/shipfox-test/external-install/',
     );
-    expect(requireWorkspaceAccessMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
   });
 
   it('requires auth for connect', async () => {
@@ -188,16 +188,13 @@ describe('Sentry integration routes', () => {
   });
 
   it('returns 403 when the caller is not a workspace member', async () => {
-    requireWorkspaceAccessMock.mockImplementationOnce(() => {
-      throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
-    });
     const app = await createTestApp();
 
     const res = await app.inject({
       method: 'POST',
       url: '/integrations/sentry/connect',
       headers: {authorization: 'Bearer user'},
-      payload: connectPayload(),
+      payload: connectPayload({authorize: false}),
     });
 
     expect(res.statusCode).toBe(403);
