@@ -18,26 +18,42 @@ interface FinalizeAttemptLogStreamResult {
   closedReason: 'declared' | 'timeout' | null;
 }
 
-export async function finalizeAttemptLogStream(
-  params: FinalizeAttemptLogStreamParams,
-): Promise<AttemptStream> {
-  const result: FinalizeAttemptLogStreamResult = await db().transaction(async (tx) => {
-    const {stream} = await getOrCreateAttemptStreamWithStatus(tx, params);
-    if (stream.state === 'closed') return {stream, closedReason: null};
-
-    const reason = params.logOutcome === 'abandoned' ? 'timeout' : 'declared';
-    const closed = await closeStream(tx, {streamId: stream.id, reason});
-    if (closed) return {stream: closed, closedReason: reason};
-
-    const current = await getAttemptStreamByIdInTransaction(tx, stream.id);
-    if (!current) throw new Error(`Log stream disappeared during finalization: ${stream.id}`);
-    return {stream: current, closedReason: null};
-  });
-
-  if (result.closedReason) {
-    if (result.closedReason === 'timeout') recordAppendedCount.add(1, {kind: 'runner_lost'});
-    streamClosedCount.add(1, {reason: result.closedReason});
-  }
-
-  return result.stream;
+interface FinalizeMetrics {
+  recordAppendedCount: {add: (value: number, attributes: {kind: 'runner_lost'}) => void};
+  streamClosedCount: {
+    add: (value: number, attributes: {reason: 'declared' | 'timeout'}) => void;
+  };
 }
+
+const defaultMetrics: FinalizeMetrics = {
+  recordAppendedCount,
+  streamClosedCount,
+};
+
+export function createFinalizeAttemptLogStream(metrics: FinalizeMetrics = defaultMetrics) {
+  return async (params: FinalizeAttemptLogStreamParams): Promise<AttemptStream> => {
+    const result: FinalizeAttemptLogStreamResult = await db().transaction(async (tx) => {
+      const {stream} = await getOrCreateAttemptStreamWithStatus(tx, params);
+      if (stream.state === 'closed') return {stream, closedReason: null};
+
+      const reason = params.logOutcome === 'abandoned' ? 'timeout' : 'declared';
+      const closed = await closeStream(tx, {streamId: stream.id, reason});
+      if (closed) return {stream: closed, closedReason: reason};
+
+      const current = await getAttemptStreamByIdInTransaction(tx, stream.id);
+      if (!current) throw new Error(`Log stream disappeared during finalization: ${stream.id}`);
+      return {stream: current, closedReason: null};
+    });
+
+    if (result.closedReason) {
+      if (result.closedReason === 'timeout') {
+        metrics.recordAppendedCount.add(1, {kind: 'runner_lost'});
+      }
+      metrics.streamClosedCount.add(1, {reason: result.closedReason});
+    }
+
+    return result.stream;
+  };
+}
+
+export const finalizeAttemptLogStream = createFinalizeAttemptLogStream();

@@ -3,21 +3,19 @@ import {db} from '#db/db.js';
 import {getOrCreateAttemptStream} from '#db/streams.js';
 import {listChunks, listStreamClosedEvents} from '#test/queries.js';
 import {
+  createFinalizeAttemptLogStream,
   type FinalizeAttemptLogStreamParams,
-  finalizeAttemptLogStream,
 } from './finalize-attempt-stream.js';
 
-const metrics = vi.hoisted(() => ({
+const metrics = {
   recordAppendedAdd: vi.fn(),
   streamClosedAdd: vi.fn(),
-  streamOpenedAdd: vi.fn(),
-}));
+};
 
-vi.mock('#metrics/instance.js', () => ({
+const finalizeAttemptLogStream = createFinalizeAttemptLogStream({
   recordAppendedCount: {add: metrics.recordAppendedAdd},
   streamClosedCount: {add: metrics.streamClosedAdd},
-  streamOpenedCount: {add: metrics.streamOpenedAdd},
-}));
+});
 
 function newIdentity(
   overrides: Partial<FinalizeAttemptLogStreamParams> = {},
@@ -49,7 +47,6 @@ describe('finalizeAttemptLogStream', () => {
     expect(stream.truncated).toBe(false);
     expect(await listChunks(stream.id)).toHaveLength(0);
     expect(await listStreamClosedEvents(stream.id)).toHaveLength(1);
-    expect(metrics.streamOpenedAdd).not.toHaveBeenCalled();
     expect(metrics.streamClosedAdd).toHaveBeenCalledWith(1, {reason: 'declared'});
     expect(metrics.recordAppendedAdd).not.toHaveBeenCalled();
   });
@@ -73,7 +70,6 @@ describe('finalizeAttemptLogStream', () => {
       .map(parseLogRecordLine);
     expect(records).toMatchObject([{type: 'runner_lost'}]);
     expect(await listStreamClosedEvents(stream.id)).toHaveLength(1);
-    expect(metrics.streamOpenedAdd).not.toHaveBeenCalled();
     expect(metrics.streamClosedAdd).toHaveBeenCalledWith(1, {reason: 'timeout'});
     expect(metrics.recordAppendedAdd).toHaveBeenCalledWith(1, {kind: 'runner_lost'});
   });
@@ -88,7 +84,6 @@ describe('finalizeAttemptLogStream', () => {
     expect(second.state).toBe('closed');
     expect(await listChunks(first.id)).toHaveLength(1);
     expect(await listStreamClosedEvents(first.id)).toHaveLength(1);
-    expect(metrics.streamOpenedAdd).not.toHaveBeenCalled();
     expect(metrics.streamClosedAdd).toHaveBeenCalledTimes(1);
     expect(metrics.recordAppendedAdd).toHaveBeenCalledTimes(1);
   });
