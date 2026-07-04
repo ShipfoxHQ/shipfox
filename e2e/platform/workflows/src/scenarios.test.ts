@@ -24,10 +24,55 @@ describe('discoverScenarios', () => {
 
       expect(scenarios).toHaveLength(1);
       expect(scenarios[0]).toMatchObject({
+        kind: 'expect',
         name: 'hello',
         configPath: '.shipfox/workflows/hello.yml',
         workflowYaml: 'jobs:\n  build:\n    steps: []\n',
       });
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
+  test('loads directories that contain reject.yaml and workflow.yml', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(
+        root,
+        'rejected',
+        'reject.yaml',
+        'message_includes:\n  - unknown-interpolation-context\n',
+      );
+      writeScenarioFile(root, 'rejected', 'workflow.yml', 'jobs:\n  build:\n    steps: []\n');
+
+      const scenarios = discoverScenarios(root);
+
+      expect(scenarios).toHaveLength(1);
+      expect(scenarios[0]).toMatchObject({
+        kind: 'reject',
+        name: 'rejected',
+        rejection: {
+          error_code: 'invalid-definition',
+          message_includes: ['unknown-interpolation-context'],
+        },
+      });
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
+  test('rejects directories that contain both declarative manifests', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(root, 'ambiguous', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(root, 'ambiguous', 'reject.yaml', 'message_includes: []\n');
+      writeScenarioFile(root, 'ambiguous', 'workflow.yml', 'jobs:\n  build:\n    steps: []\n');
+
+      const act = () => discoverScenarios(root);
+
+      expect(act).toThrow(
+        'Scenario "ambiguous" must contain exactly one of expect.yaml or reject.yaml',
+      );
     } finally {
       rmSync(root, {recursive: true, force: true});
     }

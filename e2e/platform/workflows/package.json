@@ -25,6 +25,7 @@
     "type": "shipfox-tsc-check"
   },
   "devDependencies": {
+    "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-triggers-dto": "workspace:*",
