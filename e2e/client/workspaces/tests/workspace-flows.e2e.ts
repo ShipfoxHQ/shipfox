@@ -13,9 +13,16 @@ function workspaceUrlRe(wid: string): RegExp {
 }
 
 async function readLastWorkspaceId(page: Page): Promise<string> {
+  const workspaceId = await readMaybeLastWorkspaceId(page);
+  expect(workspaceId, `localStorage[${LAST_WORKSPACE_KEY}]`).not.toBeUndefined();
+  return workspaceId as string;
+}
+
+async function readMaybeLastWorkspaceId(page: Page): Promise<string | undefined> {
   const raw = await page.evaluate((key) => window.localStorage.getItem(key), LAST_WORKSPACE_KEY);
-  expect(raw, `localStorage[${LAST_WORKSPACE_KEY}]`).not.toBeNull();
-  return JSON.parse(raw as string) as string;
+  if (!raw) return undefined;
+  const parsed: unknown = JSON.parse(raw);
+  return typeof parsed === 'string' ? parsed : undefined;
 }
 
 async function expectSetupNavigationHidden(page: Page): Promise<void> {
@@ -105,9 +112,11 @@ test('persists the active workspace across reload and via /', async ({page, auth
 
   await page.goto(`/workspaces/${wsB.id}/integrations`);
   await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
+  await expect.poll(() => readMaybeLastWorkspaceId(page)).toBe(wsB.id);
 
   await page.reload();
   await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
+  await expect.poll(() => readMaybeLastWorkspaceId(page)).toBe(wsB.id);
 
   await page.goto('/');
   await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
