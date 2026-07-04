@@ -59,12 +59,19 @@ function serviceContext(env = process.env, cwd = process.cwd()) {
 }
 
 async function up(context) {
+  printSetupStep(`Starting setup for ${context.model} at ${context.baseUrl}.`);
   mkdirSync(context.stateDir, {recursive: true});
 
-  if (!(await isHealthy(context.baseUrl))) {
+  printSetupStep(`Checking Ollama health at ${context.baseUrl}.`);
+  const healthy = await isHealthy(context.baseUrl);
+  printSetupStep(`Health check finished: ${healthy ? 'healthy' : 'unavailable'}.`);
+
+  if (!healthy) {
     const managedProcess = readManagedProcess(context);
     if (managedProcess !== undefined) {
+      printSetupStep(`Stopping stale managed Ollama process ${managedProcess.pid}.`);
       await stopManagedProcess(context, managedProcess.pid);
+      printSetupStep(`Stopped stale managed Ollama process ${managedProcess.pid}.`);
     } else {
       const unverifiedPid = readLiveUnverifiedPid(context);
       if (unverifiedPid !== undefined) {
@@ -78,12 +85,22 @@ async function up(context) {
       removeProcessState(context);
     }
 
-    startServer(context);
+    printSetupStep(`Starting Ollama server on ${context.listenHost}.`);
+    const pid = startServer(context);
+    printSetupStep(`Started Ollama server process ${pid}; waiting for health.`);
     await waitForHealthy(context.baseUrl);
+    printSetupStep(`Ollama server is healthy at ${context.baseUrl}.`);
+  } else {
+    printSetupStep(`Reusing healthy Ollama server at ${context.baseUrl}.`);
   }
 
+  printSetupStep(`Pulling Ollama model ${context.model}.`);
   runRootMise(context, ['exec', '--', 'ollama', 'pull', context.model]);
+  printSetupStep(`Finished pulling Ollama model ${context.model}.`);
+
+  printSetupStep(`Warming Ollama model ${context.model} with keep_alive=${context.keepAlive}.`);
   await preloadModel(context);
+  printSetupStep(`Finished warming Ollama model ${context.model}.`);
 
   printLine(`Shared Ollama is ready at ${context.baseUrl}.`);
   printLine(`Model: ${context.model}`);
@@ -144,6 +161,7 @@ function startServer(context) {
     listenHost: context.listenHost,
     startedAt: new Date().toISOString(),
   });
+  return child.pid;
 }
 
 function runRootMise(context, args) {
@@ -175,7 +193,11 @@ async function preloadModel(context) {
   if (!response.ok) {
     fail(`Failed to preload ${context.model}: ${response.status} ${response.statusText}`);
   }
-  await response.body?.cancel();
+  try {
+    await response.json();
+  } catch {
+    fail(`Failed to preload ${context.model}: failed to read warmup response`);
+  }
 }
 
 async function waitForHealthy(baseUrl) {
@@ -330,6 +352,10 @@ function isCliEntryPoint() {
 
 function printLine(message) {
   process.stdout.write(`${message}\n`);
+}
+
+function printSetupStep(message) {
+  printLine(`[shared-ollama] ${new Date().toISOString()} ${message}`);
 }
 
 function printError(message) {

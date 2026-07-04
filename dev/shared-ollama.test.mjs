@@ -59,7 +59,7 @@ describe('preloadModel', () => {
   test('uses the OpenAI-compatible chat endpoint', async () => {
     const originalFetch = globalThis.fetch;
     const calls = [];
-    globalThis.fetch = async (url, init) => {
+    globalThis.fetch = (url, init) => {
       calls.push({url, init});
       return new Response('{}', {status: 200});
     };
@@ -83,6 +83,37 @@ describe('preloadModel', () => {
       stream: false,
       keep_alive: '2h',
     });
+  });
+
+  test('reads the completion response body instead of cancelling it', async () => {
+    const originalFetch = globalThis.fetch;
+    let bodyRead = false;
+    let bodyCancelled = false;
+    globalThis.fetch = () => ({
+      ok: true,
+      json: () => {
+        bodyRead = true;
+        return {};
+      },
+      body: {
+        cancel: () => {
+          bodyCancelled = true;
+        },
+      },
+    });
+
+    try {
+      await preloadModel({
+        baseUrl: 'http://127.0.0.1:11434',
+        model: 'custom:model',
+        keepAlive: '2h',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    assert.equal(bodyRead, true);
+    assert.equal(bodyCancelled, false);
   });
 });
 

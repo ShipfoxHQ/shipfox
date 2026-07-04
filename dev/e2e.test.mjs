@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {describe, test} from 'node:test';
 import {
   copyPlaywrightTestResults,
+  copySharedOllamaLog,
   defaultLogDir,
   e2eEnv,
   parseArgs,
@@ -153,6 +154,27 @@ describe('defaultLogDir', () => {
 
   test('falls back to .context locally', () => {
     assert.equal(defaultLogDir({}), '.context/shipfox-e2e-logs');
+  });
+});
+
+describe('copySharedOllamaLog', () => {
+  test('stages the shared Ollama service log when present', async () => {
+    const workspaceDir = await mkdtemp(join(tmpdir(), 'shipfox-e2e-workspace-'));
+    const rootDir = join(workspaceDir, 'root');
+    const logDir = join(workspaceDir, 'logs');
+    try {
+      await mkdir(join(rootDir, '.context/shared-ollama'), {recursive: true});
+      await writeFile(join(rootDir, '.context/shared-ollama/ollama.log'), 'ollama warmup log');
+
+      await copySharedOllamaLog(logDir, {CONDUCTOR_ROOT_PATH: rootDir}, workspaceDir);
+
+      assert.equal(
+        await readFile(join(logDir, 'shared-ollama/ollama.log'), 'utf8'),
+        'ollama warmup log',
+      );
+    } finally {
+      await rm(workspaceDir, {recursive: true, force: true});
+    }
   });
 });
 
