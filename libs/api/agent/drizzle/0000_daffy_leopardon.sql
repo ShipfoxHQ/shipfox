@@ -10,6 +10,7 @@ CREATE TABLE "model_provider_configs" (
 	"headers" jsonb,
 	"secret_header_names" jsonb,
 	"models" jsonb,
+	"requires_api_key" boolean DEFAULT false NOT NULL,
 	"default_model" text,
 	"default_thinking" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

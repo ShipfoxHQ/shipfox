@@ -92,6 +92,7 @@ function customProvider(
     headers: [{name: 'x-plain', value: 'plain'}],
     secret_header_names: ['x-secret'],
     models: [{id: 'custom-gpt', label: 'Custom GPT'}],
+    requires_api_key: false,
     ...overrides,
   };
 }
@@ -170,7 +171,7 @@ describe('runAgent', () => {
         provider: 'ollama-workspace',
         model: 'custom-gpt',
         credentials: {api_key: 'sk-custom', 'header:x-secret': 'secret-header'},
-        customProvider: customProvider(),
+        customProvider: customProvider({requires_api_key: true}),
       }),
     );
 
@@ -191,6 +192,42 @@ describe('runAgent', () => {
     );
     expect(findMock).toHaveBeenCalledWith('ollama-workspace', 'custom-gpt');
     expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({model}));
+  });
+
+  it('rejects keyed custom providers when no api key is resolved', async () => {
+    const result = runAgent(
+      invocation({
+        provider: 'workspace-models',
+        model: 'custom-gpt',
+        credentials: {},
+        customProvider: customProvider({requires_api_key: true}),
+      }),
+    );
+
+    await expect(result).rejects.toMatchObject({
+      name: 'AgentConfigError',
+      agentConfigIssue: 'credentials_invalid',
+    });
+    expect(registerProviderMock).not.toHaveBeenCalled();
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects keyed custom providers when an empty api key is resolved', async () => {
+    const result = runAgent(
+      invocation({
+        provider: 'workspace-models',
+        model: 'custom-gpt',
+        credentials: {api_key: ''},
+        customProvider: customProvider({requires_api_key: true}),
+      }),
+    );
+
+    await expect(result).rejects.toMatchObject({
+      name: 'AgentConfigError',
+      agentConfigIssue: 'credentials_invalid',
+    });
+    expect(registerProviderMock).not.toHaveBeenCalled();
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
   it('registers keyless custom providers with a placeholder api key', async () => {

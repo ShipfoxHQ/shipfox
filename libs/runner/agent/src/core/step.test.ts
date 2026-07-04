@@ -86,6 +86,7 @@ describe('executeAgentStep', () => {
       headers: [{name: 'x-plain', value: 'plain'}],
       secret_header_names: ['x-secret'],
       models: [{id: 'custom-gpt', label: 'Custom GPT'}],
+      requires_api_key: true,
     };
 
     await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {

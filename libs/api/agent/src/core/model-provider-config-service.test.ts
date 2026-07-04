@@ -514,6 +514,29 @@ describe('custom model provider config service', () => {
     await expect(duplicate).rejects.toThrow(CustomModelProviderSlugCollisionError);
     const stored = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
     expect(stored?.id).toBe(first.id);
+    expect(stored?.requiresApiKey).toBe(true);
+  });
+
+  it('stores custom provider key intent from create bodies', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+
+    const keyed = await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({slug: 'keyed-provider', api_key: 'sk-keyed'}),
+      },
+      {probe},
+    );
+    const keyless = await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({slug: 'keyless-provider', api_key: undefined}),
+      },
+      {probe},
+    );
+
+    expect(keyed.requiresApiKey).toBe(true);
+    expect(keyless.requiresApiKey).toBe(false);
   });
 
   it('does not let concurrent duplicate custom creates overwrite the winner secrets', async () => {
@@ -596,6 +619,29 @@ describe('custom model provider config service', () => {
     expect(secrets).toEqual({API_KEY: 'sk-local-original', HEADER_782D726567696F6E: 'eu'});
     expect(updated.headers).toEqual([{name: 'x-plain', value: 'plain'}]);
     expect(updated.secretHeaderNames).toEqual(['x-region']);
+    expect(updated.requiresApiKey).toBe(true);
+  });
+
+  it('marks a keyless custom provider as requiring a key when an api key is added', async () => {
+    const probe = vi.fn().mockResolvedValue(undefined);
+    await createCustomModelProviderConfig(
+      {
+        workspaceId,
+        body: createCustomBody({api_key: undefined}),
+      },
+      {probe},
+    );
+
+    const updated = await updateCustomModelProviderConfig(
+      {
+        workspaceId,
+        providerId: 'local-vllm',
+        body: {api_key: 'sk-local-added'},
+      },
+      {probe},
+    );
+
+    expect(updated.requiresApiKey).toBe(true);
   });
 
   it('rolls back custom provider secrets when config update persistence fails', async () => {

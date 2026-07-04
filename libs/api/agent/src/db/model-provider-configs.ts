@@ -21,6 +21,7 @@ export interface UpsertModelProviderConfigParams {
   headers?: CustomModelProviderHeaderDto[] | null | undefined;
   secretHeaderNames?: string[] | null | undefined;
   models?: CustomAgentModelDto[] | null | undefined;
+  requiresApiKey?: boolean | undefined;
   defaultModel: string | null;
   defaultThinking: AgentThinking;
   setAsDefault?: boolean | undefined;
@@ -28,8 +29,8 @@ export interface UpsertModelProviderConfigParams {
 
 export type InsertCustomModelProviderConfigParams = Omit<
   UpsertModelProviderConfigParams,
-  'kind'
-> & {kind: 'custom'};
+  'kind' | 'requiresApiKey'
+> & {kind: 'custom'; requiresApiKey: boolean};
 
 export async function insertCustomModelProviderConfig(
   params: InsertCustomModelProviderConfigParams,
@@ -47,6 +48,7 @@ export async function insertCustomModelProviderConfig(
         headers: params.headers,
         secretHeaderNames: params.secretHeaderNames,
         models: params.models,
+        requiresApiKey: params.requiresApiKey,
         defaultModel: params.defaultModel,
         defaultThinking: params.defaultThinking,
       })
@@ -96,6 +98,7 @@ export async function upsertModelProviderConfig(
           ? {secretHeaderNames: params.secretHeaderNames}
           : {}),
         ...(params.models !== undefined ? {models: params.models} : {}),
+        ...(params.requiresApiKey !== undefined ? {requiresApiKey: params.requiresApiKey} : {}),
         defaultModel: params.defaultModel,
         defaultThinking: params.defaultThinking,
       })
@@ -111,6 +114,7 @@ export async function upsertModelProviderConfig(
             ? {secretHeaderNames: params.secretHeaderNames}
             : {}),
           ...(params.models !== undefined ? {models: params.models} : {}),
+          ...(params.requiresApiKey !== undefined ? {requiresApiKey: params.requiresApiKey} : {}),
           defaultModel: params.defaultModel,
           defaultThinking: params.defaultThinking,
           updatedAt: sql`NOW()`,

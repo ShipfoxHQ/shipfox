@@ -3,6 +3,7 @@ import {
   customAgentModelSchema,
   customModelProviderConfigDtoSchema,
   customModelProviderHeaderRequestSchema,
+  customModelProviderRuntimeConfigSchema,
   discoverCustomModelProviderModelsBodySchema,
   discoverCustomModelProviderModelsBySlugBodySchema,
   discoverCustomModelProviderModelsResponseSchema,
@@ -240,6 +241,20 @@ describe('custom model provider schemas', () => {
     });
 
     expect(parsed.secret_header_names).toEqual(['authorization']);
+    expect('requires_api_key' in parsed).toBe(false);
+  });
+
+  it('requires key intent on custom provider runtime descriptors', () => {
+    const parsed = customModelProviderRuntimeConfigSchema.parse({
+      api: 'openai-responses',
+      base_url: 'https://llm.example.test/v1',
+      headers: [{name: 'x-region', value: 'local'}],
+      secret_header_names: ['authorization'],
+      models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      requires_api_key: false,
+    });
+
+    expect(parsed.requires_api_key).toBe(false);
   });
 
   it('parses discovery request and response DTOs', () => {
