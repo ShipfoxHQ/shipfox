@@ -7,11 +7,13 @@ import {
 } from '@shipfox/expression';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 
-type WorkflowModelJob = WorkflowModel['jobs'][number];
+interface WorkflowModelJobName {
+  readonly name?: WorkflowModel['jobs'][number]['name'] | undefined;
+}
 
 export interface ResolveJobExecutionNameParams {
   readonly definitionId: string;
-  readonly job: WorkflowModelJob;
+  readonly job: WorkflowModelJobName;
   readonly fallbackName: string;
   readonly context: WorkflowExpressionEvaluationContext;
 }

@@ -2,6 +2,7 @@ import type {JobExecution} from '#core/entities/job-execution.js';
 import type {Step, StepAttempt} from '#core/entities/step.js';
 import {
   assembleCreationContext,
+  assembleExecutionCreationContext,
   assembleGateContext,
   assembleJobResolutionContext,
   assembleStepDispatchContext,
@@ -101,6 +102,111 @@ describe('assembleCreationContext', () => {
         },
         inputs: {deploy: true},
       }),
+    });
+  });
+});
+
+describe('assembleExecutionCreationContext', () => {
+  const run = {
+    id: 'run-1',
+    name: 'Build',
+    definitionId: 'def-1',
+    projectId: 'proj-1',
+    workspaceId: 'workspace-1',
+    createdAt: new Date('2026-06-30T12:00:00.000Z'),
+  };
+
+  it('wraps run values, prior executions, and the synthetic current execution', () => {
+    const prior = jobExecution({
+      id: 'exec-1',
+      jobId: 'job-1',
+      sequence: 1,
+      name: 'Build #1',
+      status: 'failed',
+      finishedAt: date,
+    });
+
+    const context = assembleExecutionCreationContext({
+      run,
+      triggerPayload: {
+        source: 'github',
+        event: 'push',
+        deliveryId: 'delivery-1',
+        data: {ref: 'refs/heads/main'},
+      },
+      inputs: {deploy: true},
+      jobId: 'job-1',
+      sequence: 2,
+      executionName: 'Build #2',
+      status: 'pending',
+      triggerEvents: [
+        {
+          source: 'github',
+          event: 'deployment',
+          delivery_id: 'delivery-2',
+          received_at: '2026-06-30T12:01:00.000Z',
+          data: {environment: 'prod'},
+        },
+      ],
+      priorExecutions: [prior],
+    });
+
+    expect(context).toEqual({
+      site: 'execution-creation',
+      values: {
+        ...assembleWorkflowRunContext({
+          run,
+          triggerPayload: {
+            source: 'github',
+            event: 'push',
+            deliveryId: 'delivery-1',
+            data: {ref: 'refs/heads/main'},
+          },
+          inputs: {deploy: true},
+        }),
+        executions: [
+          {
+            index: 0,
+            name: 'Build #1',
+            status: 'failed',
+            started_at: date,
+            finished_at: date,
+            events: prior.triggerEvents,
+          },
+          {
+            index: 1,
+            name: 'Build #2',
+            status: 'pending',
+            started_at: null,
+            finished_at: null,
+            events: [
+              {
+                source: 'github',
+                event: 'deployment',
+                delivery_id: 'delivery-2',
+                received_at: '2026-06-30T12:01:00.000Z',
+                data: {environment: 'prod'},
+              },
+            ],
+          },
+        ],
+        execution: {
+          index: 1,
+          name: 'Build #2',
+          status: 'pending',
+          started_at: null,
+          finished_at: null,
+          events: [
+            {
+              source: 'github',
+              event: 'deployment',
+              delivery_id: 'delivery-2',
+              received_at: '2026-06-30T12:01:00.000Z',
+              data: {environment: 'prod'},
+            },
+          ],
+        },
+      },
     });
   });
 });

@@ -22,6 +22,7 @@ import {nextStepForJob} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
+import {jobExecutions} from './schema/job-executions.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {steps as stepsTable} from './schema/steps.js';
@@ -233,7 +234,7 @@ describe('workflow run queries', () => {
       expect(jobExecutions[0]).toMatchObject({
         jobId: runJobs[0]?.id,
         sequence: 1,
-        name: 'build',
+        name: 'build #1',
       });
 
       // Every job gets a synthetic "Set up job" step at position 0; user steps follow.
@@ -247,6 +248,89 @@ describe('workflow run queries', () => {
         config: {},
       });
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
+    });
+
+    test('persists the resolved one-shot job execution name', async () => {
+      const model = buildModel({
+        jobs: {
+          deploy: {
+            name: `Deploy ${template('inputs.environment')}`,
+            steps: [{run: 'echo deploy'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        inputs: {environment: 'prod'},
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Missing deploy job');
+      const executions = await getJobExecutionsByJobId(job.id);
+      expect(executions[0]?.name).toBe('Deploy prod');
+    });
+
+    test('falls back to the job key and sequence for unnamed one-shot executions', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            deploy: {
+              steps: [{run: 'echo deploy'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Missing deploy job');
+      const executions = await getJobExecutionsByJobId(job.id);
+      expect(executions[0]?.name).toBe('deploy #1');
+    });
+
+    test('uses the fallback name for execution-name self references', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            deploy: {
+              name: `Current ${template('execution.name')}`,
+              steps: [{run: 'echo deploy'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Missing deploy job');
+      const executions = await getJobExecutionsByJobId(job.id);
+      expect(executions[0]?.name).toBe('Current deploy #1');
     });
 
     test('persists the parsed model on the run attempt', async () => {
@@ -1302,6 +1386,54 @@ jobs:
       const userStep = (await getStepsByJobId(rerunJobs[0]?.id as string))[1];
 
       expect(userStep?.authoredConfig).toEqual({run: `echo "${template('run.id')}"`});
+    });
+
+    test('reruns copy the source job execution name', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            deploy: {
+              name: `Deploy ${template('inputs.environment')}`,
+              steps: [{run: 'echo deploy'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        inputs: {environment: 'prod'},
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing deploy job');
+      await markJob([sourceJob], 'deploy', 'failed');
+      const [sourceExecution] = await getJobExecutionsByJobId(sourceJob.id);
+      if (!sourceExecution) throw new Error('Missing deploy execution');
+      await db()
+        .update(jobExecutions)
+        .set({name: 'Deploy prod (attempt 1)'})
+        .where(eq(jobExecutions.id, sourceExecution.id));
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun deploy job');
+      const [rerunExecution] = await getJobExecutionsByJobId(rerunJob.id);
+      expect(rerunExecution?.name).toBe('Deploy prod (attempt 1)');
     });
 
     test('writes one run-attempt-created outbox event for the rerun', async () => {

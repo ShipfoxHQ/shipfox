@@ -43,6 +43,46 @@ export function assembleCreationContext(
   };
 }
 
+export interface AssembleExecutionCreationContextParams extends AssembleWorkflowRunContextParams {
+  readonly jobId: string;
+  readonly sequence: number;
+  readonly executionName: string;
+  readonly status: JobExecution['status'];
+  readonly triggerEvents: readonly JobExecution['triggerEvents'][number][];
+  readonly priorExecutions: readonly JobExecution[];
+}
+
+export function assembleExecutionCreationContext(
+  params: AssembleExecutionCreationContextParams,
+): WorkflowEvaluationContext {
+  const execution: JobExecution = {
+    id: `${params.jobId}:${params.sequence}`,
+    jobId: params.jobId,
+    sequence: params.sequence,
+    name: params.executionName,
+    status: params.status,
+    statusReason: null,
+    triggerEvents: [...params.triggerEvents],
+    version: 1,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    queuedAt: null,
+    startedAt: null,
+    finishedAt: null,
+    timedOutAt: null,
+  };
+  const executions = assembleExecutionsContext([...params.priorExecutions, execution]);
+  const executionValues = executions.executions as unknown[];
+  return {
+    site: 'execution-creation',
+    values: {
+      ...assembleWorkflowRunContext(params),
+      ...executions,
+      execution: executionValues.at(-1),
+    },
+  };
+}
+
 /**
  * Keeps job-success predicate values aligned with the registry's `executions`
  * type environment.

@@ -65,10 +65,12 @@ import {
 } from '#core/errors.js';
 import {
   assembleCreationContext,
+  assembleExecutionCreationContext,
   assembleExecutionsContext,
 } from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
 import {materializeWorkflowModel} from '#core/step-config/materialize-workflow-model.js';
+import {resolveJobExecutionName} from '#core/step-config/resolve-job-execution-name.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
@@ -208,18 +210,39 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         .returning();
     }
 
-    const jobExecutionValues = jobRows.flatMap((jobRow) =>
-      jobRow.mode === 'listening'
-        ? []
-        : [
-            {
-              jobId: jobRow.id,
-              sequence: 1,
-              name: jobRow.name ?? jobRow.key,
-              status: 'pending' as const,
-            },
-          ],
-    );
+    const jobExecutionValues = jobRows.flatMap((jobRow, jobIndex) => {
+      if (jobRow.mode === 'listening') return [];
+      const job = materializedJobs[jobIndex];
+      if (!job) return [];
+
+      const fallbackName = `${jobRow.key} #1`;
+      const context = assembleExecutionCreationContext({
+        run,
+        triggerPayload: params.triggerPayload,
+        inputs: params.inputs ?? null,
+        jobId: jobRow.id,
+        sequence: 1,
+        executionName: fallbackName,
+        status: 'pending',
+        triggerEvents: [],
+        priorExecutions: [],
+      });
+      const name = resolveJobExecutionName({
+        definitionId: params.definitionId,
+        job,
+        fallbackName,
+        context: context.values,
+      });
+
+      return [
+        {
+          jobId: jobRow.id,
+          sequence: 1,
+          name,
+          status: 'pending' as const,
+        },
+      ];
+    });
     const jobExecutionRows =
       jobExecutionValues.length === 0
         ? []
@@ -461,15 +484,18 @@ export async function createRerunWorkflowRun(
             )
             .returning();
 
+    const sourceJobByPosition = new Map(sourceJobs.map((job) => [job.position, job]));
     const clonedJobExecutionValues = clonedJobRows.flatMap((job) => {
       const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
+      const sourceJob = sourceJobByPosition.get(job.position);
+      const sourceExecution = sourceJob ? sourceJobExecutionByJobId.get(sourceJob.id) : undefined;
       return job.mode === 'listening'
         ? []
         : [
             {
               jobId: job.id,
               sequence: 1,
-              name: job.name ?? job.key,
+              name: sourceExecution?.name ?? `${job.key} #1`,
               status: carriedOver ? ('succeeded' as const) : ('pending' as const),
               statusReason: null,
               ...(carriedOver ? {finishedAt: sql`now()`} : {}),
