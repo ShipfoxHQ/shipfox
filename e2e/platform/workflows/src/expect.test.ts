@@ -406,6 +406,114 @@ describe('evaluateExpectations', () => {
     ]);
   });
 
+  test('matches gate result details on the latest step attempt', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          job_executions: [
+            makeJobExecution({
+              steps: [
+                makeStep({
+                  attempts: [
+                    makeAttempt({
+                      gate_result: {
+                        kind: 'evaluation_error',
+                        reason: 'gate exploded',
+                        exit_code: 0,
+                      },
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {
+          build: {
+            steps: {
+              greet: {
+                gate_result: {
+                  kind: 'evaluation_error',
+                  reason: 'gate exploded',
+                  exit_code: 0,
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(result.mismatches).toEqual([]);
+  });
+
+  test('reports absent and mismatched gate result details', () => {
+    const absent = evaluateExpectations(
+      makeDetail({
+        jobs: [
+          makeJob({
+            job_executions: [
+              makeJobExecution({
+                steps: [makeStep({attempts: []})],
+              }),
+            ],
+          }),
+        ],
+      }),
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {build: {steps: {greet: {gate_result: {kind: 'evaluation_error'}}}}},
+      }),
+    );
+    const mismatched = evaluateExpectations(
+      makeDetail(),
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {
+          build: {
+            steps: {
+              greet: {
+                gate_result: {
+                  kind: 'evaluation_error',
+                  reason: 'gate expression evaluation failed',
+                  exit_code: 1,
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(absent.mismatches).toEqual([
+      {path: 'jobs.build.steps.greet.gate_result', expected: 'present', actual: 'null'},
+    ]);
+    expect(mismatched.mismatches).toEqual([
+      {
+        path: 'jobs.build.steps.greet.gate_result.kind',
+        expected: 'evaluation_error',
+        actual: 'none',
+      },
+      {
+        path: 'jobs.build.steps.greet.gate_result.reason',
+        expected: 'gate expression evaluation failed',
+        actual: 'null',
+      },
+      {
+        path: 'jobs.build.steps.greet.gate_result.exit_code',
+        expected: '1',
+        actual: 'missing',
+      },
+    ]);
+  });
+
   test('reports a missing job and a missing step', () => {
     const missingJob = evaluateExpectations(
       makeDetail(),
@@ -587,6 +695,15 @@ describe('parseExpectation', () => {
       parseExpectation({
         run: {status: 'succeeded'},
         jobs: {build: {steps: {greet: {error: {code: 'config_unresolvable'}}}}},
+      }),
+    ).toThrow();
+  });
+
+  test('rejects unknown nested gate result keys', () => {
+    expect(() =>
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {build: {steps: {greet: {gate_result: {passed: false}}}}},
       }),
     ).toThrow();
   });

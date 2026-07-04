@@ -1,0 +1,19 @@
+trigger: push
+run:
+  status: failed
+jobs:
+  build:
+    status: failed
+    status_reason: step_failed
+    steps:
+      produce:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["producer completed without structured outputs"]
+      consume:
+        status: failed
+        error:
+          reason: config_unresolvable
+          field: env.VERSION
+          source: steps.produce.outputs.version

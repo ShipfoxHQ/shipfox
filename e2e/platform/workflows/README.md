@@ -52,6 +52,10 @@ jobs:                    # optional, keyed by job key
       greet:
         status: succeeded
         exit_code: 0     # optional
+        gate_result:     # optional: assert the latest attempt's gate evaluation
+          kind: evaluation_error
+          reason: gate expression evaluation failed
+          exit_code: 0
         error:           # optional: assert the step failed for a specific reason
           reason: config_unresolvable  # step error reason enum
           field: env.VERSION           # exact match on the failing field
