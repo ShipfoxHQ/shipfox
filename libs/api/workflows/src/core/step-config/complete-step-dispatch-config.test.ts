@@ -94,6 +94,27 @@ describe('completeStepDispatchConfig', () => {
     });
   });
 
+  it('rejects secret env bindings with malformed target names', () => {
+    const pending = step({
+      config: {},
+      configPlan: {
+        env: {
+          'BAD-NAME': plannedField(template('secrets.API_KEY')),
+        },
+      },
+    });
+
+    const act = () =>
+      completeStepDispatchConfig({
+        step: pending,
+        context,
+        resolveAgentDefaults,
+        definitionId: 'def-1',
+      });
+
+    expect(act).toThrow();
+  });
+
   it('keeps fully resolved step config byte-identical apart from resolved env additions', () => {
     const pending = step({
       config: {run: 'echo "$SHA"'},

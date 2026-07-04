@@ -2,6 +2,10 @@ import {z} from 'zod';
 import {secretKeySchema} from './identifiers.js';
 
 export const secretStoreSchema = z.literal('local');
+export const SECRET_BINDING_TARGET_PATTERN_SOURCE = '^[A-Za-z_][A-Za-z0-9_]*$';
+export const SECRET_BINDING_TARGET_PATTERN = new RegExp(SECRET_BINDING_TARGET_PATTERN_SOURCE);
+
+export const secretBindingTargetSchema = z.string().min(1).regex(SECRET_BINDING_TARGET_PATTERN);
 
 export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -16,7 +20,7 @@ export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const materializedSecretBindingSchema = z.object({
-  target: z.string().min(1),
+  target: secretBindingTargetSchema,
   segments: z.array(secretBindingSegmentSchema),
 });
 
