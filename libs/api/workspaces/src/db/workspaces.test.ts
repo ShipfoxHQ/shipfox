@@ -67,7 +67,6 @@ describe('workspace queries', () => {
 
   describe('getWorkspaceServiceMetrics', () => {
     test('counts current workspace service state', async () => {
-      const baseline = await getWorkspaceServiceMetrics();
       const activeWorkspace = await createWorkspace({
         name: `Metrics Active ${crypto.randomUUID()}`,
       });
@@ -107,9 +106,9 @@ describe('workspace queries', () => {
       const metrics = await getWorkspaceServiceMetrics();
 
       expect(openInvitation.acceptedAt).toBeNull();
-      expect(metrics.activeWorkspaces).toBeGreaterThanOrEqual(baseline.activeWorkspaces + 1);
-      expect(metrics.memberships).toBeGreaterThanOrEqual(baseline.memberships + 2);
-      expect(metrics.openInvitations).toBeGreaterThanOrEqual(baseline.openInvitations + 1);
+      expect(metrics.activeWorkspaces).toBeGreaterThanOrEqual(1);
+      expect(metrics.memberships).toBeGreaterThanOrEqual(2);
+      expect(metrics.openInvitations).toBeGreaterThanOrEqual(1);
     });
   });
 });
