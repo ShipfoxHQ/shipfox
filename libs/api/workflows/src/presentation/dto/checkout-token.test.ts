@@ -24,6 +24,7 @@ describe('toCheckoutTokenDto', () => {
         token: 'ghs-token',
         expires_at: '2026-06-10T12:00:00.000Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     });
@@ -42,7 +43,7 @@ describe('toCheckoutTokenDto', () => {
 
     const dto = toCheckoutTokenDto(spec, {persist: false});
 
-    expect(dto.auth).toMatchObject({carry: 'header', persist: false});
+    expect(dto.auth).toMatchObject({carry: 'header', host: 'github.com', persist: false});
   });
 
   it('omits auth when the spec has no credentials', () => {
@@ -78,5 +79,21 @@ describe('toCheckoutTokenDto', () => {
     const dto = toCheckoutTokenDto(spec, {persist: true});
 
     expect(dto).toEqual({repository_url: 'git@github.com:acme/repo.git', ref: 'main'});
+  });
+
+  it('maps the host from an scp-like credentialed URL', () => {
+    const spec: CheckoutSpec = {
+      repositoryUrl: 'git@github.com:acme/repo.git',
+      ref: 'main',
+      credentials: {
+        username: 'x-access-token',
+        token: 'ghs-token',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      },
+    };
+
+    const dto = toCheckoutTokenDto(spec, {persist: true});
+
+    expect(dto.auth).toMatchObject({host: 'github.com'});
   });
 });

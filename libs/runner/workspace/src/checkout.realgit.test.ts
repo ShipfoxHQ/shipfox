@@ -76,6 +76,7 @@ describe('checkoutRepository (real git)', () => {
         token: 'super-secret-token',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'localhost',
         persist: true,
       },
     });
@@ -96,6 +97,7 @@ describe('checkoutRepository (real git)', () => {
         token: 'super-secret-token',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'localhost',
         persist: true,
       },
     });
@@ -138,6 +140,7 @@ describe('writeAmbientGitCredential (real git)', () => {
         token,
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     });

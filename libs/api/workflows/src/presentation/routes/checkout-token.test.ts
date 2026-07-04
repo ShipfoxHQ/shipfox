@@ -119,6 +119,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
         token: 'ghs-secret-token',
         expires_at: '2026-06-10T12:00:00.000Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     });

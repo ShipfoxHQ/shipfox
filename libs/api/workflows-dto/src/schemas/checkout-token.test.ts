@@ -8,6 +8,7 @@ const bearerResponse = {
     token: 'gh-token',
     expires_at: '2026-06-10T12:00:00.000Z',
     carry: 'header',
+    host: 'github.com',
     persist: true,
   },
 };
@@ -21,6 +22,7 @@ const basicResponse = {
     token: 'gh-token',
     expires_at: '2026-06-10T12:00:00.000Z',
     carry: 'header',
+    host: 'github.com',
     persist: false,
   },
 };
@@ -102,8 +104,25 @@ describe('checkoutTokenResponseSchema', () => {
     expect(parse).toThrow();
   });
 
-  it('rejects an unsupported carry mode', () => {
+  it('accepts userinfo carry mode', () => {
     const input = {...bearerResponse, auth: {...bearerResponse.auth, carry: 'userinfo'}};
+
+    const result = checkoutTokenResponseSchema.parse(input);
+
+    expect(result.auth?.carry).toBe('userinfo');
+  });
+
+  it('rejects an unsupported carry mode', () => {
+    const input = {...bearerResponse, auth: {...bearerResponse.auth, carry: 'ssh-agent'}};
+
+    const parse = () => checkoutTokenResponseSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects auth missing host', () => {
+    const {host: _host, ...auth} = bearerResponse.auth;
+    const input = {...bearerResponse, auth};
 
     const parse = () => checkoutTokenResponseSchema.parse(input);
 

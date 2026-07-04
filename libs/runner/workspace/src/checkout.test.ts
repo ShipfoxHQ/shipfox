@@ -105,6 +105,7 @@ describe('checkoutRepository argv', () => {
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
       onCommandStart,
@@ -127,7 +128,7 @@ describe('checkoutRepository argv', () => {
       GIT_CONFIG_KEY_0: 'http.https://github.com/acme/repo.git.extraHeader',
       GIT_CONFIG_VALUE_0: 'Authorization: Bearer tok-123',
       GIT_CONFIG_KEY_1: 'http.followRedirects',
-      GIT_CONFIG_VALUE_1: 'initial',
+      GIT_CONFIG_VALUE_1: 'false',
     });
     expect(onSecrets).toHaveBeenCalledWith(['tok-123']);
     expect(onCommandStart.mock.calls.map((call) => call[0].command).join('\n')).not.toContain(
@@ -160,6 +161,7 @@ describe('checkoutRepository argv', () => {
           token: 'tok-123',
           expires_at: '2026-01-01T00:00:00Z',
           carry: 'header',
+          host: 'github.com',
           persist: true,
         },
       });
@@ -197,6 +199,7 @@ describe('checkoutRepository argv', () => {
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
       onSecrets,
@@ -297,6 +300,7 @@ describe('checkoutRepository failure classification', () => {
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     }).catch((e: unknown) => e);
@@ -318,6 +322,7 @@ describe('checkoutRepository failure classification', () => {
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     }).catch((e: unknown) => e);
@@ -336,6 +341,7 @@ describe('checkoutRepository failure classification', () => {
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     }).catch((e: unknown) => e);
@@ -372,6 +378,7 @@ describe('writeAmbientGitCredential', () => {
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     });
@@ -381,7 +388,7 @@ describe('writeAmbientGitCredential', () => {
     expect(mode).toBe(0o600);
     expect(content).toContain('[http "https://github.com/acme/repo.git"]');
     expect(content).toContain('extraHeader = "Authorization: Bearer tok-123"');
-    expect(content).toContain('[http]\n\tfollowRedirects = initial');
+    expect(content).toContain('[http]\n\tfollowRedirects = false');
   });
 
   it('includes the prior global config when it exists', async () => {
@@ -399,6 +406,7 @@ describe('writeAmbientGitCredential', () => {
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     });
@@ -407,6 +415,27 @@ describe('writeAmbientGitCredential', () => {
     const expected = Buffer.from('x-token:tok-123').toString('base64');
     expect(content).toContain(`[include]\n\tpath = "${baseConfig}"`);
     expect(content).toContain(`extraHeader = "Authorization: Basic ${expected}"`);
+  });
+
+  it('does not fall back to home config when GIT_CONFIG_GLOBAL points to a missing file', async () => {
+    const configPath = join(root, 'git-cred.config');
+    process.env.GIT_CONFIG_GLOBAL = join(root, 'missing.gitconfig');
+
+    await writeAmbientGitCredential({
+      configPath,
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      auth: {
+        kind: 'bearer',
+        token: 'tok-123',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+      },
+    });
+
+    const content = await readFile(configPath, 'utf8');
+    expect(content).not.toContain('[include]');
   });
 
   it('quotes and escapes the persisted header value', async () => {
@@ -420,6 +449,7 @@ describe('writeAmbientGitCredential', () => {
         token: 'tok"#;\\tail',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     });
@@ -438,6 +468,7 @@ describe('writeAmbientGitCredential', () => {
           token: 'tok-123',
           expires_at: '2026-01-01T00:00:00Z',
           carry: 'header',
+          host: 'github.com',
           persist: true,
         },
       }),

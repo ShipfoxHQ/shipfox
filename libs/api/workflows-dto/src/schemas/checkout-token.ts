@@ -1,7 +1,8 @@
 import {z} from 'zod';
 
 const carryFields = {
-  carry: z.literal('header'),
+  carry: z.enum(['header', 'userinfo']),
+  host: z.string().min(1),
   persist: z.boolean(),
 };
 

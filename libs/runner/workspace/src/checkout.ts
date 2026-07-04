@@ -144,7 +144,7 @@ export async function checkoutRepository(params: {
               GIT_CONFIG_KEY_0: `http.${repositoryUrl}.extraHeader`,
               GIT_CONFIG_VALUE_0: `Authorization: ${authorizationValue(auth)}`,
               GIT_CONFIG_KEY_1: 'http.followRedirects',
-              GIT_CONFIG_VALUE_1: 'initial',
+              GIT_CONFIG_VALUE_1: 'false',
             },
           }
         : {}),
@@ -185,7 +185,7 @@ export async function writeAmbientGitCredential(params: {
     `[http "${gitConfigSubsection(repositoryUrl)}"]`,
     `\textraHeader = ${gitConfigQuotedValue(`Authorization: ${authorizationValue(auth)}`)}`,
     '[http]',
-    '\tfollowRedirects = initial',
+    '\tfollowRedirects = false',
     '',
   ];
 
@@ -403,7 +403,7 @@ function formatVersion(version: {major: number; minor: number; patch: number}): 
 
 async function ambientIncludePath(): Promise<string | undefined> {
   const prior = process.env.GIT_CONFIG_GLOBAL;
-  if (prior && (await pathExists(prior))) return prior;
+  if (prior) return (await pathExists(prior)) ? prior : undefined;
 
   const homeConfig = join(homedir(), '.gitconfig');
   return (await pathExists(homeConfig)) ? homeConfig : undefined;

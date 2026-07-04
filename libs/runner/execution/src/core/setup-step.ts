@@ -456,7 +456,11 @@ function writeFailure(
 }
 
 function writeWarning(log: SetupLogSink | undefined, name: string, lines: readonly string[]): void {
-  log?.writeGroup({name, lines, source: 'stderr'});
+  if (log) {
+    log.writeGroup({name, lines, source: 'stderr'});
+    return;
+  }
+  logger().warn({name, lines}, 'Setup warning');
 }
 
 function safeRepositoryUrl(repositoryUrl: string): string {

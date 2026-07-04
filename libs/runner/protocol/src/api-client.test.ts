@@ -200,6 +200,7 @@ describe('api-client auth contexts', () => {
           token: 'tok-123',
           expires_at: '2026-01-01T00:00:00.000Z',
           carry: 'header',
+          host: 'github.com',
           persist: true,
         },
       }),

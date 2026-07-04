@@ -117,6 +117,7 @@ describe('executeSetupStep', () => {
         token: 't',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       }),
     );
@@ -135,6 +136,7 @@ describe('executeSetupStep', () => {
           token: 't',
           expires_at: '2026-01-01T00:00:00Z',
           carry: 'header',
+          host: 'github.com',
           persist: true,
         },
         cwd: CWD,
@@ -151,6 +153,7 @@ describe('executeSetupStep', () => {
         token: 't',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       },
     });
@@ -167,6 +170,7 @@ describe('executeSetupStep', () => {
         token: 't',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: false,
       }),
     );
@@ -185,6 +189,7 @@ describe('executeSetupStep', () => {
         token: 't',
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
+        host: 'github.com',
         persist: true,
       }),
     );
@@ -201,6 +206,35 @@ describe('executeSetupStep', () => {
       ],
       source: 'stderr',
     });
+  });
+
+  it('logs ambient credential persistence warnings when setup log capture is unavailable', async () => {
+    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+    requestCheckoutTokenMock.mockResolvedValue(
+      checkoutResponse({
+        kind: 'bearer',
+        token: 't',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+      }),
+    );
+    writeAmbientGitCredentialMock.mockRejectedValue(new Error('disk denied'));
+
+    const result = await run();
+
+    expect(result).toEqual({result: {success: true, error: null, exit_code: 0}});
+    expect(warn).toHaveBeenCalledWith(
+      {
+        name: 'Repository access was not persisted',
+        lines: [
+          'The checkout succeeded, but agent steps will run without ambient git authentication. Details: disk denied',
+          'Git commands in later steps may need their own credentials.',
+        ],
+      },
+      'Setup warning',
+    );
   });
 
   it('writes setup groups and the final checked-out commit', async () => {
