@@ -4,7 +4,7 @@ import {existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync} fr
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-const defaultModel = 'qwen3.5:0.8b';
+const defaultModel = 'smollm2:135m-instruct-q2_K';
 const defaultKeepAlive = '24h';
 const defaultBaseUrl = 'http://127.0.0.1:11434';
 const startupTimeoutMs = 30_000;

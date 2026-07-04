@@ -8,7 +8,7 @@ import type {
 import {requestJson} from '@shipfox/e2e-core';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
-const DEFAULT_OLLAMA_MODEL = 'qwen3.5:0.8b';
+const DEFAULT_OLLAMA_MODEL = 'smollm2:135m-instruct-q2_K';
 const DEFAULT_OLLAMA_PROVIDER_API: ModelProviderApi = 'openai-completions';
 const TRAILING_SLASHES_RE = /\/+$/u;
 
