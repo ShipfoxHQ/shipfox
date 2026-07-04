@@ -285,6 +285,32 @@ describe('runRetentionSweep', () => {
     expect(result.failed).toBe(0);
   });
 
+  it('does not starve a younger stream when reloading a raced row fails', async () => {
+    const poison = newIdentity();
+    const healthy = newIdentity();
+    const poisonStream = await arrangeClosedStream(poison);
+    const healthyStream = await arrangeClosedStream(healthy);
+    await backdateClosedAt(poisonStream.id, '200 days');
+    await backdateClosedAt(healthyStream.id, '100 days');
+    const realDeleteExpiredStream = streams.deleteExpiredStream;
+    vi.spyOn(streams, 'deleteExpiredStream').mockImplementation((tx, params) =>
+      params.streamId === poisonStream.id
+        ? Promise.resolve({deleted: false, jobId: null})
+        : realDeleteExpiredStream(tx, params),
+    );
+    vi.spyOn(streams, 'getAttemptStreamById').mockImplementation((streamId) =>
+      streamId === poisonStream.id
+        ? Promise.reject(new Error('reload failed'))
+        : streams.getAttemptStreamById(streamId),
+    );
+
+    const result = await sweep({batchLimit: 1});
+
+    expect(await findStream(poison)).not.toBeNull();
+    expect(await findStream(healthy)).toBeNull();
+    expect(result.failed).toBeGreaterThanOrEqual(1);
+  });
+
   it('does not reset a live job budget: deletes its expired streams but keeps fresh accounting', async () => {
     const id = newIdentity();
     const stream = await arrangeClosedStream(id);

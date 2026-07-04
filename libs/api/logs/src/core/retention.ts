@@ -133,7 +133,18 @@ export async function runRetentionSweep(
       }
 
       if (!outcome.deleted) {
-        const current = await getAttemptStreamById(stream.id);
+        let current: AttemptStream | null;
+        try {
+          current = await getAttemptStreamById(stream.id);
+        } catch (error) {
+          result.failed += 1;
+          skip.add(stream.id);
+          logger().error(
+            {err: error, streamId: stream.id},
+            'Failed to reload raced expired log stream',
+          );
+          continue;
+        }
         if (current) {
           try {
             await deleteExpiredStreamObjects(current);
