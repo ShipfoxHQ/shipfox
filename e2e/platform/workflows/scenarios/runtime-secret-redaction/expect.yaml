@@ -1,0 +1,26 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      assert-env-secret-output-is-redacted:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "secret from env=***"
+          exclude:
+            - "runtime-secret-e2e"
+      assert-command-secret-output-is-redacted:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "secret from command=***"
+          exclude:
+            - "runtime-secret-e2e"
+runner_log:
+  exclude:
+    - "runtime-secret-e2e"

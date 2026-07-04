@@ -262,6 +262,27 @@ describe('executeRunStep', () => {
     expect(stderr).not.toContain(hex);
   });
 
+  it('redacts env and command secret output from the runner stdout tee', async () => {
+    const secret = 'runtime-secret-e2e';
+    const step = buildStep({
+      config: {
+        run: `echo "secret from env=$FROM_ENV_SECRET"; echo "secret from command=${secret}"`,
+      },
+    });
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as never);
+
+    const result = await executeRunStep(step, {
+      secretEnv: {FROM_ENV_SECRET: secret},
+      secretValues: [secret],
+    });
+
+    const stdout = stdoutWrite.mock.calls.map((call) => String(call[0])).join('');
+    expect(result.success).toBe(true);
+    expect(stdout).toContain('secret from env=***');
+    expect(stdout).toContain('secret from command=***');
+    expect(stdout).not.toContain(secret);
+  });
+
   it('redacts a secret split across runner stdout tee chunks', async () => {
     const secret = 'runtime-secret-value';
     const script = [

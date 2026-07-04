@@ -5,17 +5,15 @@ jobs:
   build:
     status: succeeded
     steps:
-      use-secret:
+      assert-env-secret-equals-seeded-value:
         status: succeeded
         exit_code: 0
         logs:
           include:
-            - "env-secret-ok"
-            - "command-secret-ok"
-            - "secret from env=***"
-            - "secret from command=***"
-          exclude:
-            - "runtime-secret-e2e"
-runner_log:
-  exclude:
-    - "runtime-secret-e2e"
+            - "env-secret-equality-ok"
+      assert-command-secret-equals-seeded-value:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "command-secret-equality-ok"

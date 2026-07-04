@@ -8,7 +8,7 @@ triggers:
 jobs:
   build:
     steps:
-      - key: use-secret
+      - key: assert-env-secret-equals-seeded-value
         env:
           FROM_ENV_SECRET: '${{ secrets.RUNTIME_TOKEN }}'
         run: |
@@ -16,11 +16,13 @@ jobs:
             echo "env secret mismatch"
             exit 1
           fi
+
+          echo "env-secret-equality-ok"
+      - key: assert-command-secret-equals-seeded-value
+        run: |
           if [ "${{ secrets.RUNTIME_TOKEN }}" != "runtime-secret-e2e" ]; then
             echo "command secret mismatch"
             exit 1
           fi
-          echo "env-secret-ok"
-          echo "command-secret-ok"
-          echo "secret from env=$FROM_ENV_SECRET"
-          echo "secret from command=${{ secrets.RUNTIME_TOKEN }}"
+
+          echo "command-secret-equality-ok"

@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises';
 import {createApiClient} from '@shipfox/e2e-core';
 import {fetchStepLogs} from '@shipfox/e2e-helper-logs';
 import {type LocalRunnerHandle, stopLocalRunner} from '@shipfox/e2e-helper-runners';
