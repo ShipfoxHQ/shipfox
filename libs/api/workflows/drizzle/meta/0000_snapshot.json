@@ -132,6 +132,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "workflows_job_executions_job_sequence_uq": {
+          "name": "workflows_job_executions_job_sequence_uq",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -482,6 +503,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflows_jobs_active_listeners_idx": {
+          "name": "workflows_jobs_active_listeners_idx",
+          "columns": [
+            {
+              "expression": "listener_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"workflows_jobs\".\"listener_status\" = 'listening'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1190,6 +1227,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "timeout_ms": {
+          "name": "timeout_ms",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2592000000
         },
         "version": {
           "name": "version",

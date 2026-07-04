@@ -13,6 +13,7 @@ export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.termina
 export const WORKFLOWS_WORKFLOW_RUN_CANCELLED = 'workflows.workflow_run.cancelled' as const;
 export const WORKFLOWS_JOB_EXECUTION_TIMED_OUT = 'workflows.job_execution.timed_out' as const;
 export const WORKFLOWS_JOB_ACTIVATED = 'workflows.job.activated' as const;
+export const WORKFLOWS_JOB_EVENT_DELIVERED = 'workflows.job_event.delivered' as const;
 // Terminal fact for a job: the single reliable "this job is over" signal, written in
 // the same transaction as the status flip, on every terminal path.
 export const WORKFLOWS_JOB_TERMINATED = 'workflows.job.terminated' as const;
@@ -93,6 +94,14 @@ export const workflowsJobActivatedSchema = z.discriminatedUnion('mode', [
 ]);
 export type WorkflowsJobActivatedEventDto = z.infer<typeof workflowsJobActivatedSchema>;
 
+export const workflowsJobEventDeliveredSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  disposition: z.enum(['fire', 'resolve']),
+  eventRef: nonEmptyStringSchema,
+  eventName: nonEmptyStringSchema,
+});
+export type WorkflowsJobEventDeliveredEventDto = z.infer<typeof workflowsJobEventDeliveredSchema>;
+
 export const workflowsJobTerminatedSchema = z.object({
   jobId: nonEmptyStringSchema,
   workflowRunId: nonEmptyStringSchema,
@@ -146,6 +155,7 @@ export interface WorkflowsEventMapDto {
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: WorkflowsWorkflowRunCancelledEventDto;
   [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: WorkflowsJobExecutionTimedOutEventDto;
   [WORKFLOWS_JOB_ACTIVATED]: WorkflowsJobActivatedEventDto;
+  [WORKFLOWS_JOB_EVENT_DELIVERED]: WorkflowsJobEventDeliveredEventDto;
   [WORKFLOWS_JOB_TERMINATED]: WorkflowsJobTerminatedEventDto;
   [WORKFLOWS_JOB_STEPS_SETTLED]: WorkflowsJobStepsSettledEventDto;
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: WorkflowsStepRestartEnqueuedEventDto;
@@ -158,6 +168,7 @@ export const workflowsEventSchemas = {
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: workflowsWorkflowRunCancelledSchema,
   [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: workflowsJobExecutionTimedOutSchema,
   [WORKFLOWS_JOB_ACTIVATED]: workflowsJobActivatedSchema,
+  [WORKFLOWS_JOB_EVENT_DELIVERED]: workflowsJobEventDeliveredSchema,
   [WORKFLOWS_JOB_TERMINATED]: workflowsJobTerminatedSchema,
   [WORKFLOWS_JOB_STEPS_SETTLED]: workflowsJobStepsSettledSchema,
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: workflowsStepRestartEnqueuedSchema,

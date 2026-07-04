@@ -1,6 +1,8 @@
+import {DEFAULT_RUN_TIMEOUT_MS} from '@shipfox/api-definitions';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
+  bigint,
   check,
   index,
   integer,
@@ -45,6 +47,7 @@ export const workflowRuns = pgTable(
     inputs: jsonb('inputs').$type<Record<string, unknown>>(),
     sourceSnapshot: jsonb('source_snapshot').$type<WorkflowSourceSnapshot>(),
     triggerIdempotencyKey: text('trigger_idempotency_key'),
+    timeoutMs: bigint('timeout_ms', {mode: 'number'}).notNull().default(DEFAULT_RUN_TIMEOUT_MS),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -99,6 +102,7 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     inputs: row.inputs ?? null,
     sourceSnapshot: row.sourceSnapshot ?? null,
     triggerIdempotencyKey: row.triggerIdempotencyKey,
+    timeoutMs: row.timeoutMs,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -1,6 +1,7 @@
 export {
   type AssembleWorkflowRunContextParams,
   assembleCreationContext,
+  assembleExecutionsContext,
   assembleGateContext,
   assembleJobResolutionContext,
   assembleStepDispatchContext,
@@ -18,5 +19,9 @@ export {
   materializeWorkflowModel,
   modelHasAgentStep,
 } from './materialize-workflow-model.js';
+export {
+  type ResolveJobExecutionNameParams,
+  resolveJobExecutionName,
+} from './resolve-job-execution-name.js';
 export type {WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 export type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';

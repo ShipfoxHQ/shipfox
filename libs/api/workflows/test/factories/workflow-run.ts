@@ -41,6 +41,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
     inputs: null,
     sourceSnapshot: null,
     triggerIdempotencyKey: null,
+    timeoutMs: 30 * 24 * 60 * 60 * 1000,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),

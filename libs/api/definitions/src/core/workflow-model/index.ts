@@ -1,3 +1,4 @@
+export {DEFAULT_RUN_TIMEOUT_MS} from './constants.js';
 export {
   InvalidWorkflowModelError,
   invalidWorkflowModelErrorCode,

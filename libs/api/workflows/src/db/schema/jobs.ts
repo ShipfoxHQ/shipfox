@@ -1,4 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -79,7 +80,12 @@ export const jobs = pgTable(
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
-  (table) => [index('workflows_jobs_workflow_run_attempt_id_idx').on(table.workflowRunAttemptId)],
+  (table) => [
+    index('workflows_jobs_workflow_run_attempt_id_idx').on(table.workflowRunAttemptId),
+    index('workflows_jobs_active_listeners_idx')
+      .on(table.listenerStatus)
+      .where(sql`${table.listenerStatus} = 'listening'`),
+  ],
 );
 
 export type JobDb = typeof jobs.$inferSelect;

@@ -234,6 +234,34 @@ describe('jobExecutionOrchestration', () => {
     expect(finalStatusesFor('job-dup').filter((s) => s !== 'running')).toEqual(['succeeded']);
   });
 
+  test('ignores finished signals for a stale job execution', async () => {
+    setCfg({dag: makeDag([]), jobResults: new Map(), skipSignal: true});
+
+    const handle = await testEnv.client.workflow.start('jobExecutionOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: 'job:job-stale-finished',
+      args: [
+        {
+          ...defaultJobInput,
+          jobId: 'job-stale-finished',
+          jobExecutionId: 'execution-current',
+        },
+      ],
+    });
+    await handle.signal('job-finished', {status: 'failed', jobExecutionId: 'execution-old'});
+    await new Promise((r) => setTimeout(r, 1000));
+    const description = await handle.describe();
+
+    await handle.signal('job-finished', {status: 'succeeded', jobExecutionId: 'execution-current'});
+    const result = await handle.result();
+
+    expect(description.status.name).toBe('RUNNING');
+    expect(result.status).toBe('succeeded');
+    expect(finalStatusesFor('execution-current').filter((s) => s !== 'running')).toEqual([
+      'succeeded',
+    ]);
+  }, 15_000);
+
   test('already-terminal job is not enqueued', async () => {
     setCfg({
       dag: makeDag([]),

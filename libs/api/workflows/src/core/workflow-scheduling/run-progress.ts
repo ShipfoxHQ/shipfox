@@ -50,9 +50,7 @@ export function nonCompletedRuntimeJobIds(
   jobs: readonly RuntimeProgressJob[],
   progress: RuntimeRunProgress,
 ): string[] {
-  return jobs
-    .filter((job) => job.mode !== 'listening' && !progress.completed.has(job.key))
-    .map((job) => job.id);
+  return jobs.filter((job) => !progress.completed.has(job.key)).map((job) => job.id);
 }
 
 export function shouldContinueStartedRun(status: string | undefined): boolean {

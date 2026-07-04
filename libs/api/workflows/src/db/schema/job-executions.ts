@@ -1,6 +1,15 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import {toJobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
 import {pgTable} from './common.js';
@@ -42,6 +51,7 @@ export const jobExecutions = pgTable(
     index('workflows_job_executions_running_idx')
       .on(table.status)
       .where(sql`${table.status} = 'running'`),
+    uniqueIndex('workflows_job_executions_job_sequence_uq').on(table.jobId, table.sequence),
   ],
 );
 

@@ -20,7 +20,7 @@ export async function onRunnerJobLeaseExpired(payload: RunnerJobLeaseExpiredEven
   );
   const handle = temporalClient().workflow.getHandle(`job:${payload.jobId}`);
   try {
-    await handle.signal(JOB_LEASE_EXPIRED_SIGNAL);
+    await handle.signal(JOB_LEASE_EXPIRED_SIGNAL, {jobExecutionId: payload.jobExecutionId});
   } catch (err) {
     // Workflow already terminated (it finished or hit the timeout backstop first);
     // its status is authoritative, drop this late event.

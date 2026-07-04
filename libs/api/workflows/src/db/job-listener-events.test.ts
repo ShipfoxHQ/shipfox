@@ -1,7 +1,9 @@
+import {WORKFLOWS_JOB_EVENT_DELIVERED} from '@shipfox/api-workflows-dto';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {jobListenerEvents} from '#db/schema/job-listener-events.js';
 import {jobs} from '#db/schema/jobs.js';
+import {workflowsOutbox} from '#db/schema/outbox.js';
 
 const {deliverEventToListener} = await import('./job-listener-events.js');
 const {jobFactory} = await import('#test/index.js');
@@ -82,5 +84,29 @@ describe('deliverEventToListener', () => {
     const [row] = await db().select().from(jobs).where(eq(jobs.id, job.id));
     expect(row?.status).toBe('pending');
     expect(result).toEqual({buffered: true, skipped: false});
+  });
+
+  it('writes a delivered outbox event when an event is buffered', async () => {
+    const job = await jobFactory.create({}, {transient: {status: 'pending'}});
+    const eventRef = crypto.randomUUID();
+
+    const result = await deliver({jobId: job.id, eventRef, disposition: 'resolve'});
+
+    const rows = await db()
+      .select()
+      .from(workflowsOutbox)
+      .where(eq(workflowsOutbox.eventType, WORKFLOWS_JOB_EVENT_DELIVERED));
+    const matching = rows.find(
+      (row) =>
+        (row.payload as Record<string, unknown>).jobId === job.id &&
+        (row.payload as Record<string, unknown>).eventRef === eventRef,
+    );
+    expect(result).toEqual({buffered: true, skipped: false});
+    expect(matching?.payload).toMatchObject({
+      jobId: job.id,
+      disposition: 'resolve',
+      eventRef,
+      eventName: 'pull_request_review',
+    });
   });
 });

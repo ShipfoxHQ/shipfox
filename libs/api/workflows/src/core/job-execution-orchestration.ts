@@ -15,7 +15,7 @@ export interface JobExecutionStatusWriteResult {
 }
 
 export interface JobExecutionOutcomeSignals {
-  finished: {status: RuntimeCompletionStatus} | undefined;
+  finished: {status: RuntimeCompletionStatus; jobExecutionId?: string | undefined} | undefined;
   leaseExpired: boolean;
 }
 

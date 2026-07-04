@@ -2,6 +2,7 @@ import {resolve} from 'node:path';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
+import type {ActivateJobListenerResult, DrainListenerEventsResult} from '#db/job-listeners.js';
 import type {RunDag} from '../activities/orchestration-activities.js';
 import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
 
@@ -41,6 +42,12 @@ export interface TestConfig {
   initialRunStatus?: string;
   /** Effective status returned by a running setJobStatus call */
   runningJobStatus?: string;
+  /** Result returned by activateJobListenerActivity (defaults to a running listener) */
+  listenerActivated?: ActivateJobListenerResult;
+  /** Scripted drain results consumed in order; once exhausted, drain returns {kind: 'empty'} */
+  drainResults?: DrainListenerEventsResult[];
+  /** Result returned by resolveJobListenerActivity (defaults to succeeded) */
+  listenerResolved?: {status: 'succeeded' | 'failed'; jobVersion: number};
 }
 
 export let cfg: TestConfig;
@@ -92,6 +99,27 @@ export function setExecutionStatusCalls() {
   }>;
 }
 
+export function listenerFiringOutcomeCalls() {
+  return callsNamed('recordListenerFiringOutcomeActivity') as Array<{
+    name: string;
+    params: {outcome: 'succeeded' | 'failed' | 'cancelled'};
+  }>;
+}
+
+export function resolveJobListenerCalls() {
+  return callsNamed('resolveJobListenerActivity') as Array<{
+    name: string;
+    params: {jobId: string; reason: string};
+  }>;
+}
+
+export function settleListenerCalls() {
+  return callsNamed('settleListenerJobExecutionActivity') as Array<{
+    name: string;
+    params: {jobExecutionId: string; status: 'failed' | 'cancelled'};
+  }>;
+}
+
 // ---------------------------------------------------------------------------
 // DAG helpers
 // ---------------------------------------------------------------------------
@@ -113,6 +141,9 @@ export function dagJob(
     status: options.status ?? 'pending',
     ...(mode === 'listening' ? {} : {jobExecutionId: id, executionVersion: 1}),
     executionTimeoutMs: null,
+    listeningTimeoutMs: null,
+    maxExecutions: null,
+    onResolve: null,
     dependencies: deps,
     runner: ['ubuntu22'],
     version: 1,
@@ -126,6 +157,7 @@ export function makeDag(jobs: RunDag['jobs'], workflowRunId = 'run-1'): RunDag {
     workspaceId: 'workspace-1',
     projectId: 'project-1',
     runVersion: 1,
+    runTimeoutMs: 30 * 24 * 60 * 60 * 1000,
     jobs,
   };
 }
@@ -233,20 +265,23 @@ function createMockActivities() {
       const handle = testEnv.client.workflow.getHandle(`job:${params.jobId}`);
 
       if (cfg.signalLeaseExpired) {
-        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL);
+        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL, {jobExecutionId: params.jobExecutionId});
         return;
       }
 
       if (cfg.signalBoth) {
-        await handle.signal(JOB_FINISHED_SIGNAL, {status});
-        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL);
+        await handle.signal(JOB_FINISHED_SIGNAL, {status, jobExecutionId: params.jobExecutionId});
+        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL, {jobExecutionId: params.jobExecutionId});
         return;
       }
 
-      await handle.signal(JOB_FINISHED_SIGNAL, {status});
+      await handle.signal(JOB_FINISHED_SIGNAL, {status, jobExecutionId: params.jobExecutionId});
 
       if (cfg.duplicateSignal) {
-        await handle.signal(JOB_FINISHED_SIGNAL, {status: 'failed'});
+        await handle.signal(JOB_FINISHED_SIGNAL, {
+          status: 'failed',
+          jobExecutionId: params.jobExecutionId,
+        });
       }
     },
 
@@ -294,6 +329,43 @@ function createMockActivities() {
         throw ApplicationFailure.nonRetryable(cfg.failJobExecutionAsTimedOutError);
       }
       return {newVersion: nextVersion()};
+    },
+
+    activateJobListenerActivity: (params: {jobId: string; expectedVersion: number}) => {
+      calls.push({name: 'activateJobListenerActivity', params});
+      return (
+        cfg.listenerActivated ?? {
+          status: 'running',
+          jobStatus: 'running',
+          jobVersion: nextVersion(),
+          executionCount: 0,
+        }
+      );
+    },
+
+    // Each call consumes the next scripted drain result. An exhausted script means
+    // "no events buffered", which parks the listener until a signal or its deadline.
+    drainListenerEventsActivity: (params: {jobId: string; expectedSequence: number}) => {
+      calls.push({name: 'drainListenerEventsActivity', params});
+      return cfg.drainResults?.shift() ?? {kind: 'empty'};
+    },
+
+    resolveJobListenerActivity: (params: {jobId: string; reason: string}) => {
+      calls.push({name: 'resolveJobListenerActivity', params});
+      return cfg.listenerResolved ?? {status: 'succeeded', jobVersion: nextVersion()};
+    },
+
+    settleListenerJobExecutionActivity: (params: {
+      jobExecutionId: string;
+      status: 'failed' | 'cancelled';
+    }) => {
+      calls.push({name: 'settleListenerJobExecutionActivity', params});
+    },
+
+    recordListenerFiringOutcomeActivity: (params: {
+      outcome: 'succeeded' | 'failed' | 'cancelled';
+    }) => {
+      calls.push({name: 'recordListenerFiringOutcomeActivity', params});
     },
   };
 }

@@ -33,7 +33,9 @@ describe('onRunnerJobLeaseExpired', () => {
     await onRunnerJobLeaseExpired(payload);
 
     expect(getHandleMock).toHaveBeenCalledWith(`job:${payload.jobId}`);
-    expect(signalMock).toHaveBeenCalledWith('job-lease-expired');
+    expect(signalMock).toHaveBeenCalledWith('job-lease-expired', {
+      jobExecutionId: payload.jobExecutionId,
+    });
   });
 
   it('routes a stale-attempt event only to the payload job workflow', async () => {

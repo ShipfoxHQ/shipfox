@@ -158,6 +158,7 @@ CREATE TABLE "workflows_workflow_runs" (
 	"inputs" jsonb,
 	"source_snapshot" jsonb,
 	"trigger_idempotency_key" text,
+	"timeout_ms" bigint DEFAULT 2592000000 NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -177,9 +178,11 @@ ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_job_execution_id_w
 ALTER TABLE "workflows_workflow_run_attempts" ADD CONSTRAINT "workflows_workflow_run_attempts_workflow_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("workflow_run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "workflows_job_executions_job_id_idx" ON "workflows_job_executions" USING btree ("job_id");--> statement-breakpoint
 CREATE INDEX "workflows_job_executions_running_idx" ON "workflows_job_executions" USING btree ("status") WHERE "workflows_job_executions"."status" = 'running';--> statement-breakpoint
+CREATE UNIQUE INDEX "workflows_job_executions_job_sequence_uq" ON "workflows_job_executions" USING btree ("job_id","sequence");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_job_listener_events_job_event_ref_unique" ON "workflows_job_listener_events" USING btree ("job_id","event_ref");--> statement-breakpoint
 CREATE INDEX "workflows_job_listener_events_job_received_idx" ON "workflows_job_listener_events" USING btree ("job_id","received_at");--> statement-breakpoint
 CREATE INDEX "workflows_jobs_workflow_run_attempt_id_idx" ON "workflows_jobs" USING btree ("workflow_run_attempt_id");--> statement-breakpoint
+CREATE INDEX "workflows_jobs_active_listeners_idx" ON "workflows_jobs" USING btree ("listener_status") WHERE "workflows_jobs"."listener_status" = 'listening';--> statement-breakpoint
 CREATE INDEX "workflows_outbox_pending_idx" ON "workflows_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "workflows_outbox_dispatched_retention_idx" ON "workflows_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "workflows_steps_job_execution_id_idx" ON "workflows_steps" USING btree ("job_execution_id");--> statement-breakpoint

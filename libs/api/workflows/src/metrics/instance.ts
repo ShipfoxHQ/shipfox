@@ -1,5 +1,5 @@
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
-import type {JobStatus} from '#core/entities/job.js';
+import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
@@ -67,6 +67,17 @@ const listenerEventsReceivedCount = meter.createCounter<{provider: string}>(
   {description: 'Listener integration events buffered by bounded trigger provider'},
 );
 
+const listenerExecutionsCount = meter.createCounter<{
+  outcome: 'succeeded' | 'failed' | 'cancelled';
+}>('workflows_listener_executions', {
+  description: 'Listener job execution firings by terminal outcome',
+});
+
+const listenerResolvedCount = meter.createCounter<{reason: ResolutionReason}>(
+  'workflows_listener_resolved',
+  {description: 'Listener resolutions by bounded reason'},
+);
+
 export function recordWorkflowRunCreated(provider: string): void {
   runCreatedCount.add(1, {provider});
 }
@@ -113,4 +124,14 @@ export function recordWorkflowStepRestartEnqueued(): void {
 
 export function recordListenerEventReceived(provider: string): void {
   listenerEventsReceivedCount.add(1, {provider});
+}
+
+export function recordWorkflowListenerExecution(
+  outcome: 'succeeded' | 'failed' | 'cancelled',
+): void {
+  listenerExecutionsCount.add(1, {outcome});
+}
+
+export function recordWorkflowListenerResolved(reason: ResolutionReason): void {
+  listenerResolvedCount.add(1, {reason});
 }

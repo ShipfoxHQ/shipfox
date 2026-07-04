@@ -112,28 +112,31 @@ describe('scheduleRuntimeDag', () => {
     expect(commands).toEqual([]);
   });
 
-  it('holds listening jobs instead of starting or completing the run', () => {
+  it('starts listening jobs when they are ready', () => {
     const jobs = [job('listen', [], 'listening')];
 
     const commands = scheduleRuntimeDag({jobs, completed: completed({})});
 
-    expect(commands).toEqual([]);
+    expect(commands).toEqual([{kind: 'start-job', job: jobs[0]}]);
   });
 
-  it('starts one-shot siblings while holding listening jobs', () => {
+  it('starts one-shot siblings alongside listening jobs', () => {
     const jobs = [job('listen', [], 'listening'), job('build')];
 
     const commands = scheduleRuntimeDag({jobs, completed: completed({})});
 
-    expect(commands).toEqual([{kind: 'start-job', job: jobs[1]}]);
+    expect(commands).toEqual([
+      {kind: 'start-job', job: jobs[0]},
+      {kind: 'start-job', job: jobs[1]},
+    ]);
   });
 
-  it('holds jobs that need an unresolved listening dependency', () => {
+  it('starts an unresolved listening dependency before its dependent jobs', () => {
     const jobs = [job('listen', [], 'listening'), job('deploy', ['listen'])];
 
     const commands = scheduleRuntimeDag({jobs, completed: completed({})});
 
-    expect(commands).toEqual([]);
+    expect(commands).toEqual([{kind: 'start-job', job: jobs[0]}]);
   });
 
   it('starts jobs that need a resolved listening dependency', () => {

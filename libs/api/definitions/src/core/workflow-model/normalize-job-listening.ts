@@ -1,11 +1,10 @@
 import type {WorkflowDocumentJob} from '@shipfox/workflow-document';
 import type {WorkflowModelJobListening} from '../entities/workflow-model.js';
+import {DEFAULT_RUN_TIMEOUT_MS} from './constants.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {normalizeTriggerEntry} from './normalize-triggers.js';
 import {parseDurationMs} from './parse-duration-ms.js';
 import {issue} from './validation-issue.js';
-
-const DEFAULT_RUN_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function normalizeJobListening(params: {
   job: WorkflowDocumentJob;
