@@ -1,12 +1,8 @@
-import {
-  createWorkflowExpression,
-  getWorkflowContextTypeEnvironment,
-  InvalidWorkflowExpressionError,
-  type WorkflowExpression,
-} from '@shipfox/expression';
+import type {WorkflowExpression} from '@shipfox/expression';
 import type {WorkflowDocumentStep} from '@shipfox/workflow-document';
 import type {WorkflowModelStepGate} from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
+import {validatePredicateExpression} from './validate-predicate-expression.js';
 import {issue} from './validation-issue.js';
 
 export function normalizeStepGate(params: {
@@ -61,30 +57,13 @@ function normalizeGateSuccessIf(params: {
 }): WorkflowExpression | undefined {
   if (params.source === undefined) return undefined;
 
-  try {
-    return createWorkflowExpression({
-      source: params.source,
-      check: {
-        mode: 'typed',
-        typeEnvironment: getWorkflowContextTypeEnvironment('step') ?? {},
-        expectedResultType: 'bool',
-      },
-    });
-  } catch (error) {
-    params.issues.push(
-      issue({
-        code: 'invalid-step-gate-success-if',
-        message: 'Step gate success_if must be a valid CEL boolean expression.',
-        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'gate', 'success_if'],
-        details: {
-          source: params.source,
-          reason:
-            error instanceof InvalidWorkflowExpressionError
-              ? error.reason
-              : 'Expression source did not parse or type-check.',
-        },
-      }),
-    );
-    return undefined;
-  }
+  return validatePredicateExpression({
+    field: 'step.success_if',
+    source: params.source,
+    site: 'step-report',
+    path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'gate', 'success_if'],
+    invalidCode: 'invalid-step-gate-success-if',
+    invalidMessage: 'Step gate success_if must be a valid CEL boolean expression.',
+    issues: params.issues,
+  });
 }

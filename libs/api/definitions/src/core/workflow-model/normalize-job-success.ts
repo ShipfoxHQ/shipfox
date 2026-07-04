@@ -1,10 +1,5 @@
-import {
-  createWorkflowExpression,
-  getWorkflowContextTypeEnvironment,
-  InvalidWorkflowExpressionError,
-} from '@shipfox/expression';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
-import {issue} from './validation-issue.js';
+import {validatePredicateExpression} from './validate-predicate-expression.js';
 
 export const DEFAULT_JOB_SUCCESS = 'executions.all(e, e.status == "succeeded")';
 
@@ -15,31 +10,14 @@ export function normalizeJobSuccess(params: {
 }): string | undefined {
   if (params.source === undefined) return undefined;
 
-  try {
-    createWorkflowExpression({
-      source: params.source,
-      check: {
-        mode: 'typed',
-        typeEnvironment: getWorkflowContextTypeEnvironment('executions') ?? {},
-        expectedResultType: 'bool',
-      },
-    });
-    return params.source;
-  } catch (error) {
-    params.issues.push(
-      issue({
-        code: 'invalid-job-success',
-        message: 'Job success must be a valid CEL boolean expression.',
-        path: ['jobs', params.sourceName, 'success'],
-        details: {
-          source: params.source,
-          reason:
-            error instanceof InvalidWorkflowExpressionError
-              ? error.reason
-              : 'Expression source did not parse or type-check.',
-        },
-      }),
-    );
-    return undefined;
-  }
+  const expression = validatePredicateExpression({
+    field: 'job.success',
+    source: params.source,
+    site: 'job-resolution',
+    path: ['jobs', params.sourceName, 'success'],
+    invalidCode: 'invalid-job-success',
+    invalidMessage: 'Job success must be a valid CEL boolean expression.',
+    issues: params.issues,
+  });
+  return expression?.source;
 }
