@@ -178,7 +178,7 @@ async function preloadModel(context) {
   try {
     await response.json();
   } catch {
-    fail(`Failed to preload ${context.model}: invalid JSON response`);
+    fail(`Failed to preload ${context.model}: failed to read warmup response`);
   }
 }
 
