@@ -1,4 +1,5 @@
 import {
+  deleteExpiredEphemeralRegistrationTokensActivity,
   deleteExpiredReservationsActivity,
   deleteExpiredRunnerSessionsActivity,
   detectAndExpireStuckJobsActivity,
@@ -7,6 +8,7 @@ import {
 
 export function createRunnersMaintenanceActivities() {
   return {
+    deleteExpiredEphemeralRegistrationTokensActivity,
     deleteExpiredReservationsActivity,
     deleteExpiredRunnerSessionsActivity,
     detectAndExpireStuckJobsActivity,

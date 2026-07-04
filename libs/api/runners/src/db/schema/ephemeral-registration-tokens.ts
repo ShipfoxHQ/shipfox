@@ -30,6 +30,7 @@ export const ephemeralRegistrationTokens = pgTable(
       table.consumedAt,
       table.expiresAt,
     ),
+    index('runners_ephemeral_registration_tokens_created_id_idx').on(table.createdAt, table.id),
   ],
 );
 

@@ -1,4 +1,5 @@
 import {config} from '#config.js';
+import {deleteExpiredEphemeralRegistrationTokens as deleteExpiredEphemeralRegistrationTokensDb} from '#db/ephemeral-registration-tokens.js';
 import {expireStuckJobExecutions} from '#db/job-executions.js';
 import {reapStaleProvisionedRunners as reapStaleProvisionedRunnersDb} from '#db/provisioned-runners.js';
 import {deleteExpiredReservations} from '#db/reservations.js';
@@ -57,6 +58,17 @@ export async function deleteExpiredRunnerSessions(params?: {
     ephemeralRetentionDays:
       params?.ephemeralRetentionDays ?? config.RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS,
     limit: params?.limit ?? config.RUNNER_SESSION_GC_BATCH_SIZE,
+  });
+  return {deleted};
+}
+
+export async function deleteExpiredEphemeralRegistrationTokens(params?: {
+  retentionDays?: number;
+  limit?: number;
+}): Promise<{deleted: number}> {
+  const deleted = await deleteExpiredEphemeralRegistrationTokensDb({
+    retentionDays: params?.retentionDays ?? config.RUNNER_EPHEMERAL_TOKEN_RETENTION_DAYS,
+    limit: params?.limit ?? config.RUNNER_EPHEMERAL_TOKEN_GC_BATCH_SIZE,
   });
   return {deleted};
 }

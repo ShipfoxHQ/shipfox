@@ -4,6 +4,7 @@ import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 import type {createRunnersMaintenanceActivities} from '../activities/index.js';
 
 const {
+  deleteExpiredEphemeralRegistrationTokensActivity,
   deleteExpiredReservationsActivity,
   deleteExpiredRunnerSessionsActivity,
   detectAndExpireStuckJobsActivity,
@@ -31,6 +32,17 @@ export async function stuckJobDetector(): Promise<void> {
     }
   } catch (error) {
     log.warn('Stuck-job detector failed to delete expired runner sessions', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    const {deleted} = await deleteExpiredEphemeralRegistrationTokensActivity();
+    if (deleted > 0) {
+      log.info('Stuck-job detector deleted expired ephemeral registration tokens', {deleted});
+    }
+  } catch (error) {
+    log.warn('Stuck-job detector failed to delete expired ephemeral registration tokens', {
       error: error instanceof Error ? error.message : String(error),
     });
   }
