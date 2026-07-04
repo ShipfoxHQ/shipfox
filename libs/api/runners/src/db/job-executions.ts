@@ -7,7 +7,22 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
-import {and, arrayContained, asc, count, desc, eq, inArray, lt, sql} from 'drizzle-orm';
+import {
+  and,
+  arrayContained,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import {
   EmptyRequiredLabelsError,
   RunnerSessionExhaustedError,
@@ -286,6 +301,7 @@ export async function releaseJobExecution(params: {jobExecutionId: string}): Pro
  */
 export async function expireStuckJobExecutions(params: {
   thresholdSeconds: number;
+  noFirstHeartbeatGraceSeconds: number;
   limit?: number;
 }): Promise<
   Array<{
@@ -296,24 +312,38 @@ export async function expireStuckJobExecutions(params: {
   }>
 > {
   const reaped = await db().transaction(async (tx) => {
-    const cutoff = sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`;
+    const heartbeatCutoff = sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`;
+    const firstHeartbeatCutoff = sql`now() - (${params.noFirstHeartbeatGraceSeconds} || ' seconds')::interval`;
+    const stalePredicate = or(
+      and(
+        isNull(runningJobExecutions.firstHeartbeatAt),
+        lte(runningJobExecutions.lastHeartbeatAt, runningJobExecutions.startedAt),
+        lt(runningJobExecutions.startedAt, firstHeartbeatCutoff),
+      ),
+      and(
+        or(
+          isNotNull(runningJobExecutions.firstHeartbeatAt),
+          gt(runningJobExecutions.lastHeartbeatAt, runningJobExecutions.startedAt),
+        ),
+        lt(runningJobExecutions.lastHeartbeatAt, heartbeatCutoff),
+      ),
+    );
 
     const staleIds = tx
       .select({id: runningJobExecutions.id})
       .from(runningJobExecutions)
-      .where(lt(runningJobExecutions.lastHeartbeatAt, cutoff))
-      .orderBy(asc(runningJobExecutions.lastHeartbeatAt))
+      .where(stalePredicate)
+      .orderBy(
+        asc(
+          sql`CASE WHEN ${runningJobExecutions.firstHeartbeatAt} IS NULL AND ${runningJobExecutions.lastHeartbeatAt} <= ${runningJobExecutions.startedAt} THEN ${runningJobExecutions.startedAt} ELSE ${runningJobExecutions.lastHeartbeatAt} END`,
+        ),
+      )
       .limit(params.limit ?? 100)
       .for('update', {skipLocked: true});
 
     const deleted = await tx
       .delete(runningJobExecutions)
-      .where(
-        and(
-          inArray(runningJobExecutions.id, staleIds),
-          lt(runningJobExecutions.lastHeartbeatAt, cutoff),
-        ),
-      )
+      .where(and(inArray(runningJobExecutions.id, staleIds), stalePredicate))
       .returning({
         workflowRunId: runningJobExecutions.workflowRunId,
         workflowRunAttemptId: runningJobExecutions.workflowRunAttemptId,
@@ -520,7 +550,10 @@ export async function recordHeartbeat(params: {
 }> {
   const updated = await db()
     .update(runningJobExecutions)
-    .set({lastHeartbeatAt: sql`now()`})
+    .set({
+      firstHeartbeatAt: sql`COALESCE(${runningJobExecutions.firstHeartbeatAt}, now())`,
+      lastHeartbeatAt: sql`now()`,
+    })
     .where(
       and(
         eq(runningJobExecutions.jobExecutionId, params.jobExecutionId),

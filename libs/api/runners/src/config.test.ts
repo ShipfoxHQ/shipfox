@@ -56,6 +56,34 @@ describe('REGISTRATION_TOKEN_BATCH_MAX validation', () => {
   });
 });
 
+describe('RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    '0',
+    '-5',
+    '1.5',
+    '180',
+  ])('fails startup when RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS is %s', async (value) => {
+    vi.stubEnv('RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS', value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS');
+  });
+
+  it('accepts the default 60 second grace', async () => {
+    vi.stubEnv('RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS', '60');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS).toBe(60);
+  });
+});
+
 describe('RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

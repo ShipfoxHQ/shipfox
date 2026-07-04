@@ -6,6 +6,7 @@ import {config} from '../config.js';
 import {STUCK_JOB_THRESHOLD_SECONDS} from './maintenance-policy.js';
 
 export interface DetectAndExpireStuckJobsParams {
+  noFirstHeartbeatGraceSeconds?: number;
   thresholdSeconds?: number;
 }
 
@@ -13,6 +14,8 @@ export async function detectAndExpireStuckJobs(
   params: DetectAndExpireStuckJobsParams = {},
 ): Promise<{expired: number}> {
   const reaped = await expireStuckJobExecutions({
+    noFirstHeartbeatGraceSeconds:
+      params.noFirstHeartbeatGraceSeconds ?? config.RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS,
     thresholdSeconds: params.thresholdSeconds ?? STUCK_JOB_THRESHOLD_SECONDS,
   });
   return {expired: reaped.length};

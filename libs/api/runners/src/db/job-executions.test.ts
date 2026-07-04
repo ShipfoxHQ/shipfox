@@ -287,6 +287,18 @@ describe('claimPendingJobExecution', () => {
     expect(claimed?.projectId).toBe(created.projectId);
   });
 
+  it('starts a claimed job without a first heartbeat marker', async () => {
+    await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+
+    const [running] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, claimed?.jobExecutionId as string));
+    expect(running?.firstHeartbeatAt).toBeNull();
+  });
+
   it('reports an active lease only for the session that claimed the job', async () => {
     const created = await pendingJobFactory.create({workspaceId});
     const otherRunnerSession = await runnerSessionFactory.create({workspaceId});
@@ -837,7 +849,7 @@ describe('recordHeartbeat', () => {
     runnerSessionId = runnerSession.id;
   });
 
-  it('returns cancel:false on a fresh row and bumps last_heartbeat_at', async () => {
+  it('returns cancel:false on a fresh row and records the first heartbeat', async () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
@@ -869,8 +881,40 @@ describe('recordHeartbeat', () => {
       .select()
       .from(runningJobExecutions)
       .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+    expect(after[0]?.firstHeartbeatAt).toBeInstanceOf(Date);
     expect(after[0]?.lastHeartbeatAt.getTime()).toBeGreaterThan(
       (before[0]?.lastHeartbeatAt.getTime() ?? 0) - 1,
+    );
+  });
+
+  it('preserves first_heartbeat_at on later heartbeats', async () => {
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    await recordHeartbeat({
+      jobExecutionId: claimed?.jobExecutionId as string,
+      runnerSessionId,
+    });
+    const [afterFirst] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+    await db()
+      .update(runningJobExecutions)
+      .set({lastHeartbeatAt: sql`now() - interval '1 hour'`})
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+
+    await recordHeartbeat({
+      jobExecutionId: claimed?.jobExecutionId as string,
+      runnerSessionId,
+    });
+
+    const [afterSecond] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+    expect(afterSecond?.firstHeartbeatAt?.getTime()).toBe(afterFirst?.firstHeartbeatAt?.getTime());
+    expect(afterSecond?.lastHeartbeatAt.getTime()).toBeGreaterThan(
+      afterFirst?.firstHeartbeatAt?.getTime() ?? 0,
     );
   });
 
@@ -1050,7 +1094,33 @@ describe('detectAndExpireStuckJobs', () => {
     await db()
       .update(runningJobExecutions)
       .set({
+        firstHeartbeatAt: sql`now() - (${staleSeconds} || ' seconds')::interval`,
         lastHeartbeatAt: sql`now() - (${staleSeconds} || ' seconds')::interval`,
+      })
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+    return {
+      jobId: claimed?.jobId as string,
+      jobExecutionId: claimed?.jobExecutionId as string,
+      workflowRunId: claimed?.workflowRunId as string,
+      workflowRunAttemptId: claimed?.workflowRunAttemptId as string,
+      projectId: claimed?.projectId as string,
+    };
+  }
+
+  async function makeNoFirstHeartbeatJob(ageSeconds: number): Promise<{
+    jobId: string;
+    jobExecutionId: string;
+    workflowRunId: string;
+    workflowRunAttemptId: string;
+    projectId: string;
+  }> {
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    await db()
+      .update(runningJobExecutions)
+      .set({
+        startedAt: sql`now() - (${ageSeconds} || ' seconds')::interval`,
+        lastHeartbeatAt: sql`now() - (${ageSeconds} || ' seconds')::interval`,
       })
       .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
     return {
@@ -1099,6 +1169,91 @@ describe('detectAndExpireStuckJobs', () => {
     expect(payload.steps).toBeUndefined();
   });
 
+  it('expires a job that never sent a first heartbeat after the startup grace', async () => {
+    const {jobId, workflowRunId, workflowRunAttemptId} = await makeNoFirstHeartbeatJob(90);
+
+    const result = await detectAndExpireStuckJobs({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
+
+    expect(result.expired).toBeGreaterThanOrEqual(1);
+    expect(await runningJobsForTest()).toHaveLength(0);
+
+    const outbox = await outboxForJobs([jobId]);
+    expect(outbox).toHaveLength(1);
+    const payload = outbox[0]?.payload as Record<string, unknown>;
+    expect(payload.jobId).toBe(jobId);
+    expect(payload.workflowRunId).toBe(workflowRunId);
+    expect(payload.workflowRunAttemptId).toBe(workflowRunAttemptId);
+  });
+
+  it('does not expire a job that is still inside the first heartbeat grace', async () => {
+    const {jobId} = await makeNoFirstHeartbeatJob(30);
+
+    await detectAndExpireStuckJobs({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
+
+    expect(await runningJobsForTest()).toHaveLength(1);
+    expect(await outboxForJobs([jobId])).toHaveLength(0);
+  });
+
+  it('does not expire a heartbeated job through the first heartbeat grace path', async () => {
+    const {jobId} = await makeStaleJob(90);
+
+    await detectAndExpireStuckJobs({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
+
+    expect(await runningJobsForTest()).toHaveLength(1);
+    expect(await outboxForJobs([jobId])).toHaveLength(0);
+  });
+
+  it('uses the stale-heartbeat threshold for upgraded rows that heartbeated before first heartbeat tracking', async () => {
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    await db()
+      .update(runningJobExecutions)
+      .set({
+        startedAt: sql`now() - interval '90 seconds'`,
+        firstHeartbeatAt: null,
+        lastHeartbeatAt: sql`now() - interval '30 seconds'`,
+      })
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+
+    await detectAndExpireStuckJobs({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
+
+    expect(await runningJobsForTest()).toHaveLength(1);
+    expect(await outboxForJobs([claimed?.jobId as string])).toHaveLength(0);
+  });
+
+  it('expires upgraded heartbeated rows only after their stale-heartbeat threshold', async () => {
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    await db()
+      .update(runningJobExecutions)
+      .set({
+        startedAt: sql`now() - interval '900 seconds'`,
+        firstHeartbeatAt: null,
+        lastHeartbeatAt: sql`now() - interval '600 seconds'`,
+      })
+      .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
+
+    await detectAndExpireStuckJobs({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
+
+    expect(await runningJobsForTest()).toHaveLength(0);
+    expect(await outboxForJobs([claimed?.jobId as string])).toHaveLength(1);
+  });
+
   it('does not expire a job whose heartbeat is still inside the threshold window', async () => {
     const {jobId} = await makeStaleJob(60);
 
@@ -1131,7 +1286,10 @@ describe('detectAndExpireStuckJobs', () => {
     const {jobId} = await makeStaleJob(600);
     await db()
       .update(runningJobExecutions)
-      .set({lastHeartbeatAt: sql`now()`})
+      .set({
+        firstHeartbeatAt: sql`COALESCE(${runningJobExecutions.firstHeartbeatAt}, now())`,
+        lastHeartbeatAt: sql`now()`,
+      })
       .where(eq(runningJobExecutions.jobId, jobId));
 
     await detectAndExpireStuckJobs({thresholdSeconds: 180});
@@ -1204,7 +1362,10 @@ describe('detectAndExpireStuckJobs', () => {
   it('returns the reaped workflow/job identifiers per row without leaking the internal id', async () => {
     const {jobId, jobExecutionId, workflowRunId, workflowRunAttemptId} = await makeStaleJob(600);
 
-    const reaped = await expireStuckJobExecutions({thresholdSeconds: 180});
+    const reaped = await expireStuckJobExecutions({
+      noFirstHeartbeatGraceSeconds: 60,
+      thresholdSeconds: 180,
+    });
 
     const mine = reaped.find((row) => row.jobId === jobId);
     expect(mine).toEqual({jobId, jobExecutionId, workflowRunId, workflowRunAttemptId});
