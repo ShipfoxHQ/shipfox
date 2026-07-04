@@ -32,8 +32,9 @@ const preview: Preview = {
   decorators: [withTheme],
   parameters: {
     argos: {
+      // Dual-theme coverage lives in @shipfox/react-ui (the theming source of truth);
+      // feature packages capture only the primary dark theme to limit Argos spend.
       modes: {
-        light: {theme: 'light'},
         dark: {theme: 'dark'},
       },
       fitToContent: false,

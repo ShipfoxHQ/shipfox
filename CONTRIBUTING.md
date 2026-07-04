@@ -318,9 +318,17 @@ through parallel or sharded Argos builds.
 | Build name | Source | Captured |
 | --- | --- | --- |
 | `react-ui` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
-| `client-workflows` | `@shipfox/client-workflows` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/client/workflows/.storybook/preview.tsx` as `parameters.argos.modes`) |
-| `client-auth` | `@shipfox/client-auth` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | workspace switcher states in **light + dark** (declared in `libs/client/auth/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `client-workflows` | `@shipfox/client-workflows` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **dark** (declared in `libs/client/workflows/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `client-auth` | `@shipfox/client-auth` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | workspace switcher states in **dark** (declared in `libs/client/auth/.storybook/preview.tsx` as `parameters.argos.modes`) |
 | `e2e-client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
+
+`react-ui` is the theming source of truth, so it captures every story in **light
+and dark**. Feature packages (`client-*`) compose those primitives, so they
+capture only the product's primary **dark** theme: theme correctness is already
+proven upstream in `react-ui`, and one theme per feature story roughly halves the
+Argos screenshots those builds cost. Keep new `client-*` `parameters.argos.modes`
+to `dark` only; reach for a second theme in a feature package only when it renders
+theme-specific markup that `react-ui` does not already cover.
 
 The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
 states a reviewer would want to eyeball on a PR; skip anything that re-renders
@@ -347,10 +355,11 @@ the Argos reporter is not active, so no screenshots are uploaded.
 ### Add a new component snapshot
 
 Just add a story. `@storybook/addon-vitest` discovers `.stories.@(js|jsx|ts|tsx|mdx)`
-under `src/**` automatically and the Argos vitest plugin captures each one in
-both themes. To cover a state that a single render can't reach (e.g. error
-states, populated lists), add it as a new story rather than driving
-interactions in `play`.
+under `src/**` automatically and the Argos vitest plugin captures each one in the
+themes that package's `parameters.argos.modes` declares (light + dark in
+`react-ui`, dark only in feature packages). To cover a state that a single render
+can't reach (e.g. error states, populated lists), add it as a new story rather
+than driving interactions in `play`.
 
 ### Add a new client-page snapshot
 
