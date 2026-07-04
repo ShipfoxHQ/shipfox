@@ -11,6 +11,7 @@ export interface AssembleWorkflowRunContextParams {
   >;
   readonly triggerPayload: TriggerPayload;
   readonly inputs?: Record<string, unknown> | null | undefined;
+  readonly vars?: Record<string, string> | undefined;
 }
 
 export function assembleWorkflowRunContext(
@@ -31,6 +32,7 @@ export function assembleWorkflowRunContext(
     },
     event: 'data' in params.triggerPayload ? params.triggerPayload.data : null,
     inputs: params.inputs ?? null,
+    ...(params.vars === undefined ? {} : {vars: params.vars}),
   };
 }
 

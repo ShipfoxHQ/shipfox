@@ -90,6 +90,48 @@ describe('planInterpolationField', () => {
     });
   });
 
+  it('allows a bare secret reference as a runner-fill deferred segment', () => {
+    const segments = parseWorkflowTemplate(templateExpression(' secrets.TOKEN '));
+
+    const result = planInterpolationField({field: 'env.value', segments});
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        field: {
+          segments: [
+            {
+              kind: 'deferred',
+              roots: ['secrets'],
+              fillTarget: 'runner-fill',
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it('allows vars references inside larger expressions', () => {
+    const segments = parseWorkflowTemplate(templateExpression(' "eu-" + vars.REGION '));
+
+    const result = planInterpolationField({field: 'env.value', segments});
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        field: {
+          segments: [
+            {
+              kind: 'deferred',
+              roots: ['vars'],
+              fillTarget: 'run-creation',
+            },
+          ],
+        },
+      },
+    });
+  });
+
   it.each([
     'runner.os + steps.build.outputs.sha',
     'runner.os + runner.arch',
@@ -107,6 +149,27 @@ describe('planInterpolationField', () => {
           source,
           runnerRoots: ['runner'],
           hint: runnerRootNotBareHint,
+        },
+      ],
+    });
+  });
+
+  it.each([
+    'vars[event.name]',
+    'secrets[event.name]',
+  ])('rejects computed context keys: %s', (source) => {
+    const segments = parseWorkflowTemplate(templateExpression(source));
+
+    const result = planInterpolationField({field: 'env.value', segments});
+
+    expect(result).toEqual({
+      ok: false,
+      violations: [
+        {
+          reason: 'computed-context-key',
+          source,
+          contextRoots: [source.startsWith('vars') ? 'vars' : 'secrets'],
+          hint: `${source.startsWith('vars') ? 'vars' : 'secrets'} references must use a literal dot key`,
         },
       ],
     });

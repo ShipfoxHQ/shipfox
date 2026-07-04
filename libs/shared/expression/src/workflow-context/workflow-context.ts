@@ -10,6 +10,8 @@ export const workflowContextNames = [
   'execution',
   'steps',
   'step',
+  'vars',
+  'secrets',
 ] as const;
 export type WorkflowContextName = (typeof workflowContextNames)[number];
 
@@ -76,11 +78,22 @@ export interface OpenWorkflowContextDefinition {
   readonly host: 'server';
   readonly shape: 'open';
   readonly checkMode: 'syntax';
+  readonly literalKeyOnly?: boolean;
+}
+
+export interface RunnerWorkflowContextDefinition {
+  readonly trustTier: WorkflowContextTrustTier;
+  readonly sensitivity: 'ephemeral';
+  readonly host: 'runner';
+  readonly shape: 'open';
+  readonly checkMode: 'syntax';
+  readonly literalKeyOnly?: boolean;
 }
 
 export type WorkflowContextDefinition =
   | TypedWorkflowContextDefinition
-  | OpenWorkflowContextDefinition;
+  | OpenWorkflowContextDefinition
+  | RunnerWorkflowContextDefinition;
 
 const runTypeEnvironment = {
   run: {
@@ -246,6 +259,23 @@ export const workflowContextDefinitions = {
     checkMode: 'typed',
     typeEnvironment: stepTypeEnvironment,
   },
+  vars: {
+    availability: 'run-creation',
+    trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
+    shape: 'open',
+    checkMode: 'syntax',
+    literalKeyOnly: true,
+  },
+  secrets: {
+    trustTier: 'trusted',
+    sensitivity: 'ephemeral',
+    host: 'runner',
+    shape: 'open',
+    checkMode: 'syntax',
+    literalKeyOnly: true,
+  },
 } as const satisfies Record<WorkflowContextName, WorkflowContextDefinition>;
 
 export type WorkflowInterpolationField =
@@ -264,51 +294,62 @@ export type WorkflowInterpolationFailurePolicy = Exclude<WorkflowFieldFailurePol
 
 export interface WorkflowInterpolationFieldPolicy {
   readonly acceptedTrustTiers: readonly WorkflowContextTrustTier[];
+  readonly acceptedHosts: readonly WorkflowContextHost[];
   readonly failurePolicy: WorkflowInterpolationFailurePolicy;
   readonly renderSanitize: boolean;
 }
 
 const trustedOnlyTrustTiers: readonly WorkflowContextTrustTier[] = ['trusted'];
 const anyTrustTier: readonly WorkflowContextTrustTier[] = ['trusted', 'untrusted'];
+const serverOnlyHosts: readonly WorkflowContextHost[] = ['server'];
+const anyHost: readonly WorkflowContextHost[] = ['server', 'runner'];
 
 export const workflowInterpolationFieldPolicies = {
   run: {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    acceptedHosts: anyHost,
     failurePolicy: 'fail',
     renderSanitize: false,
   },
   'env.value': {
     acceptedTrustTiers: anyTrustTier,
+    acceptedHosts: anyHost,
     failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.prompt': {
     acceptedTrustTiers: anyTrustTier,
+    acceptedHosts: serverOnlyHosts,
     failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.model': {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    acceptedHosts: serverOnlyHosts,
     failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.provider': {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    acceptedHosts: serverOnlyHosts,
     failurePolicy: 'fail',
     renderSanitize: false,
   },
   'agent.thinking': {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    acceptedHosts: serverOnlyHosts,
     failurePolicy: 'fail',
     renderSanitize: false,
   },
   'job.name': {
     acceptedTrustTiers: anyTrustTier,
+    acceptedHosts: serverOnlyHosts,
     failurePolicy: 'degrade',
     renderSanitize: true,
   },
   'step.name': {
     acceptedTrustTiers: anyTrustTier,
+    acceptedHosts: serverOnlyHosts,
     failurePolicy: 'degrade',
     renderSanitize: true,
   },
@@ -328,8 +369,11 @@ export function getWorkflowContextDefinition(name: WorkflowContextName): Workflo
   return workflowContextDefinitions[name];
 }
 
-export function getWorkflowContextAvailability(name: WorkflowContextName): AvailabilitySite {
-  return workflowContextDefinitions[name].availability;
+export function getWorkflowContextAvailability(
+  name: WorkflowContextName,
+): AvailabilitySite | undefined {
+  const definition = workflowContextDefinitions[name];
+  return definition.host === 'server' ? definition.availability : undefined;
 }
 
 export function getWorkflowContextHost(name: WorkflowContextName): WorkflowContextHost {
@@ -343,7 +387,10 @@ export function resolveContextRootHost(root: string): WorkflowContextHost | unde
 }
 
 export function resolveContextRootAvailability(root: string): AvailabilitySite | undefined {
-  if (isWorkflowContextName(root)) return workflowContextDefinitions[root].availability;
+  if (isWorkflowContextName(root)) {
+    const definition = workflowContextDefinitions[root];
+    return definition.host === 'server' ? definition.availability : undefined;
+  }
 
   if (!isWorkflowContextReservedRoot(root)) return undefined;
   const reservedRoot = workflowContextReservedRoots[root];
@@ -396,6 +443,13 @@ export function workflowInterpolationFieldAcceptsTrustTier(
   return workflowInterpolationFieldPolicies[field].acceptedTrustTiers.includes(trustTier);
 }
 
+export function workflowInterpolationFieldAcceptsHost(
+  field: WorkflowInterpolationField,
+  host: WorkflowContextHost,
+): boolean {
+  return workflowInterpolationFieldPolicies[field].acceptedHosts.includes(host);
+}
+
 export function workflowInterpolationFieldAcceptsContext(
   field: WorkflowInterpolationField,
   context: WorkflowContextName,
@@ -404,6 +458,12 @@ export function workflowInterpolationFieldAcceptsContext(
     field,
     workflowContextDefinitions[context].trustTier,
   );
+}
+
+export function workflowContextRootRequiresLiteralKey(root: string): boolean {
+  if (!isWorkflowContextName(root)) return false;
+  const definition = workflowContextDefinitions[root];
+  return 'literalKeyOnly' in definition && definition.literalKeyOnly === true;
 }
 
 export function getWorkflowInterpolationFieldFailurePolicy(
@@ -421,9 +481,11 @@ export interface WorkflowContextAvailabilityReferenceEntry {
 
 export function workflowContextAvailabilityReference(): readonly WorkflowContextAvailabilityReferenceEntry[] {
   return [
-    ...workflowContextNames.map((root) =>
-      availabilityReferenceEntry(root, workflowContextDefinitions[root].availability, false),
-    ),
+    ...workflowContextNames.map((root) => {
+      const definition = workflowContextDefinitions[root];
+      if (definition.host === 'runner') return noServerAvailabilityReferenceEntry(root, false);
+      return availabilityReferenceEntry(root, definition.availability, false);
+    }),
     ...Object.entries(workflowContextReservedRoots).map(([root, definition]) => {
       if (definition.host === 'runner') {
         return noServerAvailabilityReferenceEntry(root as WorkflowContextReservedRoot, true);
@@ -451,7 +513,7 @@ function availabilityReferenceEntry(
 }
 
 function noServerAvailabilityReferenceEntry(
-  root: WorkflowContextReservedRoot,
+  root: WorkflowContextName | WorkflowContextReservedRoot,
   reserved: boolean,
 ): WorkflowContextAvailabilityReferenceEntry {
   const availableAt = Object.fromEntries(availabilitySites.map((site) => [site, false])) as Record<

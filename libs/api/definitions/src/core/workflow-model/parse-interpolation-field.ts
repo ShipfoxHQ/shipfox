@@ -1,10 +1,13 @@
+import {secretKeySchema, secretStoreSchema} from '@shipfox/api-secrets-dto';
 import {
   type AvailabilitySite,
+  analyzeContextKeyAccess,
   createWorkflowExpression,
   type ExpressionTypeEnvironment,
   extractCelUntrustedPathAccesses,
   getWorkflowContextAvailability,
   getWorkflowContextDefinition,
+  getWorkflowContextHost,
   getWorkflowContextTypeEnvironment,
   getWorkflowContextUntrustedPaths,
   InvalidWorkflowExpressionError,
@@ -19,6 +22,7 @@ import {
   type WorkflowTemplateSegment,
   workflowContextNames,
   workflowInterpolationFieldAcceptsContext,
+  workflowInterpolationFieldAcceptsHost,
   workflowInterpolationFieldAcceptsTrustTier,
 } from '@shipfox/expression';
 import type {WorkflowFieldTemplate} from '../entities/workflow-model.js';
@@ -116,6 +120,39 @@ function validateExpressionSegment(params: {
     return undefined;
   }
 
+  const rejectedHostRoots = knownRoots.filter(
+    (root) => !workflowInterpolationFieldAcceptsHost(params.field, getWorkflowContextHost(root)),
+  );
+  if (rejectedHostRoots.length > 0) {
+    params.issues.push(runnerContextInFieldIssue({...params, contextRoots, rejectedHostRoots}));
+    return undefined;
+  }
+
+  const keyAccess = analyzeContextKeyAccess(params.segment.expression);
+  if (keyAccess.violations.length > 0) {
+    params.issues.push(
+      ...keyAccess.violations.map((violation) =>
+        computedContextKeyIssue({
+          ...params,
+          contextRoots,
+          root: violation.root,
+          expression: violation.source,
+        }),
+      ),
+    );
+    return undefined;
+  }
+
+  const invalidReferenceIssue = validateContextKeyReferences({
+    ...params,
+    contextRoots,
+    references: keyAccess.references,
+  });
+  if (invalidReferenceIssue !== undefined) {
+    params.issues.push(invalidReferenceIssue);
+    return undefined;
+  }
+
   const rejectedPathRoots = findUntrustedPathRoots(params.segment, params.field, knownRoots);
   if (rejectedPathRoots.length > 0) {
     params.issues.push(
@@ -146,7 +183,8 @@ function validateExpressionSegment(params: {
 
   const fillSite = params.fillSite;
   if (fillSite !== undefined) {
-    const unavailableRoots = unavailableRootsAt(knownRoots, fillSite);
+    const serverRoots = knownRoots.filter((root) => getWorkflowContextHost(root) === 'server');
+    const unavailableRoots = unavailableRootsAt(serverRoots, fillSite);
     if (unavailableRoots.length > 0) {
       params.issues.push(
         unavailableContextIssue({...params, contextRoots, unavailableRoots, fillSite}),
@@ -244,6 +282,87 @@ function untrustedContextIssue(params: {
   });
 }
 
+function runnerContextInFieldIssue(params: {
+  field: WorkflowInterpolationField;
+  source: string;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  contextRoots: readonly string[];
+  rejectedHostRoots: readonly WorkflowContextName[];
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'runner-context-in-field',
+    message: `${fieldLabel(params.field)} interpolation cannot use runner context ${formatList(
+      params.rejectedHostRoots,
+    )}. Bind secrets to a run-step env value instead.`,
+    path: params.path,
+    details: {
+      field: params.field,
+      source: params.source,
+      contextRoots: params.contextRoots,
+      rejectedRoots: params.rejectedHostRoots,
+    },
+  });
+}
+
+function computedContextKeyIssue(params: {
+  field: WorkflowInterpolationField;
+  source: string;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  contextRoots: readonly string[];
+  root: string;
+  expression: string;
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'computed-context-key',
+    message: `${fieldLabel(params.field)} interpolation must reference ${params.root} with a literal dot key.`,
+    path: params.path,
+    details: {
+      field: params.field,
+      source: params.source,
+      expression: params.expression,
+      contextRoots: params.contextRoots,
+      root: params.root,
+    },
+  });
+}
+
+function validateContextKeyReferences(params: {
+  field: WorkflowInterpolationField;
+  source: string;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  contextRoots: readonly string[];
+  segment: WorkflowTemplateExprSegment;
+  references: ReturnType<typeof analyzeContextKeyAccess>['references'];
+}): WorkflowModelValidationIssue | undefined {
+  for (const reference of params.references) {
+    if (!secretKeySchema.safeParse(reference.key).success) {
+      return computedContextKeyIssue({
+        ...params,
+        root: reference.root,
+        expression: params.segment.expression.source,
+      });
+    }
+
+    if (reference.root !== 'secrets' || reference.store === undefined) continue;
+    if (secretStoreSchema.safeParse(reference.store).success) continue;
+
+    return issue({
+      code: 'unknown-secret-store',
+      message: `${fieldLabel(params.field)} interpolation references unknown secret store "${reference.store}".`,
+      path: params.path,
+      details: {
+        field: params.field,
+        source: params.source,
+        expression: params.segment.expression.source,
+        contextRoots: params.contextRoots,
+        store: reference.store,
+      },
+    });
+  }
+
+  return undefined;
+}
+
 const availabilitySiteLabels = {
   ingest: 'ingest',
   'run-creation': 'run creation',
@@ -293,6 +412,22 @@ function planViolationIssue(
   },
   violation: PlanViolation,
 ): WorkflowModelValidationIssue {
+  if (violation.reason === 'computed-context-key') {
+    return issue({
+      code: 'computed-context-key',
+      message: `${fieldLabel(params.field)} interpolation must reference ${formatList(
+        violation.contextRoots ?? [],
+      )} with a literal dot key.`,
+      path: params.path,
+      details: {
+        field: params.field,
+        source: params.source,
+        expression: violation.source,
+        contextRoots: violation.contextRoots,
+      },
+    });
+  }
+
   return issue({
     code: 'runner-context-not-bare',
     message: `${fieldLabel(params.field)} interpolation references runner context in a larger expression; ${violation.hint}.`,
@@ -301,7 +436,7 @@ function planViolationIssue(
       field: params.field,
       source: params.source,
       expression: violation.source,
-      runnerRoots: violation.runnerRoots,
+      runnerRoots: violation.runnerRoots ?? [],
     },
   });
 }
@@ -315,9 +450,9 @@ function availabilityVerb(roots: readonly WorkflowContextName[]): 'is' | 'are' {
 }
 
 function unavailableRootAvailabilityMessage(root: WorkflowContextName): string {
-  return `"${root}" becomes available at ${describeAvailabilitySite(
-    getWorkflowContextAvailability(root),
-  )}.`;
+  const availability = getWorkflowContextAvailability(root);
+  if (availability === undefined) return `"${root}" is not available at any server site.`;
+  return `"${root}" becomes available at ${describeAvailabilitySite(availability)}.`;
 }
 
 function describeAvailabilitySite(site: AvailabilitySite): string {

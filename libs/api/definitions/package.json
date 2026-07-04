@@ -43,6 +43,7 @@
     "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-projects": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
+    "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/expression": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",

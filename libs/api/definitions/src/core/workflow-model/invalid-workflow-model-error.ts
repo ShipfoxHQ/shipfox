@@ -3,6 +3,7 @@ export const invalidWorkflowModelErrorCode = 'invalid-workflow-model';
 export type WorkflowModelValidationIssueCode =
   | 'context-unavailable-at-fill-site'
   | 'context-unavailable-at-predicate-site'
+  | 'computed-context-key'
   | 'duplicate-job-id'
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
@@ -20,9 +21,11 @@ export type WorkflowModelValidationIssueCode =
   | 'missing-runner-label'
   | 'multiple-manual-triggers'
   | 'runner-context-not-bare'
+  | 'runner-context-in-field'
   | 'runner-context-in-server-predicate'
   | 'self-job-dependency'
   | 'too-many-runner-labels'
+  | 'unknown-secret-store'
   | 'unknown-interpolation-context'
   | 'unknown-job-dependency'
   | 'untrusted-context-in-field';

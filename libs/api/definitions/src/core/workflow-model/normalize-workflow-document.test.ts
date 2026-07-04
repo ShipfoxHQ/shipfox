@@ -1767,6 +1767,72 @@ describe('normalizeWorkflowDocument', () => {
       ]);
     });
 
+    it('rejects secrets in agent fields', () => {
+      const document: WorkflowDocument = {
+        name: 'agent secret',
+        jobs: {
+          build: {
+            steps: [{prompt: interpolation('secrets.OPENAI_API_KEY')}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'runner-context-in-field',
+          details: expect.objectContaining({rejectedRoots: ['secrets']}),
+        }),
+      ]);
+    });
+
+    it('rejects computed vars keys', () => {
+      const document: WorkflowDocument = {
+        name: 'computed vars',
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok', env: {REGION: interpolation('vars[event.region]')}}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'computed-context-key',
+            details: expect.objectContaining({root: 'vars'}),
+          }),
+        ]),
+      );
+      expect(error.issues.map((issue) => issue.code)).toEqual([
+        'computed-context-key',
+        'computed-context-key',
+      ]);
+    });
+
+    it('rejects unknown secret stores', () => {
+      const document: WorkflowDocument = {
+        name: 'unknown secret store',
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok', env: {TOKEN: interpolation('secrets.vault.TOKEN')}}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'unknown-secret-store',
+          details: expect.objectContaining({store: 'vault'}),
+        }),
+      ]);
+    });
+
     it.each([
       'execution.events[0].data.body',
       'execution["events"][0].data.body',

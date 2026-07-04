@@ -3,6 +3,7 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import {DEFAULT_JOB_SUCCESS, type WorkflowModel} from '@shipfox/api-definitions';
+import {getVariablesByNamespace} from '@shipfox/api-secrets';
 import {
   type LogOutcomeDto,
   WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
@@ -16,8 +17,10 @@ import {
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import {
+  analyzeContextKeyAccess,
   createWorkflowExpression,
   evaluateWorkflowPredicate,
+  type ResolvedFieldSegment,
   WorkflowExpressionEvaluationError,
 } from '@shipfox/expression';
 import {
@@ -56,6 +59,7 @@ import {
   type WorkflowSourceSnapshot,
 } from '#core/entities/workflow-run.js';
 import {
+  InterpolationUnresolvableError,
   JobNotFoundError,
   NoFailedJobsError,
   RunNotTerminalError,
@@ -170,6 +174,12 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       run,
       triggerPayload: params.triggerPayload,
       inputs: params.inputs ?? null,
+      vars: await loadReferencedVariables({
+        model: params.model,
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        definitionId: params.definitionId,
+      }),
     });
     const materializedJobs = materializeWorkflowModel({
       model: params.model,
@@ -287,6 +297,77 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     recordWorkflowRunCreated(result.run.triggerPayload.provider ?? result.run.triggerSource);
 
   return result.run;
+}
+
+async function loadReferencedVariables(params: {
+  readonly model: WorkflowModel;
+  readonly workspaceId: string;
+  readonly projectId: string;
+  readonly definitionId: string;
+}): Promise<Record<string, string> | undefined> {
+  const keys = referencedVariableKeys(params.model);
+  if (keys.length === 0) return undefined;
+
+  const vars = await getVariablesByNamespace({
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+    namespace: '',
+  });
+  const missingKey = keys.find((key) => !(key in vars));
+  if (missingKey !== undefined) {
+    throw new InterpolationUnresolvableError(params.definitionId, {
+      field: 'env',
+      source: `vars.${missingKey}`,
+    });
+  }
+
+  return vars;
+}
+
+function referencedVariableKeys(model: WorkflowModel): readonly string[] {
+  const keys = new Set<string>();
+
+  collectTemplateVariableKeys(model.templates?.env, keys);
+  for (const job of model.jobs) {
+    collectFieldVariableKeys(job.name, keys);
+    collectTemplateVariableKeys(job.templates?.env, keys);
+
+    for (const step of job.steps) {
+      collectFieldVariableKeys(step.templates?.name, keys);
+      if (step.kind === 'run') {
+        collectFieldVariableKeys(step.templates?.command, keys);
+        collectTemplateVariableKeys(step.templates?.env, keys);
+      } else {
+        collectFieldVariableKeys(step.templates?.prompt, keys);
+        collectFieldVariableKeys(step.templates?.model, keys);
+        collectFieldVariableKeys(step.templates?.provider, keys);
+      }
+    }
+  }
+
+  return [...keys].sort();
+}
+
+function collectTemplateVariableKeys(
+  templates: Readonly<Record<string, readonly ResolvedFieldSegment[]>> | undefined,
+  keys: Set<string>,
+): void {
+  for (const template of Object.values(templates ?? {})) {
+    collectFieldVariableKeys(template, keys);
+  }
+}
+
+function collectFieldVariableKeys(
+  template: readonly ResolvedFieldSegment[] | undefined,
+  keys: Set<string>,
+): void {
+  for (const segment of template ?? []) {
+    if (segment.kind === 'literal') continue;
+    const keyAccess = analyzeContextKeyAccess(segment.expression);
+    for (const reference of keyAccess.references) {
+      if (reference.root === 'vars') keys.add(reference.key);
+    }
+  }
 }
 
 export async function getStepByIdForJobExecution(params: {
