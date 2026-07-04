@@ -55,7 +55,7 @@ function lastButton(name: string): HTMLElement {
 }
 
 async function chooseTokenAction(user: ReturnType<typeof userEvent.setup>, tokenName: string) {
-  await user.click(firstButton(`Open ${tokenName} token actions`));
+  await user.click(firstButton(`Open ${tokenName} registration token actions`));
   const menuItem = await screen.findByRole('menuitem', {name: 'Revoke token'});
   expect(menuItem.querySelector('svg')).not.toBeInTheDocument();
 
