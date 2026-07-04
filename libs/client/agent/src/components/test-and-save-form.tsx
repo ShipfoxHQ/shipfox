@@ -7,7 +7,7 @@ import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
-import {Code, Text} from '@shipfox/react-ui/typography';
+import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
 import {useUpsertModelProviderConfigMutation} from '#hooks/api/model-providers.js';
@@ -113,35 +113,21 @@ export function ModelProviderTestAndSaveForm({
                   value.trim() ? undefined : `${credentialField.label} is required.`,
               }}
             >
-              {(field) => {
-                const fingerprint = existingConfig
-                  ? credentialFingerprint(existingConfig.key_fingerprints, credentialField.key)
-                  : undefined;
-
-                return (
-                  <FormField
-                    label={credentialField.label}
-                    id={`model-provider-${entry.id}-${credentialField.key}`}
-                    error={fieldError(field)}
-                  >
-                    <FormFieldInput
-                      type={credentialField.secret ? 'password' : 'text'}
-                      autoComplete="off"
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                      onBlur={field.handleBlur}
-                    />
-                    {fingerprint ? (
-                      <Text size="sm" className="mt-4 text-foreground-neutral-muted">
-                        Current:{' '}
-                        <Code as="span" variant="label">
-                          {fingerprint}
-                        </Code>
-                      </Text>
-                    ) : null}
-                  </FormField>
-                );
-              }}
+              {(field) => (
+                <FormField
+                  label={credentialField.label}
+                  id={`model-provider-${entry.id}-${credentialField.key}`}
+                  error={fieldError(field)}
+                >
+                  <FormFieldInput
+                    type={credentialField.secret ? 'password' : 'text'}
+                    autoComplete="off"
+                    value={field.state.value}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    onBlur={field.handleBlur}
+                  />
+                </FormField>
+              )}
             </form.Field>
           ))}
         </form>
@@ -177,11 +163,4 @@ function defaultFormValues(
     default_model: defaultModelFormValue(existingConfig?.default_model),
     ...Object.fromEntries(entry.credential_fields.map((field) => [field.key, ''])),
   };
-}
-
-function credentialFingerprint(
-  fingerprints: Record<string, string>,
-  credentialKey: string,
-): string | undefined {
-  return fingerprints[`credential:${credentialKey}`] ?? fingerprints[credentialKey];
 }

@@ -19,8 +19,8 @@ export interface UpsertModelProviderConfigParams {
   api?: ModelProviderApi | null | undefined;
   baseUrl?: string | null | undefined;
   headers?: CustomModelProviderHeaderDto[] | null | undefined;
+  secretHeaderNames?: string[] | null | undefined;
   models?: CustomAgentModelDto[] | null | undefined;
-  keyFingerprints: Record<string, string>;
   defaultModel: string | null;
   defaultThinking: AgentThinking;
   setAsDefault?: boolean | undefined;
@@ -45,8 +45,8 @@ export async function insertCustomModelProviderConfig(
         api: params.api,
         baseUrl: params.baseUrl,
         headers: params.headers,
+        secretHeaderNames: params.secretHeaderNames,
         models: params.models,
-        keyFingerprints: params.keyFingerprints,
         defaultModel: params.defaultModel,
         defaultThinking: params.defaultThinking,
       })
@@ -92,20 +92,24 @@ export async function upsertModelProviderConfig(
         ...(params.api !== undefined ? {api: params.api} : {}),
         ...(params.baseUrl !== undefined ? {baseUrl: params.baseUrl} : {}),
         ...(params.headers !== undefined ? {headers: params.headers} : {}),
+        ...(params.secretHeaderNames !== undefined
+          ? {secretHeaderNames: params.secretHeaderNames}
+          : {}),
         ...(params.models !== undefined ? {models: params.models} : {}),
-        keyFingerprints: params.keyFingerprints,
         defaultModel: params.defaultModel,
         defaultThinking: params.defaultThinking,
       })
       .onConflictDoUpdate({
         target: [modelProviderConfigs.workspaceId, modelProviderConfigs.providerId],
         set: {
-          keyFingerprints: params.keyFingerprints,
           ...(params.kind !== undefined ? {kind: params.kind} : {}),
           ...(params.displayName !== undefined ? {displayName: params.displayName} : {}),
           ...(params.api !== undefined ? {api: params.api} : {}),
           ...(params.baseUrl !== undefined ? {baseUrl: params.baseUrl} : {}),
           ...(params.headers !== undefined ? {headers: params.headers} : {}),
+          ...(params.secretHeaderNames !== undefined
+            ? {secretHeaderNames: params.secretHeaderNames}
+            : {}),
           ...(params.models !== undefined ? {models: params.models} : {}),
           defaultModel: params.defaultModel,
           defaultThinking: params.defaultThinking,

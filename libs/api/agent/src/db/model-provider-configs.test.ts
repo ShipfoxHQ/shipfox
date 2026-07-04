@@ -34,7 +34,6 @@ describe('model provider configs', () => {
     expect(found).toMatchObject({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-opus-4-8',
       defaultThinking: 'high',
       kind: 'builtin',
@@ -57,7 +56,6 @@ describe('model provider configs', () => {
       createModelProviderConfigParams({
         workspaceId,
         providerId: 'openai',
-        keyFingerprints: {'credential:api_key': '...wxyz'},
         defaultModel: 'gpt-5.5-pro',
         defaultThinking: 'medium',
       }),
@@ -67,7 +65,6 @@ describe('model provider configs', () => {
     expect(configs).toHaveLength(1);
     expect(configs[0]).toEqual(updated);
     expect(configs[0]).toMatchObject({
-      keyFingerprints: {'credential:api_key': '...wxyz'},
       defaultThinking: 'medium',
     });
   });
@@ -105,7 +102,6 @@ describe('model provider configs', () => {
     });
 
     expect(updated).toMatchObject({
-      keyFingerprints: created.keyFingerprints,
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: created.defaultThinking,
     });
@@ -175,11 +171,8 @@ describe('model provider configs', () => {
       api: 'openai-responses',
       baseUrl: 'https://llm.example.test/v1',
       headers: [{name: 'x-region', value: 'local'}],
+      secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      keyFingerprints: {
-        'credential:api_key': '...cret',
-        'header:authorization': 'Bearer ...cret',
-      },
       defaultModel: 'llama-3.1',
       defaultThinking: 'high',
     });
@@ -195,6 +188,7 @@ describe('model provider configs', () => {
       api: 'openai-responses',
       baseUrl: 'https://llm.example.test/v1',
       headers: [{name: 'x-region', value: 'local'}],
+      secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
       defaultModel: 'llama-3.1',
     });
@@ -202,7 +196,6 @@ describe('model provider configs', () => {
       name: 'authorization',
       value: 'Bearer header-secret',
     });
-    expect(found?.keyFingerprints['header:authorization']).toBe('Bearer ...cret');
   });
 
   it('does not clobber custom columns when a later upsert omits them', async () => {
@@ -214,8 +207,8 @@ describe('model provider configs', () => {
       api: 'openai-responses',
       baseUrl: 'https://llm.example.test/v1',
       headers: [{name: 'x-region', value: 'local'}],
+      secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'llama-3.1',
       defaultThinking: 'high',
     });
@@ -223,7 +216,6 @@ describe('model provider configs', () => {
     const updated = await upsertModelProviderConfig({
       workspaceId,
       providerId: 'local-vllm',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'medium',
     });
@@ -234,8 +226,8 @@ describe('model provider configs', () => {
       api: 'openai-responses',
       baseUrl: 'https://llm.example.test/v1',
       headers: [{name: 'x-region', value: 'local'}],
+      secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'medium',
     });
@@ -261,7 +253,6 @@ describe('model provider configs', () => {
       workspaceId,
       providerId: 'broken-custom',
       kind: 'custom',
-      keyFingerprints: {},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -273,14 +264,12 @@ describe('model provider configs', () => {
 function createModelProviderConfigParams(params: {
   workspaceId: string;
   providerId: SupportedModelProviderId | ModelProviderRef;
-  keyFingerprints?: Record<string, string> | undefined;
   defaultModel?: string | undefined;
   defaultThinking?: AgentThinking | undefined;
 }): UpsertModelProviderConfigParams {
   return {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    keyFingerprints: params.keyFingerprints ?? {'credential:api_key': '...abcd'},
     defaultModel: params.defaultModel ?? 'claude-opus-4-8',
     defaultThinking: params.defaultThinking ?? 'high',
   };

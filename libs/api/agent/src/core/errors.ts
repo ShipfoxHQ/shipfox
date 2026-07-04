@@ -71,9 +71,21 @@ export class CustomModelProviderConfigNotFoundError extends Error {
   }
 }
 
-export class CustomModelProviderDefaultUnsupportedError extends Error {
+export class InvalidCustomModelProviderHeaderKeepError extends Error {
+  constructor(
+    public readonly providerId: ModelProviderRef,
+    public readonly headerName: string,
+  ) {
+    super(`Custom model provider secret header cannot be kept: ${providerId}/${headerName}`);
+    this.name = 'InvalidCustomModelProviderHeaderKeepError';
+  }
+}
+
+export class CustomModelProviderStoredSecretBaseUrlChangeError extends Error {
   constructor(public readonly providerId: ModelProviderRef) {
-    super(`Custom model provider cannot be the workspace default yet: ${providerId}`);
-    this.name = 'CustomModelProviderDefaultUnsupportedError';
+    super(
+      `Stored custom model provider secrets cannot be reused with a changed base URL: ${providerId}`,
+    );
+    this.name = 'CustomModelProviderStoredSecretBaseUrlChangeError';
   }
 }

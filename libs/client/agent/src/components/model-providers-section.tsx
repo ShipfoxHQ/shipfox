@@ -1,4 +1,5 @@
 import type {
+  CustomModelProviderConfigDto,
   ModelProviderCatalogEntryDto,
   ModelProviderConfigDto,
   ModelProviderConfigResponseDto,
@@ -34,10 +35,18 @@ import {
   useModelProviderConfigsQuery,
   useSetDefaultModelProviderMutation,
 } from '#hooks/api/model-providers.js';
+import {AddCustomProviderCard} from './add-custom-provider-card.js';
 import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from './available-providers-grid.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
+import {CustomModelProviderForm} from './custom-model-provider-form.js';
 import {modelProviderConfigErrorToFormError} from './form-errors.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
+import {
+  type ModelProviderUsageTarget,
+  usageTargetFromCatalogEntry,
+  usageTargetFromCustomConfig,
+} from './model-provider-usage-target.js';
+import {customProviderCardMatchesSearch} from './provider-search.js';
 import {
   isSupportedCatalogEntry,
   type SupportedModelProviderCatalogEntry,
@@ -51,9 +60,12 @@ const SURFACE_CLASS =
 type ModelProviderFormState =
   | {mode: 'configure'; entry: SupportedModelProviderCatalogEntry; config?: undefined}
   | {mode: 'edit'; entry: SupportedModelProviderCatalogEntry; config: ModelProviderConfigDto};
+type CustomModelProviderFormState =
+  | {mode: 'create'}
+  | {mode: 'edit'; config: CustomModelProviderConfigDto};
 type ModelFormState = {entry: SupportedModelProviderCatalogEntry; config: ModelProviderConfigDto};
 type UsageTarget = {
-  entry: SupportedModelProviderCatalogEntry;
+  target: ModelProviderUsageTarget;
   initialModel: string | null;
   restoreFocusToConfiguredProviders: boolean;
 };
@@ -64,6 +76,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
   const catalogQuery = useModelProviderCatalogQuery();
   const configsQuery = useModelProviderConfigsQuery(workspaceId);
   const [formState, setFormState] = useState<ModelProviderFormState | null>(null);
+  const [customFormState, setCustomFormState] = useState<CustomModelProviderFormState | null>(null);
   const [modelFormState, setModelFormState] = useState<ModelFormState | null>(null);
   const [usageTarget, setUsageTarget] = useState<UsageTarget | null>(null);
   const [pendingUsageTarget, setPendingUsageTarget] = useState<UsageTarget | null>(null);
@@ -102,8 +115,13 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
     setModelFormState(null);
   }
 
+  function closeCustomForm() {
+    setCustomFormState(null);
+  }
+
   useEffect(() => {
-    if (pendingUsageTarget === null || formState !== null) return undefined;
+    if (pendingUsageTarget === null || formState !== null || customFormState !== null)
+      return undefined;
 
     const timer = window.setTimeout(() => {
       setUsageTarget(pendingUsageTarget);
@@ -111,7 +129,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
     }, USAGE_MODAL_OPEN_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [formState, pendingUsageTarget]);
+  }, [customFormState, formState, pendingUsageTarget]);
 
   return (
     <div className="flex min-w-0 flex-col gap-32">
@@ -153,6 +171,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
             {configs.map((config) => {
               const entry = toSupportedCatalogEntry(providerById.get(config.provider_id));
               const builtinConfig = isBuiltinModelProviderConfig(config) ? config : undefined;
+              const customConfig = isCustomModelProviderConfig(config) ? config : undefined;
               return (
                 <ConfiguredProviderRow
                   key={config.provider_id}
@@ -163,6 +182,8 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
                   onEdit={() => {
                     if (entry && builtinConfig) {
                       setFormState({mode: 'edit', entry, config: builtinConfig});
+                    } else if (customConfig) {
+                      setCustomFormState({mode: 'edit', config: customConfig});
                     }
                   }}
                   onChangeDefaultModel={() => {
@@ -172,8 +193,15 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
                     if (entry && builtinConfig) {
                       setPendingUsageTarget(null);
                       setUsageTarget({
-                        entry,
+                        target: usageTargetFromCatalogEntry(entry),
                         initialModel: builtinConfig.default_model,
+                        restoreFocusToConfiguredProviders: false,
+                      });
+                    } else if (customConfig) {
+                      setPendingUsageTarget(null);
+                      setUsageTarget({
+                        target: usageTargetFromCustomConfig(customConfig),
+                        initialModel: customConfig.default_model,
                         restoreFocusToConfiguredProviders: false,
                       });
                     }
@@ -201,20 +229,14 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
           </div>
         ) : null}
 
-        {catalogQuery.data !== undefined && configsLoaded && availableProviders.length === 0 ? (
-          <div className={cn(SURFACE_CLASS, 'px-16')}>
-            <EmptyState
-              icon="componentLine"
-              title="No available providers"
-              description="All supported providers are already configured for this workspace."
-            />
-          </div>
-        ) : null}
-
-        {configsLoaded && availableProviders.length > 0 ? (
+        {configsLoaded ? (
           <AvailableProvidersGrid
             entries={availableProviders}
             onSelect={(entry) => setFormState({mode: 'configure', entry})}
+            trailingCard={
+              <AddCustomProviderCard onConfigure={() => setCustomFormState({mode: 'create'})} />
+            }
+            trailingCardMatchesSearch={customProviderCardMatchesSearch}
           />
         ) : null}
       </section>
@@ -275,7 +297,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
                 toast.success(`${formState.entry.label} saved`);
                 if (formState.mode === 'configure' && configs.length === 0) {
                   setPendingUsageTarget({
-                    entry: formState.entry,
+                    target: usageTargetFromCatalogEntry(formState.entry),
                     initialModel: savedDefaultModel,
                     restoreFocusToConfiguredProviders: true,
                   });
@@ -317,7 +339,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
       </Modal>
 
       <ModelProviderUsageModal
-        entry={usageTarget?.entry ?? null}
+        target={usageTarget?.target ?? null}
         initialModel={usageTarget?.initialModel ?? null}
         open={usageTarget !== null}
         closeFocusTarget={
@@ -329,6 +351,44 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
           if (!open) setUsageTarget(null);
         }}
       />
+
+      <Modal
+        open={customFormState !== null}
+        onOpenChange={(open) => (open ? undefined : closeCustomForm())}
+      >
+        <ModalContent
+          aria-describedby={undefined}
+          className="max-h-[calc(100vh-32px)] max-w-[760px]"
+        >
+          <ModalTitle className="sr-only">
+            {customModelProviderFormTitle(customFormState)}
+          </ModalTitle>
+          <ModalHeader>
+            <div className="flex min-w-0 flex-col gap-2">
+              <Text size="lg" aria-hidden="true" className="truncate">
+                {customModelProviderFormTitle(customFormState)}
+              </Text>
+              <Text size="sm" className="text-foreground-neutral-muted">
+                Connect an OpenAI-, Anthropic-, or Gemini-compatible endpoint.
+              </Text>
+            </div>
+          </ModalHeader>
+          {customFormState ? (
+            <CustomModelProviderForm
+              workspaceId={workspaceId}
+              existingConfig={customFormState.mode === 'edit' ? customFormState.config : undefined}
+              onSaved={() => {
+                toast.success(
+                  customFormState.mode === 'edit'
+                    ? `${customFormState.config.display_name} saved`
+                    : 'Custom provider saved',
+                );
+                closeCustomForm();
+              }}
+            />
+          ) : null}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }
@@ -339,10 +399,22 @@ function modelProviderFormTitle(formState: ModelProviderFormState | null): strin
   return `Configure ${formState.entry.label}`;
 }
 
+function customModelProviderFormTitle(formState: CustomModelProviderFormState | null): string {
+  if (formState === null) return '';
+  if (formState.mode === 'edit') return `Edit ${formState.config.display_name}`;
+  return 'Add custom provider';
+}
+
 function isBuiltinModelProviderConfig(
   config: ModelProviderConfigResponseDto,
 ): config is ModelProviderConfigDto {
   return config.kind === 'builtin';
+}
+
+function isCustomModelProviderConfig(
+  config: ModelProviderConfigResponseDto,
+): config is CustomModelProviderConfigDto {
+  return config.kind === 'custom';
 }
 
 function ConfiguredProviderRow({
@@ -367,11 +439,13 @@ function ConfiguredProviderRow({
   const [defaultError, setDefaultError] = useState<string | undefined>();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | undefined>();
-  const label = entry?.label ?? config.provider_id;
+  const customConfig = isCustomModelProviderConfig(config) ? config : undefined;
+  const label = customConfig?.display_name ?? entry?.label ?? config.provider_id;
+  const canUse = entry !== undefined || customConfig !== undefined;
+  const canEdit = entry !== undefined || customConfig !== undefined;
+  const isBuiltinConfig = isBuiltinModelProviderConfig(config);
 
   async function handleSetDefault() {
-    if (!entry) return;
-
     setDefaultError(undefined);
     try {
       await setDefault.mutateAsync({
@@ -443,7 +517,7 @@ function ConfiguredProviderRow({
             {!isDefault ? (
               <DropdownMenuItem
                 icon="starLine"
-                disabled={setDefault.isPending || !entry}
+                disabled={setDefault.isPending || (!entry && !customConfig)}
                 onSelect={() => {
                   void handleSetDefault();
                 }}
@@ -451,18 +525,20 @@ function ConfiguredProviderRow({
                 Set as default
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem
-              icon="settings3Line"
-              disabled={!entry}
-              onSelect={onChangeDefaultModel}
-            >
-              Change default model
-            </DropdownMenuItem>
-            <DropdownMenuItem icon="bookOpenLine" disabled={!entry} onSelect={onShowUsage}>
+            {isBuiltinConfig ? (
+              <DropdownMenuItem
+                icon="settings3Line"
+                disabled={!entry}
+                onSelect={onChangeDefaultModel}
+              >
+                Change default model
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem icon="bookOpenLine" disabled={!canUse} onSelect={onShowUsage}>
               View workflow example
             </DropdownMenuItem>
-            <DropdownMenuItem icon="editLine" disabled={!entry} onSelect={onEdit}>
-              Edit credentials
+            <DropdownMenuItem icon="editLine" disabled={!canEdit} onSelect={onEdit}>
+              {customConfig ? 'Edit' : 'Edit credentials'}
             </DropdownMenuItem>
             <DropdownMenuItem
               icon="deleteBinLine"

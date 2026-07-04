@@ -283,7 +283,6 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
       baseUrl: 'http://127.0.0.1:11434/v1',
       headers: [],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      keyFingerprints: {'credential:api_key': 'sk-test...abcd'},
       defaultModel: null,
       defaultThinking: 'low',
     });
@@ -309,7 +308,6 @@ function createModelProviderConfigParams(params: {
   return {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    keyFingerprints: {'credential:api_key': '...abcd'},
     defaultModel: params.defaultModel,
     defaultThinking: params.defaultThinking,
   };

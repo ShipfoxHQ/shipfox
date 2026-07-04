@@ -1,5 +1,6 @@
 export {
   createCustomModelProviderConfig,
+  resolveCustomModelProviderDiscoveryParams,
   updateCustomModelProviderConfig,
 } from './custom-model-provider-config-service.js';
 export {discoverCustomModelProviderModels} from './discover-custom-model-provider-models.js';
@@ -7,10 +8,11 @@ export type {AgentWorkspaceSettings} from './entities/agent-workspace-settings.j
 export type {ModelProviderConfig} from './entities/model-provider-config.js';
 export {
   CustomModelProviderConfigNotFoundError,
-  CustomModelProviderDefaultUnsupportedError,
   CustomModelProviderSlugCollisionError,
+  CustomModelProviderStoredSecretBaseUrlChangeError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
+  InvalidCustomModelProviderHeaderKeepError,
   ModelProviderConfigNotFoundError,
   ModelProviderValidationError,
   ModelProviderValidationUnavailableError,

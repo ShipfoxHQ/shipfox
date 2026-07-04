@@ -1,3 +1,4 @@
+import type {CustomModelProviderConfigDto} from '@shipfox/api-agent-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui/toast';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
@@ -34,15 +35,28 @@ function renderModelProviders(element: ReactElement) {
   );
 }
 
-const ANTHROPIC_FINGERPRINT_RE = /\.\.\.abcd/;
-const OPENAI_FINGERPRINT_RE = /\.\.\.abcd/;
-const LEGACY_ANTHROPIC_FINGERPRINT_RE = /sk-ant-s\.\.\.legacy/;
 function requestPath(input: RequestInfo | URL): string {
   return new URL((input as Request).url).pathname;
 }
 
 async function openProviderActions(user: ReturnType<typeof userEvent.setup>, label: string) {
   await user.click(screen.getByRole('button', {name: `Open ${label} provider actions`}));
+}
+
+function customProviderConfig(): CustomModelProviderConfigDto {
+  return {
+    kind: 'custom',
+    provider_id: 'local-vllm',
+    display_name: 'Local vLLM',
+    api: 'openai-completions',
+    base_url: 'http://localhost:8000/v1',
+    headers: [{name: 'x-region', value: 'us'}],
+    secret_header_names: ['authorization'],
+    models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+    default_model: 'llama-3.1',
+    created_at: '2026-05-08T00:00:00.000Z',
+    updated_at: '2026-05-08T00:00:00.000Z',
+  };
 }
 
 describe('WorkspaceModelProvidersSection', () => {
@@ -73,15 +87,49 @@ describe('WorkspaceModelProvidersSection', () => {
     expect(await screen.findByText('Configured providers')).toBeVisible();
     expect(await screen.findByText('Anthropic')).toBeVisible();
     expect(screen.getByText('Default provider')).toHaveClass('sr-only');
-    expect(screen.queryByText(ANTHROPIC_FINGERPRINT_RE)).not.toBeInTheDocument();
     expect(screen.getByText('Available providers')).toBeVisible();
     expect(
       screen.getByText('Providers that can be configured for agent steps in this workspace.'),
     ).toBeVisible();
     expect(screen.getByText('OpenAI')).toBeVisible();
+    const customProviderButton = screen.getByRole('button', {name: 'Configure custom provider'});
+    expect(within(customProviderButton).getByText('Custom')).toBeVisible();
+    expect(within(customProviderButton).getByText('Configure')).toBeVisible();
     expect(screen.getByText('Unsupported providers')).toBeVisible();
     expect(screen.getByText('Amazon Bedrock')).toBeVisible();
     expect(screen.getByText('AWS cloud credentials are not supported yet.')).toBeVisible();
+  });
+
+  test('renders custom configured providers and preserves built-in model actions', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input).endsWith('/agent/model-provider-catalog')) {
+        return Promise.resolve(jsonResponse(modelProviderCatalogResponse()));
+      }
+      return Promise.resolve(
+        jsonResponse(
+          modelProviderConfigsResponse({
+            configs: [modelProviderConfig(), customProviderConfig()],
+            default_provider_id: 'local-vllm',
+          }),
+        ),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+
+    const customProviderRow = (await screen.findByText('Local vLLM')).closest('li');
+    if (customProviderRow === null) {
+      throw new Error('Expected custom provider row to render');
+    }
+    expect(within(customProviderRow).queryByText('Custom')).not.toBeInTheDocument();
+    expect(screen.queryByText('localhost:8000')).not.toBeInTheDocument();
+    expect(screen.queryByText('OpenAI Chat Completions')).not.toBeInTheDocument();
+    expect(screen.queryByText('1 secret header')).not.toBeInTheDocument();
+
+    await openProviderActions(user, 'Anthropic');
+    expect(screen.getByRole('menuitem', {name: 'Change default model'})).toBeVisible();
   });
 
   test('filters available providers and clears back to the full available list', async () => {
@@ -205,7 +253,6 @@ describe('WorkspaceModelProvidersSection', () => {
             modelProviderConfig({
               provider_id: 'openai',
               default_model: 'gpt-5-mini',
-              key_fingerprints: {'credential:api_key': '...abcd'},
             }),
           ),
         );
@@ -218,7 +265,6 @@ describe('WorkspaceModelProvidersSection', () => {
                   modelProviderConfig({
                     provider_id: 'openai',
                     default_model: 'gpt-5-mini',
-                    key_fingerprints: {'credential:api_key': '...abcd'},
                   }),
                 ]
               : [],
@@ -266,7 +312,6 @@ describe('WorkspaceModelProvidersSection', () => {
       ),
     );
     expect(await screen.findByText('OpenAI')).toBeVisible();
-    expect(screen.queryByText(OPENAI_FINGERPRINT_RE)).not.toBeInTheDocument();
     expect(screen.queryByText('GPT-5 Mini')).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue('sk-proj-secret')).not.toBeInTheDocument();
   }, 10_000);
@@ -298,7 +343,6 @@ describe('WorkspaceModelProvidersSection', () => {
             modelProviderConfig({
               provider_id: 'openai',
               default_model: 'gpt-5.5-pro',
-              key_fingerprints: {'credential:api_key': '...abcd'},
             }),
           ),
         );
@@ -313,7 +357,6 @@ describe('WorkspaceModelProvidersSection', () => {
                     modelProviderConfig({
                       provider_id: 'openai',
                       default_model: 'gpt-5.5-pro',
-                      key_fingerprints: {'credential:api_key': '...abcd'},
                     }),
                   ]
                 : []),
@@ -362,7 +405,6 @@ describe('WorkspaceModelProvidersSection', () => {
           modelProviderConfig({
             provider_id: 'openai',
             default_model: null,
-            key_fingerprints: {'credential:api_key': '...abcd'},
           }),
         );
       }
@@ -395,43 +437,15 @@ describe('WorkspaceModelProvidersSection', () => {
 
     renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
     expect(await screen.findByText('Anthropic')).toBeVisible();
-    expect(screen.queryByText(ANTHROPIC_FINGERPRINT_RE)).not.toBeInTheDocument();
     await openProviderActions(user, 'Anthropic');
     await user.click(screen.getByRole('menuitem', {name: 'Edit credentials'}));
 
     await waitFor(() =>
       expect(screen.getAllByText('Edit credentials for Anthropic').length).toBeGreaterThan(0),
     );
-    expect(await screen.findByText('Current:')).toBeVisible();
     expect(screen.queryByLabelText('Default model')).not.toBeInTheDocument();
-    expect(screen.getAllByText(ANTHROPIC_FINGERPRINT_RE).length).toBeGreaterThan(0);
     expect(screen.getByLabelText('API key')).toHaveValue('');
     expect(screen.queryByDisplayValue('sk-ant-secret')).not.toBeInTheDocument();
-  });
-
-  test('shows legacy current fingerprints while editing', async () => {
-    const user = userEvent.setup();
-    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
-      if (requestPath(input).endsWith('/agent/model-provider-catalog')) {
-        return Promise.resolve(jsonResponse(modelProviderCatalogResponse()));
-      }
-      return Promise.resolve(
-        jsonResponse(
-          modelProviderConfigsResponse({
-            configs: [modelProviderConfig({key_fingerprints: {api_key: 'sk-ant-s...legacy'}})],
-            default_provider_id: 'anthropic',
-          }),
-        ),
-      );
-    });
-    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
-
-    renderModelProviders(<WorkspaceModelProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
-    expect(await screen.findByText('Anthropic')).toBeVisible();
-    await openProviderActions(user, 'Anthropic');
-    await user.click(screen.getByRole('menuitem', {name: 'Edit credentials'}));
-
-    expect(await screen.findByText(LEGACY_ANTHROPIC_FINGERPRINT_RE)).toBeVisible();
   });
 
   test('edits credentials without submitting default model fields', async () => {
@@ -593,7 +607,6 @@ describe('WorkspaceModelProvidersSection', () => {
             modelProviderConfig(),
             modelProviderConfig({
               provider_id: 'openai',
-              key_fingerprints: {'credential:api_key': '...abcd'},
             }),
           ],
           default_provider_id: defaultProviderId,
@@ -691,7 +704,6 @@ describe('WorkspaceModelProvidersSection', () => {
               modelProviderConfig(),
               modelProviderConfig({
                 provider_id: 'openai',
-                key_fingerprints: {'credential:api_key': '...abcd'},
               }),
             ],
             default_provider_id: 'openai',
@@ -765,7 +777,6 @@ describe('WorkspaceModelProvidersSection', () => {
               : [
                   modelProviderConfig({
                     provider_id: 'local-vllm',
-                    key_fingerprints: {'credential:api_key': '...abcd'},
                   }),
                 ],
             default_provider_id: null,

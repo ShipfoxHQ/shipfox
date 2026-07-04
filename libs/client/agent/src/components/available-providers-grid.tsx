@@ -3,6 +3,7 @@ import {Button} from '@shipfox/react-ui/button';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Input} from '@shipfox/react-ui/input';
+import type {ReactNode} from 'react';
 import {useMemo, useRef, useState} from 'react';
 import {AvailableProviderCard} from './available-provider-card.js';
 import {providerMatchesSearch} from './provider-search.js';
@@ -15,18 +16,24 @@ const MAX_ECHOED_QUERY_LENGTH = 40;
 export function AvailableProvidersGrid<TEntry extends ModelProviderCatalogEntryDto>({
   entries,
   onSelect,
+  trailingCard,
+  trailingCardMatchesSearch = () => true,
 }: {
   entries: TEntry[];
   onSelect: (entry: TEntry) => void;
+  trailingCard?: ReactNode | undefined;
+  trailingCardMatchesSearch?: ((query: string) => boolean) | undefined;
 }) {
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const trimmedSearch = search.trim();
-  const showSearch = entries.length > SEARCH_VISIBILITY_THRESHOLD || trimmedSearch !== '';
   const filteredEntries = useMemo(
     () => entries.filter((entry) => providerMatchesSearch(entry, search)),
     [entries, search],
   );
+  const trailingCardVisible = trailingCard !== undefined && trailingCardMatchesSearch(search);
+  const visibleCount = filteredEntries.length + (trailingCardVisible ? 1 : 0);
+  const showSearch = entries.length > SEARCH_VISIBILITY_THRESHOLD || trimmedSearch !== '';
   const providerListLabel =
     trimmedSearch !== '' ? 'Available providers matching search' : 'Available providers';
   const resultCountText =
@@ -51,7 +58,7 @@ export function AvailableProvidersGrid<TEntry extends ModelProviderCatalogEntryD
         />
       ) : null}
 
-      {filteredEntries.length > 0 ? (
+      {visibleCount > 0 ? (
         <ul className={PROVIDER_GRID_CLASS} aria-label={providerListLabel}>
           {filteredEntries.map((entry) => (
             <AvailableProviderCard
@@ -60,6 +67,7 @@ export function AvailableProvidersGrid<TEntry extends ModelProviderCatalogEntryD
               onConfigure={() => onSelect(entry)}
             />
           ))}
+          {trailingCardVisible ? trailingCard : null}
         </ul>
       ) : (
         <NoProviderSearchResults search={trimmedSearch} onClear={clearSearch} />

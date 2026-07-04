@@ -1,4 +1,9 @@
 import type {
+  CreateCustomModelProviderBodyDto,
+  CustomModelProviderConfigDto,
+  DiscoverCustomModelProviderModelsBodyDto,
+  DiscoverCustomModelProviderModelsBySlugBodyDto,
+  DiscoverCustomModelProviderModelsResponseDto,
   ListModelProviderConfigsResponseDto,
   ModelProviderCatalogResponseDto,
   ModelProviderConfigDto,
@@ -6,6 +11,7 @@ import type {
   SetDefaultModelProviderBodyDto,
   SetDefaultModelProviderResponseDto,
   SupportedModelProviderId,
+  UpdateCustomModelProviderBodyDto,
   UpdateModelProviderConfigBodyDto,
   UpdateModelProviderDefaultModelBodyDto,
 } from '@shipfox/api-agent-dto';
@@ -50,6 +56,62 @@ export async function upsertModelProviderConfig({
   return await apiRequest<ModelProviderConfigDto>(
     `/workspaces/${workspaceId}/agent/model-providers/${providerId}`,
     {method: 'PUT', body},
+  );
+}
+
+export async function createCustomModelProviderConfig({
+  workspaceId,
+  body,
+}: {
+  workspaceId: string;
+  body: CreateCustomModelProviderBodyDto;
+}) {
+  return await apiRequest<CustomModelProviderConfigDto>(
+    `/workspaces/${workspaceId}/agent/custom-model-providers`,
+    {method: 'POST', body},
+  );
+}
+
+export async function updateCustomModelProviderConfig({
+  workspaceId,
+  providerId,
+  body,
+}: {
+  workspaceId: string;
+  providerId: ModelProviderRef;
+  body: UpdateCustomModelProviderBodyDto;
+}) {
+  return await apiRequest<CustomModelProviderConfigDto>(
+    `/workspaces/${workspaceId}/agent/custom-model-providers/${providerId}`,
+    {method: 'PUT', body},
+  );
+}
+
+export async function discoverCustomModelProviderModels({
+  workspaceId,
+  body,
+}: {
+  workspaceId: string;
+  body: DiscoverCustomModelProviderModelsBodyDto;
+}) {
+  return await apiRequest<DiscoverCustomModelProviderModelsResponseDto>(
+    `/workspaces/${workspaceId}/agent/custom-model-providers/discover-models`,
+    {method: 'POST', body},
+  );
+}
+
+export async function discoverCustomModelProviderModelsBySlug({
+  workspaceId,
+  providerId,
+  body,
+}: {
+  workspaceId: string;
+  providerId: ModelProviderRef;
+  body: DiscoverCustomModelProviderModelsBySlugBodyDto;
+}) {
+  return await apiRequest<DiscoverCustomModelProviderModelsResponseDto>(
+    `/workspaces/${workspaceId}/agent/custom-model-providers/${providerId}/discover-models`,
+    {method: 'POST', body},
   );
 }
 
@@ -121,6 +183,38 @@ export function useUpsertModelProviderConfigMutation() {
       });
     },
   });
+}
+
+export function useCreateCustomModelProviderMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createCustomModelProviderConfig,
+    onSuccess: async (_config, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: modelProviderQueryKeys.configs(variables.workspaceId),
+      });
+    },
+  });
+}
+
+export function useUpdateCustomModelProviderMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateCustomModelProviderConfig,
+    onSuccess: async (_config, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: modelProviderQueryKeys.configs(variables.workspaceId),
+      });
+    },
+  });
+}
+
+export function useDiscoverCustomModelProviderModelsMutation() {
+  return useMutation({mutationFn: discoverCustomModelProviderModels});
+}
+
+export function useDiscoverCustomModelProviderModelsBySlugMutation() {
+  return useMutation({mutationFn: discoverCustomModelProviderModelsBySlug});
 }
 
 export function useDeleteModelProviderConfigMutation() {

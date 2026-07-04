@@ -3,6 +3,7 @@ import type {RouteGroup} from '@shipfox/node-fastify';
 import {createCustomModelProviderRoute} from './create-custom-model-provider.js';
 import {deleteModelProviderConfigRoute} from './delete-model-provider-config.js';
 import {discoverCustomModelProviderModelsRoute} from './discover-custom-model-provider-models.js';
+import {discoverCustomModelProviderModelsBySlugRoute} from './discover-custom-model-provider-models-by-slug.js';
 import {listModelProviderCatalogRoute} from './list-model-provider-catalog.js';
 import {listModelProviderConfigsRoute} from './list-model-provider-configs.js';
 import {setDefaultModelProviderRoute} from './set-default-model-provider.js';
@@ -18,6 +19,7 @@ export const agentRoutes: RouteGroup[] = [
       listModelProviderConfigsRoute,
       createCustomModelProviderRoute,
       discoverCustomModelProviderModelsRoute,
+      discoverCustomModelProviderModelsBySlugRoute,
       updateCustomModelProviderRoute,
       upsertModelProviderConfigRoute,
       updateModelProviderDefaultModelRoute,

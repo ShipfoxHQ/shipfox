@@ -31,7 +31,7 @@ const modalOverlayVariants = cva(
 );
 
 const modalContentVariants = cva(
-  'fixed left-1/2 top-1/2 z-50 flex flex-col overflow-clip bg-background-neutral-base rounded-16 w-full max-w-[576px] -translate-x-1/2 -translate-y-1/2 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 shadow-tooltip',
+  'fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-32px)] flex-col overflow-clip bg-background-neutral-base rounded-16 w-full max-w-[576px] -translate-x-1/2 -translate-y-1/2 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 shadow-tooltip',
 );
 
 function Modal({
@@ -133,7 +133,7 @@ function ModalContent({className, children, overlayClassName, ...props}: ModalCo
     <ModalPortal>
       <ModalOverlay className={overlayClassName} />
       <DialogPrimitive.Content className={baseClasses} {...props}>
-        <div className="relative size-full">
+        <div className="relative flex size-full min-h-0 flex-col">
           <div className="pointer-events-none absolute inset-0 shadow-separator-inset rounded-16" />
           {children}
         </div>
@@ -189,13 +189,10 @@ function ModalHeader({
 }
 
 function ModalBody({className, children, ...props}: ComponentProps<'div'>) {
-  const {isDesktop} = useModalContext();
-
   return (
     <div
       className={cn(
-        'bg-background-neutral-base flex flex-col items-start px-24 pb-24 pt-16 w-full',
-        isDesktop ? 'overflow-clip' : 'overflow-y-auto overflow-x-clip flex-1',
+        'bg-background-neutral-base flex min-h-0 flex-1 flex-col items-start overflow-y-auto overflow-x-clip px-24 pb-24 pt-16 w-full',
         className,
       )}
       {...props}

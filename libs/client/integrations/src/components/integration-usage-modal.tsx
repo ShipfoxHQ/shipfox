@@ -73,10 +73,7 @@ export function IntegrationUsageModal({
 
   return (
     <Modal open={open && connection !== null} onOpenChange={onOpenChange}>
-      <ModalContent
-        aria-describedby={undefined}
-        className="max-h-[calc(100vh-32px)] max-w-[640px] [&>div]:flex [&>div]:min-h-0 [&>div]:flex-col"
-      >
+      <ModalContent aria-describedby={undefined} className="max-h-[calc(100vh-32px)] max-w-[640px]">
         <ModalTitle className="sr-only">{title}</ModalTitle>
         <ModalHeader>
           <div className="flex min-w-0 flex-col gap-2">

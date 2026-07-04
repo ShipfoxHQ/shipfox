@@ -9,3 +9,10 @@ export function providerMatchesSearch(entry: ModelProviderCatalogEntryDto, query
     .join(' ')}`.toLowerCase();
   return haystack.includes(needle);
 }
+
+export function customProviderCardMatchesSearch(query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return true;
+
+  return 'custom provider openai anthropic google endpoint https public'.includes(needle);
+}

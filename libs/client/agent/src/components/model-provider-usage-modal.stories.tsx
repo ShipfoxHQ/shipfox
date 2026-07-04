@@ -2,6 +2,7 @@ import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
+import {usageTargetFromCatalogEntry} from './model-provider-usage-target.js';
 
 interface ModelProviderUsageModalStoryProps {
   variant: 'anthropic' | 'long-list';
@@ -14,7 +15,7 @@ function ModelProviderUsageModalStory({variant}: ModelProviderUsageModalStoryPro
   return (
     <div className="min-h-screen bg-background-neutral-background p-24">
       <ModelProviderUsageModal
-        entry={entry}
+        target={usageTargetFromCatalogEntry(entry)}
         initialModel={entry.default_model}
         open={open}
         onOpenChange={setOpen}

@@ -12,11 +12,7 @@ import {
   updateModelProviderDefaultModel,
   upsertModelProviderConfig,
 } from '#db/index.js';
-import {
-  agentSystemNamespace,
-  credentialsToStoreValues,
-  fingerprintCredentials,
-} from './credential-fingerprints.js';
+import {agentSystemNamespace, credentialsToStoreValues} from './credential-fingerprints.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {
   InvalidAgentModelError,
@@ -100,7 +96,6 @@ export async function testAndSaveModelProviderConfig(
   const config = await upsertModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    keyFingerprints: fingerprintCredentials(params.providerId, params.credentials),
     defaultModel: modelSelection.storedModel,
     defaultThinking: DEFAULT_AGENT_THINKING,
     setAsDefault: params.setAsDefault,

@@ -4,10 +4,11 @@ import {EgressDeniedError} from '@shipfox/node-egress-guard';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   CustomModelProviderConfigNotFoundError,
-  CustomModelProviderDefaultUnsupportedError,
   CustomModelProviderSlugCollisionError,
+  CustomModelProviderStoredSecretBaseUrlChangeError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
+  InvalidCustomModelProviderHeaderKeepError,
   ModelProviderConfigNotFoundError,
   ModelProviderValidationError,
   UnsupportedModelProviderError,
@@ -48,10 +49,17 @@ export function translateModelProviderRouteError(error: unknown): never {
     });
   }
 
-  if (error instanceof CustomModelProviderDefaultUnsupportedError) {
+  if (error instanceof InvalidCustomModelProviderHeaderKeepError) {
+    throw new ClientError('Invalid kept secret header', 'invalid-header-keep', {
+      status: 422,
+      details: {provider_id: error.providerId, name: error.headerName},
+    });
+  }
+
+  if (error instanceof CustomModelProviderStoredSecretBaseUrlChangeError) {
     throw new ClientError(
-      'Custom model providers cannot be workspace defaults yet',
-      'custom-provider-default-unsupported',
+      'Stored custom model provider secrets cannot be reused with a changed base URL',
+      'stored-secret-base-url-changed',
       {
         status: 422,
         details: {provider_id: error.providerId},

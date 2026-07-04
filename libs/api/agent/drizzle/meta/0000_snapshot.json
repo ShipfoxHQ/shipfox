@@ -58,17 +58,17 @@
           "primaryKey": false,
           "notNull": false
         },
+        "secret_header_names": {
+          "name": "secret_header_names",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "models": {
           "name": "models",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-        },
-        "key_fingerprints": {
-          "name": "key_fingerprints",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
         },
         "default_model": {
           "name": "default_model",

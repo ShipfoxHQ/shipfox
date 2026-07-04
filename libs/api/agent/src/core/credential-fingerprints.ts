@@ -1,35 +1,6 @@
 import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {getModelProviderEntry} from '@shipfox/api-agent-dto';
-import {stripUrlCredentials} from '@shipfox/redact';
 import {UnsupportedModelProviderError} from './errors.js';
-
-export function fingerprintCredentials(
-  providerId: SupportedModelProviderId,
-  credentials: Record<string, string>,
-): Record<string, string> {
-  const entry = getSupportedModelProviderEntry(providerId);
-
-  return Object.fromEntries(
-    entry.credential_fields.map((field) => {
-      const value = credentials[field.key] ?? '';
-      return [
-        toDisplayCredentialKey(field.key),
-        field.secret ? maskSecret(value) : stripUrlCredentials(value),
-      ];
-    }),
-  );
-}
-
-export function fingerprintCustomCredentials(
-  credentials: Record<string, string>,
-): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(credentials).map(([fieldKey, value]) => [
-      toDisplayCredentialKey(fieldKey),
-      maskLongSecret(value),
-    ]),
-  );
-}
 
 export function agentSystemNamespace(providerId: string): string {
   return `system/agent/model-provider/${providerId}`;
@@ -96,29 +67,12 @@ export function storeValuesToRuntimeCredentials(
   );
 }
 
-export function maskSecret(secret: string): string {
-  if (secret.length <= 4) return '...';
-  return `...${secret.slice(-4)}`;
-}
-
-function toDisplayCredentialKey(fieldKey: string): string {
-  if (fieldKey.startsWith('credential:') || fieldKey.startsWith('header:')) return fieldKey;
-  return `credential:${fieldKey}`;
-}
-
 function getSupportedModelProviderEntry(providerId: SupportedModelProviderId) {
   const entry = getModelProviderEntry(providerId);
   if (entry === undefined || entry.support_status !== 'supported') {
     throw new UnsupportedModelProviderError(providerId);
   }
   return entry;
-}
-
-function maskLongSecret(secret: string): string {
-  if (secret.length <= 4) return '...';
-  const suffix = secret.slice(-4);
-  if (secret.length <= 12) return `...${suffix}`;
-  return `${secret.slice(0, 8)}...${suffix}`;
 }
 
 function encodeStoreKey(value: string): string {
