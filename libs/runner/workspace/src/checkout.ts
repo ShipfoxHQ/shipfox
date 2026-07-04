@@ -10,7 +10,8 @@ const URL_CREDENTIAL_RE = /(https?:\/\/)[^/@\s]+@/gi;
 const SHELL_SAFE_ARG_RE = /^[A-Za-z0-9_./:=@+-]+$/;
 const GIT_VERSION_RE = /^git version (\d+)\.(\d+)\.(\d+)/;
 const CONFIG_LINE_BREAK_RE = /[\r\n]/;
-const MIN_GIT_VERSION = {major: 2, minor: 32, patch: 0};
+const MIN_GIT_VERSION = {major: 2, minor: 31, patch: 0};
+const GIT_CONFIG_INDEXED_ENV_RE = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/;
 
 /** Thrown when `git` is not on the runner host's PATH; surfaced as `git_unavailable`. */
 export class GitUnavailableError extends Error {
@@ -180,9 +181,9 @@ export async function writeAmbientGitCredential(params: {
   const {configPath, repositoryUrl, auth} = params;
   const includePath = await ambientIncludePath();
   const lines = [
-    ...(includePath ? ['[include]', `\tpath = ${gitConfigValue(includePath)}`] : []),
+    ...(includePath ? ['[include]', `\tpath = ${gitConfigQuotedValue(includePath)}`] : []),
     `[http "${gitConfigSubsection(repositoryUrl)}"]`,
-    `\textraHeader = Authorization: ${gitConfigValue(authorizationValue(auth))}`,
+    `\textraHeader = ${gitConfigQuotedValue(`Authorization: ${authorizationValue(auth)}`)}`,
     '[http]',
     '\tfollowRedirects = initial',
     '',
@@ -251,7 +252,7 @@ function runGitCommand(params: {
   return new Promise((resolve, reject) => {
     const child = spawn('git', args, {
       cwd,
-      env: {...process.env, GIT_TERMINAL_PROMPT: '0', ...configEnv},
+      env: gitCommandEnv(configEnv),
       stdio: ['ignore', 'pipe', 'pipe'],
       ...(signal ? {signal} : {}),
     });
@@ -286,6 +287,15 @@ function runGitCommand(params: {
       reject(new GitCommandError(phase, stderr, code, signalName));
     });
   });
+}
+
+function gitCommandEnv(configEnv: Record<string, string> | undefined): NodeJS.ProcessEnv {
+  const env = {...process.env};
+  delete env.GIT_CONFIG_PARAMETERS;
+  for (const key of Object.keys(env)) {
+    if (GIT_CONFIG_INDEXED_ENV_RE.test(key)) delete env[key];
+  }
+  return {...env, GIT_TERMINAL_PROMPT: '0', ...configEnv};
 }
 
 class GitSpawnError extends Error {
@@ -409,12 +419,21 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 function gitConfigSubsection(value: string): string {
-  return gitConfigValue(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  assertSingleLineGitConfigValue(value);
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 }
 
-function gitConfigValue(value: string): string {
+function gitConfigQuotedValue(value: string): string {
+  assertSingleLineGitConfigValue(value);
+  return `"${value
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\t', '\\t')
+    .replaceAll('\b', '\\b')}"`;
+}
+
+function assertSingleLineGitConfigValue(value: string): void {
   if (CONFIG_LINE_BREAK_RE.test(value)) {
     throw new Error('Git config values must be single-line');
   }
-  return value;
 }

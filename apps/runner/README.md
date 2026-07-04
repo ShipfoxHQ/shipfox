@@ -4,9 +4,9 @@ Polls the Shipfox API for jobs and executes their steps on the runner host.
 
 ## Host prerequisites
 
-- **`git`** must be installed on the runner host and on `PATH`. Each job is
-  executed against a checkout of its project repository, so a runner without
-  `git` cannot run repository-backed jobs.
+- **`git` 2.31.0 or newer** must be installed on the runner host and on
+  `PATH`. Each job is executed against a checkout of its project repository, so
+  a runner without `git` cannot run repository-backed jobs.
 
 ## Workspace directories
 
@@ -15,12 +15,15 @@ job's steps from it, and removes it afterwards. Steps do **not** inherit the
 runner process's working directory.
 
 During the synthetic "Set up job" step, the runner exchanges the job's lease for
-short-lived, read-only checkout credentials and shallow-clones the project
-repository into the per-job directory. The credentials are fetched only after the
-job is claimed, are never persisted to disk or `.git/config`, and never appear in
-logs or step errors. A setup failure (missing `git`, a denied credential, or an
-unreachable provider) fails the job before any step runs, with a machine-readable
-reason recorded on the step.
+short-lived checkout credentials and shallow-clones the project repository into
+the per-job directory. The credential scope follows the job's checkout
+permissions. The credentials are fetched only after the job is claimed, never
+persisted to `.git/config`, and never appear in logs or step errors. When a job
+persists checkout credentials for agent steps, the runner writes a 0600 per-job
+Git config file scoped to the repository URL and removes it during job cleanup.
+A setup failure (missing `git`, a denied credential, or an unreachable provider)
+fails the job before any step runs, with a machine-readable reason recorded on
+the step.
 
 At startup, the runner exchanges `SHIPFOX_RUNNER_REGISTRATION_TOKEN` for a short-lived runner
 session token using `SHIPFOX_RUNNER_LABELS`. The value can be a manual token

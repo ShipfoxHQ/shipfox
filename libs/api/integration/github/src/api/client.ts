@@ -91,6 +91,7 @@ export interface GithubApiClient {
   createInstallationAccessToken(input: {
     installationId: number;
     repositoryId: number;
+    permissions?: {contents: 'read' | 'write'} | undefined;
   }): Promise<GithubInstallationAccessToken>;
 }
 
@@ -341,12 +342,13 @@ class OctokitGithubApiClient implements GithubApiClient {
   async createInstallationAccessToken(input: {
     installationId: number;
     repositoryId: number;
+    permissions?: {contents: 'read' | 'write'} | undefined;
   }): Promise<GithubInstallationAccessToken> {
     const response = await mapGithubError(() =>
       this.getApp().octokit.rest.apps.createInstallationAccessToken({
         installation_id: input.installationId,
         repository_ids: [input.repositoryId],
-        permissions: {contents: 'read'},
+        permissions: input.permissions ?? {contents: 'read'},
       }),
     );
 

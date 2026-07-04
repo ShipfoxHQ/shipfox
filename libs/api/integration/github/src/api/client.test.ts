@@ -42,6 +42,25 @@ describe('OctokitGithubApiClient.createInstallationAccessToken', () => {
     });
   });
 
+  it('mints a repository-scoped write installation token when requested', async () => {
+    createInstallationAccessTokenMock.mockResolvedValue({
+      data: {token: 'ghs_installationtoken', expires_at: '2026-06-10T12:00:00.000Z'},
+    });
+    const client = createGithubApiClient();
+
+    await client.createInstallationAccessToken({
+      installationId: 1,
+      repositoryId: 42,
+      permissions: {contents: 'write'},
+    });
+
+    expect(createInstallationAccessTokenMock).toHaveBeenCalledWith({
+      installation_id: 1,
+      repository_ids: [42],
+      permissions: {contents: 'write'},
+    });
+  });
+
   it('rejects a response without a token', async () => {
     createInstallationAccessTokenMock.mockResolvedValue({
       data: {expires_at: '2026-06-10T12:00:00.000Z'},

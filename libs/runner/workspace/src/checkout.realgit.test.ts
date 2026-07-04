@@ -128,13 +128,14 @@ describe('writeAmbientGitCredential (real git)', () => {
   it('scopes the extraHeader to the exact repository URL', async () => {
     const configPath = join(workdir, 'git-cred.config');
     const repositoryUrl = 'https://github.com/acme/repo.git';
+    const token = 'super#;secret"token\\tail';
 
     await writeAmbientGitCredential({
       configPath,
       repositoryUrl,
       auth: {
         kind: 'bearer',
-        token: 'super-secret-token',
+        token,
         expires_at: '2026-01-01T00:00:00Z',
         carry: 'header',
         persist: true,
@@ -156,6 +157,6 @@ describe('writeAmbientGitCredential (real git)', () => {
       ]),
     ).rejects.toThrow();
 
-    expect(exact).toBe('Authorization: Bearer super-secret-token');
+    expect(exact).toBe(`Authorization: Bearer ${token}`);
   });
 });

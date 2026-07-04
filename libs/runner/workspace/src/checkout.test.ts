@@ -135,6 +135,55 @@ describe('checkoutRepository argv', () => {
     );
   });
 
+  it('strips inherited GIT_CONFIG_PARAMETERS and indexed config before injecting fetch auth', async () => {
+    const prior = {
+      GIT_CONFIG_PARAMETERS: process.env.GIT_CONFIG_PARAMETERS,
+      GIT_CONFIG_COUNT: process.env.GIT_CONFIG_COUNT,
+      GIT_CONFIG_KEY_0: process.env.GIT_CONFIG_KEY_0,
+      GIT_CONFIG_VALUE_0: process.env.GIT_CONFIG_VALUE_0,
+      GIT_CONFIG_KEY_99: process.env.GIT_CONFIG_KEY_99,
+      GIT_CONFIG_VALUE_99: process.env.GIT_CONFIG_VALUE_99,
+    };
+    process.env.GIT_CONFIG_PARAMETERS = "'credential.helper=store'";
+    process.env.GIT_CONFIG_COUNT = '100';
+    process.env.GIT_CONFIG_KEY_0 = 'http.https://evil.example.extraHeader';
+    process.env.GIT_CONFIG_VALUE_0 = 'Authorization: Bearer stale';
+    process.env.GIT_CONFIG_KEY_99 = 'http.followRedirects';
+    process.env.GIT_CONFIG_VALUE_99 = 'true';
+    queueSuccessfulCheckout();
+
+    try {
+      await checkoutRepository({
+        ...BASE,
+        auth: {
+          kind: 'bearer',
+          token: 'tok-123',
+          expires_at: '2026-01-01T00:00:00Z',
+          carry: 'header',
+          persist: true,
+        },
+      });
+    } finally {
+      for (const [key, value] of Object.entries(prior)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+
+    const initOptions = spawnMock.mock.calls[0]?.[2] as {env: Record<string, string>};
+    const fetchOptions = spawnMock.mock.calls[2]?.[2] as {env: Record<string, string>};
+    expect(initOptions.env.GIT_CONFIG_PARAMETERS).toBeUndefined();
+    expect(initOptions.env.GIT_CONFIG_COUNT).toBeUndefined();
+    expect(fetchOptions.env.GIT_CONFIG_PARAMETERS).toBeUndefined();
+    expect(fetchOptions.env.GIT_CONFIG_COUNT).toBe('2');
+    expect(fetchOptions.env.GIT_CONFIG_KEY_0).toBe(
+      'http.https://github.com/acme/repo.git.extraHeader',
+    );
+    expect(fetchOptions.env.GIT_CONFIG_VALUE_0).toBe('Authorization: Bearer tok-123');
+    expect(fetchOptions.env.GIT_CONFIG_KEY_99).toBeUndefined();
+    expect(fetchOptions.env.GIT_CONFIG_VALUE_99).toBeUndefined();
+  });
+
   it('injects a basic credential as a base64 Authorization header and registers both secrets', async () => {
     queueSuccessfulCheckout();
     const onSecrets = vi.fn();
@@ -331,7 +380,7 @@ describe('writeAmbientGitCredential', () => {
     const mode = (await stat(configPath)).mode & 0o777;
     expect(mode).toBe(0o600);
     expect(content).toContain('[http "https://github.com/acme/repo.git"]');
-    expect(content).toContain('extraHeader = Authorization: Bearer tok-123');
+    expect(content).toContain('extraHeader = "Authorization: Bearer tok-123"');
     expect(content).toContain('[http]\n\tfollowRedirects = initial');
   });
 
@@ -356,8 +405,43 @@ describe('writeAmbientGitCredential', () => {
 
     const content = await readFile(configPath, 'utf8');
     const expected = Buffer.from('x-token:tok-123').toString('base64');
-    expect(content).toContain(`[include]\n\tpath = ${baseConfig}`);
-    expect(content).toContain(`extraHeader = Authorization: Basic ${expected}`);
+    expect(content).toContain(`[include]\n\tpath = "${baseConfig}"`);
+    expect(content).toContain(`extraHeader = "Authorization: Basic ${expected}"`);
+  });
+
+  it('quotes and escapes the persisted header value', async () => {
+    const configPath = join(root, 'git-cred.config');
+
+    await writeAmbientGitCredential({
+      configPath,
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      auth: {
+        kind: 'bearer',
+        token: 'tok"#;\\tail',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
+    });
+
+    const content = await readFile(configPath, 'utf8');
+    expect(content).toContain('extraHeader = "Authorization: Bearer tok\\"#;\\\\tail"');
+  });
+
+  it('rejects repository urls that would inject additional git config lines', async () => {
+    await expect(
+      writeAmbientGitCredential({
+        configPath: join(root, 'git-cred.config'),
+        repositoryUrl: 'https://github.com/acme/repo.git"\n[credential]\n\thelper = store',
+        auth: {
+          kind: 'bearer',
+          token: 'tok-123',
+          expires_at: '2026-01-01T00:00:00Z',
+          carry: 'header',
+          persist: true,
+        },
+      }),
+    ).rejects.toThrow('Git config values must be single-line');
   });
 });
 
@@ -378,15 +462,28 @@ describe('redactSecrets', () => {
 });
 
 describe('assertGitAvailable', () => {
-  it('rejects git versions older than 2.32.0', async () => {
+  it('accepts git 2.31.0', async () => {
     execFileMock.mockImplementation((...args: unknown[]) => {
       const callback = args.at(-1) as (
         error: null,
         result: {stdout: string; stderr: string},
       ) => void;
-      callback(null, {stdout: 'git version 2.31.9\n', stderr: ''});
+      callback(null, {stdout: 'git version 2.31.0\n', stderr: ''});
     });
 
-    await expect(assertGitAvailable()).rejects.toThrow('Git 2.32.0 or newer is required');
+    const result = await assertGitAvailable();
+    expect(result).toBe('git version 2.31.0');
+  });
+
+  it('rejects git versions older than 2.31.0', async () => {
+    execFileMock.mockImplementation((...args: unknown[]) => {
+      const callback = args.at(-1) as (
+        error: null,
+        result: {stdout: string; stderr: string},
+      ) => void;
+      callback(null, {stdout: 'git version 2.30.9\n', stderr: ''});
+    });
+
+    await expect(assertGitAvailable()).rejects.toThrow('Git 2.31.0 or newer is required');
   });
 });

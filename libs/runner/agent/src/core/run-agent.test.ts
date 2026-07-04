@@ -605,6 +605,20 @@ describe('runAgent', () => {
     expect(process.env.GIT_CONFIG_GLOBAL).toBeUndefined();
   });
 
+  it('restores GIT_CONFIG_GLOBAL when the prompt throws', async () => {
+    process.env.GIT_CONFIG_GLOBAL = '/runner/base.gitconfig';
+    promptMock.mockImplementation(() => {
+      expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/job/git-cred.config');
+      return Promise.reject(new Error('prompt failed'));
+    });
+
+    await expect(
+      runAgent(invocation({gitConfigGlobal: '/runner/job/git-cred.config'})),
+    ).rejects.toThrow('prompt failed');
+
+    expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
+  });
+
   it('restores GIT_CONFIG_GLOBAL synchronously when the signal aborts mid-prompt', async () => {
     const ac = new AbortController();
     process.env.GIT_CONFIG_GLOBAL = '/runner/base.gitconfig';

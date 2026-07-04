@@ -128,6 +128,8 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   signal.addEventListener('abort', stopForwarder, {once: true});
   const restoreGitConfigGlobal = createGitConfigGlobalRestorer(gitConfigGlobal);
   if (gitConfigGlobal) {
+    // The runner executes one agent step at a time in this process; restore promptly so the
+    // process-global Git config cannot leak into the next step.
     process.env.GIT_CONFIG_GLOBAL = gitConfigGlobal;
     signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
   }
