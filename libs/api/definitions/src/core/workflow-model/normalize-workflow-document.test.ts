@@ -1540,6 +1540,215 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('normalizes a valid cron trigger with the default timezone', () => {
+    const document: WorkflowDocument = {
+      name: 'nightly trigger',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          schedule: '0 2 * * *',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.triggers).toEqual([
+      {
+        id: 'nightly',
+        key: 'nightly',
+        source: 'cron',
+        event: 'tick',
+        schedule: '0 2 * * *',
+        timezone: 'UTC',
+      },
+    ]);
+  });
+
+  it('normalizes a valid cron trigger with an explicit timezone', () => {
+    const document: WorkflowDocument = {
+      name: 'nightly trigger',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          schedule: '0 2 * * *',
+          timezone: 'Europe/Paris',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.triggers).toEqual([
+      {
+        id: 'nightly',
+        key: 'nightly',
+        source: 'cron',
+        event: 'tick',
+        schedule: '0 2 * * *',
+        timezone: 'Europe/Paris',
+      },
+    ]);
+  });
+
+  it('reports a cron trigger with a non-tick event', () => {
+    const document: WorkflowDocument = {
+      name: 'nightly trigger',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'push',
+          schedule: '0 2 * * *',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-cron-event',
+        message: 'A cron trigger must use event "tick"; found "push".',
+        path: ['triggers', 'nightly', 'event'],
+        details: {event: 'push'},
+      },
+    ]);
+  });
+
+  it('reports a cron trigger without a schedule', () => {
+    const document: WorkflowDocument = {
+      name: 'nightly trigger',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'missing-cron-schedule',
+        message: 'A cron trigger requires a schedule.',
+        path: ['triggers', 'nightly', 'schedule'],
+      },
+    ]);
+  });
+
+  it.each([
+    ['malformed', 'not a cron'],
+    ['6-field', '0 0 2 * * *'],
+    ['preset', '@daily'],
+  ])('reports an invalid %s cron schedule', (_label, schedule) => {
+    const document: WorkflowDocument = {
+      name: 'nightly trigger',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          schedule,
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-cron-schedule',
+        message: 'Cron trigger schedule must be a valid 5-field cron expression.',
+        path: ['triggers', 'nightly', 'schedule'],
+        details: {schedule},
+      },
+    ]);
+  });
+
+  it('reports an invalid cron timezone', () => {
+    const document: WorkflowDocument = {
+      name: 'nightly trigger',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          schedule: '0 2 * * *',
+          timezone: 'Not/A/Zone',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-cron-timezone',
+        message: 'Cron trigger timezone must be a valid IANA time zone.',
+        path: ['triggers', 'nightly', 'timezone'],
+        details: {timezone: 'Not/A/Zone'},
+      },
+    ]);
+  });
+
+  it('allows multiple cron triggers', () => {
+    const document: WorkflowDocument = {
+      name: 'cron triggers',
+      triggers: {
+        hourly: {
+          source: 'cron',
+          event: 'tick',
+          schedule: '0 * * * *',
+        },
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          schedule: '0 2 * * *',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.triggers.map((trigger) => trigger.key)).toEqual(['hourly', 'nightly']);
+  });
+
   it('allows a single manual trigger', () => {
     const document: WorkflowDocument = {
       name: 'manual trigger',

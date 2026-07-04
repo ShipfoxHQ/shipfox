@@ -114,6 +114,55 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
+  it('keeps cron trigger schedule and timezone strings', () => {
+    const workflowDocument = {
+      name: 'nightly build',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          schedule: '0 2 * * *',
+          timezone: 'Europe/Paris',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.parse(workflowDocument);
+
+    expect(result.triggers?.nightly?.schedule).toBe('0 2 * * *');
+    expect(result.triggers?.nightly?.timezone).toBe('Europe/Paris');
+  });
+
+  it.each(['schedule', 'timezone'] as const)('rejects top-level non-cron trigger %s', (field) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'simple build',
+      triggers: {
+        main_push: {
+          source: 'github',
+          event: 'push',
+          [field]: field === 'schedule' ? '0 2 * * *' : 'Europe/Paris',
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === `triggers.main_push.${field}`,
+        );
+    expect(issue?.message).toBe(`\`${field}\` is only allowed on a cron trigger (source: cron).`);
+  });
+
   it('accepts listening job configuration under a listening block', () => {
     const workflowDocument = {
       name: 'listen for reviews',
@@ -135,6 +184,82 @@ describe('workflowDocumentSchema', () => {
     const result = workflowDocumentSchema.safeParse(workflowDocument);
 
     expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['on', 'schedule'],
+    ['on', 'timezone'],
+    ['until', 'schedule'],
+    ['until', 'timezone'],
+  ] as const)('rejects listening %s non-cron trigger %s', (listeningField, triggerField) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'listen for reviews',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            [listeningField]: [
+              {
+                source: 'github',
+                event: 'pull_request',
+                [triggerField]: triggerField === 'schedule' ? '0 2 * * *' : 'Europe/Paris',
+              },
+            ],
+          },
+          steps: [{prompt: 'Review'}],
+        },
+      },
+    });
+
+    const issues = result.success
+      ? []
+      : result.error.issues.filter(
+          (candidate) =>
+            candidate.path.join('.') ===
+            `jobs.review.listening.${listeningField}.0.${triggerField}`,
+        );
+    const issue = issues.at(0);
+    expect(issues).toHaveLength(1);
+    expect(issue?.message).toBe(
+      `\`${triggerField}\` is only allowed on a cron trigger (source: cron).`,
+    );
+  });
+
+  it.each([
+    ['on', 'schedule'],
+    ['on', 'timezone'],
+    ['until', 'schedule'],
+    ['until', 'timezone'],
+  ] as const)('rejects listening %s cron trigger %s', (listeningField, triggerField) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'listen for ticks',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            [listeningField]: [
+              {
+                source: 'cron',
+                event: 'tick',
+                [triggerField]: triggerField === 'schedule' ? '0 2 * * *' : 'Europe/Paris',
+              },
+            ],
+          },
+          steps: [{prompt: 'Review'}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) =>
+            candidate.path.join('.') ===
+            `jobs.review.listening.${listeningField}.0.${triggerField}`,
+        );
+    expect(issue?.message).toBe(
+      `\`${triggerField}\` is only supported on top-level cron triggers.`,
+    );
   });
 
   it('rejects an empty listening batch block', () => {

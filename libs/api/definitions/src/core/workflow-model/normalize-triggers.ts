@@ -3,11 +3,13 @@ import type {
   WorkflowModelListeningTrigger,
   WorkflowModelTrigger,
 } from '../entities/workflow-model.js';
+import {cronTriggerDefaultTimezone, validateCronTrigger} from './cron-trigger.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {stableId} from './stable-id.js';
 import {issue} from './validation-issue.js';
 
 const manualTriggerSource = 'manual';
+const cronTriggerSource = 'cron';
 
 export function normalizeTriggers(
   document: WorkflowDocument,
@@ -46,11 +48,26 @@ export function normalizeTriggers(
     }
     usedTriggerIds.set(id, sourceKey);
 
+    const normalizedTrigger = normalizeTriggerEntry(trigger);
+    if (trigger.source !== cronTriggerSource) {
+      return [
+        {
+          id,
+          key: sourceKey,
+          ...normalizedTrigger,
+        },
+      ];
+    }
+
+    validateCronTrigger({trigger, sourceKey, issues});
+
     return [
       {
         id,
         key: sourceKey,
-        ...normalizeTriggerEntry(trigger),
+        ...normalizedTrigger,
+        ...(trigger.schedule === undefined ? {} : {schedule: trigger.schedule}),
+        timezone: trigger.timezone ?? cronTriggerDefaultTimezone,
       },
     ];
   });
