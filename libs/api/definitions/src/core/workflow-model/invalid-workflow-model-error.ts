@@ -28,7 +28,8 @@ export type WorkflowModelValidationIssueCode =
   | 'unknown-secret-store'
   | 'unknown-interpolation-context'
   | 'unknown-job-dependency'
-  | 'untrusted-context-in-field';
+  | 'untrusted-context-in-field'
+  | 'vars-context-in-server-predicate';
 
 export type WorkflowModelValidationIssuePathSegment = string | number;
 
