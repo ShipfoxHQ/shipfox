@@ -1,2 +1,0 @@
-ALTER TABLE "runners_running_jobs" ADD COLUMN "first_heartbeat_at" timestamp with time zone;--> statement-breakpoint
-CREATE INDEX "runners_running_jobs_no_first_heartbeat_started_idx" ON "runners_running_jobs" USING btree ("started_at") WHERE "first_heartbeat_at" IS NULL;

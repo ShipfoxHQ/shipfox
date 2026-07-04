@@ -21,8 +21,6 @@ export const ephemeralRegistrationTokens = pgTable(
   },
   (table) => [
     uniqueIndex('runners_ephemeral_registration_tokens_hashed_token_unique').on(table.hashedToken),
-    index('runners_ephemeral_registration_tokens_workspace_id_idx').on(table.workspaceId),
-    index('runners_ephemeral_registration_tokens_provisioner_id_idx').on(table.provisionerId),
     index('runners_ephemeral_registration_tokens_reservation_id_idx').on(table.reservationId),
     index('runners_ephemeral_registration_tokens_active_provisioned_runner_idx').on(
       table.workspaceId,

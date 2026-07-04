@@ -19,11 +19,6 @@ export const manualRegistrationTokens = pgTable(
   (table) => [
     uniqueIndex('runners_manual_registration_tokens_hashed_token_unique').on(table.hashedToken),
     index('runners_manual_registration_tokens_workspace_id_idx').on(table.workspaceId),
-    index('runners_manual_registration_tokens_active_lookup_idx').on(
-      table.hashedToken,
-      table.revokedAt,
-      table.expiresAt,
-    ),
   ],
 );
 

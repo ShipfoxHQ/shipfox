@@ -57,7 +57,6 @@ export const provisionedRunners = pgTable(
     index('runners_provisioned_runners_active_template_counts_idx')
       .on(table.workspaceId, table.provisionerId, table.state, table.templateKey)
       .where(sql`"state" in ('starting', 'running') and "template_key" is not null`),
-    index('runners_provisioned_runners_reservation_id_idx').on(table.reservationId),
   ],
 );
 
