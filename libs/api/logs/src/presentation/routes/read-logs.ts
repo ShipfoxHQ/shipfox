@@ -27,6 +27,8 @@ export const readLogsRoute = defineRoute({
     const {cursor} = request.query;
 
     const stream = await getStreamByStepAttempt({stepId, attempt});
+    // 404 covers both "no such stream" and "not your workspace" so the endpoint never
+    // leaks the existence of another workspace's step.
     if (!stream || !user.canAccess(stream.workspaceId)) {
       throw new ClientError('Logs not found', 'not-found', {status: 404});
     }
