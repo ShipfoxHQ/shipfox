@@ -10,11 +10,18 @@
   "type": "module",
   "imports": {
     "#test/*": "./tests/*",
+    "#attachments.js": "./src/attachments.ts",
     "#create-project.js": "./src/create-project.ts",
     "#expect.js": "./src/expect.ts",
+    "#listener-helpers.js": "./src/listener-helpers.ts",
+    "#polling.js": "./src/polling.ts",
     "#run-scenario.js": "./src/run-scenario.ts",
+    "#runner.js": "./src/runner.ts",
     "#scenarios.js": "./src/scenarios.ts",
-    "#suite-context.js": "./src/suite-context.ts"
+    "#suite-context.js": "./src/suite-context.ts",
+    "#triggers.js": "./src/triggers.ts",
+    "#webhook.js": "./src/webhook.ts",
+    "#workflow-project.js": "./src/workflow-project.ts"
   },
   "scripts": {
     "check": "shipfox-biome-check",
