@@ -16,6 +16,14 @@ test('rewriteSpecifiers rewrites a nested #dir/file.js import to a relative path
   assert.equal(result, "export {stepSchema} from './schemas/step.js';\n");
 });
 
+test('rewriteSpecifiers handles a multi-segment subpath from a deeply nested file', () => {
+  const code = 'import {x} from "#core/hello/goodby.js";\n';
+
+  const result = rewriteSpecifiers(code, 'a/b/c.js', imports, 'src');
+
+  assert.equal(result, 'import {x} from "../../core/hello/goodby.js";\n');
+});
+
 test('rewriteSpecifiers rewrites a top-level #file.js import (the SWC-paths blind spot)', () => {
   const code = 'import { connectionSlugSchema } from "#slug.js";\n';
 
