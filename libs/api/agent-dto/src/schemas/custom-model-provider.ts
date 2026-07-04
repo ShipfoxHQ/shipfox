@@ -182,7 +182,7 @@ export type DiscoverCustomModelProviderModelsResponseDto = z.infer<
   typeof discoverCustomModelProviderModelsResponseSchema
 >;
 
-export const customModelProviderRuntimeConfigSchema = z.object({
+const customModelProviderConfigBaseSchema = z.object({
   api: modelProviderApiSchema,
   base_url: z.string().url().max(2048),
   headers: customModelProviderHeadersDtoSchema,
@@ -193,11 +193,15 @@ export const customModelProviderRuntimeConfigSchema = z.object({
   models: customModelProviderModelsSchema,
 });
 
+export const customModelProviderRuntimeConfigSchema = customModelProviderConfigBaseSchema.extend({
+  requires_api_key: z.boolean(),
+});
+
 export type CustomModelProviderRuntimeConfigDto = z.infer<
   typeof customModelProviderRuntimeConfigSchema
 >;
 
-export const customModelProviderConfigDtoSchema = customModelProviderRuntimeConfigSchema.extend({
+export const customModelProviderConfigDtoSchema = customModelProviderConfigBaseSchema.extend({
   kind: z.literal('custom'),
   provider_id: modelProviderRefSchema,
   display_name: z.string().min(1).max(120),

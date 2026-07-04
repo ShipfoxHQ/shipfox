@@ -17,6 +17,7 @@ export interface ModelProviderConfig {
   headers: CustomModelProviderHeaderDto[] | null;
   secretHeaderNames: string[] | null;
   models: CustomAgentModelDto[] | null;
+  requiresApiKey: boolean;
   defaultModel: string | null;
   defaultThinking: AgentThinking;
   createdAt: Date;

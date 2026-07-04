@@ -155,12 +155,14 @@ async function registerCustomProvider(
     throw error;
   }
 
+  const apiKey = customProviderApiKey(provider, customProvider, credentials);
+
   try {
     modelRegistry.registerProvider(provider, {
       name: provider,
       baseUrl: customProvider.base_url,
       api: customProvider.api,
-      apiKey: customProviderApiKey(credentials),
+      apiKey,
       headers: customProviderHeaders(customProvider, credentials),
       models: customProvider.models.map((model) => toPiCustomProviderModel(customProvider, model)),
     });
@@ -173,9 +175,19 @@ async function registerCustomProvider(
   }
 }
 
-function customProviderApiKey(credentials: Record<string, string>): string {
+function customProviderApiKey(
+  provider: string,
+  customProvider: CustomModelProviderRuntimeConfigDto,
+  credentials: Record<string, string>,
+): string {
   const apiKey = credentials.api_key;
-  return apiKey === undefined || apiKey === '' ? KEYLESS_CUSTOM_PROVIDER_API_KEY : apiKey;
+  if (!customProvider.requires_api_key) return KEYLESS_CUSTOM_PROVIDER_API_KEY;
+  if (apiKey !== undefined && apiKey !== '') return apiKey;
+
+  throw new AgentConfigError(
+    `Custom model provider "${provider}" requires an API key but none was resolved.`,
+    'credentials_invalid',
+  );
 }
 
 function customProviderHeaders(

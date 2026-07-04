@@ -776,6 +776,7 @@ describe('runJobSteps', () => {
       headers: [{name: 'x-plain', value: 'plain'}],
       secret_header_names: ['x-secret'],
       models: [{id: 'custom-gpt', label: 'Custom GPT'}],
+      requires_api_key: true,
     };
     requestAgentRuntimeConfigMock.mockResolvedValueOnce({
       provider_id: 'workspace-models',

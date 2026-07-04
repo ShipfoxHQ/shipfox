@@ -113,6 +113,7 @@ export async function createCustomModelProviderConfig(
     headers: splitHeaders.plaintextHeaders,
     secretHeaderNames: splitHeaders.secretHeaderNames,
     models: params.body.models,
+    requiresApiKey: params.body.api_key !== undefined,
     defaultModel: params.body.default_model ?? null,
     defaultThinking: DEFAULT_AGENT_THINKING,
     setAsDefault: params.setAsDefault,
@@ -221,6 +222,7 @@ export async function updateCustomModelProviderConfig(
       headers: nextHeaders.plaintextHeaders,
       secretHeaderNames: nextHeaders.secretHeaderNames,
       models: nextModels,
+      requiresApiKey: existing.requiresApiKey || params.body.api_key !== undefined,
       defaultModel: nextDefaultModel,
       defaultThinking: existing.defaultThinking,
     });

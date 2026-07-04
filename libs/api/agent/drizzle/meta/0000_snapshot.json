@@ -70,6 +70,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "requires_api_key": {
+          "name": "requires_api_key",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "false"
+        },
         "default_model": {
           "name": "default_model",
           "type": "text",

@@ -87,6 +87,7 @@ describe('resolveRuntimeCredentials', () => {
       baseUrl: 'http://127.0.0.1:11434/v1',
       headers: [{name: 'x-region', value: 'local'}],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      requiresApiKey: true,
       credentials: {api_key: 'sk-local-secret', 'header:authorization': 'Bearer local'},
     });
 
@@ -108,6 +109,37 @@ describe('resolveRuntimeCredentials', () => {
         headers: [{name: 'x-region', value: 'local'}],
         secret_header_names: ['authorization'],
         models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+        requires_api_key: true,
+      },
+    });
+  });
+
+  it('returns keyless custom provider runtime descriptors for keyless custom rows', async () => {
+    await saveProviderConfig({
+      workspaceId,
+      providerId: 'local-ollama',
+      kind: 'custom',
+      displayName: 'Local Ollama',
+      api: 'openai-responses',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      headers: [],
+      models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      requiresApiKey: false,
+      credentials: {},
+    });
+
+    const result = await resolveRuntimeCredentials({
+      workspaceId,
+      provider: 'local-ollama',
+      model: 'llama-3.1',
+      thinking: 'high',
+    });
+
+    expect(result).toMatchObject({
+      provider_id: 'local-ollama',
+      credentials: {},
+      custom_provider: {
+        requires_api_key: false,
       },
     });
   });
@@ -236,6 +268,7 @@ async function saveProviderConfig(params: {
   baseUrl?: string | undefined;
   headers?: {name: string; value: string}[] | undefined;
   models?: {id: string; label: string}[] | undefined;
+  requiresApiKey?: boolean | undefined;
   credentials: Record<string, string>;
 }) {
   await setSecrets({
@@ -255,6 +288,7 @@ async function saveProviderConfig(params: {
     baseUrl: params.baseUrl,
     headers: params.headers,
     models: params.models,
+    requiresApiKey: params.requiresApiKey,
     defaultModel: null,
     defaultThinking: 'high',
   });

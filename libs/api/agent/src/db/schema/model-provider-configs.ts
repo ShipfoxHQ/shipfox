@@ -8,6 +8,7 @@ import type {
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
+  boolean,
   check,
   jsonb,
   pgEnum,
@@ -37,6 +38,7 @@ export const modelProviderConfigs = pgTable(
     headers: jsonb('headers').$type<CustomModelProviderHeaderDto[]>(),
     secretHeaderNames: jsonb('secret_header_names').$type<string[]>(),
     models: jsonb('models').$type<CustomAgentModelDto[]>(),
+    requiresApiKey: boolean('requires_api_key').notNull().default(false),
     defaultModel: text('default_model'),
     defaultThinking: text('default_thinking').notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
@@ -69,6 +71,7 @@ export function toModelProviderConfig(row: ModelProviderConfigDb): ModelProvider
     headers: row.headers,
     secretHeaderNames: row.secretHeaderNames,
     models: row.models,
+    requiresApiKey: row.requiresApiKey,
     defaultModel: row.defaultModel,
     defaultThinking: row.defaultThinking as AgentThinking,
     createdAt: row.createdAt,

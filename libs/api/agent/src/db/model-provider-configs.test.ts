@@ -42,6 +42,7 @@ describe('model provider configs', () => {
       baseUrl: null,
       headers: null,
       models: null,
+      requiresApiKey: false,
     });
     expect(found?.createdAt).toBeInstanceOf(Date);
     expect(found?.updatedAt).toBeInstanceOf(Date);
@@ -173,6 +174,7 @@ describe('model provider configs', () => {
       headers: [{name: 'x-region', value: 'local'}],
       secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      requiresApiKey: true,
       defaultModel: 'llama-3.1',
       defaultThinking: 'high',
     });
@@ -190,6 +192,7 @@ describe('model provider configs', () => {
       headers: [{name: 'x-region', value: 'local'}],
       secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      requiresApiKey: true,
       defaultModel: 'llama-3.1',
     });
     expect(found?.headers).not.toContainEqual({
@@ -209,6 +212,7 @@ describe('model provider configs', () => {
       headers: [{name: 'x-region', value: 'local'}],
       secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      requiresApiKey: true,
       defaultModel: 'llama-3.1',
       defaultThinking: 'high',
     });
@@ -228,6 +232,7 @@ describe('model provider configs', () => {
       headers: [{name: 'x-region', value: 'local'}],
       secretHeaderNames: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+      requiresApiKey: true,
       defaultModel: null,
       defaultThinking: 'medium',
     });

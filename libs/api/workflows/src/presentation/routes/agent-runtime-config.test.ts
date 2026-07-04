@@ -212,6 +212,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
         base_url: 'http://127.0.0.1:11434/v1',
         secret_header_names: ['authorization'],
         models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+        requires_api_key: true,
       },
     });
   });

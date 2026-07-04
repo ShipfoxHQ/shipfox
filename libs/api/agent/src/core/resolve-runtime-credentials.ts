@@ -136,6 +136,7 @@ function toResponse(
         .map((key) => key.slice('header:'.length))
         .sort(),
       models: providerConfig.models ?? [],
+      requires_api_key: providerConfig.requiresApiKey,
     };
   }
 

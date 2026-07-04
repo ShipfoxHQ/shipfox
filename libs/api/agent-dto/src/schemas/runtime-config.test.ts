@@ -24,11 +24,31 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
         headers: [{name: 'x-region', value: 'local'}],
         secret_header_names: ['authorization'],
         models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+        requires_api_key: true,
       },
     });
 
     expect(parsed.provider_id).toBe('local-vllm');
     expect(parsed.custom_provider?.api).toBe('openai-responses');
+  });
+
+  it('rejects a custom model provider descriptor without key intent', () => {
+    const parse = () =>
+      agentRuntimeCredentialsResponseSchema.parse({
+        provider_id: 'local-vllm',
+        model: 'llama-3.1',
+        thinking: 'high',
+        credentials: {api_key: 'secret'},
+        custom_provider: {
+          api: 'openai-responses',
+          base_url: 'https://llm.example.test/v1',
+          headers: [],
+          secret_header_names: [],
+          models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+        },
+      });
+
+    expect(parse).toThrow();
   });
 
   it('rejects custom model provider runtime credentials without a custom model provider descriptor', () => {
