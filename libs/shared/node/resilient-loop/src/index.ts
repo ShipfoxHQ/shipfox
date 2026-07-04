@@ -51,7 +51,9 @@ export async function interruptibleSleep(ms: number, signal: AbortSignal): Promi
 export function createGracefulShutdownController(
   options: GracefulShutdownControllerOptions = {},
 ): GracefulShutdownController {
-  const signals = options.signals ?? (['SIGINT', 'SIGTERM'] satisfies NodeJS.Signals[]);
+  const signals = [
+    ...new Set(options.signals ?? (['SIGINT', 'SIGTERM'] satisfies NodeJS.Signals[])),
+  ];
   let started = false;
   let shuttingDown = false;
   let abortController = new AbortController();

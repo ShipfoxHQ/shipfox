@@ -110,6 +110,30 @@ describe('createGracefulShutdownController', () => {
     expect(controller.signal.aborted).toBe(true);
   });
 
+  it('deduplicates configured signal handlers', () => {
+    const firstSignals: NodeJS.Signals[] = [];
+    const secondSignals: NodeJS.Signals[] = [];
+    const initialListeners = process.listenerCount(signal);
+    const controller = createGracefulShutdownController({
+      signals: [signal, signal],
+      onFirstSignal: (receivedSignal) => firstSignals.push(receivedSignal),
+      onSecondSignal: (receivedSignal) => secondSignals.push(receivedSignal),
+    });
+    controllers.push(controller);
+    controller.start();
+
+    process.emit(signal, signal);
+
+    expect(process.listenerCount(signal)).toBe(initialListeners + 1);
+    expect(firstSignals).toEqual([signal]);
+    expect(secondSignals).toEqual([]);
+
+    process.emit(signal, signal);
+
+    expect(firstSignals).toEqual([signal]);
+    expect(secondSignals).toEqual([signal]);
+  });
+
   it('resets shutdown state and creates a fresh abort signal', () => {
     const controller = createGracefulShutdownController({signals: [signal]});
     controllers.push(controller);
