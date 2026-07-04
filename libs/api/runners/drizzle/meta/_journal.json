@@ -8,55 +8,6 @@
       "when": 1777238442655,
       "tag": "0000_initial",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1777291200000,
-      "tag": "0001_manual_registration_tokens",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1777377600000,
-      "tag": "0002_flippant_manta",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1782648228195,
-      "tag": "0003_abnormal_toad",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1782653460797,
-      "tag": "0004_sudden_tomorrow_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1783096448441,
-      "tag": "0005_reflective_falcon",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1783140420801,
-      "tag": "0006_petite_zzzax",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1783156499381,
-      "tag": "0007_ephemeral_token_gc_index",
-      "breakpoints": true
     }
   ]
 }

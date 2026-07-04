@@ -16,7 +16,6 @@ export const pendingJobExecutions = pgTable(
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    index('runners_pending_jobs_created_idx').on(table.createdAt),
     index('runners_pending_jobs_workspace_created_idx').on(table.workspaceId, table.createdAt),
     index('runners_pending_jobs_job_id_idx').on(table.jobId),
   ],
