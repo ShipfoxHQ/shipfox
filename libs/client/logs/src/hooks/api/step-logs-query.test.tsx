@@ -218,6 +218,42 @@ describe('useStepAttemptLogsQuery', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
+  test('starts a fresh bounded window after unbounded missing-stream polling', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({code: 'not-found'}, {status: 404}));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const queryClient = new QueryClient({
+      defaultOptions: {queries: {retry: false}},
+    });
+    const wrapper = ({children}: {children: ReactNode}) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const {result, rerender} = renderHook(
+      ({options}: {options: UseStepAttemptLogsQueryOptions}) =>
+        useStepAttemptLogsQuery(STEP_ID, 1, options),
+      {wrapper, initialProps: {options: {retryMissingStream: true}}},
+    );
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    await result.current.refetch();
+    await result.current.refetch();
+
+    rerender({
+      options: {
+        retryMissingStream: true,
+        missingStreamRetryCount: 1,
+        missingStreamRetryDelayMs: 10,
+      },
+    });
+    const firstBoundedRefetch = await result.current.refetch();
+    const secondBoundedRefetch = await result.current.refetch();
+
+    expect(firstBoundedRefetch.data).toBeUndefined();
+    expect(firstBoundedRefetch.error).toBeTruthy();
+    expect(secondBoundedRefetch.data?.complete).toBe(true);
+    expect(secondBoundedRefetch.data?.records).toEqual([]);
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
+  });
+
   test('does not keep polling server errors when missing-stream retry is requested', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({code: 'server-error'}, {status: 500}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});

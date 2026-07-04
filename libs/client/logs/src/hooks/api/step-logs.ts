@@ -76,7 +76,10 @@ export function useStepAttemptLogsQuery(
     enabled && stepId && attempt
       ? stepLogsQueryKeys.detail(stepId, attempt)
       : [...stepLogsQueryKeys.all, 'detail'];
-  const missingStreamScope = enabled && stepId && attempt ? `${stepId}:${attempt}` : null;
+  const missingStreamScope =
+    enabled && stepId && attempt
+      ? `${stepId}:${attempt}:${options.missingStreamRetryCount ?? 'unbounded'}`
+      : null;
   if (missingStreamScopeRef.current !== missingStreamScope) {
     missingStreamScopeRef.current = missingStreamScope;
     missingStreamFailureCountRef.current = 0;
@@ -105,7 +108,8 @@ export function useStepAttemptLogsQuery(
           isMissingStepLogStreamError(error)
         ) {
           const retryCount = options.missingStreamRetryCount;
-          if (retryCount !== undefined && missingStreamFailureCountRef.current >= retryCount) {
+          if (retryCount === undefined) throw error;
+          if (missingStreamFailureCountRef.current >= retryCount) {
             return emptyCompleteLogSnapshot();
           }
           missingStreamFailureCountRef.current += 1;
