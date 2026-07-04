@@ -3,7 +3,13 @@ import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, test} from 'node:test';
-import {copyPlaywrightTestResults, defaultLogDir, e2eEnv, parseArgs} from './e2e.mjs';
+import {
+  copyPlaywrightTestResults,
+  defaultLogDir,
+  e2eEnv,
+  parseArgs,
+  turboCommandArgs,
+} from './e2e.mjs';
 
 const unknownCommandPattern = /Unknown command/;
 
@@ -57,6 +63,7 @@ describe('e2eEnv', () => {
     assert.equal(env.CLIENT_URL, 'http://localhost:55350');
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:55356');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
+    assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, '2');
     assert.equal(env.VITE_API_URL, 'http://localhost:55351');
   });
 
@@ -74,6 +81,56 @@ describe('e2eEnv', () => {
     assert.equal(env.CLIENT_URL, 'http://localhost:5173');
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:3001');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:3000');
+  });
+
+  test('keeps explicit turbo concurrency', () => {
+    const env = e2eEnv({
+      SHIPFOX_TURBO_CONCURRENCY: '3',
+    });
+
+    assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, '3');
+  });
+});
+
+describe('turboCommandArgs', () => {
+  test('caps E2E turbo concurrency from the environment', () => {
+    const args = turboCommandArgs(
+      {
+        turboArgs: ['--filter=@shipfox/e2e-client-agent'],
+        turboTask: 'test:e2e',
+      },
+      {SHIPFOX_TURBO_CONCURRENCY: '2'},
+    );
+
+    assert.deepEqual(args, [
+      'test:e2e',
+      '--filter=@shipfox/e2e-client-agent',
+      '--concurrency=2',
+    ]);
+  });
+
+  test('does not override explicit turbo concurrency', () => {
+    const args = turboCommandArgs(
+      {
+        turboArgs: ['--concurrency=4'],
+        turboTask: 'test:e2e',
+      },
+      {SHIPFOX_TURBO_CONCURRENCY: '2'},
+    );
+
+    assert.deepEqual(args, ['test:e2e', '--concurrency=4']);
+  });
+
+  test('supports turbo concurrency passed as a separate value', () => {
+    const args = turboCommandArgs(
+      {
+        turboArgs: ['--concurrency', '4'],
+        turboTask: 'test:e2e',
+      },
+      {SHIPFOX_TURBO_CONCURRENCY: '2'},
+    );
+
+    assert.deepEqual(args, ['test:e2e', '--concurrency', '4']);
   });
 });
 
