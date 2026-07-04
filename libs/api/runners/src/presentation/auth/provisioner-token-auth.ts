@@ -3,21 +3,13 @@ import {
   type ProvisionerContext,
   setProvisionerContext,
 } from '@shipfox/api-auth-context';
-import {getWorkspace, WorkspaceNotFoundError} from '@shipfox/api-workspaces';
 import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import {extractDisplayPrefix, getTokenType, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config} from '#config.js';
 import {resolveProvisionerTokenByHash, touchProvisionerLastSeen} from '#db/provisioner-tokens.js';
 
-type AuthFailureReason =
-  | 'missing'
-  | 'type'
-  | 'not-found'
-  | 'revoked'
-  | 'expired'
-  | 'workspace-not-found'
-  | 'workspace-inactive';
+type AuthFailureReason = 'missing' | 'type' | 'not-found' | 'revoked' | 'expired';
 
 export function createProvisionerTokenAuthMethod(): AuthMethod {
   return {
@@ -56,24 +48,9 @@ export function createProvisionerTokenAuthMethod(): AuthMethod {
         });
       }
 
-      const workspace = await getWorkspace({workspaceId: provisionerToken.workspaceId}).catch(
-        (error: unknown) => {
-          if (error instanceof WorkspaceNotFoundError) {
-            logAuthFailure({rawToken, reason: 'workspace-not-found'});
-            throw new ClientError('Invalid provisioner token', 'unauthorized', {status: 401});
-          }
-          throw error;
-        },
-      );
-
-      if (workspace.status !== 'active') {
-        logAuthFailure({rawToken, reason: 'workspace-inactive'});
-        throw new ClientError('Workspace is not active', 'workspace-inactive', {status: 403});
-      }
-
       const context: ProvisionerContext = {
         provisionerTokenId: provisionerToken.id,
-        workspaceId: workspace.id,
+        workspaceId: provisionerToken.workspaceId,
       };
 
       await touchProvisionerLastSeen({
