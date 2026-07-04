@@ -257,6 +257,34 @@ describe('runRetentionSweep', () => {
     expect(recovered.failed).toBe(0);
   });
 
+  it('re-cleans and deletes a stream when compaction publishes after the first prefix cleanup', async () => {
+    const id = newIdentity();
+    const stream = await arrangeClosedStream(id, {chunks: [ndjsonBody(outputLine('x'))]});
+    const key = `${attemptPrefix(id)}/${crypto.randomUUID()}`;
+    await backdateClosedAt(stream.id, '100 days');
+    const realDeleteExpiredStream = streams.deleteExpiredStream;
+    let calls = 0;
+    vi.spyOn(streams, 'deleteExpiredStream').mockImplementation(async (tx, params) => {
+      calls += 1;
+      if (calls === 1 && params.streamId === stream.id) {
+        await tx
+          .update(attemptStreams)
+          .set({objectKey: key})
+          .where(eq(attemptStreams.id, stream.id));
+        await putObject(key, Buffer.from('compacted'));
+      }
+      return realDeleteExpiredStream(tx, params);
+    });
+
+    const result = await sweep();
+
+    expect(await findStream(id)).toBeNull();
+    expect(await objectExists(key)).toBe(false);
+    expect(result.deleted).toBe(1);
+    expect(result.raced).toBe(0);
+    expect(result.failed).toBe(0);
+  });
+
   it('does not reset a live job budget: deletes its expired streams but keeps fresh accounting', async () => {
     const id = newIdentity();
     const stream = await arrangeClosedStream(id);
