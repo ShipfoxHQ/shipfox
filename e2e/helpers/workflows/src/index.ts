@@ -30,6 +30,11 @@ export interface WaitForRunByCommitOptions extends PollingOptions {
   projectId: string;
 }
 
+export interface WaitForRunByDeliveryIdOptions extends PollingOptions {
+  deliveryId: string;
+  projectId: string;
+}
+
 export interface WaitForRunTerminalOptions extends PollingOptions {
   runId: string;
 }
@@ -67,9 +72,16 @@ function headCommitSha(run: WorkflowRunDto): string | null {
   return null;
 }
 
+function deliveryId(run: WorkflowRunDto): string | null {
+  const payload = run.trigger_payload;
+  if (!isRecord(payload)) return null;
+  return typeof payload.deliveryId === 'string' ? payload.deliveryId : null;
+}
+
 function formatRunListObserved(
   response: WorkflowRunListResponseDto | null,
-  expectedHeadCommitSha: string,
+  expected: string,
+  runField: (run: WorkflowRunDto) => string,
 ): string {
   if (!response) return 'no workflow run list response observed';
   const runs = response.runs
@@ -79,12 +91,12 @@ function formatRunListObserved(
         `id=${run.id}`,
         `status=${run.status}`,
         `trigger=${run.trigger_source}/${run.trigger_event}`,
-        `headCommitSha=${headCommitSha(run) ?? 'null'}`,
+        runField(run),
         `updatedAt=${run.updated_at}`,
       ].join(' '),
     );
   const more = response.runs.length > runs.length ? ', ...' : '';
-  return `expectedHeadCommitSha=${expectedHeadCommitSha} runs=[${runs.join(', ')}${more}]`;
+  return `${expected} runs=[${runs.join(', ')}${more}]`;
 }
 
 function formatRunDetailObserved(
@@ -101,8 +113,14 @@ function formatRunDetailObserved(
   ].join(' ');
 }
 
-export async function waitForRunByCommit(
-  options: WaitForRunByCommitOptions,
+async function waitForRunMatching(
+  options: PollingOptions & {
+    expected: string;
+    match: (run: WorkflowRunDto) => boolean;
+    projectId: string;
+    runField: (run: WorkflowRunDto) => string;
+    timeoutMessage: string;
+  },
 ): Promise<WorkflowRunDto> {
   const client = createApiClient({
     apiUrl: options.apiUrl,
@@ -123,9 +141,7 @@ export async function waitForRunByCommit(
       {signal: options.signal},
     );
 
-    const run = lastResponse.runs.find(
-      (candidate) => headCommitSha(candidate) === options.headCommitSha,
-    );
+    const run = lastResponse.runs.find(options.match);
     if (run) return run;
 
     await waitForNextPoll({deadline, delayMs, signal: options.signal});
@@ -133,11 +149,36 @@ export async function waitForRunByCommit(
   }
 
   throw new Error(
-    `Timed out waiting for workflow run by commit: ${formatRunListObserved(
+    `${options.timeoutMessage}: ${formatRunListObserved(
       lastResponse,
-      options.headCommitSha,
+      options.expected,
+      options.runField,
     )}`,
   );
+}
+
+export async function waitForRunByCommit(
+  options: WaitForRunByCommitOptions,
+): Promise<WorkflowRunDto> {
+  return await waitForRunMatching({
+    ...options,
+    expected: `expectedHeadCommitSha=${options.headCommitSha}`,
+    match: (run) => headCommitSha(run) === options.headCommitSha,
+    runField: (run) => `headCommitSha=${headCommitSha(run) ?? 'null'}`,
+    timeoutMessage: 'Timed out waiting for workflow run by commit',
+  });
+}
+
+export async function waitForRunByDeliveryId(
+  options: WaitForRunByDeliveryIdOptions,
+): Promise<WorkflowRunDto> {
+  return await waitForRunMatching({
+    ...options,
+    expected: `expectedDeliveryId=${options.deliveryId}`,
+    match: (run) => deliveryId(run) === options.deliveryId,
+    runField: (run) => `deliveryId=${deliveryId(run) ?? 'null'}`,
+    timeoutMessage: 'Timed out waiting for workflow run by delivery ID',
+  });
 }
 
 export async function waitForRunTerminal(
@@ -182,6 +223,9 @@ export function createWorkflowsHelper(options: {
   return {
     waitForRunByCommit: (params: Omit<WaitForRunByCommitOptions, 'apiUrl' | 'fetch' | 'token'>) =>
       waitForRunByCommit({...options, ...params}),
+    waitForRunByDeliveryId: (
+      params: Omit<WaitForRunByDeliveryIdOptions, 'apiUrl' | 'fetch' | 'token'>,
+    ) => waitForRunByDeliveryId({...options, ...params}),
     waitForRunTerminal: (params: Omit<WaitForRunTerminalOptions, 'apiUrl' | 'fetch' | 'token'>) =>
       waitForRunTerminal({...options, ...params}),
   };
