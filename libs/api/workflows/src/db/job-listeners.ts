@@ -2,7 +2,6 @@ import {
   type AgentDefaultsResolver,
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions';
 import {WORKFLOWS_JOB_ACTIVATED, type WorkflowsEventMapDto} from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
@@ -10,12 +9,10 @@ import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {
-  assembleExecutionsContext,
-  assembleWorkflowRunContext,
+  assembleExecutionCreationContext,
   materializeJobExecutionSteps,
   resolveJobExecutionName,
 } from '#core/step-config/index.js';
-import type {WorkflowEvaluationContext} from '#core/step-config/workflow-evaluation-context.js';
 import {
   recordWorkflowJobExecutionStatusChanged,
   recordWorkflowListenerResolved,
@@ -200,7 +197,6 @@ export async function drainListenerEventsIntoExecution(
 
       const nameContext = listenerExecutionContext({
         run: toWorkflowRun(target.run),
-        model,
         jobId: params.jobId,
         sequence: params.expectedSequence,
         executionName,
@@ -216,7 +212,6 @@ export async function drainListenerEventsIntoExecution(
       });
       const stepContext = listenerExecutionContext({
         run: toWorkflowRun(target.run),
-        model,
         jobId: params.jobId,
         sequence: params.expectedSequence,
         executionName,
@@ -429,44 +424,24 @@ async function loadListenerMaterializationTarget(jobId: string, tx: Tx) {
 
 function listenerExecutionContext(params: {
   run: ReturnType<typeof toWorkflowRun>;
-  model: WorkflowModel;
   jobId: string;
   sequence: number;
   executionName: string;
   status: JobExecutionStatus;
   triggerEvents: readonly WorkflowExecutionEvent[];
   priorExecutions: ReturnType<typeof toJobExecution>[];
-}): WorkflowEvaluationContext {
-  const execution = {
-    id: `${params.jobId}:${params.sequence}`,
+}) {
+  return assembleExecutionCreationContext({
+    run: params.run,
+    triggerPayload: params.run.triggerPayload,
+    inputs: params.run.inputs,
     jobId: params.jobId,
     sequence: params.sequence,
-    name: params.executionName,
+    executionName: params.executionName,
     status: params.status,
-    statusReason: null,
-    triggerEvents: [...params.triggerEvents],
-    version: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    queuedAt: null,
-    startedAt: null,
-    finishedAt: null,
-    timedOutAt: null,
-  };
-  const executions = assembleExecutionsContext([...params.priorExecutions, execution]);
-  const executionValues = executions.executions as unknown[];
-  return {
-    site: 'execution-creation',
-    values: {
-      ...assembleWorkflowRunContext({
-        run: params.run,
-        triggerPayload: params.run.triggerPayload,
-        inputs: params.run.inputs,
-      }),
-      ...executions,
-      execution: executionValues.at(-1),
-    },
-  };
+    triggerEvents: params.triggerEvents,
+    priorExecutions: params.priorExecutions,
+  });
 }
 
 class PermanentListenerMaterializationError extends Error {
