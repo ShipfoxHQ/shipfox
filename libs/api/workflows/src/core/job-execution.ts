@@ -119,7 +119,7 @@ function dispatchConfigError(
   if (error instanceof InterpolationUnresolvableError) {
     return {
       message: error.message,
-      reason: 'config-unresolvable',
+      reason: 'config_unresolvable',
       field: error.envKey === undefined ? error.field : `${error.field}.${error.envKey}`,
       source: error.source,
     };
@@ -127,7 +127,7 @@ function dispatchConfigError(
 
   return {
     message: error.message,
-    reason: 'config-unresolvable',
+    reason: 'config_unresolvable',
     field: 'agent',
     source: 'agent',
   };

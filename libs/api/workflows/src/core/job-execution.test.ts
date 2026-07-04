@@ -174,7 +174,7 @@ describe('nextStepForJob', () => {
     expect(after.find((step) => step.id === consumer.id)).toMatchObject({
       status: 'failed',
       error: {
-        reason: 'config-unresolvable',
+        reason: 'config_unresolvable',
         field: 'env.SHA',
         source: 'steps.build.outputs.sha',
       },
