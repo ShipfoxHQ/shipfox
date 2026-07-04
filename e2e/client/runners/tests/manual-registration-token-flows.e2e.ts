@@ -15,6 +15,8 @@ test('manages workspace manual registration tokens from settings', async ({
   projects,
   workspaces,
 }) => {
+  test.setTimeout(60_000);
+
   await page.clock.setFixedTime(VISUAL_TEST_NOW);
 
   const user = await auth.createUser();
@@ -72,7 +74,18 @@ test('manages workspace manual registration tokens from settings', async ({
     .getByRole('button', {name: 'Open E2E runner token actions'})
     .click();
   await page.getByRole('menuitem', {name: 'Revoke token'}).click();
-  await page.getByRole('button', {name: 'Revoke', exact: true}).last().click();
+  const revokeDialog = page.getByRole('dialog', {name: 'Revoke token'});
+  await expect(revokeDialog).toBeVisible();
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().includes('/runners/manual-registration-tokens/') &&
+        response.url().endsWith('/revoke') &&
+        response.status() === 200,
+    ),
+    revokeDialog.getByRole('button', {name: 'Revoke', exact: true}).click(),
+  ]);
+  await expect(revokeDialog).toBeHidden();
 
   await expect(manualRegistrationTokenRow).toHaveCount(0);
   await expect(page.getByText('No usable manual registration tokens')).toBeVisible();

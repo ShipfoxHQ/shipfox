@@ -1,0 +1,17 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      prepare:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["prepare rerun after restart"]
+      review:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["review passes after restart"]

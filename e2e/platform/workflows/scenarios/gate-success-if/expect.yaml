@@ -1,0 +1,12 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      nonzero-ok:
+        status: succeeded
+        exit_code: 1
+        logs:
+          include: ["gate accepts exit 1"]

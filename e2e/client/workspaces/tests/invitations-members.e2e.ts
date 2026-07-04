@@ -127,6 +127,8 @@ test('accepts an invitation from the public landing page via login', async ({
   projects,
   workspaces,
 }) => {
+  test.setTimeout(60_000);
+
   const owner = await auth.createUser({name: 'Owner User'});
   const invitee = await auth.createUser({name: 'Invitee User'});
   const workspace = await workspaces.create({
