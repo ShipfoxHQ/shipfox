@@ -10,7 +10,6 @@ import {requestJson} from '@shipfox/e2e-core';
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'qwen3.5:0.8b';
 const DEFAULT_OLLAMA_PROVIDER_API: ModelProviderApi = 'openai-completions';
-const OLLAMA_WARMUP_TIMEOUT_MS = 120_000;
 const TRAILING_SLASHES_RE = /\/+$/u;
 
 export interface OllamaConfig {
@@ -81,8 +80,6 @@ export async function requireOllamaModel(
       ].join(' '),
     );
   }
-
-  await warmOllamaModel({baseUrl, fetch: fetchImpl, model});
 
   return {baseUrl, model, openAiBaseUrl: `${baseUrl}/v1`};
 }
@@ -189,43 +186,7 @@ function ollamaModelNames(payload: unknown): string[] {
 
 const ollamaFix = 'Run `mise run ollama:up` before running agent E2E tests.';
 
-async function warmOllamaModel(params: {
-  baseUrl: string;
-  fetch: typeof fetch;
-  model: string;
-}): Promise<void> {
-  let response: Response;
-  try {
-    response = await params.fetch(`${params.baseUrl}/api/generate`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
-        model: params.model,
-        prompt: '',
-        stream: false,
-        keep_alive: '24h',
-      }),
-      signal: AbortSignal.timeout(OLLAMA_WARMUP_TIMEOUT_MS),
-    });
-  } catch (error) {
-    throw new Error(ollamaWarmupMessage(params.baseUrl, params.model, error));
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `Ollama at ${params.baseUrl} returned ${response.status} while warming ${params.model}. ${ollamaFix}`,
-    );
-  }
-
-  await response.body?.cancel();
-}
-
 function ollamaUnavailableMessage(baseUrl: string, error: unknown): string {
   const reason = error instanceof Error ? ` ${error.message}` : '';
   return `Could not reach Ollama at ${baseUrl}.${reason} ${ollamaFix}`;
-}
-
-function ollamaWarmupMessage(baseUrl: string, model: string, error: unknown): string {
-  const reason = error instanceof Error ? ` ${error.message}` : '';
-  return `Could not warm Ollama model ${model} at ${baseUrl}.${reason} ${ollamaFix}`;
 }

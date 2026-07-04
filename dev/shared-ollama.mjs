@@ -82,7 +82,7 @@ async function up(context) {
   }
 
   runRootMise(context, ['exec', '--', 'ollama', 'pull', context.model]);
-  startWarmup(context);
+  await preloadModel(context);
 
   printLine(`Shared Ollama is ready at ${context.baseUrl}.`);
   printLine(`Model: ${context.model}`);
@@ -138,23 +138,6 @@ function startServer(context) {
     listenHost: context.listenHost,
     startedAt: new Date().toISOString(),
   });
-}
-
-function startWarmup(context) {
-  const log = openSync(context.logFile, 'a');
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'warm'], {
-    cwd: context.rootPath,
-    detached: true,
-    env: {
-      ...process.env,
-      CONDUCTOR_ROOT_PATH: context.rootPath,
-      SHIPFOX_OLLAMA_BASE_URL: context.baseUrl,
-      SHIPFOX_OLLAMA_KEEP_ALIVE: context.keepAlive,
-      SHIPFOX_OLLAMA_MODEL: context.model,
-    },
-    stdio: ['ignore', log, log],
-  });
-  child.unref();
 }
 
 function runRootMise(context, args) {
