@@ -1,6 +1,10 @@
 import {randomUUID} from 'node:crypto';
 import type {DrainListenerEventsResult} from '#db/job-listeners.js';
-import {JOB_FINISHED_SIGNAL, LISTENER_RESOLVE_SIGNAL} from '../constants.js';
+import {
+  JOB_FINISHED_SIGNAL,
+  LISTENER_EVENTS_AVAILABLE_SIGNAL,
+  LISTENER_RESOLVE_SIGNAL,
+} from '../constants.js';
 import {
   callsNamed,
   listenerFiringOutcomeCalls,
@@ -36,6 +40,9 @@ interface ListenerInputOverrides {
   listeningTimeoutMs?: number | null;
   maxExecutions?: number | null;
   onResolve?: 'finish' | 'cancel' | null;
+  batchDebounceMs?: number | null;
+  batchMaxSize?: number | null;
+  batchMaxWaitMs?: number | null;
 }
 
 function listenerInput(overrides: ListenerInputOverrides = {}) {
@@ -55,6 +62,11 @@ function listenerInput(overrides: ListenerInputOverrides = {}) {
       : {listeningTimeoutMs: overrides.listeningTimeoutMs}),
     ...(overrides.maxExecutions === undefined ? {} : {maxExecutions: overrides.maxExecutions}),
     ...(overrides.onResolve === undefined ? {} : {onResolve: overrides.onResolve}),
+    ...(overrides.batchDebounceMs === undefined
+      ? {}
+      : {batchDebounceMs: overrides.batchDebounceMs}),
+    ...(overrides.batchMaxSize === undefined ? {} : {batchMaxSize: overrides.batchMaxSize}),
+    ...(overrides.batchMaxWaitMs === undefined ? {} : {batchMaxWaitMs: overrides.batchMaxWaitMs}),
   };
 }
 
@@ -172,6 +184,19 @@ describe('jobListenerOrchestration', () => {
   });
 
   describe('firing outcomes', () => {
+    test('non-batch listeners keep the eager drain path', async () => {
+      setCfg({
+        dag: makeDag([]),
+        jobResults: new Map(),
+        drainResults: [firingDrain(1, 'pending')],
+      });
+
+      await runListener({maxExecutions: 1});
+
+      expect(callsNamed('peekListenerBufferActivity')).toHaveLength(0);
+      expect(callsNamed('drainListenerEventsActivity')).toHaveLength(1);
+    });
+
     test('records a succeeded firing when the child completes', async () => {
       setCfg({
         dag: makeDag([]),
@@ -216,6 +241,91 @@ describe('jobListenerOrchestration', () => {
         'succeeded',
       ]);
       expect(resolveJobListenerCalls().map((c) => c.params.reason)).toEqual(['max_executions']);
+    });
+  });
+
+  describe('batch gate', () => {
+    test('debounce waits for the newest buffered event to become quiet before firing', async () => {
+      setCfg({
+        dag: makeDag([]),
+        jobResults: new Map(),
+        peekResults: [
+          {fireCount: 3, resolvePending: false, oldestAgeMs: 25, newestAgeMs: 10},
+          {fireCount: 3, resolvePending: false, oldestAgeMs: 75, newestAgeMs: 60},
+        ],
+        drainResults: [firingDrain(1, 'pending')],
+      });
+
+      await runListener({batchDebounceMs: 50, maxExecutions: 1});
+
+      expect(callsNamed('peekListenerBufferActivity')).toHaveLength(2);
+      expect(callsNamed('drainListenerEventsActivity')).toHaveLength(1);
+      expect(listenerFiringOutcomeCalls().map((c) => c.params.outcome)).toEqual(['succeeded']);
+    });
+
+    test('max_size fires immediately and caps the drain', async () => {
+      setCfg({
+        dag: makeDag([]),
+        jobResults: new Map(),
+        peekResults: [{fireCount: 4, resolvePending: false, oldestAgeMs: 0, newestAgeMs: 0}],
+        drainResults: [firingDrain(1, 'pending')],
+      });
+
+      await runListener({batchDebounceMs: 1_000, batchMaxSize: 2, maxExecutions: 1});
+
+      expect(callsNamed('peekListenerBufferActivity')).toHaveLength(1);
+      expect(callsNamed('drainListenerEventsActivity').map((c) => c.params)).toEqual([
+        {jobId, expectedSequence: 1, maxSize: 2},
+      ]);
+    });
+
+    test('max_wait fires when the oldest buffered event reaches the cap', async () => {
+      setCfg({
+        dag: makeDag([]),
+        jobResults: new Map(),
+        peekResults: [{fireCount: 2, resolvePending: false, oldestAgeMs: 500, newestAgeMs: 5}],
+        drainResults: [firingDrain(1, 'pending')],
+      });
+
+      await runListener({batchDebounceMs: 1_000, batchMaxWaitMs: 500, maxExecutions: 1});
+
+      expect(callsNamed('drainListenerEventsActivity')).toHaveLength(1);
+    });
+
+    test('uses the DB peek to resolve without a resolve signal', async () => {
+      setCfg({
+        dag: makeDag([]),
+        jobResults: new Map(),
+        peekResults: [{fireCount: 0, resolvePending: true, oldestAgeMs: 0, newestAgeMs: 0}],
+        drainResults: [firingDrain(1, 'pending')],
+      });
+
+      await runListener({batchDebounceMs: 100});
+
+      expect(callsNamed('drainListenerEventsActivity')).toHaveLength(0);
+      expect(resolveJobListenerCalls().map((c) => c.params.reason)).toEqual(['until']);
+    });
+
+    test('honors a max_size-only config by waiting for enough buffered events', async () => {
+      setCfg({
+        dag: makeDag([]),
+        jobResults: new Map(),
+        peekResults: [
+          {fireCount: 1, resolvePending: false, oldestAgeMs: 0, newestAgeMs: 0},
+          {fireCount: 2, resolvePending: false, oldestAgeMs: 0, newestAgeMs: 0},
+        ],
+        drainResults: [firingDrain(1, 'pending')],
+      });
+
+      const handle = await startListener({batchMaxSize: 2, maxExecutions: 1});
+      await waitForActivity('peekListenerBufferActivity');
+      await handle.signal(LISTENER_EVENTS_AVAILABLE_SIGNAL);
+      await handle.result();
+
+      expect(callsNamed('peekListenerBufferActivity')).toHaveLength(2);
+      expect(callsNamed('drainListenerEventsActivity').map((c) => c.params)).toEqual([
+        {jobId, expectedSequence: 1, maxSize: 2},
+      ]);
     });
   });
 

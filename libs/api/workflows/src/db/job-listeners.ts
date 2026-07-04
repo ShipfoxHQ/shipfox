@@ -17,6 +17,7 @@ import {
 } from '#core/step-config/index.js';
 import type {WorkflowEvaluationContext} from '#core/step-config/workflow-evaluation-context.js';
 import {
+  recordListenerEventsCoalesced,
   recordWorkflowJobExecutionStatusChanged,
   recordWorkflowListenerResolved,
 } from '#metrics/instance.js';
@@ -134,15 +135,16 @@ export type DrainListenerEventsResult =
 export interface DrainListenerEventsParams {
   jobId: string;
   expectedSequence: number;
+  maxSize?: number | undefined;
   resolveAgentDefaults?: AgentDefaultsResolver | undefined;
 }
 
 export async function drainListenerEventsIntoExecution(
   params: DrainListenerEventsParams,
 ): Promise<DrainListenerEventsResult> {
-  return await db().transaction(async (tx) => {
+  const drained = await db().transaction(async (tx) => {
     const existing = await findExistingExecution(params, tx);
-    if (existing) return existing;
+    if (existing) return {result: existing};
 
     const [resolveEvent] = await tx
       .select({id: jobListenerEvents.id})
@@ -157,21 +159,36 @@ export async function drainListenerEventsIntoExecution(
       .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
       .limit(1)
       .for('update');
-    if (resolveEvent) return {kind: 'resolve-requested'};
+    if (resolveEvent) return {result: {kind: 'resolve-requested' as const}};
 
-    const bufferedEvents = await tx
-      .select()
-      .from(jobListenerEvents)
-      .where(
-        and(
-          eq(jobListenerEvents.jobId, params.jobId),
-          eq(jobListenerEvents.disposition, 'fire'),
-          isNull(jobListenerEvents.consumedByExecutionId),
-        ),
-      )
-      .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
-      .for('update');
-    if (bufferedEvents.length === 0) return {kind: 'empty'};
+    const bufferedEvents =
+      params.maxSize === undefined
+        ? await tx
+            .select()
+            .from(jobListenerEvents)
+            .where(
+              and(
+                eq(jobListenerEvents.jobId, params.jobId),
+                eq(jobListenerEvents.disposition, 'fire'),
+                isNull(jobListenerEvents.consumedByExecutionId),
+              ),
+            )
+            .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
+            .for('update')
+        : await tx
+            .select()
+            .from(jobListenerEvents)
+            .where(
+              and(
+                eq(jobListenerEvents.jobId, params.jobId),
+                eq(jobListenerEvents.disposition, 'fire'),
+                isNull(jobListenerEvents.consumedByExecutionId),
+              ),
+            )
+            .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
+            .limit(params.maxSize)
+            .for('update');
+    if (bufferedEvents.length === 0) return {result: {kind: 'empty' as const}};
 
     const target = await loadListenerMaterializationTarget(params.jobId, tx);
     const triggerEvents = bufferedEvents.map(
@@ -281,13 +298,53 @@ export async function drainListenerEventsIntoExecution(
     }
 
     return {
-      kind: 'execution',
-      jobExecutionId: execution.id,
-      executionVersion: execution.version,
-      sequence: execution.sequence,
-      status: execution.status,
+      result: {
+        kind: 'execution' as const,
+        jobExecutionId: execution.id,
+        executionVersion: execution.version,
+        sequence: execution.sequence,
+        status: execution.status,
+      },
+      batchSize: bufferedEvents.length,
     };
   });
+
+  if (drained.result.kind === 'execution' && drained.batchSize !== undefined) {
+    recordListenerEventsCoalesced(drained.batchSize);
+  }
+
+  return drained.result;
+}
+
+export interface ListenerBufferPeek {
+  fireCount: number;
+  resolvePending: boolean;
+  oldestAgeMs: number;
+  newestAgeMs: number;
+}
+
+export async function peekListenerBuffer(params: {jobId: string}): Promise<ListenerBufferPeek> {
+  const [row] = await db()
+    .select({
+      fireCount: sql<number>`count(*) filter (where ${jobListenerEvents.disposition} = 'fire')::integer`,
+      resolvePending: sql<boolean>`coalesce(bool_or(${jobListenerEvents.disposition} = 'resolve'), false)`,
+      oldestAgeMs: sql<number>`coalesce(floor(extract(epoch from (now() - min(${jobListenerEvents.receivedAt}) filter (where ${jobListenerEvents.disposition} = 'fire'))) * 1000), 0)::integer`,
+      newestAgeMs: sql<number>`coalesce(floor(extract(epoch from (now() - max(${jobListenerEvents.receivedAt}) filter (where ${jobListenerEvents.disposition} = 'fire'))) * 1000), 0)::integer`,
+    })
+    .from(jobListenerEvents)
+    .where(
+      and(
+        eq(jobListenerEvents.jobId, params.jobId),
+        isNull(jobListenerEvents.consumedByExecutionId),
+      ),
+    );
+
+  return {
+    fireCount: row?.fireCount ?? 0,
+    resolvePending: row?.resolvePending ?? false,
+    oldestAgeMs: row?.oldestAgeMs ?? 0,
+    newestAgeMs: row?.newestAgeMs ?? 0,
+  };
 }
 
 export async function resolveJobListener(params: {

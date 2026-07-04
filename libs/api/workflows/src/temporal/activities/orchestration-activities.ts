@@ -18,6 +18,7 @@ import {
   getJobsByWorkflowRunAttemptId,
   getWorkflowRunAttemptById,
   getWorkflowRunByAttemptId,
+  peekListenerBuffer,
   resolveJobExecutionAfterLeaseExpiry,
   resolveJobListener,
   resolveJobStatusFromJobExecutions,
@@ -39,6 +40,9 @@ export interface DagJob extends RuntimeDagNode {
   listeningTimeoutMs?: number | null | undefined;
   maxExecutions?: number | null | undefined;
   onResolve?: 'finish' | 'cancel' | null | undefined;
+  batchDebounceMs?: number | null | undefined;
+  batchMaxSize?: number | null | undefined;
+  batchMaxWaitMs?: number | null | undefined;
   dependencies: string[];
   runner: string[];
   version: number;
@@ -92,6 +96,9 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
           listeningTimeoutMs: job.listeningTimeoutMs,
           maxExecutions: job.maxExecutions,
           onResolve: job.onResolve,
+          batchDebounceMs: job.batchDebounceMs,
+          batchMaxSize: job.batchMaxSize,
+          batchMaxWaitMs: job.batchMaxWaitMs,
           dependencies: job.dependencies,
           runner: job.runner ?? [],
           version: job.version,
@@ -236,8 +243,13 @@ export async function activateJobListenerActivity(params: {
 export async function drainListenerEventsActivity(params: {
   jobId: string;
   expectedSequence: number;
+  maxSize?: number | undefined;
 }) {
   return await drainListenerEventsIntoExecution(params);
+}
+
+export async function peekListenerBufferActivity(params: {jobId: string}) {
+  return await peekListenerBuffer(params);
 }
 
 export async function resolveJobListenerActivity(params: {

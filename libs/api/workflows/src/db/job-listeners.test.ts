@@ -7,6 +7,7 @@ import {deliverEventToListener} from '#db/job-listener-events.js';
 import {
   activateJobListener,
   drainListenerEventsIntoExecution,
+  peekListenerBuffer,
   resolveJobListener,
 } from '#db/job-listeners.js';
 import {jobExecutions} from '#db/schema/job-executions.js';
@@ -49,6 +50,7 @@ function bufferEvent(
   jobId: string,
   disposition: 'fire' | 'resolve' = 'fire',
   eventRef = crypto.randomUUID(),
+  receivedAt = new Date('2026-01-01T00:00:00.000Z'),
 ) {
   return deliverEventToListener({
     jobId,
@@ -59,7 +61,7 @@ function bufferEvent(
     event: 'pull_request',
     provider: 'github',
     payload: {action: 'opened'},
-    receivedAt: new Date('2026-01-01T00:00:00.000Z'),
+    receivedAt,
   });
 }
 
@@ -160,6 +162,28 @@ describe('resolveJobListener', () => {
 });
 
 describe('drainListenerEventsIntoExecution', () => {
+  it('stores trigger events in received_at order', async () => {
+    const job = await createListeningJob({status: 'running', listenerStatus: 'listening'});
+    const middle = new Date('2026-01-01T00:01:00.000Z');
+    const first = new Date('2026-01-01T00:00:00.000Z');
+    const last = new Date('2026-01-01T00:02:00.000Z');
+    await bufferEvent(job.id, 'fire', crypto.randomUUID(), middle);
+    await bufferEvent(job.id, 'fire', crypto.randomUUID(), first);
+    await bufferEvent(job.id, 'fire', crypto.randomUUID(), last);
+
+    await drainListenerEventsIntoExecution({jobId: job.id, expectedSequence: 1});
+
+    const [execution] = await db()
+      .select()
+      .from(jobExecutions)
+      .where(and(eq(jobExecutions.jobId, job.id), eq(jobExecutions.sequence, 1)));
+    expect(execution?.triggerEvents.map((event) => event.received_at)).toEqual([
+      first.toISOString(),
+      middle.toISOString(),
+      last.toISOString(),
+    ]);
+  });
+
   it('materializes a pending execution from buffered fire events and consumes them', async () => {
     const job = await createListeningJob({status: 'running', listenerStatus: 'listening'});
     await bufferEvent(job.id);
@@ -178,6 +202,61 @@ describe('drainListenerEventsIntoExecution', () => {
     expect(result).toMatchObject({kind: 'execution', sequence: 1, status: 'pending'});
     expect(executions).toHaveLength(1);
     expect(events.every((event) => event.consumedByExecutionId === executions[0]?.id)).toBe(true);
+  });
+
+  it('caps a drain at maxSize and leaves the remainder buffered for the next firing', async () => {
+    const job = await createListeningJob({status: 'running', listenerStatus: 'listening'});
+    for (let index = 0; index < 5; index += 1) {
+      await bufferEvent(
+        job.id,
+        'fire',
+        crypto.randomUUID(),
+        new Date(Date.UTC(2026, 0, 1, 0, index, 0)),
+      );
+    }
+
+    const firstDrain = await drainListenerEventsIntoExecution({
+      jobId: job.id,
+      expectedSequence: 1,
+      maxSize: 2,
+    });
+    const secondDrain = await drainListenerEventsIntoExecution({
+      jobId: job.id,
+      expectedSequence: 2,
+      maxSize: 2,
+    });
+
+    const executions = await db()
+      .select()
+      .from(jobExecutions)
+      .where(eq(jobExecutions.jobId, job.id));
+    const unconsumedEvents = await db()
+      .select()
+      .from(jobListenerEvents)
+      .where(and(eq(jobListenerEvents.jobId, job.id), eq(jobListenerEvents.disposition, 'fire')));
+    expect(firstDrain).toMatchObject({kind: 'execution', sequence: 1});
+    expect(secondDrain).toMatchObject({kind: 'execution', sequence: 2});
+    expect(
+      executions.map((execution) => execution.triggerEvents).map((events) => events.length),
+    ).toEqual([2, 2]);
+    expect(unconsumedEvents.filter((event) => event.consumedByExecutionId === null)).toHaveLength(
+      1,
+    );
+  });
+
+  it('peeks the unconsumed listener buffer from DB state', async () => {
+    const job = await createListeningJob({status: 'running', listenerStatus: 'listening'});
+    await bufferEvent(job.id, 'fire', crypto.randomUUID(), new Date(Date.now() - 10_000));
+    await bufferEvent(job.id, 'fire', crypto.randomUUID(), new Date(Date.now() - 2_000));
+    await bufferEvent(job.id, 'resolve', crypto.randomUUID(), new Date());
+
+    const result = await peekListenerBuffer({jobId: job.id});
+
+    expect(result.fireCount).toBe(2);
+    expect(result.resolvePending).toBe(true);
+    expect(result.oldestAgeMs).toBeGreaterThanOrEqual(result.newestAgeMs);
+    expect(result.oldestAgeMs).toBeGreaterThan(0);
+    expect(result.newestAgeMs).toBeGreaterThan(0);
   });
 
   it('reports a resolve request when a resolve event is buffered', async () => {
