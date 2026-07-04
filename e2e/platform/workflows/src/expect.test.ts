@@ -232,6 +232,180 @@ describe('evaluateExpectations', () => {
     ]);
   });
 
+  test('matches job status reasons and step error details', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          status: 'failed',
+          status_reason: 'step_failed',
+          job_executions: [
+            makeJobExecution({
+              status: 'failed',
+              status_reason: 'step_failed',
+              steps: [
+                makeStep({
+                  status: 'failed',
+                  error: {
+                    message: 'Could not resolve env.VERSION from steps.build.outputs.version',
+                    reason: 'config_unresolvable',
+                    field: 'env.VERSION',
+                    source: 'steps.build.outputs.version',
+                    category: 'user',
+                  },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {
+          build: {
+            status_reason: 'step_failed',
+            steps: {
+              greet: {
+                error: {
+                  reason: 'config_unresolvable',
+                  field: 'env.VERSION',
+                  source: 'build.outputs',
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(result.mismatches).toEqual([]);
+  });
+
+  test('reports absent job status reasons and step errors', () => {
+    const result = evaluateExpectations(
+      makeDetail(),
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {
+          build: {
+            status_reason: 'step_failed',
+            steps: {greet: {error: {reason: 'config_unresolvable'}}},
+          },
+        },
+      }),
+    );
+
+    expect(result.mismatches).toEqual([
+      {path: 'jobs.build.status_reason', expected: 'step_failed', actual: 'null'},
+      {path: 'jobs.build.steps.greet.error', expected: 'present', actual: 'null'},
+    ]);
+  });
+
+  test('reports job status reason and step error detail mismatches', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          status_reason: 'condition_false',
+          job_executions: [
+            makeJobExecution({
+              status_reason: 'condition_false',
+              steps: [
+                makeStep({
+                  error: {
+                    message: 'Agent config could not be resolved',
+                    reason: 'agent_config_invalid',
+                    category: 'user',
+                  },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {
+          build: {
+            status_reason: 'step_failed',
+            steps: {
+              greet: {
+                error: {
+                  reason: 'config_unresolvable',
+                  field: 'env.VERSION',
+                  source: 'steps.build.outputs.version',
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(result.mismatches).toEqual([
+      {path: 'jobs.build.status_reason', expected: 'step_failed', actual: 'condition_false'},
+      {
+        path: 'jobs.build.steps.greet.error.reason',
+        expected: 'config_unresolvable',
+        actual: 'agent_config_invalid',
+      },
+      {path: 'jobs.build.steps.greet.error.field', expected: 'env.VERSION', actual: 'null'},
+      {
+        path: 'jobs.build.steps.greet.error.source',
+        expected: 'include steps.build.outputs.version',
+        actual: 'null',
+      },
+    ]);
+  });
+
+  test('reports a step error source mismatch when the source is present', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          job_executions: [
+            makeJobExecution({
+              steps: [
+                makeStep({
+                  error: {
+                    message: 'Could not resolve env.VERSION from steps.build.outputs.version',
+                    reason: 'config_unresolvable',
+                    field: 'env.VERSION',
+                    source: 'steps.build.outputs.version',
+                    category: 'user',
+                  },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {
+          build: {steps: {greet: {error: {source: 'steps.package.outputs.version'}}}},
+        },
+      }),
+    );
+
+    expect(result.mismatches).toEqual([
+      {
+        path: 'jobs.build.steps.greet.error.source',
+        expected: 'include steps.package.outputs.version',
+        actual: 'steps.build.outputs.version',
+      },
+    ]);
+  });
+
   test('reports a missing job and a missing step', () => {
     const missingJob = evaluateExpectations(
       makeDetail(),
@@ -406,5 +580,14 @@ describe('parseExpectation', () => {
 
   test('rejects unknown keys', () => {
     expect(() => parseExpectation({run: {status: 'succeeded'}, unexpected: true})).toThrow();
+  });
+
+  test('rejects unknown nested step error keys', () => {
+    expect(() =>
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {build: {steps: {greet: {error: {code: 'config_unresolvable'}}}}},
+      }),
+    ).toThrow();
   });
 });

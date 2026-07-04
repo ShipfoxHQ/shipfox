@@ -1,5 +1,8 @@
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import type {
+  JobStatusReasonDto,
+  StepErrorDto,
+  StepErrorReasonDto,
   WorkflowRunDetailResponseDto,
   WorkflowRunJobDetailDto,
   WorkflowRunStepDetailDto,
@@ -20,6 +23,16 @@ const jobStatusSchema = z.enum([
   'cancelled',
   'skipped',
 ]);
+const jobStatusReasonSchema = z.enum([
+  'dependency_not_completed',
+  'condition_false',
+  'user_cancelled',
+  'run_cancelled',
+  'timed_out',
+  'runner_lost',
+  'step_failed',
+  'unknown',
+]);
 const stepStatusSchema = z.enum([
   'pending',
   'running',
@@ -28,6 +41,31 @@ const stepStatusSchema = z.enum([
   'skipped',
   'cancelled',
 ]);
+const stepErrorReasonSchema = z.enum([
+  'checkout_failed',
+  'checkout_auth_failed',
+  'checkout_unavailable',
+  'git_unavailable',
+  'workspace_prep_failed',
+  'setup_aborted',
+  'config_unresolvable',
+  'agent_config_invalid',
+  'agent_invocation_failed',
+]);
+
+type AssertExact<Actual, Expected> = [Actual] extends [Expected]
+  ? [Expected] extends [Actual]
+    ? true
+    : never
+  : never;
+export type _ExpectJobStatusReasonSchemaMatchesDto = AssertExact<
+  z.infer<typeof jobStatusReasonSchema>,
+  JobStatusReasonDto
+>;
+export type _ExpectStepErrorReasonSchemaMatchesDto = AssertExact<
+  z.infer<typeof stepErrorReasonSchema>,
+  StepErrorReasonDto
+>;
 
 const logsExpectationSchema = z
   .object({
@@ -42,10 +80,19 @@ const pushExpectationSchema = z
   })
   .strict();
 
+const stepErrorExpectationSchema = z
+  .object({
+    reason: stepErrorReasonSchema.optional(),
+    field: z.string().optional(),
+    source: z.string().optional(),
+  })
+  .strict();
+
 const stepExpectationSchema = z
   .object({
     status: stepStatusSchema.optional(),
     exit_code: z.number().int().optional(),
+    error: stepErrorExpectationSchema.optional(),
     logs: logsExpectationSchema.optional(),
   })
   .strict();
@@ -53,6 +100,7 @@ const stepExpectationSchema = z
 const jobExpectationSchema = z
   .object({
     status: jobStatusSchema.optional(),
+    status_reason: jobStatusReasonSchema.optional(),
     steps: z.record(z.string(), stepExpectationSchema).optional(),
   })
   .strict();
@@ -130,6 +178,11 @@ function latestExitCode(step: WorkflowRunStepDetailDto): number | null {
   return attempt?.exit_code ?? null;
 }
 
+function stringField(value: NonNullable<StepErrorDto>, field: string): string | null {
+  const fieldValue = (value as Record<string, unknown>)[field];
+  return typeof fieldValue === 'string' ? fieldValue : null;
+}
+
 /**
  * Compares a run detail against an expectation, returning every structural mismatch
  * (run/job/step status and step exit code) plus the log requirements the harness still
@@ -165,6 +218,17 @@ export function evaluateExpectations(
       });
     }
 
+    if (
+      jobExpectation.status_reason !== undefined &&
+      job.status_reason !== jobExpectation.status_reason
+    ) {
+      mismatches.push({
+        path: `jobs.${jobKey}.status_reason`,
+        expected: jobExpectation.status_reason,
+        actual: job.status_reason ?? 'null',
+      });
+    }
+
     const steps = jobExpectation.steps;
     if (!steps) continue;
     for (const [stepKey, stepExpectation] of Object.entries(steps)) {
@@ -191,6 +255,49 @@ export function evaluateExpectations(
             expected: String(stepExpectation.exit_code),
             actual: exitCode === null ? 'null' : String(exitCode),
           });
+        }
+      }
+
+      if (stepExpectation.error) {
+        if (step.error === null) {
+          mismatches.push({
+            path: `${stepPath}.error`,
+            expected: 'present',
+            actual: 'null',
+          });
+        } else {
+          if (
+            stepExpectation.error.reason !== undefined &&
+            step.error.reason !== stepExpectation.error.reason
+          ) {
+            mismatches.push({
+              path: `${stepPath}.error.reason`,
+              expected: stepExpectation.error.reason,
+              actual: step.error.reason ?? 'null',
+            });
+          }
+
+          if (stepExpectation.error.field !== undefined) {
+            const field = stringField(step.error, 'field');
+            if (field !== stepExpectation.error.field) {
+              mismatches.push({
+                path: `${stepPath}.error.field`,
+                expected: stepExpectation.error.field,
+                actual: field ?? 'null',
+              });
+            }
+          }
+
+          if (stepExpectation.error.source !== undefined) {
+            const source = stringField(step.error, 'source');
+            if (source === null || !source.includes(stepExpectation.error.source)) {
+              mismatches.push({
+                path: `${stepPath}.error.source`,
+                expected: `include ${stepExpectation.error.source}`,
+                actual: source ?? 'null',
+              });
+            }
+          }
         }
       }
 

@@ -23,6 +23,8 @@ function toStepErrorDto(
   const message = typeof error.message === 'string' ? error.message : '';
   const exitCode = error.exitCode;
   const signal = typeof error.signal === 'string' ? error.signal : undefined;
+  const field = typeof error.field === 'string' ? error.field : undefined;
+  const source = typeof error.source === 'string' ? error.source : undefined;
   const reason = stepErrorReasonSchema.safeParse(error.reason);
   const agentConfigIssue = agentConfigIssueSchema.safeParse(error.agentConfigIssue);
   return {
@@ -30,6 +32,8 @@ function toStepErrorDto(
     ...(exitCode === null || typeof exitCode === 'number' ? {exit_code: exitCode} : {}),
     ...(signal === undefined ? {} : {signal}),
     ...(reason.success ? {reason: reason.data} : {}),
+    ...(field === undefined ? {} : {field}),
+    ...(source === undefined ? {} : {source}),
     ...(agentConfigIssue.success ? {agent_config_issue: agentConfigIssue.data} : {}),
     category,
   };
@@ -48,6 +52,8 @@ export function fromStepErrorDto(error: StepErrorDto | undefined): Record<string
       : {}),
     ...(typeof error.signal === 'string' ? {signal: error.signal} : {}),
     ...(error.reason === undefined ? {} : {reason: error.reason}),
+    ...(error.field === undefined ? {} : {field: error.field}),
+    ...(error.source === undefined ? {} : {source: error.source}),
     ...(error.agent_config_issue === undefined ? {} : {agentConfigIssue: error.agent_config_issue}),
   };
 }

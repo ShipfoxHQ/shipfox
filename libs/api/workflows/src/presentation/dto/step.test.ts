@@ -108,6 +108,28 @@ describe('toStepDto error category', () => {
     });
   });
 
+  it('surfaces config error field and source diagnostics', () => {
+    const dto = toStepDto(
+      step({
+        type: 'run',
+        error: {
+          message: 'Could not resolve env.VERSION',
+          reason: 'config_unresolvable',
+          field: 'env.VERSION',
+          source: 'steps.build.outputs.version',
+        },
+      }),
+    );
+
+    expect(dto.error).toEqual({
+      message: 'Could not resolve env.VERSION',
+      reason: 'config_unresolvable',
+      field: 'env.VERSION',
+      source: 'steps.build.outputs.version',
+      category: 'user',
+    });
+  });
+
   it('renders no error (and no category) for a successful step', () => {
     const dto = toStepDto(step({type: 'run', status: 'succeeded', error: null}));
 
