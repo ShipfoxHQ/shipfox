@@ -13,7 +13,7 @@ A scenario is a directory under `scenarios/`:
 ```
 scenarios/hello-world/
   workflow.yml    pushed verbatim to .shipfox/workflows/hello-world.yml
-  expect.yaml     declarative expectations (run/job/step status, exit code, logs)
+  expect.yaml     declarative expectations (run/job/step status, job status reason, step error, exit code, logs)
   files/          optional extra repo files, committed alongside the workflow
 ```
 
@@ -47,10 +47,15 @@ run:
 jobs:                    # optional, keyed by job key
   build:
     status: succeeded
+    status_reason: step_failed   # optional: why the job ended (step_failed, condition_false, ...)
     steps:               # optional, keyed by step key or name
       greet:
         status: succeeded
         exit_code: 0     # optional
+        error:           # optional: assert the step failed for a specific reason
+          reason: config_unresolvable  # step error reason enum
+          field: env.VERSION           # exact match on the failing field
+          source: steps.build.outputs  # substring match on the unresolved source
         logs:
           include: ["hello world"]   # substring, or /regex/
           exclude: ["SECRET_VALUE"]
