@@ -11,7 +11,6 @@ import {
   UnsupportedModelProviderError,
 } from '#core/index.js';
 import {getModelProviderConfig, setDefaultModelProvider} from '#db/index.js';
-import {requireCustomProviderAccess} from '#presentation/auth/require-custom-provider-access.js';
 import {translateModelProviderRouteError} from './errors.js';
 
 export const setDefaultModelProviderRoute = defineRoute({
@@ -28,19 +27,19 @@ export const setDefaultModelProviderRoute = defineRoute({
   errorHandler: translateModelProviderRouteError,
   handler: async (request) => {
     const {workspaceId} = request.params;
+    requireWorkspaceAccess({request, workspaceId});
+
     const existingConfig = await getModelProviderConfig({
       workspaceId,
       providerId: request.body.provider_id,
     });
     if (existingConfig?.kind === 'custom') {
-      requireCustomProviderAccess({request, workspaceId});
       throw new CustomModelProviderDefaultUnsupportedError(request.body.provider_id);
-    } else {
-      requireWorkspaceAccess({request, workspaceId});
-      const entry = getModelProviderEntry(request.body.provider_id);
-      if (entry === undefined || entry.support_status !== 'supported') {
-        throw new UnsupportedModelProviderError(request.body.provider_id);
-      }
+    }
+
+    const entry = getModelProviderEntry(request.body.provider_id);
+    if (entry === undefined || entry.support_status !== 'supported') {
+      throw new UnsupportedModelProviderError(request.body.provider_id);
     }
 
     const settings = await setDefaultModelProvider({
