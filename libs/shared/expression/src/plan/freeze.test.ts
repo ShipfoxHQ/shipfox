@@ -150,6 +150,29 @@ describe('freezeResolvedFieldAtSite', () => {
     expect(act).toThrow(WorkflowTemplateResolutionError);
   });
 
+  it('throws for fail-policy missing paths on reserved server roots available at the site', () => {
+    const field: ResolvedField = {
+      segments: [
+        {
+          kind: 'deferred',
+          expression: expression('steps.build.output'),
+          roots: ['steps'],
+          fillTarget: 'step-report',
+        },
+      ],
+    };
+
+    const act = () =>
+      freezeResolvedFieldAtSite({
+        field,
+        failurePolicy: 'fail',
+        site: 'step-report',
+        context: {steps: {}},
+      });
+
+    expect(act).toThrow(WorkflowTemplateResolutionError);
+  });
+
   it('skips deferred-past-site segments without evaluating their expression', () => {
     const field: ResolvedField = {
       segments: [
