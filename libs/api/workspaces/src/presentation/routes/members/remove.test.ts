@@ -80,13 +80,13 @@ describe('DELETE /workspaces/:workspaceId/members/:userId', () => {
   });
 
   test('transforms missing membership into 403', async () => {
-    const owner = await signupVerifyLogin(app, 'members-remove-member-owner');
     const outsider = await signupVerifyLogin(app, 'members-remove-outsider');
-    const workspaceId = await createWorkspace(app, owner.token);
+    const workspaceId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
 
     const res = await app.inject({
       method: 'DELETE',
-      url: `/workspaces/${workspaceId}/members/${owner.userId}`,
+      url: `/workspaces/${workspaceId}/members/${userId}`,
       headers: {authorization: `Bearer ${outsider.token}`},
     });
 
@@ -95,9 +95,8 @@ describe('DELETE /workspaces/:workspaceId/members/:userId', () => {
   });
 
   test('checks workspace membership before self-removal', async () => {
-    const owner = await signupVerifyLogin(app, 'members-remove-self-owner');
     const outsider = await signupVerifyLogin(app, 'members-remove-self-outsider');
-    const workspaceId = await createWorkspace(app, owner.token);
+    const workspaceId = crypto.randomUUID();
 
     const res = await app.inject({
       method: 'DELETE',

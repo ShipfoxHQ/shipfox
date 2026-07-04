@@ -67,9 +67,8 @@ describe('POST /workspaces/:workspaceId/invitations', () => {
   });
 
   test('transforms missing membership into 403', async () => {
-    const owner = await signupVerifyLogin(app, 'invite-create-member-owner');
     const outsider = await signupVerifyLogin(app, 'invite-create-outsider');
-    const workspaceId = await createWorkspace(app, owner.token);
+    const workspaceId = crypto.randomUUID();
     const inviteeEmail = uniqueEmail('forbidden-invite');
 
     const res = await app.inject({

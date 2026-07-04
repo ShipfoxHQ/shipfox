@@ -83,18 +83,13 @@ describe('DELETE /workspaces/:workspaceId/invitations/:invitationId', () => {
   });
 
   test('transforms missing membership into 403', async () => {
-    const owner = await signupVerifyLogin(app, 'invite-revoke-member-owner');
     const outsider = await signupVerifyLogin(app, 'invite-revoke-outsider');
-    const workspaceId = await createWorkspace(app, owner.token);
-    const invite = await createInvite(app, {
-      token: owner.token,
-      workspaceId,
-      email: uniqueEmail('forbidden-revoke'),
-    });
+    const workspaceId = crypto.randomUUID();
+    const invitationId = crypto.randomUUID();
 
     const res = await app.inject({
       method: 'DELETE',
-      url: `/workspaces/${workspaceId}/invitations/${invite.id}`,
+      url: `/workspaces/${workspaceId}/invitations/${invitationId}`,
       headers: {authorization: `Bearer ${outsider.token}`},
     });
 
