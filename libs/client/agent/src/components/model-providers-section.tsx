@@ -6,7 +6,6 @@ import type {
 } from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Alert} from '@shipfox/react-ui/alert';
-import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
   DropdownMenu,
@@ -27,7 +26,7 @@ import {
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
-import {Code, Header, Text} from '@shipfox/react-ui/typography';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {
@@ -39,9 +38,7 @@ import {
 import {AddCustomProviderCard} from './add-custom-provider-card.js';
 import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from './available-providers-grid.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
-import {modelProviderApiLabel} from './custom-model-provider-api-options.js';
 import {CustomModelProviderForm} from './custom-model-provider-form.js';
-import {formatBaseUrlHost} from './custom-model-provider-payload.js';
 import {modelProviderConfigErrorToFormError} from './form-errors.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
 import {
@@ -506,7 +503,6 @@ function ConfiguredProviderRow({
           <Text size="md" bold className="truncate">
             {label}
           </Text>
-          {customConfig ? <Badge variant="neutral">Custom</Badge> : null}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -555,7 +551,6 @@ function ConfiguredProviderRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {customConfig ? <CustomProviderRowMeta config={customConfig} /> : null}
       {defaultError ? (
         <Alert variant="error" animated={false}>
           <Text size="sm">{defaultError}</Text>
@@ -570,35 +565,6 @@ function ConfiguredProviderRow({
         onDelete={handleDelete}
       />
     </li>
-  );
-}
-
-function CustomProviderRowMeta({config}: {config: CustomModelProviderConfigDto}) {
-  const apiKeyFingerprint = config.key_fingerprints['credential:api_key'];
-  const secretHeaderCount = config.secret_header_names.length;
-
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-4 pl-24 text-foreground-neutral-muted">
-      <Code as="span" variant="label">
-        {formatBaseUrlHost(config.base_url)}
-      </Code>
-      <Text as="span" size="sm">
-        {modelProviderApiLabel(config.api)}
-      </Text>
-      {apiKeyFingerprint ? (
-        <Text as="span" size="sm">
-          Key{' '}
-          <Code as="span" variant="label">
-            {apiKeyFingerprint}
-          </Code>
-        </Text>
-      ) : null}
-      {secretHeaderCount > 0 ? (
-        <Text as="span" size="sm">
-          {secretHeaderCount} secret {secretHeaderCount === 1 ? 'header' : 'headers'}
-        </Text>
-      ) : null}
-    </div>
   );
 }
 

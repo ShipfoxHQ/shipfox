@@ -128,10 +128,10 @@ describe('WorkspaceModelProvidersSection', () => {
     if (customProviderRow === null) {
       throw new Error('Expected custom provider row to render');
     }
-    expect(within(customProviderRow).getByText('Custom')).toBeVisible();
-    expect(screen.getByText('localhost:8000')).toBeVisible();
-    expect(screen.getByText('OpenAI Chat Completions')).toBeVisible();
-    expect(screen.getByText('1 secret header')).toBeVisible();
+    expect(within(customProviderRow).queryByText('Custom')).not.toBeInTheDocument();
+    expect(screen.queryByText('localhost:8000')).not.toBeInTheDocument();
+    expect(screen.queryByText('OpenAI Chat Completions')).not.toBeInTheDocument();
+    expect(screen.queryByText('1 secret header')).not.toBeInTheDocument();
 
     await openProviderActions(user, 'Anthropic');
     expect(screen.getByRole('menuitem', {name: 'Change default model'})).toBeVisible();
