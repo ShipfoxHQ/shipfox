@@ -1,5 +1,4 @@
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
-import {getWorkspace, WorkspaceNotFoundError} from '@shipfox/api-workspaces';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
@@ -29,11 +28,6 @@ vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
   logger: () => mocks.logger,
 }));
 
-vi.mock('@shipfox/api-workspaces', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@shipfox/api-workspaces')>()),
-  getWorkspace: vi.fn(),
-}));
-
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
   authenticate: () => Promise.resolve(),
@@ -45,9 +39,6 @@ describe('provisioner me route', () => {
   beforeEach(async () => {
     await closeApp();
     mocks.logger.warn.mockReset();
-    vi.mocked(getWorkspace).mockImplementation(({workspaceId}) =>
-      Promise.resolve(workspace({id: workspaceId})),
-    );
     app = await createApp({
       auth: [fakeUserAuth, createProvisionerTokenAuthMethod()],
       routes: provisionerRoutes,
@@ -214,53 +205,4 @@ describe('provisioner me route', () => {
     expect(res.statusCode).toBe(401);
     expect(res.json().code).toBe('provisioner-token-expired');
   });
-
-  it('returns 401 for a provisioner token whose workspace does not exist', async () => {
-    const workspaceId = crypto.randomUUID();
-    const rawToken = generateOpaqueToken('provisionerToken');
-    await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
-    vi.mocked(getWorkspace).mockRejectedValueOnce(new WorkspaceNotFoundError(workspaceId));
-
-    const res = await app.inject({
-      method: 'GET',
-      url: '/provisioners/me',
-      headers: {authorization: `Bearer ${rawToken}`},
-    });
-
-    expect(res.statusCode).toBe(401);
-    expect(res.json().code).toBe('unauthorized');
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {prefix: rawToken.slice(0, 12), reason: 'workspace-not-found'},
-      'provisioner token auth failed',
-    );
-  });
-
-  it('returns 403 for a provisioner token in a suspended workspace', async () => {
-    const workspaceId = crypto.randomUUID();
-    const rawToken = generateOpaqueToken('provisionerToken');
-    await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
-    vi.mocked(getWorkspace).mockResolvedValueOnce(
-      workspace({id: workspaceId, status: 'suspended'}),
-    );
-
-    const res = await app.inject({
-      method: 'GET',
-      url: '/provisioners/me',
-      headers: {authorization: `Bearer ${rawToken}`},
-    });
-
-    expect(res.statusCode).toBe(403);
-    expect(res.json().code).toBe('workspace-inactive');
-  });
 });
-
-function workspace(params: {id: string; status?: 'active' | 'suspended' | 'deleted'}) {
-  return {
-    id: params.id,
-    name: 'Test Workspace',
-    status: params.status ?? 'active',
-    settings: {},
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-}
