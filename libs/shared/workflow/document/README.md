@@ -129,6 +129,9 @@ parseWorkflowDocument({
   strings, numbers, or booleans; the model layer stringifies numbers and
   booleans before a run is saved. Values are literal. Expression interpolation
   such as `${{ ... }}` is not evaluated.
+- Each `env` map can define up to 128 entries and must serialize to 32768 bytes
+  or less as JSON. The limit is checked separately at workflow, job, and run-step
+  scope before the model layer copies merged env into saved run-step config.
 - `env` applies only to run steps. Declaring `env` directly on an agent step is
   rejected. Workflow-level and job-level `env` is not applied to agent steps.
 - Run-step env is plaintext, non-secret configuration. Values are stored in the

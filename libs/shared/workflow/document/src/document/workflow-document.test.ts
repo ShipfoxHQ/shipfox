@@ -1,4 +1,8 @@
-import {workflowDocumentSchema} from './workflow-document.js';
+import {
+  WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES,
+  WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES,
+  workflowDocumentSchema,
+} from './workflow-document.js';
 
 describe('workflowDocumentSchema', () => {
   it('accepts a valid minimal workflow document', () => {
@@ -188,6 +192,75 @@ describe('workflowDocumentSchema', () => {
     const result = workflowDocumentSchema.safeParse(workflowDocument);
 
     expect(result.success).toBe(true);
+  });
+
+  it.each([
+    [
+      'workflow',
+      (env: Record<string, string>) => ({
+        name: 'env build',
+        env,
+        jobs: {build: {steps: [{run: 'npm test'}]}},
+      }),
+      'env',
+    ],
+    [
+      'job',
+      (env: Record<string, string>) => ({
+        name: 'env build',
+        jobs: {build: {env, steps: [{run: 'npm test'}]}},
+      }),
+      'jobs.build.env',
+    ],
+    [
+      'run step',
+      (env: Record<string, string>) => ({
+        name: 'env build',
+        jobs: {build: {steps: [{run: 'npm test', env}]}},
+      }),
+      'jobs.build.steps.0.env',
+    ],
+  ])('rejects %s env with too many entries', (_scope, buildDocument, issuePath) => {
+    const env = Object.fromEntries(
+      Array.from({length: WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES + 1}, (_, index) => [
+        `KEY_${index}`,
+        'value',
+      ]),
+    );
+
+    const result = workflowDocumentSchema.safeParse(buildDocument(env));
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find((candidate) => candidate.path.join('.') === issuePath);
+    expect(issue?.message).toBe(
+      `Env cannot define more than ${WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES} entries.`,
+    );
+  });
+
+  it('rejects env maps that exceed the serialized byte limit', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'env build',
+      jobs: {
+        build: {
+          steps: [
+            {
+              run: 'npm test',
+              env: {LARGE_VALUE: 'x'.repeat(WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES)},
+            },
+          ],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.env',
+        );
+    expect(issue?.message).toBe(
+      `Env cannot serialize to more than ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} bytes.`,
+    );
   });
 
   it.each([
