@@ -3,19 +3,20 @@ import {
   UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {MaterializedAgentStepConfigDto} from '@shipfox/api-agent-dto';
 import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
 import {
   type AvailabilitySite,
-  freezePlannedRunCommandAtSite,
   freezeResolvedFieldAtSite,
   getWorkflowInterpolationFieldFailurePolicy,
+  hoistPlannedRunCommand,
+  resolveFieldAtSite,
   UnsafeRunInterpolationError,
   type WorkflowExpressionEvaluationContext,
   type WorkflowInterpolationField,
   type WorkflowTemplateDiagnostic,
   WorkflowTemplateResolutionError,
 } from '@shipfox/expression';
+import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {
   AgentConfigUnresolvableError,
   InterpolationUnresolvableError,
@@ -27,6 +28,9 @@ type WorkflowModelStep = WorkflowModelJob['steps'][number];
 type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
 type WorkflowModelAgentStep = Extract<WorkflowModelStep, {kind: 'agent'}>;
 type WorkflowFieldTemplate = NonNullable<NonNullable<WorkflowModelRunStep['templates']>['command']>;
+type FieldResolution =
+  | {readonly kind: 'frozen'; readonly value: string}
+  | {readonly kind: 'residual'; readonly field: {readonly segments: WorkflowFieldTemplate}};
 
 export type StepConfigField = InterpolationUnresolvableField;
 
@@ -37,6 +41,7 @@ export interface WorkflowStepTemplateDiagnostic extends WorkflowTemplateDiagnost
 
 export interface ResolvedStepConfig {
   readonly config: Record<string, unknown>;
+  readonly configPlan: StepConfigDispatchPlan | null;
   readonly authoredConfig: Record<string, unknown> | null;
   readonly name?: string;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
@@ -68,6 +73,7 @@ export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStep
 
   return {
     config: effective.config,
+    configPlan: effective.configPlan,
     authoredConfig,
     ...(name.value === undefined || name.value === '' ? {} : {name: name.value}),
     diagnostics: [...effective.diagnostics, ...name.diagnostics],
@@ -78,6 +84,7 @@ function buildStepConfig(
   params: ResolveStepConfigParams & {readonly mode: 'effective' | 'authored'},
 ): {
   readonly config: Record<string, unknown>;
+  readonly configPlan: StepConfigDispatchPlan | null;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
   readonly hasTemplates: boolean;
 } {
@@ -102,9 +109,13 @@ function buildStepConfig(
     });
     const mergedEnv = {...envResolution.env, ...commandResolution.env};
     const envConfig = Object.keys(mergedEnv).length === 0 ? {} : {env: mergedEnv};
+    const planEnv = {...envResolution.configPlan, ...commandResolution.configPlan};
+    const configPlan =
+      Object.keys(planEnv).length === 0 ? null : ({env: planEnv} satisfies StepConfigDispatchPlan);
 
     return {
       config: {run: commandResolution.command, ...envConfig, ...gate},
+      configPlan,
       diagnostics: [...envResolution.diagnostics, ...commandResolution.diagnostics],
       hasTemplates: envResolution.hasTemplates || commandResolution.hasTemplate,
     };
@@ -113,6 +124,7 @@ function buildStepConfig(
   const agent = agentStepConfig(params.step, params.context, params);
   return {
     config: {...agent.config, ...gate},
+    configPlan: agent.configPlan,
     diagnostics: agent.diagnostics,
     hasTemplates: agent.hasTemplates,
   };
@@ -128,27 +140,55 @@ function resolveCommand(params: {
 }): {
   readonly command: string;
   readonly env: Readonly<Record<string, string>>;
+  readonly configPlan: Readonly<Record<string, {readonly segments: WorkflowFieldTemplate}>>;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
   readonly hasTemplate: boolean;
 } {
   const template = params.step.templates?.command;
   if (template === undefined) {
-    return {command: params.step.command.value, env: {}, diagnostics: [], hasTemplate: false};
+    return {
+      command: params.step.command.value,
+      env: {},
+      configPlan: {},
+      diagnostics: [],
+      hasTemplate: false,
+    };
   }
 
   if (params.mode === 'authored') {
-    return {command: params.step.command.value, env: {}, diagnostics: [], hasTemplate: true};
+    return {
+      command: params.step.command.value,
+      env: {},
+      configPlan: {},
+      diagnostics: [],
+      hasTemplate: true,
+    };
   }
 
-  let resolved: ReturnType<typeof freezePlannedRunCommandAtSite>;
+  const env: Record<string, string> = {};
+  const configPlan: Record<string, {readonly segments: WorkflowFieldTemplate}> = {};
+  const diagnostics: WorkflowStepTemplateDiagnostic[] = [];
+  let command: string;
   try {
-    resolved = freezePlannedRunCommandAtSite({
+    const hoisted = hoistPlannedRunCommand({
       field: {segments: template},
-      context: params.context,
-      site: params.site,
-      failurePolicy: getWorkflowInterpolationFieldFailurePolicy('run'),
       reservedNames: params.envKeys,
     });
+    command = hoisted.command;
+
+    for (const binding of hoisted.bindings) {
+      const resolved = resolveFieldAtSite({
+        field: {segments: [binding.segment]},
+        context: params.context,
+        site: params.site,
+        failurePolicy: getWorkflowInterpolationFieldFailurePolicy('run'),
+      });
+      if (resolved.kind === 'residual') configPlan[binding.name] = resolved.field;
+      else env[binding.name] = resolved.value;
+      diagnostics.push(
+        ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'run' as const})),
+      );
+    }
   } catch (error) {
     if (
       error instanceof UnsafeRunInterpolationError ||
@@ -160,9 +200,10 @@ function resolveCommand(params: {
   }
 
   return {
-    command: resolved.command,
-    env: resolved.env,
-    diagnostics: resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'run'})),
+    command,
+    env,
+    configPlan,
+    diagnostics,
     hasTemplate: true,
   };
 }
@@ -175,10 +216,12 @@ function resolveEnv(
   definitionId: string,
 ): {
   readonly env: Readonly<Record<string, string>>;
+  readonly configPlan: Readonly<Record<string, {readonly segments: WorkflowFieldTemplate}>>;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
   readonly hasTemplates: boolean;
 } {
   const resolvedEnv: Record<string, string> = {};
+  const configPlan: Record<string, {readonly segments: WorkflowFieldTemplate}> = {};
   const diagnostics: WorkflowStepTemplateDiagnostic[] = [];
   let hasTemplates = false;
 
@@ -190,7 +233,7 @@ function resolveEnv(
     }
 
     hasTemplates = true;
-    const resolved = freezeField({
+    const resolved = resolveField({
       field: 'env.value',
       template: entry.template,
       context,
@@ -199,7 +242,8 @@ function resolveEnv(
       errorField: 'env',
       envKey: key,
     });
-    resolvedEnv[key] = resolved.value;
+    if (resolved.kind === 'residual') configPlan[key] = resolved.field;
+    else resolvedEnv[key] = resolved.value;
     diagnostics.push(
       ...resolved.diagnostics.map((diagnostic) => ({
         ...diagnostic,
@@ -209,7 +253,7 @@ function resolveEnv(
     );
   }
 
-  return {env: resolvedEnv, diagnostics, hasTemplates};
+  return {env: resolvedEnv, configPlan, diagnostics, hasTemplates};
 }
 
 function agentStepConfig(
@@ -217,7 +261,8 @@ function agentStepConfig(
   context: WorkflowExpressionEvaluationContext,
   params: ResolveStepConfigParams & {readonly mode: 'effective' | 'authored'},
 ): {
-  readonly config: MaterializedAgentStepConfigDto | Pick<MaterializedAgentStepConfigDto, 'prompt'>;
+  readonly config: Record<string, unknown>;
+  readonly configPlan: StepConfigDispatchPlan | null;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
   readonly hasTemplates: boolean;
 } {
@@ -260,10 +305,39 @@ function agentStepConfig(
   if (params.mode === 'authored') {
     return {
       config: {
-        ...(provider === undefined ? {} : {provider}),
-        ...(model === undefined ? {} : {model}),
+        ...(step.provider === undefined ? {} : {provider: step.provider}),
+        ...(step.model === undefined ? {} : {model: step.model}),
         ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
-        prompt,
+        prompt: step.prompt,
+      },
+      configPlan: null,
+      diagnostics,
+      hasTemplates,
+    };
+  }
+
+  const dispatchDefaults =
+    prompt.kind === 'residual' || model?.kind === 'residual' || provider?.kind === 'residual';
+  const providerValue = provider?.kind === 'frozen' ? provider.value : undefined;
+  const modelValue = model?.kind === 'frozen' ? model.value : undefined;
+
+  if (model?.kind === 'residual' || provider?.kind === 'residual') {
+    return {
+      config: {},
+      configPlan: {
+        agent: {
+          prompt: prompt.kind === 'residual' ? prompt.field : literalField(prompt.value),
+          ...(model === undefined
+            ? {}
+            : {model: model.kind === 'residual' ? model.field : literalField(model.value)}),
+          ...(provider === undefined
+            ? {}
+            : {
+                provider:
+                  provider.kind === 'residual' ? provider.field : literalField(provider.value),
+              }),
+          ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
+        },
       },
       diagnostics,
       hasTemplates,
@@ -272,17 +346,34 @@ function agentStepConfig(
 
   try {
     const resolved = params.resolveAgentDefaults({
-      provider,
-      model,
+      provider: providerValue,
+      model: modelValue,
       thinking: step.thinking,
     });
+    if (dispatchDefaults) {
+      return {
+        config: {
+          provider: resolved.provider,
+          model: resolved.model,
+          thinking: resolved.thinking,
+        },
+        configPlan: {
+          agent: {
+            prompt: prompt.kind === 'residual' ? prompt.field : literalField(prompt.value),
+          },
+        },
+        diagnostics,
+        hasTemplates,
+      };
+    }
     return {
       config: {
         provider: resolved.provider,
         model: resolved.model,
         thinking: resolved.thinking,
-        prompt,
+        prompt: prompt.kind === 'frozen' ? prompt.value : step.prompt,
       },
+      configPlan: null,
       diagnostics,
       hasTemplates,
     };
@@ -303,10 +394,12 @@ function resolveAgentField(params: {
   readonly mode: 'effective' | 'authored';
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
   readonly definitionId: string;
-}): string {
-  if (params.template === undefined || params.mode === 'authored') return params.value;
+}): FieldResolution {
+  if (params.template === undefined || params.mode === 'authored') {
+    return {kind: 'frozen', value: params.value};
+  }
 
-  const resolved = freezeField({
+  const resolved = resolveField({
     field: params.field,
     template: params.template,
     context: params.context,
@@ -317,7 +410,8 @@ function resolveAgentField(params: {
   params.diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: params.field})),
   );
-  return resolved.value;
+  if (resolved.kind === 'residual') return {kind: 'residual', field: resolved.field};
+  return {kind: 'frozen', value: resolved.value};
 }
 
 function resolveOptionalAgentField(params: {
@@ -329,7 +423,7 @@ function resolveOptionalAgentField(params: {
   readonly mode: 'effective' | 'authored';
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
   readonly definitionId: string;
-}): string | undefined {
+}): FieldResolution | undefined {
   if (params.value === undefined) return undefined;
   return resolveAgentField({...params, value: params.value});
 }
@@ -416,6 +510,34 @@ function freezeField(params: {
     }
     throw error;
   }
+}
+
+function resolveField(params: {
+  readonly field: WorkflowInterpolationField;
+  readonly template: WorkflowFieldTemplate;
+  readonly context: WorkflowExpressionEvaluationContext;
+  readonly site: AvailabilitySite;
+  readonly definitionId: string;
+  readonly errorField: InterpolationUnresolvableField;
+  readonly envKey?: string;
+}): ReturnType<typeof resolveFieldAtSite> {
+  try {
+    return resolveFieldAtSite({
+      field: {segments: params.template},
+      context: params.context,
+      site: params.site,
+      failurePolicy: getWorkflowInterpolationFieldFailurePolicy(params.field),
+    });
+  } catch (error) {
+    if (error instanceof WorkflowTemplateResolutionError) {
+      throw interpolationError(params.definitionId, params.errorField, error, params.envKey);
+    }
+    throw error;
+  }
+}
+
+function literalField(value: string): {readonly segments: WorkflowFieldTemplate} {
+  return {segments: [{kind: 'literal', value}]};
 }
 
 function interpolationError(

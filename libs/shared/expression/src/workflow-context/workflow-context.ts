@@ -8,6 +8,7 @@ export const workflowContextNames = [
   'job',
   'executions',
   'execution',
+  'steps',
   'step',
 ] as const;
 export type WorkflowContextName = (typeof workflowContextNames)[number];
@@ -46,7 +47,6 @@ export type ReservedRootDefinition =
   | {readonly host: 'runner'};
 
 export const workflowContextReservedRoots = {
-  steps: {host: 'server', availability: 'step-report'},
   jobs: {host: 'server', availability: 'job-resolution'},
   matrix: {host: 'server', availability: 'job-activation'},
   runner: {host: 'runner'},
@@ -228,6 +228,14 @@ export const workflowContextDefinitions = {
     checkMode: 'typed',
     typeEnvironment: executionTypeEnvironment,
     untrustedPaths: ['events'],
+  },
+  steps: {
+    availability: 'step-dispatch',
+    trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
+    shape: 'open',
+    checkMode: 'syntax',
   },
   step: {
     availability: 'step-report',

@@ -5,6 +5,7 @@ import {
   type WorkflowsStepAttemptTerminatedEventDto,
   type WorkflowsStepRestartEnqueuedEventDto,
 } from '@shipfox/api-workflows-dto';
+import {createWorkflowExpression} from '@shipfox/expression';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
@@ -112,6 +113,74 @@ describe('nextStepForJob', () => {
     expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: steps[1]?.id})});
   });
 
+  test('fills dispatch config from terminal step attempt output', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const producer = steps[0];
+    const consumer = steps[1];
+    if (!producer || !consumer) throw new Error('Expected arranged steps');
+    await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, producer.id));
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'deploy',
+        config: {run: 'echo ok'},
+        configPlan: {env: {SHA: stepOutputField('build', 'sha')}},
+      })
+      .where(eq(stepsTable.id, consumer.id));
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: producer.id,
+      status: 'succeeded',
+      output: {sha: 'abc123'},
+    });
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: consumer.id,
+        config: {run: 'echo ok', env: {SHA: 'abc123'}},
+        configPlan: null,
+      }),
+    });
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === producer.id)?.output).toBeNull();
+    expect(after.find((step) => step.id === consumer.id)?.configPlan).toBeNull();
+  });
+
+  test('fails the job when dispatch config cannot resolve a peer output', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const producer = steps[0];
+    const consumer = steps[1];
+    if (!producer || !consumer) throw new Error('Expected arranged steps');
+    await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, producer.id));
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'deploy',
+        config: {run: 'echo ok'},
+        configPlan: {env: {SHA: stepOutputField('build', 'sha')}},
+      })
+      .where(eq(stepsTable.id, consumer.id));
+    await nextStepForJob(jobId);
+    await recordStepResult({jobId, stepId: producer.id, status: 'succeeded', output: {}});
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'done', status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === consumer.id)).toMatchObject({
+      status: 'failed',
+      error: {
+        reason: 'config-unresolvable',
+        field: 'env.SHA',
+        source: 'steps.build.outputs.sha',
+      },
+    });
+  });
+
   test('all steps succeeded → {done, succeeded}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     for (const step of steps) {
@@ -149,6 +218,22 @@ describe('nextStepForJob', () => {
     expect(result).toEqual({kind: 'done', status: 'failed'});
   });
 });
+
+function stepOutputField(stepKey: string, outputKey: string) {
+  return {
+    segments: [
+      {
+        kind: 'deferred' as const,
+        expression: createWorkflowExpression({
+          source: `steps.${stepKey}.outputs.${outputKey}`,
+          check: {mode: 'syntax'},
+        }),
+        roots: ['steps'],
+        fillTarget: 'step-dispatch' as const,
+      },
+    ],
+  };
+}
 
 describe('recordStepResult', () => {
   test('succeeded on a non-final step → {jobFinished:false}', async () => {

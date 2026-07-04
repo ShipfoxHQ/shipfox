@@ -246,6 +246,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           status: step.status,
           type: step.type,
           config: step.config,
+          configPlan: step.configPlan ?? null,
           authoredConfig: step.authoredConfig,
           position: step.position,
         });
@@ -510,6 +511,7 @@ export async function createRerunWorkflowRun(
           status: carriedOver ? step.status : ('pending' as const),
           type: step.type,
           config: step.config,
+          configPlan: step.configPlan,
           authoredConfig: step.authoredConfig,
           output: carriedOver ? step.output : null,
           error: null,
@@ -1908,6 +1910,18 @@ export async function getStepsByJobExecutionIdForUpdate(
   return rows.map(toStep);
 }
 
+export async function getStepAttemptsByJobExecutionId(
+  jobExecutionId: string,
+  tx: Tx,
+): Promise<StepAttempt[]> {
+  const rows = await tx
+    .select()
+    .from(stepAttempts)
+    .where(eq(stepAttempts.jobExecutionId, jobExecutionId))
+    .orderBy(asc(stepAttempts.executionOrder), asc(stepAttempts.id));
+  return rows.map(toStepAttempt);
+}
+
 export interface MarkStepRunningParams {
   jobExecutionId: string;
   stepId: string;
@@ -1940,6 +1954,78 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
     tx,
   );
   return step;
+}
+
+export interface DispatchStepWithCompletedConfigParams {
+  jobExecutionId: string;
+  stepId: string;
+  config: Record<string, unknown>;
+}
+
+export async function dispatchStepWithCompletedConfig(
+  params: DispatchStepWithCompletedConfigParams,
+  tx: Tx,
+): Promise<Step | null> {
+  const rows = await tx
+    .update(steps)
+    .set({
+      status: 'running',
+      config: params.config,
+      configPlan: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(steps.id, params.stepId),
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+      ),
+    )
+    .returning();
+  const row = rows[0];
+  if (!row) return null;
+  const step = toStep(row);
+  await insertRunningStepAttempt(
+    {
+      jobExecutionId: step.jobExecutionId,
+      stepId: step.id,
+      attempt: step.currentAttempt,
+    },
+    tx,
+  );
+  return step;
+}
+
+export async function settleJobFailed(
+  tx: Tx,
+  params: {
+    jobId: string;
+    jobExecutionId: string;
+    failedStepId: string;
+    error: Record<string, unknown>;
+  },
+): Promise<'succeeded' | 'failed' | null> {
+  await applyStepResult(
+    {
+      jobExecutionId: params.jobExecutionId,
+      stepId: params.failedStepId,
+      status: 'failed',
+      error: params.error,
+    },
+    tx,
+  );
+  await cancelRemainingSteps({jobExecutionId: params.jobExecutionId}, tx);
+
+  const after = await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
+  if (!after.every((step) => isTerminal(step.status))) return null;
+
+  const status = deriveCompletion(after);
+  await writeJobStepsSettledOutbox(tx, {
+    jobId: params.jobId,
+    jobExecutionId: params.jobExecutionId,
+    status,
+  });
+  return status;
 }
 
 export interface InsertRunningStepAttemptParams {

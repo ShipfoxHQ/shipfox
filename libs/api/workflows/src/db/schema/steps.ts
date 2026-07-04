@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type {Step} from '#core/entities/step.js';
+import type {Step, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {jobExecutions} from './job-executions.js';
 
@@ -35,6 +35,7 @@ export const steps = pgTable(
     status: stepStatusEnum('status').notNull().default('pending'),
     type: text('type').notNull(),
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
+    configPlan: jsonb('config_plan').$type<StepConfigDispatchPlan>(),
     authoredConfig: jsonb('authored_config').$type<Record<string, unknown>>(),
     output: jsonb('output').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
@@ -71,6 +72,7 @@ export function toStep(row: StepDb): Step {
     status: row.status,
     type: row.type,
     config: row.config as Record<string, unknown>,
+    configPlan: row.configPlan ?? null,
     authoredConfig: (row.authoredConfig as Record<string, unknown>) ?? null,
     output: (row.output as Record<string, unknown>) ?? null,
     error: (row.error as Record<string, unknown>) ?? null,

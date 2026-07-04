@@ -40,19 +40,19 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'steps',
       'step',
     ]);
   });
 
   it('keeps future roots reserved out of the referenceable registry', () => {
     expect(workflowContextReservedRoots).toEqual({
-      steps: {host: 'server', availability: 'step-report'},
       jobs: {host: 'server', availability: 'job-resolution'},
       matrix: {host: 'server', availability: 'job-activation'},
       runner: {host: 'runner'},
     });
     expect(workflowContextNames).toContain('step');
-    expect(workflowContextNames).not.toContain('steps');
+    expect(workflowContextNames).toContain('steps');
     expect(workflowContextNames).not.toContain('jobs');
     expect(workflowContextNames).not.toContain('matrix');
     expect(workflowContextNames).not.toContain('runner');
@@ -76,6 +76,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'steps',
       'step',
     ]);
     expect(contextsByTrust.untrusted).toEqual(['event', 'inputs']);
@@ -109,6 +110,12 @@ describe('workflow context registry', () => {
       trustTier: 'trusted',
       shape: 'known',
       checkMode: 'typed',
+    });
+    expect(workflowContextDefinitions.steps).toMatchObject({
+      availability: 'step-dispatch',
+      trustTier: 'trusted',
+      shape: 'open',
+      checkMode: 'syntax',
     });
     expect(workflowContextDefinitions.event).toMatchObject({
       shape: 'open',
@@ -182,6 +189,7 @@ describe('workflow context registry', () => {
   it('does not expose type environments for open contexts', () => {
     expect(getWorkflowContextTypeEnvironment('event')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('inputs')).toBeUndefined();
+    expect(getWorkflowContextTypeEnvironment('steps')).toBeUndefined();
   });
 
   it('returns the roots available at each availability site', () => {
@@ -213,6 +221,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'steps',
     ]);
     expect(rootsAvailableAt('step-report')).toEqual([
       'run',
@@ -222,6 +231,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'steps',
       'step',
     ]);
     expect(rootsAvailableAt('execution-resolution')).toEqual([
@@ -232,6 +242,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'steps',
       'step',
     ]);
     expect(rootsAvailableAt('job-resolution')).toEqual([
@@ -242,6 +253,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'steps',
       'step',
     ]);
   });
@@ -462,7 +474,7 @@ describe('workflow context registry', () => {
           "root": "execution",
         },
         {
-          "availability": "step-report",
+          "availability": "step-dispatch",
           "availableAt": {
             "execution-creation": false,
             "execution-resolution": true,
@@ -470,11 +482,11 @@ describe('workflow context registry', () => {
             "job-activation": false,
             "job-resolution": true,
             "run-creation": false,
-            "step-dispatch": false,
+            "step-dispatch": true,
             "step-report": true,
           },
           "reserved": false,
-          "root": "step",
+          "root": "steps",
         },
         {
           "availability": "step-report",
@@ -488,8 +500,8 @@ describe('workflow context registry', () => {
             "step-dispatch": false,
             "step-report": true,
           },
-          "reserved": true,
-          "root": "steps",
+          "reserved": false,
+          "root": "step",
         },
         {
           "availability": "job-resolution",
@@ -543,7 +555,7 @@ describe('workflow context registry', () => {
     expect(resolveContextRootHost('run')).toBe('server');
     expect(resolveContextRootAvailability('run')).toBe('run-creation');
     expect(resolveContextRootHost('steps')).toBe('server');
-    expect(resolveContextRootAvailability('steps')).toBe('step-report');
+    expect(resolveContextRootAvailability('steps')).toBe('step-dispatch');
     expect(resolveContextRootHost('runner')).toBe('runner');
     expect(resolveContextRootAvailability('runner')).toBeUndefined();
     expect(resolveContextRootHost('unknown')).toBeUndefined();

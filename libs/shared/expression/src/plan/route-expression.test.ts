@@ -11,7 +11,7 @@ describe('routeExpression', () => {
     ['1 + 1', [], [], 'ingest'],
     ['run.id', ['run'], [], 'run-creation'],
     ['run.id + execution.name', ['execution', 'run'], [], 'execution-creation'],
-    ['steps.build.outputs.sha', ['steps'], [], 'step-report'],
+    ['steps.build.outputs.sha', ['steps'], [], 'step-dispatch'],
     ['step.status', ['step'], [], 'step-report'],
     ['runner.os', ['runner'], ['runner'], 'runner-fill'],
     ['runner.os + step.status', ['runner', 'step'], ['runner'], 'runner-fill'],

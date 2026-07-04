@@ -1,13 +1,17 @@
+import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
+  dispatchStepWithCompletedConfig,
   getJobExecutionById,
   getLatestJobExecutionByJobId,
+  getStepAttemptsByJobExecutionId,
   getStepsByJobExecutionIdForUpdate,
   insertRunningStepAttempt,
   lockActiveJobExecutionLeaseForUpdate,
   markStepRunning,
+  settleJobFailed,
 } from '#db/workflow-runs.js';
 import {
   recordWorkflowJobExecutionStepsSettled,
@@ -15,6 +19,8 @@ import {
 } from '#metrics/instance.js';
 import type {Step} from './entities/step.js';
 import {
+  AgentConfigUnresolvableError,
+  InterpolationUnresolvableError,
   JobLeaseNotActiveError,
   JobNotFoundError,
   StepAttemptAheadError,
@@ -32,6 +38,10 @@ import {
   isTerminal,
 } from './step-transition/decide-step-transition.js';
 import {evaluateGate, gateResultPayload, readStepGate} from './step-transition/evaluate-gate.js';
+import {
+  assembleStepDispatchContext,
+  completeStepDispatchConfig,
+} from './workflow-runtime/complete-step-dispatch-config.js';
 import type {RuntimeCompletionStatus} from './workflow-runtime/runtime-dag.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
@@ -55,11 +65,72 @@ async function nextStepForJobExecutionInTransaction(
 
   const pending = steps.find((step) => step.status === 'pending');
   if (pending) {
+    if (pending.configPlan !== null) {
+      const jobExecution = await getJobExecutionById(jobExecutionId, tx);
+      if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
+      const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
+      const context = assembleStepDispatchContext({
+        steps,
+        attempts,
+        targetStepId: pending.id,
+        jobExecution,
+      });
+
+      try {
+        const config = completeStepDispatchConfig({
+          step: pending,
+          context,
+          resolveAgentDefaults: catalogDefaultAgentResolver,
+          definitionId: jobExecution.jobId,
+        });
+        const marked = await dispatchStepWithCompletedConfig(
+          {jobExecutionId, stepId: pending.id, config},
+          tx,
+        );
+        return {kind: 'step', step: marked ?? {...pending, config, configPlan: null}};
+      } catch (error) {
+        if (
+          error instanceof InterpolationUnresolvableError ||
+          error instanceof AgentConfigUnresolvableError
+        ) {
+          const status = await settleJobFailed(tx, {
+            jobId: jobExecution.jobId,
+            jobExecutionId,
+            failedStepId: pending.id,
+            error: dispatchConfigError(error),
+          });
+          if (status) recordWorkflowJobExecutionStepsSettled(status);
+          return {kind: 'done', status: 'failed'};
+        }
+        throw error;
+      }
+    }
+
     const marked = await markStepRunning({jobExecutionId, stepId: pending.id}, tx);
     return {kind: 'step', step: marked ?? pending};
   }
 
   return {kind: 'done', status: deriveCompletion(steps)};
+}
+
+function dispatchConfigError(
+  error: InterpolationUnresolvableError | AgentConfigUnresolvableError,
+): Record<string, unknown> {
+  if (error instanceof InterpolationUnresolvableError) {
+    return {
+      message: error.message,
+      reason: 'config-unresolvable',
+      field: error.envKey === undefined ? error.field : `${error.field}.${error.envKey}`,
+      source: error.source,
+    };
+  }
+
+  return {
+    message: error.message,
+    reason: 'config-unresolvable',
+    field: 'agent',
+    source: 'agent',
+  };
 }
 
 export interface NextStepForLeasedJobExecutionParams {
