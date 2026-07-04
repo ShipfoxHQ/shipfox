@@ -1,11 +1,7 @@
 import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 import {SecretDecryptionError, setSecrets} from '@shipfox/api-secrets';
 import {deleteModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
-import {
-  agentSystemNamespace,
-  customCredentialsToStoreValues,
-  fingerprintCustomCredentials,
-} from './credential-fingerprints.js';
+import {agentSystemNamespace, customCredentialsToStoreValues} from './credential-fingerprints.js';
 import {ModelProviderConfigNotFoundError} from './errors.js';
 import {resolveRuntimeCredentials} from './resolve-runtime-credentials.js';
 
@@ -149,7 +145,6 @@ describe('resolveRuntimeCredentials', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...cret'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -173,11 +168,6 @@ describe('resolveRuntimeCredentials', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'cloudflare-ai-gateway',
-      keyFingerprints: {
-        'credential:api_key': '...cret',
-        'credential:account_id': 'account-123',
-        'credential:gateway_id': 'gateway-456',
-      },
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -214,7 +204,6 @@ describe('resolveRuntimeCredentials', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...cret'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -266,10 +255,6 @@ async function saveProviderConfig(params: {
     baseUrl: params.baseUrl,
     headers: params.headers,
     models: params.models,
-    keyFingerprints:
-      params.kind === 'custom'
-        ? fingerprintCustomCredentials(params.credentials)
-        : {'credential:api_key': '...cret'},
     defaultModel: null,
     defaultThinking: 'high',
   });

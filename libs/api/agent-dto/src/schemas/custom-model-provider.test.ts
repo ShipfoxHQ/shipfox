@@ -235,19 +235,11 @@ describe('custom model provider schemas', () => {
       secret_header_names: ['authorization'],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
       default_model: null,
-      key_fingerprints: {'credential:api_key': 'sk-test...abcd'},
       created_at: '2026-06-27T10:30:00.000Z',
       updated_at: '2026-06-27T10:45:00.000Z',
     });
-    const secretFingerprint = () =>
-      customModelProviderConfigDtoSchema.parse({
-        ...parsed,
-        key_fingerprints: {'header:authorization': 'Bearer ...abcd'},
-      });
 
     expect(parsed.secret_header_names).toEqual(['authorization']);
-    expect(parsed.key_fingerprints).toEqual({'credential:api_key': 'sk-test...abcd'});
-    expect(secretFingerprint).not.toThrow();
   });
 
   it('parses discovery request and response DTOs', () => {

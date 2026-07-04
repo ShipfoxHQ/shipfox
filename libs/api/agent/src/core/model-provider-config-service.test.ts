@@ -35,7 +35,7 @@ describe('testAndSaveModelProviderConfig', () => {
     vi.unstubAllEnvs();
   });
 
-  it('validates, stores secrets, fingerprints, and stores a provider config', async () => {
+  it('validates, stores secrets, and stores a provider config', async () => {
     const credentials = {api_key: 'sk-ant-secret-abcd'};
     const probe = vi.fn().mockResolvedValue(undefined);
 
@@ -62,7 +62,6 @@ describe('testAndSaveModelProviderConfig', () => {
     });
     expect(stored).toEqual(config);
     expect(secrets).toEqual({API_KEY: credentials.api_key});
-    expect(stored?.keyFingerprints).toEqual({'credential:api_key': '...abcd'});
     expect(stored?.defaultModel).toBeNull();
     expect(stored?.defaultThinking).toBe('high');
   });
@@ -134,7 +133,6 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -164,7 +162,6 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -227,7 +224,6 @@ describe('testAndSaveModelProviderConfig', () => {
     const existing = await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-opus-4-8',
       defaultThinking: 'high',
     });
@@ -280,7 +276,6 @@ describe('testAndSaveModelProviderConfig', () => {
     const existing = await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -292,7 +287,6 @@ describe('testAndSaveModelProviderConfig', () => {
     });
 
     expect(updated).toMatchObject({
-      keyFingerprints: existing.keyFingerprints,
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: existing.defaultThinking,
     });
@@ -302,7 +296,6 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -330,7 +323,6 @@ describe('testAndSaveModelProviderConfig', () => {
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -374,10 +366,6 @@ describe('testAndSaveModelProviderConfig', () => {
       ENDPOINT: credentials.endpoint,
       API_KEY: credentials.api_key,
     });
-    expect(stored?.keyFingerprints).toEqual({
-      'credential:endpoint': 'https://azure.example.test/openai/v1',
-      'credential:api_key': '...abcd',
-    });
   });
 
   it('validates and stores Cloudflare provider configs with multi-field credentials', async () => {
@@ -411,11 +399,6 @@ describe('testAndSaveModelProviderConfig', () => {
       API_KEY: credentials.api_key,
       ACCOUNT_ID: credentials.account_id,
       GATEWAY_ID: credentials.gateway_id,
-    });
-    expect(stored?.keyFingerprints).toEqual({
-      'credential:api_key': '...abcd',
-      'credential:account_id': 'account-123',
-      'credential:gateway_id': 'gateway-456',
     });
   });
 
@@ -530,7 +513,6 @@ describe('custom model provider config service', () => {
     await expect(duplicate).rejects.toThrow(CustomModelProviderSlugCollisionError);
     const stored = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
     expect(stored?.id).toBe(first.id);
-    expect(stored?.keyFingerprints).toEqual({'credential:api_key': 'sk-local...inal'});
   });
 
   it('does not let concurrent duplicate custom creates overwrite the winner secrets', async () => {
@@ -560,17 +542,14 @@ describe('custom model provider config service', () => {
 
     const fulfilled = results.filter((result) => result.status === 'fulfilled');
     const rejected = results.filter((result) => result.status === 'rejected');
-    const stored = await getModelProviderConfig({workspaceId, providerId: 'local-vllm'});
     const secrets = await getSecretsByNamespace({
       workspaceId,
       namespace: agentSystemNamespace('local-vllm'),
     });
-    const storedFingerprint = stored?.keyFingerprints['credential:api_key'];
-    const expectedSecret = storedFingerprint?.endsWith('abcd') ? firstSecret : secondSecret;
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
     expect(rejected[0]?.reason).toBeInstanceOf(CustomModelProviderSlugCollisionError);
-    expect(secrets).toEqual({API_KEY: expectedSecret});
+    expect([firstSecret, secondSecret]).toContain(secrets.API_KEY);
   });
 
   it('updates custom headers as a full replacement and preserves an omitted api key', async () => {
@@ -615,10 +594,7 @@ describe('custom model provider config service', () => {
     );
     expect(secrets).toEqual({API_KEY: 'sk-local-original', HEADER_782D726567696F6E: 'eu'});
     expect(updated.headers).toEqual([{name: 'x-plain', value: 'plain'}]);
-    expect(updated.keyFingerprints).toEqual({
-      'credential:api_key': 'sk-local...inal',
-      'header:x-region': '...',
-    });
+    expect(updated.secretHeaderNames).toEqual(['x-region']);
   });
 
   it('keeps stored secret header values during custom provider updates', async () => {
@@ -664,7 +640,7 @@ describe('custom model provider config service', () => {
       HEADER_617574686F72697A6174696F6E: 'Bearer old',
     });
     expect(updated.headers).toEqual([{name: 'x-region', value: 'eu'}]);
-    expect(updated.keyFingerprints['header:authorization']).toBe('... old');
+    expect(updated.secretHeaderNames).toEqual(['authorization']);
   });
 
   it('rejects custom updates that reuse stored secrets after changing the base URL', async () => {

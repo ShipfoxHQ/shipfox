@@ -6,7 +6,7 @@ import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@shipfox/reac
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
 import {Switch} from '@shipfox/react-ui/switch';
-import {Code, Text} from '@shipfox/react-ui/typography';
+import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import type {ReactNode, RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
@@ -16,7 +16,6 @@ import {
   useDiscoverCustomModelProviderModelsMutation,
   useUpdateCustomModelProviderMutation,
 } from '#hooks/api/model-providers.js';
-import {headerCredentialFingerprint} from './credential-fingerprint.js';
 import {MODEL_PROVIDER_API_OPTIONS} from './custom-model-provider-api-options.js';
 import {
   buildCreateCustomModelProviderBody,
@@ -297,14 +296,6 @@ export function CustomModelProviderForm({
                           onChange={(event) => field.handleChange(event.target.value)}
                           onBlur={field.handleBlur}
                         />
-                        {existingConfig?.key_fingerprints['credential:api_key'] ? (
-                          <Text size="sm" className="mt-4 text-foreground-neutral-muted">
-                            Current:{' '}
-                            <Code as="span" variant="label">
-                              {existingConfig.key_fingerprints['credential:api_key']}
-                            </Code>
-                          </Text>
-                        ) : null}
                       </FormField>
                     )}
                   </form.Field>
@@ -315,7 +306,6 @@ export function CustomModelProviderForm({
                     {(field) => (
                       <HeaderRows
                         rows={field.state.value}
-                        fingerprints={existingConfig?.key_fingerprints ?? {}}
                         onChange={(headers) => field.handleChange(headers)}
                       />
                     )}
@@ -455,11 +445,9 @@ function FormGroup({title, children}: {title: string; children: ReactNode}) {
 
 function HeaderRows({
   rows,
-  fingerprints,
   onChange,
 }: {
   rows: CustomModelProviderHeaderFormValue[];
-  fingerprints: Record<string, string>;
   onChange: (rows: CustomModelProviderHeaderFormValue[]) => void;
 }) {
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -512,9 +500,6 @@ function HeaderRows({
               focusAfterRender(addButtonRef);
             }}
           />
-          {row.hasStoredValue ? (
-            <StoredHeaderFingerprint row={row} fingerprints={fingerprints} />
-          ) : null}
         </div>
       ))}
       <Button
@@ -542,28 +527,6 @@ function HeaderRows({
         Add header
       </Button>
     </div>
-  );
-}
-
-function StoredHeaderFingerprint({
-  row,
-  fingerprints,
-}: {
-  row: CustomModelProviderHeaderFormValue;
-  fingerprints: Record<string, string>;
-}) {
-  const fingerprint = headerCredentialFingerprint(fingerprints, row.storedName);
-  if (!fingerprint) return null;
-  return (
-    <Text
-      size="sm"
-      className="col-start-2 text-foreground-neutral-muted max-[760px]:col-start-auto"
-    >
-      Current:{' '}
-      <Code as="span" variant="label">
-        {fingerprint}
-      </Code>
-    </Text>
   );
 }
 

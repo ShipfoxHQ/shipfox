@@ -107,7 +107,6 @@ describe('model provider config schemas', () => {
       kind: 'builtin',
       provider_id: 'openai',
       default_model: null,
-      key_fingerprints: {'credential:api_key': 'sk-...abcd'},
       created_at: '2026-06-27T10:30:00.000Z',
       updated_at: '2026-06-27T10:45:00.000Z',
     };
@@ -136,7 +135,6 @@ describe('model provider config schemas', () => {
           secret_header_names: ['authorization'],
           models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
           default_model: null,
-          key_fingerprints: {'header:authorization': 'Bearer...abcd'},
           created_at: '2026-06-27T10:30:00.000Z',
           updated_at: '2026-06-27T10:45:00.000Z',
         },
@@ -146,19 +144,5 @@ describe('model provider config schemas', () => {
 
     expect(parsedList.configs[0]?.kind).toBe('custom');
     expect(parsedList.default_provider_id).toBe('local-vllm');
-  });
-
-  it('rejects config rows with empty fingerprint keys', () => {
-    const parse = () =>
-      modelProviderConfigDtoSchema.parse({
-        kind: 'builtin',
-        provider_id: 'openai',
-        default_model: 'gpt-5.5-pro',
-        key_fingerprints: {'': 'sk-...abcd'},
-        created_at: '2026-06-27T10:30:00.000Z',
-        updated_at: '2026-06-27T10:45:00.000Z',
-      });
-
-    expect(parse).toThrow();
   });
 });

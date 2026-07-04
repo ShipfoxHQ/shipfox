@@ -19,7 +19,6 @@ const headerNameSchema = z
 
 const headerValueSchema = z.string().min(1).max(8192);
 const modelIdSchema = z.string().min(1).max(128);
-const fingerprintKeySchema = z.string().regex(/^(credential|header):.+/);
 
 export const modelProviderApiSchema = z.enum([
   'openai-completions',
@@ -203,7 +202,6 @@ export const customModelProviderConfigDtoSchema = customModelProviderRuntimeConf
   provider_id: modelProviderRefSchema,
   display_name: z.string().min(1).max(120),
   default_model: modelIdSchema.nullable(),
-  key_fingerprints: z.record(fingerprintKeySchema, z.string()),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });

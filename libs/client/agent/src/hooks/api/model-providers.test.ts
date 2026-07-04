@@ -69,7 +69,7 @@ describe('model provider transport', () => {
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.key_fingerprints['credential:api_key']).toBe('...abcd');
+    expect(result.provider_id).toBe('anthropic');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-providers/anthropic`,
     );

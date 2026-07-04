@@ -85,10 +85,6 @@ function customConfig(): CustomModelProviderConfigDto {
       },
     ],
     default_model: 'llama-3.1',
-    key_fingerprints: {
-      'credential:api_key': '...abcd',
-      'header:authorization': '...oken',
-    },
     created_at: '2026-05-08T00:00:00.000Z',
     updated_at: '2026-05-08T00:00:00.000Z',
   };

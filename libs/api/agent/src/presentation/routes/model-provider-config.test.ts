@@ -175,12 +175,10 @@ describe('model provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().provider_id).toBe('anthropic');
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...abcd'});
       expect(res.body).not.toContain(secret);
       expect(res.body).not.toContain('encrypted_credentials');
       expect(replace.statusCode).toBe(200);
       expect(replace.json().default_model).toBeNull();
-      expect(replace.json().key_fingerprints).toEqual({'credential:api_key': '...wxyz'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       const secrets = await getSecretsByNamespace({
         workspaceId,
@@ -285,7 +283,6 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-opus-4-8');
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...wxyz'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-opus-4-8');
     });
@@ -302,7 +299,6 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...wxyz'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBeNull();
     });
@@ -629,7 +625,6 @@ describe('model provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-haiku-4-5');
-      expect(res.json().key_fingerprints).toEqual({'credential:api_key': '...abcd'});
       const stored = await getModelProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-haiku-4-5');
     });
@@ -728,7 +723,6 @@ describe('model provider config routes', () => {
     const config = await upsertModelProviderConfig({
       workspaceId: params.workspaceId ?? workspaceId,
       providerId: params.providerId,
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: params.providerId === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.5-pro',
       defaultThinking: 'high',
     });
@@ -757,8 +751,8 @@ describe('model provider config routes', () => {
       api: 'openai-responses',
       baseUrl: 'http://127.0.0.1:11434/v1',
       headers: [],
+      secretHeaderNames: [],
       models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-      keyFingerprints: {'credential:api_key': '...abcd'},
       defaultModel: 'llama-3.1',
       defaultThinking: 'off',
     });

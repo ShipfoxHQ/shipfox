@@ -10,7 +10,6 @@ export function toModelProviderConfigDto(config: ModelProviderConfig): ModelProv
     kind: 'builtin',
     provider_id: config.providerId,
     default_model: config.defaultModel,
-    key_fingerprints: config.keyFingerprints,
     created_at: config.createdAt.toISOString(),
     updated_at: config.updatedAt.toISOString(),
   };
@@ -26,13 +25,9 @@ export function toCustomModelProviderConfigDto(
     api: config.api ?? 'openai-responses',
     base_url: config.baseUrl ?? '',
     headers: config.headers ?? [],
-    secret_header_names: Object.keys(config.keyFingerprints)
-      .filter((key) => key.startsWith('header:'))
-      .map((key) => key.slice('header:'.length))
-      .sort(),
+    secret_header_names: [...(config.secretHeaderNames ?? [])].sort(),
     models: config.models ?? [],
     default_model: config.defaultModel,
-    key_fingerprints: config.keyFingerprints,
     created_at: config.createdAt.toISOString(),
     updated_at: config.updatedAt.toISOString(),
   };

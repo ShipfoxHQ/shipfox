@@ -10,7 +10,6 @@ export const modelProviderConfigDtoSchema = z.object({
   kind: z.literal('builtin'),
   provider_id: modelProviderRefSchema,
   default_model: z.string().min(1).nullable(),
-  key_fingerprints: z.record(credentialKeySchema, z.string()),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });

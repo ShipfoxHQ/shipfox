@@ -262,7 +262,6 @@ function configsForScenario(scenario: Scenario) {
       configs: CATALOG.filter((entry) => entry.support_status === 'supported').map((entry) =>
         providerConfig({
           provider_id: entry.id as SupportedModelProviderId,
-          key_fingerprints: {'credential:api_key': `${entry.id}...abcd`},
         }),
       ),
       default_provider_id: 'anthropic',
@@ -294,10 +293,6 @@ function customProviderConfig(): CustomModelProviderConfigDto {
       {id: 'qwen-coder', label: 'Qwen Coder'},
     ],
     default_model: 'llama-3.1',
-    key_fingerprints: {
-      'credential:api_key': '...abcd',
-      'header:authorization': '...oken',
-    },
     created_at: '2026-05-08T00:00:00.000Z',
     updated_at: '2026-05-08T00:00:00.000Z',
   };
@@ -325,7 +320,6 @@ function providerConfig(
     kind: 'builtin',
     provider_id: 'anthropic',
     default_model: null,
-    key_fingerprints: {'credential:api_key': '...abcd'},
     created_at: '2026-05-08T00:00:00.000Z',
     updated_at: '2026-05-08T00:00:00.000Z',
     ...overrides,

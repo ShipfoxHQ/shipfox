@@ -170,7 +170,6 @@ describe('ModelProviderOnboardingPage', () => {
           modelProviderConfig({
             provider_id: 'openai',
             default_model: null,
-            key_fingerprints: {'credential:api_key': '...abcd'},
           }),
         );
       }

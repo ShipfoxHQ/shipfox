@@ -240,7 +240,6 @@ function providerConfig(
     kind: 'builtin',
     provider_id: 'anthropic',
     default_model: null,
-    key_fingerprints: {'credential:api_key': '...abcd'},
     created_at: '2026-05-08T00:00:00.000Z',
     updated_at: '2026-05-08T00:00:00.000Z',
     ...overrides,
