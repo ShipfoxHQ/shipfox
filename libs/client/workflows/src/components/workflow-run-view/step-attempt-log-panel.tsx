@@ -31,9 +31,12 @@ export function StepAttemptLogPanel({
 }: StepAttemptLogPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const shouldFollowTailRef = useRef(true);
-  const retryMissingStream = attemptStatus === 'running';
+  const missingStreamRetryCount = attemptStatus === 'running' ? undefined : initialErrorRetryCount;
+  const retryMissingStream = attemptStatus === 'running' || isTerminalAttemptStatus(attemptStatus);
   const query = useStepAttemptLogsQuery(stepId, attempt, {
     retryMissingStream,
+    missingStreamRetryCount,
+    missingStreamRetryDelayMs: initialErrorRetryDelayMs,
     initialErrorRetryCount,
     initialErrorRetryDelayMs,
   });
@@ -129,6 +132,10 @@ function cancelScheduledFrame(frame: number) {
     return;
   }
   window.clearTimeout(frame);
+}
+
+function isTerminalAttemptStatus(status: string): boolean {
+  return status === 'succeeded' || status === 'failed' || status === 'cancelled';
 }
 
 function StepLogsError({retrying, onRetry}: {retrying: boolean; onRetry: () => void}) {

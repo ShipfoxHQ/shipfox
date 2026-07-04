@@ -8,7 +8,10 @@ import {
   setUserContext,
 } from '@shipfox/api-auth-context';
 import {parseLogRecordLine} from '@shipfox/api-logs-dto';
-import {getTerminalStepAttemptLogState} from '@shipfox/api-workflows';
+import type {
+  LogOutcomeDto,
+  WorkflowsStepAttemptTerminatedEventDto,
+} from '@shipfox/api-workflows-dto';
 import {
   type AuthMethod,
   ClientError,
@@ -33,11 +36,8 @@ import {
 } from '#temporal/activities/compact-stream.js';
 import {ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
 import {findStream} from '#test/queries.js';
+import {onStepAttemptTerminated} from '../subscribers/on-step-attempt-terminated.js';
 import {logsRoutes} from './index.js';
-
-vi.mock('@shipfox/api-workflows', () => ({
-  getTerminalStepAttemptLogState: vi.fn(),
-}));
 
 // AUTH_USER stub: a `Bearer user` request is a member of whatever workspace it names in the
 // `x-test-workspace` header, so each test grants or withholds access against the arranged
@@ -62,19 +62,10 @@ const fakeUserAuth: AuthMethod = {
   },
 };
 const stubLeaseAuth: AuthMethod = {name: AUTH_LEASED_JOB, authenticate: () => Promise.resolve()};
-const mockedGetTerminalStepAttemptLogState = vi.mocked(getTerminalStepAttemptLogState);
-const terminalAttemptStates = new Map<
-  string,
-  NonNullable<Awaited<ReturnType<typeof getTerminalStepAttemptLogState>>>
->();
 
 interface ChunkSpec {
   data: Buffer;
   origin?: 'runner' | 'control';
-}
-
-function attemptKey(stepId: string, attempt: number): string {
-  return `${stepId}:${attempt}`;
 }
 
 async function arrangeStream(opts: {
@@ -122,12 +113,11 @@ async function arrangeStream(opts: {
   return stream;
 }
 
-function arrangeWorkflowAttempt(opts: {
+function terminatedEvent(opts: {
   workspaceId: string;
-  status: 'running' | 'succeeded' | 'failed' | 'cancelled';
-  logOutcome?: 'drained' | 'abandoned' | null;
-}) {
-  const identity = {
+  logOutcome: LogOutcomeDto;
+}): WorkflowsStepAttemptTerminatedEventDto {
+  return {
     jobId: crypto.randomUUID(),
     stepId: crypto.randomUUID(),
     attempt: 1,
@@ -135,16 +125,14 @@ function arrangeWorkflowAttempt(opts: {
     projectId: crypto.randomUUID(),
     workflowRunId: crypto.randomUUID(),
     workflowRunAttemptId: crypto.randomUUID(),
+    logOutcome: opts.logOutcome,
   };
+}
 
-  if (opts.status !== 'running' && opts.logOutcome) {
-    terminalAttemptStates.set(attemptKey(identity.stepId, identity.attempt), {
-      ...identity,
-      logOutcome: opts.logOutcome,
-    });
-  }
-
-  return identity;
+async function consumeTerminatedEvent(
+  payload: WorkflowsStepAttemptTerminatedEventDto,
+): Promise<void> {
+  await onStepAttemptTerminated(payload);
 }
 
 async function getObjectBytes(key: string): Promise<Buffer> {
@@ -167,13 +155,6 @@ async function compact(streamId: string): Promise<string> {
 
 describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
   let app: FastifyInstance;
-
-  beforeEach(() => {
-    terminalAttemptStates.clear();
-    mockedGetTerminalStepAttemptLogState.mockImplementation(({stepId, attempt}) =>
-      Promise.resolve(terminalAttemptStates.get(attemptKey(stepId, attempt))),
-    );
-  });
 
   beforeAll(async () => {
     app = await createApp({
@@ -218,21 +199,28 @@ describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
     expect(res.json().code).toBe('not-found');
   });
 
-  it('creates and returns a closed empty stream for a terminal missing drained attempt', async () => {
-    const terminal = await arrangeWorkflowAttempt({
+  it('returns 404 before the terminated event, then returns a closed empty drained stream', async () => {
+    const terminal = terminatedEvent({
       workspaceId: crypto.randomUUID(),
-      status: 'succeeded',
       logOutcome: 'drained',
     });
 
-    const res = await app.inject({
+    const beforeEvent = await app.inject({
+      method: 'GET',
+      url: readUrl(terminal.stepId, terminal.attempt, 0),
+      headers: {authorization: 'Bearer user', 'x-test-workspace': terminal.workspaceId},
+    });
+    await consumeTerminatedEvent(terminal);
+    const afterEvent = await app.inject({
       method: 'GET',
       url: readUrl(terminal.stepId, terminal.attempt, 0),
       headers: {authorization: 'Bearer user', 'x-test-workspace': terminal.workspaceId},
     });
 
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
+    expect(beforeEvent.statusCode).toBe(404);
+    expect(beforeEvent.json().code).toBe('not-found');
+    expect(afterEvent.statusCode).toBe(200);
+    const body = afterEvent.json();
     expect(body.mode).toBe('inline');
     expect(body.state).toBe('closed');
     expect(body.truncated).toBe(false);
@@ -242,21 +230,28 @@ describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
     expect(stream?.closeReason).toBe('declared');
   });
 
-  it('creates and returns a runner_lost stream for a terminal missing abandoned attempt', async () => {
-    const terminal = await arrangeWorkflowAttempt({
+  it('returns 404 before the terminated event, then returns a runner_lost abandoned stream', async () => {
+    const terminal = terminatedEvent({
       workspaceId: crypto.randomUUID(),
-      status: 'failed',
       logOutcome: 'abandoned',
     });
 
-    const res = await app.inject({
+    const beforeEvent = await app.inject({
+      method: 'GET',
+      url: readUrl(terminal.stepId, terminal.attempt, 0),
+      headers: {authorization: 'Bearer user', 'x-test-workspace': terminal.workspaceId},
+    });
+    await consumeTerminatedEvent(terminal);
+    const afterEvent = await app.inject({
       method: 'GET',
       url: readUrl(terminal.stepId, terminal.attempt, 0),
       headers: {authorization: 'Bearer user', 'x-test-workspace': terminal.workspaceId},
     });
 
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
+    expect(beforeEvent.statusCode).toBe(404);
+    expect(beforeEvent.json().code).toBe('not-found');
+    expect(afterEvent.statusCode).toBe(200);
+    const body = afterEvent.json();
     expect(body.mode).toBe('inline');
     expect(body.state).toBe('closed');
     expect(body.truncated).toBe(true);
@@ -268,10 +263,7 @@ describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
   });
 
   it('keeps returning 404 for a running missing attempt', async () => {
-    const running = await arrangeWorkflowAttempt({
-      workspaceId: crypto.randomUUID(),
-      status: 'running',
-    });
+    const running = {stepId: crypto.randomUUID(), attempt: 1, workspaceId: crypto.randomUUID()};
 
     const res = await app.inject({
       method: 'GET',

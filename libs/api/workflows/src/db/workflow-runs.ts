@@ -2163,62 +2163,6 @@ async function getStepAttemptTerminatedOutboxIdentity(
   return identity;
 }
 
-export interface TerminalStepAttemptLogState {
-  jobId: string;
-  workflowRunId: string;
-  workflowRunAttemptId: string;
-  workspaceId: string;
-  projectId: string;
-  stepId: string;
-  attempt: number;
-  logOutcome: LogOutcomeDto;
-}
-
-export async function getTerminalStepAttemptLogState(params: {
-  stepId: string;
-  attempt: number;
-}): Promise<TerminalStepAttemptLogState | undefined> {
-  const rows = await db()
-    .select({
-      jobId: jobExecutions.jobId,
-      workflowRunId: workflowRuns.id,
-      workflowRunAttemptId: workflowRunAttempts.id,
-      workspaceId: workflowRuns.workspaceId,
-      projectId: workflowRuns.projectId,
-      stepId: stepAttempts.stepId,
-      attempt: stepAttempts.attempt,
-      logOutcome: stepAttempts.logOutcome,
-    })
-    .from(stepAttempts)
-    .innerJoin(steps, eq(stepAttempts.stepId, steps.id))
-    .innerJoin(jobExecutions, eq(steps.jobExecutionId, jobExecutions.id))
-    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
-    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
-    .where(
-      and(
-        eq(stepAttempts.stepId, params.stepId),
-        eq(stepAttempts.attempt, params.attempt),
-        sql`${stepAttempts.status} <> 'running'`,
-        sql`${stepAttempts.logOutcome} IS NOT NULL`,
-      ),
-    )
-    .limit(1);
-
-  const row = rows[0];
-  if (!row?.logOutcome) return undefined;
-  return {
-    jobId: row.jobId,
-    workflowRunId: row.workflowRunId,
-    workflowRunAttemptId: row.workflowRunAttemptId,
-    workspaceId: row.workspaceId,
-    projectId: row.projectId,
-    stepId: row.stepId,
-    attempt: row.attempt,
-    logOutcome: row.logOutcome,
-  };
-}
-
 export interface RewindStepsToPendingParams {
   jobExecutionId: string;
   fromPosition: number;

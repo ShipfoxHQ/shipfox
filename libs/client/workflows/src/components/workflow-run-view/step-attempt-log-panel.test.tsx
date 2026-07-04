@@ -86,6 +86,52 @@ describe('StepAttemptLogPanel', () => {
     );
   });
 
+  test('waits for missing logs on a terminal attempt until the stream appears', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({code: 'not-found'}, {status: 404}))
+      .mockResolvedValueOnce(
+        jsonResponse(inlineLogBody(outputLine('eventual terminal logs\n'), 1)),
+      );
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl,
+    });
+
+    const {queryClient} = renderPanel({
+      attemptStatus: 'succeeded',
+      initialErrorRetryCount: 2,
+      initialErrorRetryDelayMs: 60_000,
+    });
+
+    expect(await screen.findByRole('status', {name: 'Waiting for logs'})).toBeInTheDocument();
+    await act(async () => {
+      await queryClient.refetchQueries({queryKey: stepLogsQueryKeys.detail(STEP_ID, 1)});
+    });
+    expect(await screen.findByText('eventual terminal logs')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load logs.')).not.toBeInTheDocument();
+  });
+
+  test('settles a terminal missing log stream to no output instead of an error', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse({code: 'not-found'}, {status: 404})),
+    });
+
+    const {queryClient} = renderPanel({
+      attemptStatus: 'succeeded',
+      initialErrorRetryCount: 1,
+      initialErrorRetryDelayMs: 60_000,
+    });
+
+    expect(await screen.findByRole('status', {name: 'Waiting for logs'})).toBeInTheDocument();
+    await act(async () => {
+      await queryClient.refetchQueries({queryKey: stepLogsQueryKeys.detail(STEP_ID, 1)});
+    });
+    expect(await screen.findByText('Step produced no output')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load logs.')).not.toBeInTheDocument();
+  });
+
   test('keeps the log loading surface through transient initial server errors', async () => {
     const fetchImpl = vi
       .fn()

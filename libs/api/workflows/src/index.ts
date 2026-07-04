@@ -53,9 +53,7 @@ export {
   db,
   deliverEventToListener,
   getStepByIdForJobExecution,
-  getTerminalStepAttemptLogState,
   migrationsPath,
-  type TerminalStepAttemptLogState,
   workflowsOutbox,
 } from '#db/index.js';
 export {routes} from '#presentation/index.js';

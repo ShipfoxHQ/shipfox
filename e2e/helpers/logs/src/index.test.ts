@@ -88,6 +88,45 @@ describe('fetchStepLogs', () => {
     expect(authorizationHeaders).toEqual(['Bearer user-token', null]);
   });
 
+  test('retries an initial missing stream before reading logs', async () => {
+    const statuses: number[] = [];
+    const result = await fetchStepLogs({
+      attempt: 1,
+      fetch: () => {
+        const response =
+          statuses.length === 0
+            ? Response.json({code: 'not-found'}, {status: 404})
+            : Response.json(inline({ndjson: line(output('eventual logs\n'))}));
+        statuses.push(response.status);
+        return Promise.resolve(response);
+      },
+      missingStreamRetryAttempts: 2,
+      missingStreamRetryDelayMs: 0,
+      stepId,
+      token: 'user-token',
+    });
+
+    expect(statuses).toEqual([404, 200]);
+    expect(result.records).toEqual([output('eventual logs\n')]);
+  });
+
+  test('keeps the missing stream failure readable after retry exhaustion', async () => {
+    const result = fetchStepLogs({
+      attempt: 1,
+      fetch: () => Response.json({code: 'not-found'}, {status: 404}),
+      missingStreamRetryAttempts: 1,
+      missingStreamRetryDelayMs: 0,
+      stepId,
+      token: 'user-token',
+    });
+
+    await expect(result).rejects.toMatchObject({
+      message: expect.stringContaining('GET /steps/'),
+      status: 404,
+      details: {code: 'not-found'},
+    });
+  });
+
   test('throws when a log record line is malformed', async () => {
     const result = fetchStepLogs({
       attempt: 1,
