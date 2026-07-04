@@ -18,6 +18,7 @@ export type WorkflowModelValidationIssueCode =
   | 'listening-timeout-exceeds-run-timeout'
   | 'missing-runner-label'
   | 'multiple-manual-triggers'
+  | 'runner-context-not-bare'
   | 'self-job-dependency'
   | 'too-many-runner-labels'
   | 'unknown-interpolation-context'

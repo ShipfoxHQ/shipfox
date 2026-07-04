@@ -1,7 +1,7 @@
-import type {WorkflowExpression, WorkflowTemplateSegment} from '@shipfox/expression';
+import type {ResolvedFieldSegment, WorkflowExpression} from '@shipfox/expression';
 import type {AgentThinking} from '@shipfox/workflow-document';
 
-export type WorkflowFieldTemplate = readonly WorkflowTemplateSegment[];
+export type WorkflowFieldTemplate = readonly ResolvedFieldSegment[];
 export type WorkflowEnvTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
 
 export interface WorkflowModel {

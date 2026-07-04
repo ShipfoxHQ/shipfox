@@ -9,7 +9,9 @@ import {
   getWorkflowContextUntrustedPaths,
   InvalidWorkflowExpressionError,
   InvalidWorkflowTemplateError,
+  type PlanViolation,
   parseWorkflowTemplate,
+  planInterpolationField,
   unavailableRootsAt,
   type WorkflowContextName,
   type WorkflowInterpolationField,
@@ -55,7 +57,15 @@ export function parseInterpolationField(params: {
     return validatedSegment ?? segment;
   });
 
-  return checkedSegments;
+  const plan = planInterpolationField({field: params.field, segments: checkedSegments});
+  if (!plan.ok) {
+    params.issues.push(
+      ...plan.violations.map((violation) => planViolationIssue(params, violation)),
+    );
+    return undefined;
+  }
+
+  return plan.plan.field.segments;
 }
 
 function parseTemplate(params: {
@@ -271,6 +281,27 @@ function unavailableContextIssue(params: {
       contextRoots: params.contextRoots,
       unavailableRoots: params.unavailableRoots,
       fillSite: params.fillSite,
+    },
+  });
+}
+
+function planViolationIssue(
+  params: {
+    field: WorkflowInterpolationField;
+    source: string;
+    path: readonly WorkflowModelValidationIssuePathSegment[];
+  },
+  violation: PlanViolation,
+): WorkflowModelValidationIssue {
+  return issue({
+    code: 'runner-context-not-bare',
+    message: `${fieldLabel(params.field)} interpolation references runner context in a larger expression; ${violation.hint}.`,
+    path: params.path,
+    details: {
+      field: params.field,
+      source: params.source,
+      expression: violation.source,
+      runnerRoots: violation.runnerRoots,
     },
   });
 }

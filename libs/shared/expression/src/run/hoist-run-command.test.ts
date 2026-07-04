@@ -2,13 +2,12 @@ import {spawnSync} from 'node:child_process';
 import {existsSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {freezePlannedRunCommandAtSite} from '../plan/freeze-run-command.js';
+import {planInterpolationField} from '../plan/plan-field.js';
+import type {ResolvedField} from '../plan/resolved-field.js';
 import {WorkflowTemplateResolutionError} from '../resolver/errors.js';
 import {parseWorkflowTemplate} from '../template/parse-workflow-template.js';
-import {
-  hoistRunCommand,
-  resolveRunCommand,
-  UnsafeRunInterpolationError,
-} from './hoist-run-command.js';
+import {hoistPlannedRunCommand, UnsafeRunInterpolationError} from './hoist-run-command.js';
 
 const templateOpen = '$' + '{{';
 const templateClose = '}' + '}';
@@ -35,11 +34,30 @@ function singleQuotedShellRef(name: string): string {
   return `'"\${${name}}"'`;
 }
 
-describe('hoistRunCommand', () => {
-  it('returns literal-only commands unchanged', () => {
-    const segments = parseWorkflowTemplate('echo deploy main');
+function plannedField(source: string): ResolvedField {
+  const plan = planInterpolationField({field: 'run', segments: parseWorkflowTemplate(source)});
+  if (!plan.ok) throw new Error('Invalid planned test field');
+  return plan.plan.field;
+}
 
-    const result = hoistRunCommand(segments);
+function freezeCommand(
+  source: string,
+  context: Record<string, unknown>,
+  failurePolicy: 'fail' | 'degrade' = 'degrade',
+) {
+  return freezePlannedRunCommandAtSite({
+    field: plannedField(source),
+    site: 'run-creation',
+    context,
+    failurePolicy,
+  });
+}
+
+describe('hoistPlannedRunCommand', () => {
+  it('returns literal-only commands unchanged', () => {
+    const field = plannedField('echo deploy main');
+
+    const result = hoistPlannedRunCommand({field});
 
     expect(result).toEqual({command: 'echo deploy main', bindings: []});
   });
@@ -57,9 +75,9 @@ describe('hoistRunCommand', () => {
       `echo '${singleQuotedShellRef('__sf_0')}!'`,
     ],
   ] as const)('hoists %s interpolation sites', (_name, source, expectedCommand) => {
-    const segments = parseWorkflowTemplate(source);
+    const field = plannedField(source);
 
-    const result = hoistRunCommand(segments);
+    const result = hoistPlannedRunCommand({field});
 
     expect(result.command).toBe(expectedCommand);
     expect(result.bindings).toHaveLength(1);
@@ -68,22 +86,22 @@ describe('hoistRunCommand', () => {
   });
 
   it('hoists multiple adjacent sites with braced references', () => {
-    const segments = parseWorkflowTemplate(
+    const field = plannedField(
       `${templateExpression(' run.id ')}${templateExpression(' job.id ')}_suffix`,
     );
 
-    const result = hoistRunCommand(segments);
+    const result = hoistPlannedRunCommand({field});
 
     expect(result.command).toBe(`${shellRef('__sf_0')}${shellRef('__sf_1')}_suffix`);
     expect(result.bindings.map((binding) => binding.name)).toEqual(['__sf_0', '__sf_1']);
   });
 
   it('skips reserved names and generates shell identifiers', () => {
-    const segments = parseWorkflowTemplate(
+    const field = plannedField(
       `${templateExpression(' run.id ')} ${templateExpression(' job.id ')}`,
     );
 
-    const result = hoistRunCommand(segments, {reservedNames: ['__sf_0']});
+    const result = hoistPlannedRunCommand({field, reservedNames: ['__sf_0']});
 
     expect(result.command).toBe(`${shellRef('__sf_1')} ${shellRef('__sf_2')}`);
     expect(result.bindings.map((binding) => binding.name)).toEqual(['__sf_1', '__sf_2']);
@@ -109,11 +127,11 @@ describe('hoistRunCommand', () => {
     [`echo \\${templateExpression(' run.id ')}`, 'escape'],
     [`echo "prefix\\${templateExpression(' run.id ')}"`, 'escape'],
   ] as const)('rejects interpolation inside %s', (source, region) => {
-    const segments = parseWorkflowTemplate(source);
+    const field = plannedField(source);
 
     let error: unknown;
     try {
-      hoistRunCommand(segments);
+      hoistPlannedRunCommand({field});
     } catch (caught) {
       error = caught;
     }
@@ -129,34 +147,33 @@ describe('hoistRunCommand', () => {
   });
 
   it('does not let quotes inside comments affect later interpolation sites', () => {
-    const segments = parseWorkflowTemplate(
+    const field = plannedField(
       `# "comment only"\nprintf '%s\\n' ${templateExpression(' run.id ')}`,
     );
 
-    const result = hoistRunCommand(segments);
+    const result = hoistPlannedRunCommand({field});
 
     expect(result.command).toBe(`# "comment only"\nprintf '%s\\n' ${shellRef('__sf_0')}`);
   });
 
   it('does not treat a hash after escaped whitespace as a comment', () => {
-    const segments = parseWorkflowTemplate(`printf %s foo\\ #${templateExpression(' run.id ')}`);
+    const field = plannedField(`printf %s foo\\ #${templateExpression(' run.id ')}`);
 
-    const result = hoistRunCommand(segments);
+    const result = hoistPlannedRunCommand({field});
 
     expect(result.command).toBe(`printf %s foo\\ #${shellRef('__sf_0')}`);
   });
 });
 
-describe('resolveRunCommand', () => {
-  it('resolves hoisted values through the workflow template resolver', () => {
-    const segments = parseWorkflowTemplate(
+describe('freezePlannedRunCommandAtSite', () => {
+  it('freezes hoisted values into env bindings', () => {
+    const result = freezeCommand(
       `echo ${templateExpression(' run.id ')} ${templateExpression(' job.metadata ')}`,
+      {
+        run: {id: 42},
+        job: {metadata: {runner: 'macos'}},
+      },
     );
-
-    const result = resolveRunCommand(segments, {
-      run: {id: 42},
-      job: {metadata: {runner: 'macos'}},
-    });
 
     expect(result).toEqual({
       command: `echo ${shellRef('__sf_0')} ${shellRef('__sf_1')}`,
@@ -169,9 +186,7 @@ describe('resolveRunCommand', () => {
   });
 
   it('keeps resolved raw values out of the effective command', () => {
-    const segments = parseWorkflowTemplate(`echo ${templateExpression(' run.value ')}`);
-
-    const result = resolveRunCommand(segments, {
+    const result = freezeCommand(`echo ${templateExpression(' run.value ')}`, {
       run: {value: 'raw-value-that-must-not-appear'},
     });
 
@@ -181,9 +196,7 @@ describe('resolveRunCommand', () => {
   });
 
   it('uses missing-path diagnostics by default', () => {
-    const segments = parseWorkflowTemplate(`echo ${templateExpression(' run.missing ')}`);
-
-    const result = resolveRunCommand(segments, {run: {}});
+    const result = freezeCommand(`echo ${templateExpression(' run.missing ')}`, {run: {}});
 
     expect(result).toEqual({
       command: `echo ${shellRef('__sf_0')}`,
@@ -198,11 +211,9 @@ describe('resolveRunCommand', () => {
     });
   });
 
-  it('passes failure policy and available roots through to the resolver', () => {
-    const segments = parseWorkflowTemplate(`echo ${templateExpression(' run.missing ')}`);
-
+  it('throws when fail-policy bindings are missing at the freeze site', () => {
     const act = () =>
-      resolveRunCommand(segments, {run: {}}, {failurePolicy: 'fail', availableRoots: ['run']});
+      freezeCommand(`echo ${templateExpression(' run.missing ')}`, {run: {}}, 'fail');
 
     expect(act).toThrow(WorkflowTemplateResolutionError);
   });
@@ -212,8 +223,7 @@ describe('resolved run command execution', () => {
   it.each(
     adversarialCases(),
   )('keeps %s inert in %s with %s', (_payloadName, _contextName, shell, source, value, markerPath) => {
-    const segments = parseWorkflowTemplate(source);
-    const result = resolveRunCommand(segments, {run: {value}});
+    const result = freezeCommand(source, {run: {value}});
     const scriptDir = mkdtempSync(join(tmpdir(), 'shipfox-run-hoist-'));
     const scriptPath = join(scriptDir, 'script.sh');
 

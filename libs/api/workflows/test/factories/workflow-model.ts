@@ -1,5 +1,10 @@
 import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions';
-import {parseWorkflowTemplate, type WorkflowTemplateSegment} from '@shipfox/expression';
+import {
+  parseWorkflowTemplate,
+  planInterpolationField,
+  type ResolvedFieldSegment,
+  type WorkflowInterpolationField,
+} from '@shipfox/expression';
 
 type ModelStep = WorkflowModel['jobs'][number]['steps'][number];
 type AgentThinking = Extract<ModelStep, {kind: 'agent'}>['thinking'];
@@ -62,7 +67,11 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       ...(job.success === undefined ? {} : {success: job.success}),
       ...(job.name === undefined
         ? {}
-        : {name: fieldTemplate(job.name) ?? [{kind: 'literal' as const, text: job.name}]}),
+        : {
+            name: fieldTemplate('job.name', job.name) ?? [
+              {kind: 'literal' as const, value: job.name},
+            ],
+          }),
       ...optionalScopedEnv(job.env),
       dependencies: normalizeStringArray(job.needs).map(stableId),
       steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
@@ -137,8 +146,8 @@ function optionalStepEnv(
 }
 
 function optionalRunTemplates(step: TestRunStep) {
-  const command = fieldTemplate(step.run);
-  const name = step.name === undefined ? undefined : fieldTemplate(step.name);
+  const command = fieldTemplate('run', step.run);
+  const name = step.name === undefined ? undefined : fieldTemplate('step.name', step.name);
   const env = envTemplates(step.env);
   if (command === undefined && name === undefined && env === undefined) return {};
   return {
@@ -151,10 +160,11 @@ function optionalRunTemplates(step: TestRunStep) {
 }
 
 function optionalAgentTemplates(step: TestAgentStep) {
-  const prompt = fieldTemplate(step.prompt);
-  const model = step.model === undefined ? undefined : fieldTemplate(step.model);
-  const provider = step.provider === undefined ? undefined : fieldTemplate(step.provider);
-  const name = step.name === undefined ? undefined : fieldTemplate(step.name);
+  const prompt = fieldTemplate('agent.prompt', step.prompt);
+  const model = step.model === undefined ? undefined : fieldTemplate('agent.model', step.model);
+  const provider =
+    step.provider === undefined ? undefined : fieldTemplate('agent.provider', step.provider);
+  const name = step.name === undefined ? undefined : fieldTemplate('step.name', step.name);
   if (prompt === undefined && model === undefined && provider === undefined && name === undefined) {
     return {};
   }
@@ -173,7 +183,7 @@ function envTemplates(env: WorkflowModel['env'] | undefined): WorkflowEnvTemplat
 
   const templates = Object.fromEntries(
     Object.entries(env).flatMap(([key, value]) => {
-      const template = fieldTemplate(value);
+      const template = fieldTemplate('env.value', value);
       return template === undefined ? [] : [[key, template]];
     }),
   );
@@ -181,9 +191,21 @@ function envTemplates(env: WorkflowModel['env'] | undefined): WorkflowEnvTemplat
   return Object.keys(templates).length === 0 ? undefined : templates;
 }
 
-function fieldTemplate(source: string): readonly WorkflowTemplateSegment[] | undefined {
+function fieldTemplate(
+  field: WorkflowInterpolationField,
+  source: string,
+): readonly ResolvedFieldSegment[] | undefined {
   const segments = parseWorkflowTemplate(source);
-  return segments.some((segment) => segment.kind === 'expr') ? segments : undefined;
+  if (!segments.some((segment) => segment.kind === 'expr')) return undefined;
+  const plan = planInterpolationField({field, segments});
+  if (!plan.ok) {
+    throw new Error(
+      `Invalid test workflow template for ${field}: ${plan.violations
+        .map((violation) => violation.source)
+        .join(', ')}`,
+    );
+  }
+  return plan.plan.field.segments;
 }
 
 function stableId(sourceName: string): string {

@@ -7,16 +7,14 @@ import type {MaterializedAgentStepConfigDto} from '@shipfox/api-agent-dto';
 import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
 import {
   type AvailabilitySite,
+  freezePlannedRunCommandAtSite,
+  freezeResolvedFieldAtSite,
   getWorkflowInterpolationFieldFailurePolicy,
-  resolveRunCommand,
-  resolveWorkflowTemplate,
-  rootsAvailableAt,
   UnsafeRunInterpolationError,
   type WorkflowExpressionEvaluationContext,
   type WorkflowInterpolationField,
   type WorkflowTemplateDiagnostic,
   WorkflowTemplateResolutionError,
-  type WorkflowTemplateResolutionOptions,
 } from '@shipfox/expression';
 import {
   AgentConfigUnresolvableError,
@@ -142,11 +140,14 @@ function resolveCommand(params: {
     return {command: params.step.command.value, env: {}, diagnostics: [], hasTemplate: true};
   }
 
-  let resolved: ReturnType<typeof resolveRunCommand>;
+  let resolved: ReturnType<typeof freezePlannedRunCommandAtSite>;
   try {
-    resolved = resolveRunCommand(template, params.context, {
+    resolved = freezePlannedRunCommandAtSite({
+      field: {segments: template},
+      context: params.context,
+      site: params.site,
+      failurePolicy: getWorkflowInterpolationFieldFailurePolicy('run'),
       reservedNames: params.envKeys,
-      ...resolutionOptions('run', params.site),
     });
   } catch (error) {
     if (
@@ -189,19 +190,15 @@ function resolveEnv(
     }
 
     hasTemplates = true;
-    let resolved: ReturnType<typeof resolveWorkflowTemplate>;
-    try {
-      resolved = resolveWorkflowTemplate(
-        entry.template,
-        context,
-        resolutionOptions('env.value', site),
-      );
-    } catch (error) {
-      if (error instanceof WorkflowTemplateResolutionError) {
-        throw interpolationError(definitionId, 'env', error, key);
-      }
-      throw error;
-    }
+    const resolved = freezeField({
+      field: 'env.value',
+      template: entry.template,
+      context,
+      site,
+      definitionId,
+      errorField: 'env',
+      envKey: key,
+    });
     resolvedEnv[key] = resolved.value;
     diagnostics.push(
       ...resolved.diagnostics.map((diagnostic) => ({
@@ -309,19 +306,14 @@ function resolveAgentField(params: {
 }): string {
   if (params.template === undefined || params.mode === 'authored') return params.value;
 
-  let resolved: ReturnType<typeof resolveWorkflowTemplate>;
-  try {
-    resolved = resolveWorkflowTemplate(
-      params.template,
-      params.context,
-      resolutionOptions(params.field, params.site),
-    );
-  } catch (error) {
-    if (error instanceof WorkflowTemplateResolutionError) {
-      throw interpolationError(params.definitionId, params.field, error);
-    }
-    throw error;
-  }
+  const resolved = freezeField({
+    field: params.field,
+    template: params.template,
+    context: params.context,
+    site: params.site,
+    definitionId: params.definitionId,
+    errorField: params.field,
+  });
   params.diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: params.field})),
   );
@@ -354,19 +346,14 @@ function resolveStepName(
   if (step.name === undefined) return {value: undefined, diagnostics: []};
   if (step.templates?.name === undefined) return {value: step.name, diagnostics: []};
 
-  let resolved: ReturnType<typeof resolveWorkflowTemplate>;
-  try {
-    resolved = resolveWorkflowTemplate(
-      step.templates.name,
-      context,
-      resolutionOptions('step.name', site),
-    );
-  } catch (error) {
-    if (error instanceof WorkflowTemplateResolutionError) {
-      throw interpolationError(definitionId, 'step.name', error);
-    }
-    throw error;
-  }
+  const resolved = freezeField({
+    field: 'step.name',
+    template: step.templates.name,
+    context,
+    site,
+    definitionId,
+    errorField: 'step.name',
+  });
   return {
     value: resolved.value,
     diagnostics: resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'step.name'})),
@@ -407,14 +394,28 @@ function mergeEnvLayers(
   return merged;
 }
 
-function resolutionOptions(
-  field: WorkflowInterpolationField,
-  site: AvailabilitySite,
-): WorkflowTemplateResolutionOptions {
-  return {
-    failurePolicy: getWorkflowInterpolationFieldFailurePolicy(field),
-    availableRoots: rootsAvailableAt(site),
-  };
+function freezeField(params: {
+  readonly field: WorkflowInterpolationField;
+  readonly template: WorkflowFieldTemplate;
+  readonly context: WorkflowExpressionEvaluationContext;
+  readonly site: AvailabilitySite;
+  readonly definitionId: string;
+  readonly errorField: InterpolationUnresolvableField;
+  readonly envKey?: string;
+}): ReturnType<typeof freezeResolvedFieldAtSite> {
+  try {
+    return freezeResolvedFieldAtSite({
+      field: {segments: params.template},
+      context: params.context,
+      site: params.site,
+      failurePolicy: getWorkflowInterpolationFieldFailurePolicy(params.field),
+    });
+  } catch (error) {
+    if (error instanceof WorkflowTemplateResolutionError) {
+      throw interpolationError(params.definitionId, params.errorField, error, params.envKey);
+    }
+    throw error;
+  }
 }
 
 function interpolationError(
