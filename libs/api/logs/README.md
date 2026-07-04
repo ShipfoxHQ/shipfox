@@ -29,8 +29,11 @@ This adds:
 - the append route under `/runs/jobs/current/steps/:stepId/logs` (lease-authed)
 - the read route under `/steps/:stepId/attempts/:attempt/logs` (session-authed): inline NDJSON
   while the stream is hot, a presigned object URL once it is compacted
-- the `logs.stream.closed` publisher and the job-terminated subscriber that force-closes
-  abandoned streams
+- the `logs.stream.closed` publisher and two close subscribers: the step-attempt-terminated
+  subscriber that closes each attempt's stream when the runner did not end it in-band, and the
+  job-terminated subscriber that force-closes any of a job's still-open streams
+- the Temporal lifecycle workers that carry a closed stream through to deletion: compaction to a
+  gzip object, plus the compaction-reconcile, stale-open-stream reaper, and retention-sweep crons
 
 ## Streams
 
@@ -110,12 +113,16 @@ budget is stored in full, then an in-band `capped` tombstone record is injected 
 are accepted-and-dropped. The cap is a **job-level** signal — a stream can be byte-complete and
 still sit under a capped job if a sibling step exhausted the shared budget.
 
-A stream closes on one of three triggers: the runner declares its end (an `end` record); the
-job-terminated sweep force-closes a job's abandoned streams when the job goes terminal; or the
-reaper cron force-closes any stream still open past the lease window (`LOG_STREAM_REAP_AFTER_SECONDS`),
-the backstop for a stream the one-shot sweep missed (one whose first append landed after the sweep
-ran). Both force-close paths are timeout closes: they set `truncated` and inject a `runner_lost`
-tombstone. Each close writes one `logs.stream.closed` event, which drives compaction.
+A stream closes on one of four triggers, all converging on the same guarded, exactly-once close:
+the runner declares its end in-band (an `end` record in an append), which closes the stream
+`declared` the moment those bytes commit; the step-attempt-terminated subscriber closes an attempt
+the runner never ended in-band, `declared` when the runner drained its spool or `timeout` when it
+abandoned it (carried on the event's `logOutcome`); the job-terminated sweep force-closes any of a
+job's still-open streams once the job goes terminal, after a grace period
+(`LOG_STREAM_CLOSE_GRACE_SECONDS`); and the reaper cron force-closes any stream still open past the
+lease window (`LOG_STREAM_REAP_AFTER_SECONDS`), the backstop for a stream the one-shot sweeps missed
+(one whose first append landed after they ran). Every timeout close sets `truncated` and injects a
+`runner_lost` tombstone; each close writes one `logs.stream.closed` event, which drives compaction.
 
 ## Setup
 
