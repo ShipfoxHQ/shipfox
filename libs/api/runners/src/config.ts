@@ -34,8 +34,7 @@ export const config = createConfig({
     default: 250,
   }),
   RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET: str({
-    desc: 'Optional secret used to HMAC provisioner and ephemeral token identifiers before storing rate-limit counters. Set this to a private random value to prevent linking stored counters to raw identifiers.',
-    default: undefined,
+    desc: 'Secret used to HMAC provisioner and ephemeral token identifiers before storing rate-limit counters. Required, with no default, so startup fails when it is missing.',
   }),
   RESERVATION_TTL_SECONDS: num({
     desc: 'Lifetime of a count-based runner reservation, in seconds. Expired reservations stop counting against queued demand.',

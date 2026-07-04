@@ -3,6 +3,7 @@ import {
   checkRateLimit,
   hashRateLimitIdentifier,
   RateLimitExceededError,
+  RateLimitPolicyError,
   RateLimitUnavailableError,
 } from './index.js';
 
@@ -104,6 +105,23 @@ describe('checkRateLimit', () => {
     await expect(checkRateLimit(unavailable)).rejects.toBeInstanceOf(RateLimitUnavailableError);
 
     expect(checks).toEqual(['allowed', 'blocked', 'unavailable']);
+  });
+
+  it.each([
+    ['limit', 0],
+    ['limit', -1],
+    ['limit', Number.NaN],
+    ['limit', Number.POSITIVE_INFINITY],
+    ['windowSeconds', 0],
+    ['windowSeconds', -1],
+    ['windowSeconds', Number.NaN],
+    ['windowSeconds', Number.POSITIVE_INFINITY],
+  ] as const)('rejects invalid %s policy values', async (name, value) => {
+    const consume = vi.fn(createMemoryConsume());
+    const result = checkRateLimit(baseCheckParams({consume, [name]: value}));
+
+    await expect(result).rejects.toBeInstanceOf(RateLimitPolicyError);
+    expect(consume).not.toHaveBeenCalled();
   });
 
   it('passes computed window values and timeout to the injected consume function', async () => {

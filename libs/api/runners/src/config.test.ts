@@ -85,6 +85,29 @@ describe.each([
   });
 });
 
+describe('RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('fails startup when the secret is missing', async () => {
+    const previous = process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET;
+    delete process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET;
+    vi.resetModules();
+
+    try {
+      await expect(import('#config.js')).rejects.toThrow('process.exit unexpectedly called');
+    } finally {
+      if (previous === undefined) {
+        delete process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET;
+      } else {
+        process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET = previous;
+      }
+    }
+  });
+});
+
 describe('RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

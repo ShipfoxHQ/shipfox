@@ -54,7 +54,6 @@ export class RunnersRateLimitUnavailableError extends RateLimitUnavailableError<
 }
 
 const IDENTIFIER_HASH_DOMAIN = 'shipfox.runners.rate-limit.identifier.v1';
-const DEFAULT_IDENTIFIER_SECRET = 'shipfox.runners.rate-limit.identifier-secret.v1';
 
 export function hashRunnersRateLimitIdentifier(params: {
   action: RunnersRateLimitAction;
@@ -109,5 +108,5 @@ export async function checkRunnersRateLimit(params: CheckRunnersRateLimitParams)
 }
 
 function effectiveIdentifierSecret(): string {
-  return config.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET || DEFAULT_IDENTIFIER_SECRET;
+  return config.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET;
 }

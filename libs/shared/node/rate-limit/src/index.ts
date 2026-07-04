@@ -132,6 +132,16 @@ export class RateLimitUnavailableError<Action extends string, Scope extends stri
   }
 }
 
+/**
+ * Thrown when a caller supplies an invalid fixed-window policy.
+ */
+export class RateLimitPolicyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RateLimitPolicyError';
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 250;
 const DEFAULT_HASH_PREFIX_LENGTH = 12;
 
@@ -169,6 +179,8 @@ export function hashRateLimitIdentifier<Action extends string, Scope extends str
 export async function checkRateLimit<Action extends string, Scope extends string>(
   params: CheckRateLimitParams<Action, Scope>,
 ): Promise<void> {
+  validatePolicy(params);
+
   const now = params.now ?? new Date();
   const windowStart = windowStartFor(now, params.windowSeconds);
   const expiresAt = secondsAfter(windowStart, params.windowSeconds);
@@ -222,6 +234,16 @@ export async function checkRateLimit<Action extends string, Scope extends string
       .catch(() => {
         params.onPruneFailure?.();
       });
+  }
+}
+
+function validatePolicy(policy: RateLimitPolicy): void {
+  if (!Number.isFinite(policy.limit) || policy.limit <= 0) {
+    throw new RateLimitPolicyError('Rate limit must be a positive finite number');
+  }
+
+  if (!Number.isFinite(policy.windowSeconds) || policy.windowSeconds <= 0) {
+    throw new RateLimitPolicyError('Rate limit windowSeconds must be a positive finite number');
   }
 }
 
