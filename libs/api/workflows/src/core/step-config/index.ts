@@ -1,13 +1,12 @@
 export {
   type AssembleWorkflowRunContextParams,
   assembleCreationContext,
-  assembleExecutionsContext,
+  assembleGateContext,
+  assembleJobResolutionContext,
+  assembleStepDispatchContext,
   assembleWorkflowRunContext,
 } from './assemble-run-context.js';
-export {
-  assembleStepDispatchContext,
-  completeStepDispatchConfig,
-} from './complete-step-dispatch-config.js';
+export {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
 export {
   type MaterializedWorkflowStep,
   type MaterializeJobExecutionStepsParams,

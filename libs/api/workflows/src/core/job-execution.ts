@@ -27,10 +27,8 @@ import {
   StepNotFoundError,
   StepNotRunningError,
 } from './errors.js';
-import {
-  assembleStepDispatchContext,
-  completeStepDispatchConfig,
-} from './step-config/complete-step-dispatch-config.js';
+import {assembleStepDispatchContext} from './step-config/assemble-run-context.js';
+import {completeStepDispatchConfig} from './step-config/complete-step-dispatch-config.js';
 import {
   applyStepTransition,
   type StepProgressionMetrics,
