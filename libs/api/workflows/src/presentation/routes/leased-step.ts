@@ -18,6 +18,15 @@ export async function loadRunningLeasedStep(params: {
 }): Promise<LoadedRunningLeasedStep> {
   const leasedJob = requireLeasedJobContext(params.request);
 
+  const leaseIsActive = await isJobLeaseActive({
+    jobId: leasedJob.jobId,
+    jobExecutionId: leasedJob.jobExecutionId,
+    runnerSessionId: leasedJob.runnerSessionId,
+  });
+  if (!leaseIsActive) {
+    throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
+  }
+
   const step = await getStepByIdForJobExecution({
     stepId: params.stepId,
     jobExecutionId: leasedJob.jobExecutionId,
@@ -29,15 +38,6 @@ export async function loadRunningLeasedStep(params: {
   const scope = await getJobScope(leasedJob.jobId);
   if (!scope) {
     throw new ClientError('Leased job not found', 'job-not-found', {status: 404});
-  }
-
-  const leaseIsActive = await isJobLeaseActive({
-    jobId: leasedJob.jobId,
-    jobExecutionId: leasedJob.jobExecutionId,
-    runnerSessionId: leasedJob.runnerSessionId,
-  });
-  if (!leaseIsActive) {
-    throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
   }
 
   if (step.currentAttempt !== params.attempt) {

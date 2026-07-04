@@ -51,21 +51,21 @@ export const getStepSecretsRoute = defineRoute({
 
     const secretBindings = parseSecretBindings(step.config.secret_bindings);
     const references = distinctSecretReferences(secretBindings);
-    const secrets: StepSecretDto[] = [];
-
-    for (const reference of references) {
-      const value = await getSecret({
-        workspaceId,
-        projectId,
-        namespace: '',
-        key: reference.key,
-        store: reference.store,
-      });
-      if (value === null) {
-        throw new ClientError('Secret not found', 'secret-not-found', {status: 422});
-      }
-      secrets.push({...reference, value});
-    }
+    const secrets = await Promise.all(
+      references.map(async (reference): Promise<StepSecretDto> => {
+        const value = await getSecret({
+          workspaceId,
+          projectId,
+          namespace: '',
+          key: reference.key,
+          store: reference.store,
+        });
+        if (value === null) {
+          throw new ClientError('Secret not found', 'secret-not-found', {status: 422});
+        }
+        return {...reference, value};
+      }),
+    );
 
     logger().info(
       {jobId: leasedJob.jobId, workspaceId, stepId, keyCount: references.length},

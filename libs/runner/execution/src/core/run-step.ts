@@ -4,6 +4,7 @@ import {accessSync, constants, statSync} from 'node:fs';
 import {unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
+import {TextDecoder} from 'node:util';
 import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets, secretWireForms} from '@shipfox/redact';
@@ -87,6 +88,8 @@ function spawnAndCapture(
   return new Promise((resolve) => {
     const {shell} = metadata;
     const teeSecretVariants = buildSecretVariants(options.secretValues ?? []);
+    const stdoutTeeRedactor = createTeeRedactor(teeSecretVariants);
+    const stderrTeeRedactor = createTeeRedactor(teeSecretVariants);
 
     // detached:true makes the shell a process-group leader so killGroup() can
     // SIGKILL its grandchildren too (Linux does not propagate signals down the
@@ -101,13 +104,19 @@ function spawnAndCapture(
     // stdout and stderr are two separate pipes, so the sink sees them merged by
     // arrival order, not kernel/wall-clock order; origin is preserved per chunk.
     child.stdout.on('data', (chunk: Buffer) => {
-      writeTeeOutput(process.stdout, chunk, teeSecretVariants);
+      writeTeeOutput(process.stdout, chunk, stdoutTeeRedactor);
       options.onOutput?.(chunk, 'stdout');
+    });
+    child.stdout.on('close', () => {
+      flushTeeOutput(process.stdout, stdoutTeeRedactor);
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
-      writeTeeOutput(process.stderr, chunk, teeSecretVariants);
+      writeTeeOutput(process.stderr, chunk, stderrTeeRedactor);
       options.onOutput?.(chunk, 'stderr');
+    });
+    child.stderr.on('close', () => {
+      flushTeeOutput(process.stderr, stderrTeeRedactor);
     });
 
     let childExited = false;
@@ -199,13 +208,93 @@ function spawnAndCapture(
 function writeTeeOutput(
   stream: NodeJS.WriteStream,
   chunk: Buffer,
-  secretVariants: readonly string[],
+  redactor: TeeRedactor | undefined,
 ): void {
-  if (secretVariants.length === 0) {
+  if (!redactor) {
     stream.write(chunk);
     return;
   }
-  stream.write(redactSecrets(chunk.toString(), [...secretVariants]));
+  const output = redactor.push(chunk);
+  if (output.length > 0) stream.write(output);
+}
+
+function flushTeeOutput(stream: NodeJS.WriteStream, redactor: TeeRedactor | undefined): void {
+  if (!redactor) return;
+  const output = redactor.flush();
+  if (output.length > 0) stream.write(output);
+}
+
+function createTeeRedactor(secretVariants: readonly string[]): TeeRedactor | undefined {
+  if (secretVariants.length === 0) return undefined;
+  return new TeeRedactor(secretVariants);
+}
+
+class TeeRedactor {
+  private readonly decoder = new TextDecoder('utf-8', {ignoreBOM: true, fatal: false});
+  private readonly variants: string[];
+  private readonly maxVariantLen: number;
+  private buffer = '';
+
+  constructor(variants: readonly string[]) {
+    this.variants = [...variants];
+    this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
+  }
+
+  push(chunk: Buffer): string {
+    this.buffer += this.decoder.decode(chunk, {stream: true});
+    return this.drain(false);
+  }
+
+  flush(): string {
+    this.buffer += this.decoder.decode();
+    return this.drain(true);
+  }
+
+  private drain(final: boolean): string {
+    let output = '';
+    let newline = this.buffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = this.buffer.slice(0, newline + 1);
+      this.buffer = this.buffer.slice(newline + 1);
+      output += redactSecrets(line, this.variants);
+      newline = this.buffer.indexOf('\n');
+    }
+
+    if (this.buffer.length === 0) return output;
+    if (final) {
+      output += redactSecrets(this.buffer, this.variants);
+      this.buffer = '';
+      return output;
+    }
+
+    const cut = this.safeEmitLength(this.buffer);
+    if (cut > 0) {
+      output += redactSecrets(this.buffer.slice(0, cut), this.variants);
+      this.buffer = this.buffer.slice(cut);
+    }
+    return output;
+  }
+
+  private safeEmitLength(buffer: string): number {
+    const hold = Math.max(0, this.maxVariantLen - 1);
+    let cut = buffer.length - hold;
+    if (cut <= 0) return 0;
+    for (let moved = true; moved && cut > 0; ) {
+      moved = false;
+      const windowStart = Math.max(0, cut - this.maxVariantLen + 1);
+      for (let start = windowStart; start < cut; start++) {
+        const straddles = this.variants.some(
+          (form) => start + form.length > cut && buffer.startsWith(form, start),
+        );
+        if (straddles) {
+          cut = start;
+          moved = true;
+          break;
+        }
+      }
+    }
+    return cut;
+  }
 }
 
 function buildSecretVariants(secrets: readonly string[]): string[] {

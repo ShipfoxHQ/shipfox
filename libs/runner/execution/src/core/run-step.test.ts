@@ -262,6 +262,23 @@ describe('executeRunStep', () => {
     expect(stderr).not.toContain(hex);
   });
 
+  it('redacts a secret split across runner stdout tee chunks', async () => {
+    const secret = 'runtime-secret-value';
+    const script = [
+      `process.stdout.write(${JSON.stringify(secret.slice(0, 8))});`,
+      `setTimeout(() => process.stdout.end(${JSON.stringify(`${secret.slice(8)}\n`)}), 20);`,
+    ].join('');
+    const step = buildStep({config: {run: `node -e ${JSON.stringify(script)}`}});
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as never);
+
+    const result = await executeRunStep(step, {secretValues: [secret]});
+
+    const stdout = stdoutWrite.mock.calls.map((call) => String(call[0])).join('');
+    expect(result.success).toBe(true);
+    expect(stdout).toContain('***');
+    expect(stdout).not.toContain(secret);
+  });
+
   it('returns failure for unsupported step type with the reason on error.message', async () => {
     const step = buildStep({type: 'docker', config: {image: 'node:20'}});
     const output = collectOutput();
