@@ -1,0 +1,13 @@
+name: Manual inputs
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+    event: fire
+jobs:
+  build:
+    steps:
+      - key: show-version
+        env:
+          V: '${{ inputs.version }}'
+        run: echo "v=$V"

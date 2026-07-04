@@ -1,0 +1,14 @@
+trigger: manual
+inputs:
+  version: "1.2.3"
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      show-version:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["v=1.2.3"]
