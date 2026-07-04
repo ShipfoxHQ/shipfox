@@ -127,6 +127,29 @@ describe('freezeResolvedFieldAtSite', () => {
     });
   });
 
+  it('throws for fail-policy missing paths when over-included roots include a non-workflow root', () => {
+    const field: ResolvedField = {
+      segments: [
+        {
+          kind: 'deferred',
+          expression: expression('{foo: event.ref}.foo'),
+          roots: ['event', 'foo'],
+          fillTarget: 'run-creation',
+        },
+      ],
+    };
+
+    const act = () =>
+      freezeResolvedFieldAtSite({
+        field,
+        failurePolicy: 'fail',
+        site: 'run-creation',
+        context: {event: {}},
+      });
+
+    expect(act).toThrow(WorkflowTemplateResolutionError);
+  });
+
   it('skips deferred-past-site segments without evaluating their expression', () => {
     const field: ResolvedField = {
       segments: [
