@@ -1,0 +1,17 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      show-context:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "run.name=Interpolation run context"
+            - "/trigger.source=gitea_.+/"
+            - "trigger.event=push"
+            - "job.key=build"
+            - "event.ref=refs/heads/main"
