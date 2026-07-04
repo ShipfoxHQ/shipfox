@@ -109,6 +109,33 @@ describe('materializeJobExecutionSteps', () => {
           run: `echo "${template('executions[0].name')}"`,
           env: {BODY: template('execution.events[0].data.body')},
         },
+        evaluationTrace: [
+          {
+            expression: 'execution.events[0].data.body',
+            roots: ['execution'],
+            fillTarget: 'execution-creation',
+            evaluatedAt: 'execution-creation',
+            value: 'LGTM',
+            field: 'env',
+            envKey: 'BODY',
+          },
+          {
+            expression: 'executions[0].name',
+            roots: ['executions'],
+            fillTarget: 'execution-creation',
+            evaluatedAt: 'execution-creation',
+            value: 'Review batch 1',
+            field: 'run',
+          },
+          {
+            expression: 'execution.events[0].data.body',
+            roots: ['execution'],
+            fillTarget: 'execution-creation',
+            evaluatedAt: 'execution-creation',
+            value: 'LGTM',
+            field: 'step.name',
+          },
+        ],
         position: 1,
       },
     ]);

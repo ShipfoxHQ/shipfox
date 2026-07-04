@@ -17,10 +17,11 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {
   analyzeContextKeyAccess,
+  capTraceEntries,
   createWorkflowExpression,
-  evaluateWorkflowPredicate,
+  evaluatePlannedPredicateAtSite,
+  predicateTraceEntry,
   type ResolvedFieldSegment,
-  WorkflowExpressionEvaluationError,
 } from '@shipfox/expression';
 import {
   paginateTimestampIdRows,
@@ -44,7 +45,13 @@ import {
 } from 'drizzle-orm';
 import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
-import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
+import type {
+  PersistedEvaluationTraceEntry,
+  Step,
+  StepAttempt,
+  StepAttemptStatus,
+  StepStatus,
+} from '#core/entities/step.js';
 import {
   isWorkflowRunTerminal,
   type JobExecutionDetail,
@@ -255,7 +262,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         triggerEvents: [],
         priorExecutions: [],
       });
-      const name = resolveJobExecutionName({
+      const resolvedName = resolveJobExecutionName({
         definitionId: params.definitionId,
         job,
         fallbackName,
@@ -269,7 +276,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         inputs: params.inputs ?? null,
         jobId: jobRow.id,
         sequence: 1,
-        executionName: name,
+        executionName: resolvedName.value,
         status: 'pending',
         triggerEvents: [],
         priorExecutions: [],
@@ -284,9 +291,10 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         {
           jobId: jobRow.id,
           sequence: 1,
-          name,
+          name: resolvedName.value,
           runner: [...runner],
           status: 'pending' as const,
+          evaluationTrace: resolvedName.trace.length === 0 ? null : resolvedName.trace,
         },
       ];
     });
@@ -1744,6 +1752,7 @@ export interface UpdateJobStatusAtVersionParams {
   status: JobStatus;
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
+  evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null | undefined;
 }
 
 export interface UpdateJobExecutionStatusAtVersionParams {
@@ -1934,6 +1943,7 @@ export async function updateJobStatusAtVersion(
       status: params.status,
       statusReason: params.statusReason ?? null,
       ...(outputs === undefined ? {} : {outputs}),
+      ...(params.evaluationTrace === undefined ? {} : {evaluationTrace: params.evaluationTrace}),
       version: sql`${jobs.version} + 1`,
       updatedAt: new Date(),
     })
@@ -2180,6 +2190,7 @@ function statusReasonForStepCompletion(status: RuntimeCompletionStatus): JobStat
 export interface EvaluateJobSuccessResult {
   status: RuntimeCompletionStatus;
   statusReason: JobStatusReason | null;
+  trace: readonly PersistedEvaluationTraceEntry[];
 }
 
 export function evaluateJobSuccess(params: {
@@ -2195,26 +2206,35 @@ export function evaluateJobSuccess(params: {
     ...assembleExecutionsContext(params.executions),
     ...(params.jobs === undefined ? {} : assembleJobsContext(params.jobs)),
   };
-  // Fail closed so a runtime-only predicate error cannot abort job resolution.
-  let passed: boolean;
-  let predicateEvaluationFailed = false;
-  try {
-    passed = evaluateWorkflowPredicate(expression, context);
-  } catch (error) {
-    if (!(error instanceof WorkflowExpressionEvaluationError)) throw error;
-    passed = false;
-    predicateEvaluationFailed = true;
-  }
+  const outcome = evaluatePlannedPredicateAtSite({
+    expression,
+    field: 'job.success',
+    site: 'job-resolution',
+    context,
+  });
+  const trace = capTraceEntries([
+    {
+      ...predicateTraceEntry({
+        expression: expression.source,
+        route: outcome.route,
+        site: 'job-resolution',
+        value: outcome.value,
+      }),
+      field: 'job.success',
+    },
+  ]);
+  const passed = outcome.value;
   const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
-  if (status === 'succeeded') return {status, statusReason: null};
+  if (status === 'succeeded') return {status, statusReason: null, trace};
 
   // A thrown predicate is a job-level failure, not evidence that any execution failed.
   return {
     status,
-    statusReason: predicateEvaluationFailed
+    statusReason: outcome.evaluationFailed
       ? 'unknown'
       : (params.executions.find((execution) => execution.statusReason)?.statusReason ??
         'step_failed'),
+    trace,
   };
 }
 
@@ -2235,7 +2255,7 @@ export async function resolveJobStatusFromJobExecutions(params: {
       throw new Error(`Cannot resolve job ${params.jobId}: no job executions found`);
     }
 
-    const {status, statusReason} = evaluateJobSuccess({
+    const {status, statusReason, trace} = evaluateJobSuccess({
       success: jobRow.success,
       executions: jobExecutionRows.map(toJobExecution),
       jobs: await getDirectDependencyJobContexts(params.jobId, tx),
@@ -2246,6 +2266,7 @@ export async function resolveJobStatusFromJobExecutions(params: {
       status,
       expectedVersion: jobRow.version,
       statusReason,
+      evaluationTrace: trace,
     });
     if (updated) return {job: updated.job, changed: updated.changed};
 
@@ -2441,6 +2462,7 @@ export interface DispatchStepWithCompletedConfigParams {
   jobExecutionId: string;
   stepId: string;
   config: Record<string, unknown>;
+  evaluationTrace: readonly PersistedEvaluationTraceEntry[] | null;
 }
 
 export async function dispatchStepWithCompletedConfig(
@@ -2471,6 +2493,7 @@ export async function dispatchStepWithCompletedConfig(
       stepId: step.id,
       attempt: step.currentAttempt,
       config: params.config,
+      evaluationTrace: params.evaluationTrace,
     },
     tx,
   );
@@ -2514,6 +2537,7 @@ export interface InsertRunningStepAttemptParams {
   stepId: string;
   attempt: number;
   config?: Record<string, unknown> | null;
+  evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null;
 }
 
 export async function insertRunningStepAttempt(
@@ -2536,6 +2560,7 @@ export async function insertRunningStepAttempt(
       executionOrder: nextExecutionOrder,
       status: 'running',
       config: params.config ?? null,
+      evaluationTrace: params.evaluationTrace ?? null,
     })
     .onConflictDoNothing({target: [stepAttempts.stepId, stepAttempts.attempt]});
 }

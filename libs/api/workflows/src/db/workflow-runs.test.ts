@@ -2335,8 +2335,8 @@ jobs:
       const empty = evaluateJobSuccess({success: null, executions: []});
       const cancelled = evaluateJobSuccess({success: null, executions: [execution('cancelled')]});
 
-      expect(empty).toEqual({status: 'succeeded', statusReason: null});
-      expect(cancelled).toEqual({status: 'succeeded', statusReason: null});
+      expect(empty).toMatchObject({status: 'succeeded', statusReason: null});
+      expect(cancelled).toMatchObject({status: 'succeeded', statusReason: null});
     });
 
     test('fails closed when a job has no executions', async () => {

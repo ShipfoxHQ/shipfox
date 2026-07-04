@@ -1,5 +1,9 @@
 import type {AgentThinking, Harness} from '@shipfox/api-agent-dto';
-import type {ResolvedField} from '@shipfox/expression';
+import type {
+  EvaluationTraceEntry,
+  EvaluationTraceLimitEntry,
+  ResolvedField,
+} from '@shipfox/expression';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type StepAttemptLogOutcome = 'drained' | 'abandoned';
@@ -13,6 +17,13 @@ export interface StepSourceLocation {
   endLine: number;
 }
 
+export type PersistedEvaluationTraceEntry =
+  | (EvaluationTraceEntry & {
+      readonly field: string;
+      readonly envKey?: string;
+    })
+  | EvaluationTraceLimitEntry;
+
 export interface StepConfigDispatchPlan {
   run?: ResolvedField;
   env?: Readonly<Record<string, ResolvedField>>;
@@ -23,6 +34,7 @@ export interface StepConfigDispatchPlan {
     harness?: Harness;
     thinking?: AgentThinking;
   };
+  trace?: readonly PersistedEvaluationTraceEntry[];
 }
 
 export interface Step {
@@ -57,6 +69,7 @@ export interface StepAttempt {
   executionOrder: number;
   status: StepAttemptStatus;
   config: Record<string, unknown> | null;
+  evaluationTrace: readonly PersistedEvaluationTraceEntry[] | null;
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   exitCode: number | null;

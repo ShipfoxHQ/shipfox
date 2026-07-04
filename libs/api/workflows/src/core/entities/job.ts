@@ -1,3 +1,5 @@
+import type {PersistedEvaluationTraceEntry} from './step.js';
+
 export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
 
 export type JobMode = 'one_shot' | 'listening';
@@ -39,6 +41,7 @@ export interface Job {
   carriedOver: boolean;
   checkout: JobCheckout;
   success?: string | null;
+  evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null;
   executionTimeoutMs?: number | null;
   listeningTimeoutMs: number | null;
   maxExecutions: number | null;

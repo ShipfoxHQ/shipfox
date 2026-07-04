@@ -1,5 +1,7 @@
 import {
+  capTraceEntries,
   evaluatePlannedPredicateAtSite,
+  predicateTraceEntry,
   type ResolvedField,
   type WorkflowExpression,
 } from '@shipfox/expression';
@@ -89,7 +91,18 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
   if (outcome.evaluationFailed) {
     return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON};
   }
-  return outcome.value ? {kind: 'passed', source} : {kind: 'failed', source};
+  const trace = capTraceEntries([
+    {
+      ...predicateTraceEntry({
+        expression: source,
+        route: outcome.route,
+        site: context.site,
+        value: outcome.value,
+      }),
+      field: 'step.success',
+    },
+  ]);
+  return outcome.value ? {kind: 'passed', source, trace} : {kind: 'failed', source, trace};
 }
 
 export function evaluateGateFeedback(params: {
@@ -128,9 +141,19 @@ export function gateResultPayload(
     case 'no-gate':
       return null;
     case 'passed':
-      return {passed: true, source: outcome.source, exit_code};
+      return {
+        passed: true,
+        source: outcome.source,
+        exit_code,
+        ...(outcome.trace === undefined ? {} : {trace: outcome.trace}),
+      };
     case 'failed':
-      return {passed: false, source: outcome.source, exit_code};
+      return {
+        passed: false,
+        source: outcome.source,
+        exit_code,
+        ...(outcome.trace === undefined ? {} : {trace: outcome.trace}),
+      };
     case 'uncheckable':
       return {passed: false, uncheckable: true, reason: outcome.reason, exit_code};
   }

@@ -84,12 +84,20 @@ export function materializeJobExecutionSteps(
         type: step.kind,
         config: resolved.config,
         authoredConfig: resolved.authoredConfig,
-        ...(resolved.configPlan === null ? {} : {configPlan: resolved.configPlan}),
+        ...materializedConfigPlan(resolved.configPlan, resolved.trace),
         ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
         position: stepPosition + 1,
       };
     }),
   ];
+}
+
+function materializedConfigPlan(
+  configPlan: StepConfigDispatchPlan | null,
+  trace: NonNullable<StepConfigDispatchPlan['trace']>,
+): {readonly configPlan?: StepConfigDispatchPlan} {
+  if (configPlan === null && trace.length === 0) return {};
+  return {configPlan: {...(configPlan ?? {}), ...(trace.length === 0 ? {} : {trace})}};
 }
 
 function stepDisplayName(step: WorkflowModelStep): string {

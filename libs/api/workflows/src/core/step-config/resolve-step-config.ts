@@ -1,11 +1,17 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
-import type {AvailabilitySite, WorkflowExpressionEvaluationContext} from '@shipfox/expression';
+import {
+  type AvailabilitySite,
+  capTraceEntries,
+  type WorkflowExpressionEvaluationContext,
+} from '@shipfox/expression';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {resolveAgentStepConfig} from './agent.js';
 import {
   freezeStepField,
   type StepConfigField,
+  type WorkflowStepEvaluationTraceEntry,
+  type WorkflowStepEvaluationTraceRecord,
   type WorkflowStepTemplateDiagnostic,
 } from './fields.js';
 import {resolveRunStepConfig, type StepConfigMode} from './run.js';
@@ -24,6 +30,7 @@ export interface ResolvedStepConfig {
   readonly authoredConfig: Record<string, unknown> | null;
   readonly name?: string;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly trace: readonly WorkflowStepEvaluationTraceRecord[];
 }
 
 export interface ResolveStepConfigParams {
@@ -44,6 +51,7 @@ interface BuiltStepConfig {
   readonly config: Record<string, unknown>;
   readonly configPlan: StepConfigDispatchPlan | null;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly trace: readonly WorkflowStepEvaluationTraceEntry[];
   readonly hasTemplates: boolean;
 }
 
@@ -61,6 +69,7 @@ export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStep
     authoredConfig,
     ...(name.value === undefined || name.value === '' ? {} : {name: name.value}),
     diagnostics: [...effective.diagnostics, ...name.diagnostics],
+    trace: capTraceEntries([...effective.trace, ...name.trace]),
   };
 }
 
@@ -77,6 +86,7 @@ function buildStepConfig(
       config: {...run.config, ...gate},
       configPlan: run.configPlan,
       diagnostics: run.diagnostics,
+      trace: run.trace,
       hasTemplates: run.hasTemplates,
     };
   }
@@ -89,6 +99,7 @@ function buildStepConfig(
     config: {...agent.config, ...gate},
     configPlan: agent.configPlan,
     diagnostics: agent.diagnostics,
+    trace: agent.trace,
     hasTemplates: agent.hasTemplates,
   };
 }
@@ -122,12 +133,13 @@ function resolveStepName(
 ): {
   readonly value: string | undefined;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly trace: readonly WorkflowStepEvaluationTraceEntry[];
 } {
   const hasName = step.name !== undefined;
-  if (!hasName) return {value: undefined, diagnostics: []};
+  if (!hasName) return {value: undefined, diagnostics: [], trace: []};
 
   const hasNameTemplate = step.templates?.name !== undefined;
-  if (!hasNameTemplate) return {value: step.name, diagnostics: []};
+  if (!hasNameTemplate) return {value: step.name, diagnostics: [], trace: []};
 
   const resolved = freezeStepField({
     field: 'step.name',
@@ -139,6 +151,7 @@ function resolveStepName(
   return {
     value: resolved.value,
     diagnostics: resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'step.name'})),
+    trace: resolved.trace.map((entry) => ({...entry, field: 'step.name'})),
   };
 }
 

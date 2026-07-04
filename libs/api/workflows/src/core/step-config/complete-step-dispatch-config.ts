@@ -1,6 +1,8 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {Step} from '#core/entities/step.js';
+import {capTraceEntries} from '@shipfox/expression';
+import type {PersistedEvaluationTraceEntry, Step} from '#core/entities/step.js';
 import {completeAgentConfig} from './agent.js';
+import type {WorkflowStepEvaluationTraceEntry} from './fields.js';
 import {completeRunDispatchConfig} from './run.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -9,17 +11,22 @@ export function completeStepDispatchConfig(params: {
   readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly definitionId: string;
-}): Record<string, unknown> {
+}): {
+  readonly config: Record<string, unknown>;
+  readonly trace: readonly PersistedEvaluationTraceEntry[];
+} {
   const plan = params.step.configPlan;
-  if (plan === null) return params.step.config;
+  if (plan === null) return {config: params.step.config, trace: []};
 
   const config = {...params.step.config};
   delete config.secret_bindings;
+  const trace: WorkflowStepEvaluationTraceEntry[] = [...(plan.trace ?? [])];
   completeRunDispatchConfig({
     config,
     plan,
     context: params.context,
     definitionId: params.definitionId,
+    trace,
   });
   completeAgentConfig({
     config,
@@ -27,7 +34,8 @@ export function completeStepDispatchConfig(params: {
     context: params.context,
     resolveAgentDefaults: params.resolveAgentDefaults,
     definitionId: params.definitionId,
+    trace,
   });
 
-  return config;
+  return {config, trace: capTraceEntries(trace)};
 }

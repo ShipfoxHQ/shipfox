@@ -30,7 +30,26 @@ describe('freezeResolvedFieldAtSite', () => {
       context: {run: {id: 42}},
     });
 
-    expect(result).toEqual({value: 'run=42,ok=true', diagnostics: []});
+    expect(result).toEqual({
+      value: 'run=42,ok=true',
+      diagnostics: [],
+      trace: [
+        {
+          expression: 'run.id',
+          roots: ['run'],
+          fillTarget: 'run-creation',
+          evaluatedAt: 'run-creation',
+          value: '42',
+        },
+        {
+          expression: 'true',
+          roots: [],
+          fillTarget: 'run-creation',
+          evaluatedAt: 'run-creation',
+          value: 'true',
+        },
+      ],
+    });
   });
 
   it('throws for fail-policy missing paths on known roots available at the site', () => {
@@ -79,6 +98,16 @@ describe('freezeResolvedFieldAtSite', () => {
     expect(result).toEqual({
       value: 'event=',
       diagnostics: [{reason: 'missing-path', expression: 'event.title', contextRoots: ['event']}],
+      trace: [
+        {
+          expression: 'event.title',
+          roots: ['event'],
+          fillTarget: 'run-creation',
+          evaluatedAt: 'run-creation',
+          value: '',
+          degraded: true,
+        },
+      ],
     });
   });
 
@@ -123,6 +152,16 @@ describe('freezeResolvedFieldAtSite', () => {
       value: '',
       diagnostics: [
         {reason: 'missing-path', expression: 'typo_root.value', contextRoots: ['typo_root']},
+      ],
+      trace: [
+        {
+          expression: 'typo_root.value',
+          roots: ['typo_root'],
+          fillTarget: 'run-creation',
+          evaluatedAt: 'run-creation',
+          value: '',
+          degraded: true,
+        },
       ],
     });
   });
@@ -201,6 +240,7 @@ describe('freezeResolvedFieldAtSite', () => {
           contextRoots: ['execution'],
         },
       ],
+      trace: [],
     });
   });
 
@@ -226,6 +266,7 @@ describe('freezeResolvedFieldAtSite', () => {
     expect(result).toEqual({
       value: '',
       diagnostics: [{reason: 'missing-path', expression: 'runner.os', contextRoots: ['runner']}],
+      trace: [],
     });
   });
 });

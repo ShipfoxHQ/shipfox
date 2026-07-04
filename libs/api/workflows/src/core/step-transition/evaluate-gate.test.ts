@@ -25,6 +25,19 @@ function feedbackTemplate(source: string) {
   return plan.plan.field;
 }
 
+function gateTrace(source: string, value: boolean) {
+  return [
+    {
+      expression: source,
+      roots: ['step'],
+      fillTarget: 'step-report',
+      evaluatedAt: 'step-report',
+      value: String(value),
+      field: 'step.success',
+    },
+  ];
+}
+
 describe('readStepGate', () => {
   test('returns undefined when the config has no gate', () => {
     expect(readStepGate({run: 'echo hi'})).toBeUndefined();
@@ -69,6 +82,7 @@ describe('evaluateGate', () => {
     expect(evaluateGate(gate, {status: 'succeeded', exitCode: 0})).toEqual({
       kind: 'passed',
       source: 'step.exit_code == 0',
+      trace: gateTrace('step.exit_code == 0', true),
     });
   });
 
@@ -77,6 +91,7 @@ describe('evaluateGate', () => {
     expect(evaluateGate(gate, {status: 'failed', exitCode: 1})).toEqual({
       kind: 'failed',
       source: 'step.exit_code == 0',
+      trace: gateTrace('step.exit_code == 0', false),
     });
   });
 
@@ -93,6 +108,7 @@ describe('evaluateGate', () => {
     expect(result).toEqual({
       kind: 'passed',
       source: 'step.exit_code % 2 == 0',
+      trace: gateTrace('step.exit_code % 2 == 0', true),
     });
   });
 
@@ -104,6 +120,7 @@ describe('evaluateGate', () => {
     expect(result).toEqual({
       kind: 'failed',
       source: 'step.exit_code % 2 == 0',
+      trace: gateTrace('step.exit_code % 2 == 0', false),
     });
   });
 
@@ -130,10 +147,12 @@ describe('evaluateGate', () => {
     expect(passed).toEqual({
       kind: 'passed',
       source: 'step.outputs.pass == true',
+      trace: gateTrace('step.outputs.pass == true', true),
     });
     expect(failed).toEqual({
       kind: 'failed',
       source: 'step.outputs.pass == true',
+      trace: gateTrace('step.outputs.pass == true', false),
     });
   });
 
@@ -151,7 +170,7 @@ describe('evaluateGate', () => {
 
     const result = evaluateGate(gate, {status: 'succeeded', exitCode: 0, output: {}});
 
-    expect(result).toEqual({kind: 'failed', source});
+    expect(result).toEqual({kind: 'failed', source, trace: gateTrace(source, false)});
   });
 
   test('a missing exit code is uncheckable (never evaluated)', () => {

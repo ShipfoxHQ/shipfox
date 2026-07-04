@@ -17,6 +17,7 @@ import {
   type JobListeningTrigger,
   toJobStatusReason,
 } from '#core/entities/job.js';
+import type {PersistedEvaluationTraceEntry} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {workflowRunAttempts} from './workflow-run-attempts.js';
 
@@ -66,6 +67,7 @@ export const jobs = pgTable(
     checkoutPersistCredentials: boolean('checkout_persist_credentials').notNull(),
     checkoutPermissionsContents: jobCheckoutContentsEnum('checkout_permissions_contents').notNull(),
     success: text('success'),
+    evaluationTrace: jsonb('evaluation_trace').$type<readonly PersistedEvaluationTraceEntry[]>(),
     executionTimeoutMs: integer('execution_timeout_ms'),
     listeningTimeoutMs: bigint('listening_timeout_ms', {mode: 'number'}),
     maxExecutions: integer('max_executions'),
@@ -111,6 +113,7 @@ export function toJob(row: JobDb): Job {
       persistCredentials: row.checkoutPersistCredentials,
     },
     success: row.success,
+    evaluationTrace: row.evaluationTrace ?? null,
     executionTimeoutMs: row.executionTimeoutMs,
     listeningTimeoutMs: row.listeningTimeoutMs,
     maxExecutions: row.maxExecutions,

@@ -1,4 +1,4 @@
-import type {Step, StepStatus} from '../entities/step.js';
+import type {PersistedEvaluationTraceEntry, Step, StepStatus} from '../entities/step.js';
 import type {RuntimeCompletionStatus} from '../workflow-scheduling/runtime-dag.js';
 
 const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set(['succeeded', 'failed', 'cancelled']);
@@ -27,8 +27,8 @@ export interface StepResult {
 // as a plain command failure — never a restart.
 export type GateOutcome =
   | {kind: 'no-gate'}
-  | {kind: 'passed'; source: string}
-  | {kind: 'failed'; source: string}
+  | {kind: 'passed'; source: string; trace?: readonly PersistedEvaluationTraceEntry[]}
+  | {kind: 'failed'; source: string; trace?: readonly PersistedEvaluationTraceEntry[]}
   | {kind: 'uncheckable'; reason: string};
 
 export interface DecideStepTransitionInput {

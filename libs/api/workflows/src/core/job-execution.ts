@@ -118,17 +118,22 @@ async function dispatchPendingStepWithConfigPlan({
   });
 
   try {
-    const config = completeStepDispatchConfig({
+    const completed = completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults: catalogDefaultAgentResolver,
       definitionId: jobExecution.jobId,
     });
     const marked = await dispatchStepWithCompletedConfig(
-      {jobExecutionId, stepId: pending.id, config},
+      {
+        jobExecutionId,
+        stepId: pending.id,
+        config: completed.config,
+        evaluationTrace: completed.trace,
+      },
       tx,
     );
-    return {kind: 'step', step: marked ?? {...pending, config}};
+    return {kind: 'step', step: marked ?? {...pending, config: completed.config}};
   } catch (error) {
     const configError = toDispatchConfigError(error);
     const isConfigError = configError !== null;
