@@ -7,7 +7,9 @@ import {
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
-import {db, logsOutbox, migrationsPath} from '#db/index.js';
+import {db} from '#db/db.js';
+import {migrationsPath} from '#db/index.js';
+import {logsOutbox} from '#db/schema/outbox.js';
 import {registerLogsServiceMetrics} from '#metrics/service.js';
 import {logsRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';

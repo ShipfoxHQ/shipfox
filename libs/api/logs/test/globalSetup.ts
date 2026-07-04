@@ -3,7 +3,8 @@ import {runMigrations} from '@shipfox/node-drizzle';
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
 import {sql} from 'drizzle-orm';
 import {checkBucketReachable, closeS3Client} from '#api/object-storage.js';
-import {closeDb, db, migrationsPath} from '#db/index.js';
+import {closeDb, db} from '#db/db.js';
+import {migrationsPath} from '#db/index.js';
 
 const BUCKET_READY_TIMEOUT_MS = 30_000;
 const BUCKET_READY_POLL_INTERVAL_MS = 500;
