@@ -15,6 +15,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port,
+    open: process.env.SHIPFOX_CLIENT_OPEN === '1',
     // Worktree ports must fail fast instead of silently shifting to another port.
     strictPort: true,
   },
