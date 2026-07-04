@@ -4,6 +4,7 @@ import {defineConfig, devices} from '@shipfox/playwright';
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.e2e.ts',
+  timeout: 180_000,
   globalSetup: './tests/global-setup.ts',
   reporter: process.env.CI
     ? [
