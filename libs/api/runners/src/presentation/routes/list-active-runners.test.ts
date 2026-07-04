@@ -14,6 +14,7 @@ import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
+import {runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
@@ -76,7 +77,8 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
   });
 
   it('returns active provisioned runners merged with running jobs by runner session', async () => {
-    const runnerSessionId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const runnerSessionId = runnerSession.id;
     await db()
       .insert(provisionedRunners)
       .values({
@@ -121,7 +123,8 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
   });
 
   it('returns every active job for the same runner session', async () => {
-    const runnerSessionId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const runnerSessionId = runnerSession.id;
     const firstJobId = crypto.randomUUID();
     const secondJobId = crypto.randomUUID();
     await db()
@@ -192,7 +195,8 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
 
   it('merges active jobs by provisioned-runner link when the session id is not reported', async () => {
     const provisionerId = crypto.randomUUID();
-    const runnerSessionId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const runnerSessionId = runnerSession.id;
     const jobId = crypto.randomUUID();
     await db()
       .insert(provisionedRunners)
@@ -242,7 +246,8 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
 
   it('surfaces the job link for a busy runner without an active provisioned-runner row', async () => {
     const provisionerId = crypto.randomUUID();
-    const runnerSessionId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const runnerSessionId = runnerSession.id;
     const jobId = crypto.randomUUID();
     await db()
       .insert(runningJobExecutions)
@@ -280,7 +285,8 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
 
   it('keeps a provisioned runner visible when its session fallback job was already merged', async () => {
     const provisionerId = crypto.randomUUID();
-    const runnerSessionId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const runnerSessionId = runnerSession.id;
     const jobId = crypto.randomUUID();
     const older = new Date(Date.now() - 1000);
     const newer = new Date();

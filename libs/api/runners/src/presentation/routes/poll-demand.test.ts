@@ -21,7 +21,7 @@ import {
   provisionedRunnerCountDivergenceCount,
   provisionedRunnerTerminateIntentIssuedCount,
 } from '#metrics/instance.js';
-import {pendingJobFactory, provisionedRunnerFactory} from '#test/index.js';
+import {pendingJobFactory, provisionedRunnerFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -299,6 +299,8 @@ describe('POST /provisioners/demand/poll', () => {
     provisionedRunnerId: string;
     cancellationRequestedAt?: Date | null;
   }) {
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+
     await db()
       .insert(runningJobExecutions)
       .values({
@@ -308,7 +310,7 @@ describe('POST /provisioners/demand/poll', () => {
         jobId: crypto.randomUUID(),
         jobExecutionId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
-        runnerSessionId: crypto.randomUUID(),
+        runnerSessionId: runnerSession.id,
         provisionerId: provisionerTokenId,
         provisionedRunnerId: params.provisionedRunnerId,
         requiredLabels: ['linux'],

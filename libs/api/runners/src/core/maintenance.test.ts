@@ -3,13 +3,18 @@ import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
+import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {provisionedRunnerReapedCount, reservationReleasedCount} from '#metrics/instance.js';
 import {
   provisionedRunnerFactory,
   provisionerTokenFactory,
   reservationFactory,
 } from '#test/index.js';
-import {deleteExpiredRunnerReservations, reapStaleProvisionedRunners} from './maintenance.js';
+import {
+  deleteExpiredRunnerReservations,
+  deleteExpiredRunnerSessions,
+  reapStaleProvisionedRunners,
+} from './maintenance.js';
 
 describe('deleteExpiredRunnerReservations', () => {
   let workspaceId: string;
@@ -84,4 +89,94 @@ describe('reapStaleProvisionedRunners', () => {
     expect(reapedSpy).toHaveBeenCalledWith(1);
     expect(releasedSpy).toHaveBeenCalledWith(1);
   });
+});
+
+describe('deleteExpiredRunnerSessions', () => {
+  let workspaceId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+  });
+
+  it('deletes expired runner sessions using default retention policy', async () => {
+    const manualId = crypto.randomUUID();
+    const ephemeralId = crypto.randomUUID();
+    await db()
+      .insert(runnerSessions)
+      .values([
+        buildRunnerSession({
+          id: manualId,
+          kind: 'manual',
+          createdAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+        }),
+        buildRunnerSession({
+          id: ephemeralId,
+          kind: 'ephemeral',
+          createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+        }),
+      ]);
+
+    const result = await deleteExpiredRunnerSessions();
+
+    const remaining = await db()
+      .select({id: runnerSessions.id})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.workspaceId, workspaceId));
+    expect(result.deleted).toBeGreaterThanOrEqual(2);
+    expect(remaining).toEqual([]);
+  });
+
+  it('passes explicit retention and limit values to the DB cleanup', async () => {
+    const deleteableId = crypto.randomUUID();
+    const keptId = crypto.randomUUID();
+    await db()
+      .insert(runnerSessions)
+      .values([
+        buildRunnerSession({
+          id: deleteableId,
+          kind: 'manual',
+          createdAt: new Date(Date.now() - 3650 * 24 * 60 * 60 * 1000),
+        }),
+        buildRunnerSession({
+          id: keptId,
+          kind: 'manual',
+          createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+        }),
+      ]);
+
+    const result = await deleteExpiredRunnerSessions({
+      manualRetentionDays: 5,
+      ephemeralRetentionDays: 7,
+      limit: 1,
+    });
+
+    const remaining = await db()
+      .select({id: runnerSessions.id})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.workspaceId, workspaceId));
+    expect(result.deleted).toBe(1);
+    expect(remaining.map((row) => row.id)).toEqual([keptId]);
+  });
+
+  function buildRunnerSession(params: {
+    id: string;
+    kind: 'manual' | 'ephemeral';
+    createdAt: Date;
+  }): typeof runnerSessions.$inferInsert {
+    const provisionerId = params.kind === 'ephemeral' ? crypto.randomUUID() : null;
+    return {
+      id: params.id,
+      workspaceId,
+      scope: 'workspace',
+      registrationTokenId: crypto.randomUUID(),
+      registrationTokenKind: params.kind,
+      provisionerId,
+      provisionedRunnerId: params.kind === 'ephemeral' ? `provisioned-${params.id}` : null,
+      labels: ['linux'],
+      maxClaims: params.kind === 'ephemeral' ? 1 : null,
+      claimsUsed: 0,
+      createdAt: params.createdAt,
+      updatedAt: params.createdAt,
+    };
+  }
 });

@@ -20,7 +20,7 @@ import {db} from '#db/db.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {provisionedRunnerTerminateIntentHonoredCount} from '#metrics/instance.js';
-import {provisionedRunnerFactory} from '#test/index.js';
+import {provisionedRunnerFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -138,6 +138,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
 
   it('increments the honored terminate-intent metric once for a terminated report', async () => {
     const honoredSpy = vi.spyOn(provisionedRunnerTerminateIntentHonoredCount, 'add');
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
     await provisionedRunnerFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
@@ -153,7 +154,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
         jobId: crypto.randomUUID(),
         jobExecutionId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
-        runnerSessionId: crypto.randomUUID(),
+        runnerSessionId: runnerSession.id,
         provisionerId: provisionerTokenId,
         provisionedRunnerId: 'provisioned-runner-1',
         requiredLabels: ['linux'],

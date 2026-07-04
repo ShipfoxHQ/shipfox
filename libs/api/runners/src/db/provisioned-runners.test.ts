@@ -57,6 +57,7 @@ async function insertRunningJobRow(params: {
   cancellationRequestedAt?: Date | null;
 }) {
   const startedAt = params.startedAt ?? new Date('2025-01-01T00:00:00.000Z');
+  const runnerSession = await runnerSessionFactory.create({workspaceId: params.workspaceId});
 
   await db()
     .insert(runningJobExecutions)
@@ -67,7 +68,7 @@ async function insertRunningJobRow(params: {
       jobId: crypto.randomUUID(),
       jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
       projectId: crypto.randomUUID(),
-      runnerSessionId: crypto.randomUUID(),
+      runnerSessionId: runnerSession.id,
       provisionerId: params.provisionerId,
       provisionedRunnerId: params.provisionedRunnerId,
       requiredLabels: ['linux'],
@@ -1224,6 +1225,8 @@ describe('reapStaleProvisionedRunners', () => {
   }
 
   async function insertRunningJob(params: {provisionedRunnerId: string}) {
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+
     await db()
       .insert(runningJobExecutions)
       .values({
@@ -1233,7 +1236,7 @@ describe('reapStaleProvisionedRunners', () => {
         jobId: crypto.randomUUID(),
         jobExecutionId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
-        runnerSessionId: crypto.randomUUID(),
+        runnerSessionId: runnerSession.id,
         provisionerId,
         provisionedRunnerId: params.provisionedRunnerId,
         requiredLabels: ['linux'],
@@ -1702,6 +1705,8 @@ describe('reconcileProvisionedRunners', () => {
     provisionedRunnerId: string;
     startedAt: Date;
   }) {
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+
     await db()
       .insert(runningJobExecutions)
       .values({
@@ -1711,7 +1716,7 @@ describe('reconcileProvisionedRunners', () => {
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
-        runnerSessionId: crypto.randomUUID(),
+        runnerSessionId: runnerSession.id,
         provisionerId,
         provisionedRunnerId: params.provisionedRunnerId,
         requiredLabels: ['linux'],

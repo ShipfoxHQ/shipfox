@@ -225,3 +225,37 @@ describe('PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED', () =>
     expect(config.PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED).toBe(true);
   });
 });
+
+describe('runner session retention config', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('uses the default retention windows and batch size', async () => {
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.RUNNER_SESSION_MANUAL_RETENTION_DAYS).toBe(30);
+    expect(config.RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS).toBe(7);
+    expect(config.RUNNER_SESSION_GC_BATCH_SIZE).toBe(1000);
+  });
+
+  it.each([
+    ['RUNNER_SESSION_MANUAL_RETENTION_DAYS', '0'],
+    ['RUNNER_SESSION_MANUAL_RETENTION_DAYS', '-5'],
+    ['RUNNER_SESSION_MANUAL_RETENTION_DAYS', '1.5'],
+    ['RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS', '0'],
+    ['RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS', '-5'],
+    ['RUNNER_SESSION_EPHEMERAL_RETENTION_DAYS', '1.5'],
+    ['RUNNER_SESSION_GC_BATCH_SIZE', '0'],
+    ['RUNNER_SESSION_GC_BATCH_SIZE', '-5'],
+    ['RUNNER_SESSION_GC_BATCH_SIZE', '1.5'],
+  ])('fails startup when %s is %s', async (name, value) => {
+    vi.stubEnv(name, value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(name);
+  });
+});

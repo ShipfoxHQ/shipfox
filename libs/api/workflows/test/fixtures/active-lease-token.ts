@@ -1,5 +1,5 @@
 import {db} from '#db/db.js';
-import {runningJobExecutions} from '#db/runner-lease-table.js';
+import {runnerSessions, runningJobExecutions} from '#db/runner-lease-table.js';
 import {
   getFirstJobExecutionByJobId,
   getJobById,
@@ -58,6 +58,17 @@ export interface InsertRunningJobLeaseParams {
 }
 
 export async function insertRunningJobLease(params: InsertRunningJobLeaseParams): Promise<void> {
+  await db()
+    .insert(runnerSessions)
+    .values({
+      id: params.runnerSessionId,
+      workspaceId: params.workspaceId,
+      scope: 'workspace',
+      registrationTokenId: crypto.randomUUID(),
+      registrationTokenKind: 'manual',
+      labels: ['linux'],
+    });
+
   await db()
     .insert(runningJobExecutions)
     .values({
