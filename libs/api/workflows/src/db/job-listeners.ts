@@ -161,33 +161,21 @@ export async function drainListenerEventsIntoExecution(
       .for('update');
     if (resolveEvent) return {result: {kind: 'resolve-requested' as const}};
 
-    const bufferedEvents =
-      params.maxSize === undefined
-        ? await tx
-            .select()
-            .from(jobListenerEvents)
-            .where(
-              and(
-                eq(jobListenerEvents.jobId, params.jobId),
-                eq(jobListenerEvents.disposition, 'fire'),
-                isNull(jobListenerEvents.consumedByExecutionId),
-              ),
-            )
-            .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
-            .for('update')
-        : await tx
-            .select()
-            .from(jobListenerEvents)
-            .where(
-              and(
-                eq(jobListenerEvents.jobId, params.jobId),
-                eq(jobListenerEvents.disposition, 'fire'),
-                isNull(jobListenerEvents.consumedByExecutionId),
-              ),
-            )
-            .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
-            .limit(params.maxSize)
-            .for('update');
+    const bufferedQuery = tx
+      .select()
+      .from(jobListenerEvents)
+      .where(
+        and(
+          eq(jobListenerEvents.jobId, params.jobId),
+          eq(jobListenerEvents.disposition, 'fire'),
+          isNull(jobListenerEvents.consumedByExecutionId),
+        ),
+      )
+      .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id));
+    const bufferedEvents = await (params.maxSize === undefined
+      ? bufferedQuery
+      : bufferedQuery.limit(params.maxSize)
+    ).for('update');
     if (bufferedEvents.length === 0) return {result: {kind: 'empty' as const}};
 
     const target = await loadListenerMaterializationTarget(params.jobId, tx);
