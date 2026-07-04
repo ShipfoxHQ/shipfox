@@ -17,6 +17,9 @@ export type ExpressionType =
       fields: Readonly<Record<string, ExpressionType>>;
     }
   | {
+      kind: 'map';
+    }
+  | {
       kind: 'list';
       element: ExpressionType;
     };

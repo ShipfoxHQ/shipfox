@@ -310,7 +310,7 @@ describe('workflowDocumentSchema', () => {
               name: 'reviewer',
               run: 'npm run review',
               gate: {
-                success_if: 'step.output.pass == true',
+                success_if: 'step.outputs.pass == true',
                 on_failure: {
                   restart_from: 'producer',
                   output: 'Review failed',

@@ -209,6 +209,45 @@ describe('createWorkflowExpression', () => {
     });
   });
 
+  it('type-checks open map fields and rejects the same path on empty object schemas', () => {
+    const expression = createWorkflowExpression({
+      source: 'step.outputs.pass == true',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          step: {
+            kind: 'object',
+            fields: {
+              outputs: {kind: 'map'},
+            },
+          },
+        },
+      },
+    });
+    const act = () =>
+      createWorkflowExpression({
+        source: 'step.outputs.pass == true',
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            step: {
+              kind: 'object',
+              fields: {
+                outputs: {kind: 'object', fields: {}},
+              },
+            },
+          },
+        },
+      });
+
+    expect(expression).toEqual({
+      language: 'cel',
+      source: 'step.outputs.pass == true',
+      check: 'typed',
+    });
+    expect(act).toThrow(InvalidWorkflowExpressionError);
+  });
+
   it('rejects parse errors before type checking', () => {
     const act = () =>
       createWorkflowExpression({
