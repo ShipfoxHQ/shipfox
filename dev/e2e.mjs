@@ -74,7 +74,7 @@ export async function main(argv) {
     });
     await waitForUrl(env.CLIENT_URL, {timeoutMs: options.readinessTimeoutMs});
 
-    const result = spawnSync('turbo', [options.turboTask, ...options.turboArgs], {
+    const result = spawnSync('turbo', turboCommandArgs(options, env), {
       env,
       stdio: 'inherit',
     });
@@ -182,6 +182,18 @@ export function e2eEnv(sourceEnv) {
     VITE_API_URL: sourceEnv.VITE_API_URL ?? apiUrl,
     VITE_ENABLE_TEST_VCS_PROVIDER: sourceEnv.VITE_ENABLE_TEST_VCS_PROVIDER ?? 'true',
   };
+}
+
+export function turboCommandArgs(options, env) {
+  const args = [options.turboTask, ...options.turboArgs];
+  if (hasTurboConcurrency(args)) return args;
+
+  const concurrency = env.SHIPFOX_TURBO_CONCURRENCY;
+  return concurrency ? [...args, `--concurrency=${concurrency}`] : args;
+}
+
+function hasTurboConcurrency(args) {
+  return args.some((arg) => arg === '--concurrency' || arg.startsWith('--concurrency='));
 }
 
 export function defaultLogDir(env) {
