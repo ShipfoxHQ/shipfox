@@ -76,6 +76,8 @@ function compactedKey(result: CompactStreamResult): string {
 
 describe('compactStreamActivity', () => {
   beforeEach(() => {
+    compactedGzipStreamMock.mockReset();
+    setObjectKeyAndDeleteChunksMock.mockReset();
     compactedGzipStreamMock.mockImplementation(compactedGzipStream);
     setObjectKeyAndDeleteChunksMock.mockImplementation(setObjectKeyAndDeleteChunks);
   });
