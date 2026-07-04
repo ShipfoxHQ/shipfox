@@ -904,7 +904,7 @@ export async function getWorkflowRunDetail(
   const rows = await db()
     .select({
       run: workflowRuns,
-      attempt: workflowRunAttempts,
+      attemptId: workflowRunAttempts.id,
       job: jobs,
       jobExecution: jobExecutions,
       step: steps,
@@ -928,7 +928,7 @@ export async function getWorkflowRunDetail(
       asc(stepAttempts.id),
     );
 
-  return hydrateWorkflowRunDetail(rows, latestAttempt);
+  return hydrateWorkflowRunDetail(rows, target.attempt, latestAttempt);
 }
 
 export async function getJobExecutionDetail(
@@ -974,12 +974,13 @@ export async function getJobExecutionDetail(
 function hydrateWorkflowRunDetail(
   rows: {
     run: typeof workflowRuns.$inferSelect;
-    attempt: typeof workflowRunAttempts.$inferSelect;
+    attemptId: string;
     job: typeof jobs.$inferSelect | null;
     jobExecution: typeof jobExecutions.$inferSelect | null;
     step: typeof steps.$inferSelect | null;
     stepAttempt: typeof stepAttempts.$inferSelect | null;
   }[],
+  attempt: typeof workflowRunAttempts.$inferSelect,
   latestAttempt: number,
 ): WorkflowRunDetail | undefined {
   const first = rows[0];
@@ -987,7 +988,7 @@ function hydrateWorkflowRunDetail(
 
   const detail: WorkflowRunDetail = {
     ...toWorkflowRun(first.run),
-    runAttempt: toWorkflowRunAttempt(first.attempt),
+    runAttempt: toWorkflowRunAttempt(attempt),
     latestAttempt,
     jobs: [],
   };

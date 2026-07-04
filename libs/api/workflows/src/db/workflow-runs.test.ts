@@ -40,6 +40,7 @@ import {
   getWorkflowJobExecutionDepth,
   getWorkflowRunAttemptById,
   getWorkflowRunById,
+  getWorkflowRunDetail,
   listRunAttempts,
   listWorkflowRunsByProject,
   resolveJobStatusFromJobExecutions,
@@ -279,6 +280,35 @@ describe('workflow run queries', () => {
       const [attemptSummary] = await listRunAttempts({workflowRunId: run.id, projectId});
       const attempt = await getWorkflowRunAttemptById(attemptSummary?.id as string);
       expect(attempt?.model).toEqual(model);
+    });
+
+    test('returns the persisted model in run detail', async () => {
+      const model = buildModel({
+        env: {RUN_ID: template('run.id')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo first'}, {run: 'echo second'}],
+          },
+        },
+      });
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const detail = await getWorkflowRunDetail(run.id);
+
+      expect(detail?.runAttempt.model).toEqual(model);
+      expect(detail?.jobs).toHaveLength(1);
+      expect(detail?.jobs[0]?.jobExecutions[0]?.steps).toHaveLength(3);
     });
 
     test('persists listening job config without initial execution or steps', async () => {
