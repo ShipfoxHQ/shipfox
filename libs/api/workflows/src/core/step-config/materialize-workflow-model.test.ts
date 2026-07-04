@@ -560,6 +560,39 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('reserves deferred user env names when generating run interpolation env vars', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {
+              run: `echo "${template('run.id')}"`,
+              env: {__sf_0: template('execution.name')},
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: creationContext()});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: `echo "${shellRef('__sf_1')}"`,
+      env: {__sf_1: 'run-1'},
+    });
+    expect(rows[0]?.steps[1]?.configPlan?.env).toEqual({
+      __sf_0: {
+        segments: [
+          expect.objectContaining({
+            kind: 'deferred',
+            roots: ['execution'],
+            fillTarget: 'execution-creation',
+          }),
+        ],
+      },
+    });
+  });
+
   it('resolves agent prompt, model, and provider before catalog defaults', () => {
     const model = workflowModel({
       jobs: {
