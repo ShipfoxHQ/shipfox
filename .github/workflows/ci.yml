@@ -149,6 +149,8 @@ jobs:
             image: api
           - package: "@shipfox/client"
             image: client
+          - package: "@shipfox/provisioner-docker"
+            image: provisioner-docker
           - package: "@shipfox/runner"
             image: runner
 
