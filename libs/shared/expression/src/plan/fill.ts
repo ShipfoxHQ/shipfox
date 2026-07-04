@@ -26,7 +26,7 @@ export function fillResolvedFieldAtSite(params: {
   };
 }
 
-function shouldFillAtSite(fillTarget: string, site: AvailabilitySite): boolean {
+export function shouldFillAtSite(fillTarget: string, site: AvailabilitySite): boolean {
   const fillTargetIndex = availabilitySites.indexOf(fillTarget as AvailabilitySite);
   if (fillTargetIndex < 0) return false;
 

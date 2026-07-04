@@ -119,7 +119,7 @@ function normalizeJob(params: {
           source: params.job.name,
           path: ['jobs', params.sourceName, 'name'],
           issues: params.issues,
-        }) ?? [{kind: 'literal' as const, text: params.job.name}]);
+        }) ?? [{kind: 'literal' as const, value: params.job.name}]);
 
   return {
     id,

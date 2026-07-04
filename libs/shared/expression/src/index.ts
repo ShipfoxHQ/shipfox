@@ -30,8 +30,19 @@ export type {
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
 export {isBareContextReference} from './plan/bare-reference.js';
+export {evaluatePlannedPredicateAtSite} from './plan/evaluate-planned-predicate.js';
 export {extractExactContextRoots} from './plan/extract-exact-context-roots.js';
 export {fillResolvedFieldAtSite} from './plan/fill.js';
+export {
+  type FrozenResolvedField,
+  freezeResolvedFieldAtSite,
+  type WorkflowTemplateDiagnostic,
+  type WorkflowTemplateFailurePolicy,
+} from './plan/freeze.js';
+export {
+  type FrozenPlannedRunCommand,
+  freezePlannedRunCommandAtSite,
+} from './plan/freeze-run-command.js';
 export {
   type FieldPlan,
   type FieldPlanResult,
@@ -54,17 +65,10 @@ export {
   workflowTemplateResolutionErrorCode,
 } from './resolver/errors.js';
 export {
-  resolveWorkflowTemplate,
-  resolveWorkflowTemplateSource,
-  type WorkflowTemplateDiagnostic,
-  type WorkflowTemplateFailurePolicy,
-  type WorkflowTemplateResolution,
-  type WorkflowTemplateResolutionOptions,
-} from './resolver/resolve-workflow-template.js';
-export {
-  type ResolvedRunCommand,
-  type RunCommandOptions,
-  resolveRunCommand,
+  type HoistedPlannedRunCommand,
+  hoistPlannedRunCommand,
+  type PlannedRunCommandBinding,
+  type RunCommandHoistOptions,
   UnsafeRunInterpolationError,
   unsafeRunInterpolationErrorCode,
 } from './run/hoist-run-command.js';

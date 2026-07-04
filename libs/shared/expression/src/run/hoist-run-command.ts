@@ -1,14 +1,4 @@
-import type {WorkflowExpressionEvaluationContext} from '../evaluator/evaluate-workflow-expression.js';
-import {
-  resolveWorkflowTemplate,
-  type WorkflowTemplateDiagnostic,
-  type WorkflowTemplateFailurePolicy,
-  type WorkflowTemplateResolutionOptions,
-} from '../resolver/resolve-workflow-template.js';
-import type {
-  WorkflowTemplateExprSegment,
-  WorkflowTemplateSegment,
-} from '../template/template-segment.js';
+import type {ResolvedField, ResolvedFieldDeferredSegment} from '../plan/resolved-field.js';
 import {
   classifyShellSite,
   initialShellScanState,
@@ -23,26 +13,18 @@ export const unsafeRunInterpolationErrorCode = 'unsafe-run-interpolation';
 const generatedNamePrefix = '__sf_';
 const shellIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-export interface RunCommandOptions {
+export interface RunCommandHoistOptions {
   readonly reservedNames?: Iterable<string>;
-  readonly failurePolicy?: WorkflowTemplateFailurePolicy;
-  readonly availableRoots?: readonly string[];
 }
 
-export interface ResolvedRunCommand {
-  readonly command: string;
-  readonly env: Readonly<Record<string, string>>;
-  readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
-}
-
-interface RunCommandBinding {
+export interface PlannedRunCommandBinding {
   readonly name: string;
-  readonly segment: WorkflowTemplateExprSegment;
+  readonly segment: ResolvedFieldDeferredSegment;
 }
 
-interface HoistedRunCommand {
+export interface HoistedPlannedRunCommand {
   readonly command: string;
-  readonly bindings: readonly RunCommandBinding[];
+  readonly bindings: readonly PlannedRunCommandBinding[];
 }
 
 export class UnsafeRunInterpolationError extends Error {
@@ -60,51 +42,51 @@ export class UnsafeRunInterpolationError extends Error {
   }
 }
 
-export function resolveRunCommand(
-  segments: readonly WorkflowTemplateSegment[],
-  context: WorkflowExpressionEvaluationContext,
-  options: RunCommandOptions = {},
-): ResolvedRunCommand {
-  const hoisted = hoistRunCommand(segments, options);
-  const env: Record<string, string> = {};
-  const diagnostics: WorkflowTemplateDiagnostic[] = [];
-
-  for (const binding of hoisted.bindings) {
-    const resolutionOptions = runCommandResolutionOptions(options);
-    const resolution = resolveWorkflowTemplate([binding.segment], context, resolutionOptions);
-    env[binding.name] = resolution.value;
-    diagnostics.push(...resolution.diagnostics);
-  }
-
-  return {command: hoisted.command, env, diagnostics};
+/**
+ * Hoists unfilled planned run-command segments into generated shell env
+ * references. Literal segments are trusted authored shell text; only call this
+ * on planned command fields that have not already been filled.
+ */
+export function hoistPlannedRunCommand(params: {
+  readonly field: ResolvedField;
+  readonly reservedNames?: Iterable<string>;
+}): HoistedPlannedRunCommand {
+  return hoistCommandSegments({
+    segments: params.field.segments,
+    options: params.reservedNames === undefined ? {} : {reservedNames: params.reservedNames},
+    literalText: (segment) => segment.value,
+    isBindingSegment: (segment): segment is ResolvedFieldDeferredSegment =>
+      segment.kind === 'deferred',
+  });
 }
 
-function runCommandResolutionOptions(
-  options: RunCommandOptions,
-): WorkflowTemplateResolutionOptions | undefined {
-  if (options.failurePolicy === undefined && options.availableRoots === undefined) return undefined;
-  return {
-    ...(options.failurePolicy === undefined ? {} : {failurePolicy: options.failurePolicy}),
-    ...(options.availableRoots === undefined ? {} : {availableRoots: options.availableRoots}),
-  };
-}
-
-export function hoistRunCommand(
-  segments: readonly WorkflowTemplateSegment[],
-  options: RunCommandOptions = {},
-): HoistedRunCommand {
+function hoistCommandSegments<
+  Segment extends {readonly kind: string},
+  BindingSegment extends Segment & {readonly expression: {readonly source: string}},
+>(params: {
+  readonly segments: readonly Segment[];
+  readonly options: RunCommandHoistOptions;
+  readonly literalText: (segment: Extract<Segment, {readonly kind: 'literal'}>) => string;
+  readonly isBindingSegment: (segment: Segment) => segment is BindingSegment;
+}): {
+  readonly command: string;
+  readonly bindings: readonly {readonly name: string; readonly segment: BindingSegment}[];
+} {
   let command = '';
   let state: ShellScanState = initialShellScanState;
-  const bindings: RunCommandBinding[] = [];
-  const reservedNames = new Set(options.reservedNames ?? []);
+  const bindings: {name: string; segment: BindingSegment}[] = [];
+  const reservedNames = new Set(params.options.reservedNames ?? []);
   let nextIndex = 0;
 
-  for (const segment of segments) {
+  for (const segment of params.segments) {
     if (segment.kind === 'literal') {
-      command += segment.text;
-      state = scanShellLiteral(segment.text, state);
+      const text = params.literalText(segment as Extract<Segment, {readonly kind: 'literal'}>);
+      command += text;
+      state = scanShellLiteral(text, state);
       continue;
     }
+
+    if (!params.isBindingSegment(segment)) continue;
 
     const site = classifyShellSite(state);
     if (site.kind === 'unsafe') {

@@ -15,7 +15,7 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
-import {createWorkflowExpression, evaluateWorkflowPredicateFailClosed} from '@shipfox/expression';
+import {createWorkflowExpression, evaluatePlannedPredicateAtSite} from '@shipfox/expression';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
@@ -562,7 +562,7 @@ function workflowTemplateSource(template: MaterializedWorkflowJob['name']): stri
 
   return template
     .map((segment) =>
-      segment.kind === 'literal' ? segment.text : `$${'{{'} ${segment.expression.source} ${'}}'}`,
+      segment.kind === 'literal' ? segment.value : `$${'{{'} ${segment.expression.source} ${'}}'}`,
     )
     .join('');
 }
@@ -1742,7 +1742,12 @@ export async function resolveJobStatusFromJobExecutions(params: {
       check: {mode: 'syntax'},
     });
     const context = assembleExecutionsContext(jobExecutionRows.map(toJobExecution));
-    const predicateOutcome = evaluateWorkflowPredicateFailClosed(expression, context);
+    const predicateOutcome = evaluatePlannedPredicateAtSite({
+      expression,
+      field: 'job.success',
+      site: 'job-resolution',
+      context,
+    });
     const status: RuntimeCompletionStatus = predicateOutcome.value ? 'succeeded' : 'failed';
     // A thrown predicate is a job-level failure, not evidence that any execution failed.
     const statusReason =

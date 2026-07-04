@@ -285,7 +285,7 @@ describe('normalizeWorkflowDocument', () => {
       },
     });
     expect(model.jobs[0]?.name?.[1]).toMatchObject({
-      kind: 'expr',
+      kind: 'deferred',
       expression: {source: 'execution.index', check: 'typed'},
     });
   });
@@ -1488,17 +1488,19 @@ describe('normalizeWorkflowDocument', () => {
 
       expect(model.templates?.env?.RUN_ID).toEqual([
         {
-          kind: 'expr',
+          kind: 'deferred',
           expression: {language: 'cel', source: 'run.id', check: 'typed'},
-          contextRoots: ['run'],
+          roots: ['run'],
+          fillTarget: 'run-creation',
         },
       ]);
       expect(model.templates?.env).not.toHaveProperty('PORT');
       expect(model.jobs[0]?.templates?.env?.JOB_NAME).toEqual([
         {
-          kind: 'expr',
+          kind: 'deferred',
           expression: {language: 'cel', source: 'job.key', check: 'typed'},
-          contextRoots: ['job'],
+          roots: ['job'],
+          fillTarget: 'run-creation',
         },
       ]);
       expect(model.jobs[0]?.steps[0]).toMatchObject({
@@ -1506,31 +1508,31 @@ describe('normalizeWorkflowDocument', () => {
         command: {value: `deploy ${interpolation('run.id')}`},
         templates: {
           command: [
-            {kind: 'literal', text: 'deploy '},
+            {kind: 'literal', value: 'deploy '},
             {
-              kind: 'expr',
+              kind: 'deferred',
               expression: {language: 'cel', source: 'run.id', check: 'typed'},
-              contextRoots: ['run'],
+              roots: ['run'],
             },
           ],
           name: [
-            {kind: 'literal', text: 'deploy '},
+            {kind: 'literal', value: 'deploy '},
             {
-              kind: 'expr',
+              kind: 'deferred',
               expression: {language: 'cel', source: 'event.action', check: 'syntax'},
-              contextRoots: ['event'],
+              roots: ['event'],
             },
           ],
           env: {
             PR_TITLE: [
               {
-                kind: 'expr',
+                kind: 'deferred',
                 expression: {
                   language: 'cel',
                   source: 'event.pull_request.title',
                   check: 'syntax',
                 },
-                contextRoots: ['event'],
+                roots: ['event'],
               },
             ],
           },
@@ -1540,23 +1542,23 @@ describe('normalizeWorkflowDocument', () => {
         kind: 'agent',
         templates: {
           prompt: [
-            {kind: 'literal', text: 'Review '},
+            {kind: 'literal', value: 'Review '},
             {
-              kind: 'expr',
+              kind: 'deferred',
               expression: {
                 language: 'cel',
                 source: 'event.pull_request.title',
                 check: 'syntax',
               },
-              contextRoots: ['event'],
+              roots: ['event'],
             },
           ],
           name: [
-            {kind: 'literal', text: 'review '},
+            {kind: 'literal', value: 'review '},
             {
-              kind: 'expr',
+              kind: 'deferred',
               expression: {language: 'cel', source: 'inputs.topic', check: 'syntax'},
-              contextRoots: ['inputs'],
+              roots: ['inputs'],
             },
           ],
         },
@@ -1580,7 +1582,7 @@ describe('normalizeWorkflowDocument', () => {
       expect(model).not.toHaveProperty('templates');
       expect(model.jobs[0]?.steps[0]).not.toHaveProperty('templates');
       expect(model.env).toEqual({VALUE: '$${{ event.ref }}'});
-      expect(model.jobs[0]?.name).toEqual([{kind: 'literal', text: 'Build app'}]);
+      expect(model.jobs[0]?.name).toEqual([{kind: 'literal', value: 'Build app'}]);
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'run',
         command: {value: 'echo $${{ event.ref }}'},
@@ -1626,13 +1628,13 @@ describe('normalizeWorkflowDocument', () => {
       expect(
         Object.getOwnPropertyDescriptor(workflowTemplates, '__proto__')?.value?.[0],
       ).toMatchObject({
-        kind: 'expr',
-        contextRoots: ['event'],
+        kind: 'deferred',
+        roots: ['event'],
       });
       expect(Object.getOwnPropertyDescriptor(stepTemplates, '__proto__')?.value?.[0]).toMatchObject(
         {
-          kind: 'expr',
-          contextRoots: ['inputs'],
+          kind: 'deferred',
+          roots: ['inputs'],
         },
       );
     });
@@ -1870,12 +1872,12 @@ describe('normalizeWorkflowDocument', () => {
       const model = normalizeWorkflowDocument(document);
 
       expect(model.jobs[0]?.name?.[0]).toMatchObject({
-        kind: 'expr',
-        contextRoots: ['execution'],
+        kind: 'deferred',
+        roots: ['execution'],
       });
       expect(model.jobs[1]?.name?.[0]).toMatchObject({
-        kind: 'expr',
-        contextRoots: ['execution'],
+        kind: 'deferred',
+        roots: ['execution'],
       });
     });
 
@@ -1894,12 +1896,12 @@ describe('normalizeWorkflowDocument', () => {
       const model = normalizeWorkflowDocument(document);
 
       expect(model.templates?.env?.WORKFLOW_EXECUTION?.[0]).toMatchObject({
-        kind: 'expr',
-        contextRoots: ['execution'],
+        kind: 'deferred',
+        roots: ['execution'],
       });
       expect(model.jobs[0]?.templates?.env?.JOB_EXECUTION?.[0]).toMatchObject({
-        kind: 'expr',
-        contextRoots: ['execution'],
+        kind: 'deferred',
+        roots: ['execution'],
       });
     });
 
@@ -1975,9 +1977,9 @@ describe('normalizeWorkflowDocument', () => {
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'run',
         templates: {
-          command: [{kind: 'literal'}, {kind: 'expr', contextRoots: ['run', 'trigger']}],
-          name: [{kind: 'expr', contextRoots: ['job']}],
-          env: {INPUT: [{kind: 'expr', contextRoots: ['inputs']}]},
+          command: [{kind: 'literal'}, {kind: 'deferred', roots: ['run', 'trigger']}],
+          name: [{kind: 'deferred', roots: ['job']}],
+          env: {INPUT: [{kind: 'deferred', roots: ['inputs']}]},
         },
       });
     });
@@ -1999,11 +2001,11 @@ describe('normalizeWorkflowDocument', () => {
         kind: 'run',
         templates: {
           command: [
-            {kind: 'literal', text: 'echo '},
+            {kind: 'literal', value: 'echo '},
             {
-              kind: 'expr',
+              kind: 'deferred',
               expression: {language: 'cel', source: 'executions[0].name', check: 'typed'},
-              contextRoots: ['executions'],
+              roots: ['executions'],
             },
           ],
         },
@@ -2025,18 +2027,18 @@ describe('normalizeWorkflowDocument', () => {
       const model = normalizeWorkflowDocument(document);
 
       expect(model.jobs[0]?.name?.[1]).toMatchObject({
-        kind: 'expr',
+        kind: 'deferred',
         expression: {check: 'typed'},
-        contextRoots: ['execution'],
+        roots: ['execution'],
       });
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'agent',
         templates: {
           prompt: [
             {
-              kind: 'expr',
+              kind: 'deferred',
               expression: {check: 'typed'},
-              contextRoots: ['execution'],
+              roots: ['execution'],
             },
           ],
         },
@@ -2060,17 +2062,17 @@ describe('normalizeWorkflowDocument', () => {
       const model = normalizeWorkflowDocument(document);
 
       expect(model.templates?.env?.EVENT_NAME?.[0]).toMatchObject({
-        kind: 'expr',
+        kind: 'deferred',
         expression: {check: 'syntax'},
-        contextRoots: ['event'],
+        roots: ['event'],
       });
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'run',
-        templates: {name: [{kind: 'expr', contextRoots: ['event']}]},
+        templates: {name: [{kind: 'deferred', roots: ['event']}]},
       });
       expect(model.jobs[0]?.steps[1]).toMatchObject({
         kind: 'agent',
-        templates: {prompt: [{kind: 'expr', contextRoots: ['inputs']}]},
+        templates: {prompt: [{kind: 'deferred', roots: ['inputs']}]},
       });
     });
 
@@ -2137,7 +2139,7 @@ describe('normalizeWorkflowDocument', () => {
 
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'agent',
-        templates: {[field]: [{kind: 'expr', contextRoots: ['run']}]},
+        templates: {[field]: [{kind: 'deferred', roots: ['run']}]},
       });
     });
 
@@ -2155,7 +2157,7 @@ describe('normalizeWorkflowDocument', () => {
 
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'agent',
-        templates: {provider: [{kind: 'expr', contextRoots: ['run']}]},
+        templates: {provider: [{kind: 'deferred', roots: ['run']}]},
       });
     });
 
@@ -2276,9 +2278,9 @@ describe('normalizeWorkflowDocument', () => {
       const error = expectInvalid(invalidDocument);
 
       expect(model.templates?.env?.VALID?.[0]).toMatchObject({
-        kind: 'expr',
+        kind: 'deferred',
         expression: {check: 'typed'},
-        contextRoots: ['run', 'trigger'],
+        roots: ['run', 'trigger'],
       });
       expect(error.issues).toEqual([
         expect.objectContaining({
@@ -2311,9 +2313,9 @@ describe('normalizeWorkflowDocument', () => {
       const error = expectInvalid(runDocument);
 
       expect(model.templates?.env?.MIXED?.[0]).toMatchObject({
-        kind: 'expr',
+        kind: 'deferred',
         expression: {check: 'syntax'},
-        contextRoots: expect.arrayContaining(['run', 'event']),
+        roots: expect.arrayContaining(['run', 'event']),
       });
       expect(error.issues).toEqual([
         expect.objectContaining({
