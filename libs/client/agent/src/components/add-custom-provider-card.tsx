@@ -1,3 +1,4 @@
+import {Icon} from '@shipfox/react-ui/icon';
 import {Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 
@@ -16,9 +17,15 @@ export function AddCustomProviderCard({onConfigure}: {onConfigure: () => void}) 
         aria-label="Configure custom provider"
         onClick={onConfigure}
       >
-        <Text size="md" bold className="min-w-0 truncate">
-          Custom
-        </Text>
+        <div className="flex min-w-0 items-center justify-between gap-12">
+          <Text size="md" bold className="min-w-0 truncate">
+            Custom
+          </Text>
+          <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
+            <Text size="sm">Configure</Text>
+            <Icon name="chevronRight" className="size-16" />
+          </div>
+        </div>
       </button>
     </li>
   );

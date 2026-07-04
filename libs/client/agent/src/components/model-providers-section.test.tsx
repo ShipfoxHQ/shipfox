@@ -100,6 +100,9 @@ describe('WorkspaceModelProvidersSection', () => {
       screen.getByText('Providers that can be configured for agent steps in this workspace.'),
     ).toBeVisible();
     expect(screen.getByText('OpenAI')).toBeVisible();
+    const customProviderButton = screen.getByRole('button', {name: 'Configure custom provider'});
+    expect(within(customProviderButton).getByText('Custom')).toBeVisible();
+    expect(within(customProviderButton).getByText('Configure')).toBeVisible();
     expect(screen.getByText('Unsupported providers')).toBeVisible();
     expect(screen.getByText('Amazon Bedrock')).toBeVisible();
     expect(screen.getByText('AWS cloud credentials are not supported yet.')).toBeVisible();
