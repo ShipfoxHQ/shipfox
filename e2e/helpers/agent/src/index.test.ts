@@ -44,17 +44,32 @@ describe('agent e2e helper', () => {
   });
 
   it('passes when Ollama exposes the configured model', async () => {
-    const fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({models: [{name: 'qwen3.5:0.8b'}]}), {
-        status: 200,
-        headers: {'content-type': 'application/json'},
-      }),
-    );
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({models: [{name: 'qwen3.5:0.8b'}]}), {
+          status: 200,
+          headers: {'content-type': 'application/json'},
+        }),
+      )
+      .mockResolvedValueOnce(new Response('{}'));
     const {requireOllamaModel} = await import('./index.js');
 
     const result = await requireOllamaModel({fetch});
 
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/tags');
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:11434/api/generate',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          model: 'qwen3.5:0.8b',
+          prompt: '',
+          stream: false,
+          keep_alive: '24h',
+        }),
+      }),
+    );
     expect(result.model).toBe('qwen3.5:0.8b');
   });
 
@@ -85,12 +100,15 @@ describe('agent e2e helper', () => {
     requestJson.mockResolvedValueOnce({provider_id: 'local-ollama-e2e'});
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({models: [{name: 'qwen3.5:0.8b'}]}), {
-          status: 200,
-          headers: {'content-type': 'application/json'},
-        }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({models: [{name: 'qwen3.5:0.8b'}]}), {
+            status: 200,
+            headers: {'content-type': 'application/json'},
+          }),
+        )
+        .mockResolvedValueOnce(new Response('{}')),
     );
     const {createOllamaCustomProvider} = await import('./index.js');
 

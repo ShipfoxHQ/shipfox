@@ -121,7 +121,15 @@ test('creates a custom model provider backed by local Ollama', async ({
   await expect(defaultModelField).toContainText(OLLAMA_MODEL_ID);
 
   await defaultModelField.selectOption(OLLAMA_MODEL_ID);
+  const saveResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/agent/custom-model-providers') &&
+      response.request().method() === 'POST' &&
+      !response.url().includes('/discover-models'),
+    {timeout: 30_000},
+  );
   await dialog.getByRole('button', {name: 'Test & save'}).click();
+  expect((await saveResponse).ok()).toBe(true);
 
   await expect(page.getByText('Custom provider saved')).toBeVisible();
   await expect(configuredProviderRow(page, CREATE_PROVIDER_NAME)).toBeVisible();
@@ -164,7 +172,14 @@ test('edits an existing custom model provider and validates with local Ollama', 
   await expect(dialog.getByLabel('Provider ID')).toBeDisabled();
 
   await dialog.getByLabel('Display name').fill(EDITED_PROVIDER_NAME);
+  const saveResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/agent/custom-model-providers/${EDIT_PROVIDER_ID}`) &&
+      response.request().method() === 'PUT',
+    {timeout: 30_000},
+  );
   await dialog.getByRole('button', {name: 'Test & save'}).click();
+  expect((await saveResponse).ok()).toBe(true);
 
   await expect(page.getByText(`${EDIT_PROVIDER_NAME} saved`)).toBeVisible();
   await expect(configuredProviderRow(page, EDITED_PROVIDER_NAME)).toBeVisible();
