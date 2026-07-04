@@ -47,6 +47,22 @@ describe('fromStepErrorDto', () => {
     });
   });
 
+  it('persists config error field and source diagnostics', () => {
+    const persisted = fromStepErrorDto({
+      message: 'Could not resolve env.VERSION',
+      reason: 'config_unresolvable',
+      field: 'env.VERSION',
+      source: 'steps.build.outputs.version',
+    });
+
+    expect(persisted).toEqual({
+      message: 'Could not resolve env.VERSION',
+      reason: 'config_unresolvable',
+      field: 'env.VERSION',
+      source: 'steps.build.outputs.version',
+    });
+  });
+
   it('ignores a runner-supplied category (the server derives it on read)', () => {
     const persisted = fromStepErrorDto({
       message: 'mkdir denied',
