@@ -3,8 +3,8 @@ import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 import {
   AUTH_USER,
   buildUserContext,
-  requireWorkspaceAccess,
   setUserContext,
+  type UserContextMembership,
 } from '@shipfox/api-auth-context';
 import {getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
@@ -21,17 +21,13 @@ import {
 import {modelProviderConfigs} from '#db/schema/model-provider-configs.js';
 import {agentRoutes} from './index.js';
 
-vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
-  return {...actual, requireWorkspaceAccess: vi.fn()};
-});
-
 vi.mock('@earendil-works/pi-ai', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@earendil-works/pi-ai')>();
   return {...actual, complete: vi.fn()};
 });
 
 const AUTH_USER_ID = '11111111-1111-4111-8111-111111111111';
+let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -45,7 +41,7 @@ const fakeUserAuth: AuthMethod = {
       buildUserContext({
         userId: AUTH_USER_ID,
         email: 'user@example.com',
-        memberships: [{workspaceId: 'workspace-from-auth', role: 'admin'}],
+        memberships: authenticatedMemberships,
       }),
     );
     return Promise.resolve();
@@ -78,11 +74,7 @@ describe('model provider config routes', () => {
       stopReason: 'stop',
       timestamp: Date.now(),
     });
-    vi.mocked(requireWorkspaceAccess).mockReturnValue({
-      workspaceId,
-      userId: AUTH_USER_ID,
-      role: 'admin',
-    });
+    authenticatedMemberships = [{workspaceId, role: 'admin'}];
     app = await createApp({
       auth: [fakeUserAuth],
       routes: agentRoutes,
@@ -111,9 +103,7 @@ describe('model provider config routes', () => {
     });
 
     it('returns 403 when the user is not a workspace member', async () => {
-      vi.mocked(requireWorkspaceAccess).mockImplementationOnce(() => {
-        throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
-      });
+      authenticatedMemberships = [];
 
       const res = await app.inject({
         method: 'GET',

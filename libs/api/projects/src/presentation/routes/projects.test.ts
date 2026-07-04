@@ -1,4 +1,9 @@
-import {AUTH_USER, setUserContext} from '@shipfox/api-auth-context';
+import {
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+  type UserContextMembership,
+} from '@shipfox/api-auth-context';
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
 import {IntegrationConnectionNotFoundError} from '@shipfox/api-integration-core';
 import type {AuthMethod} from '@shipfox/node-fastify';
@@ -6,29 +11,20 @@ import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {createProjectRoutes} from './index.js';
 
-vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
-  return {
-    ...actual,
-    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
-      workspaceId,
-      userId: 'user-1',
-      role: 'admin',
-    })),
-  };
-});
+let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
   authenticate: (request: FastifyRequest) => {
-    setUserContext(request, {
-      userId: 'user-1',
-      email: 'user@example.com',
-      name: 'User One',
-      memberships: [],
-      canAccess: () => true,
-      hasRole: () => true,
-    });
+    setUserContext(
+      request,
+      buildUserContext({
+        userId: 'user-1',
+        email: 'user@example.com',
+        name: 'User One',
+        memberships: authenticatedMemberships,
+      }),
+    );
     return Promise.resolve();
   },
 };
@@ -43,6 +39,7 @@ describe('project routes', () => {
     await closeApp();
     workspaceId = crypto.randomUUID();
     sourceConnectionId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin'}];
     sourceControl = {
       getConnection: vi.fn(),
       listRepositories: vi.fn(),

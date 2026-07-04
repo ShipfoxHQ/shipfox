@@ -1,11 +1,5 @@
-import {ClientError} from '@shipfox/node-fastify';
 import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
-import {
-  createTestApp,
-  requireWorkspaceAccessMock,
-  sourceProvider,
-  useIntegrationRouteTest,
-} from '#test/route-utils.js';
+import {createTestApp, sourceProvider, useIntegrationRouteTest} from '#test/route-utils.js';
 
 describe('PATCH /integration-connections/:connectionId', () => {
   const context = useIntegrationRouteTest();
@@ -73,14 +67,11 @@ describe('PATCH /integration-connections/:connectionId', () => {
   it('returns membership errors', async () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({
-      workspaceId: context.workspaceId,
+      workspaceId: crypto.randomUUID(),
       provider: 'gitea',
       externalAccountId: 'gitea-owner',
       slug: 'gitea_owner',
       displayName: 'Gitea',
-    });
-    requireWorkspaceAccessMock.mockImplementationOnce(() => {
-      throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
     });
 
     const res = await app.inject({

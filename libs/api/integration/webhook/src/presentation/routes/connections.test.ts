@@ -1,4 +1,9 @@
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+  type UserContextMembership,
+} from '@shipfox/api-auth-context';
 import {
   ConnectionSlugConflictError,
   type IntegrationConnection,
@@ -18,17 +23,11 @@ type DeleteConnectionFn = CreateWebhookIntegrationProviderOptions['deleteIntegra
 
 const INBOUND_URL_RE = /^https:\/\/api\.example\.com\/webhook\//;
 
-vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
-  return {
-    ...actual,
-    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
-      workspaceId,
-      userId: 'user-1',
-      role: 'admin',
-    })),
-  };
-});
+let authenticatedMemberships: UserContextMembership[] = [];
+
+function authorizeWorkspace(workspaceId: string): void {
+  authenticatedMemberships = [{workspaceId, role: 'admin'}];
+}
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -39,7 +38,11 @@ const fakeUserAuth: AuthMethod = {
 
     setUserContext(
       request,
-      buildUserContext({userId: 'user-1', email: 'user@example.com', memberships: []}),
+      buildUserContext({
+        userId: 'user-1',
+        email: 'user@example.com',
+        memberships: authenticatedMemberships,
+      }),
     );
     return Promise.resolve();
   },
@@ -138,6 +141,7 @@ async function createTestApp(store = createStore()): Promise<{
 
 describe('webhook connection routes', () => {
   beforeEach(async () => {
+    authenticatedMemberships = [];
     await closeApp();
   });
 
@@ -147,6 +151,7 @@ describe('webhook connection routes', () => {
 
   it('creates a webhook connection with its inbound URL', async () => {
     const workspaceId = crypto.randomUUID();
+    authorizeWorkspace(workspaceId);
     const {app} = await createTestApp();
 
     const res = await app.inject({
@@ -168,6 +173,7 @@ describe('webhook connection routes', () => {
 
   it('returns 409 for a duplicate slug in the workspace', async () => {
     const workspaceId = crypto.randomUUID();
+    authorizeWorkspace(workspaceId);
     const {app} = await createTestApp();
     const payload = {workspace_id: workspaceId, name: 'Stripe', slug: 'stripe-prod'};
 
@@ -191,6 +197,7 @@ describe('webhook connection routes', () => {
 
   it('returns 409 when the core connection create reports a slug conflict', async () => {
     const workspaceId = crypto.randomUUID();
+    authorizeWorkspace(workspaceId);
     const store = createStore();
     store.createIntegrationConnection.mockRejectedValueOnce(connectionSlugConflictError());
     const {app} = await createTestApp(store);
@@ -208,6 +215,7 @@ describe('webhook connection routes', () => {
 
   it('lists only webhook connections for the workspace', async () => {
     const workspaceId = crypto.randomUUID();
+    authorizeWorkspace(workspaceId);
     const store = createStore();
     const webhook = store.seed(fakeConnection({workspaceId, externalAccountId: 'stripe'}));
     store.seed(fakeConnection({workspaceId, provider: 'github', externalAccountId: 'gh'}));
@@ -229,6 +237,7 @@ describe('webhook connection routes', () => {
   it('updates a webhook connection lifecycle status', async () => {
     const store = createStore();
     const connection = store.seed(fakeConnection());
+    authorizeWorkspace(connection.workspaceId);
     const {app} = await createTestApp(store);
 
     const res = await app.inject({
@@ -253,6 +262,10 @@ describe('webhook connection routes', () => {
   ])('returns 404 when patching a $description', async ({connectionId, seed}) => {
     const store = createStore();
     const id = seed ? seed(store) : connectionId;
+    if (seed && id) {
+      const connection = await store.getIntegrationConnectionById(id);
+      if (connection) authorizeWorkspace(connection.workspaceId);
+    }
     const {app} = await createTestApp(store);
 
     const res = await app.inject({
@@ -270,6 +283,7 @@ describe('webhook connection routes', () => {
   it('returns 404 when a webhook connection disappears during patch', async () => {
     const store = createStore();
     const connection = store.seed(fakeConnection());
+    authorizeWorkspace(connection.workspaceId);
     store.updateIntegrationConnectionLifecycleStatus.mockResolvedValueOnce(undefined);
     const {app} = await createTestApp(store);
 
@@ -287,6 +301,7 @@ describe('webhook connection routes', () => {
   it('deletes a webhook connection', async () => {
     const store = createStore();
     const connection = store.seed(fakeConnection());
+    authorizeWorkspace(connection.workspaceId);
     const {app} = await createTestApp(store);
 
     const res = await app.inject({
@@ -310,6 +325,10 @@ describe('webhook connection routes', () => {
   ])('returns 404 when deleting a $description', async ({connectionId, seed}) => {
     const store = createStore();
     const id = seed ? seed(store) : connectionId;
+    if (seed && id) {
+      const connection = await store.getIntegrationConnectionById(id);
+      if (connection) authorizeWorkspace(connection.workspaceId);
+    }
     const {app} = await createTestApp(store);
 
     const res = await app.inject({
@@ -324,26 +343,30 @@ describe('webhook connection routes', () => {
   });
 
   it.each(WEBHOOK_RESERVED_SLUGS)('rejects reserved slug %s', async (slug) => {
+    const workspaceId = crypto.randomUUID();
+    authorizeWorkspace(workspaceId);
     const {app} = await createTestApp();
 
     const res = await app.inject({
       method: 'POST',
       url: '/integrations/webhook/connections',
       headers: {authorization: 'Bearer user'},
-      payload: {workspace_id: crypto.randomUUID(), name: 'Reserved', slug},
+      payload: {workspace_id: workspaceId, name: 'Reserved', slug},
     });
 
     expect(res.statusCode).toBe(400);
   });
 
   it('rejects a malformed slug', async () => {
+    const workspaceId = crypto.randomUUID();
+    authorizeWorkspace(workspaceId);
     const {app} = await createTestApp();
 
     const res = await app.inject({
       method: 'POST',
       url: '/integrations/webhook/connections',
       headers: {authorization: 'Bearer user'},
-      payload: {workspace_id: crypto.randomUUID(), name: 'Malformed', slug: 'Stripe_Prod'},
+      payload: {workspace_id: workspaceId, name: 'Malformed', slug: 'Stripe_Prod'},
     });
 
     expect(res.statusCode).toBe(400);

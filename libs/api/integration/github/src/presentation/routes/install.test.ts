@@ -1,4 +1,9 @@
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+  type UserContextMembership,
+} from '@shipfox/api-auth-context';
 import {
   ConnectionSlugConflictError,
   type IntegrationConnection,
@@ -10,26 +15,13 @@ import type {ConnectGithubInstallationInput} from '#core/install.js';
 import {verifyGithubInstallState} from '#core/state.js';
 import {createGithubIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-auth-context', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/api-auth-context')>();
-  return {
-    ...actual,
-    requireWorkspaceAccess: vi.fn(({workspaceId}) => ({
-      workspaceId,
-      userId: 'user-1',
-      role: 'admin',
-    })),
-  };
-});
-
 vi.mock('@shipfox/api-workspaces', () => ({
   requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
 }));
 
-const {requireWorkspaceAccess} = await import('@shipfox/api-auth-context');
 const {requireWorkspaceMembership} = await import('@shipfox/api-workspaces');
-const requireWorkspaceAccessMock = vi.mocked(requireWorkspaceAccess);
 const requireWorkspaceMembershipMock = vi.mocked(requireWorkspaceMembership);
+let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -40,7 +32,11 @@ const fakeUserAuth: AuthMethod = {
 
     setUserContext(
       request,
-      buildUserContext({userId: 'user-1', email: 'user@example.com', memberships: []}),
+      buildUserContext({
+        userId: 'user-1',
+        email: 'user@example.com',
+        memberships: authenticatedMemberships,
+      }),
     );
     return Promise.resolve();
   },
@@ -127,6 +123,7 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
 
 describe('GitHub integration routes', () => {
   beforeEach(async () => {
+    authenticatedMemberships = [];
     await closeApp();
   });
 
@@ -149,6 +146,7 @@ describe('GitHub integration routes', () => {
   it('returns an install URL with signed workspace state', async () => {
     const app = await createTestApp();
     const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin'}];
 
     const res = await app.inject({
       method: 'POST',
@@ -166,7 +164,6 @@ describe('GitHub integration routes', () => {
     );
     expect(claims.workspaceId).toBe(workspaceId);
     expect(claims.userId).toBe('user-1');
-    expect(requireWorkspaceAccessMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
   });
 
   it('requires auth on the GitHub callback API', async () => {
@@ -198,7 +195,7 @@ describe('GitHub integration routes', () => {
     expect(requireWorkspaceMembershipMock).toHaveBeenCalledWith({
       workspaceId,
       userId: 'user-1',
-      memberships: [],
+      memberships: [{workspaceId, role: 'admin'}],
     });
   });
 
@@ -268,6 +265,7 @@ describe('GitHub integration routes', () => {
 });
 
 async function createInstallState(app: FastifyInstance, workspaceId: string): Promise<string> {
+  authenticatedMemberships = [{workspaceId, role: 'admin'}];
   const res = await app.inject({
     method: 'POST',
     url: '/integrations/github/install',

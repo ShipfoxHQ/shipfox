@@ -1,11 +1,6 @@
 import {IntegrationProviderError} from '#core/errors.js';
 import {upsertIntegrationConnection} from '#db/connections.js';
-import {
-  createTestApp,
-  requireWorkspaceAccessMock,
-  sourceProvider,
-  useIntegrationRouteTest,
-} from '#test/route-utils.js';
+import {createTestApp, sourceProvider, useIntegrationRouteTest} from '#test/route-utils.js';
 
 describe('GET /integration-connections/:connectionId/repositories', () => {
   const context = useIntegrationRouteTest();
@@ -27,9 +22,6 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(requireWorkspaceAccessMock).toHaveBeenCalledWith(
-      expect.objectContaining({workspaceId: connection.workspaceId}),
-    );
     expect(res.json().repositories[0].full_name).toBe('gitea-owner/platform');
   });
 
