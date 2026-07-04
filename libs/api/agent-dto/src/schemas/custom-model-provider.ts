@@ -128,7 +128,7 @@ const customModelProviderBodyFields = {
 export const createCustomModelProviderBodySchema = z
   .object({
     slug: modelProviderRefSchema.refine((slug) => !isReservedModelProviderId(slug), {
-      message: 'Provider id is reserved.',
+      message: 'Provider ID is reserved.',
     }),
     ...customModelProviderBodyFields,
     headers: customModelProviderHeadersRequestSchema.optional(),

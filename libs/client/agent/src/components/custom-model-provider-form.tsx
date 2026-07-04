@@ -208,10 +208,10 @@ export function CustomModelProviderForm({
                     >
                       {(field) => (
                         <FormField
-                          label="Provider id"
+                          label="Provider ID"
                           id="custom-provider-slug"
                           error={fieldError(field)}
-                          description="Referenced as provider: <slug> in workflow files."
+                          description="Use this ID in workflow files."
                         >
                           <FormFieldInput
                             className="font-code"
@@ -266,7 +266,6 @@ export function CustomModelProviderForm({
                           label="Base URL"
                           id="custom-provider-base-url"
                           error={fieldError(field)}
-                          description="Must be reachable from the Shipfox API server. For OpenAI, use https://api.openai.com/v1."
                         >
                           <FormFieldInput
                             className="font-code"
@@ -470,7 +469,7 @@ function HeaderRows({
       {rows.map((row, index) => (
         <div
           key={row.client_id}
-          className="grid grid-cols-[1fr_1fr_auto_auto] items-end gap-8 max-[760px]:grid-cols-1"
+          className="grid grid-cols-[1fr_1fr_auto_auto] items-end gap-x-8 gap-y-4 max-[760px]:grid-cols-1"
         >
           <FormField label="Name" id={`custom-header-name-${row.client_id}`}>
             <FormFieldInput
@@ -490,9 +489,6 @@ function HeaderRows({
                 updateRow(rows, index, {...row, value: event.target.value}, onChange)
               }
             />
-            {row.hasStoredValue ? (
-              <StoredHeaderFingerprint row={row} fingerprints={fingerprints} />
-            ) : null}
           </FormField>
           <div className="flex h-32 items-center gap-8 text-sm text-foreground-neutral-muted">
             <Switch
@@ -516,6 +512,9 @@ function HeaderRows({
               focusAfterRender(addButtonRef);
             }}
           />
+          {row.hasStoredValue ? (
+            <StoredHeaderFingerprint row={row} fingerprints={fingerprints} />
+          ) : null}
         </div>
       ))}
       <Button
@@ -556,7 +555,10 @@ function StoredHeaderFingerprint({
   const fingerprint = headerCredentialFingerprint(fingerprints, row.storedName);
   if (!fingerprint) return null;
   return (
-    <Text size="sm" className="mt-4 text-foreground-neutral-muted">
+    <Text
+      size="sm"
+      className="col-start-2 text-foreground-neutral-muted max-[760px]:col-start-auto"
+    >
       Current:{' '}
       <Code as="span" variant="label">
         {fingerprint}
@@ -627,7 +629,7 @@ function ModelRows({
           <Collapsible>
             <CollapsibleTrigger asChild>
               <Button type="button" size="sm" variant="transparentMuted" className="mt-8">
-                Advanced defaults: 128k context, 16k output, text-only
+                Defaults: 128k context, 16k output, text-only
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>
