@@ -10,7 +10,6 @@ const defaultApiUrl = 'http://localhost:16101';
 const defaultClientUrl = 'http://localhost:5173';
 const defaultReadinessTimeoutMs = 60_000;
 const defaultShutdownTimeoutMs = 15_000;
-const defaultTurboConcurrency = '2';
 const defaultTurboTask = 'test:e2e';
 const trailingSlashPattern = /\/$/;
 
@@ -180,7 +179,6 @@ export function e2eEnv(sourceEnv) {
     E2E_GITEA_URL: giteaUrl,
     GITEA_CLONE_BASE_URL: sourceEnv.GITEA_CLONE_BASE_URL ?? giteaUrl,
     HOST: sourceEnv.HOST ?? '0.0.0.0',
-    SHIPFOX_TURBO_CONCURRENCY: sourceEnv.SHIPFOX_TURBO_CONCURRENCY ?? defaultTurboConcurrency,
     VITE_API_URL: sourceEnv.VITE_API_URL ?? apiUrl,
     VITE_ENABLE_TEST_VCS_PROVIDER: sourceEnv.VITE_ENABLE_TEST_VCS_PROVIDER ?? 'true',
   };

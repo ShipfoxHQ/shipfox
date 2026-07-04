@@ -63,7 +63,7 @@ describe('e2eEnv', () => {
     assert.equal(env.CLIENT_URL, 'http://localhost:55350');
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:55356');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
-    assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, '2');
+    assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, undefined);
     assert.equal(env.VITE_API_URL, 'http://localhost:55351');
   });
 
@@ -93,7 +93,7 @@ describe('e2eEnv', () => {
 });
 
 describe('turboCommandArgs', () => {
-  test('caps E2E turbo concurrency from the environment', () => {
+  test('uses E2E turbo concurrency from the environment', () => {
     const args = turboCommandArgs(
       {
         turboArgs: ['--filter=@shipfox/e2e-client-agent'],
@@ -107,6 +107,18 @@ describe('turboCommandArgs', () => {
       '--filter=@shipfox/e2e-client-agent',
       '--concurrency=2',
     ]);
+  });
+
+  test('keeps turbo default concurrency without an environment override', () => {
+    const args = turboCommandArgs(
+      {
+        turboArgs: ['--filter=@shipfox/e2e-client-agent'],
+        turboTask: 'test:e2e',
+      },
+      {},
+    );
+
+    assert.deepEqual(args, ['test:e2e', '--filter=@shipfox/e2e-client-agent']);
   });
 
   test('does not override explicit turbo concurrency', () => {
