@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {check, integer, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {check, index, integer, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import type {RunnerSession} from '#core/entities/runner-session.js';
 import {pgTable} from './common.js';
 
@@ -36,6 +36,9 @@ export const runnerSessions = pgTable(
       'runners_runner_sessions_link_ck',
       sql`((${table.registrationTokenKind} = 'manual' AND ${table.provisionerId} IS NULL AND ${table.provisionedRunnerId} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.provisionerId} IS NOT NULL AND ${table.provisionedRunnerId} IS NOT NULL))`,
     ),
+    index('runners_runner_sessions_provisioned_runner_updated_idx')
+      .on(table.workspaceId, table.provisionerId, table.provisionedRunnerId, table.updatedAt)
+      .where(sql`"provisioner_id" IS NOT NULL`),
   ],
 );
 

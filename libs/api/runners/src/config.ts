@@ -36,6 +36,18 @@ export const config = createConfig({
     desc: 'Grace window, in seconds, before reconcile marks an absent provisioned runner as terminated. Set this higher than the provisioner report interval so a transient empty or partial observed set does not kill a live runner.',
     default: 120,
   }),
+  RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS: num({
+    desc: 'Time, in seconds, after which a provisioned runner with no recent report, no live provisioner, no live runner session, and no running job is marked failed by backend maintenance.',
+    default: 300,
+  }),
+  RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT: num({
+    desc: 'Maximum number of stale provisioned runners the maintenance worker marks failed in one run. Higher values clear backlogs faster but hold database locks longer.',
+    default: 100,
+  }),
+  RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS: num({
+    desc: 'Minimum time, in seconds, between runner session liveness writes from job request polls. Set this lower than RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS so active idle runners stay fresh.',
+    default: 10,
+  }),
   PROVISIONER_ACTIVE_WINDOW_SECONDS: num({
     desc: 'Time window, in seconds, used to list active provisioners from recent authenticated requests.',
     default: 120,
@@ -119,6 +131,33 @@ if (
 }
 
 if (
+  !Number.isInteger(config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS) ||
+  config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS < 1
+) {
+  throw new Error(
+    `RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS (${config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS}) must be a whole number of seconds >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT) ||
+  config.RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT < 1
+) {
+  throw new Error(
+    `RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT (${config.RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT}) must be a whole number >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS) ||
+  config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS < 1
+) {
+  throw new Error(
+    `RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS (${config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS}) must be a whole number of seconds >= 1.`,
+  );
+}
+
+if (
   !Number.isInteger(config.PROVISIONER_ACTIVE_WINDOW_SECONDS) ||
   config.PROVISIONER_ACTIVE_WINDOW_SECONDS < 1
 ) {
@@ -133,5 +172,23 @@ if (
 ) {
   throw new Error(
     `PROVISIONER_LAST_SEEN_THROTTLE_SECONDS (${config.PROVISIONER_LAST_SEEN_THROTTLE_SECONDS}) must be a whole number of seconds >= 1.`,
+  );
+}
+
+if (
+  config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS <=
+  config.PROVISIONER_LAST_SEEN_THROTTLE_SECONDS
+) {
+  throw new Error(
+    `RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS (${config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS}) must be greater than PROVISIONER_LAST_SEEN_THROTTLE_SECONDS (${config.PROVISIONER_LAST_SEEN_THROTTLE_SECONDS}).`,
+  );
+}
+
+if (
+  config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS <=
+  config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS
+) {
+  throw new Error(
+    `RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS (${config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS}) must be greater than RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS (${config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS}).`,
   );
 }

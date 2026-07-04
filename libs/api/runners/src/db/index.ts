@@ -33,6 +33,7 @@ export {
 } from './manual-registration-tokens.js';
 export type {
   ProvisionedRunnerReportEvent,
+  ReapStaleProvisionedRunnersResult,
   ReconcileProvisionedRunnersDbResult,
   ReconcileProvisionedRunnersParams,
   ReportProvisionedRunnersParams,
@@ -41,6 +42,7 @@ export {
   isTerminalState,
   listActiveProvisionedRunners,
   listProvisionerTerminateIntents,
+  reapStaleProvisionedRunners,
   reconcileProvisionedRunners,
   reportProvisionedRunners,
 } from './provisioned-runners.js';

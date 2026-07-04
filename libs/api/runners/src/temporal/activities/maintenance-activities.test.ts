@@ -1,12 +1,18 @@
-import {deleteExpiredRunnerReservations, detectAndExpireStuckJobs} from '#core/maintenance.js';
+import {
+  deleteExpiredRunnerReservations,
+  detectAndExpireStuckJobs,
+  reapStaleProvisionedRunners,
+} from '#core/maintenance.js';
 import {
   deleteExpiredReservationsActivity,
   detectAndExpireStuckJobsActivity,
+  reapStaleProvisionedRunnersActivity,
 } from './maintenance-activities.js';
 
 vi.mock('#core/maintenance.js', () => ({
   deleteExpiredRunnerReservations: vi.fn(),
   detectAndExpireStuckJobs: vi.fn(),
+  reapStaleProvisionedRunners: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -32,5 +38,25 @@ describe('deleteExpiredReservationsActivity', () => {
 
     expect(result).toEqual({deleted: 3});
     expect(deleteExpiredRunnerReservations).toHaveBeenCalledWith({limit: 50});
+  });
+});
+
+describe('reapStaleProvisionedRunnersActivity', () => {
+  it('delegates to core maintenance', async () => {
+    vi.mocked(reapStaleProvisionedRunners).mockResolvedValueOnce({
+      reaped: 4,
+      reservationsReleased: 2,
+    });
+
+    const result = await reapStaleProvisionedRunnersActivity({
+      thresholdSeconds: 300,
+      limit: 100,
+    });
+
+    expect(result).toEqual({reaped: 4, reservationsReleased: 2});
+    expect(reapStaleProvisionedRunners).toHaveBeenCalledWith({
+      thresholdSeconds: 300,
+      limit: 100,
+    });
   });
 });

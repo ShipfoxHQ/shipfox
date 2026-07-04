@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "runners_provisioned_runners_stale_reaper_idx" ON "runners_provisioned_runners" USING btree ("state","updated_at","reported_at","workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "runners_runner_sessions_provisioned_runner_updated_idx" ON "runners_runner_sessions" USING btree ("workspace_id","provisioner_id","provisioned_runner_id","updated_at") WHERE "provisioner_id" IS NOT NULL;
