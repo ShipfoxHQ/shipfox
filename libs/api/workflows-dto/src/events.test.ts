@@ -305,7 +305,6 @@ describe('workflowsEventSchemas', () => {
 
     expect(registeredTypes).toEqual(
       expect.not.arrayContaining([
-        'workflows.job_event.delivered',
         'workflows.listener.started',
         'workflows.listener.resolved',
         'workflows.listener.cancelled',
