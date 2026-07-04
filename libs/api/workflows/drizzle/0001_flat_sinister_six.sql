@@ -1,1 +1,0 @@
-ALTER TABLE "workflows_steps" ADD COLUMN "config_plan" jsonb;
