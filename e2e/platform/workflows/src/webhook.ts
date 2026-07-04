@@ -151,8 +151,13 @@ export async function triggerWebhookAndAwaitRun(params: {
       client: params.client,
       connection: params.connection,
       deliveryId,
-      webhook: params.webhook ?? {
-        body: {scenario: params.scenario, attempt, delivery_id: deliveryId},
+      webhook: {
+        ...params.webhook,
+        body: params.webhook?.body ?? {
+          scenario: params.scenario,
+          attempt,
+          delivery_id: deliveryId,
+        },
       },
     });
 
