@@ -13,10 +13,30 @@ const envNameSchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/);
 const envStringValueSchema = z.string().refine((value) => !value.includes('\u0000'), {
   message: 'Env string values cannot contain null bytes',
 });
-export const workflowDocumentEnvSchema = z.record(
-  envNameSchema,
-  z.union([envStringValueSchema, z.number(), z.boolean()]),
-);
+export const WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES = 128;
+export const WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES = 32 * 1024;
+
+const utf8Encoder = new TextEncoder();
+
+export const workflowDocumentEnvSchema = z
+  .record(envNameSchema, z.union([envStringValueSchema, z.number(), z.boolean()]))
+  .superRefine((env, ctx) => {
+    const entries = Object.keys(env).length;
+    if (entries > WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Env cannot define more than ${WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES} entries.`,
+      });
+    }
+
+    const serializedBytes = utf8Encoder.encode(JSON.stringify(env)).byteLength;
+    if (serializedBytes > WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Env cannot serialize to more than ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} bytes.`,
+      });
+    }
+  });
 
 const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1),
