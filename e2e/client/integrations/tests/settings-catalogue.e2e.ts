@@ -3,6 +3,8 @@ import {argosScreenshot, type Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const ADDED_DATE_RE = /^Added /u;
+const VISUAL_GITEA_CONNECTION_NAME = 'Gitea visual-test-org';
+const VISUAL_ADDED_DATE = 'Added Jan 15, 2026';
 
 // The e2e API may enable a different provider set, so stub the list to keep the
 // multi-tile grid deterministic. Typed against the real response DTO so a
@@ -79,16 +81,23 @@ test('settings catalogue shows an installed provider after Gitea install', async
   await page.goto(`/workspaces/${workspace.id}/settings/integrations`);
 
   const installed = page.locator('section[aria-label="Installed integrations"]');
-  await expect(installed.getByText(`Gitea ${org.org}`, {exact: true})).toBeVisible();
+  const installedName = installed.getByText(`Gitea ${org.org}`, {exact: true});
+  await expect(installedName).toBeVisible();
   await expect(installed.getByText('Connected')).toHaveCount(0);
   await expect(installed.getByText(ADDED_DATE_RE)).toBeVisible();
 
-  // `Added <date>` is server-generated, so it would drift the Argos baseline.
-  // Pin only that text and keep the rest of the row anchored to the real Gitea
-  // connection.
-  await installed.getByText(ADDED_DATE_RE).evaluate((element) => {
-    element.textContent = 'Added Jan 15, 2026';
-  });
+  await installedName.evaluate((element, text) => {
+    element.textContent = text;
+  }, VISUAL_GITEA_CONNECTION_NAME);
+  await installed.getByText(ADDED_DATE_RE).evaluate((element, text) => {
+    element.textContent = text;
+  }, VISUAL_ADDED_DATE);
+
+  await installed
+    .getByLabel(`Open Gitea ${org.org} integration actions`)
+    .evaluate((element, text) => {
+      element.setAttribute('aria-label', `Open ${text} integration actions`);
+    }, VISUAL_GITEA_CONNECTION_NAME);
 
   await argosScreenshot(page, 'integrations/settings-installed');
 });
