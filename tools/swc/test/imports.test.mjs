@@ -23,6 +23,15 @@ test('rewriteSpecifiers rewrites a top-level #file.js import (the SWC-paths blin
   assert.equal(result, 'import { connectionSlugSchema } from "../slug.js";\n');
 });
 
+test('rewriteSpecifiers replaces every target wildcard like Node package imports', () => {
+  const code = "import {value} from '#pair/foo.js';\n";
+  const repeatedWildcardImports = {'#pair/*': './src/generated/*/mirror/*'};
+
+  const result = rewriteSpecifiers(code, 'index.js', repeatedWildcardImports, 'src');
+
+  assert.equal(result, "import {value} from './generated/foo.js/mirror/foo.js';\n");
+});
+
 test('rewriteSpecifiers normalizes the #/dir/file.js (hash-slash) alias form', () => {
   const code = "import {AuthShell} from '#/components/auth-shell.js';\n";
 
@@ -45,6 +54,27 @@ test('rewriteSpecifiers leaves bare imports and non-specifier # strings untouche
   const result = rewriteSpecifiers(code, 'index.js', imports, 'src');
 
   assert.equal(result, code);
+});
+
+test('rewriteSpecifiers ignores import-like text inside strings and comments', () => {
+  const code = [
+    'const doc = \'import "#core/lazy.js"\';',
+    '// export * from "#schemas/index.js"',
+    'export {x} from "#real.js";',
+    '',
+  ].join('\n');
+
+  const result = rewriteSpecifiers(code, 'index.js', imports, 'src');
+
+  assert.equal(
+    result,
+    [
+      'const doc = \'import "#core/lazy.js"\';',
+      '// export * from "#schemas/index.js"',
+      'export {x} from "./real.js";',
+      '',
+    ].join('\n'),
+  );
 });
 
 test('rewriteSpecifiers leaves conditional (object) import targets untouched', () => {

@@ -1,34 +1,19 @@
 import {readdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join, posix, sep} from 'node:path';
-
-/**
- * A package.json `imports` map resolves `#` subpath imports. SWC preserves those
- * specifiers verbatim, so a built `dist/index.js` keeps `#schemas/index.js`, which
- * the map points at `./src/*` and a plain Node ESM resolver (Playwright, a
- * dist-only image) cannot load because no `.js` exists under `src/`.
- *
- * SWC's own `jsc.paths` cannot fix this reliably: it rewrites `#dir/file.js` but
- * leaves a broken `../#file.js` for top-level `#file.js` aliases. So after SWC
- * emits `dist/`, we rewrite every `#` specifier ourselves. Because
- * `--strip-leading-paths` mirrors the `src/` tree into `dist/`, a path resolved
- * against `src/` and made relative to the importing file is also valid in `dist/`.
- */
+import {type ParseOptions, parseSync} from '@swc/core';
 
 interface PackageJson {
   imports?: Record<string, unknown>;
 }
 
-// `from "#x"`, side-effect `import "#x"`, and dynamic `import("#x")`. A `#`
-// string literal that is not a module specifier (e.g. a `#ffffff` color) has no
-// `from`/`import` in front of it, so it is left untouched.
-const SPECIFIER = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])(#[^"']+)\2/g;
+// Parse the emitted JS with the permissive TS grammar (a superset of what SWC
+// emits) so we only ever touch real module specifiers.
+const PARSE_OPTIONS: ParseOptions = {syntax: 'typescript', tsx: true};
 const LEADING_DOT_SLASH = /^\.\//;
 
 /**
- * Resolves a `#` specifier against the `imports` map to its target string
- * (e.g. `./src/slug.js`). Returns null when no string target applies, which
- * covers conditional (object) targets: those declare their own runtime
- * resolution and must not be rewritten.
+ * Conditional targets declare their own runtime resolution, so only string
+ * targets are safe to rewrite.
  */
 function resolveTarget(spec: string, imports: Record<string, unknown>): string | null {
   const exact = imports[spec];
@@ -47,44 +32,115 @@ function resolveTarget(spec: string, imports: Record<string, unknown>): string |
 
     const captured = spec.slice(prefix.length, spec.length - suffix.length);
     if (!best || prefix.length > best.prefixLength) {
-      best = {resolved: target.replace('*', captured), prefixLength: prefix.length};
+      best = {resolved: target.replaceAll('*', captured), prefixLength: prefix.length};
     }
   }
   return best?.resolved ?? null;
 }
 
-// `./src/slug.js` -> `slug.js` (relative to the build output root). Normalizes
-// first so a `#/foo.js`-style alias (which resolves to `./src//foo.js`) collapses
-// like Node would. Returns null when the target is not under `rootDir`, so we
-// never remap paths we cannot place in `dist/`.
+// Normalize before the prefix check so `#/foo.js` aliases collapse the same way
+// Node would, and skip targets that cannot be placed in `dist/`.
 function toOutputRelative(target: string, rootDir: string): string | null {
   const normalized = posix.normalize(target.replace(LEADING_DOT_SLASH, ''));
   const prefix = `${rootDir}/`;
   return normalized.startsWith(prefix) ? normalized.slice(prefix.length) : null;
 }
 
-/**
- * Rewrites the `#` specifiers of a single emitted file. `fileOutputPath` is the
- * file's path relative to the output root (which mirrors `src/`).
- */
+function relativeSpecifier(
+  spec: string,
+  fromDir: string,
+  imports: Record<string, unknown>,
+  rootDir: string,
+): string | null {
+  const target = resolveTarget(spec, imports);
+  if (target === null) return null;
+
+  const outputTarget = toOutputRelative(target, rootDir);
+  if (outputTarget === null) return null;
+
+  const relativePath = posix.relative(fromDir, outputTarget);
+  return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+interface SpecifierLiteral {
+  value: string;
+  start: number;
+  end: number;
+}
+
+// A `#` string literal in module-specifier position: a static import/export
+// `source` or a dynamic `import()` argument. Anything else (a `#ffffff` color,
+// import-like text inside a string or comment) is never in this position, so it
+// is left untouched.
+function collectHashSpecifiers(ast: {span: {start: number}}): SpecifierLiteral[] {
+  const base = ast.span.start;
+  const literals: SpecifierLiteral[] = [];
+
+  const record = (node: unknown): void => {
+    if (
+      isRecord(node) &&
+      node.type === 'StringLiteral' &&
+      typeof node.value === 'string' &&
+      node.value.startsWith('#') &&
+      isRecord(node.span) &&
+      typeof node.span.start === 'number' &&
+      typeof node.span.end === 'number'
+    ) {
+      literals.push({value: node.value, start: node.span.start - base, end: node.span.end - base});
+    }
+  };
+
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child);
+      return;
+    }
+    if (!isRecord(node)) return;
+
+    const importsSource =
+      node.type === 'ImportDeclaration' ||
+      node.type === 'ExportAllDeclaration' ||
+      node.type === 'ExportNamedDeclaration';
+    if (importsSource) record(node.source);
+
+    const isDynamicImport =
+      node.type === 'CallExpression' && isRecord(node.callee) && node.callee.type === 'Import';
+    if (isDynamicImport && Array.isArray(node.arguments) && isRecord(node.arguments[0])) {
+      record(node.arguments[0].expression);
+    }
+
+    for (const key of Object.keys(node)) visit(node[key]);
+  };
+
+  visit(ast);
+  return literals;
+}
+
 export function rewriteSpecifiers(
   code: string,
   fileOutputPath: string,
   imports: Record<string, unknown>,
   rootDir: string,
 ): string {
+  if (!code.includes('#')) return code;
+
   const fromDir = posix.dirname(fileOutputPath);
-  return code.replace(SPECIFIER, (match, lead, quote, spec) => {
-    const target = resolveTarget(spec, imports);
-    if (target === null) return match;
+  const specifiers = collectHashSpecifiers(parseSync(code, PARSE_OPTIONS));
 
-    const outputTarget = toOutputRelative(target, rootDir);
-    if (outputTarget === null) return match;
+  // Splice from the end so earlier offsets stay valid as we rewrite.
+  let result = code;
+  for (const {value, start, end} of specifiers.sort((a, b) => b.start - a.start)) {
+    const specifier = relativeSpecifier(value, fromDir, imports, rootDir);
+    if (specifier === null) continue;
 
-    const relativePath = posix.relative(fromDir, outputTarget);
-    const specifier = relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
-    return `${lead}${quote}${specifier}${quote}`;
-  });
+    const quote = code[start];
+    result = result.slice(0, start) + quote + specifier + quote + result.slice(end);
+  }
+  return result;
 }
 
 interface RewriteHashImportsOptions {
@@ -94,9 +150,13 @@ interface RewriteHashImportsOptions {
 }
 
 /**
- * Rewrites `#` subpath imports to relative paths across every emitted `.js` file,
- * so the built package loads under a plain Node ESM resolver. A no-op when the
- * package declares no `imports` map.
+ * SWC preserves package `imports` aliases in emitted JS, and `jsc.paths` leaves
+ * a broken `../#file.js` for top-level aliases. Dist-only consumers then try to
+ * resolve `#` specifiers back to `src/`, where no emitted JS exists. Because
+ * `--strip-leading-paths` mirrors `src/` into `dist/`, string `imports` targets
+ * can be translated into relative specifiers after emit. The rewrite parses each
+ * file and edits only real specifier literals, so import-like text in strings or
+ * comments is left untouched.
  */
 export function rewriteHashImports({
   outputDir,
