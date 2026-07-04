@@ -14,9 +14,9 @@ import {
   recordSkippedRuntimeJob,
   runtimeJobVersion,
   shouldContinueStartedRun,
-} from '#core/workflow-runtime/run-progress.js';
-import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
-import {scheduleRuntimeDag} from '#core/workflow-runtime/schedule-runtime-dag.js';
+} from '#core/workflow-scheduling/run-progress.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
+import {scheduleRuntimeDag} from '#core/workflow-scheduling/schedule-runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import type {DagJob, RunDag} from '../activities/orchestration-activities.js';

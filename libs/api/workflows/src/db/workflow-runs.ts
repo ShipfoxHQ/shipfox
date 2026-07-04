@@ -65,15 +65,15 @@ import {
   WorkflowRunNotCancellableError,
   WorkflowRunNotFoundError,
 } from '#core/errors.js';
-import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
-import type {WorkflowStepTemplateDiagnostic} from '#core/workflow-runtime/index.js';
 import {
   assembleCreationContext,
   assembleExecutionsContext,
-  materializeWorkflowModel,
-} from '#core/workflow-runtime/index.js';
-import type {MaterializedWorkflowJob} from '#core/workflow-runtime/materialize-workflow-model.js';
-import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
+} from '#core/step-config/assemble-run-context.js';
+import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
+import {materializeWorkflowModel} from '#core/step-config/materialize-workflow-model.js';
+import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
+import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import {
   recordWorkflowJobExecutionLeaseExpiryResolved,
   recordWorkflowJobExecutionQueued,

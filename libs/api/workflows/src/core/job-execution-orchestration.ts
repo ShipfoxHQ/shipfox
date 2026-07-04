@@ -1,4 +1,4 @@
-import type {RuntimeCompletionStatus} from './workflow-runtime/runtime-dag.js';
+import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
 
 export interface JobExecutionOrchestrationResult {
   status: RuntimeCompletionStatus;

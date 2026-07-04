@@ -33,6 +33,8 @@ export {
   type MaterializedWorkflowStep,
   materializeWorkflowModel,
   modelHasAgentStep,
+} from './step-config/index.js';
+export {
   type ScheduleRuntimeDagInput,
   scheduleRuntimeDag,
-} from './workflow-runtime/index.js';
+} from './workflow-scheduling/index.js';

@@ -6,7 +6,7 @@ import {
   jobExecutionStartOutcome,
   resolveJobExecutionOutcomeSignal,
 } from '#core/job-execution-orchestration.js';
-import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';

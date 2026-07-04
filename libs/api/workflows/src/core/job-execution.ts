@@ -28,6 +28,10 @@ import {
   StepNotRunningError,
 } from './errors.js';
 import {
+  assembleStepDispatchContext,
+  completeStepDispatchConfig,
+} from './step-config/complete-step-dispatch-config.js';
+import {
   applyStepTransition,
   type StepProgressionMetrics,
   type StepProgressionOutcome,
@@ -38,11 +42,7 @@ import {
   isTerminal,
 } from './step-transition/decide-step-transition.js';
 import {evaluateGate, gateResultPayload, readStepGate} from './step-transition/evaluate-gate.js';
-import {
-  assembleStepDispatchContext,
-  completeStepDispatchConfig,
-} from './workflow-runtime/complete-step-dispatch-config.js';
-import type {RuntimeCompletionStatus} from './workflow-runtime/runtime-dag.js';
+import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
 
