@@ -14,11 +14,13 @@ A scenario is a directory under `scenarios/`:
 scenarios/hello-world/
   workflow.yml    pushed verbatim to .shipfox/workflows/hello-world.yml
   expect.yaml     declarative expectations (run/job/step status, job status reason, step error, exit code, logs)
+  reject.yaml     alternative to expect.yaml for authoring-time rejection scenarios
   files/          optional extra repo files, committed alongside the workflow
 ```
 
-`tests/scenarios.e2e.ts` discovers every directory that contains an `expect.yaml` and
-registers one Playwright test for it. Each test, against the shared suite arrangement:
+`tests/scenarios.e2e.ts` discovers every directory that contains an `expect.yaml` or
+`reject.yaml` and registers one Playwright test for it. Each `expect.yaml` test,
+against the shared suite arrangement:
 
 1. creates a fresh gitea repo and a project bound to it,
 2. seeds the workflow (and any `files/`) in one commit, then waits for the definition
@@ -69,6 +71,21 @@ Assertions that are only observable inside the runner (checkout contents, env
 propagation) are written as self-asserting `run` steps in the workflow itself; the
 manifest then only asserts the run succeeded.
 
+### reject.yaml
+
+Use `reject.yaml` instead of `expect.yaml` when the workflow must be rejected during
+definition sync and therefore never produces a run.
+
+```yaml
+error_code: invalid-definition   # optional, defaults to invalid-definition
+message_includes:                # optional substrings in sync.last_error_message
+  - unknown context
+```
+
+The harness seeds the workflow, waits for the definition sync to settle, asserts the
+sync failed with the expected error code and message substrings, then polls briefly to
+confirm the project has no workflow runs.
+
 ## Local run
 
 Each scenario starts a local runner process from `apps/runner/src/index.ts` through
@@ -93,7 +110,8 @@ test VCS provider enabled, waits for both to become ready, then runs
 Reruns need no cleanup: every org, repo, project, and workspace name carries a unique
 id. To reset gitea wholesale: `docker compose down && docker volume rm <gitea volume>`.
 
-The pure `expect.yaml` evaluator has its own Vitest node tests (no infrastructure):
+The pure `expect.yaml` and `reject.yaml` evaluators have Vitest node tests (no
+infrastructure):
 
 ```sh
 turbo test --filter=@shipfox/e2e-platform-workflows

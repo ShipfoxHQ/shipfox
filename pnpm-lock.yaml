@@ -773,6 +773,9 @@ importers:
 
   e2e/platform/workflows:
     devDependencies:
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/definitions-dto
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../../../libs/api/logs-dto

@@ -1,7 +1,10 @@
 import {mkdir, readFile} from 'node:fs/promises';
 import {join} from 'node:path';
+import {setTimeout as delay} from 'node:timers/promises';
+import type {DefinitionListResponseDto} from '@shipfox/api-definitions-dto';
 import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
-import {createApiClient, E2eApiError} from '@shipfox/e2e-core';
+import type {WorkflowRunListResponseDto} from '@shipfox/api-workflows-dto';
+import {type ApiFetch, createApiClient, E2eApiError} from '@shipfox/e2e-core';
 import {waitForDefinition} from '@shipfox/e2e-helper-definitions';
 import {commitFiles, createRepo} from '@shipfox/e2e-helper-integrations-gitea';
 import {fetchStepLogs} from '@shipfox/e2e-helper-logs';
@@ -17,6 +20,7 @@ import {
 import {waitForRunByCommit, waitForRunTerminal} from '@shipfox/e2e-helper-workflows';
 import {createProject, giteaExternalRepositoryId} from './create-project.js';
 import {evaluateExpectations, evaluateLogs, logText, type Mismatch} from './expect.js';
+import {evaluateRejection} from './reject.js';
 import type {Scenario} from './scenarios.js';
 import {type SuiteContext, suiteRunDir} from './suite-context.js';
 
@@ -24,6 +28,7 @@ const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
 const GITEA_REPOSITORY_PLACEHOLDER = '__GITEA_REPOSITORY__';
 const RUNNER_LABEL_PLACEHOLDER = '__RUNNER_LABEL__';
 const LOG_ATTACHMENT_NAME_PART_RE = /[^a-zA-Z0-9._-]+/g;
+const REJECTION_NO_RUN_TIMEOUT_MS = 15_000;
 
 export interface Attachment {
   name: string;
@@ -43,6 +48,14 @@ interface StepLogAttachmentRequest {
   path: string;
   stepId: string;
   attempt: number;
+}
+
+interface PollingOptions {
+  fetch?: ApiFetch | undefined;
+  projectId: string;
+  signal?: AbortSignal | undefined;
+  timeoutMs: number;
+  token: string;
 }
 
 function logAttachmentName(path: string): string {
@@ -142,6 +155,53 @@ async function waitForRunTerminalOrFailedRunner(params: {
   );
 }
 
+async function waitForDefinitionSyncTerminal(
+  options: PollingOptions,
+): Promise<DefinitionListResponseDto> {
+  const client = createApiClient({fetch: options.fetch, token: options.token});
+  const deadline = Date.now() + options.timeoutMs;
+  let lastResponse: DefinitionListResponseDto | null = null;
+
+  while (Date.now() <= deadline) {
+    options.signal?.throwIfAborted();
+    const params = new URLSearchParams({project_id: options.projectId, limit: '100'});
+    lastResponse = await client.requestJson<DefinitionListResponseDto>(
+      'get',
+      `/definitions?${params}`,
+      {signal: options.signal},
+    );
+
+    const status = lastResponse.sync?.status;
+    if (status === 'failed' || status === 'succeeded') return lastResponse;
+
+    await delay(250, undefined, {signal: options.signal});
+  }
+
+  const status = lastResponse?.sync?.status ?? 'null';
+  throw new Error(`Timed out waiting for definition sync to settle: syncStatus=${status}`);
+}
+
+async function waitForNoWorkflowRuns(options: PollingOptions): Promise<WorkflowRunListResponseDto> {
+  const client = createApiClient({fetch: options.fetch, token: options.token});
+  const deadline = Date.now() + options.timeoutMs;
+  let lastResponse: WorkflowRunListResponseDto | null = null;
+
+  while (Date.now() <= deadline) {
+    options.signal?.throwIfAborted();
+    const params = new URLSearchParams({project_id: options.projectId, limit: '100'});
+    lastResponse = await client.requestJson<WorkflowRunListResponseDto>(
+      'get',
+      `/workflows/runs?${params}`,
+      {signal: options.signal},
+    );
+    if (lastResponse.runs.length > 0) return lastResponse;
+
+    await delay(250, undefined, {signal: options.signal});
+  }
+
+  return lastResponse ?? {runs: [], next_cursor: null, filtered_total_count: null};
+}
+
 // Definition sync creates trigger subscriptions asynchronously, so a push can reach
 // dispatch before a subscription exists. Each retry needs a fresh head SHA for correlation.
 async function triggerPushAndAwaitRun(params: {
@@ -184,10 +244,6 @@ async function triggerPushAndAwaitRun(params: {
     : new Error(`No run appeared for ${params.scenario} after ${maxAttempts} trigger pushes`);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function fireManualAndAwaitRun(params: {
   client: ReturnType<typeof createApiClient>;
   definitionId: string;
@@ -207,7 +263,7 @@ async function fireManualAndAwaitRun(params: {
     } catch (error) {
       if (!(error instanceof E2eApiError) || error.status !== 404) throw error;
       lastError = error;
-      await sleep(500);
+      await delay(500);
     }
   }
   throw lastError instanceof Error
@@ -259,6 +315,43 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       connectionId: suite.connectionId,
       externalRepositoryId: giteaExternalRepositoryId(suite.org, repo),
     });
+
+    if (scenario.kind === 'reject') {
+      const definitions = await waitForDefinitionSyncTerminal({
+        projectId: project.id,
+        token,
+        timeoutMs: 60_000,
+      });
+      const runs = await waitForNoWorkflowRuns({
+        projectId: project.id,
+        token,
+        timeoutMs: REJECTION_NO_RUN_TIMEOUT_MS,
+      });
+      const mismatches = evaluateRejection(
+        {sync: definitions.sync, runs: runs.runs},
+        scenario.rejection,
+      );
+
+      if (mismatches.length > 0) {
+        await params.attach({
+          name: 'definition-sync.json',
+          contentType: 'application/json',
+          body: JSON.stringify(definitions, null, 2),
+        });
+        await params.attach({
+          name: 'workflow-runs.json',
+          contentType: 'application/json',
+          body: JSON.stringify(runs, null, 2),
+        });
+        await params.attach({
+          name: 'mismatches.json',
+          contentType: 'application/json',
+          body: JSON.stringify(mismatches, null, 2),
+        });
+      }
+
+      return mismatches;
+    }
 
     const definition = await waitForDefinition({
       projectId: project.id,
