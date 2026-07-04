@@ -8,9 +8,7 @@ import {WorkflowTemplateResolutionError} from '../resolver/errors.js';
 import {
   type AvailabilitySite,
   resolveContextRootAvailability,
-  type WorkflowContextName,
   type WorkflowInterpolationFailurePolicy,
-  workflowContextNames,
 } from '../workflow-context/workflow-context.js';
 import {shouldFillAtSite} from './fill.js';
 import type {ResolvedField, ResolvedFieldDeferredSegment} from './resolved-field.js';
@@ -98,16 +96,12 @@ function missingPathRequiresFailure(
   site: AvailabilitySite,
 ): boolean {
   if (failurePolicy !== 'fail') return false;
-  const workflowContextRoots = segment.roots.filter(isWorkflowContextName);
+  const rootAvailabilities = segment.roots.flatMap((root) => {
+    const availability = resolveContextRootAvailability(root);
+    return availability === undefined ? [] : [availability];
+  });
   return (
-    workflowContextRoots.length > 0 &&
-    workflowContextRoots.every((contextRoot) => {
-      const availability = resolveContextRootAvailability(contextRoot);
-      return availability !== undefined && shouldFillAtSite(availability, site);
-    })
+    rootAvailabilities.length > 0 &&
+    rootAvailabilities.every((availability) => shouldFillAtSite(availability, site))
   );
-}
-
-function isWorkflowContextName(root: string): root is WorkflowContextName {
-  return (workflowContextNames as readonly string[]).includes(root);
 }
