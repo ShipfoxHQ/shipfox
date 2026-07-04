@@ -8,10 +8,9 @@ Code that turns a checked workflow document into the model used by definitions.
   parsing.
 - **`normalizeWorkflowDocument(document)`**: Expands shorthand fields, assigns
   stable ids, validates explicit providers, and builds graph edges.
-- **Step gates**: Parse run-step `gate.success_if` as CEL against the `step`
-  self-root (`step.exit_code`, `step.status`) from the shared context registry,
-  and check `gate.on_failure.restart_from` against earlier named steps in the
-  same job.
+- **Step gates**: Parse run-step `gate.success_if` as a server-evaluated CEL
+  predicate against context roots available at step reporting, and check
+  `gate.on_failure.restart_from` against earlier named steps in the same job.
 - **`InvalidWorkflowModelError`**: Reports semantic workflow errors found during
   normalization.
 
@@ -81,10 +80,11 @@ The persisted `workflow_document` keeps author-provided runner labels exactly as
 written. Canonical and defaulted labels live on `workflow_model.jobs[].runner`;
 downstream consumers should read the model, not `document.runner`.
 
-Run-step gate expressions are different. They have a small local result context,
-so this module can parse and type-check `success_if` now. The accepted model
-stores a typed `WorkflowExpression` with `language: 'cel'`, the original source
-string, and `check: 'typed'`.
+Run-step gate expressions are different. They are server-evaluated predicates,
+so this module parses them against the shared context registry, rejects
+runner-host roots, and checks that each root is available at step reporting. The
+accepted model stores a `WorkflowExpression` with `language: 'cel'`, the
+original source string, and the strongest check mode the referenced roots allow.
 
 Agent steps keep omitted `provider`, `model`, and `thinking` fields omitted in
 the definition model. Run materialization resolves runner-ready catalog defaults
@@ -92,9 +92,10 @@ before execution. Explicit providers are checked against the shared provider
 catalog; explicit model ids are preserved because the shared seed catalog does
 not yet carry each provider's full model list.
 
-For now, run-step gates can use `step.exit_code` and `step.status`. Fields such
-as `step.output.pass` need a declared output schema, so they belong to later
-agent-step work.
+For now, run-step gates can use typed roots such as `step.exit_code`,
+`step.status`, and other server roots that are available by step reporting.
+Fields such as `step.output.pass` need a declared output schema, so they belong
+to later agent-step work.
 
 `on_failure.restart_from` must name an earlier step in the same job. The runtime
 host does not execute restart semantics yet. This module only records the

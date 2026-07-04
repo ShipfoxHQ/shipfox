@@ -769,12 +769,29 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('rejects a gate success_if referencing a root outside the step self-context', () => {
+  it('accepts server roots available at step reporting in gate success_if', () => {
     const document: WorkflowDocument = {
-      name: 'out-of-scope gate',
+      name: 'server-context gate',
+      jobs: {
+        build: {steps: [{run: 'npm run build', gate: {success_if: 'run.id != ""'}}]},
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+      language: 'cel',
+      source: 'run.id != ""',
+      check: 'typed',
+    });
+  });
+
+  it('rejects runner-host roots in gate success_if with a server-predicate issue', () => {
+    const document: WorkflowDocument = {
+      name: 'runner-context gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'run.id == "x"'}}],
+          steps: [{run: 'npm run build', gate: {success_if: 'runner.os == "linux"'}}],
         },
       },
     };
@@ -783,9 +800,42 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(error.issues).toEqual([
       expect.objectContaining({
-        code: 'invalid-step-gate-success-if',
+        code: 'runner-context-in-server-predicate',
+        message: expect.stringContaining('cannot reference runner context "runner"'),
         path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
-        details: expect.objectContaining({source: 'run.id == "x"'}),
+        details: expect.objectContaining({
+          field: 'step.success_if',
+          source: 'runner.os == "linux"',
+          runnerRoots: ['runner'],
+          site: 'step-report',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects contexts unavailable at the gate predicate site', () => {
+    const document: WorkflowDocument = {
+      name: 'future-context gate',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', gate: {success_if: 'jobs.deploy.status == "succeeded"'}}],
+        },
+        deploy: {needs: ['build'], steps: [{run: 'npm run deploy'}]},
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'context-unavailable-at-predicate-site',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        details: expect.objectContaining({
+          field: 'step.success_if',
+          source: 'jobs.deploy.status == "succeeded"',
+          unavailableRoots: ['jobs'],
+          site: 'step-report',
+        }),
       }),
     ]);
   });
@@ -856,6 +906,31 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('reports rootless non-boolean job success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'rootless non-boolean job success',
+      jobs: {
+        build: {
+          success: '1 + 2',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-success',
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({
+          source: '1 + 2',
+          reason: expect.stringContaining('must return bool'),
+        }),
+      }),
+    ]);
+  });
+
   it('reports misspelled execution fields in job success expressions', () => {
     const document: WorkflowDocument = {
       name: 'misspelled job success',
@@ -876,6 +951,34 @@ describe('normalizeWorkflowDocument', () => {
         details: expect.objectContaining({
           source: 'executions.all(e, e.statsu == "succeeded")',
           reason: expect.stringContaining('statsu'),
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects runner-host roots in job success with a server-predicate issue', () => {
+    const document: WorkflowDocument = {
+      name: 'runner-context job success',
+      jobs: {
+        build: {
+          success: 'runner.os == "linux"',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'runner-context-in-server-predicate',
+        message: expect.stringContaining('cannot reference runner context "runner"'),
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({
+          field: 'job.success',
+          source: 'runner.os == "linux"',
+          runnerRoots: ['runner'],
+          site: 'job-resolution',
         }),
       }),
     ]);
