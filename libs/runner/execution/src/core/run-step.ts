@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
 import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {redactSecrets, secretWireForms} from '@shipfox/redact';
 import type {StepResult} from '#core/step-result.js';
 
 /**
@@ -34,6 +35,8 @@ export interface CommandShellMetadata {
 interface RunStepOptions {
   signal?: AbortSignal;
   cwd?: string;
+  secretEnv?: Readonly<Record<string, string>>;
+  secretValues?: readonly string[];
   onOutput?: OutputSink;
   onCommandStart?: CommandStartSink;
 }
@@ -56,7 +59,7 @@ export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Pro
     });
   }
 
-  return runShellCommand(command, readStepEnv(step), options);
+  return runShellCommand(command, {...readStepEnv(step), ...options.secretEnv}, options);
 }
 
 async function runShellCommand(
@@ -83,6 +86,7 @@ function spawnAndCapture(
 ): Promise<StepResult> {
   return new Promise((resolve) => {
     const {shell} = metadata;
+    const teeSecretVariants = buildSecretVariants(options.secretValues ?? []);
 
     // detached:true makes the shell a process-group leader so killGroup() can
     // SIGKILL its grandchildren too (Linux does not propagate signals down the
@@ -97,12 +101,12 @@ function spawnAndCapture(
     // stdout and stderr are two separate pipes, so the sink sees them merged by
     // arrival order, not kernel/wall-clock order; origin is preserved per chunk.
     child.stdout.on('data', (chunk: Buffer) => {
-      process.stdout.write(chunk);
+      writeTeeOutput(process.stdout, chunk, teeSecretVariants);
       options.onOutput?.(chunk, 'stdout');
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
-      process.stderr.write(chunk);
+      writeTeeOutput(process.stderr, chunk, teeSecretVariants);
       options.onOutput?.(chunk, 'stderr');
     });
 
@@ -190,6 +194,26 @@ function spawnAndCapture(
       });
     });
   });
+}
+
+function writeTeeOutput(
+  stream: NodeJS.WriteStream,
+  chunk: Buffer,
+  secretVariants: readonly string[],
+): void {
+  if (secretVariants.length === 0) {
+    stream.write(chunk);
+    return;
+  }
+  stream.write(redactSecrets(chunk.toString(), [...secretVariants]));
+}
+
+function buildSecretVariants(secrets: readonly string[]): string[] {
+  const variants = new Set<string>();
+  for (const secret of secrets) {
+    for (const form of secretWireForms(secret)) variants.add(form);
+  }
+  return [...variants].sort((a, b) => b.length - a.length);
 }
 
 function isSignalKillResult(code: number | null, signal: NodeJS.Signals): boolean {

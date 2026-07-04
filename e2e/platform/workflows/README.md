@@ -15,6 +15,7 @@ scenarios/hello-world/
   workflow.yml    pushed verbatim to .shipfox/workflows/hello-world.yml
   expect.yaml     declarative expectations (run/job/step status, job status reason, step error, exit code, logs)
   reject.yaml     alternative to expect.yaml for authoring-time rejection scenarios
+  secrets.yaml    optional E2E setup secrets to seed before the run
   files/          optional extra repo files, committed alongside the workflow
 ```
 
@@ -46,6 +47,8 @@ timeout_seconds: 180     # terminal-state budget, default 180
 
 run:
   status: succeeded      # required: succeeded | failed | cancelled
+runner_log:              # optional assertions against the local runner process log
+  exclude: ["SECRET_VALUE"]
 jobs:                    # optional, keyed by job key
   build:
     status: succeeded

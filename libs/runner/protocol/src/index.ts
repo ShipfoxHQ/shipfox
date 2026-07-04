@@ -15,6 +15,8 @@ export {
   requestCheckoutToken,
   requestJob,
   requestNextStep,
+  requestStepSecrets,
   requireRunnerLabels,
   runnerRegistrationToken,
+  StepSecretsRequestError,
 } from '#api-client.js';

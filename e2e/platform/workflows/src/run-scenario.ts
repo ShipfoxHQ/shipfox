@@ -1,6 +1,7 @@
 import {createApiClient} from '@shipfox/e2e-core';
 import {fetchStepLogs} from '@shipfox/e2e-helper-logs';
 import {type LocalRunnerHandle, stopLocalRunner} from '@shipfox/e2e-helper-runners';
+import {createSecret} from '@shipfox/e2e-helper-secrets';
 import type {Attachment} from './attachments.js';
 import {
   attachLocalRunnerLog,
@@ -23,6 +24,7 @@ import {
 import {seedAndWaitForDefinition, seedWorkflowProject} from './workflow-project.js';
 
 const REJECTION_NO_RUN_TIMEOUT_MS = 15_000;
+const E2E_SECRET_ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 
 export interface RunScenarioParams {
   scenario: Scenario;
@@ -93,6 +95,16 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
             return ready;
           });
     const {project} = seeded;
+
+    for (const secret of scenario.seededSecrets) {
+      await createSecret({
+        workspaceId: suite.workspaceId,
+        actorId: E2E_SECRET_ACTOR_ID,
+        key: secret.key,
+        value: secret.value,
+        ...(secret.scope === 'project' ? {projectId: project.id} : {}),
+      });
+    }
 
     if (scenario.kind === 'reject') {
       const definitions = await waitForDefinitionSyncTerminal({
@@ -215,6 +227,19 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
           text: logText(logs.records),
           include: requirement.include,
           exclude: requirement.exclude,
+        }),
+      );
+    }
+
+    if (scenario.expectation.runner_log) {
+      const runnerLog =
+        runnerLogFile === undefined ? '' : await readFile(runnerLogFile, 'utf8').catch(() => '');
+      allMismatches.push(
+        ...evaluateLogs({
+          path: 'runner_log',
+          text: runnerLog,
+          include: scenario.expectation.runner_log.include,
+          exclude: scenario.expectation.runner_log.exclude,
         }),
       );
     }

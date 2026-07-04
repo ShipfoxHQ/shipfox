@@ -140,6 +140,7 @@ export const expectationSchema = z
     timeout_seconds: z.number().int().positive().default(180),
     run: z.object({status: runStatusSchema}).strict(),
     jobs: z.record(z.string(), jobExpectationSchema).optional(),
+    runner_log: logsExpectationSchema.optional(),
   })
   .strict();
 

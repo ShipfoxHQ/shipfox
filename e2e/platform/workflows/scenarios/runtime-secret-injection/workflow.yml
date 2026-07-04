@@ -1,0 +1,26 @@
+name: Runtime secret injection
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: use-secret
+        env:
+          FROM_ENV_SECRET: '${{ secrets.RUNTIME_TOKEN }}'
+        run: |
+          if [ "$FROM_ENV_SECRET" != "runtime-secret-e2e" ]; then
+            echo "env secret mismatch"
+            exit 1
+          fi
+          if [ "${{ secrets.RUNTIME_TOKEN }}" != "runtime-secret-e2e" ]; then
+            echo "command secret mismatch"
+            exit 1
+          fi
+          echo "env-secret-ok"
+          echo "command-secret-ok"
+          echo "secret from env=$FROM_ENV_SECRET"
+          echo "secret from command=${{ secrets.RUNTIME_TOKEN }}"

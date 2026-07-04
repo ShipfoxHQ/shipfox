@@ -5,14 +5,12 @@ import {
   type MaterializedAgentStepConfigDto,
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
-import {requireLeasedJobContext} from '@shipfox/api-auth-context';
-import {isJobLeaseActive} from '@shipfox/api-runners';
 import {SecretDecryptionError} from '@shipfox/api-secrets';
 import {agentRuntimeConfigQuerySchema} from '@shipfox/api-workflows-dto';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {ZodError} from 'zod';
-import {getJobWorkspaceId, getStepByIdForJobExecution} from '#db/index.js';
+import {loadRunningLeasedStep} from './leased-step.js';
 
 export const agentRuntimeConfigRoute = defineRoute({
   method: 'GET',
@@ -49,40 +47,9 @@ export const agentRuntimeConfigRoute = defineRoute({
     throw error;
   },
   handler: async (request, reply) => {
-    const leasedJob = requireLeasedJobContext(request);
     const {step_id: stepId, attempt} = request.query;
+    const {step, workspaceId} = await loadRunningLeasedStep({request, stepId, attempt});
 
-    const step = await getStepByIdForJobExecution({
-      stepId,
-      jobExecutionId: leasedJob.jobExecutionId,
-    });
-    if (!step) {
-      throw new ClientError('Step not found for leased job', 'step-not-found', {status: 404});
-    }
-    const workspaceId = await getJobWorkspaceId(leasedJob.jobId);
-    if (!workspaceId) {
-      throw new ClientError('Leased job not found', 'job-not-found', {status: 404});
-    }
-    const leaseIsActive = await isJobLeaseActive({
-      jobId: leasedJob.jobId,
-      jobExecutionId: leasedJob.jobExecutionId,
-      runnerSessionId: leasedJob.runnerSessionId,
-    });
-    if (!leaseIsActive) {
-      throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
-    }
-    if (step.currentAttempt !== attempt) {
-      throw new ClientError(
-        'Step attempt does not match current attempt',
-        'step-attempt-mismatch',
-        {
-          status: 409,
-        },
-      );
-    }
-    if (step.status !== 'running') {
-      throw new ClientError('Step is not running', 'step-not-running', {status: 409});
-    }
     if (step.type !== 'agent') {
       throw new ClientError('Step is not an agent step', 'step-not-agent', {status: 409});
     }

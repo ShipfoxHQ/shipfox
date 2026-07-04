@@ -1,0 +1,21 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      use-secret:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "env-secret-ok"
+            - "command-secret-ok"
+            - "secret from env=***"
+            - "secret from command=***"
+          exclude:
+            - "runtime-secret-e2e"
+runner_log:
+  exclude:
+    - "runtime-secret-e2e"

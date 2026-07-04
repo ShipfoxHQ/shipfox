@@ -1,3 +1,8 @@
+import {
+  type MaterializedSecretBindingDto,
+  materializedSecretBindingSchema,
+  type StepSecretDto,
+} from '@shipfox/api-secrets-dto';
 import type {LogOutcomeDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets} from '@shipfox/redact';
@@ -26,6 +31,8 @@ import {
   reportStep,
   requestAgentRuntimeConfig,
   requestNextStep,
+  requestStepSecrets,
+  StepSecretsRequestError,
 } from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
 
@@ -363,15 +370,27 @@ export async function executeStep(params: {
       };
     }
 
+    let runSecretMaterial: RunSecretMaterial | undefined;
+    try {
+      runSecretMaterial = await loadRunSecretMaterial({step, leaseClient, attempt, signal});
+    } catch (error) {
+      return {
+        result: stepSecretsFailure(error),
+        logOutcome: 'drained',
+        preparedWorkspace: false,
+      };
+    }
+
     // Log capture is best-effort: if the spool cannot be opened (e.g. a broken logs dir),
     // abandon capture and run the step without a stream rather than failing the step itself.
     let stepStream: StepLogStream | undefined;
+    const runSecrets = [...secrets, ...(runSecretMaterial?.secretValues ?? [])];
     try {
       stepStream = createStepLogStream({
         logsDir,
         stepId: step.id,
         attempt,
-        secrets,
+        secrets: runSecrets,
         append,
       });
     } catch (error) {
@@ -387,6 +406,8 @@ export async function executeStep(params: {
     const result = await executeRunStep(step, {
       signal,
       cwd,
+      ...(runSecretMaterial?.secretEnv ? {secretEnv: runSecretMaterial.secretEnv} : {}),
+      ...(runSecretMaterial?.secretValues ? {secretValues: runSecretMaterial.secretValues} : {}),
       onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
       onOutput: (chunk, source) => stepStream?.write(chunk, source),
     });
@@ -418,6 +439,86 @@ export async function executeStep(params: {
     unsubscribeSecrets?.();
     runStream?.writeGroupEnd();
   }
+}
+
+interface RunSecretMaterial {
+  secretEnv: Record<string, string>;
+  secretValues: string[];
+}
+
+const runSecretBindingsSchema = materializedSecretBindingSchema.array();
+
+async function loadRunSecretMaterial(params: {
+  step: StepDto;
+  leaseClient: KyInstance;
+  attempt: number;
+  signal: AbortSignal;
+}): Promise<RunSecretMaterial | undefined> {
+  if (params.step.type !== 'run') return undefined;
+  const bindings = parseRunSecretBindings(params.step.config.secret_bindings);
+  if (bindings.length === 0) return undefined;
+
+  const pulled = await requestStepSecrets(params.leaseClient, {
+    stepId: params.step.id,
+    attempt: params.attempt,
+    signal: params.signal,
+  });
+  const values = new Map(pulled.secrets.map((secret) => [secretReferenceId(secret), secret.value]));
+  const secretEnv: Record<string, string> = {};
+
+  for (const binding of bindings) {
+    secretEnv[binding.target] = assembleSecretBinding(binding, values);
+  }
+
+  return {
+    secretEnv,
+    secretValues: pulled.secrets.map((secret) => secret.value),
+  };
+}
+
+function parseRunSecretBindings(value: unknown): MaterializedSecretBindingDto[] {
+  const parsed = runSecretBindingsSchema.safeParse(value ?? []);
+  if (!parsed.success) throw new Error('Run step secret bindings are invalid.');
+  return parsed.data;
+}
+
+function assembleSecretBinding(
+  binding: MaterializedSecretBindingDto,
+  values: ReadonlyMap<string, string>,
+): string {
+  return binding.segments
+    .map((segment) => {
+      if (segment.kind === 'literal') return segment.value;
+      const value = values.get(secretReferenceId(segment));
+      if (value === undefined) {
+        throw new Error('Run step secret response is missing a requested secret.');
+      }
+      return value;
+    })
+    .join('');
+}
+
+function secretReferenceId(reference: Pick<StepSecretDto, 'store' | 'key'>): string {
+  return `${reference.store}\0${reference.key}`;
+}
+
+function stepSecretsFailure(error: unknown): StepResult {
+  if (error instanceof StepSecretsRequestError) {
+    return {
+      success: false,
+      error: {message: error.message, reason: 'config_unresolvable'},
+      exit_code: null,
+    };
+  }
+
+  return {
+    success: false,
+    error: {
+      message: error instanceof Error ? error.message : 'Run step secrets could not be resolved.',
+      reason: 'config_unresolvable',
+    },
+    exit_code: null,
+  };
 }
 
 function maskAgentFailure(result: StepResult, secretVariants: string[]): StepResult {

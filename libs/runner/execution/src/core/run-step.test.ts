@@ -111,6 +111,33 @@ describe('executeRunStep', () => {
     }
   });
 
+  it('merges secret env over step env without mutating process.env', async () => {
+    const previous = process.env.SHIPFOX_ENV_TEST_SECRET;
+    delete process.env.SHIPFOX_ENV_TEST_SECRET;
+    try {
+      const step = buildStep({
+        config: {
+          run: nodeEnvDumpCommand(['SHIPFOX_ENV_TEST_SECRET']),
+          env: {SHIPFOX_ENV_TEST_SECRET: 'stored-step-value'},
+        },
+      });
+      const output = collectOutput();
+
+      const result = await executeRunStep(step, {
+        secretEnv: {SHIPFOX_ENV_TEST_SECRET: 'runtime-secret-value'},
+        onOutput: output.sink,
+      });
+
+      expect(result.success).toBe(true);
+      expect(JSON.parse(output.text())).toEqual({
+        SHIPFOX_ENV_TEST_SECRET: 'runtime-secret-value',
+      });
+      expect(process.env.SHIPFOX_ENV_TEST_SECRET).toBeUndefined();
+    } finally {
+      if (previous !== undefined) process.env.SHIPFOX_ENV_TEST_SECRET = previous;
+    }
+  });
+
   it('does not resolve the shell executable through step env PATH', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'shipfox-shell-path-test-'));
     try {
@@ -215,6 +242,24 @@ describe('executeRunStep', () => {
     expect(output.text()).toContain('err');
     expect(output.sources()).toContain('stdout');
     expect(output.sources()).toContain('stderr');
+  });
+
+  it('redacts secret wire forms from the runner stdout and stderr tee', async () => {
+    const secret = 'runtime-secret-value';
+    const hex = Buffer.from(secret).toString('hex');
+    const step = buildStep({config: {run: `echo "${secret}"; echo "${hex}" >&2`}});
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as never);
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true as never);
+
+    const result = await executeRunStep(step, {secretValues: [secret]});
+
+    const stdout = stdoutWrite.mock.calls.map((call) => String(call[0])).join('');
+    const stderr = stderrWrite.mock.calls.map((call) => String(call[0])).join('');
+    expect(result.success).toBe(true);
+    expect(stdout).toContain('***');
+    expect(stderr).toContain('***');
+    expect(stdout).not.toContain(secret);
+    expect(stderr).not.toContain(hex);
   });
 
   it('returns failure for unsupported step type with the reason on error.message', async () => {

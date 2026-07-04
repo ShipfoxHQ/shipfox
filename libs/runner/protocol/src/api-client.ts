@@ -13,6 +13,7 @@ import {
   registerRunnerBodySchema,
   registerRunnerResponseSchema,
 } from '@shipfox/api-runners-dto';
+import {type StepSecretsResponseDto, stepSecretsResponseSchema} from '@shipfox/api-secrets-dto';
 import {
   type AgentConfigIssueDto,
   type CheckoutTokenResponseDto,
@@ -107,6 +108,20 @@ export class AgentRuntimeConfigRequestError extends Error {
         : `Agent runtime config request failed with status ${status}: ${code}.`,
     );
     this.name = 'AgentRuntimeConfigRequestError';
+  }
+}
+
+export class StepSecretsRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string | undefined,
+  ) {
+    super(
+      code === undefined
+        ? `Step secrets request failed with status ${status}.`
+        : `Step secrets request failed with status ${status}: ${code}.`,
+    );
+    this.name = 'StepSecretsRequestError';
   }
 }
 
@@ -292,6 +307,49 @@ export async function requestAgentRuntimeConfig(
   }
 
   throw new AgentRuntimeConfigRequestError(response.status, await errorCode(response));
+}
+
+export async function requestStepSecrets(
+  leaseClient: KyInstance,
+  params: {
+    stepId: string;
+    attempt: number;
+    signal?: AbortSignal;
+  },
+): Promise<StepSecretsResponseDto> {
+  let response: Response;
+  try {
+    response = await leaseClient.get(`runs/jobs/current/steps/${params.stepId}/secrets`, {
+      searchParams: {attempt: params.attempt},
+      retry: {
+        methods: ['get'],
+        statusCodes: [429, 500, 502, 503, 504],
+      },
+      ...(params.signal ? {signal: params.signal} : {}),
+    });
+  } catch (error) {
+    if (error instanceof HTTPError) {
+      throw new StepSecretsRequestError(error.response.status, codeFromBody(error.data));
+    }
+    throw error;
+  }
+
+  if (response.ok) {
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new StepSecretsRequestError(200, 'step-secrets-invalid');
+    }
+
+    const parsed = stepSecretsResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new StepSecretsRequestError(200, 'step-secrets-invalid');
+    }
+    return parsed.data;
+  }
+
+  throw new StepSecretsRequestError(response.status, await errorCode(response));
 }
 
 // throwHttpErrors:false (below) turns off ky's status-code retry for this call, so no
