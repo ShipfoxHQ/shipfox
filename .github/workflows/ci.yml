@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded PR/branch runs before they finish, so rapid pushes stop paying
+# for CI work they already invalidated. main is never cancelled: every merged commit
+# must run to completion to publish its per-commit release artifacts.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: shipfox
