@@ -32,7 +32,6 @@ export type {
 export {isBareContextReference} from './plan/bare-reference.js';
 export {evaluatePlannedPredicateAtSite} from './plan/evaluate-planned-predicate.js';
 export {extractExactContextRoots} from './plan/extract-exact-context-roots.js';
-export {fillResolvedFieldAtSite} from './plan/fill.js';
 export {
   type FrozenResolvedField,
   freezeResolvedFieldAtSite,
