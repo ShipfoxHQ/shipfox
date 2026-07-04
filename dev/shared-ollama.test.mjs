@@ -3,6 +3,7 @@ import {describe, test} from 'node:test';
 
 import {
   ollamaListenHost,
+  preloadModel,
   processIdentityMatches,
   processStartTime,
   processStateMatchesContext,
@@ -51,6 +52,37 @@ describe('serviceContext', () => {
 describe('ollamaListenHost', () => {
   test('converts the API base URL into the OLLAMA_HOST bind value', () => {
     assert.equal(ollamaListenHost('http://127.0.0.1:11434'), '127.0.0.1:11434');
+  });
+});
+
+describe('preloadModel', () => {
+  test('uses the OpenAI-compatible chat endpoint', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (url, init) => {
+      calls.push({url, init});
+      return new Response('{}', {status: 200});
+    };
+
+    try {
+      await preloadModel({
+        baseUrl: 'http://127.0.0.1:11434',
+        model: 'custom:model',
+        keepAlive: '2h',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, 'http://127.0.0.1:11434/v1/chat/completions');
+    assert.deepEqual(JSON.parse(calls[0].init.body), {
+      model: 'custom:model',
+      messages: [{role: 'user', content: 'Reply with OK.'}],
+      max_tokens: 16,
+      stream: false,
+      keep_alive: '2h',
+    });
   });
 });
 

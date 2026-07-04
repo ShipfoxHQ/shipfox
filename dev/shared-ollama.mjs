@@ -9,6 +9,7 @@ const defaultKeepAlive = '24h';
 const defaultBaseUrl = 'http://127.0.0.1:11434';
 const startupTimeoutMs = 30_000;
 const pollIntervalMs = 500;
+const preloadTimeoutMs = 120_000;
 
 if (isCliEntryPoint()) {
   await main(process.argv[2]);
@@ -154,19 +155,22 @@ function runRootMise(context, args) {
 }
 
 async function preloadModel(context) {
-  const response = await fetch(`${context.baseUrl}/api/generate`, {
+  const response = await fetch(`${context.baseUrl}/v1/chat/completions`, {
     method: 'POST',
     headers: {'content-type': 'application/json'},
     body: JSON.stringify({
       model: context.model,
-      prompt: '',
+      messages: [{role: 'user', content: 'Reply with OK.'}],
+      max_tokens: 16,
       stream: false,
       keep_alive: context.keepAlive,
     }),
+    signal: AbortSignal.timeout(preloadTimeoutMs),
   });
   if (!response.ok) {
     fail(`Failed to preload ${context.model}: ${response.status} ${response.statusText}`);
   }
+  await response.body?.cancel();
 }
 
 async function waitForHealthy(baseUrl) {
@@ -329,6 +333,7 @@ function printError(message) {
 
 export {
   ollamaListenHost,
+  preloadModel,
   processIdentityMatches,
   processStartTime,
   processStateMatchesContext,
