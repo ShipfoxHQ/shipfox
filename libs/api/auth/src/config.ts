@@ -35,8 +35,8 @@ export const config = createConfig({
     desc: 'Name of the browser cookie that stores the refresh token.',
     default: 'shipfox_refresh_token',
   }),
-  AUTH_RATE_LIMIT_IDENTIFIER_SECRET: str({
-    desc: 'Secret used to HMAC email addresses and IP addresses before storing auth rate-limit counters. Leave it unset to derive a stable key from AUTH_JWT_SECRET.',
+  RATE_LIMIT_IDENTIFIER_SECRET: str({
+    desc: 'Optional secret used to HMAC identifiers before storing rate-limit counters. Leave it unset to derive a stable key from AUTH_JWT_SECRET.',
     default: undefined,
   }),
   CLIENT_BASE_URL: str({

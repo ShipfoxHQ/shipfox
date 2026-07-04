@@ -1,4 +1,11 @@
 import {createHmac} from 'node:crypto';
+import {
+  checkRateLimit,
+  hashRateLimitIdentifier,
+  RateLimitExceededError,
+  type RateLimitPolicy,
+  RateLimitUnavailableError,
+} from '@shipfox/node-rate-limit';
 import {config} from '#config.js';
 import {consumeAuthRateLimit, pruneExpiredAuthRateLimits} from '#db/rate-limits.js';
 import {
@@ -14,10 +21,7 @@ export type {
   AuthRateLimitScope,
 } from '#metrics/index.js';
 
-export interface AuthRateLimitPolicy {
-  limit: number;
-  windowSeconds: number;
-}
+export type AuthRateLimitPolicy = RateLimitPolicy;
 
 export interface CheckAuthRateLimitParams extends AuthRateLimitPolicy {
   action: AuthRateLimitAction;
@@ -27,56 +31,45 @@ export interface CheckAuthRateLimitParams extends AuthRateLimitPolicy {
   timeoutMs?: number | undefined;
 }
 
-export class AuthRateLimitExceededError extends Error {
-  readonly action: AuthRateLimitAction;
-  readonly scope: AuthRateLimitScope;
-  readonly retryAfterSeconds: number;
-  readonly identifierHmacPrefix: string;
-
+export class AuthRateLimitExceededError extends RateLimitExceededError<
+  AuthRateLimitAction,
+  AuthRateLimitScope
+> {
   constructor(params: {
     action: AuthRateLimitAction;
     scope: AuthRateLimitScope;
     retryAfterSeconds: number;
     identifierHmacPrefix: string;
   }) {
-    super('Authentication rate limit exceeded');
+    super(params);
     this.name = 'AuthRateLimitExceededError';
-    this.action = params.action;
-    this.scope = params.scope;
-    this.retryAfterSeconds = params.retryAfterSeconds;
-    this.identifierHmacPrefix = params.identifierHmacPrefix;
+    this.message = 'Authentication rate limit exceeded';
   }
 }
 
-export class AuthRateLimitUnavailableError extends Error {
-  readonly action: AuthRateLimitAction;
-  readonly scope: AuthRateLimitScope;
-  readonly identifierHmacPrefix: string;
-  override readonly cause: unknown;
-
+export class AuthRateLimitUnavailableError extends RateLimitUnavailableError<
+  AuthRateLimitAction,
+  AuthRateLimitScope
+> {
   constructor(params: {
     action: AuthRateLimitAction;
     scope: AuthRateLimitScope;
     identifierHmacPrefix: string;
     cause: unknown;
   }) {
-    super('Authentication rate limiter unavailable');
+    super(params);
     this.name = 'AuthRateLimitUnavailableError';
-    this.action = params.action;
-    this.scope = params.scope;
-    this.identifierHmacPrefix = params.identifierHmacPrefix;
-    this.cause = params.cause;
+    this.message = 'Authentication rate limiter unavailable';
   }
 }
 
 const DEFAULT_TIMEOUT_MS = 250;
-const HASH_PREFIX_LENGTH = 12;
 const IDENTIFIER_SECRET_DERIVATION_DOMAIN = 'shipfox.auth.rate-limit.identifier-secret.v1';
 const IDENTIFIER_HASH_DOMAIN = 'shipfox.auth.rate-limit.identifier.v1';
 
 function effectiveIdentifierSecret(): Buffer | string {
-  if (config.AUTH_RATE_LIMIT_IDENTIFIER_SECRET) {
-    return config.AUTH_RATE_LIMIT_IDENTIFIER_SECRET;
+  if (config.RATE_LIMIT_IDENTIFIER_SECRET) {
+    return config.RATE_LIMIT_IDENTIFIER_SECRET;
   }
 
   return createHmac('sha256', config.AUTH_JWT_SECRET)
@@ -89,78 +82,49 @@ export function hashAuthRateLimitIdentifier(params: {
   scope: AuthRateLimitScope;
   identifier: string;
 }): string {
-  return createHmac('sha256', effectiveIdentifierSecret())
-    .update(IDENTIFIER_HASH_DOMAIN)
-    .update('\0')
-    .update(params.action)
-    .update('\0')
-    .update(params.scope)
-    .update('\0')
-    .update(params.identifier)
-    .digest('hex');
-}
-
-function windowStartFor(now: Date, windowSeconds: number): Date {
-  const windowMs = windowSeconds * 1000;
-  return new Date(Math.floor(now.getTime() / windowMs) * windowMs);
-}
-
-function secondsAfter(date: Date, seconds: number): Date {
-  return new Date(date.getTime() + seconds * 1000);
-}
-
-function retryAfterSeconds(now: Date, expiresAt: Date): number {
-  return Math.max(1, Math.ceil((expiresAt.getTime() - now.getTime()) / 1000));
-}
-
-export async function checkAuthRateLimit(params: CheckAuthRateLimitParams): Promise<void> {
-  const now = params.now ?? new Date();
-  const windowStart = windowStartFor(now, params.windowSeconds);
-  const expiresAt = secondsAfter(windowStart, params.windowSeconds);
-  const identifierHmac = hashAuthRateLimitIdentifier({
+  return hashRateLimitIdentifier({
     action: params.action,
     scope: params.scope,
     identifier: params.identifier,
+    secret: effectiveIdentifierSecret(),
+    domain: IDENTIFIER_HASH_DOMAIN,
   });
-  const identifierHmacPrefix = identifierHmac.slice(0, HASH_PREFIX_LENGTH);
+}
 
-  let result: Awaited<ReturnType<typeof consumeAuthRateLimit>>;
+export async function checkAuthRateLimit(params: CheckAuthRateLimitParams): Promise<void> {
   try {
-    result = await consumeAuthRateLimit({
+    await checkRateLimit({
       action: params.action,
       scope: params.scope,
-      identifierHmac,
-      windowStart,
-      expiresAt,
+      identifier: params.identifier,
+      limit: params.limit,
+      windowSeconds: params.windowSeconds,
+      identifierSecret: effectiveIdentifierSecret(),
+      identifierHashDomain: IDENTIFIER_HASH_DOMAIN,
+      consume: consumeAuthRateLimit,
+      prune: pruneExpiredAuthRateLimits,
+      onCheck: recordAuthRateLimitCheck,
+      onPruneFailure: recordAuthRateLimitPruneFailure,
+      now: params.now,
       timeoutMs: params.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     });
   } catch (error) {
-    recordAuthRateLimitCheck({
-      action: params.action,
-      scope: params.scope,
-      outcome: 'unavailable',
-    });
-    throw new AuthRateLimitUnavailableError({
-      action: params.action,
-      scope: params.scope,
-      identifierHmacPrefix,
-      cause: error,
-    });
+    if (error instanceof RateLimitExceededError) {
+      throw new AuthRateLimitExceededError({
+        action: error.action,
+        scope: error.scope,
+        retryAfterSeconds: error.retryAfterSeconds,
+        identifierHmacPrefix: error.identifierHmacPrefix,
+      });
+    }
+    if (error instanceof RateLimitUnavailableError) {
+      throw new AuthRateLimitUnavailableError({
+        action: error.action,
+        scope: error.scope,
+        identifierHmacPrefix: error.identifierHmacPrefix,
+        cause: error.cause,
+      });
+    }
+    throw error;
   }
-
-  if (result.count > params.limit) {
-    recordAuthRateLimitCheck({action: params.action, scope: params.scope, outcome: 'blocked'});
-    throw new AuthRateLimitExceededError({
-      action: params.action,
-      scope: params.scope,
-      retryAfterSeconds: retryAfterSeconds(now, result.expiresAt),
-      identifierHmacPrefix,
-    });
-  }
-
-  recordAuthRateLimitCheck({action: params.action, scope: params.scope, outcome: 'allowed'});
-
-  void pruneExpiredAuthRateLimits({now}).catch(() => {
-    recordAuthRateLimitPruneFailure();
-  });
 }

@@ -6,6 +6,7 @@ import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionedRunners} from './schema/provisioned-runners.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
+import {runnersRateLimits} from './schema/rate-limits.js';
 import {reservations} from './schema/reservations.js';
 import {runnerSessions} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
@@ -15,6 +16,7 @@ export const schema = {
   pendingJobExecutions,
   provisionedRunners,
   provisionerTokens,
+  runnersRateLimits,
   reservations,
   runnerSessions,
   manualRegistrationTokens,

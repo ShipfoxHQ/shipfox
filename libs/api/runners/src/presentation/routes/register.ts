@@ -7,6 +7,7 @@ import {
 } from '#core/errors.js';
 import {registerRunnerSession} from '#core/runner-sessions.js';
 import {getRunnerContext} from '#presentation/auth/index.js';
+import {createEphemeralRegisterRateLimitPreHandler} from './rate-limit.js';
 
 export const registerRoute = defineRoute({
   method: 'POST',
@@ -18,6 +19,7 @@ export const registerRoute = defineRoute({
       200: registerRunnerResponseSchema,
     },
   },
+  preHandler: createEphemeralRegisterRateLimitPreHandler(),
   errorHandler: (error, request) => {
     if (error instanceof EmptyRunnerLabelsError) {
       throw new ClientError(error.message, 'empty-runner-labels', {status: 400});

@@ -142,6 +142,25 @@ export async function createEphemeralRegistrationTokensBatch(
       );
     }
 
+    const [existingForReservation] = await tx
+      .select({count: sql<number>`count(*)::int`})
+      .from(ephemeralRegistrationTokens)
+      .where(
+        and(
+          eq(ephemeralRegistrationTokens.workspaceId, params.workspaceId),
+          eq(ephemeralRegistrationTokens.provisionerId, params.provisionerId),
+          eq(ephemeralRegistrationTokens.reservationId, params.reservationId),
+        ),
+      );
+    const alreadyMinted = existingForReservation?.count ?? 0;
+    if (alreadyMinted + params.rows.length > reservation.count) {
+      throw new RegistrationTokenBatchExceedsReservationError(
+        params.rows.length,
+        reservation.count,
+        alreadyMinted,
+      );
+    }
+
     const provisionedRunnerIds = params.rows.map((row) => row.provisionedRunnerId);
     const activeRows = await tx
       .select({provisionedRunnerId: ephemeralRegistrationTokens.provisionedRunnerId})

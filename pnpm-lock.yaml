@@ -915,6 +915,9 @@ importers:
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
+      '@shipfox/node-rate-limit':
+        specifier: workspace:*
+        version: link:../../shared/node/rate-limit
       '@shipfox/node-tokens':
         specifier: workspace:*
         version: link:../../shared/node/tokens
@@ -2034,6 +2037,9 @@ importers:
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
+      '@shipfox/node-rate-limit':
+        specifier: workspace:*
+        version: link:../../shared/node/rate-limit
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../../shared/node/temporal
@@ -4957,6 +4963,24 @@ importers:
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0
+
+  libs/shared/node/rate-limit:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
 
   libs/shared/node/temporal:
     dependencies:

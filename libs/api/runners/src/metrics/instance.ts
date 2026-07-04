@@ -71,3 +71,45 @@ export const reservationReleasedCount = meter.createCounter<Record<string, never
   'runners_reservation_released',
   {description: 'Reservation units released from terminal provisioned runner reports'},
 );
+
+export type RunnersRateLimitAction = 'provisioner-mint' | 'ephemeral-register';
+export type RunnersRateLimitScope = 'provisioner' | 'ephemeral-token';
+export type RunnersRateLimitOutcome = 'allowed' | 'blocked' | 'unavailable';
+
+const rateLimitCheckCount = meter.createCounter<{
+  action: RunnersRateLimitAction;
+  scope: RunnersRateLimitScope;
+  outcome: RunnersRateLimitOutcome;
+}>('runners_rate_limit_checks', {
+  description: 'Runners rate limit checks by action, scope, and outcome',
+});
+
+const rateLimitPruneFailureCount = meter.createCounter('runners_rate_limit_prune_failures', {
+  description: 'Runners rate limit prune failures',
+});
+
+function recordMetric(record: () => void): void {
+  try {
+    record();
+  } catch {
+    // Metrics must not affect runner or provisioner request outcomes.
+  }
+}
+
+export function recordRunnersRateLimitCheck(params: {
+  action: RunnersRateLimitAction;
+  scope: RunnersRateLimitScope;
+  outcome: RunnersRateLimitOutcome;
+}): void {
+  recordMetric(() =>
+    rateLimitCheckCount.add(1, {
+      action: params.action,
+      scope: params.scope,
+      outcome: params.outcome,
+    }),
+  );
+}
+
+export function recordRunnersRateLimitPruneFailure(): void {
+  recordMetric(() => rateLimitPruneFailureCount.add(1));
+}

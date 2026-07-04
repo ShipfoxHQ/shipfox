@@ -1,5 +1,5 @@
 import {REGISTRATION_TOKEN_BATCH_HARD_MAX} from '@shipfox/api-runners-dto';
-import {bool, createConfig, num} from '@shipfox/config';
+import {bool, createConfig, num, str} from '@shipfox/config';
 import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 const EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
@@ -12,6 +12,30 @@ export const config = createConfig({
   REGISTRATION_TOKEN_BATCH_MAX: num({
     desc: `Maximum number of runner registration tokens a provisioner can mint in one batch request. Set this between 1 and ${REGISTRATION_TOKEN_BATCH_HARD_MAX}.`,
     default: 500,
+  }),
+  PROVISIONER_MINT_RATE_LIMIT_MAX_REQUESTS: num({
+    desc: 'Maximum number of batch runner registration token mint requests one provisioner can make per rate-limit window.',
+    default: 120,
+  }),
+  PROVISIONER_MINT_RATE_LIMIT_WINDOW_SECONDS: num({
+    desc: 'Rate-limit window for provisioner batch runner registration token mint requests, in seconds.',
+    default: 60,
+  }),
+  EPHEMERAL_REGISTER_RATE_LIMIT_MAX_REQUESTS: num({
+    desc: 'Maximum number of runner registration attempts one ephemeral registration token can make per rate-limit window.',
+    default: 5,
+  }),
+  EPHEMERAL_REGISTER_RATE_LIMIT_WINDOW_SECONDS: num({
+    desc: 'Rate-limit window for runner registration attempts with one ephemeral registration token, in seconds.',
+    default: 60,
+  }),
+  RUNNERS_RATE_LIMIT_TIMEOUT_MS: num({
+    desc: 'Maximum time, in milliseconds, a runners rate-limit storage check may wait before the request fails closed.',
+    default: 250,
+  }),
+  RATE_LIMIT_IDENTIFIER_SECRET: str({
+    desc: 'Optional secret used to HMAC identifiers before storing rate-limit counters. Leave it unset to derive a stable key from AUTH_JWT_SECRET.',
+    default: undefined,
   }),
   RESERVATION_TTL_SECONDS: num({
     desc: 'Lifetime of a count-based runner reservation, in seconds. Expired reservations stop counting against queued demand.',
@@ -98,6 +122,21 @@ if (
   throw new Error(
     `REGISTRATION_TOKEN_BATCH_MAX (${config.REGISTRATION_TOKEN_BATCH_MAX}) must be a whole number between 1 and ${REGISTRATION_TOKEN_BATCH_HARD_MAX}.`,
   );
+}
+
+for (const [name, value] of [
+  ['PROVISIONER_MINT_RATE_LIMIT_MAX_REQUESTS', config.PROVISIONER_MINT_RATE_LIMIT_MAX_REQUESTS],
+  ['PROVISIONER_MINT_RATE_LIMIT_WINDOW_SECONDS', config.PROVISIONER_MINT_RATE_LIMIT_WINDOW_SECONDS],
+  ['EPHEMERAL_REGISTER_RATE_LIMIT_MAX_REQUESTS', config.EPHEMERAL_REGISTER_RATE_LIMIT_MAX_REQUESTS],
+  [
+    'EPHEMERAL_REGISTER_RATE_LIMIT_WINDOW_SECONDS',
+    config.EPHEMERAL_REGISTER_RATE_LIMIT_WINDOW_SECONDS,
+  ],
+  ['RUNNERS_RATE_LIMIT_TIMEOUT_MS', config.RUNNERS_RATE_LIMIT_TIMEOUT_MS],
+] as const) {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} (${value}) must be a whole number >= 1.`);
+  }
 }
 
 if (!Number.isInteger(config.RESERVATION_TTL_SECONDS) || config.RESERVATION_TTL_SECONDS < 1) {

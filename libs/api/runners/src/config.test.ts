@@ -56,6 +56,60 @@ describe('REGISTRATION_TOKEN_BATCH_MAX validation', () => {
   });
 });
 
+describe.each([
+  'PROVISIONER_MINT_RATE_LIMIT_MAX_REQUESTS',
+  'PROVISIONER_MINT_RATE_LIMIT_WINDOW_SECONDS',
+  'EPHEMERAL_REGISTER_RATE_LIMIT_MAX_REQUESTS',
+  'EPHEMERAL_REGISTER_RATE_LIMIT_WINDOW_SECONDS',
+  'RUNNERS_RATE_LIMIT_TIMEOUT_MS',
+] as const)('%s validation', (name) => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each(['0', '-5', '1.5'])('fails startup when the value is %s', async (value) => {
+    vi.stubEnv(name, value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(name);
+  });
+
+  it('accepts a whole number >= 1', async () => {
+    vi.stubEnv(name, '1');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config[name]).toBe(1);
+  });
+});
+
+describe('RATE_LIMIT_IDENTIFIER_SECRET validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('allows the secret to be omitted', async () => {
+    const previous = process.env.RATE_LIMIT_IDENTIFIER_SECRET;
+    delete process.env.RATE_LIMIT_IDENTIFIER_SECRET;
+    vi.resetModules();
+
+    try {
+      const {config} = await import('#config.js');
+
+      expect(config.RATE_LIMIT_IDENTIFIER_SECRET).toBeUndefined();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.RATE_LIMIT_IDENTIFIER_SECRET;
+      } else {
+        process.env.RATE_LIMIT_IDENTIFIER_SECRET = previous;
+      }
+    }
+  });
+});
+
 describe('RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

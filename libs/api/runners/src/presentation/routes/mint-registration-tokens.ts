@@ -17,6 +17,7 @@ import {
   toMintRegistrationTokensProvisionedRunners,
   toMintRegistrationTokensResponseDto,
 } from '#presentation/dto/index.js';
+import {createProvisionerMintRateLimitPreHandler} from './rate-limit.js';
 
 export const mintRegistrationTokensRoute = defineRoute({
   method: 'POST',
@@ -28,6 +29,7 @@ export const mintRegistrationTokensRoute = defineRoute({
       200: mintRegistrationTokensBatchResponseSchema,
     },
   },
+  preHandler: createProvisionerMintRateLimitPreHandler(),
   errorHandler: (error) => {
     if (error instanceof ReservationNotFoundError) {
       throw new ClientError('Reservation not found', 'reservation-not-found', {status: 404});
@@ -41,6 +43,7 @@ export const mintRegistrationTokensRoute = defineRoute({
         details: {
           requested: error.requested,
           reservation_count: error.reservationCount,
+          already_minted: error.alreadyMinted,
         },
       });
     }
