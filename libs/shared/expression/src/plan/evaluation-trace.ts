@@ -93,9 +93,32 @@ export function predicateTraceEntry(input: PredicateTraceEntryInput): Evaluation
 
 export function capTraceEntries<Entry extends EvaluationTraceRowEntry>(
   entries: readonly Entry[],
-): readonly (Entry | EvaluationTraceLimitEntry)[] {
-  if (entries.length <= EVALUATION_TRACE_MAX_ENTRIES) return entries;
+): readonly (Exclude<Entry, EvaluationTraceLimitEntry> | EvaluationTraceLimitEntry)[] {
+  const traceEntries: Exclude<Entry, EvaluationTraceLimitEntry>[] = [];
+  let dropped = 0;
+
+  for (const entry of entries) {
+    if (isEvaluationTraceLimitEntry(entry)) {
+      dropped += entry.dropped;
+      continue;
+    }
+
+    traceEntries.push(entry as Exclude<Entry, EvaluationTraceLimitEntry>);
+  }
 
   const keepCount = EVALUATION_TRACE_MAX_ENTRIES - 1;
-  return [...entries.slice(0, keepCount), {truncated: true, dropped: entries.length - keepCount}];
+  if (traceEntries.length + (dropped > 0 ? 1 : 0) <= EVALUATION_TRACE_MAX_ENTRIES) {
+    return dropped === 0 ? traceEntries : [...traceEntries, {truncated: true, dropped}];
+  }
+
+  return [
+    ...traceEntries.slice(0, keepCount),
+    {truncated: true, dropped: dropped + traceEntries.length - keepCount},
+  ];
+}
+
+function isEvaluationTraceLimitEntry(
+  entry: EvaluationTraceRowEntry,
+): entry is EvaluationTraceLimitEntry {
+  return 'dropped' in entry;
 }
