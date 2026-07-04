@@ -257,18 +257,6 @@ export async function listProvisionerTerminateIntents(params: {
   });
 }
 
-export async function listProvisionerTerminateIntentsTx(
-  tx: Tx,
-  params: {
-    workspaceId: string;
-    provisionerId: string;
-    limit: number;
-  },
-): Promise<string[]> {
-  const rows = await listProvisionerTerminateIntentRowsTx(tx, params);
-  return rows.map((row) => row.provisionedRunnerId);
-}
-
 export async function listProvisionerTerminateIntentRowsTx(
   tx: Tx,
   params: {

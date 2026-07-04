@@ -196,10 +196,19 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     const reconcileSpy = vi.spyOn(provisionedRunnerReconcileCallCount, 'add');
     const absentSpy = vi.spyOn(provisionedRunnerAbsentTerminatedCount, 'add');
     const addSpy = vi.spyOn(reservationReleasedCount, 'add');
-    const reservationId = await createReservation(2);
+    const reservationId = await createReservation(3);
     await createProvisionedRunner({
       provisionedRunnerId: 'provisioned-runner-1',
       reservationId,
+      reportedAt: new Date(Date.now() - 300_000),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-2',
+      reservationId,
+      reportedAt: new Date(Date.now() - 300_000),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-3',
       reportedAt: new Date(Date.now() - 300_000),
     });
     const reconcileCallsBefore = reconcileSpy.mock.calls.length;
@@ -214,22 +223,26 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().terminated_absent_provisioned_runner_ids).toEqual(['provisioned-runner-1']);
+    expect(res.json().terminated_absent_provisioned_runner_ids).toEqual([
+      'provisioned-runner-1',
+      'provisioned-runner-2',
+      'provisioned-runner-3',
+    ]);
     expect(
       reconcileSpy.mock.calls
         .slice(reconcileCallsBefore)
         .filter(([value, attributes]) => value === 1 && attributes === undefined),
-    ).toHaveLength(3);
+    ).toHaveLength(1);
     expect(
       absentSpy.mock.calls
         .slice(absentCallsBefore)
-        .filter(([value, attributes]) => value === 1 && attributes === undefined),
-    ).toHaveLength(3);
+        .filter(([value, attributes]) => value === 3 && attributes === undefined),
+    ).toHaveLength(1);
     expect(
       addSpy.mock.calls
         .slice(addCallsBefore)
-        .filter(([value, attributes]) => value === 1 && attributes === undefined),
-    ).toHaveLength(3);
+        .filter(([value, attributes]) => value === 2 && attributes === undefined),
+    ).toHaveLength(1);
   });
 
   it('returns 401 without valid provisioner auth', async () => {
