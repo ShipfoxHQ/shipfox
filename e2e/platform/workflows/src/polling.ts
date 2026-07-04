@@ -66,6 +66,7 @@ export async function waitForNoWorkflowRuns(
 export async function waitForRunDetailMatching(params: {
   token: string;
   runId: string;
+  signal?: AbortSignal | undefined;
   timeoutMs: number;
   description: string;
   matches: (runDetail: WorkflowRunDetailResponseDto) => {matched: boolean; diagnostic: string};
@@ -76,14 +77,16 @@ export async function waitForRunDetailMatching(params: {
   let lastDiagnostic = 'no workflow run detail response observed';
 
   while (Date.now() <= deadline) {
+    params.signal?.throwIfAborted();
     lastResponse = await client.requestJson<WorkflowRunDetailResponseDto>(
       'get',
       `/workflows/runs/${encodeURIComponent(params.runId)}`,
+      {signal: params.signal},
     );
     const result = params.matches(lastResponse);
     if (result.matched) return lastResponse;
     lastDiagnostic = result.diagnostic;
-    await delay(250);
+    await delay(250, undefined, {signal: params.signal});
   }
 
   throw new Error(`Timed out waiting for ${params.description}: ${lastDiagnostic}`);
