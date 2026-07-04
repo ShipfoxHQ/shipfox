@@ -906,6 +906,31 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('reports rootless non-boolean job success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'rootless non-boolean job success',
+      jobs: {
+        build: {
+          success: '1 + 2',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-success',
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({
+          source: '1 + 2',
+          reason: expect.stringContaining('must return bool'),
+        }),
+      }),
+    ]);
+  });
+
   it('reports misspelled execution fields in job success expressions', () => {
     const document: WorkflowDocument = {
       name: 'misspelled job success',

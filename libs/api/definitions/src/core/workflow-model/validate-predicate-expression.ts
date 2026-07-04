@@ -65,7 +65,7 @@ export function validatePredicateExpression(params: {
     return undefined;
   }
 
-  if (knownRoots.length === 0 || knownRoots.some((root) => hasSyntaxOnlyCheckMode(root))) {
+  if (knownRoots.some((root) => hasSyntaxOnlyCheckMode(root))) {
     return syntaxExpression;
   }
 
