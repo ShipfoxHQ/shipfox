@@ -19,7 +19,12 @@ import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {reservations} from '#db/schema/reservations.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
-import {reservationReleasedCount} from '#metrics/instance.js';
+import {
+  provisionedRunnerAbsentTerminatedCount,
+  provisionedRunnerReconcileCallCount,
+  provisionedRunnerTerminateIntentIssuedCount,
+  reservationReleasedCount,
+} from '#metrics/instance.js';
 import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
@@ -150,6 +155,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
   });
 
   it('returns terminate for an active runner with a cancelled bound job', async () => {
+    const intentSpy = vi.spyOn(provisionedRunnerTerminateIntentIssuedCount, 'add');
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId: crypto.randomUUID(),
@@ -159,6 +165,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
+    const intentCallsBefore = intentSpy.mock.calls.length;
 
     const res = await app.inject({
       method: 'POST',
@@ -174,16 +181,39 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
         cancellation_requested_at: '2025-01-01T00:01:00.000Z',
       },
     });
+    const intentCalls = intentSpy.mock.calls
+      .slice(intentCallsBefore)
+      .filter(
+        ([value, attributes]) =>
+          value === 1 &&
+          JSON.stringify(attributes) ===
+            JSON.stringify({surface: 'reconcile', reason: 'job-cancelled'}),
+      );
+    expect(intentCalls).toHaveLength(1);
   });
 
   it('increments the reservation release metric when reconcile reaps an absent runner', async () => {
+    const reconcileSpy = vi.spyOn(provisionedRunnerReconcileCallCount, 'add');
+    const absentSpy = vi.spyOn(provisionedRunnerAbsentTerminatedCount, 'add');
     const addSpy = vi.spyOn(reservationReleasedCount, 'add');
-    const reservationId = await createReservation(2);
+    const reservationId = await createReservation(3);
     await createProvisionedRunner({
       provisionedRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: new Date(Date.now() - 300_000),
     });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-2',
+      reservationId,
+      reportedAt: new Date(Date.now() - 300_000),
+    });
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-3',
+      reportedAt: new Date(Date.now() - 300_000),
+    });
+    const reconcileCallsBefore = reconcileSpy.mock.calls.length;
+    const absentCallsBefore = absentSpy.mock.calls.length;
+    const addCallsBefore = addSpy.mock.calls.length;
 
     const res = await app.inject({
       method: 'POST',
@@ -193,8 +223,26 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().terminated_absent_provisioned_runner_ids).toEqual(['provisioned-runner-1']);
-    expect(addSpy).toHaveBeenCalledWith(1);
+    expect(res.json().terminated_absent_provisioned_runner_ids).toEqual([
+      'provisioned-runner-1',
+      'provisioned-runner-2',
+      'provisioned-runner-3',
+    ]);
+    expect(
+      reconcileSpy.mock.calls
+        .slice(reconcileCallsBefore)
+        .filter(([value, attributes]) => value === 1 && attributes === undefined),
+    ).toHaveLength(1);
+    expect(
+      absentSpy.mock.calls
+        .slice(absentCallsBefore)
+        .filter(([value, attributes]) => value === 3 && attributes === undefined),
+    ).toHaveLength(1);
+    expect(
+      addSpy.mock.calls
+        .slice(addCallsBefore)
+        .filter(([value, attributes]) => value === 2 && attributes === undefined),
+    ).toHaveLength(1);
   });
 
   it('returns 401 without valid provisioner auth', async () => {

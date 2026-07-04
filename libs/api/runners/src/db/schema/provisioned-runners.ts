@@ -1,4 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {index, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {ProvisionedRunner} from '#core/entities/provisioned-runner.js';
 import {pgTable} from './common.js';
@@ -53,6 +54,9 @@ export const provisionedRunners = pgTable(
       table.reportedAt,
       table.workspaceId,
     ),
+    index('runners_provisioned_runners_active_template_counts_idx')
+      .on(table.workspaceId, table.provisionerId, table.state, table.templateKey)
+      .where(sql`"state" in ('starting', 'running') and "template_key" is not null`),
     index('runners_provisioned_runners_reservation_id_idx').on(table.reservationId),
   ],
 );

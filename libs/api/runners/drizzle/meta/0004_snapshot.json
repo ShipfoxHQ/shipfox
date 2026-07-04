@@ -603,6 +603,40 @@
           "method": "btree",
           "with": {}
         },
+        "runners_provisioned_runners_active_template_counts_idx": {
+          "name": "runners_provisioned_runners_active_template_counts_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provisioner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "template_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"state\" in ('starting', 'running') and \"template_key\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "runners_provisioned_runners_reservation_id_idx": {
           "name": "runners_provisioned_runners_reservation_id_idx",
           "columns": [

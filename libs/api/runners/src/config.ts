@@ -1,5 +1,5 @@
 import {REGISTRATION_TOKEN_BATCH_HARD_MAX} from '@shipfox/api-runners-dto';
-import {createConfig, num} from '@shipfox/config';
+import {bool, createConfig, num} from '@shipfox/config';
 
 const EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
 
@@ -55,6 +55,10 @@ export const config = createConfig({
   PROVISIONER_LAST_SEEN_THROTTLE_SECONDS: num({
     desc: 'Minimum time, in seconds, between last-seen writes for one provisioner token.',
     default: 10,
+  }),
+  PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED: bool({
+    desc: 'Whether runners_provisioned_runner_count_divergence includes template_key as a metric label. Use true or false. Defaults to false because template keys can create high-cardinality metric series. Set true only when template keys are bounded and stable.',
+    default: false,
   }),
 });
 

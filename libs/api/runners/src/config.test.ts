@@ -173,3 +173,27 @@ describe('stale provisioned runner threshold validation', () => {
     );
   });
 });
+
+describe('PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('defaults to disabling template_key on the divergence metric', async () => {
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED).toBe(false);
+  });
+
+  it('can enable template_key on the divergence metric', async () => {
+    vi.stubEnv('PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED', 'true');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED).toBe(true);
+  });
+});

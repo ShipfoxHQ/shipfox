@@ -42,6 +42,23 @@ export const activeStates = [
   'running',
   'stopping',
 ] as const satisfies readonly ProvisionedRunnerState[];
+export const divergenceCountStates = ['starting', 'running'] as const satisfies readonly Extract<
+  ProvisionedRunnerState,
+  'starting' | 'running'
+>[];
+
+export type ProvisionedRunnerTerminateIntentReason = 'job-cancelled';
+
+export interface ProvisionedRunnerTerminateIntent {
+  provisionedRunnerId: string;
+  reason: ProvisionedRunnerTerminateIntentReason;
+}
+
+export interface ActiveProvisionedRunnerTemplateCount {
+  templateKey: string;
+  state: (typeof divergenceCountStates)[number];
+  count: number;
+}
 
 export interface ProvisionedRunnerReportEvent {
   provisionedRunnerId: string;
@@ -98,8 +115,10 @@ type ProvisionedRunnerMilestoneColumn =
 export async function reportProvisionedRunners(params: ReportProvisionedRunnersParams): Promise<{
   accepted: number;
   reservationsReleased: number;
+  terminateIntentsHonored: ProvisionedRunnerTerminateIntent[];
 }> {
-  if (params.events.length === 0) return {accepted: 0, reservationsReleased: 0};
+  if (params.events.length === 0)
+    return {accepted: 0, reservationsReleased: 0, terminateIntentsHonored: []};
 
   return await db().transaction(async (tx) => {
     const receivedAt = new Date();
@@ -111,6 +130,11 @@ export async function reportProvisionedRunners(params: ReportProvisionedRunnersP
     }
 
     const events = await hydrateRunnerSessionIdsFromConsumedTokens(tx, params, aggregatedEvents);
+    const terminateIntentsHonored = await listTerminateIntentsHonoredByTerminatedReportsTx(
+      tx,
+      params,
+      events,
+    );
 
     const values = events.map((event) => ({
       workspaceId: params.workspaceId,
@@ -169,8 +193,36 @@ export async function reportProvisionedRunners(params: ReportProvisionedRunnersP
       ? await releaseTerminalProvisionedRunnerReservations(tx, params, events)
       : 0;
 
-    return {accepted: events.length, reservationsReleased};
+    return {accepted: events.length, reservationsReleased, terminateIntentsHonored};
   });
+}
+
+export async function listActiveProvisionedRunnerCountsByTemplateTx(
+  tx: Tx,
+  params: {workspaceId: string; provisionerId: string},
+): Promise<ActiveProvisionedRunnerTemplateCount[]> {
+  const rows = await tx
+    .select({
+      templateKey: provisionedRunners.templateKey,
+      state: provisionedRunners.state,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(provisionedRunners)
+    .where(
+      and(
+        eq(provisionedRunners.workspaceId, params.workspaceId),
+        eq(provisionedRunners.provisionerId, params.provisionerId),
+        inArray(provisionedRunners.state, divergenceCountStates),
+        isNotNull(provisionedRunners.templateKey),
+      ),
+    )
+    .groupBy(provisionedRunners.templateKey, provisionedRunners.state);
+
+  return rows.flatMap((row) =>
+    row.templateKey && isDivergenceCountState(row.state)
+      ? [{templateKey: row.templateKey, state: row.state, count: row.count}]
+      : [],
+  );
 }
 
 export async function listActiveProvisionedRunners(params: {
@@ -199,17 +251,20 @@ export async function listProvisionerTerminateIntents(params: {
   provisionerId: string;
   limit: number;
 }): Promise<string[]> {
-  return await db().transaction(async (tx) => listProvisionerTerminateIntentsTx(tx, params));
+  return await db().transaction(async (tx) => {
+    const rows = await listProvisionerTerminateIntentRowsTx(tx, params);
+    return rows.map((row) => row.provisionedRunnerId);
+  });
 }
 
-export async function listProvisionerTerminateIntentsTx(
+export async function listProvisionerTerminateIntentRowsTx(
   tx: Tx,
   params: {
     workspaceId: string;
     provisionerId: string;
     limit: number;
   },
-): Promise<string[]> {
+): Promise<ProvisionedRunnerTerminateIntent[]> {
   const rows = await provisionerTerminateIntentsQuery(tx, params)
     .orderBy(asc(provisionedRunners.provisionedRunnerId))
     .limit(params.limit + 1);
@@ -228,17 +283,20 @@ export async function listProvisionerTerminateIntentsTx(
     );
   }
 
-  return returnedRows.map((row) => row.provisionedRunnerId);
+  return returnedRows;
 }
 
 function provisionerTerminateIntentsQuery(
   tx: Tx,
-  params: {workspaceId: string; provisionerId: string},
+  params: {workspaceId: string; provisionerId: string; provisionedRunnerIds?: string[]},
 ) {
   const newerRunningJobExecutions = alias(runningJobExecutions, 'newer_running_jobs');
 
   return tx
-    .select({provisionedRunnerId: provisionedRunners.provisionedRunnerId})
+    .select({
+      provisionedRunnerId: provisionedRunners.provisionedRunnerId,
+      reason: sql<ProvisionedRunnerTerminateIntentReason>`'job-cancelled'`,
+    })
     .from(runningJobExecutions)
     .innerJoin(
       provisionedRunners,
@@ -254,6 +312,9 @@ function provisionerTerminateIntentsQuery(
         eq(runningJobExecutions.provisionerId, params.provisionerId),
         isNotNull(runningJobExecutions.cancellationRequestedAt),
         inArray(provisionedRunners.state, activeStates),
+        params.provisionedRunnerIds && params.provisionedRunnerIds.length > 0
+          ? inArray(provisionedRunners.provisionedRunnerId, params.provisionedRunnerIds)
+          : undefined,
         notExists(
           tx
             .select({id: newerRunningJobExecutions.id})
@@ -282,6 +343,27 @@ function provisionerTerminateIntentsQuery(
       ),
     )
     .groupBy(provisionedRunners.provisionedRunnerId);
+}
+
+async function listTerminateIntentsHonoredByTerminatedReportsTx(
+  tx: Tx,
+  params: ReportProvisionedRunnersParams,
+  events: ProvisionedRunnerReportEvent[],
+): Promise<ProvisionedRunnerTerminateIntent[]> {
+  const terminatedProvisionedRunnerIds = [
+    ...new Set(
+      events
+        .filter((event) => event.state === 'terminated')
+        .map((event) => event.provisionedRunnerId),
+    ),
+  ];
+  if (terminatedProvisionedRunnerIds.length === 0) return [];
+
+  return await provisionerTerminateIntentsQuery(tx, {
+    workspaceId: params.workspaceId,
+    provisionerId: params.provisionerId,
+    provisionedRunnerIds: terminatedProvisionedRunnerIds,
+  }).orderBy(asc(provisionedRunners.provisionedRunnerId));
 }
 
 export async function reconcileProvisionedRunners(
@@ -795,4 +877,10 @@ function firstObservedAt(current: SQL | ProvisionedRunnerMilestoneColumn, incomi
 
 export function isTerminalState(state: ProvisionedRunnerState): boolean {
   return terminalStates.includes(state as (typeof terminalStates)[number]);
+}
+
+function isDivergenceCountState(
+  state: ProvisionedRunnerState,
+): state is (typeof divergenceCountStates)[number] {
+  return divergenceCountStates.includes(state as (typeof divergenceCountStates)[number]);
 }

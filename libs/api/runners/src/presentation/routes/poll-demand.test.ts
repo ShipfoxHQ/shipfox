@@ -13,9 +13,14 @@ import {
   createApp,
   extractBearerToken,
 } from '@shipfox/node-fastify';
+import {vi} from '@shipfox/vitest/vi';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
+import {
+  provisionedRunnerCountDivergenceCount,
+  provisionedRunnerTerminateIntentIssuedCount,
+} from '#metrics/instance.js';
 import {pendingJobFactory, provisionedRunnerFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
@@ -94,7 +99,19 @@ describe('POST /provisioners/demand/poll', () => {
       method: 'POST',
       url: '/provisioners/demand/poll',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body({max_reservations: 0}),
+      payload: {
+        wait_seconds: 0,
+        max_reservations: 0,
+        templates: [
+          {
+            template_key: 'linux',
+            labels: ['linux'],
+            available_slots: 1,
+            starting: 0,
+            running: 1,
+          },
+        ],
+      },
     });
 
     expect(res.statusCode).toBe(200);
@@ -121,7 +138,19 @@ describe('POST /provisioners/demand/poll', () => {
       method: 'POST',
       url: '/provisioners/demand/poll',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body({max_reservations: 0}),
+      payload: {
+        wait_seconds: 0,
+        max_reservations: 0,
+        templates: [
+          {
+            template_key: 'linux',
+            labels: ['linux'],
+            available_slots: 1,
+            starting: 0,
+            running: 1,
+          },
+        ],
+      },
     });
 
     expect(res.statusCode).toBe(200);
@@ -129,6 +158,74 @@ describe('POST /provisioners/demand/poll', () => {
       reservations: [],
       terminate_provisioned_runner_ids: ['provisioned-runner-1'],
     });
+  });
+
+  it('records count divergence and terminate-intent metrics for the returned poll result', async () => {
+    const divergenceSpy = vi.spyOn(provisionedRunnerCountDivergenceCount, 'add');
+    const intentSpy = vi.spyOn(provisionedRunnerTerminateIntentIssuedCount, 'add');
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisionerTokenId,
+      provisionedRunnerId: 'provisioned-runner-1',
+      templateKey: 'linux',
+      state: 'running',
+    });
+    await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisionerTokenId,
+      provisionedRunnerId: 'provisioned-runner-2',
+      templateKey: 'linux',
+      state: 'running',
+    });
+    await insertRunningJob({
+      provisionedRunnerId: 'provisioned-runner-1',
+      cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+    });
+    const divergenceCallsBefore = divergenceSpy.mock.calls.length;
+    const intentCallsBefore = intentSpy.mock.calls.length;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/demand/poll',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {
+        wait_seconds: 0,
+        max_reservations: 0,
+        templates: [
+          {
+            template_key: 'linux',
+            labels: ['linux'],
+            available_slots: 1,
+            starting: 0,
+            running: 1,
+          },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      reservations: [],
+      terminate_provisioned_runner_ids: ['provisioned-runner-1'],
+    });
+    const divergenceCalls = divergenceSpy.mock.calls
+      .slice(divergenceCallsBefore)
+      .filter(
+        ([value, attributes]) =>
+          value === 1 &&
+          JSON.stringify(attributes) ===
+            JSON.stringify({state: 'running', direction: 'backend-higher'}),
+      );
+    const intentCalls = intentSpy.mock.calls
+      .slice(intentCallsBefore)
+      .filter(
+        ([value, attributes]) =>
+          value === 1 &&
+          JSON.stringify(attributes) ===
+            JSON.stringify({surface: 'poll-demand', reason: 'job-cancelled'}),
+      );
+    expect(divergenceCalls).toHaveLength(1);
+    expect(intentCalls).toHaveLength(1);
   });
 
   it('returns 400 for max reservations above the request bound', async () => {
