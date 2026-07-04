@@ -68,8 +68,8 @@ const IDENTIFIER_SECRET_DERIVATION_DOMAIN = 'shipfox.auth.rate-limit.identifier-
 const IDENTIFIER_HASH_DOMAIN = 'shipfox.auth.rate-limit.identifier.v1';
 
 function effectiveIdentifierSecret(): Buffer | string {
-  if (config.AUTH_RATE_LIMIT_IDENTIFIER_SECRET) {
-    return config.AUTH_RATE_LIMIT_IDENTIFIER_SECRET;
+  if (config.RATE_LIMIT_IDENTIFIER_SECRET) {
+    return config.RATE_LIMIT_IDENTIFIER_SECRET;
   }
 
   return createHmac('sha256', config.AUTH_JWT_SECRET)

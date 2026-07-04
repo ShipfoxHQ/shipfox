@@ -7,7 +7,6 @@ process.env.POSTGRES_MAX_CONNECTIONS ??= '5';
 process.env.AUTH_JWT_SECRET = 'test-secret';
 process.env.AUTH_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
 process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET = 'test-runner-session-secret';
-process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET = 'test-runners-rate-limit-secret';
 process.env.SECRETS_ENCRYPTION_KEK = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';
 
 // Small accrual budget so cap/budget tests use tiny payloads: base 100 bytes,

@@ -33,8 +33,9 @@ export const config = createConfig({
     desc: 'Maximum time, in milliseconds, a runners rate-limit storage check may wait before the request fails closed.',
     default: 250,
   }),
-  RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET: str({
-    desc: 'Secret used to HMAC provisioner and ephemeral token identifiers before storing rate-limit counters. Required, with no default, so startup fails when it is missing.',
+  RATE_LIMIT_IDENTIFIER_SECRET: str({
+    desc: 'Optional secret used to HMAC identifiers before storing rate-limit counters. Leave it unset to derive a stable key from AUTH_JWT_SECRET.',
+    default: undefined,
   }),
   RESERVATION_TTL_SECONDS: num({
     desc: 'Lifetime of a count-based runner reservation, in seconds. Expired reservations stop counting against queued demand.',

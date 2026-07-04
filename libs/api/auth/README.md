@@ -50,7 +50,7 @@ Required environment:
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |
 | `AUTH_REFRESH_ROTATION_GRACE_SECONDS` | `30` | Grace window for accepting a just-rotated refresh token during concurrent refreshes. |
 | `AUTH_REFRESH_COOKIE_NAME` | `shipfox_refresh_token` | HTTP cookie name for refresh sessions. |
-| `AUTH_RATE_LIMIT_IDENTIFIER_SECRET` | none | Optional secret used to HMAC emails and IP addresses before storing auth rate-limit counters. When unset, the module derives a stable key from `AUTH_JWT_SECRET`. |
+| `RATE_LIMIT_IDENTIFIER_SECRET` | none | Optional secret used to HMAC identifiers before storing rate-limit counters. When unset, the module derives a stable key from `AUTH_JWT_SECRET`. |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in email verification and password reset links. |
 | `MAILER_TRANSPORT` | `console` | Mail transport. Set to `smtp` to send real mail. |
 | `MAILER_FROM` | `noreply@shipfox.local` | Sender used by auth emails. |
@@ -204,7 +204,7 @@ The public auth endpoints include an application-layer abuse baseline for open s
 | `POST /auth/password-reset` | 30 email-send attempts per hour | 3 email-send attempts per hour |
 | `POST /auth/verify-email/resend` | Shared with password reset | Shared with password reset |
 
-Counters are stored in PostgreSQL as fixed windows in `auth_rate_limits`. IP addresses and email addresses are HMAC-SHA256 values before storage; raw identifiers are not persisted. `AUTH_RATE_LIMIT_IDENTIFIER_SECRET` is optional. Set it when you want a dedicated HMAC secret, or leave it unset to derive the key from `AUTH_JWT_SECRET`.
+Counters are stored in PostgreSQL as fixed windows in `auth_rate_limits`. IP addresses and email addresses are HMAC-SHA256 values before storage; raw identifiers are not persisted. `RATE_LIMIT_IDENTIFIER_SECRET` is optional. Set it when you want a dedicated HMAC secret, or leave it unset to derive the key from `AUTH_JWT_SECRET`.
 
 The limiter uses `request.ip`, so production deployments behind a reverse proxy must configure the API app's `API_TRUST_PROXY` setting. Keep the default `false` when clients connect directly. Use a positive hop count such as `1`, or a trusted proxy IP/CIDR such as `10.0.0.0/8`, when proxy headers are controlled by infrastructure you operate.
 

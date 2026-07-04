@@ -85,24 +85,26 @@ describe.each([
   });
 });
 
-describe('RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET validation', () => {
+describe('RATE_LIMIT_IDENTIFIER_SECRET validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
   });
 
-  it('fails startup when the secret is missing', async () => {
-    const previous = process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET;
-    delete process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET;
+  it('allows the secret to be omitted', async () => {
+    const previous = process.env.RATE_LIMIT_IDENTIFIER_SECRET;
+    delete process.env.RATE_LIMIT_IDENTIFIER_SECRET;
     vi.resetModules();
 
     try {
-      await expect(import('#config.js')).rejects.toThrow('process.exit unexpectedly called');
+      const {config} = await import('#config.js');
+
+      expect(config.RATE_LIMIT_IDENTIFIER_SECRET).toBeUndefined();
     } finally {
       if (previous === undefined) {
-        delete process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET;
+        delete process.env.RATE_LIMIT_IDENTIFIER_SECRET;
       } else {
-        process.env.RUNNERS_RATE_LIMIT_IDENTIFIER_SECRET = previous;
+        process.env.RATE_LIMIT_IDENTIFIER_SECRET = previous;
       }
     }
   });

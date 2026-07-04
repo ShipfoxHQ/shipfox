@@ -261,7 +261,7 @@ describe('checkAuthRateLimit', () => {
     vi.doMock('#config.js', () => ({
       config: {
         AUTH_JWT_SECRET: 'jwt-secret',
-        AUTH_RATE_LIMIT_IDENTIFIER_SECRET: undefined,
+        RATE_LIMIT_IDENTIFIER_SECRET: undefined,
       },
     }));
     vi.doMock('#db/rate-limits.js', () => ({
@@ -426,7 +426,7 @@ describe('checkAuthRateLimit', () => {
     vi.doMock('#config.js', () => ({
       config: {
         AUTH_JWT_SECRET: 'jwt-secret',
-        AUTH_RATE_LIMIT_IDENTIFIER_SECRET: 'configured-secret',
+        RATE_LIMIT_IDENTIFIER_SECRET: 'configured-secret',
       },
     }));
 
@@ -440,7 +440,7 @@ describe('checkAuthRateLimit', () => {
       vi.doMock('#config.js', () => ({
         config: {
           AUTH_JWT_SECRET: 'jwt-secret',
-          AUTH_RATE_LIMIT_IDENTIFIER_SECRET: undefined,
+          RATE_LIMIT_IDENTIFIER_SECRET: undefined,
         },
       }));
       vi.resetModules();
