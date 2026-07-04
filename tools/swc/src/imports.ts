@@ -62,6 +62,15 @@ function relativeSpecifier(
   return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
 }
 
+function parseModule(code: string, label: string): ReturnType<typeof parseSync> {
+  try {
+    return parseSync(code, PARSE_OPTIONS);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`shipfox-swc: failed to parse ${label}: ${reason}`, {cause: error});
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -129,7 +138,7 @@ export function rewriteSpecifiers(
   if (!code.includes('#')) return code;
 
   const fromDir = posix.dirname(fileOutputPath);
-  const specifiers = collectHashSpecifiers(parseSync(code, PARSE_OPTIONS));
+  const specifiers = collectHashSpecifiers(parseModule(code, fileOutputPath));
 
   // Splice from the end so earlier offsets stay valid as we rewrite.
   let result = code;
@@ -140,6 +149,10 @@ export function rewriteSpecifiers(
     const quote = code[start];
     result = result.slice(0, start) + quote + specifier + quote + result.slice(end);
   }
+
+  // Fail closed: only ever emit a file we can still parse, so a splice bug
+  // surfaces as a build error rather than a corrupt module.
+  if (result !== code) parseModule(result, fileOutputPath);
   return result;
 }
 

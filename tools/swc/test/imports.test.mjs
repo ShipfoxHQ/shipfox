@@ -3,6 +3,7 @@ import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
+import {pathToFileURL} from 'node:url';
 import {rewriteHashImports, rewriteSpecifiers} from '../dist/imports.js';
 
 const imports = {'#test/*': './test/*', '#*': './src/*'};
@@ -77,6 +78,15 @@ test('rewriteSpecifiers ignores import-like text inside strings and comments', (
   );
 });
 
+test('rewriteSpecifiers fails closed with the file path on unparseable input', () => {
+  const code = 'export {x} from "#real.js";\nconst = ;\n';
+
+  assert.throws(
+    () => rewriteSpecifiers(code, 'broken.js', imports, 'src'),
+    /failed to parse broken\.js/,
+  );
+});
+
 test('rewriteSpecifiers leaves conditional (object) import targets untouched', () => {
   const conditional = {'#*': {development: './src/*', default: './dist/*'}};
   const code = "export * from '#schemas/index.js';\n";
@@ -88,10 +98,8 @@ test('rewriteSpecifiers leaves conditional (object) import targets untouched', (
 
 function makeDist({imports: importsMap, files}) {
   const root = mkdtempSync(join(tmpdir(), 'shipfox-swc-dist-'));
-  writeFileSync(
-    join(root, 'package.json'),
-    JSON.stringify(importsMap ? {name: 'pkg', imports: importsMap} : {name: 'pkg'}),
-  );
+  const manifest = {name: 'pkg', type: 'module', ...(importsMap ? {imports: importsMap} : {})};
+  writeFileSync(join(root, 'package.json'), JSON.stringify(manifest));
   const outputDir = join(root, 'dist');
   for (const [rel, content] of Object.entries(files)) {
     const abs = join(outputDir, rel);
@@ -142,6 +150,64 @@ test('rewriteHashImports is a no-op when the package declares no imports', () =>
       readFileSync(join(outputDir, 'index.js'), 'utf8'),
       "export * from '#schemas/index.js';\n",
     );
+  } finally {
+    rmSync(root, {force: true, recursive: true});
+  }
+});
+
+test('rewriteHashImports is idempotent', () => {
+  const {root, outputDir} = makeDist({
+    imports,
+    files: {
+      'index.js': "export * from '#schemas/index.js';\nimport {slug} from '#slug.js';\n",
+      'schemas/index.js': 'export const schema = 1;\n',
+      'slug.js': 'export const slug = 1;\n',
+    },
+  });
+
+  try {
+    rewriteHashImports({outputDir, projectRoot: root});
+    const afterFirst = readFileSync(join(outputDir, 'index.js'), 'utf8');
+
+    rewriteHashImports({outputDir, projectRoot: root});
+    const afterSecond = readFileSync(join(outputDir, 'index.js'), 'utf8');
+
+    assert.equal(afterSecond, afterFirst);
+  } finally {
+    rmSync(root, {force: true, recursive: true});
+  }
+});
+
+test("rewritten dist loads under Node's own resolver with every # form", async () => {
+  const {root, outputDir} = makeDist({
+    imports: {'#*': './src/*'},
+    files: {
+      'index.js': [
+        "export {a} from '#dir/a.js';",
+        "export {b} from '#b.js';",
+        "export {c} from '#/dir/c.js';",
+        "import '#side.js';",
+        "export const loadDynamic = async () => (await import('#dyn.js')).d;",
+        '',
+      ].join('\n'),
+      'dir/a.js': "export const a = 'A';\n",
+      'b.js': "export const b = 'B';\n",
+      'dir/c.js': "export const c = 'C';\n",
+      'side.js': 'globalThis.__shipfoxSideEffect = true;\n',
+      'dyn.js': "export const d = 'D';\n",
+    },
+  });
+
+  try {
+    rewriteHashImports({outputDir, projectRoot: root});
+
+    const mod = await import(pathToFileURL(join(outputDir, 'index.js')).href);
+
+    assert.equal(mod.a, 'A');
+    assert.equal(mod.b, 'B');
+    assert.equal(mod.c, 'C');
+    assert.equal(await mod.loadDynamic(), 'D');
+    assert.equal(globalThis.__shipfoxSideEffect, true);
   } finally {
     rmSync(root, {force: true, recursive: true});
   }
