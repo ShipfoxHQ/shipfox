@@ -44,6 +44,8 @@ export const stepErrorDtoSchema = z
     exit_code: z.number().int().nullable().optional(),
     signal: z.string().optional(),
     reason: stepErrorReasonSchema.optional(),
+    field: z.string().optional(),
+    source: z.string().optional(),
     agent_config_issue: agentConfigIssueSchema.optional(),
     category: stepErrorCategorySchema.optional(),
   })

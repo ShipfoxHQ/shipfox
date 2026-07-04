@@ -47,6 +47,22 @@ describe('fromStepErrorDto', () => {
     });
   });
 
+  it('persists config error field and source diagnostics', () => {
+    const persisted = fromStepErrorDto({
+      message: 'Could not resolve env.VERSION',
+      reason: 'config_unresolvable',
+      field: 'env.VERSION',
+      source: 'steps.build.outputs.version',
+    });
+
+    expect(persisted).toEqual({
+      message: 'Could not resolve env.VERSION',
+      reason: 'config_unresolvable',
+      field: 'env.VERSION',
+      source: 'steps.build.outputs.version',
+    });
+  });
+
   it('ignores a runner-supplied category (the server derives it on read)', () => {
     const persisted = fromStepErrorDto({
       message: 'mkdir denied',
@@ -104,6 +120,28 @@ describe('toStepDto error category', () => {
       message: 'Unknown provider "foo" for agent step.',
       reason: 'agent_config_invalid',
       agent_config_issue: 'provider_unsupported',
+      category: 'user',
+    });
+  });
+
+  it('surfaces config error field and source diagnostics', () => {
+    const dto = toStepDto(
+      step({
+        type: 'run',
+        error: {
+          message: 'Could not resolve env.VERSION',
+          reason: 'config_unresolvable',
+          field: 'env.VERSION',
+          source: 'steps.build.outputs.version',
+        },
+      }),
+    );
+
+    expect(dto.error).toEqual({
+      message: 'Could not resolve env.VERSION',
+      reason: 'config_unresolvable',
+      field: 'env.VERSION',
+      source: 'steps.build.outputs.version',
       category: 'user',
     });
   });
