@@ -2,43 +2,88 @@ import {createHmac} from 'node:crypto';
 
 export type RateLimitOutcome = 'allowed' | 'blocked' | 'unavailable';
 
+/**
+ * Fixed-window policy for one rate-limited action and scope.
+ */
 export interface RateLimitPolicy {
+  /** Maximum number of allowed calls within one window. */
   limit: number;
+  /** Window size in seconds. */
   windowSeconds: number;
 }
 
+/**
+ * Storage request passed to the caller-owned counter implementation.
+ *
+ * `consume` must atomically increment the row for
+ * `(action, scope, identifierHmac, windowStart)` and return the new count.
+ */
 export interface ConsumeRateLimitParams<Action extends string, Scope extends string> {
   action: Action;
   scope: Scope;
+  /** HMAC of the raw identifier. Store this value, never the raw identifier. */
   identifierHmac: string;
+  /** Start time of the fixed window that owns this request. */
   windowStart: Date;
+  /** Time when the fixed-window row can be pruned. */
   expiresAt: Date;
+  /** Maximum time the storage layer should spend on the consume operation. */
   timeoutMs: number;
 }
 
+/**
+ * Result returned by the caller-owned counter implementation after one consume.
+ */
 export interface ConsumeRateLimitResult {
+  /** Count after the current request has been consumed. */
   count: number;
+  /** Expiry for the consumed window. Used to compute Retry-After on blocks. */
   expiresAt: Date;
 }
 
+/**
+ * Parameters for one rate-limit check.
+ *
+ * Callers provide product policy, HMAC separation, persistence, and metrics.
+ * This shared core only computes the fixed window, hashes the identifier,
+ * interprets the returned count, and normalizes errors.
+ */
 export interface CheckRateLimitParams<Action extends string, Scope extends string>
   extends RateLimitPolicy {
+  /** Bounded product action label, such as `login` or `provisioner-mint`. */
   action: Action;
+  /** Bounded product scope label, such as `email` or `ephemeral-token`. */
   scope: Scope;
+  /** Raw identifier for the subject being limited. It is HMACed before storage. */
   identifier: string;
+  /** Secret key used to HMAC the raw identifier. */
   identifierSecret: string | Buffer;
+  /** Domain separator used to keep hashes distinct across products and versions. */
   identifierHashDomain: string;
+  /** Atomically consumes one request from the caller-owned backing store. */
   consume: (params: ConsumeRateLimitParams<Action, Scope>) => Promise<ConsumeRateLimitResult>;
+  /** Optional opportunistic cleanup for expired backing-store rows. */
   prune?: ((params: {now: Date}) => Promise<unknown>) | undefined;
+  /** Optional metric hook called once with the final check outcome. */
   onCheck?:
     | ((params: {action: Action; scope: Scope; outcome: RateLimitOutcome}) => void)
     | undefined;
+  /** Optional metric hook called when background pruning fails. */
   onPruneFailure?: (() => void) | undefined;
+  /** Test seam for deterministic fixed-window calculations. Defaults to current time. */
   now?: Date | undefined;
+  /** Timeout passed through to `consume`. Defaults to 250 ms. */
   timeoutMs?: number | undefined;
+  /** Prefix length exposed on errors for diagnostics without exposing full hashes. */
   identifierHmacPrefixLength?: number | undefined;
 }
 
+/**
+ * Thrown when the consumed count exceeds the configured policy limit.
+ *
+ * Presentation layers should usually translate this to a 429 response and set
+ * `Retry-After` from `retryAfterSeconds`.
+ */
 export class RateLimitExceededError<Action extends string, Scope extends string> extends Error {
   readonly action: Action;
   readonly scope: Scope;
@@ -60,6 +105,12 @@ export class RateLimitExceededError<Action extends string, Scope extends string>
   }
 }
 
+/**
+ * Thrown when the backing store cannot complete the check.
+ *
+ * Callers should fail closed for protected endpoints, usually by translating
+ * this to a service-unavailable response.
+ */
 export class RateLimitUnavailableError<Action extends string, Scope extends string> extends Error {
   readonly action: Action;
   readonly scope: Scope;
@@ -84,6 +135,12 @@ export class RateLimitUnavailableError<Action extends string, Scope extends stri
 const DEFAULT_TIMEOUT_MS = 250;
 const DEFAULT_HASH_PREFIX_LENGTH = 12;
 
+/**
+ * Hashes a rate-limit identifier with action, scope, and domain separation.
+ *
+ * Use the returned value as the storage key. Do not persist or log the raw
+ * identifier passed to this function.
+ */
 export function hashRateLimitIdentifier<Action extends string, Scope extends string>(params: {
   action: Action;
   scope: Scope;
@@ -102,6 +159,13 @@ export function hashRateLimitIdentifier<Action extends string, Scope extends str
     .digest('hex');
 }
 
+/**
+ * Consumes one request from a fixed-window rate limit.
+ *
+ * Resolves when the request is allowed. Throws `RateLimitExceededError` when the
+ * request should be blocked, or `RateLimitUnavailableError` when the backing
+ * store fails. Background pruning is intentionally non-blocking.
+ */
 export async function checkRateLimit<Action extends string, Scope extends string>(
   params: CheckRateLimitParams<Action, Scope>,
 ): Promise<void> {
