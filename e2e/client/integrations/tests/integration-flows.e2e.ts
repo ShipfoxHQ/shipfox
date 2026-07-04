@@ -72,7 +72,7 @@ test('connecting Gitea from onboarding flows into project creation', async ({
   await expect(page.getByRole('tab', {name: 'Runs'})).toBeVisible();
   await expect(page.getByLabel('Switch project')).toBeVisible();
 
-  await page.goto(`/workspaces/${wid}/integrations`);
+  await page.goto(`/workspaces/${wid}/settings/integrations`);
 
   await expect(page).toHaveURL(new RegExp(`/workspaces/${wid}/settings/integrations/?$`, 'u'));
   await expect(page.getByRole('heading', {name: 'Installed integrations'})).toBeVisible();
