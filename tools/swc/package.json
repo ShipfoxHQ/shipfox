@@ -16,7 +16,8 @@
     "shipfox-swc": "./bin/swc.js"
   },
   "scripts": {
-    "build": "rm -rf dist && swc --strip-leading-paths --config-file .swcrc -d dist ."
+    "build": "rm -rf dist && swc --strip-leading-paths --config-file .swcrc -d dist .",
+    "test": "pnpm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",

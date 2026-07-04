@@ -6,8 +6,10 @@ import {
   buildShellCommand,
   getProjectBinaryPath,
   getProjectFilePath,
+  getProjectRootPath,
   log,
 } from '@shipfox/tool-utils';
+import {rewriteHashImports} from './imports.js';
 import {cleanup, getOwnedFileStats} from './utils.js';
 
 async function run() {
@@ -31,6 +33,7 @@ async function run() {
   ]);
   execSync(command, {stdio: 'inherit'});
   await cleanup(outputPath, ownedFiles);
+  rewriteHashImports({outputDir: outputPath, projectRoot: getProjectRootPath()});
 }
 
 run().catch((e) => {
