@@ -111,10 +111,14 @@ jobs:
       - name: Build dev server dependencies
         run: turbo build --filter @shipfox/api --filter @shipfox/vite
 
+      - name: Start Ollama
+        run: mise run ollama:up
+
       - name: Run E2E tests
         id: e2e
         env:
           API_URL: http://localhost:16101
+          AGENT_PROVIDER_VALIDATION_TIMEOUT_MS: "60000"
           CLIENT_URL: http://localhost:5173
           E2E_ADMIN_API_KEY: e2e-admin-api-key
           E2E_ENABLED: "true"

@@ -256,6 +256,45 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/client/agent:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/client-agent':
+        specifier: workspace:*
+        version: link:../../../libs/client/agent
+      '@shipfox/client-router':
+        specifier: workspace:*
+        version: link:../../../libs/client/router
+      '@shipfox/client-workspace-settings':
+        specifier: workspace:*
+        version: link:../../../libs/client/workspace-settings
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+      '@shipfox/e2e-helper-agent':
+        specifier: workspace:*
+        version: link:../../helpers/agent
+      '@shipfox/e2e-helper-auth':
+        specifier: workspace:*
+        version: link:../../helpers/auth
+      '@shipfox/e2e-helper-projects':
+        specifier: workspace:*
+        version: link:../../helpers/projects
+      '@shipfox/e2e-helper-workspaces':
+        specifier: workspace:*
+        version: link:../../helpers/workspaces
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/client/auth:
     devDependencies:
       '@shipfox/biome':
@@ -469,6 +508,31 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../tools/vitest
+
+  e2e/helpers/agent:
+    dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/agent-dto
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
 
   e2e/helpers/auth:
     dependencies:
