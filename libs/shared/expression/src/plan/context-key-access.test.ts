@@ -44,4 +44,10 @@ describe('analyzeContextKeyAccess', () => {
 
     expect(result).toEqual({references: [], violations: []});
   });
+
+  it('does not treat map literal identifier keys as context roots', () => {
+    const result = analyzeContextKeyAccess('{vars: event.region, secrets: event.token}');
+
+    expect(result).toEqual({references: [], violations: []});
+  });
 });

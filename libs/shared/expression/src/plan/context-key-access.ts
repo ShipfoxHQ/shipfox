@@ -116,7 +116,9 @@ function collectContextKeyAccesses(
       return;
     case 'map':
       for (const [key, value] of node.args) {
-        collectContextKeyAccesses(key, source, references, violations, scopedIdentifiers);
+        if (key.op !== 'id') {
+          collectContextKeyAccesses(key, source, references, violations, scopedIdentifiers);
+        }
         collectContextKeyAccesses(value, source, references, violations, scopedIdentifiers);
       }
       return;
