@@ -5,7 +5,6 @@ import {
   appendLogsResponseSchema,
   offsetGapResponseSchema,
 } from '@shipfox/api-logs-dto';
-import {getStepByIdForJobExecution} from '@shipfox/api-workflows';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {appendLogs} from '#core/append-logs.js';
@@ -43,11 +42,9 @@ export const appendLogsRoute = defineRoute({
     const {stepId} = request.params;
     const {attempt, offset} = request.query;
 
-    const step = await getStepByIdForJobExecution({
-      stepId,
-      jobExecutionId: leasedJob.jobExecutionId,
-    });
-    if (!step) {
+    // The scoped lease proves membership in the dispatched step attempt; active-step
+    // completion remains governed by workflow/report state, not the log append route.
+    if (leasedJob.currentStepId !== stepId || leasedJob.currentStepAttempt !== attempt) {
       throw new ClientError('Step not found for leased job execution', 'step-not-found', {
         status: 404,
       });

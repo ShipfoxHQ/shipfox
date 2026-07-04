@@ -129,10 +129,14 @@ progress and drives that job to completion.
   identity, it is **not** workspace-wide, and it is **not** a substitute for the
   long-lived runner credential used to claim work in the first place. The
   surrounding identifiers it carries (job, run, workspace, the claiming runner)
-  are context for consumers; they do not widen what the bearer may touch.
+  are context for consumers; they do not widen what the bearer may touch. When a
+  step is dispatched, the token may also carry the current step id and attempt so
+  log append can verify signed membership in that one step attempt without
+  querying workflow state.
 - **Trust boundary.** There is exactly one issuer: the scheduling side mints a
-  lease when a runner claims a job execution, and heartbeat re-mints the same
-  narrow capability after server state accepts the heartbeat. Everything
+  lease when a runner claims a job execution, next-step re-scopes it to the
+  dispatched step attempt, and heartbeat re-mints the same narrow capability
+  after server state accepts the heartbeat. Everything
   downstream only *verifies* — an in-process signature check, with no callback to
   the issuer. The runner, and the untrusted agent workload it hosts, never mints
   or modifies a token; it only presents the one it was handed.
@@ -152,6 +156,12 @@ progress and drives that job to completion.
   finalization is enforced outside the lease path. Cancellation flows the other way
   as well — the server can ask the runner to stop at any point, and that request
   rides on the response to each heartbeat rather than depending on the token.
+- **Log append scope.** A step-scoped lease is a signed membership and attempt
+  check for append-log authorization. It is not an active-step proof: until the
+  runner adopts a later step-scoped token or the lease expires, the bearer can
+  append to that step attempt's log stream. This is no broader than the job-scoped
+  append authority it replaces, and step completion remains governed by
+  server-side report/progression state.
 - **Threat model.** A leaked or replayed token has a deliberately small blast
   radius: it grants action on one already-claimed job execution while that
   execution remains live. It cannot claim new work, impersonate a runner, or reach

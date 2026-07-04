@@ -21,7 +21,11 @@ import {
 
 export type {JobLeaseTokenClaims, RunnerSessionTokenClaims} from '@shipfox/api-auth-dto';
 export type {User, UserStatus} from '#core/entities/user.js';
-export {issueJobLeaseToken, verifyJobLeaseToken} from '#core/job-lease-token.js';
+export {
+  issueJobLeaseToken,
+  jobLeaseParamsFrom,
+  verifyJobLeaseToken,
+} from '#core/job-lease-token.js';
 export {
   issueRunnerSessionToken,
   verifyRunnerSessionToken,

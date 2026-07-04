@@ -1,3 +1,4 @@
+import {issueJobLeaseToken, jobLeaseParamsFrom} from '@shipfox/api-auth';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -34,9 +35,20 @@ export const nextStepRoute = defineRoute({
     });
 
     if (next.kind === 'step') {
+      const leaseToken = await issueJobLeaseToken(
+        jobLeaseParamsFrom(leasedJob, {
+          currentStepId: next.step.id,
+          currentStepAttempt: next.step.currentAttempt,
+        }),
+      );
       // The runner echoes this back on report so a stale report from a superseded
       // attempt is ignored.
-      return {kind: 'step' as const, step: toStepDto(next.step), attempt: next.step.currentAttempt};
+      return {
+        kind: 'step' as const,
+        step: toStepDto(next.step),
+        attempt: next.step.currentAttempt,
+        lease_token: leaseToken,
+      };
     }
     return {kind: 'done' as const, status: next.status};
   },

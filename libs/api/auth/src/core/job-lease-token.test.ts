@@ -36,6 +36,30 @@ describe('job-lease-token', () => {
     expect(verified?.exp).toBeGreaterThan(verified?.iat ?? 0);
   });
 
+  test('omits step scope when issuing a job-scoped token', async () => {
+    const input = claims();
+
+    const token = await issueJobLeaseToken(input);
+    const verified = await verifyJobLeaseToken(token);
+
+    expect(verified?.currentStepId).toBeUndefined();
+    expect(verified?.currentStepAttempt).toBeUndefined();
+  });
+
+  test('round-trips the current step scope when present', async () => {
+    const input = {
+      ...claims(),
+      currentStepId: crypto.randomUUID(),
+      currentStepAttempt: 2,
+    };
+
+    const token = await issueJobLeaseToken(input);
+    const verified = await verifyJobLeaseToken(token);
+
+    expect(verified?.currentStepId).toBe(input.currentStepId);
+    expect(verified?.currentStepAttempt).toBe(input.currentStepAttempt);
+  });
+
   test('returns claims when metric recording fails after successful verification', async () => {
     vi.resetModules();
     vi.doMock('@shipfox/node-opentelemetry', () => ({

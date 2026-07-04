@@ -15,6 +15,9 @@ export const jobLeaseTokenClaimsSchema = z.object({
   projectId: z.string().uuid(),
   workspaceId: z.string().uuid(),
   runnerSessionId: z.string().uuid(),
+  // Narrows append-log authorization to the step attempt currently dispatched to the runner.
+  currentStepId: z.string().uuid().optional(),
+  currentStepAttempt: z.number().int().positive().optional(),
   aud: z.literal(JOB_LEASE_TOKEN_AUDIENCE),
   iat: z.number().int(),
   exp: z.number().int(),
