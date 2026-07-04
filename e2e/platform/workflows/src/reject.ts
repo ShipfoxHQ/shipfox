@@ -8,7 +8,7 @@ const rejectionErrorCodeSchema = z.literal('invalid-definition');
 export const rejectionSchema = z
   .object({
     error_code: rejectionErrorCodeSchema.default('invalid-definition'),
-    message_includes: z.array(z.string()).default([]),
+    message_includes: z.array(z.string().min(1)).default([]),
   })
   .strict();
 

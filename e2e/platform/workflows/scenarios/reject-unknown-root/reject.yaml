@@ -1,4 +1,4 @@
 error_code: invalid-definition
 message_includes:
-  - Run command interpolation references unknown context
+  - Workflow run interpolation references unknown context
   - '"nope"'

@@ -32,6 +32,12 @@ describe('parseRejection', () => {
 
     expect(act).toThrow();
   });
+
+  test('rejects empty message substrings', () => {
+    const act = () => parseRejection({message_includes: ['']});
+
+    expect(act).toThrow();
+  });
 });
 
 describe('evaluateRejection', () => {
