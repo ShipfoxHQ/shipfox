@@ -1,21 +1,23 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {deleteObjectsByPrefix} from '#api/object-storage.js';
 import {config} from '#config.js';
+import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import {logObjectKey} from '#core/entities/log-object.js';
 import {deleteJobAccounting} from '#db/accounting.js';
 import {db} from '#db/db.js';
 import {
   accountingHasNoStreams,
   deleteExpiredStream,
+  getAttemptStreamById,
   listExpiredClosedStreams,
 } from '#db/streams.js';
 
 export interface RetentionSweepResult {
-  /** Streams whose row was deleted; their objects are reclaimed after (a rare object-cleanup failure is logged). */
+  /** Streams whose objects and row were deleted. */
   deleted: number;
   /** Streams skipped because compaction changed `object_key` after we read it (retried next run). */
   raced: number;
-  /** Streams whose guarded row delete threw; logged, skipped, and retried next run. */
+  /** Streams whose object cleanup or guarded row delete threw; logged, skipped, and retried next run. */
   failed: number;
   accountingPruned: number;
   iterations: number;
@@ -34,13 +36,37 @@ export interface RunRetentionSweepParams {
   onProgress?: () => void;
 }
 
+function deleteExpiredStreamObjects(stream: AttemptStream): Promise<void> {
+  return deleteObjectsByPrefix(`${logObjectKey(config.LOG_STORAGE_S3_PREFIX, stream)}/`);
+}
+
+function deleteExpiredStreamRow(params: {
+  stream: AttemptStream;
+  retentionDays: number;
+}): Promise<{deleted: boolean; prunedAccounting: boolean}> {
+  return db().transaction(async (tx) => {
+    const {deleted, jobId} = await deleteExpiredStream(tx, {
+      streamId: params.stream.id,
+      observedObjectKey: params.stream.objectKey,
+    });
+    if (deleted && jobId && (await accountingHasNoStreams(tx, jobId))) {
+      const pruned = await deleteJobAccounting(tx, {
+        jobId,
+        retentionDays: params.retentionDays,
+      });
+      return {deleted, prunedAccounting: pruned.deleted};
+    }
+    return {deleted, prunedAccounting: false};
+  });
+}
+
 /**
  * Deletes expired closed streams and prunes accounting for emptied jobs.
  *
  * The loop self-bounds because a Temporal `startToCloseTimeout` marks the activity failed but
- * does not stop already-running JS. Rows are deleted before objects, guarded on the observed
- * `object_key`, so a racing compaction publish leaves the stream for the next sweep instead of
- * deleting its fresh object.
+ * does not stop already-running JS. Objects are deleted before rows so a cleanup failure leaves
+ * the row discoverable for the next sweep; the row delete stays guarded on the observed
+ * `object_key`, so a racing compaction publish is re-read before the row is removed.
  */
 export async function runRetentionSweep(
   params: RunRetentionSweepParams,
@@ -81,22 +107,21 @@ export async function runRetentionSweep(
         break;
       }
 
+      try {
+        await deleteExpiredStreamObjects(stream);
+      } catch (error) {
+        result.failed += 1;
+        skip.add(stream.id);
+        logger().error(
+          {err: error, streamId: stream.id},
+          'Failed to delete expired log stream objects',
+        );
+        continue;
+      }
+
       let outcome: {deleted: boolean; prunedAccounting: boolean};
       try {
-        outcome = await db().transaction(async (tx) => {
-          const {deleted, jobId} = await deleteExpiredStream(tx, {
-            streamId: stream.id,
-            observedObjectKey: stream.objectKey,
-          });
-          if (deleted && jobId && (await accountingHasNoStreams(tx, jobId))) {
-            const pruned = await deleteJobAccounting(tx, {
-              jobId,
-              retentionDays: params.retentionDays,
-            });
-            return {deleted, prunedAccounting: pruned.deleted};
-          }
-          return {deleted, prunedAccounting: false};
-        });
+        outcome = await deleteExpiredStreamRow({stream, retentionDays: params.retentionDays});
       } catch (error) {
         result.failed += 1;
         skip.add(stream.id);
@@ -108,24 +133,45 @@ export async function runRetentionSweep(
       }
 
       if (!outcome.deleted) {
-        // `object_key` changed since select; the next sweep will re-read the fresh key.
-        result.raced += 1;
-        skip.add(stream.id);
-        continue;
+        let current: AttemptStream | null;
+        try {
+          current = await getAttemptStreamById(stream.id);
+        } catch (error) {
+          result.failed += 1;
+          skip.add(stream.id);
+          logger().error(
+            {err: error, streamId: stream.id},
+            'Failed to reload raced expired log stream',
+          );
+          continue;
+        }
+        if (current) {
+          try {
+            await deleteExpiredStreamObjects(current);
+            outcome = await deleteExpiredStreamRow({
+              stream: current,
+              retentionDays: params.retentionDays,
+            });
+          } catch (error) {
+            result.failed += 1;
+            skip.add(stream.id);
+            logger().error(
+              {err: error, streamId: stream.id},
+              'Failed to delete raced expired log stream',
+            );
+            continue;
+          }
+        }
+        if (!current || !outcome.deleted) {
+          // `object_key` changed again or the row disappeared; the next sweep will re-read it.
+          result.raced += 1;
+          skip.add(stream.id);
+          continue;
+        }
       }
 
       result.deleted += 1;
       if (outcome.prunedAccounting) result.accountingPruned += 1;
-
-      // The guarded row delete won, so reclaim the recorded object plus orphan leaves.
-      try {
-        await deleteObjectsByPrefix(`${logObjectKey(config.LOG_STORAGE_S3_PREFIX, stream)}/`);
-      } catch (error) {
-        logger().error(
-          {err: error, streamId: stream.id},
-          'Deleted expired stream row but failed to delete its objects',
-        );
-      }
     }
 
     if (timedOutMidBatch) break;
