@@ -7,7 +7,7 @@ import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
 import {TextDecoder} from 'node:util';
 import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import {redactSecrets, secretWireForms} from '@shipfox/redact';
+import {redactSecrets, safeRedactionPrefixLength, secretWireForms} from '@shipfox/redact';
 import type {StepResult} from '#core/step-result.js';
 
 /**
@@ -232,12 +232,10 @@ function createTeeRedactor(secretVariants: readonly string[]): TeeRedactor | und
 class TeeRedactor {
   private readonly decoder = new TextDecoder('utf-8', {ignoreBOM: true, fatal: false});
   private readonly variants: string[];
-  private readonly maxVariantLen: number;
   private buffer = '';
 
   constructor(variants: readonly string[]) {
     this.variants = [...variants];
-    this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
   }
 
   push(chunk: Buffer): string {
@@ -267,33 +265,12 @@ class TeeRedactor {
       return output;
     }
 
-    const cut = this.safeEmitLength(this.buffer);
+    const cut = safeRedactionPrefixLength(this.buffer, this.variants);
     if (cut > 0) {
       output += redactSecrets(this.buffer.slice(0, cut), this.variants);
       this.buffer = this.buffer.slice(cut);
     }
     return output;
-  }
-
-  private safeEmitLength(buffer: string): number {
-    const hold = Math.max(0, this.maxVariantLen - 1);
-    let cut = buffer.length - hold;
-    if (cut <= 0) return 0;
-    for (let moved = true; moved && cut > 0; ) {
-      moved = false;
-      const windowStart = Math.max(0, cut - this.maxVariantLen + 1);
-      for (let start = windowStart; start < cut; start++) {
-        const straddles = this.variants.some(
-          (form) => start + form.length > cut && buffer.startsWith(form, start),
-        );
-        if (straddles) {
-          cut = start;
-          moved = true;
-          break;
-        }
-      }
-    }
-    return cut;
   }
 }
 

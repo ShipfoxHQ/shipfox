@@ -1,5 +1,5 @@
 import {TextDecoder} from 'node:util';
-import {redactSecrets} from '@shipfox/redact';
+import {redactSecrets, safeRedactionPrefixLength} from '@shipfox/redact';
 import {type OutputSource, PIPES} from '#core/framing.js';
 import {couldBeMarker, parseMarker} from '#core/markers.js';
 import {buildSecretVariants, mergeSecretVariants} from '#core/secrets.js';
@@ -36,7 +36,6 @@ interface SourceState {
  */
 export class LogTransformer {
   private variants: string[];
-  private maxVariantLen: number;
   private readonly sources: Record<OutputSource, SourceState>;
 
   constructor(secrets: string[]) {
@@ -44,7 +43,6 @@ export class LogTransformer {
     // line buffer are independent: stdout and stderr are separate byte streams that must never
     // complete each other's partial sequences or split secrets.
     this.variants = buildSecretVariants(secrets);
-    this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
     this.sources = {
       stdout: {decoder: newDecoder(), buffer: ''},
       stderr: {decoder: newDecoder(), buffer: ''},
@@ -54,12 +52,10 @@ export class LogTransformer {
   addSecrets(secrets: string[]): void {
     if (secrets.length === 0) return;
     this.variants = mergeSecretVariants(this.variants, secrets);
-    this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
   }
 
   setSecrets(secrets: string[]): void {
     this.variants = buildSecretVariants(secrets);
-    this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
   }
 
   push(chunk: Buffer, source: OutputSource): TransformEvent[] {
@@ -112,7 +108,7 @@ export class LogTransformer {
     if (couldBeMarker(state.buffer) && state.buffer.length <= MARKER_CANDIDATE_LIMIT) return;
 
     // Otherwise stream the masked safe prefix and keep only the lookbehind carry.
-    const cut = this.safeEmitLength(state.buffer);
+    const cut = safeRedactionPrefixLength(state.buffer, this.variants);
     if (cut > 0) {
       events.push({
         type: 'output',
@@ -145,33 +141,6 @@ export class LogTransformer {
     const text = opts.newline ? `${line}\n` : line;
     if (text.length === 0) return;
     events.push({type: 'output', src: source, data: redactSecrets(text, this.variants)});
-  }
-
-  // The largest prefix length of `buffer` that is safe to mask and emit now: no secret variant
-  // occurrence crosses it, so the masked prefix can never change once later bytes arrive. Start
-  // by holding the last (maxVariantLen - 1) chars (any not-yet-complete secret begins there),
-  // then pull the cut back past any complete occurrence that would straddle it. Guarantees a
-  // split secret is never emitted unmasked.
-  private safeEmitLength(buffer: string): number {
-    const hold = Math.max(0, this.maxVariantLen - 1);
-    let cut = buffer.length - hold;
-    if (cut <= 0) return 0;
-    for (let moved = true; moved && cut > 0; ) {
-      moved = false;
-      // Only an occurrence starting in [cut - maxVariantLen + 1, cut) can straddle `cut`.
-      const windowStart = Math.max(0, cut - this.maxVariantLen + 1);
-      for (let start = windowStart; start < cut; start++) {
-        const straddles = this.variants.some(
-          (form) => start + form.length > cut && buffer.startsWith(form, start),
-        );
-        if (straddles) {
-          cut = start; // hold the whole occurrence
-          moved = true;
-          break;
-        }
-      }
-    }
-    return cut;
   }
 }
 

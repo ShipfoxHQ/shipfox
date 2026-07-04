@@ -2,6 +2,7 @@ import {
   REDACTION_PLACEHOLDER,
   redactSecrets,
   redactUrlCredentials,
+  safeRedactionPrefixLength,
   secretWireForms,
   stripUrlCredentials,
 } from './index.js';
@@ -160,6 +161,43 @@ describe('redactSecrets', () => {
 
   it('exposes the placeholder it writes', () => {
     expect(REDACTION_PLACEHOLDER).toBe('***');
+  });
+});
+
+describe('safeRedactionPrefixLength', () => {
+  it('holds a prefix that could still become a secret', () => {
+    const cut = safeRedactionPrefixLength('prefix runtime-sec', ['runtime-secret-value']);
+
+    expect(cut).toBe(0);
+  });
+
+  it('emits safe text while retaining enough lookbehind for split secrets', () => {
+    const secret = 'runtime-secret-value';
+    const prefix = 'safe output before '.repeat(2);
+    const buffer = `${prefix}${secret.slice(0, 8)}`;
+
+    const cut = safeRedactionPrefixLength(buffer, [secret]);
+
+    expect(cut).toBeGreaterThan(0);
+    expect(buffer.slice(0, cut)).not.toContain(secret.slice(0, 8));
+    expect(buffer.slice(cut)).toContain(secret.slice(0, 8));
+  });
+
+  it('backs up before a complete occurrence that straddles the initial cut', () => {
+    const secret = 'runtime-secret-value';
+    const buffer = `prefix ${secret} suffix`;
+
+    const cut = safeRedactionPrefixLength(buffer, [secret]);
+
+    expect(buffer.slice(0, cut)).toBe('prefix ');
+  });
+
+  it('emits the whole buffer when there are no secrets', () => {
+    const buffer = 'ordinary output';
+
+    const cut = safeRedactionPrefixLength(buffer, []);
+
+    expect(cut).toBe(buffer.length);
   });
 });
 
