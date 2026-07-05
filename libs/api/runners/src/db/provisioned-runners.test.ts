@@ -1290,7 +1290,7 @@ describe('reconcileProvisionedRunners', () => {
     const result = await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1303,6 +1303,31 @@ describe('reconcileProvisionedRunners', () => {
     expect(reservation?.count).toBe(1);
   });
 
+  it('treats an empty observed set as read-only', async () => {
+    const reservationId = await createReservation(2);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      reservationId,
+      reportedAt: staleReportedAt(),
+    });
+
+    const result = await reconcileProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      observedProvisionedRunnerIds: [],
+      terminateGraceSeconds: 60,
+    });
+
+    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
+    expect(result.absentIds).toEqual([]);
+    expect(result.reservationsReleased).toBe(0);
+    expect(provisionedRunner?.state).toBe('running');
+    expect(provisionedRunner?.terminatedAt).toBeNull();
+    expect(provisionedRunner?.reservationReleasedAt).toBeNull();
+    expect(reservation?.count).toBe(2);
+  });
+
   it('keeps fresh absent provisioned runners inside the grace window', async () => {
     await createProvisionedRunner({
       provisionedRunnerId: 'provisioned-runner-1',
@@ -1312,7 +1337,7 @@ describe('reconcileProvisionedRunners', () => {
     const result = await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1351,7 +1376,7 @@ describe('reconcileProvisionedRunners', () => {
     const reconcile = reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
     try {
@@ -1370,7 +1395,7 @@ describe('reconcileProvisionedRunners', () => {
     expect(reservation?.count).toBe(1);
   });
 
-  it('terminates only stale rows when the observed set is empty', async () => {
+  it('terminates only stale rows when the observed set is non-empty', async () => {
     await createProvisionedRunner({
       provisionedRunnerId: 'stale-runner',
       reportedAt: staleReportedAt(),
@@ -1383,7 +1408,7 @@ describe('reconcileProvisionedRunners', () => {
     const result = await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1427,7 +1452,7 @@ describe('reconcileProvisionedRunners', () => {
     const result = await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1454,13 +1479,13 @@ describe('reconcileProvisionedRunners', () => {
     const first = await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
     const second = await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1495,7 +1520,7 @@ describe('reconcileProvisionedRunners', () => {
     await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1538,7 +1563,7 @@ describe('reconcileProvisionedRunners', () => {
     const result = await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1587,7 +1612,7 @@ describe('reconcileProvisionedRunners', () => {
     await reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1639,7 +1664,7 @@ describe('reconcileProvisionedRunners', () => {
     const reconcile = reconcileProvisionedRunners({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedProvisionedRunnerIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
     try {

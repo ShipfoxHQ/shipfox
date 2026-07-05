@@ -374,58 +374,58 @@ export async function reconcileProvisionedRunners(
   return await db().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
 
-    const staleAbsentWhere = and(
-      eq(provisionedRunners.workspaceId, params.workspaceId),
-      eq(provisionedRunners.provisionerId, params.provisionerId),
-      inArray(provisionedRunners.state, activeStates),
-      lt(
-        provisionedRunners.reportedAt,
-        sql`now() - (${params.terminateGraceSeconds} || ' seconds')::interval`,
-      ),
-      observedProvisionedRunnerIds.length > 0
-        ? notInArray(provisionedRunners.provisionedRunnerId, observedProvisionedRunnerIds)
-        : undefined,
-    );
-
-    const staleAbsentRows = await tx
-      .select({
-        id: provisionedRunners.id,
-        provisionedRunnerId: provisionedRunners.provisionedRunnerId,
-      })
-      .from(provisionedRunners)
-      .where(staleAbsentWhere);
-
     let absentIds: string[] = [];
     let reservationsReleased = 0;
-    if (staleAbsentRows.length > 0) {
-      const updated = await tx
-        .update(provisionedRunners)
-        .set({
-          state: 'terminated',
-          terminatedAt: sql`coalesce(${provisionedRunners.terminatedAt}, now())`,
-          updatedAt: sql`now()`,
+    if (observedProvisionedRunnerIds.length > 0) {
+      const staleAbsentRows = await tx
+        .select({
+          id: provisionedRunners.id,
+          provisionedRunnerId: provisionedRunners.provisionedRunnerId,
         })
+        .from(provisionedRunners)
         .where(
           and(
-            inArray(
-              provisionedRunners.id,
-              staleAbsentRows.map((row) => row.id),
-            ),
+            eq(provisionedRunners.workspaceId, params.workspaceId),
+            eq(provisionedRunners.provisionerId, params.provisionerId),
             inArray(provisionedRunners.state, activeStates),
             lt(
               provisionedRunners.reportedAt,
               sql`now() - (${params.terminateGraceSeconds} || ' seconds')::interval`,
             ),
+            notInArray(provisionedRunners.provisionedRunnerId, observedProvisionedRunnerIds),
           ),
-        )
-        .returning({provisionedRunnerId: provisionedRunners.provisionedRunnerId});
+        );
 
-      absentIds = updated.map((row) => row.provisionedRunnerId);
-      reservationsReleased = await releaseTerminalProvisionedRunnerReservationsByIds(tx, {
-        workspaceId: params.workspaceId,
-        provisionerId: params.provisionerId,
-        provisionedRunnerIds: absentIds,
-      });
+      if (staleAbsentRows.length > 0) {
+        const updated = await tx
+          .update(provisionedRunners)
+          .set({
+            state: 'terminated',
+            terminatedAt: sql`coalesce(${provisionedRunners.terminatedAt}, now())`,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              inArray(
+                provisionedRunners.id,
+                staleAbsentRows.map((row) => row.id),
+              ),
+              inArray(provisionedRunners.state, activeStates),
+              lt(
+                provisionedRunners.reportedAt,
+                sql`now() - (${params.terminateGraceSeconds} || ' seconds')::interval`,
+              ),
+            ),
+          )
+          .returning({provisionedRunnerId: provisionedRunners.provisionedRunnerId});
+
+        absentIds = updated.map((row) => row.provisionedRunnerId);
+        reservationsReleased = await releaseTerminalProvisionedRunnerReservationsByIds(tx, {
+          workspaceId: params.workspaceId,
+          provisionerId: params.provisionerId,
+          provisionedRunnerIds: absentIds,
+        });
+      }
     }
 
     const observedRows =

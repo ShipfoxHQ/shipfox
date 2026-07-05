@@ -17,6 +17,7 @@ import {vi} from '@shipfox/vitest/vi';
 import {and, desc, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
+import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {
@@ -192,6 +193,52 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     expect(intentCalls).toHaveLength(1);
   });
 
+  it('returns an empty result for an empty observed set without reaping absent runners', async () => {
+    const reconcileSpy = vi.spyOn(provisionedRunnerReconcileCallCount, 'add');
+    const reservationId = await createReservation(2);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      reservationId,
+      reportedAt: new Date(Date.now() - 300_000),
+    });
+    const reconcileCallsBefore = reconcileSpy.mock.calls.length;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {observed_provisioned_runner_ids: []},
+    });
+
+    const [provisionedRunner] = await db()
+      .select()
+      .from(provisionedRunners)
+      .where(
+        and(
+          eq(provisionedRunners.workspaceId, workspaceId),
+          eq(provisionedRunners.provisionerId, provisionerTokenId),
+          eq(provisionedRunners.provisionedRunnerId, 'provisioned-runner-1'),
+        ),
+      );
+    const [reservation] = await db()
+      .select()
+      .from(reservations)
+      .where(eq(reservations.id, reservationId));
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      runners: [],
+      terminated_absent_provisioned_runner_ids: [],
+    });
+    expect(provisionedRunner?.state).toBe('running');
+    expect(reservation?.count).toBe(2);
+    expect(
+      reconcileSpy.mock.calls
+        .slice(reconcileCallsBefore)
+        .filter(([value, attributes]) => value === 1 && attributes === undefined),
+    ).toHaveLength(1);
+  });
+
   it('increments the reservation release metric when reconcile reaps an absent runner', async () => {
     const reconcileSpy = vi.spyOn(provisionedRunnerReconcileCallCount, 'add');
     const absentSpy = vi.spyOn(provisionedRunnerAbsentTerminatedCount, 'add');
@@ -219,7 +266,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
       method: 'POST',
       url: '/provisioners/provisioned-runners/reconcile',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: {observed_provisioned_runner_ids: []},
+      payload: {observed_provisioned_runner_ids: ['observed-runner']},
     });
 
     expect(res.statusCode).toBe(200);
