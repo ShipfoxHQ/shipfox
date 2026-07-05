@@ -16,7 +16,9 @@ import {
   requestCheckoutToken,
   requestJob,
   requestNextStep,
+  requestStepSecrets,
   requireRunnerLabels,
+  StepSecretsRequestError,
 } from '#api-client.js';
 import {config} from '#config.js';
 
@@ -236,6 +238,47 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.url).toContain(`step_id=${STEP_ID}`);
     expect(calls[0]?.url).toContain('attempt=2');
     expect(calls[0]?.authorization).toBe('Bearer lease-runtime');
+  });
+
+  it('requestStepSecrets sends the lease token and parses returned secret values', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        secrets: [{store: 'local', key: 'API_TOKEN', value: 'runtime-secret'}],
+      }),
+    );
+    const leaseClient = createLeaseClient('lease-secrets');
+
+    const response = await requestStepSecrets(leaseClient, {stepId: STEP_ID, attempt: 2});
+
+    expect(response.secrets).toEqual([{store: 'local', key: 'API_TOKEN', value: 'runtime-secret'}]);
+    expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/secrets`);
+    expect(calls[0]?.url).toContain('attempt=2');
+    expect(calls[0]?.authorization).toBe('Bearer lease-secrets');
+  });
+
+  it('requestStepSecrets surfaces HTTP errors as typed request errors', async () => {
+    stubFetch(() => jsonResponse({code: 'secret-not-found'}, 422));
+    const leaseClient = createLeaseClient('lease-secrets');
+
+    const request = requestStepSecrets(leaseClient, {stepId: STEP_ID, attempt: 2});
+
+    await expect(request).rejects.toMatchObject(
+      new StepSecretsRequestError(422, 'secret-not-found'),
+    );
+  });
+
+  it('requestStepSecrets classifies malformed success bodies without leaking plaintext', async () => {
+    const secret = 'super-secret-response-body';
+    stubFetch(() => jsonResponse({secrets: [{store: 'local', value: secret}]}));
+    const leaseClient = createLeaseClient('lease-secrets');
+
+    const request = requestStepSecrets(leaseClient, {stepId: STEP_ID, attempt: 2});
+
+    await expect(request).rejects.toMatchObject(
+      new StepSecretsRequestError(200, 'step-secrets-invalid'),
+    );
+    await expect(request).rejects.not.toThrow(secret);
+    await expect(request).rejects.not.toThrow(ZOD_ERROR_TEXT_REGEX);
   });
 
   it('requestAgentRuntimeConfig maps server config errors to agent config issues', async () => {

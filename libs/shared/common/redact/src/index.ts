@@ -80,6 +80,36 @@ export function redactSecrets(text: string, secrets: string[]): string {
   return redactUrlCredentials(redacted);
 }
 
+/**
+ * Returns the largest prefix length of `buffer` that can be redacted and emitted now without
+ * risking a registered secret being split across this prefix and a later chunk.
+ *
+ * Callers that stream output should keep `buffer.slice(result)` as lookbehind, redact and emit
+ * only `buffer.slice(0, result)`, and flush the remainder when the stream closes.
+ */
+export function safeRedactionPrefixLength(buffer: string, secrets: readonly string[]): number {
+  const candidates = secrets.filter(Boolean);
+  const maxSecretLen = candidates.reduce((max, secret) => Math.max(max, secret.length), 0);
+  const hold = Math.max(0, maxSecretLen - 1);
+  let cut = buffer.length - hold;
+  if (cut <= 0) return 0;
+  for (let moved = true; moved && cut > 0; ) {
+    moved = false;
+    const windowStart = Math.max(0, cut - maxSecretLen + 1);
+    for (let start = windowStart; start < cut; start++) {
+      const straddles = candidates.some(
+        (secret) => start + secret.length > cut && buffer.startsWith(secret, start),
+      );
+      if (straddles) {
+        cut = start;
+        moved = true;
+        break;
+      }
+    }
+  }
+  return cut;
+}
+
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const BASE64URL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 

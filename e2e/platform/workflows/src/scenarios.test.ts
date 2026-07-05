@@ -34,6 +34,28 @@ describe('discoverScenarios', () => {
     }
   });
 
+  test('loads optional scenario secrets', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(root, 'with-secrets', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(root, 'with-secrets', 'workflow.yml', 'jobs:\n  build:\n    steps: []\n');
+      writeScenarioFile(
+        root,
+        'with-secrets',
+        'secrets.yaml',
+        'secrets:\n  - key: API_TOKEN\n    value: runtime-secret\n',
+      );
+
+      const scenarios = discoverScenarios(root);
+
+      expect(scenarios[0]).toMatchObject({
+        seededSecrets: [{key: 'API_TOKEN', value: 'runtime-secret', scope: 'project'}],
+      });
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
   test('loads directories that contain reject.yaml and workflow.yml', () => {
     const root = createTempScenariosRoot();
     try {

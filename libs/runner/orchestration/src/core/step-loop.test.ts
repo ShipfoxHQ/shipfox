@@ -1,7 +1,7 @@
 import type {AgentConfigIssueDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {HTTPError} from 'ky';
 
-const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
+const {AgentRuntimeConfigRequestError, StepSecretsRequestError} = vi.hoisted(() => ({
   AgentRuntimeConfigRequestError: class AgentRuntimeConfigRequestError extends Error {
     constructor(
       public readonly status: number,
@@ -16,10 +16,24 @@ const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
       this.name = 'AgentRuntimeConfigRequestError';
     }
   },
+  StepSecretsRequestError: class StepSecretsRequestError extends Error {
+    constructor(
+      public readonly status: number,
+      public readonly code: string | undefined,
+    ) {
+      super(
+        code === undefined
+          ? `Step secrets request failed with status ${status}.`
+          : `Step secrets request failed with status ${status}: ${code}.`,
+      );
+      this.name = 'StepSecretsRequestError';
+    }
+  },
 }));
 
 const requestNextStepMock = vi.fn();
 const requestAgentRuntimeConfigMock = vi.fn();
+const requestStepSecretsMock = vi.fn();
 const reportStepMock = vi.fn();
 const appendStepLogsMock = vi.fn();
 const executeRunStepMock = vi.fn();
@@ -31,9 +45,11 @@ const executeAgentStepMock = vi.fn();
 vi.mock('@shipfox/runner-protocol', () => ({
   requestNextStep: (...args: unknown[]) => requestNextStepMock(...args),
   requestAgentRuntimeConfig: (...args: unknown[]) => requestAgentRuntimeConfigMock(...args),
+  requestStepSecrets: (...args: unknown[]) => requestStepSecretsMock(...args),
   reportStep: (...args: unknown[]) => reportStepMock(...args),
   appendStepLogs: (...args: unknown[]) => appendStepLogsMock(...args),
   AgentRuntimeConfigRequestError,
+  StepSecretsRequestError,
   HTTPError,
 }));
 
@@ -166,6 +182,7 @@ describe('runJobSteps', () => {
   beforeEach(() => {
     requestNextStepMock.mockReset();
     requestAgentRuntimeConfigMock.mockReset();
+    requestStepSecretsMock.mockReset();
     reportStepMock.mockReset();
     appendStepLogsMock.mockReset();
     executeRunStepMock.mockReset();
@@ -179,6 +196,7 @@ describe('runJobSteps', () => {
       thinking: 'high',
       credentials: {api_key: 'sk-runtime-secret'},
     });
+    requestStepSecretsMock.mockResolvedValue({secrets: []});
     events = [];
     createdStreams = new Map();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
@@ -298,6 +316,164 @@ describe('runJobSteps', () => {
     expect(createStepLogStreamMock).toHaveBeenCalledTimes(2);
     expect(events).toContain(`drain:${run.id}`);
     expect(events).toContain(`dispose:${run.id}`);
+  });
+
+  it('does not request step secrets when a run step has no secret bindings', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(requestStepSecretsMock).not.toHaveBeenCalled();
+    expect(executeRunStepMock).toHaveBeenCalledWith(
+      run,
+      expect.not.objectContaining({
+        secretEnv: expect.anything(),
+        secretValues: expect.anything(),
+      }),
+    );
+  });
+
+  it('requests step secrets before opening the log stream and injects assembled env', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {
+        run: 'echo "$TOKEN"',
+        secret_bindings: [
+          {
+            target: 'TOKEN',
+            segments: [
+              {kind: 'literal', value: 'prefix-'},
+              {kind: 'secret', store: 'local', key: 'API_TOKEN'},
+            ],
+          },
+          {
+            target: 'REUSED',
+            segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
+          },
+        ],
+      },
+    });
+    requestStepSecretsMock.mockImplementation(() => {
+      events.push('request-secrets');
+      return Promise.resolve({
+        secrets: [{store: 'local', key: 'API_TOKEN', value: 'runtime-secret'}],
+      });
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 2))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, secrets: ['checkout-secret']});
+
+    expect(requestStepSecretsMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 2,
+      signal: ac.signal,
+    });
+    expect(events.indexOf('request-secrets')).toBeLessThan(events.indexOf(`create:${run.id}`));
+    expect(createStepLogStreamMock).toHaveBeenCalledWith({
+      logsDir: LOGS_DIR,
+      stepId: run.id,
+      attempt: 2,
+      secrets: ['checkout-secret', 'runtime-secret'],
+      append: expect.any(Function),
+    });
+    expect(executeRunStepMock).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({
+        secretEnv: {TOKEN: 'prefix-runtime-secret', REUSED: 'runtime-secret'},
+        secretValues: ['runtime-secret'],
+      }),
+    );
+  });
+
+  it('fails the run step closed when a requested binding is absent from the response', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {
+        run: 'echo "$TOKEN"',
+        secret_bindings: [
+          {
+            target: 'TOKEN',
+            segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
+          },
+        ],
+      },
+    });
+    requestStepSecretsMock.mockResolvedValueOnce({secrets: []});
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(createStepLogStreamMock).toHaveBeenCalledTimes(1);
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: run.id,
+        status: 'failed',
+        error: {
+          message: 'Run step secret response is missing a requested secret.',
+          reason: 'config_unresolvable',
+        },
+      }),
+    );
+  });
+
+  it('fails the run step closed when the secrets endpoint rejects the request', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {
+        run: 'echo "$TOKEN"',
+        secret_bindings: [
+          {
+            target: 'TOKEN',
+            segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
+          },
+        ],
+      },
+    });
+    requestStepSecretsMock.mockRejectedValueOnce(
+      new StepSecretsRequestError(422, 'secret-not-found'),
+    );
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: run.id,
+        status: 'failed',
+        error: {
+          message: 'Step secrets request failed with status 422: secret-not-found.',
+          reason: 'config_unresolvable',
+        },
+      }),
+    );
   });
 
   it('routes captured output through the stream write sink', async () => {

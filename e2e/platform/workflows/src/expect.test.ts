@@ -705,6 +705,15 @@ describe('parseExpectation', () => {
     });
   });
 
+  test('accepts runner log expectations', () => {
+    const expectation = parseExpectation({
+      run: {status: 'succeeded'},
+      runner_log: {exclude: ['runtime-secret']},
+    });
+
+    expect(expectation.runner_log?.exclude).toEqual(['runtime-secret']);
+  });
+
   test('rejects unknown keys', () => {
     expect(() => parseExpectation({run: {status: 'succeeded'}, unexpected: true})).toThrow();
   });

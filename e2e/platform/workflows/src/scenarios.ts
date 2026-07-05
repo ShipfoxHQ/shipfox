@@ -2,8 +2,25 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import yaml from 'js-yaml';
+import {z} from 'zod';
 import {type Expectation, parseExpectation} from './expect.js';
 import {parseRejection, type Rejection} from './reject.js';
+
+const seededSecretSchema = z
+  .object({
+    key: z.string().min(1),
+    value: z.string(),
+    scope: z.enum(['workspace', 'project']).default('project'),
+  })
+  .strict();
+
+const seededSecretsSchema = z
+  .object({
+    secrets: z.array(seededSecretSchema).default([]),
+  })
+  .strict();
+
+export type SeededSecret = z.infer<typeof seededSecretSchema>;
 
 export interface ScenarioFile {
   path: string;
@@ -16,6 +33,7 @@ interface BaseScenario {
   configPath: string;
   workflowYaml: string;
   extraFiles: ScenarioFile[];
+  seededSecrets: SeededSecret[];
 }
 
 export interface ExpectScenario extends BaseScenario {
@@ -58,6 +76,12 @@ function requireScenarioFile(dir: string, scenario: string, file: string): strin
   return path;
 }
 
+function loadSeededSecrets(dir: string): SeededSecret[] {
+  const path = join(dir, 'secrets.yaml');
+  if (!existsSync(path)) return [];
+  return seededSecretsSchema.parse(yaml.load(readFileSync(path, 'utf8'))).secrets;
+}
+
 function loadScenario(root: string, name: string): Scenario {
   const dir = join(root, name);
   const workflowPath = requireScenarioFile(dir, name, 'workflow.yml');
@@ -76,6 +100,7 @@ function loadScenario(root: string, name: string): Scenario {
     configPath: `.shipfox/workflows/${name}.yml`,
     workflowYaml: readFileSync(workflowPath, 'utf8'),
     extraFiles: readScenarioFiles(join(dir, 'files')),
+    seededSecrets: loadSeededSecrets(dir),
   };
 
   if (hasExpect) {

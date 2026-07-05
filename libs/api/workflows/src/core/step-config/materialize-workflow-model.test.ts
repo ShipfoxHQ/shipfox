@@ -447,6 +447,43 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('hoists command secret assignments outside command substitutions', () => {
+    const command = [
+      `COMMAND_SECRET='${template('secrets.RUNTIME_TOKEN')}'`,
+      'export COMMAND_SECRET',
+      `command_secret_sha="$(node -e 'const crypto = require("node:crypto"); process.stdout.write(crypto.createHash("sha256").update(process.env.COMMAND_SECRET ?? "").digest("hex"));')"`,
+    ].join('\n');
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: command}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: creationContext()});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: [
+        `COMMAND_SECRET=''"${shellRef('__sf_0')}"''`,
+        'export COMMAND_SECRET',
+        `command_secret_sha="$(node -e 'const crypto = require("node:crypto"); process.stdout.write(crypto.createHash("sha256").update(process.env.COMMAND_SECRET ?? "").digest("hex"));')"`,
+      ].join('\n'),
+    });
+    expect(rows[0]?.steps[1]?.configPlan).toMatchObject({
+      env: {
+        __sf_0: {
+          segments: [
+            {
+              expression: {source: 'secrets.RUNTIME_TOKEN'},
+              kind: 'deferred',
+            },
+          ],
+        },
+      },
+    });
+  });
+
   it('freezes vars from the run-creation context into step config', () => {
     const model = normalizeWorkflowDocument({
       name: 'vars workflow',

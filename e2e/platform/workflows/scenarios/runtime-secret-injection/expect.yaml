@@ -1,0 +1,19 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      assert-env-secret-equals-seeded-value:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "env-secret-equality-ok"
+      assert-command-secret-equals-seeded-value:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include:
+            - "command-secret-equality-ok"

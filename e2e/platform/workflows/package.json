@@ -45,6 +45,7 @@
     "@shipfox/e2e-helper-integrations-gitea": "workspace:*",
     "@shipfox/e2e-helper-logs": "workspace:*",
     "@shipfox/e2e-helper-runners": "workspace:*",
+    "@shipfox/e2e-helper-secrets": "workspace:*",
     "@shipfox/e2e-helper-workflows": "workspace:*",
     "@shipfox/e2e-helper-workspaces": "workspace:*",
     "@shipfox/playwright": "workspace:*",

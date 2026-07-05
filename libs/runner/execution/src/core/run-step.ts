@@ -4,8 +4,10 @@ import {accessSync, constants, statSync} from 'node:fs';
 import {unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
+import {TextDecoder} from 'node:util';
 import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {redactSecrets, safeRedactionPrefixLength, secretWireForms} from '@shipfox/redact';
 import type {StepResult} from '#core/step-result.js';
 
 /**
@@ -34,6 +36,8 @@ export interface CommandShellMetadata {
 interface RunStepOptions {
   signal?: AbortSignal;
   cwd?: string;
+  secretEnv?: Readonly<Record<string, string>>;
+  secretValues?: readonly string[];
   onOutput?: OutputSink;
   onCommandStart?: CommandStartSink;
 }
@@ -56,7 +60,7 @@ export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Pro
     });
   }
 
-  return runShellCommand(command, readStepEnv(step), options);
+  return runShellCommand(command, {...readStepEnv(step), ...options.secretEnv}, options);
 }
 
 async function runShellCommand(
@@ -83,6 +87,9 @@ function spawnAndCapture(
 ): Promise<StepResult> {
   return new Promise((resolve) => {
     const {shell} = metadata;
+    const teeSecretVariants = buildSecretVariants(options.secretValues ?? []);
+    const stdoutTeeRedactor = createTeeRedactor(teeSecretVariants);
+    const stderrTeeRedactor = createTeeRedactor(teeSecretVariants);
 
     // detached:true makes the shell a process-group leader so killGroup() can
     // SIGKILL its grandchildren too (Linux does not propagate signals down the
@@ -97,13 +104,19 @@ function spawnAndCapture(
     // stdout and stderr are two separate pipes, so the sink sees them merged by
     // arrival order, not kernel/wall-clock order; origin is preserved per chunk.
     child.stdout.on('data', (chunk: Buffer) => {
-      process.stdout.write(chunk);
+      writeTeeOutput(process.stdout, chunk, stdoutTeeRedactor);
       options.onOutput?.(chunk, 'stdout');
+    });
+    child.stdout.on('close', () => {
+      flushTeeOutput(process.stdout, stdoutTeeRedactor);
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
-      process.stderr.write(chunk);
+      writeTeeOutput(process.stderr, chunk, stderrTeeRedactor);
       options.onOutput?.(chunk, 'stderr');
+    });
+    child.stderr.on('close', () => {
+      flushTeeOutput(process.stderr, stderrTeeRedactor);
     });
 
     let childExited = false;
@@ -190,6 +203,83 @@ function spawnAndCapture(
       });
     });
   });
+}
+
+function writeTeeOutput(
+  stream: NodeJS.WriteStream,
+  chunk: Buffer,
+  redactor: TeeRedactor | undefined,
+): void {
+  if (!redactor) {
+    stream.write(chunk);
+    return;
+  }
+  const output = redactor.push(chunk);
+  if (output.length > 0) stream.write(output);
+}
+
+function flushTeeOutput(stream: NodeJS.WriteStream, redactor: TeeRedactor | undefined): void {
+  if (!redactor) return;
+  const output = redactor.flush();
+  if (output.length > 0) stream.write(output);
+}
+
+function createTeeRedactor(secretVariants: readonly string[]): TeeRedactor | undefined {
+  if (secretVariants.length === 0) return undefined;
+  return new TeeRedactor(secretVariants);
+}
+
+class TeeRedactor {
+  private readonly decoder = new TextDecoder('utf-8', {ignoreBOM: true, fatal: false});
+  private readonly variants: string[];
+  private buffer = '';
+
+  constructor(variants: readonly string[]) {
+    this.variants = [...variants];
+  }
+
+  push(chunk: Buffer): string {
+    this.buffer += this.decoder.decode(chunk, {stream: true});
+    return this.drain(false);
+  }
+
+  flush(): string {
+    this.buffer += this.decoder.decode();
+    return this.drain(true);
+  }
+
+  private drain(final: boolean): string {
+    let output = '';
+    let newline = this.buffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = this.buffer.slice(0, newline + 1);
+      this.buffer = this.buffer.slice(newline + 1);
+      output += redactSecrets(line, this.variants);
+      newline = this.buffer.indexOf('\n');
+    }
+
+    if (this.buffer.length === 0) return output;
+    if (final) {
+      output += redactSecrets(this.buffer, this.variants);
+      this.buffer = '';
+      return output;
+    }
+
+    const cut = safeRedactionPrefixLength(this.buffer, this.variants);
+    if (cut > 0) {
+      output += redactSecrets(this.buffer.slice(0, cut), this.variants);
+      this.buffer = this.buffer.slice(cut);
+    }
+    return output;
+  }
+}
+
+function buildSecretVariants(secrets: readonly string[]): string[] {
+  const variants = new Set<string>();
+  for (const secret of secrets) {
+    for (const form of secretWireForms(secret)) variants.add(form);
+  }
+  return [...variants].sort((a, b) => b.length - a.length);
 }
 
 function isSignalKillResult(code: number | null, signal: NodeJS.Signals): boolean {

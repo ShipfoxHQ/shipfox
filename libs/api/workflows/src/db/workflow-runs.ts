@@ -1186,15 +1186,20 @@ function getOrCreateStepDetail(
   return step;
 }
 
-export async function getJobWorkspaceId(jobId: string): Promise<string | undefined> {
+export interface JobScope {
+  workspaceId: string;
+  projectId: string;
+}
+
+export async function getJobScope(jobId: string): Promise<JobScope | undefined> {
   const rows = await db()
-    .select({workspaceId: workflowRuns.workspaceId})
+    .select({workspaceId: workflowRuns.workspaceId, projectId: workflowRuns.projectId})
     .from(jobs)
     .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
     .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .where(eq(jobs.id, jobId))
     .limit(1);
-  return rows[0]?.workspaceId;
+  return rows[0];
 }
 
 export async function getStepsByJobId(jobId: string): Promise<Step[]> {
