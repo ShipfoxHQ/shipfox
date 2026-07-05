@@ -35,7 +35,6 @@ export interface Step {
   config: Record<string, unknown>;
   configPlan: StepConfigDispatchPlan | null;
   authoredConfig: Record<string, unknown> | null;
-  output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   position: number;
   version: number;
@@ -56,6 +55,7 @@ export interface StepAttempt {
   attempt: number;
   executionOrder: number;
   status: StepAttemptStatus;
+  config: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   exitCode: number | null;

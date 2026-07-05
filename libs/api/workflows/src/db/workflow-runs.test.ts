@@ -18,7 +18,7 @@ import {
   SourceRunNotFoundError,
   WorkflowRunNotCancellableError,
 } from '#core/errors.js';
-import {nextStepForJob} from '#core/job-execution.js';
+import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
@@ -64,6 +64,22 @@ function template(source: string): string {
 
 function expression(source: string) {
   return createWorkflowExpression({source, check: {mode: 'syntax'}});
+}
+
+function stepOutputField(stepKey: string, outputKey: string) {
+  return {
+    segments: [
+      {
+        kind: 'deferred' as const,
+        expression: createWorkflowExpression({
+          source: `steps.${stepKey}.outputs.${outputKey}`,
+          check: {mode: 'syntax'},
+        }),
+        roots: ['steps'],
+        fillTarget: 'step-dispatch' as const,
+      },
+    ],
+  };
 }
 
 function shellRef(name: string): string {
@@ -1416,7 +1432,6 @@ jobs:
         .update(stepsTable)
         .set({
           status: status === 'skipped' ? 'cancelled' : status,
-          output: status === 'succeeded' ? {job: key} : null,
           error: status === 'failed' ? {message: 'failed'} : null,
         })
         .where(
@@ -1451,7 +1466,7 @@ jobs:
       for (const job of rerunJobs) {
         const jobSteps = await getStepsByJobId(job.id);
         expect(jobSteps.every((step) => step.status === 'pending')).toBe(true);
-        expect(jobSteps.every((step) => step.output === null && step.error === null)).toBe(true);
+        expect(jobSteps.every((step) => step.error === null)).toBe(true);
       }
     });
 
@@ -1594,6 +1609,76 @@ jobs:
       expect(userStep?.authoredConfig).toEqual({run: `echo "${template('run.id')}"`});
     });
 
+    test('reruns dispatch from the preserved step config plan', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({jobs: {build: {steps: [{run: 'build'}, {run: 'deploy'}]}}}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      const sourceJob = sourceJobs[0];
+      if (!sourceJob) throw new Error('Expected source job');
+      await stripSetupStep(sourceJob.id);
+      const sourceSteps = await getStepsByJobId(sourceJob.id);
+      const sourceProducer = sourceSteps[0];
+      const sourceConsumer = sourceSteps[1];
+      if (!sourceProducer || !sourceConsumer) throw new Error('Expected source steps');
+      const shaPlan = stepOutputField('build', 'sha');
+      await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, sourceProducer.id));
+      await db()
+        .update(stepsTable)
+        .set({
+          key: 'deploy',
+          config: {run: 'deploy', env: {SHA: 'old-snapshot'}},
+          configPlan: {env: {SHA: shaPlan}},
+        })
+        .where(eq(stepsTable.id, sourceConsumer.id));
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
+      const rerunJob = rerunJobs[0];
+      if (!rerunJob) throw new Error('Expected rerun job');
+      const producer = await nextStepForJob(rerunJob.id);
+      if (producer.kind !== 'step') throw new Error('Expected producer step');
+      await recordStepResult({
+        jobExecutionId: producer.step.jobExecutionId,
+        stepId: producer.step.id,
+        status: 'succeeded',
+        output: {sha: 'new-snapshot'},
+      });
+
+      const consumer = await nextStepForJob(rerunJob.id);
+
+      expect(consumer).toEqual({
+        kind: 'step',
+        step: expect.objectContaining({
+          key: 'deploy',
+          config: {run: 'deploy', env: {SHA: 'new-snapshot'}},
+          configPlan: {env: {SHA: shaPlan}},
+        }),
+      });
+      const attempts = await getStepAttempts(rerunJob.id);
+      expect(attempts.find((attempt) => attempt.stepId === sourceConsumer.id)).toBeUndefined();
+      expect(attempts.find((attempt) => attempt.stepId !== producer.step.id)).toMatchObject({
+        config: {run: 'deploy', env: {SHA: 'new-snapshot'}},
+      });
+    });
+
     test('reruns copy the source job execution name', async () => {
       const source = await createWorkflowRun({
         workspaceId,
@@ -1684,7 +1769,6 @@ jobs:
 
       const buildSteps = await getStepsByJobId(build?.id as string);
       expect(buildSteps.every((step) => step.status === 'succeeded')).toBe(true);
-      expect(buildSteps.every((step) => step.output?.job === 'build')).toBe(true);
       expect(buildSteps.every((step) => step.currentAttempt === 1)).toBe(true);
       expect(await getStepAttempts(build?.id as string)).toEqual([]);
       const buildExecutions = await getJobExecutionsByJobId(build?.id as string);
@@ -1698,7 +1782,7 @@ jobs:
       for (const job of [test, deploy, notify]) {
         const jobSteps = await getStepsByJobId(job?.id as string);
         expect(jobSteps.every((step) => step.status === 'pending')).toBe(true);
-        expect(jobSteps.every((step) => step.output === null && step.error === null)).toBe(true);
+        expect(jobSteps.every((step) => step.error === null)).toBe(true);
       }
     });
 

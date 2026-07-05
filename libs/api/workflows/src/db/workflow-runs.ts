@@ -655,7 +655,6 @@ export async function createRerunWorkflowRun(
           config: step.config,
           configPlan: step.configPlan,
           authoredConfig: step.authoredConfig,
-          output: carriedOver ? step.output : null,
           error: null,
           position: step.position,
           currentAttempt: 1,
@@ -2220,6 +2219,7 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
       jobExecutionId: step.jobExecutionId,
       stepId: step.id,
       attempt: step.currentAttempt,
+      config: step.config,
     },
     tx,
   );
@@ -2241,7 +2241,6 @@ export async function dispatchStepWithCompletedConfig(
     .set({
       status: 'running',
       config: params.config,
-      configPlan: null,
       updatedAt: new Date(),
     })
     .where(
@@ -2260,6 +2259,7 @@ export async function dispatchStepWithCompletedConfig(
       jobExecutionId: step.jobExecutionId,
       stepId: step.id,
       attempt: step.currentAttempt,
+      config: params.config,
     },
     tx,
   );
@@ -2302,6 +2302,7 @@ export interface InsertRunningStepAttemptParams {
   jobExecutionId: string;
   stepId: string;
   attempt: number;
+  config?: Record<string, unknown> | null;
 }
 
 export async function insertRunningStepAttempt(
@@ -2323,6 +2324,7 @@ export async function insertRunningStepAttempt(
       attempt: params.attempt,
       executionOrder: nextExecutionOrder,
       status: 'running',
+      config: params.config ?? null,
     })
     .onConflictDoNothing({target: [stepAttempts.stepId, stepAttempts.attempt]});
 }
@@ -2451,7 +2453,6 @@ export async function rewindStepsToPending(
     .update(steps)
     .set({
       status: 'pending',
-      output: null,
       error: null,
       version: sql`${steps.version} + 1`,
       currentAttempt: sql`${steps.currentAttempt} + 1`,

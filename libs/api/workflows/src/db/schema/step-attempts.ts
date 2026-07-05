@@ -31,6 +31,7 @@ export const stepAttempts = pgTable(
     // Reuses the step status enum, but a row is created only once dispatched, so
     // it is never 'pending'.
     status: stepStatusEnum('status').notNull(),
+    config: jsonb('config').$type<Record<string, unknown>>(),
     output: jsonb('output').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
     exitCode: integer('exit_code'),
@@ -72,6 +73,7 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
     attempt: row.attempt,
     executionOrder: row.executionOrder,
     status: row.status as StepAttemptStatus,
+    config: (row.config as Record<string, unknown>) ?? null,
     output: (row.output as Record<string, unknown>) ?? null,
     error: (row.error as Record<string, unknown>) ?? null,
     exitCode: row.exitCode ?? null,
