@@ -750,7 +750,7 @@ describe('gate evaluation', () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
     await attachGate(stepId, {
-      success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 1'},
+      success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 1'},
     });
     await nextStepForJob(jobId);
 
@@ -772,7 +772,7 @@ describe('gate evaluation', () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
     await attachGate(stepId, {
-      success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+      success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
     });
     await nextStepForJob(jobId);
 
@@ -792,7 +792,7 @@ describe('gate evaluation', () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
     await attachGate(stepId, {
-      success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+      success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
       on_failure: {restart_from: 'producer'},
     });
     await nextStepForJob(jobId);
@@ -844,7 +844,7 @@ describe('durable gate restart', () => {
     return (await restartEvents(jobId)).length;
   }
 
-  // producer (named) → reviewer (gated success_if exit_code==0, on_failure restart_from producer)
+  // producer (named) → reviewer (gated `success: step.exit_code == 0`, on_failure restart_from producer)
   async function arrangeGatedJob(
     source: string,
   ): Promise<{jobId: string; producer: string; reviewer: string}> {
@@ -858,7 +858,7 @@ describe('durable gate restart', () => {
         config: {
           run: 'review',
           gate: {
-            success_if: {language: 'cel', check: 'syntax', source},
+            success: {language: 'cel', check: 'syntax', source},
             on_failure: {restart_from: 'producer'},
           },
         },
@@ -988,7 +988,7 @@ describe('durable gate restart', () => {
         config: {
           run: 'review',
           gate: {
-            success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+            success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
             on_failure: {restart_from: 'producer'},
           },
         },
@@ -1021,7 +1021,7 @@ describe('durable gate restart', () => {
     const gatedToProducer = {
       run: 'x',
       gate: {
-        success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+        success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
         on_failure: {restart_from: 'producer'},
       },
     };
@@ -1053,7 +1053,7 @@ describe('durable gate restart', () => {
         config: {
           run: 'x',
           gate: {
-            success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+            success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
             on_failure: {restart_from: 'does-not-exist'},
           },
         },

@@ -8,7 +8,7 @@ Code that turns a checked workflow document into the model used by definitions.
   parsing.
 - **`normalizeWorkflowDocument(document)`**: Expands shorthand fields, assigns
   stable ids, validates explicit providers, and builds graph edges.
-- **Step gates**: Parse run-step `gate.success_if` as a server-evaluated CEL
+- **Step gates**: Parse run-step `gate.success` as a server-evaluated CEL
   predicate against context roots available at step reporting, and check
   `gate.on_failure.restart_from` against earlier named steps in the same job.
 - **`InvalidWorkflowModelError`**: Reports semantic workflow errors found during

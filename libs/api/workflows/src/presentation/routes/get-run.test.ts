@@ -471,7 +471,7 @@ jobs:
         config: {
           run: 'review',
           gate: {
-            success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+            success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
             on_failure: {restart_from: 'producer'},
           },
         },

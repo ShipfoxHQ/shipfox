@@ -40,7 +40,7 @@ describe('materializedAgentStepConfigSchema', () => {
       model: 'claude-opus-4-8',
       thinking: 'high',
       prompt: 'Fix the failing tests.',
-      gate: {success_if: 'ok'},
+      gate: {success: 'ok'},
     });
 
     expect(missingField).toThrow();

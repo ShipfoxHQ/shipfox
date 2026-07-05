@@ -9,13 +9,13 @@ describe('evaluatePlannedPredicateAtSite', () => {
   it('delegates available predicates to fail-closed evaluation', () => {
     const passed = evaluatePlannedPredicateAtSite({
       expression: expression('step.exit_code == 0'),
-      field: 'step.success_if',
+      field: 'step.success',
       site: 'step-report',
       context: {step: {exit_code: 0}},
     });
     const failed = evaluatePlannedPredicateAtSite({
       expression: expression('step.exit_code == 0'),
-      field: 'step.success_if',
+      field: 'step.success',
       site: 'step-report',
       context: {step: {exit_code: 1}},
     });
@@ -27,7 +27,7 @@ describe('evaluatePlannedPredicateAtSite', () => {
   it('fails closed when available predicate evaluation throws', () => {
     const result = evaluatePlannedPredicateAtSite({
       expression: expression('step.missing == 0'),
-      field: 'step.success_if',
+      field: 'step.success',
       site: 'step-report',
       context: {step: {}},
     });

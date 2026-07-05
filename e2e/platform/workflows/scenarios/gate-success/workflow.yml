@@ -13,4 +13,4 @@ jobs:
           echo "gate accepts exit 1"
           exit 1
         gate:
-          success_if: step.exit_code == 1
+          success: step.exit_code == 1

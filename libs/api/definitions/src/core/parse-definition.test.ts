@@ -76,7 +76,7 @@ jobs:
           pnpm test
           pnpm build
         gate:
-          success_if: step.exit_code == 0
+          success: step.exit_code == 0
   deploy:
     needs: build
     steps:

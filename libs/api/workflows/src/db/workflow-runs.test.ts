@@ -347,7 +347,7 @@ describe('workflow run queries', () => {
               {
                 run: 'npm test',
                 env: {REF: template('event.ref')},
-                gate: {successIf: expression('step.exit_code == 0')},
+                gate: {success: expression('step.exit_code == 0')},
               },
             ],
           },

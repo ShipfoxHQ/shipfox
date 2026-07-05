@@ -10,8 +10,8 @@ export const GATE_EVALUATION_ERROR_REASON = 'gate expression evaluation failed';
 
 // The gate as parsed from a step's materialized `config.gate` (snake_case JSON).
 export interface StepGate {
-  successIf?: WorkflowExpression;
-  onFailure?: {restartFrom: string; output?: string};
+  success?: WorkflowExpression;
+  onFailure?: {restartFrom: string; feedback?: string};
 }
 
 // Read the gate persisted on a step's config by the materializer. Returns
@@ -21,12 +21,12 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
   if (!gate || typeof gate !== 'object') return undefined;
   const raw = gate as Record<string, unknown>;
 
-  const successIfRaw = raw.success_if as Record<string, unknown> | undefined;
-  const successIf =
-    successIfRaw && typeof successIfRaw.source === 'string'
+  const successRaw = raw.success as Record<string, unknown> | undefined;
+  const success =
+    successRaw && typeof successRaw.source === 'string'
       ? // The model validated this expression before materialization; the stored
         // JSON is structurally a WorkflowExpression.
-        (successIfRaw as unknown as WorkflowExpression)
+        (successRaw as unknown as WorkflowExpression)
       : undefined;
 
   const onFailureRaw = raw.on_failure as Record<string, unknown> | undefined;
@@ -34,13 +34,13 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
     onFailureRaw && typeof onFailureRaw.restart_from === 'string'
       ? {
           restartFrom: onFailureRaw.restart_from,
-          ...(typeof onFailureRaw.output === 'string' ? {output: onFailureRaw.output} : {}),
+          ...(typeof onFailureRaw.feedback === 'string' ? {feedback: onFailureRaw.feedback} : {}),
         }
       : undefined;
 
-  if (!successIf && !onFailure) return undefined;
+  if (!success && !onFailure) return undefined;
   return {
-    ...(successIf ? {successIf} : {}),
+    ...(success ? {success} : {}),
     ...(onFailure ? {onFailure} : {}),
   };
 }
@@ -54,8 +54,8 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
  * persists CEL expressions, and this evaluator only needs the validated source.
  */
 export function evaluateGate(gate: StepGate | undefined, result: StepResult): GateOutcome {
-  if (!gate?.successIf) return {kind: 'no-gate'};
-  const source = gate.successIf.source;
+  if (!gate?.success) return {kind: 'no-gate'};
+  const source = gate.success.source;
 
   if (result.exitCode === null || result.exitCode === undefined) {
     return {kind: 'uncheckable', reason: 'step produced no exit code'};
@@ -67,8 +67,8 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
     output: result.output,
   });
   const outcome = evaluatePlannedPredicateAtSite({
-    expression: gate.successIf,
-    field: 'step.success_if',
+    expression: gate.success,
+    field: 'step.success',
     site: context.site,
     context: context.values,
   });

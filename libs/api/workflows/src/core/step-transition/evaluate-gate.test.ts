@@ -4,7 +4,7 @@ function gateConfig(source: string, restartFrom?: string): Record<string, unknow
   return {
     run: 'echo hi',
     gate: {
-      success_if: {language: 'cel', check: 'syntax', source},
+      success: {language: 'cel', check: 'syntax', source},
       ...(restartFrom ? {on_failure: {restart_from: restartFrom}} : {}),
     },
   };
@@ -15,9 +15,9 @@ describe('readStepGate', () => {
     expect(readStepGate({run: 'echo hi'})).toBeUndefined();
   });
 
-  test('parses success_if and on_failure', () => {
+  test('parses success and on_failure', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer'));
-    expect(gate?.successIf?.source).toBe('step.exit_code == 0');
+    expect(gate?.success?.source).toBe('step.exit_code == 0');
     expect(gate?.onFailure).toEqual({restartFrom: 'producer'});
   });
 });
@@ -47,7 +47,7 @@ describe('evaluateGate', () => {
     });
   });
 
-  test('a passing gate can succeed a non-zero exit (success_if: step.exit_code == 1)', () => {
+  test('a passing gate can succeed a non-zero exit (success: step.exit_code == 1)', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 1'));
     expect(evaluateGate(gate, {status: 'failed', exitCode: 1})).toMatchObject({kind: 'passed'});
   });

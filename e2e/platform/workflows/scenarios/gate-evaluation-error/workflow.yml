@@ -12,4 +12,4 @@ jobs:
         run: |
           echo "gate expression will fail"
         gate:
-          success_if: 1 / 0 == 1
+          success: 1 / 0 == 1

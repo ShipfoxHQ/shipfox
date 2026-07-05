@@ -141,7 +141,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
           provider: 'anthropic',
           thinking: 'high',
           prompt: 'Fix the tests.',
-          gate: {successIf: expression('step.exit_code == 0')},
+          gate: {success: expression('step.exit_code == 0')},
         },
       ],
     });
@@ -406,7 +406,7 @@ type TestStepInput =
     }
   | {run: string};
 type TestWorkflowExpression = NonNullable<
-  NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['successIf']
+  NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['success']
 >;
 
 function expression(source: string): TestWorkflowExpression {

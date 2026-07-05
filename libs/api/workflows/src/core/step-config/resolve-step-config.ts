@@ -143,17 +143,17 @@ function resolveStepName(
 }
 
 function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
-  const hasSuccessIf = gate.successIf !== undefined;
+  const hasSuccess = gate.success !== undefined;
   const hasOnFailure = gate.onFailure !== undefined;
-  const hasOnFailureOutput = gate.onFailure?.output !== undefined;
+  const hasOnFailureFeedback = gate.onFailure?.feedback !== undefined;
 
   return {
-    ...(hasSuccessIf
+    ...(hasSuccess
       ? {
-          success_if: {
-            language: gate.successIf.language,
-            check: gate.successIf.check,
-            source: gate.successIf.source,
+          success: {
+            language: gate.success.language,
+            check: gate.success.check,
+            source: gate.success.source,
           },
         }
       : {}),
@@ -161,7 +161,7 @@ function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<st
       ? {
           on_failure: {
             restart_from: gate.onFailure.restartFrom,
-            ...(hasOnFailureOutput ? {output: gate.onFailure.output} : {}),
+            ...(hasOnFailureFeedback ? {feedback: gate.onFailure.feedback} : {}),
           },
         }
       : {}),
