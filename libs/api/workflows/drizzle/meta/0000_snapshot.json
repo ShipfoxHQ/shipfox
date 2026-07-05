@@ -33,6 +33,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "runner": {
+          "name": "runner",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "workflows_job_execution_status",

@@ -1,5 +1,8 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import {canonicalizeLabels, findInvalidLabels, MAX_RUNNER_LABELS} from '@shipfox/runner-labels';
+import {InvalidJobRunnerLabelsError} from '#core/errors.js';
+import {completeStepField} from './fields.js';
 import {
   type MaterializedWorkflowStep,
   materializeJobExecutionSteps,
@@ -61,6 +64,28 @@ export function materializeWorkflowModel(
             definitionId,
           }),
   }));
+}
+
+export function materializeJobRunner(params: {
+  readonly job: WorkflowModelJob;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+}): readonly string[] {
+  const resolvedLabels = (params.job.runnerTemplates ?? []).map((template) =>
+    completeStepField({
+      field: 'job.runner',
+      errorField: 'job.runner',
+      template: {segments: template},
+      context: params.context,
+      definitionId: params.definitionId,
+    }),
+  );
+  const labels = canonicalizeLabels([...params.job.runner, ...resolvedLabels]);
+  const invalidLabels = findInvalidLabels(labels);
+  if (labels.length === 0 || labels.length > MAX_RUNNER_LABELS || invalidLabels.length > 0) {
+    throw new InvalidJobRunnerLabelsError(labels);
+  }
+  return labels;
 }
 
 export function modelHasAgentStep(model: WorkflowModel): boolean {

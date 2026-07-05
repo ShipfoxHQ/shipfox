@@ -23,6 +23,8 @@ function expectInvalid(
   }
 }
 
+const workflowInterpolation = (source: string) => '$'.concat('{{ ', source, ' }}');
+
 describe('normalizeWorkflowDocument', () => {
   it('normalizes a workflow document into a WorkflowModel', () => {
     const document: WorkflowDocument = {
@@ -528,6 +530,51 @@ describe('normalizeWorkflowDocument', () => {
         }),
       ]);
     }
+  });
+
+  it('counts runner templates toward the runner label limit', () => {
+    const document: WorkflowDocument = {
+      name: 'too many templated runners',
+      runner: [
+        ...Array.from({length: 20}, (_, index) => `label-${index}`),
+        workflowInterpolation('execution.name'),
+      ],
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'too-many-runner-labels',
+        path: ['jobs', 'build', 'runner'],
+      }),
+    ]);
+  });
+
+  it('reports invalid runner templates without redundant label issues', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid templated runner',
+      runner: workflowInterpolation('missing.runner'),
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'unknown-interpolation-context',
+        path: ['jobs', 'build', 'runner', 0],
+      }),
+    ]);
   });
 
   it('reports invalid labels and too many labels together', () => {
@@ -1836,6 +1883,7 @@ describe('normalizeWorkflowDocument', () => {
         env: {RUN_ID: interpolation('run.id'), PORT: 3000},
         jobs: {
           build: {
+            runner: ['linux', interpolation('execution.events[0].data.runner')],
             env: {JOB_NAME: interpolation('job.key')},
             steps: [
               {
@@ -1864,6 +1912,21 @@ describe('normalizeWorkflowDocument', () => {
         },
       ]);
       expect(model.templates?.env).not.toHaveProperty('PORT');
+      expect(model.jobs[0]?.runner).toEqual(['linux']);
+      expect(model.jobs[0]?.runnerTemplates).toEqual([
+        [
+          {
+            kind: 'deferred',
+            expression: {
+              language: 'cel',
+              source: 'execution.events[0].data.runner',
+              check: 'typed',
+            },
+            roots: ['execution'],
+            fillTarget: 'execution-creation',
+          },
+        ],
+      ]);
       expect(model.jobs[0]?.templates?.env?.JOB_NAME).toEqual([
         {
           kind: 'deferred',

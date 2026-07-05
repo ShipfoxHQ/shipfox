@@ -73,12 +73,14 @@ function listenerInput(overrides: ListenerInputOverrides = {}) {
 function firingDrain(
   sequence: number,
   status: 'pending' | 'failed',
+  requiredLabels: string[] = ['ubuntu22'],
 ): Extract<DrainListenerEventsResult, {kind: 'execution'}> {
   return {
     kind: 'execution',
     jobExecutionId: `exec-${sequence}`,
     executionVersion: 1,
     sequence,
+    requiredLabels,
     status,
   };
 }
@@ -201,12 +203,15 @@ describe('jobListenerOrchestration', () => {
       setCfg({
         dag: makeDag([]),
         jobResults: new Map(),
-        drainResults: [firingDrain(1, 'pending')],
+        drainResults: [firingDrain(1, 'pending', ['gpu', 'linux'])],
       });
 
       await runListener({maxExecutions: 1});
 
       expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(1);
+      expect(callsNamed('enqueueJobExecutionForRunner')[0]?.params).toMatchObject({
+        requiredLabels: ['gpu', 'linux'],
+      });
       expect(listenerFiringOutcomeCalls().map((c) => c.params.outcome)).toEqual(['succeeded']);
     });
 

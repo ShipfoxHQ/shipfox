@@ -73,7 +73,10 @@ import {
   assembleExecutionsContext,
 } from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
-import {materializeWorkflowModel} from '#core/step-config/materialize-workflow-model.js';
+import {
+  materializeJobRunner,
+  materializeWorkflowModel,
+} from '#core/step-config/materialize-workflow-model.js';
 import {resolveJobExecutionName} from '#core/step-config/resolve-job-execution-name.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
@@ -256,12 +259,31 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         fallbackName,
         context: context.values,
       });
+      const modelJob = params.model.jobs[jobIndex];
+      if (!modelJob) return [];
+      const runnerContext = assembleExecutionCreationContext({
+        run,
+        triggerPayload: params.triggerPayload,
+        inputs: params.inputs ?? null,
+        jobId: jobRow.id,
+        sequence: 1,
+        executionName: name,
+        status: 'pending',
+        triggerEvents: [],
+        priorExecutions: [],
+      });
+      const runner = materializeJobRunner({
+        job: modelJob,
+        context: runnerContext,
+        definitionId: params.definitionId,
+      });
 
       return [
         {
           jobId: jobRow.id,
           sequence: 1,
           name,
+          runner: [...runner],
           status: 'pending' as const,
         },
       ];
@@ -603,17 +625,41 @@ export async function createRerunWorkflowRun(
             .returning();
 
     const sourceJobByPosition = new Map(sourceJobs.map((job) => [job.position, job]));
+    const sourceModelJobByKey = new Map(
+      (sourceAttemptRow.model?.jobs ?? []).map((job) => [job.key, job]),
+    );
     const clonedJobExecutionValues = clonedJobRows.flatMap((job) => {
       const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
       const sourceJob = sourceJobByPosition.get(job.position);
       const sourceExecution = sourceJob ? sourceJobExecutionByJobId.get(sourceJob.id) : undefined;
+      const modelJob = sourceModelJobByKey.get(job.key);
+      const executionName = sourceExecution?.name ?? `${job.key} #1`;
+      const runner =
+        carriedOver || modelJob === undefined
+          ? (sourceExecution?.runner ?? job.runner ?? null)
+          : materializeJobRunner({
+              job: modelJob,
+              context: assembleExecutionCreationContext({
+                run: toWorkflowRun(sourceRow),
+                triggerPayload: sourceRow.triggerPayload,
+                inputs: sourceRow.inputs,
+                jobId: job.id,
+                sequence: 1,
+                executionName,
+                status: 'pending',
+                triggerEvents: [],
+                priorExecutions: [],
+              }),
+              definitionId: sourceRow.definitionId,
+            });
       return job.mode === 'listening'
         ? []
         : [
             {
               jobId: job.id,
               sequence: 1,
-              name: sourceExecution?.name ?? `${job.key} #1`,
+              name: executionName,
+              runner: runner ? [...runner] : null,
               status: carriedOver ? ('succeeded' as const) : ('pending' as const),
               statusReason: null,
               ...(carriedOver ? {finishedAt: sql`now()`} : {}),

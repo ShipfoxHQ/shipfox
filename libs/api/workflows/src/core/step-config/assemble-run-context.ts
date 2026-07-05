@@ -62,6 +62,7 @@ export function assembleExecutionCreationContext(
     jobId: params.jobId,
     sequence: params.sequence,
     name: params.executionName,
+    runner: null,
     status: params.status,
     statusReason: null,
     triggerEvents: [...params.triggerEvents],

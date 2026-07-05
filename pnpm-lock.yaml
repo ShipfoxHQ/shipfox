@@ -2500,6 +2500,9 @@ importers:
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../../shared/node/temporal
+      '@shipfox/runner-labels':
+        specifier: workspace:*
+        version: link:../../shared/common/runner-labels
       '@temporalio/common':
         specifier: ^1.16.1
         version: 1.18.1

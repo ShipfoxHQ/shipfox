@@ -15,6 +15,7 @@ CREATE TABLE "workflows_job_executions" (
 	"job_id" uuid NOT NULL,
 	"sequence" integer NOT NULL,
 	"name" text NOT NULL,
+	"runner" jsonb,
 	"status" "workflows_job_execution_status" DEFAULT 'pending' NOT NULL,
 	"status_reason" "workflows_job_status_reason",
 	"trigger_events" jsonb DEFAULT '[]'::jsonb NOT NULL,

@@ -10,7 +10,11 @@ import {
 } from '@shipfox/api-definitions';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {workflowModel} from '#test/index.js';
-import {materializeWorkflowModel, modelHasAgentStep} from './materialize-workflow-model.js';
+import {
+  materializeJobRunner,
+  materializeWorkflowModel,
+  modelHasAgentStep,
+} from './materialize-workflow-model.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type TestWorkflowExpression = NonNullable<
@@ -1009,5 +1013,78 @@ describe('materializeWorkflowModel', () => {
 
     expect(modelHasAgentStep(runOnly)).toBe(false);
     expect(modelHasAgentStep(withAgent)).toBe(true);
+  });
+});
+
+describe('materializeJobRunner', () => {
+  it('resolves runner templates against execution context', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          runner: ['linux'],
+          runnerTemplates: [template('execution.events[0].data.runner')],
+          steps: [{run: 'npm test'}],
+        },
+      },
+    });
+    const [job] = model.jobs;
+    if (!job) throw new Error('Test model created no jobs');
+
+    const result = materializeJobRunner({
+      job,
+      context: {
+        site: 'execution-creation',
+        values: {
+          ...runContext(),
+          execution: {
+            index: 1,
+            name: 'review #1',
+            status: 'pending',
+            started_at: null,
+            finished_at: null,
+            events: [{data: {runner: 'GPU'}, source: 'github', event: 'review'}],
+          },
+        },
+      },
+      definitionId: 'definition-1',
+    });
+
+    expect(result).toEqual(['gpu', 'linux']);
+  });
+
+  it('rejects invalid materialized runner labels', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          runner: [],
+          runnerTemplates: [template('execution.events[0].data.runner')],
+          steps: [{run: 'npm test'}],
+        },
+      },
+    });
+    const [job] = model.jobs;
+    if (!job) throw new Error('Test model created no jobs');
+
+    const act = () =>
+      materializeJobRunner({
+        job,
+        context: {
+          site: 'execution-creation',
+          values: {
+            ...runContext(),
+            execution: {
+              index: 1,
+              name: 'review #1',
+              status: 'pending',
+              started_at: null,
+              finished_at: null,
+              events: [{data: {runner: 'not valid'}, source: 'github', event: 'review'}],
+            },
+          },
+        },
+        definitionId: 'definition-1',
+      });
+
+    expect(act).toThrow('Job runner labels are invalid: not valid');
   });
 });

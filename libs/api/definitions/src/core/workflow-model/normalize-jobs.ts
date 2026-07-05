@@ -123,7 +123,8 @@ function normalizeJob(params: {
     id,
     key: params.sourceName,
     mode: listening === undefined ? 'one_shot' : 'listening',
-    runner,
+    runner: runner.labels,
+    ...(runner.templates.length === 0 ? {} : {runnerTemplates: runner.templates}),
     checkout,
     ...(success === undefined ? {} : {success}),
     ...(executionTimeoutMs === undefined ? {} : {executionTimeoutMs}),
@@ -398,10 +399,59 @@ function normalizeRunner(params: {
   sourceName: string;
   issues: WorkflowModelValidationIssue[];
   defaultRunnerLabels: readonly string[];
-}): readonly string[] {
+}): {labels: readonly string[]; templates: readonly WorkflowFieldTemplate[]} {
   const rawRunner = params.job.runner ?? params.document.runner;
-  const runnerLabels =
-    rawRunner === undefined ? params.defaultRunnerLabels : canonicalizeLabels(rawRunner);
+  if (rawRunner === undefined) {
+    const runnerLabels = params.defaultRunnerLabels;
+    validateRunnerLabels({...params, runnerLabels, allowEmpty: false});
+    return {labels: runnerLabels, templates: []};
+  }
+
+  const runnerValues = typeof rawRunner === 'string' ? [rawRunner] : rawRunner;
+  const literalLabels: string[] = [];
+  const templates: WorkflowFieldTemplate[] = [];
+  let templateValueCount = 0;
+  for (const [index, value] of runnerValues.entries()) {
+    const template = parseInterpolationField({
+      field: 'job.runner',
+      source: value,
+      path: ['jobs', params.sourceName, 'runner', index],
+      issues: params.issues,
+      fillSite: 'execution-creation',
+    });
+    const hasTemplateSyntax = hasInterpolationSyntax(value);
+    if (hasTemplateSyntax) templateValueCount += 1;
+    if (template === undefined && !hasTemplateSyntax) {
+      literalLabels.push(value);
+    } else if (template !== undefined) {
+      templates.push(template);
+    }
+  }
+
+  const runnerLabels = canonicalizeLabels(literalLabels);
+  validateRunnerLabels({
+    ...params,
+    runnerLabels,
+    runnerLabelCount: runnerLabels.length + templates.length,
+    allowEmpty: templateValueCount > 0,
+  });
+
+  return {labels: runnerLabels, templates};
+}
+
+function hasInterpolationSyntax(value: string): boolean {
+  return value.includes('${{');
+}
+
+function validateRunnerLabels(params: {
+  sourceName: string;
+  issues: WorkflowModelValidationIssue[];
+  runnerLabels: readonly string[];
+  runnerLabelCount?: number;
+  allowEmpty: boolean;
+}): void {
+  const runnerLabels = params.runnerLabels;
+  const runnerLabelCount = params.runnerLabelCount ?? runnerLabels.length;
   const invalid = findInvalidLabels(runnerLabels);
 
   if (invalid.length > 0) {
@@ -415,7 +465,7 @@ function normalizeRunner(params: {
     );
   }
 
-  if (runnerLabels.length === 0) {
+  if (runnerLabels.length === 0 && !params.allowEmpty) {
     params.issues.push(
       issue({
         code: 'missing-runner-label',
@@ -425,17 +475,15 @@ function normalizeRunner(params: {
     );
   }
 
-  if (runnerLabels.length > MAX_RUNNER_LABELS) {
+  if (runnerLabelCount > MAX_RUNNER_LABELS) {
     params.issues.push(
       issue({
         code: 'too-many-runner-labels',
-        message: `Job "${params.sourceName}" declares ${runnerLabels.length} runner labels; the maximum is ${MAX_RUNNER_LABELS}.`,
+        message: `Job "${params.sourceName}" declares ${runnerLabelCount} runner labels; the maximum is ${MAX_RUNNER_LABELS}.`,
         path: ['jobs', params.sourceName, 'runner'],
       }),
     );
   }
-
-  return runnerLabels;
 }
 
 type WorkflowModelStepBaseFields = Pick<

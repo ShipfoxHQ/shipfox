@@ -174,6 +174,7 @@ export async function jobListenerOrchestration(
       input,
       jobExecutionId: drained.jobExecutionId,
       executionVersion: drained.executionVersion,
+      requiredLabels: drained.requiredLabels,
       shouldCancelForResolution: () =>
         input.onResolve === 'cancel' &&
         (latchedReason !== undefined || deadlineReached(listenerDeadline)),
@@ -322,6 +323,7 @@ async function runListenerExecution(params: {
   input: JobListenerOrchestrationInput;
   jobExecutionId: string;
   executionVersion: number;
+  requiredLabels: string[];
   shouldCancelForResolution: () => boolean;
   waitForResolution: () => Promise<boolean>;
 }): Promise<void> {
@@ -344,7 +346,7 @@ async function runListenerExecution(params: {
             ? {}
             : {executionTimeoutMs: params.input.executionTimeoutMs}),
           resolveJobStatus: false,
-          requiredLabels: params.input.requiredLabels,
+          requiredLabels: params.requiredLabels,
         },
       ],
       parentClosePolicy: ParentClosePolicy.TERMINATE,
