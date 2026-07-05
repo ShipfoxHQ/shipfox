@@ -6,14 +6,17 @@ import {
   getEventSchema,
   getSubscribers,
   markDispatched,
+  type OutboxDispatchClaim,
   type OutboxDispatcherPartition,
   type OutboxDispatchFailure,
   recordDispatchFailure,
+  renewDispatchClaim,
 } from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {dispatchFailureCount, drainBatchSize, eventDispatchedCount} from '#metrics/index.js';
 
 const DISPATCH_CONCURRENCY = 8;
+const CLAIM_RENEWAL_INTERVAL_MS = 30_000;
 
 export async function drainAndDispatch(partition?: OutboxDispatcherPartition): Promise<boolean> {
   const {events: rows, hasMore} = await drainAll(partition ? {partition} : {});
@@ -27,17 +30,17 @@ export async function drainAndDispatch(partition?: OutboxDispatcherPartition): P
       groups,
       DISPATCH_CONCURRENCY,
       async (group) => {
-        const dispatchedIds: string[] = [];
+        const dispatchedClaims: OutboxDispatchClaim[] = [];
 
         for (const row of group.rows) {
           const succeeded = await dispatchRow(row);
           if (!succeeded) break;
-          dispatchedIds.push(row.id);
+          dispatchedClaims.push(claimFromRow(row));
         }
 
-        if (dispatchedIds.length > 0) {
-          await markDispatched(group.source, dispatchedIds);
-          eventDispatchedCount.add(dispatchedIds.length, {
+        if (dispatchedClaims.length > 0) {
+          await markDispatched(group.source, dispatchedClaims);
+          eventDispatchedCount.add(dispatchedClaims.length, {
             module: group.source,
             outcome: 'succeeded',
           });
@@ -53,9 +56,13 @@ export async function drainAndDispatch(partition?: OutboxDispatcherPartition): P
 }
 
 async function dispatchRow(row: DrainedEvent): Promise<boolean> {
+  return await withClaimRenewal(row, async () => await dispatchClaimedRow(row));
+}
+
+async function dispatchClaimedRow(row: DrainedEvent): Promise<boolean> {
   const validation = validatePayload(row);
   if (!validation.success) {
-    await recordDispatchFailure(row.source, row.id, validation.failure);
+    await recordDispatchFailure(row.source, row.id, validation.failure, row.claimExpiresAt);
     recordFailureMetric(row.source, validation.failure.kind);
     return false;
   }
@@ -77,9 +84,40 @@ async function dispatchRow(row: DrainedEvent): Promise<boolean> {
 
   if (!dispatchFailure) return true;
 
-  await recordDispatchFailure(row.source, row.id, dispatchFailure);
+  await recordDispatchFailure(row.source, row.id, dispatchFailure, row.claimExpiresAt);
   recordFailureMetric(row.source, dispatchFailure.kind);
   return false;
+}
+
+async function withClaimRenewal<T>(row: DrainedEvent, dispatch: () => Promise<T>): Promise<T> {
+  const interval = setInterval(() => {
+    void renewRowClaim(row);
+  }, CLAIM_RENEWAL_INTERVAL_MS);
+  try {
+    return await dispatch();
+  } finally {
+    clearInterval(interval);
+  }
+}
+
+async function renewRowClaim(row: DrainedEvent): Promise<void> {
+  try {
+    const claimExpiresAt = await renewDispatchClaim(row.source, claimFromRow(row));
+    if (!claimExpiresAt) {
+      logger().warn({source: row.source, eventId: row.id}, 'Outbox dispatch claim was not renewed');
+      return;
+    }
+    row.claimExpiresAt = claimExpiresAt;
+  } catch (error) {
+    logger().warn(
+      {err: error, source: row.source, eventId: row.id},
+      'Failed to renew outbox dispatch claim',
+    );
+  }
+}
+
+function claimFromRow(row: DrainedEvent): OutboxDispatchClaim {
+  return {id: row.id, claimExpiresAt: row.claimExpiresAt};
 }
 
 interface DispatchGroup {

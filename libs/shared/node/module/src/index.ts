@@ -10,6 +10,7 @@ export type {
   DrainAllOptions,
   DrainAllResult,
   DrainedEvent,
+  OutboxDispatchClaim,
   OutboxDispatcherPartition,
   OutboxDispatchFailure,
   PruneDispatchedOutboxRowsOptions,
@@ -23,6 +24,7 @@ export {
   pruneDispatchedOutboxRows,
   recordDispatchFailure,
   registerPublisher,
+  renewDispatchClaim,
   resetPublishers,
 } from './publisher-registry.js';
 export type {EventHandler} from './registry.js';

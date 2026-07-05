@@ -26,15 +26,16 @@ describe('outboxDispatcherWorkflow', () => {
 
   it('drains repeatedly until the dispatcher reports no more backlog', async () => {
     const {outboxDispatcherWorkflow} = await import('./dispatch.js');
-    const params = {workerIndex: 1, workerCount: 4};
+    const inputParams = {workerIndex: 1, workerCount: 2};
+    const currentParams = {workerIndex: 1, workerCount: DISPATCHER_WORKER_COUNT};
     mocks.drainAndDispatch.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
-    await outboxDispatcherWorkflow(params);
+    await outboxDispatcherWorkflow(inputParams);
 
-    expect(mocks.drainAndDispatch).toHaveBeenNthCalledWith(1, params);
-    expect(mocks.drainAndDispatch).toHaveBeenNthCalledWith(2, params);
+    expect(mocks.drainAndDispatch).toHaveBeenNthCalledWith(1, currentParams);
+    expect(mocks.drainAndDispatch).toHaveBeenNthCalledWith(2, currentParams);
     expect(mocks.sleep).toHaveBeenCalledWith('250ms');
-    expect(mocks.continueAsNew).toHaveBeenCalledWith(params);
+    expect(mocks.continueAsNew).toHaveBeenCalledWith(currentParams);
   });
 
   it('defaults existing no-arg dispatcher executions to worker zero', async () => {
@@ -46,5 +47,18 @@ describe('outboxDispatcherWorkflow', () => {
     const params = {workerIndex: 0, workerCount: DISPATCHER_WORKER_COUNT};
     expect(mocks.drainAndDispatch).toHaveBeenCalledWith(params);
     expect(mocks.continueAsNew).toHaveBeenCalledWith(params);
+  });
+
+  it('retires dispatcher executions whose worker index is no longer active', async () => {
+    const {outboxDispatcherWorkflow} = await import('./dispatch.js');
+
+    await outboxDispatcherWorkflow({
+      workerIndex: DISPATCHER_WORKER_COUNT,
+      workerCount: DISPATCHER_WORKER_COUNT + 1,
+    });
+
+    expect(mocks.drainAndDispatch).not.toHaveBeenCalled();
+    expect(mocks.sleep).not.toHaveBeenCalled();
+    expect(mocks.continueAsNew).not.toHaveBeenCalled();
   });
 });

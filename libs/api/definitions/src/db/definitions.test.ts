@@ -8,6 +8,7 @@ import {
   pruneDispatchedOutboxRows,
   recordDispatchFailure,
   registerPublisher,
+  renewDispatchClaim,
   resetPublishers,
 } from '@shipfox/node-module';
 import {sql} from 'drizzle-orm';
@@ -858,6 +859,69 @@ describe('definition queries', () => {
       expect(firstDrain.map((event) => event.id)).toEqual([id]);
       expect(secondDrain).toHaveLength(0);
       expect(redeliveryDrain.map((event) => event.id)).toEqual([id]);
+    });
+
+    test('renewDispatchClaim extends only the currently owned claim', async () => {
+      await insertOutboxRow({projectId, marker: 'renewed', orderingKey: 'run-1'});
+      const [event] = eventsForProject((await drainAll()).events, projectId);
+
+      const renewedClaimExpiresAt = await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+      const staleRenewal = await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+
+      expect(renewedClaimExpiresAt).toBeInstanceOf(Date);
+      expect(renewedClaimExpiresAt?.getTime()).toBeGreaterThanOrEqual(
+        (event?.claimExpiresAt as Date).getTime(),
+      );
+      expect(staleRenewal).toBeUndefined();
+    });
+
+    test('markDispatched ignores stale claims that have already been renewed', async () => {
+      await insertOutboxRow({projectId, marker: 'stale-success', orderingKey: 'run-1'});
+      const [event] = eventsForProject((await drainAll()).events, projectId);
+      await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+
+      await markDispatched('definitions', [
+        {id: event?.id as string, claimExpiresAt: event?.claimExpiresAt as Date},
+      ]);
+
+      const rows = await listOutboxRowsForProject(projectId);
+      expect(rows[0]?.dispatchedAt).toBeNull();
+    });
+
+    test('recordDispatchFailure ignores stale claims that have already been renewed', async () => {
+      const failure: OutboxDispatchFailure = {
+        kind: 'handler',
+        eventType: DEFINITION_RESOLVED,
+        eventId: crypto.randomUUID(),
+        errorName: 'Error',
+        errorMessage: 'subscriber failed',
+      };
+      await insertOutboxRow({projectId, marker: 'stale-failure', orderingKey: 'run-1'});
+      const [event] = eventsForProject((await drainAll()).events, projectId);
+      await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+
+      await recordDispatchFailure(
+        'definitions',
+        event?.id as string,
+        failure,
+        event?.claimExpiresAt as Date,
+      );
+
+      const rows = await listOutboxRowsForProject(projectId);
+      expect(rows[0]?.dispatchAttempts).toBe(0);
+      expect(rows[0]?.lastDispatchError).toBeNull();
     });
 
     test('partitioned drainAll assigns the same ordering key to one worker', async () => {

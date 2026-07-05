@@ -18,12 +18,15 @@ export interface OutboxDispatcherWorkflowParams {
 export async function outboxDispatcherWorkflow(
   params: OutboxDispatcherWorkflowParams = {workerIndex: 0, workerCount: DISPATCHER_WORKER_COUNT},
 ): Promise<void> {
+  const currentParams = currentDispatcherParams(params);
+  if (!currentParams) return;
+
   let hasMore = false;
   do {
-    hasMore = await drainAndDispatch(params);
+    hasMore = await drainAndDispatch(currentParams);
   } while (hasMore);
   await sleep(POLL_INTERVAL);
-  await continueAsNew<typeof outboxDispatcherWorkflow>(params);
+  await continueAsNew<typeof outboxDispatcherWorkflow>(currentParams);
 }
 
 export async function outboxRetentionWorkflow(): Promise<void> {
@@ -31,3 +34,10 @@ export async function outboxRetentionWorkflow(): Promise<void> {
 }
 
 const POLL_INTERVAL = '250ms';
+
+function currentDispatcherParams(
+  params: OutboxDispatcherWorkflowParams,
+): OutboxDispatcherWorkflowParams | undefined {
+  if (params.workerIndex >= DISPATCHER_WORKER_COUNT) return undefined;
+  return {workerIndex: params.workerIndex, workerCount: DISPATCHER_WORKER_COUNT};
+}

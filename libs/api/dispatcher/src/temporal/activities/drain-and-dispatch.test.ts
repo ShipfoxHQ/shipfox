@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getSubscribers: vi.fn(),
   markDispatched: vi.fn(),
   recordDispatchFailure: vi.fn(),
+  renewDispatchClaim: vi.fn(),
   errorLog: vi.fn(),
   warnLog: vi.fn(),
   eventDispatchedAdd: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@shipfox/node-module', async () => {
     getSubscribers: mocks.getSubscribers,
     markDispatched: mocks.markDispatched,
     recordDispatchFailure: mocks.recordDispatchFailure,
+    renewDispatchClaim: mocks.renewDispatchClaim,
   };
 });
 
@@ -54,8 +56,26 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
   }),
 }));
 
-function drain(events: DrainedEvent[], hasMore = false): DrainAllResult {
-  return {events, hasMore};
+const CLAIM_EXPIRES_AT = new Date('2026-01-01T00:02:00.000Z');
+const RENEWED_CLAIM_EXPIRES_AT = new Date('2026-01-01T00:03:00.000Z');
+
+function drain(
+  events: Array<
+    Omit<DrainedEvent, 'claimExpiresAt'> & Partial<Pick<DrainedEvent, 'claimExpiresAt'>>
+  >,
+  hasMore = false,
+): DrainAllResult {
+  return {
+    events: events.map((event) => ({
+      ...event,
+      claimExpiresAt: event.claimExpiresAt ?? CLAIM_EXPIRES_AT,
+    })),
+    hasMore,
+  };
+}
+
+function claims(ids: string[], claimExpiresAt = CLAIM_EXPIRES_AT) {
+  return ids.map((id) => ({id, claimExpiresAt}));
 }
 
 function event(id: string, createdAt: Date): DomainEvent {
@@ -69,12 +89,14 @@ function event(id: string, createdAt: Date): DomainEvent {
 
 describe('drainAndDispatch', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     mocks.captureException.mockReset();
     mocks.drainAll.mockReset();
     mocks.getEventSchema.mockReset();
     mocks.getSubscribers.mockReset();
     mocks.markDispatched.mockReset();
     mocks.recordDispatchFailure.mockReset();
+    mocks.renewDispatchClaim.mockReset();
     mocks.errorLog.mockReset();
     mocks.warnLog.mockReset();
     mocks.eventDispatchedAdd.mockReset();
@@ -149,13 +171,18 @@ describe('drainAndDispatch', () => {
         errorMessage: 'subscriber failed',
       },
     });
-    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('projects', rowId, {
-      kind: 'handler',
-      eventType: event.type,
-      eventId: rowId,
-      errorName: 'Error',
-      errorMessage: 'subscriber failed',
-    });
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
+      'projects',
+      rowId,
+      {
+        kind: 'handler',
+        eventType: event.type,
+        eventId: rowId,
+        errorName: 'Error',
+        errorMessage: 'subscriber failed',
+      },
+      CLAIM_EXPIRES_AT,
+    );
     expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
       module: 'projects',
       outcome: 'failed',
@@ -188,8 +215,8 @@ describe('drainAndDispatch', () => {
     const hasMore = await drainAndDispatch();
 
     expect(hasMore).toBe(true);
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['success']);
-    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', ['other']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims(['success']));
+    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', claims(['other']));
     expect(mocks.warnLog).toHaveBeenCalledWith(
       {err: expect.any(AggregateError)},
       'Outbox dispatch groups completed with errors',
@@ -271,7 +298,7 @@ describe('drainAndDispatch', () => {
     expect(handler).toHaveBeenCalledWith(
       expect.objectContaining({type: event.type, payload: parsed}),
     );
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims([event.id]));
     expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
       module: 'workflows',
       outcome: 'succeeded',
@@ -295,7 +322,7 @@ describe('drainAndDispatch', () => {
 
     await drainAndDispatch();
 
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims([event.id]));
     expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
       module: 'workflows',
       outcome: 'succeeded',
@@ -344,16 +371,21 @@ describe('drainAndDispatch', () => {
 
     await drainAndDispatch();
 
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [validJob.id]);
-    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', [validPush.id]);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims([validJob.id]));
+    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', claims([validPush.id]));
     expect(mocks.markDispatched).toHaveBeenCalledTimes(2);
     expect(handler).toHaveBeenCalledTimes(2);
-    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', poison.id, {
-      kind: 'validation',
-      eventType: poison.type,
-      eventId: poison.id,
-      issues: error.issues,
-    });
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
+      'workflows',
+      poison.id,
+      {
+        kind: 'validation',
+        eventType: poison.type,
+        eventId: poison.id,
+        issues: error.issues,
+      },
+      CLAIM_EXPIRES_AT,
+    );
     expect(mocks.captureException).toHaveBeenCalledWith(error, {
       extra: {
         kind: 'validation',
@@ -405,13 +437,18 @@ describe('drainAndDispatch', () => {
     expect(succeedingHandler).toHaveBeenCalledTimes(1);
     expect(failingHandler).toHaveBeenCalledTimes(1);
     expect(mocks.recordDispatchFailure).toHaveBeenCalledTimes(1);
-    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', rowId, {
-      kind: 'handler',
-      eventType: event.type,
-      eventId: rowId,
-      errorName: 'Error',
-      errorMessage: 'second handler failed',
-    });
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
+      'workflows',
+      rowId,
+      {
+        kind: 'handler',
+        eventType: event.type,
+        eventId: rowId,
+        errorName: 'Error',
+        errorMessage: 'second handler failed',
+      },
+      CLAIM_EXPIRES_AT,
+    );
     expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
       module: 'workflows',
       outcome: 'failed',
@@ -444,7 +481,7 @@ describe('drainAndDispatch', () => {
     await drainAndDispatch();
 
     expect(calls.indexOf('a')).toBeLessThan(calls.indexOf('b'));
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['a', 'b']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims(['a', 'b']));
   });
 
   it('sorts each group by created-at then id even when drain order is scrambled', async () => {
@@ -468,7 +505,7 @@ describe('drainAndDispatch', () => {
     await drainAndDispatch();
 
     expect(calls).toEqual(['a', 'b', 'c']);
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['a', 'b', 'c']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims(['a', 'b', 'c']));
   });
 
   it('halts a key group on the first failed row in the batch', async () => {
@@ -491,13 +528,18 @@ describe('drainAndDispatch', () => {
     await drainAndDispatch();
 
     expect(handler).toHaveBeenCalledTimes(1);
-    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', 'a', {
-      kind: 'handler',
-      eventType: rows[0]?.type,
-      eventId: 'a',
-      errorName: 'Error',
-      errorMessage: 'failed',
-    });
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
+      'workflows',
+      'a',
+      {
+        kind: 'handler',
+        eventType: rows[0]?.type,
+        eventId: 'a',
+        errorName: 'Error',
+        errorMessage: 'failed',
+      },
+      CLAIM_EXPIRES_AT,
+    );
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 
@@ -518,11 +560,40 @@ describe('drainAndDispatch', () => {
 
     await drainAndDispatch();
 
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['success']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims(['success']));
     expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
       'workflows',
       'failure',
       expect.objectContaining({kind: 'handler', eventId: 'failure'}),
+      CLAIM_EXPIRES_AT,
+    );
+  });
+
+  it('renews a row claim while handlers are still running', async () => {
+    vi.useFakeTimers();
+    let releaseHandler!: () => void;
+    const handlerGate = new Promise<void>((resolve) => {
+      releaseHandler = resolve;
+    });
+    const row = event('slow', new Date('2026-01-01T00:00:00.000Z'));
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([{id: row.id, source: 'workflows', orderingKey: 'run-1', event: row}]),
+    );
+    mocks.getSubscribers.mockReturnValue([vi.fn(async () => await handlerGate)]);
+    mocks.renewDispatchClaim.mockResolvedValueOnce(RENEWED_CLAIM_EXPIRES_AT);
+
+    const dispatch = drainAndDispatch();
+    await vi.advanceTimersByTimeAsync(30_000);
+    releaseHandler();
+    await dispatch;
+
+    expect(mocks.renewDispatchClaim).toHaveBeenCalledWith('workflows', {
+      id: row.id,
+      claimExpiresAt: CLAIM_EXPIRES_AT,
+    });
+    expect(mocks.markDispatched).toHaveBeenCalledWith(
+      'workflows',
+      claims([row.id], RENEWED_CLAIM_EXPIRES_AT),
     );
   });
 
@@ -558,7 +629,7 @@ describe('drainAndDispatch', () => {
     await dispatch;
 
     expect(calls).toEqual(['w1', 'i1', 'w2']);
-    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['w1', 'w2']);
-    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', ['i1']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims(['w1', 'w2']));
+    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', claims(['i1']));
   });
 });

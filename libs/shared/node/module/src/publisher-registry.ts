@@ -14,6 +14,7 @@ export interface DrainedEvent {
   source: string;
   orderingKey: string;
   id: string;
+  claimExpiresAt: Date;
   event: DomainEvent;
 }
 
@@ -25,6 +26,11 @@ export interface DrainAllResult {
 export interface OutboxDispatcherPartition {
   workerIndex: number;
   workerCount: number;
+}
+
+export interface OutboxDispatchClaim {
+  id: string;
+  claimExpiresAt: Date;
 }
 
 export interface DrainAllOptions {
@@ -103,10 +109,12 @@ export async function drainAll(options: DrainAllOptions = {}): Promise<DrainAllR
 
     for (const row of rows) {
       const createdAt = new Date(row.createdAt);
+      const claimExpiresAt = new Date(row.claimExpiresAt);
       results.push({
         source: source.name,
         orderingKey: row.orderingKey ?? source.name,
         id: row.id,
+        claimExpiresAt,
         event: {
           id: row.id,
           type: row.eventType,
@@ -126,6 +134,7 @@ type ClaimedOutboxRow = Record<string, unknown> & {
   orderingKey: string | null;
   payload: unknown;
   createdAt: Date | string;
+  claimExpiresAt: Date | string;
 };
 
 async function claimSourceRows(
@@ -156,7 +165,7 @@ async function claimSourceRows(
         LIMIT ${BATCH_SIZE}
       )
       UPDATE ${table} AS outbox
-      SET next_dispatch_at = now() + (${CLAIM_LEASE_SECONDS} * interval '1 second')
+      SET next_dispatch_at = ${claimExpiresAtSql()}
       FROM claimed
       WHERE outbox.id = claimed.id
       RETURNING
@@ -164,18 +173,26 @@ async function claimSourceRows(
         outbox.event_type AS "eventType",
         outbox.ordering_key AS "orderingKey",
         outbox.payload,
-        outbox.created_at AS "createdAt"
+        outbox.created_at AS "createdAt",
+        outbox.next_dispatch_at AS "claimExpiresAt"
     `);
   });
 
   return [...result.rows].sort(compareClaimedRows);
 }
 
-export async function markDispatched(source: string, ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-
+export async function markDispatched(
+  source: string,
+  claims: string[] | OutboxDispatchClaim[],
+): Promise<void> {
+  if (claims.length === 0) return;
   const config = _sources.find((s) => s.name === source);
   if (!config) return;
+
+  if (isDispatchClaims(claims)) {
+    await markClaimedDispatched(config, claims);
+    return;
+  }
 
   await config
     .db()
@@ -183,17 +200,66 @@ export async function markDispatched(source: string, ids: string[]): Promise<voi
     .set({dispatchedAt: sql`now()`})
     .where(
       and(
-        inArray(config.table.id, ids),
+        inArray(config.table.id, claims),
         isNull(config.table.dispatchedAt),
         isNull(config.table.deadLetteredAt),
       ),
     );
 }
 
+async function markClaimedDispatched(
+  source: PublisherSource,
+  claims: OutboxDispatchClaim[],
+): Promise<void> {
+  const table = sql.raw(quoteIdentifier(getTableName(source.table)));
+  const values = sql.join(
+    claims.map((claim) => sql`(${claim.id}::uuid, ${claim.claimExpiresAt}::timestamptz)`),
+    sql`, `,
+  );
+  await source.db().execute(sql`
+    WITH claim(id, claim_expires_at) AS (VALUES ${values})
+    UPDATE ${table} AS outbox
+    SET dispatched_at = now()
+    FROM claim
+    WHERE outbox.id = claim.id
+      AND outbox.next_dispatch_at = claim.claim_expires_at
+      AND outbox.dispatched_at IS NULL
+      AND outbox.dead_lettered_at IS NULL
+  `);
+}
+
+function isDispatchClaims(
+  claims: string[] | OutboxDispatchClaim[],
+): claims is OutboxDispatchClaim[] {
+  return typeof claims[0] === 'object';
+}
+
+export async function renewDispatchClaim(
+  source: string,
+  claim: OutboxDispatchClaim,
+): Promise<Date | undefined> {
+  const config = _sources.find((s) => s.name === source);
+  if (!config) return undefined;
+
+  const table = sql.raw(quoteIdentifier(getTableName(config.table)));
+  const result = await config.db().execute<{claimExpiresAt: Date | string}>(sql`
+    UPDATE ${table}
+    SET next_dispatch_at = ${claimExpiresAtSql()}
+    WHERE id = ${claim.id}
+      AND next_dispatch_at = ${claim.claimExpiresAt}
+      AND dispatched_at IS NULL
+      AND dead_lettered_at IS NULL
+    RETURNING next_dispatch_at AS "claimExpiresAt"
+  `);
+  const claimExpiresAt = result.rows[0]?.claimExpiresAt;
+  return claimExpiresAt ? new Date(claimExpiresAt) : undefined;
+}
+
 export async function recordDispatchFailure(
   source: string,
   id: string,
   failure: OutboxDispatchFailure,
+  claimExpiresAt?: Date,
 ): Promise<void> {
   const config = _sources.find((s) => s.name === source);
   if (!config) return;
@@ -213,6 +279,7 @@ export async function recordDispatchFailure(
     .where(
       and(
         eq(config.table.id, id),
+        claimExpiresAt ? eq(config.table.nextDispatchAt, claimExpiresAt) : undefined,
         isNull(config.table.dispatchedAt),
         isNull(config.table.deadLetteredAt),
       ),
@@ -330,4 +397,8 @@ function nextDispatchAtSql(table: OutboxTable) {
     WHEN ${table.dispatchAttempts} = 3 THEN now() + interval '30 minutes'
     ELSE now()
   END`;
+}
+
+function claimExpiresAtSql() {
+  return sql`date_trunc('milliseconds', now() + (${CLAIM_LEASE_SECONDS} * interval '1 second'))`;
 }
