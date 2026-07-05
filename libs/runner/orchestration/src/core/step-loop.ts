@@ -226,6 +226,7 @@ export async function executeStep(params: {
   let stream: LogStreamLifecycle | undefined;
   let runStream: StepLogStream | undefined;
   let unsubscribeSecrets: (() => void) | undefined;
+  let crashSecretVariants = buildSecretVariants(secrets);
   const registerStreamSecrets = (
     target:
       | {
@@ -386,6 +387,8 @@ export async function executeStep(params: {
     // abandon capture and run the step without a stream rather than failing the step itself.
     let stepStream: StepLogStream | undefined;
     const runSecrets = [...secrets, ...(runSecretMaterial?.secretValues ?? [])];
+    const runSecretVariants = buildSecretVariants(runSecrets);
+    crashSecretVariants = runSecretVariants;
     try {
       stepStream = createStepLogStream({
         logsDir,
@@ -412,7 +415,7 @@ export async function executeStep(params: {
       onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
       onOutput: (chunk, source) => stepStream?.write(chunk, source),
     });
-    result = maskRunStepOutputs(result, buildSecretVariants(runSecrets));
+    result = maskRunStepOutputs(result, runSecretVariants);
     writeRunFailureContext(stepStream, result);
     return {
       result,
@@ -427,7 +430,12 @@ export async function executeStep(params: {
     );
     const result: StepResult = {
       success: false,
-      error: {message: error instanceof Error ? error.message : String(error)},
+      error: {
+        message: redactSecrets(
+          error instanceof Error ? error.message : String(error),
+          crashSecretVariants,
+        ),
+      },
       exit_code: null,
     };
     writeRunFailureContext(runStream, result);
@@ -639,7 +647,7 @@ export async function reportStepResult(params: {
     // null on success, the error shape on failure — matches reportStepBodySchema's refine.
     error: result.error,
     exitCode: result.exit_code,
-    ...(result.outputs ? {output: result.outputs} : {}),
+    ...(result.outputs ? {outputs: result.outputs} : {}),
     logOutcome,
     signal,
   });

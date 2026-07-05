@@ -235,7 +235,7 @@ export async function reportStep(
     error?: StepErrorDto;
     exitCode: number | null;
     logOutcome: LogOutcomeDto;
-    output?: Record<string, string> | null;
+    outputs?: Record<string, string> | null;
     signal?: AbortSignal;
   },
 ): Promise<ReportStepResponseDto> {
@@ -248,7 +248,7 @@ export async function reportStep(
     error: error ?? undefined,
     attempt: params.attempt,
     exit_code: params.exitCode,
-    ...(params.output ? {output: params.output} : {}),
+    ...(params.outputs ? {output: params.outputs} : {}),
     log_outcome: params.logOutcome,
   });
 

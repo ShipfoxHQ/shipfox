@@ -400,7 +400,7 @@ describe('api-client auth contexts', () => {
       attempt: 1,
       status: 'succeeded',
       exitCode: 0,
-      output: {sha: 'abc123'},
+      outputs: {sha: 'abc123'},
       logOutcome: 'drained',
     });
 

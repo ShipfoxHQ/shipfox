@@ -819,7 +819,7 @@ describe('runJobSteps', () => {
       leaseClient,
       expect.objectContaining({
         stepId: run.id,
-        output: {token: '***'},
+        outputs: {token: '***'},
       }),
     );
   });
@@ -847,7 +847,7 @@ describe('runJobSteps', () => {
       leaseClient,
       expect.objectContaining({
         stepId: run.id,
-        output: {remote: 'https://***@example.test/repo.git'},
+        outputs: {remote: 'https://***@example.test/repo.git'},
       }),
     );
   });
@@ -904,11 +904,26 @@ describe('runJobSteps', () => {
 
   it('reports the step failed when executeRunStep throws (no leaked error, no hung step)', async () => {
     const setup = buildSetupStep();
-    const run = buildRunStep();
+    const run = buildRunStep({
+      config: {
+        run: 'echo "$TOKEN"',
+        secret_bindings: [
+          {
+            target: 'TOKEN',
+            segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
+          },
+        ],
+      },
+    });
     requestNextStepMock
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(run, 2));
-    executeRunStepMock.mockRejectedValueOnce(new Error('ENOSPC: no space left on device'));
+    requestStepSecretsMock.mockResolvedValueOnce({
+      secrets: [{store: 'local', key: 'API_TOKEN', value: 'runtime-secret'}],
+    });
+    executeRunStepMock.mockRejectedValueOnce(
+      new Error('ENOSPC: runtime-secret could not be written'),
+    );
     reportStepMock
       .mockResolvedValueOnce({ok: true, cancel: false})
       .mockResolvedValueOnce({ok: true, cancel: true});
@@ -920,14 +935,14 @@ describe('runJobSteps', () => {
       stepId: run.id,
       attempt: 2,
       status: 'failed',
-      error: {message: 'ENOSPC: no space left on device'},
+      error: {message: 'ENOSPC: *** could not be written'},
       exitCode: null,
       logOutcome: 'drained',
       signal: ac.signal,
     });
     const stream = streamFor(run.id);
     expect(stream.writeOutputLine).toHaveBeenCalledWith(
-      'Process failed: ENOSPC: no space left on device',
+      'Process failed: ENOSPC: *** could not be written',
       'stderr',
     );
   });
