@@ -25,6 +25,7 @@ export function createWorkflowExpression(
   params: CreateWorkflowExpressionParams,
 ): WorkflowExpression {
   const source = params.source.trim();
+  let resultType: ExpressionType | undefined;
   if (source.length === 0) {
     throw new InvalidWorkflowExpressionError({
       source: params.source,
@@ -68,12 +69,14 @@ export function createWorkflowExpression(
         reason: `Expression source must return ${scalarTypeToCelType[params.check.expectedResultType]}; got ${typeCheckResult.type ?? 'unknown'}.`,
       });
     }
+    resultType = fromCelType(typeCheckResult.type);
   }
 
   return {
     language: 'cel',
     source: source as ValidCelExpression,
     check: params.check.mode,
+    ...(resultType === undefined ? {} : {resultType}),
   };
 }
 
@@ -141,4 +144,33 @@ function toCelListElementType(
     return typeName;
   }
   return 'dyn';
+}
+
+function fromCelType(type: string | undefined): ExpressionType | undefined {
+  if (type === undefined) return undefined;
+
+  switch (type) {
+    case 'string':
+      return 'string';
+    case 'int':
+      return 'int';
+    case 'double':
+      return 'double';
+    case 'bool':
+      return 'bool';
+    case 'null':
+      return 'null';
+    case 'google.protobuf.Timestamp':
+      return 'timestamp';
+    case 'map':
+      return {kind: 'map'};
+    case 'dyn':
+      return 'string';
+    default:
+      // cel-js currently exposes custom/list element result types as opaque strings.
+      // Keep the outer list shape when present, but erase element detail rather than
+      // pretending we can round-trip the original schema.
+      if (type.startsWith('list<')) return {kind: 'list', element: {kind: 'map'}};
+      return {kind: 'map'};
+  }
 }

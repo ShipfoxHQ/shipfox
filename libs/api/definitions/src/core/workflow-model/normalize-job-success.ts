@@ -1,3 +1,4 @@
+import type {ExpressionTypeEnvironment} from '@shipfox/expression';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {validatePredicateExpression} from './validate-predicate-expression.js';
 
@@ -8,6 +9,7 @@ export function normalizeJobSuccess(params: {
   sourceName: string;
   issues: WorkflowModelValidationIssue[];
   allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): string | undefined {
   if (params.source === undefined) return undefined;
 
@@ -20,6 +22,7 @@ export function normalizeJobSuccess(params: {
     invalidMessage: 'Job success must be a valid CEL boolean expression.',
     issues: params.issues,
     allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
   });
   return expression?.source;
 }

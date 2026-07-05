@@ -32,6 +32,7 @@ export function validatePredicateExpression(params: {
   invalidMessage: string;
   issues: WorkflowModelValidationIssue[];
   allowedJobReferences?: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowExpression | undefined {
   const syntaxExpression = createSyntaxExpression(params);
   if (syntaxExpression === undefined) return undefined;
@@ -88,7 +89,7 @@ export function validatePredicateExpression(params: {
     return undefined;
   }
 
-  if (knownRoots.some((root) => hasSyntaxOnlyCheckMode(root))) {
+  if (params.typeOverlay === undefined && knownRoots.some((root) => hasSyntaxOnlyCheckMode(root))) {
     return syntaxExpression;
   }
 
@@ -97,7 +98,9 @@ export function validatePredicateExpression(params: {
       source: params.source,
       check: {
         mode: 'typed',
-        typeEnvironment: mergeTypeEnvironments(knownRoots),
+        // `undefined` preserves the legacy syntax-only path above. `{}` means
+        // callers intentionally requested typed checking with the standard roots.
+        typeEnvironment: mergeTypeEnvironments(knownRoots, params.typeOverlay),
         expectedResultType: 'bool',
       },
     });
@@ -264,14 +267,29 @@ function hasSyntaxOnlyCheckMode(root: string): boolean {
   return isWorkflowContextName(root) && getWorkflowContextDefinition(root).checkMode === 'syntax';
 }
 
-function mergeTypeEnvironments(roots: readonly string[]): ExpressionTypeEnvironment {
+function mergeTypeEnvironments(
+  roots: readonly string[],
+  typeOverlay?: ExpressionTypeEnvironment,
+): ExpressionTypeEnvironment {
   const typeEnvironment: Record<string, ExpressionTypeEnvironment[string]> = {};
 
   for (const root of roots) {
-    if (!isWorkflowContextName(root)) continue;
+    const overlayType = typeOverlay?.[root];
+    if (overlayType !== undefined) {
+      typeEnvironment[root] = overlayType;
+      continue;
+    }
+
+    if (!isWorkflowContextName(root)) {
+      if (typeOverlay !== undefined) typeEnvironment[root] = {kind: 'map'};
+      continue;
+    }
 
     const contextTypeEnvironment = getWorkflowContextTypeEnvironment(root);
-    if (contextTypeEnvironment === undefined) continue;
+    if (contextTypeEnvironment === undefined) {
+      if (typeOverlay !== undefined) typeEnvironment[root] = {kind: 'map'};
+      continue;
+    }
 
     Object.assign(typeEnvironment, contextTypeEnvironment);
   }

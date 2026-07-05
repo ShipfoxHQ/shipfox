@@ -3,6 +3,7 @@ import {InvalidWorkflowExpressionError} from '../expression/errors.js';
 import {
   type AvailabilitySite,
   availabilitySites,
+  buildTypedRootsEnvironment,
   type FillTarget,
   getWorkflowContextTypeEnvironment,
   getWorkflowInterpolationFieldFailurePolicy,
@@ -283,6 +284,51 @@ describe('workflow context registry', () => {
     expect(getWorkflowContextTypeEnvironment('steps')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('vars')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('secrets')).toBeUndefined();
+  });
+
+  it('builds a typed steps overlay with closed keys and declared outputs', () => {
+    const typeEnvironment = buildTypedRootsEnvironment({
+      steps: [{key: 'build', outputs: {count: {type: 'number'}}}, {key: 'lint'}],
+    });
+
+    expect(() =>
+      createWorkflowExpression({
+        source: 'steps.build.outputs.count > 5',
+        check: {mode: 'typed', typeEnvironment},
+      }),
+    ).not.toThrow();
+    expect(() =>
+      createWorkflowExpression({
+        source: 'steps.build.outputs.typo',
+        check: {mode: 'typed', typeEnvironment},
+      }),
+    ).toThrow(InvalidWorkflowExpressionError);
+    expect(() =>
+      createWorkflowExpression({
+        source: 'steps.missing.outputs.count',
+        check: {mode: 'typed', typeEnvironment},
+      }),
+    ).toThrow(InvalidWorkflowExpressionError);
+    expect(() =>
+      createWorkflowExpression({
+        source: 'steps.lint.outputs.anything',
+        check: {mode: 'typed', typeEnvironment},
+      }),
+    ).not.toThrow();
+  });
+
+  it('builds typed step self-root and upstream job output overlays', () => {
+    const typeEnvironment = buildTypedRootsEnvironment({
+      currentStep: {key: 'test', outputs: {ready: {type: 'boolean'}}},
+      jobs: [{key: 'build', outputs: {count: 'double'}}],
+    });
+
+    expect(() =>
+      createWorkflowExpression({
+        source: 'step.outputs.ready && jobs.build.outputs.count > 5',
+        check: {mode: 'typed', typeEnvironment, expectedResultType: 'bool'},
+      }),
+    ).not.toThrow();
   });
 
   it('returns the roots available at each availability site', () => {

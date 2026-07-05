@@ -15,6 +15,11 @@ const envStringValueSchema = z.string().refine((value) => !value.includes('\u000
 });
 export const WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES = 128;
 export const WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES = 32 * 1024;
+export const workflowDocumentStepOutputTypes = ['string', 'number', 'boolean', 'json'] as const;
+export const WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES = WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES;
+export const WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES =
+  WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES;
+export const WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH = 64;
 
 const utf8Encoder = new TextEncoder();
 
@@ -34,6 +39,80 @@ export const workflowDocumentEnvSchema = z
       ctx.addIssue({
         code: 'custom',
         message: `Env cannot serialize to more than ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} bytes.`,
+      });
+    }
+  });
+
+const workflowDocumentStepOutputKeyPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+const workflowDocumentStepOutputTypeSchema = z.enum(workflowDocumentStepOutputTypes);
+
+const workflowDocumentStepOutputDeclarationSchema = z
+  .union([
+    workflowDocumentStepOutputTypeSchema.transform((type) => ({type})),
+    z.strictObject({
+      type: workflowDocumentStepOutputTypeSchema,
+      schema: z.unknown().optional(),
+    }),
+  ])
+  .superRefine((declaration, ctx) => {
+    const schema = 'schema' in declaration ? declaration.schema : undefined;
+    if (declaration.type !== 'json' && schema !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['schema'],
+        message: '`schema` is only supported for json outputs.',
+      });
+      return;
+    }
+
+    if (schema === undefined) return;
+
+    if (!isJsonSchemaDocument(schema)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['schema'],
+        message: 'Schema must be a valid JSON Schema document.',
+      });
+      return;
+    }
+
+    const serializedBytes = utf8Encoder.encode(JSON.stringify(schema)).byteLength;
+    if (serializedBytes > WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['schema'],
+        message: `Output JSON Schema cannot serialize to more than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES} bytes.`,
+      });
+    }
+
+    const depth = maxJsonDepth(schema);
+    if (depth > WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['schema'],
+        message: `Output JSON Schema cannot be nested deeper than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH} levels.`,
+      });
+    }
+  });
+
+export const workflowDocumentStepOutputsSchema = z
+  .record(z.string(), workflowDocumentStepOutputDeclarationSchema)
+  .superRefine((outputs, ctx) => {
+    const entries = Object.keys(outputs).length;
+    if (entries > WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Step outputs cannot define more than ${WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES} entries.`,
+      });
+    }
+
+    for (const key of Object.keys(outputs)) {
+      if (workflowDocumentStepOutputKeyPattern.test(key)) continue;
+      ctx.addIssue({
+        code: 'custom',
+        path: [key],
+        message: 'Output keys must be CEL identifiers.',
       });
     }
   });
@@ -161,6 +240,7 @@ export const workflowDocumentStepSchema = z
     agent: z.unknown().optional(),
     gate: workflowDocumentStepGateSchema.optional(),
     env: workflowDocumentEnvSchema.optional(),
+    outputs: workflowDocumentStepOutputsSchema.optional(),
   })
   .superRefine((step, ctx) => {
     if (step.agent !== undefined) {
@@ -243,5 +323,26 @@ export type WorkflowDocumentEnv = z.infer<typeof workflowDocumentEnvSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
 export type WorkflowDocumentJobListening = z.infer<typeof workflowDocumentListeningSchema>;
 export type WorkflowDocumentRunStepGate = z.infer<typeof workflowDocumentStepGateSchema>;
+export type WorkflowDocumentStepOutputType = (typeof workflowDocumentStepOutputTypes)[number];
+export type WorkflowDocumentStepOutputs = z.infer<typeof workflowDocumentStepOutputsSchema>;
 export type WorkflowDocumentStep = z.infer<typeof workflowDocumentStepSchema>;
 export type WorkflowDocumentTrigger = z.infer<typeof workflowDocumentTriggerSchema>;
+
+function maxJsonDepth(value: unknown): number {
+  if (value === null || typeof value !== 'object') return 0;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 1;
+    return 1 + Math.max(...value.map(maxJsonDepth));
+  }
+
+  const entries = Object.values(value);
+  if (entries.length === 0) return 1;
+  return 1 + Math.max(...entries.map(maxJsonDepth));
+}
+
+function isJsonSchemaDocument(value: unknown): boolean {
+  return (
+    typeof value === 'boolean' ||
+    (typeof value === 'object' && value !== null && !Array.isArray(value))
+  );
+}

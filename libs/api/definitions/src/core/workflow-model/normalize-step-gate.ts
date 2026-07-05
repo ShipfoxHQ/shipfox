@@ -1,4 +1,4 @@
-import type {WorkflowExpression} from '@shipfox/expression';
+import type {ExpressionTypeEnvironment, WorkflowExpression} from '@shipfox/expression';
 import type {WorkflowDocumentStep} from '@shipfox/workflow-document';
 import type {WorkflowModelStepGate} from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
@@ -14,6 +14,7 @@ export function normalizeStepGate(params: {
   previousStepKeys: ReadonlySet<string>;
   issues: WorkflowModelValidationIssue[];
   allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowModelStepGate | undefined {
   const gate = params.step.gate;
   if (gate === undefined) return undefined;
@@ -24,6 +25,7 @@ export function normalizeStepGate(params: {
     stepIndex: params.stepIndex,
     issues: params.issues,
     allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
   });
   const feedbackTemplate =
     gate.on_failure?.feedback === undefined
@@ -34,6 +36,7 @@ export function normalizeStepGate(params: {
           path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'gate', 'on_failure'],
           issues: params.issues,
           fillSite: 'step-report',
+          typeOverlay: params.typeOverlay,
         });
   const onFailure =
     gate.on_failure === undefined
@@ -69,6 +72,7 @@ function normalizeGateSuccess(params: {
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
   allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowExpression | undefined {
   if (params.source === undefined) return undefined;
 
@@ -81,5 +85,6 @@ function normalizeGateSuccess(params: {
     invalidMessage: 'Step gate success must be a valid CEL boolean expression.',
     issues: params.issues,
     allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
   });
 }
