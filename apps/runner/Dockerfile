@@ -12,9 +12,9 @@ ARG NODE_VERSION=24.16.0
 ARG PNPM_VERSION=11.6.0
 
 # The official node image (Debian/glibc) carries corepack and a clean pnpm store.
-# The runner's prod closure is JS + wasm plus pi's lazily-loaded optional clipboard
-# native addon (glibc prebuilds, never loaded on the headless runner path), so /prod
-# is portable to the Ubuntu runtime below.
+# The runner's prod closure is JS + wasm plus agent optional native payloads:
+# pi's clipboard addon and the Claude Agent SDK's platform Claude Code binary.
+# Both use glibc prebuilds on linux-x64, so /prod is portable to the Ubuntu runtime below.
 FROM node:${NODE_VERSION}-slim AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH

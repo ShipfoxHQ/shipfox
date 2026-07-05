@@ -1,6 +1,10 @@
-const {runAgentMock} = vi.hoisted(() => ({runAgentMock: vi.fn()}));
+const {runAgentMock, runClaudeMock} = vi.hoisted(() => ({
+  runAgentMock: vi.fn(),
+  runClaudeMock: vi.fn(),
+}));
 
 vi.mock('#core/pi-adapter.js', () => ({piHarnessAdapter: {run: runAgentMock}}));
+vi.mock('#core/claude-adapter.js', () => ({claudeHarnessAdapter: {run: runClaudeMock}}));
 
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {AgentConfigError} from '#core/errors.js';
@@ -39,6 +43,7 @@ function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
 describe('executeAgentStep', () => {
   beforeEach(() => {
     runAgentMock.mockReset();
+    runClaudeMock.mockReset();
   });
 
   it('runs the agent and reports process-success with exit_code 0', async () => {
@@ -175,20 +180,16 @@ describe('executeAgentStep', () => {
     });
   });
 
-  it('fails unsupported harnesses without falling back to pi', async () => {
+  it('lazily selects the Claude adapter without falling back to pi', async () => {
+    runClaudeMock.mockResolvedValue({summary: 'claude done'});
+
     const result = await executeAgentStep(buildAgentStep(), {
       runtime: {...RUNTIME, harness: 'claude'},
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error).toEqual({
-      message:
-        'Harness "claude" is not supported by this runner build ' +
-        '(available once the Claude adapter ships).',
-      reason: 'agent_config_invalid',
-      agent_config_issue: 'step_config_invalid',
-    });
+    expect(result).toEqual({success: true, output: 'claude done', error: null, exit_code: 0});
     expect(runAgentMock).not.toHaveBeenCalled();
+    expect(runClaudeMock).toHaveBeenCalledWith(expect.objectContaining({provider: 'anthropic'}));
   });
 
   it('rejects a non-agent step type without running the agent', async () => {
