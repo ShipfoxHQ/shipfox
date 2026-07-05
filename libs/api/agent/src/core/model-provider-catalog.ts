@@ -1,9 +1,9 @@
-import {getModels, type KnownProvider} from '@earendil-works/pi-ai';
 import {
   MODEL_PROVIDER_CATALOG_SEED,
   type ModelProviderCatalogEntryDto,
   modelProviderCatalogEntrySchema,
 } from '@shipfox/api-agent-dto';
+import {listPiProviderModels} from './harness/pi.js';
 
 let cachedCatalog: readonly ModelProviderCatalogEntryDto[] | undefined;
 
@@ -14,13 +14,7 @@ export function buildModelProviderCatalog(): readonly ModelProviderCatalogEntryD
     MODEL_PROVIDER_CATALOG_SEED.map((entry) => ({
       ...entry,
       credential_fields: entry.credential_fields.map((field) => ({...field})),
-      models:
-        entry.support_status === 'supported'
-          ? getModels(entry.id as KnownProvider).map((model) => ({
-              id: model.id,
-              label: model.name,
-            }))
-          : [],
+      models: entry.support_status === 'supported' ? listPiProviderModels(entry.id) : [],
     })),
   );
 

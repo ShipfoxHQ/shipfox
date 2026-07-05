@@ -1,4 +1,4 @@
-import type {ModelProviderRef, SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import type {Harness, ModelProviderRef, SupportedModelProviderId} from '@shipfox/api-agent-dto';
 
 export class ModelProviderValidationError extends Error {
   constructor(
@@ -24,6 +24,19 @@ export class UnsupportedModelProviderError extends Error {
   constructor(public readonly providerId: string) {
     super(`Unsupported model provider: ${providerId}`);
     this.name = 'UnsupportedModelProviderError';
+  }
+}
+
+export class UnsupportedHarnessProviderError extends Error {
+  constructor(
+    public readonly harness: Harness,
+    public readonly providerId: string,
+    public readonly supportedProviderIds: readonly string[],
+  ) {
+    super(
+      `Harness ${harness} does not support model provider ${providerId}. Supported providers: ${supportedProviderIds.join(', ')}`,
+    );
+    this.name = 'UnsupportedHarnessProviderError';
   }
 }
 

@@ -16,8 +16,17 @@ export {
   ModelProviderConfigNotFoundError,
   ModelProviderValidationError,
   ModelProviderValidationUnavailableError,
+  UnsupportedHarnessProviderError,
   UnsupportedModelProviderError,
 } from './errors.js';
+export {
+  getHarnessDescriptor,
+  type HarnessDescriptor,
+  harnessSupportsProvider,
+  listHarnessDescriptors,
+  listHarnessProviderModels,
+  probeHarnessProviderCredentials,
+} from './harness/index.js';
 export {buildModelProviderCatalog} from './model-provider-catalog.js';
 export {
   deleteModelProviderConfig,
