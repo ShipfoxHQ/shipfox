@@ -1,4 +1,4 @@
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {triggerSourceConfigSchemas, type WorkflowDocument} from '@shipfox/workflow-document';
 import type {
   WorkflowModelListeningTrigger,
   WorkflowModelTrigger,
@@ -55,19 +55,25 @@ export function normalizeTriggers(
           id,
           key: sourceKey,
           ...normalizedTrigger,
+          ...(trigger.config === undefined ? {} : {config: trigger.config}),
         },
       ];
     }
 
-    validateCronTrigger({trigger, sourceKey, issues});
+    const cronConfig = triggerSourceConfigSchemas.cron.parse(trigger.config ?? {});
+    const normalizedCronConfig = {
+      ...cronConfig,
+      timezone: cronConfig.timezone ?? cronTriggerDefaultTimezone,
+    };
+
+    validateCronTrigger({trigger, config: cronConfig, sourceKey, issues});
 
     return [
       {
         id,
         key: sourceKey,
         ...normalizedTrigger,
-        ...(trigger.schedule === undefined ? {} : {schedule: trigger.schedule}),
-        timezone: trigger.timezone ?? cronTriggerDefaultTimezone,
+        config: normalizedCronConfig,
       },
     ];
   });

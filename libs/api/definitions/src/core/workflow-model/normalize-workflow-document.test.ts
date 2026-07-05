@@ -1541,7 +1541,7 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
+          config: {schedule: '0 2 * * *'},
         },
       },
       jobs: {
@@ -1559,8 +1559,10 @@ describe('normalizeWorkflowDocument', () => {
         key: 'nightly',
         source: 'cron',
         event: 'tick',
-        schedule: '0 2 * * *',
-        timezone: 'UTC',
+        config: {
+          schedule: '0 2 * * *',
+          timezone: 'UTC',
+        },
       },
     ]);
   });
@@ -1572,8 +1574,10 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
-          timezone: 'Europe/Paris',
+          config: {
+            schedule: '0 2 * * *',
+            timezone: 'Europe/Paris',
+          },
         },
       },
       jobs: {
@@ -1591,8 +1595,10 @@ describe('normalizeWorkflowDocument', () => {
         key: 'nightly',
         source: 'cron',
         event: 'tick',
-        schedule: '0 2 * * *',
-        timezone: 'Europe/Paris',
+        config: {
+          schedule: '0 2 * * *',
+          timezone: 'Europe/Paris',
+        },
       },
     ]);
   });
@@ -1604,7 +1610,7 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'push',
-          schedule: '0 2 * * *',
+          config: {schedule: '0 2 * * *'},
         },
       },
       jobs: {
@@ -1648,7 +1654,7 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'missing-cron-schedule',
         message: 'A cron trigger requires a schedule.',
-        path: ['triggers', 'nightly', 'schedule'],
+        path: ['triggers', 'nightly', 'config', 'schedule'],
       },
     ]);
   });
@@ -1664,7 +1670,7 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule,
+          config: {schedule},
         },
       },
       jobs: {
@@ -1680,7 +1686,7 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'invalid-cron-schedule',
         message: 'Cron trigger schedule must be a valid 5-field cron expression.',
-        path: ['triggers', 'nightly', 'schedule'],
+        path: ['triggers', 'nightly', 'config', 'schedule'],
         details: {schedule},
       },
     ]);
@@ -1693,8 +1699,10 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
-          timezone: 'Not/A/Zone',
+          config: {
+            schedule: '0 2 * * *',
+            timezone: 'Not/A/Zone',
+          },
         },
       },
       jobs: {
@@ -1710,7 +1718,7 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'invalid-cron-timezone',
         message: 'Cron trigger timezone must be a valid IANA time zone.',
-        path: ['triggers', 'nightly', 'timezone'],
+        path: ['triggers', 'nightly', 'config', 'timezone'],
         details: {timezone: 'Not/A/Zone'},
       },
     ]);
@@ -1723,12 +1731,12 @@ describe('normalizeWorkflowDocument', () => {
         hourly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 * * * *',
+          config: {schedule: '0 * * * *'},
         },
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
+          config: {schedule: '0 2 * * *'},
         },
       },
       jobs: {

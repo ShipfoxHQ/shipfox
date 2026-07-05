@@ -23,8 +23,7 @@ export interface WorkflowModelTrigger {
   readonly event: string;
   readonly inputs?: Readonly<Record<string, unknown>>;
   readonly filter?: string;
-  readonly schedule?: string;
-  readonly timezone?: string;
+  readonly config?: Readonly<Record<string, unknown>>;
 }
 
 export interface WorkflowModelJob {

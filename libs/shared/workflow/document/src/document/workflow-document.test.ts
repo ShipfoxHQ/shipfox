@@ -114,15 +114,17 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
-  it('keeps cron trigger schedule and timezone strings', () => {
+  it('keeps cron trigger config values', () => {
     const workflowDocument = {
       name: 'nightly build',
       triggers: {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
-          timezone: 'Europe/Paris',
+          config: {
+            schedule: '0 2 * * *',
+            timezone: 'Europe/Paris',
+          },
         },
       },
       jobs: {
@@ -134,18 +136,20 @@ describe('workflowDocumentSchema', () => {
 
     const result = workflowDocumentSchema.parse(workflowDocument);
 
-    expect(result.triggers?.nightly?.schedule).toBe('0 2 * * *');
-    expect(result.triggers?.nightly?.timezone).toBe('Europe/Paris');
+    expect(result.triggers?.nightly?.config).toEqual({
+      schedule: '0 2 * * *',
+      timezone: 'Europe/Paris',
+    });
   });
 
-  it.each(['schedule', 'timezone'] as const)('rejects top-level non-cron trigger %s', (field) => {
+  it('rejects config for a source with no registered config schema', () => {
     const result = workflowDocumentSchema.safeParse({
       name: 'simple build',
       triggers: {
         main_push: {
           source: 'github',
           event: 'push',
-          [field]: field === 'schedule' ? '0 2 * * *' : 'Europe/Paris',
+          config: {branch: 'main'},
         },
       },
       jobs: {
@@ -158,9 +162,64 @@ describe('workflowDocumentSchema', () => {
     const issue = result.success
       ? undefined
       : result.error.issues.find(
-          (candidate) => candidate.path.join('.') === `triggers.main_push.${field}`,
+          (candidate) => candidate.path.join('.') === 'triggers.main_push.config',
         );
-    expect(issue?.message).toBe(`\`${field}\` is only allowed on a cron trigger (source: cron).`);
+    expect(issue?.message).toBe('`config` is not supported for source `github`.');
+  });
+
+  it('rejects unknown cron config fields', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'nightly build',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          config: {
+            schedule: '0 2 * * *',
+            offset: '5m',
+          },
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'triggers.nightly.config',
+        );
+    expect(issue?.message).toBe('Unrecognized key: "offset"');
+  });
+
+  it('rejects non-string cron config schedule values', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'nightly build',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          config: {
+            schedule: 5,
+          },
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'triggers.nightly.config.schedule',
+        );
+    expect(issue?.message).toBe('Invalid input: expected string, received number');
   });
 
   it('accepts listening job configuration under a listening block', () => {
@@ -186,12 +245,7 @@ describe('workflowDocumentSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it.each([
-    ['on', 'schedule'],
-    ['on', 'timezone'],
-    ['until', 'schedule'],
-    ['until', 'timezone'],
-  ] as const)('rejects listening %s non-cron trigger %s', (listeningField, triggerField) => {
+  it.each(['on', 'until'] as const)('rejects listening %s trigger config', (listeningField) => {
     const result = workflowDocumentSchema.safeParse({
       name: 'listen for reviews',
       jobs: {
@@ -200,9 +254,9 @@ describe('workflowDocumentSchema', () => {
             on: [{source: 'github', event: 'pull_request_review'}],
             [listeningField]: [
               {
-                source: 'github',
-                event: 'pull_request',
-                [triggerField]: triggerField === 'schedule' ? '0 2 * * *' : 'Europe/Paris',
+                source: 'cron',
+                event: 'tick',
+                config: {schedule: '0 2 * * *'},
               },
             ],
           },
@@ -215,51 +269,11 @@ describe('workflowDocumentSchema', () => {
       ? []
       : result.error.issues.filter(
           (candidate) =>
-            candidate.path.join('.') ===
-            `jobs.review.listening.${listeningField}.0.${triggerField}`,
+            candidate.path.join('.') === `jobs.review.listening.${listeningField}.0.config`,
         );
     const issue = issues.at(0);
     expect(issues).toHaveLength(1);
-    expect(issue?.message).toBe(
-      `\`${triggerField}\` is only allowed on a cron trigger (source: cron).`,
-    );
-  });
-
-  it.each([
-    ['on', 'schedule'],
-    ['on', 'timezone'],
-    ['until', 'schedule'],
-    ['until', 'timezone'],
-  ] as const)('rejects listening %s cron trigger %s', (listeningField, triggerField) => {
-    const result = workflowDocumentSchema.safeParse({
-      name: 'listen for ticks',
-      jobs: {
-        review: {
-          listening: {
-            on: [{source: 'github', event: 'pull_request_review'}],
-            [listeningField]: [
-              {
-                source: 'cron',
-                event: 'tick',
-                [triggerField]: triggerField === 'schedule' ? '0 2 * * *' : 'Europe/Paris',
-              },
-            ],
-          },
-          steps: [{prompt: 'Review'}],
-        },
-      },
-    });
-
-    const issue = result.success
-      ? undefined
-      : result.error.issues.find(
-          (candidate) =>
-            candidate.path.join('.') ===
-            `jobs.review.listening.${listeningField}.0.${triggerField}`,
-        );
-    expect(issue?.message).toBe(
-      `\`${triggerField}\` is only supported on top-level cron triggers.`,
-    );
+    expect(issue?.message).toBe('`config` is only supported on top-level triggers.');
   });
 
   it('rejects an empty listening batch block', () => {

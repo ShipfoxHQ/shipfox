@@ -9,12 +9,14 @@ export function validateCronTrigger(params: {
   readonly sourceKey: string;
   readonly trigger: {
     readonly event: string;
+  };
+  readonly config: {
     readonly schedule?: string | undefined;
     readonly timezone?: string | undefined;
   };
   readonly issues: WorkflowModelValidationIssue[];
 }): void {
-  const {sourceKey, trigger, issues} = params;
+  const {sourceKey, trigger, config, issues} = params;
 
   if (trigger.event !== 'tick') {
     issues.push(
@@ -27,32 +29,32 @@ export function validateCronTrigger(params: {
     );
   }
 
-  if (trigger.schedule === undefined) {
+  if (config.schedule === undefined) {
     issues.push(
       issue({
         code: 'missing-cron-schedule',
         message: 'A cron trigger requires a schedule.',
-        path: ['triggers', sourceKey, 'schedule'],
+        path: ['triggers', sourceKey, 'config', 'schedule'],
       }),
     );
-  } else if (!isValidCronExpression(trigger.schedule)) {
+  } else if (!isValidCronExpression(config.schedule)) {
     issues.push(
       issue({
         code: 'invalid-cron-schedule',
         message: 'Cron trigger schedule must be a valid 5-field cron expression.',
-        path: ['triggers', sourceKey, 'schedule'],
-        details: {schedule: trigger.schedule},
+        path: ['triggers', sourceKey, 'config', 'schedule'],
+        details: {schedule: config.schedule},
       }),
     );
   }
 
-  if (trigger.timezone !== undefined && !isValidTimezone(trigger.timezone)) {
+  if (config.timezone !== undefined && !isValidTimezone(config.timezone)) {
     issues.push(
       issue({
         code: 'invalid-cron-timezone',
         message: 'Cron trigger timezone must be a valid IANA time zone.',
-        path: ['triggers', sourceKey, 'timezone'],
-        details: {timezone: trigger.timezone},
+        path: ['triggers', sourceKey, 'config', 'timezone'],
+        details: {timezone: config.timezone},
       }),
     );
   }

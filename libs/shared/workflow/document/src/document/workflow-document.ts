@@ -42,10 +42,17 @@ const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1),
   with: z.record(z.string(), z.unknown()).optional(),
   filter: z.string().min(1).optional(),
-  schedule: z.string().min(1).optional(),
-  timezone: z.string().min(1).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 } satisfies z.ZodRawShape;
-const topLevelCronTriggerFields = ['schedule', 'timezone'] as const;
+
+export const triggerSourceConfigSchemas = {
+  cron: z.strictObject({
+    schedule: z.string().min(1).optional(),
+    timezone: z.string().min(1).optional(),
+  }),
+} satisfies Record<string, z.ZodType>;
+const triggerSourceConfigSchemaRegistry: Readonly<Record<string, z.ZodType>> =
+  triggerSourceConfigSchemas;
 
 export const workflowDocumentTriggerSchema = z
   .strictObject({
@@ -53,16 +60,26 @@ export const workflowDocumentTriggerSchema = z
     event: z.string().min(1),
   })
   .superRefine((trigger, ctx) => {
-    if (trigger.source === 'cron') return;
+    if (trigger.config === undefined) return;
 
-    for (const field of topLevelCronTriggerFields) {
-      if (trigger[field] !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [field],
-          message: `\`${field}\` is only allowed on a cron trigger (source: cron).`,
-        });
-      }
+    const configSchema = triggerSourceConfigSchemaRegistry[trigger.source];
+    if (configSchema === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['config'],
+        message: `\`config\` is not supported for source \`${trigger.source}\`.`,
+      });
+      return;
+    }
+
+    const configResult = configSchema.safeParse(trigger.config);
+    if (configResult.success) return;
+
+    for (const configIssue of configResult.error.issues) {
+      ctx.addIssue({
+        ...configIssue,
+        path: ['config', ...configIssue.path],
+      });
     }
   });
 
@@ -91,14 +108,12 @@ const workflowDocumentListeningSchema = z
   .superRefine((listening, ctx) => {
     for (const field of ['on', 'until'] as const) {
       for (const [index, trigger] of (listening[field] ?? []).entries()) {
-        for (const triggerField of topLevelCronTriggerFields) {
-          if (trigger.source === 'cron' && trigger[triggerField] !== undefined) {
-            ctx.addIssue({
-              code: 'custom',
-              path: [field, index, triggerField],
-              message: `\`${triggerField}\` is only supported on top-level cron triggers.`,
-            });
-          }
+        if (trigger.config !== undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [field, index, 'config'],
+            message: '`config` is only supported on top-level triggers.',
+          });
         }
       }
     }

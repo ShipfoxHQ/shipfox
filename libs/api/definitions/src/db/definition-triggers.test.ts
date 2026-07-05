@@ -1,26 +1,30 @@
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {WorkflowModel, WorkflowModelTrigger} from '#core/entities/workflow-model.js';
 import {definitionTriggersFor} from './definition-triggers.js';
 
-describe('definitionTriggersFor', () => {
-  it('projects document triggers to the public outbox trigger DTO shape', () => {
-    const document: WorkflowDocument = {
-      name: 'CI',
-      triggers: {
-        push: {
-          source: 'github',
-          event: 'push',
-          with: {branch: 'main'},
-          filter: 'event.ref == "refs/heads/main"',
-        },
-      },
-      jobs: {
-        build: {
-          steps: [{run: 'pnpm test'}],
-        },
-      },
-    };
+function workflowModelWithTriggers(triggers: readonly WorkflowModelTrigger[]): WorkflowModel {
+  return {
+    kind: 'workflow',
+    name: 'Test',
+    triggers,
+    jobs: [],
+    dependencies: [],
+  };
+}
 
-    const result = definitionTriggersFor(document);
+describe('definitionTriggersFor', () => {
+  it('projects model triggers to the public outbox trigger DTO shape', () => {
+    const model = workflowModelWithTriggers([
+      {
+        id: 'push',
+        key: 'push',
+        source: 'github',
+        event: 'push',
+        inputs: {branch: 'main'},
+        filter: 'event.ref == "refs/heads/main"',
+      },
+    ]);
+
+    const result = definitionTriggersFor(model);
 
     expect(result).toEqual({
       push: {
@@ -34,22 +38,16 @@ describe('definitionTriggersFor', () => {
   });
 
   it('omits absent optional trigger fields', () => {
-    const document: WorkflowDocument = {
-      name: 'Manual',
-      triggers: {
-        manual: {
-          source: 'manual',
-          event: 'fire',
-        },
+    const model = workflowModelWithTriggers([
+      {
+        id: 'manual',
+        key: 'manual',
+        source: 'manual',
+        event: 'fire',
       },
-      jobs: {
-        run: {
-          steps: [{run: 'echo ok'}],
-        },
-      },
-    };
+    ]);
 
-    const result = definitionTriggersFor(document);
+    const result = definitionTriggersFor(model);
 
     expect(result).toEqual({
       manual: {
@@ -59,47 +57,38 @@ describe('definitionTriggersFor', () => {
     });
   });
 
-  it('projects cron schedule and timezone to the public outbox trigger DTO shape', () => {
-    const document: WorkflowDocument = {
-      name: 'Nightly',
-      triggers: {
-        nightly: {
-          source: 'cron',
-          event: 'tick',
+  it('projects cron config to the public outbox trigger DTO shape', () => {
+    const model = workflowModelWithTriggers([
+      {
+        id: 'nightly',
+        key: 'nightly',
+        source: 'cron',
+        event: 'tick',
+        config: {
           schedule: '0 2 * * *',
-          timezone: 'Europe/Paris',
+          timezone: 'UTC',
         },
       },
-      jobs: {
-        run: {
-          steps: [{run: 'echo ok'}],
-        },
-      },
-    };
+    ]);
 
-    const result = definitionTriggersFor(document);
+    const result = definitionTriggersFor(model);
 
     expect(result).toEqual({
       nightly: {
         source: 'cron',
         event: 'tick',
-        schedule: '0 2 * * *',
-        timezone: 'Europe/Paris',
+        config: {
+          schedule: '0 2 * * *',
+          timezone: 'UTC',
+        },
       },
     });
   });
 
-  it('returns an empty object when the document has no triggers', () => {
-    const document: WorkflowDocument = {
-      name: 'No triggers',
-      jobs: {
-        build: {
-          steps: [{run: 'pnpm build'}],
-        },
-      },
-    };
+  it('returns an empty object when the model has no triggers', () => {
+    const model = workflowModelWithTriggers([]);
 
-    const result = definitionTriggersFor(document);
+    const result = definitionTriggersFor(model);
 
     expect(result).toEqual({});
   });
