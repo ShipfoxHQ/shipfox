@@ -415,10 +415,12 @@ describe('executeRunStep', () => {
   });
 
   it('redacts a secret split across runner stdout tee chunks', async () => {
-    const secret = 'runtime-secret-value';
+    const secret = 'sf_mrt_SPLITTEE_SECRET_12345';
+    const firstFragment = secret.slice(0, 14);
+    const secondFragment = secret.slice(14);
     const script = [
-      `process.stdout.write(${JSON.stringify(secret.slice(0, 8))});`,
-      `setTimeout(() => process.stdout.end(${JSON.stringify(`${secret.slice(8)}\n`)}), 20);`,
+      `process.stdout.write(${JSON.stringify(firstFragment)});`,
+      `setTimeout(() => process.stdout.end(${JSON.stringify(`${secondFragment}\n`)}), 20);`,
     ].join('');
     const step = buildStep({config: {run: `node -e ${JSON.stringify(script)}`}});
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as never);
@@ -429,6 +431,29 @@ describe('executeRunStep', () => {
     expect(result.success).toBe(true);
     expect(stdout).toContain('***');
     expect(stdout).not.toContain(secret);
+    expect(stdout).not.toContain(firstFragment);
+    expect(stdout).not.toContain(secondFragment);
+  });
+
+  it('redacts a secret split across runner stderr tee chunks', async () => {
+    const secret = 'sf_mrt_SPLITTEE_SECRET_67890';
+    const firstFragment = secret.slice(0, 14);
+    const secondFragment = secret.slice(14);
+    const script = [
+      `process.stderr.write(${JSON.stringify(firstFragment)});`,
+      `setTimeout(() => process.stderr.end(${JSON.stringify(`${secondFragment}\n`)}), 20);`,
+    ].join('');
+    const step = buildStep({config: {run: `node -e ${JSON.stringify(script)}`}});
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true as never);
+
+    const result = await executeRunStep(step, {secretValues: [secret]});
+
+    const stderr = stderrWrite.mock.calls.map((call) => String(call[0])).join('');
+    expect(result.success).toBe(true);
+    expect(stderr).toContain('***');
+    expect(stderr).not.toContain(secret);
+    expect(stderr).not.toContain(firstFragment);
+    expect(stderr).not.toContain(secondFragment);
   });
 
   it('returns failure for unsupported step type with the reason on error.message', async () => {
