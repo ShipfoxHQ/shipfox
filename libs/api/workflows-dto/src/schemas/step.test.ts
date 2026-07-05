@@ -1,4 +1,4 @@
-import {stepAttemptDtoSchema, stepErrorDtoSchema} from './step.js';
+import {STEP_ERROR_MESSAGE_MAX_LENGTH, stepAttemptDtoSchema, stepErrorDtoSchema} from './step.js';
 
 const baseAttempt = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -15,6 +15,22 @@ const baseAttempt = {
 };
 
 describe('stepErrorDtoSchema', () => {
+  it('accepts a message at the maximum length', () => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'x'.repeat(STEP_ERROR_MESSAGE_MAX_LENGTH),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a message beyond the maximum length', () => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'x'.repeat(STEP_ERROR_MESSAGE_MAX_LENGTH + 1),
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('accepts an agent config issue with an agent config failure reason', () => {
     const result = stepErrorDtoSchema.parse({
       message: 'Model provider credentials are not configured',

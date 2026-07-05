@@ -6,4 +6,10 @@ export {
   type OutputSink,
 } from '#core/run-step.js';
 export {executeSetupStep, type SetupJobContext, type SetupStepExecution} from '#core/setup-step.js';
+export {
+  MAX_OUTPUT_TOTAL_BYTES,
+  MAX_OUTPUT_VALUE_BYTES,
+  parseStepOutput,
+  StepOutputError,
+} from '#core/step-output.js';
 export type {StepResult} from '#core/step-result.js';
