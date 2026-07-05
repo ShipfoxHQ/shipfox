@@ -33,9 +33,9 @@ against the shared suite arrangement:
    run detail, fetching step logs only where `logs` expectations exist.
 
 Anything not listed in `expect.yaml` is not asserted. A flow that needs to orchestrate
-from outside (cancellation, listening jobs) ships a `spec.e2e.ts` in its directory
-instead of an `expect.yaml`; it is an ordinary Playwright spec and receives the same
-`suite` fixture.
+from outside (cancellation, listening jobs) ships its own Playwright spec under `tests/`
+(for example `tests/listener-jobs.e2e.ts`) instead of an `expect.yaml`; `testMatch` picks
+up every `tests/**/*.e2e.ts`, and the spec receives the same `suite` fixture.
 
 ### expect.yaml
 
