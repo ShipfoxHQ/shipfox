@@ -13,137 +13,12 @@ const out = (data: string, offset: number, stream: 'stdout' | 'stderr' = 'stdout
   stream,
   data,
 });
-const session = (data: unknown, offset: number): LogRecord => ({
+const session = (row: SessionViewRow, offset: number): LogRecord => ({
   v: 1,
   ts: at(offset),
   type: 'agent_session',
-  row: storySessionRow(data, at(offset)),
+  row: {...row, timestamp: at(offset)},
 });
-
-function storySessionRow(data: unknown, timestamp: number): SessionViewRow {
-  if (typeof data === 'string') {
-    return {kind: 'raw', timestamp, label: 'Malformed session entry', raw: data};
-  }
-  if (!data || typeof data !== 'object') {
-    return {kind: 'raw', timestamp, label: 'Unsupported entry', raw: JSON.stringify(data)};
-  }
-
-  const entry = data as Record<string, unknown>;
-  if (typeof entry.kind === 'string') return {...(entry as SessionViewRow), timestamp};
-  if (entry.type === 'session') {
-    return {
-      kind: 'lifecycle',
-      timestamp,
-      label: 'Session started',
-      detail: String(entry.id ?? 'session'),
-      meta: [],
-      tone: 'default',
-      terminalFailure: false,
-    };
-  }
-  if (entry.type === 'model_change') {
-    return {
-      kind: 'lifecycle',
-      timestamp,
-      label: 'Model changed',
-      detail: String(entry.model ?? entry.modelId ?? 'model'),
-      meta: [],
-      tone: 'default',
-      terminalFailure: false,
-    };
-  }
-  if (entry.type === 'message') return storyMessageRow(entry.message, timestamp);
-  if (
-    entry.type === 'branch_summary' ||
-    entry.type === 'custom' ||
-    entry.type === 'custom_message'
-  ) {
-    return {
-      kind: 'message',
-      timestamp,
-      role: 'system',
-      label: String(entry.type).replaceAll('_', ' '),
-      meta: [],
-      text: String(entry.summary ?? entry.content ?? JSON.stringify(entry)),
-      terminalFailure: false,
-    };
-  }
-
-  return {
-    kind: 'raw',
-    timestamp,
-    label: entry.type ? `Unknown session entry: ${String(entry.type)}` : 'Unsupported entry',
-    raw: JSON.stringify(entry),
-  };
-}
-
-function storyMessageRow(message: unknown, timestamp: number): SessionViewRow {
-  if (!message || typeof message !== 'object') {
-    return {
-      kind: 'raw',
-      timestamp,
-      label: 'Unsupported message entry',
-      raw: JSON.stringify(message),
-    };
-  }
-
-  const msg = message as Record<string, unknown>;
-  if (typeof msg.toolCallId === 'string') {
-    return {
-      kind: 'tool-result',
-      timestamp,
-      toolCallId: msg.toolCallId,
-      toolName: String(msg.toolName ?? 'tool'),
-      output: storyContentText(msg.content),
-      isError: msg.isError === true,
-    };
-  }
-
-  const content = Array.isArray(msg.content) ? (msg.content as Record<string, unknown>[]) : [];
-  const text = storyTextBlock(content);
-  const thinking = content.find((block) => block.type === 'thinking');
-  if (!text && thinking) {
-    return {kind: 'thinking', timestamp, text: String(thinking.text ?? thinking.thinking ?? '')};
-  }
-  const toolCall = content.find((block) => block.type === 'toolCall' || block.type === 'tool_call');
-  if (!text && toolCall) {
-    return {
-      kind: 'tool-call',
-      timestamp,
-      id: typeof toolCall.id === 'string' ? toolCall.id : null,
-      name: String(toolCall.name ?? 'tool'),
-      input: JSON.stringify(toolCall.arguments ?? {}, null, 2),
-    };
-  }
-
-  return {
-    kind: 'message',
-    timestamp,
-    role: String(msg.role ?? 'assistant'),
-    label: String(msg.role ?? 'assistant').replaceAll('-', ' '),
-    meta: [],
-    text: text || storyContentText(msg.content ?? msg.summary ?? msg.output ?? ''),
-    terminalFailure: msg.stopReason === 'error' || msg.stopReason === 'aborted',
-  };
-}
-
-function storyTextBlock(content: readonly Record<string, unknown>[]): string {
-  return String(content.find((block) => block.type === 'text')?.text ?? '');
-}
-
-function storyContentText(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((block) =>
-        block && typeof block === 'object'
-          ? String((block as Record<string, unknown>).text ?? JSON.stringify(block))
-          : String(block),
-      )
-      .join('\n');
-  }
-  return JSON.stringify(content);
-}
 const groupStart = (
   groupId: string,
   name: string,
@@ -216,65 +91,81 @@ const nestedRecords: LogRecord[] = [
 const unifiedAgentRecords: LogRecord[] = [
   session(
     {
-      type: 'message',
-      message: {role: 'user', content: 'Update the auth form error handling.'},
+      kind: 'message',
+      timestamp: 0,
+      role: 'user',
+      label: 'user',
+      meta: [],
+      text: 'Update the auth form error handling.',
+      terminalFailure: false,
     },
     0,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'assistant',
-        model: 'gpt-5-codex',
-        content: [
-          {type: 'text', text: 'I will inspect the form and the existing tests first.'},
-          {
-            type: 'thinking',
-            text: 'The likely risk is server errors being written to the wrong form meta slot.',
-          },
-          {
-            type: 'toolCall',
-            id: 'call-1',
-            name: 'read_file',
-            arguments: {path: 'src/login-form.tsx'},
-          },
-        ],
-      },
+      kind: 'message',
+      timestamp: 0,
+      role: 'assistant',
+      label: 'assistant',
+      meta: [{label: 'model', value: 'gpt-5-codex'}],
+      text: 'I will inspect the form and the existing tests first.',
+      terminalFailure: false,
     },
     1,
+  ),
+  session(
+    {
+      kind: 'thinking',
+      timestamp: 0,
+      text: 'The likely risk is server errors being written to the wrong form meta slot.',
+    },
+    1.1,
+  ),
+  session(
+    {
+      kind: 'tool-call',
+      timestamp: 0,
+      id: 'call-1',
+      name: 'read_file',
+      input: JSON.stringify({path: 'src/login-form.tsx'}, null, 2),
+    },
+    1.2,
   ),
   out('$ pnpm --filter @shipfox/client-auth test\n', 2),
   session(
     {
-      type: 'message',
-      message: {
-        toolCallId: 'call-1',
-        toolName: 'read_file',
-        content: [{type: 'text', text: 'export function LoginForm() { /* ... */ }'}],
-      },
+      kind: 'tool-result',
+      timestamp: 0,
+      toolCallId: 'call-1',
+      toolName: 'read_file',
+      output: 'export function LoginForm() { /* ... */ }',
+      isError: false,
     },
     3,
   ),
-  session({type: 'model_change', model: 'gpt-5-codex', provider: 'openai'}, 4),
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Model changed',
+      detail: 'gpt-5-codex',
+      meta: [{label: 'provider', value: 'openai'}],
+      tone: 'default',
+      terminalFailure: false,
+    },
+    4,
+  ),
   {v: 1, ts: at(5), type: 'end', total_bytes: 4096},
 ];
 
 const awaitingAgentRecords: LogRecord[] = [
   session(
     {
-      type: 'message',
-      message: {
-        role: 'assistant',
-        content: [
-          {
-            type: 'toolCall',
-            id: 'call-2',
-            name: 'run_tests',
-            arguments: {filter: '@shipfox/client-logs'},
-          },
-        ],
-      },
+      kind: 'tool-call',
+      timestamp: 0,
+      id: 'call-2',
+      name: 'run_tests',
+      input: JSON.stringify({filter: '@shipfox/client-logs'}, null, 2),
     },
     0,
   ),
@@ -285,176 +176,245 @@ const failedAgentRecords: LogRecord[] = [
   out('$ pnpm test\n', 0),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'assistant',
-        content: [{type: 'text', text: 'The run cannot continue because the harness aborted.'}],
-        stopReason: 'error',
-      },
+      kind: 'message',
+      timestamp: 0,
+      role: 'assistant',
+      label: 'assistant',
+      meta: [],
+      text: 'The run cannot continue because the harness aborted.',
+      terminalFailure: true,
     },
     1,
   ),
 ];
 
 const allAgentSessionTypeRecords: LogRecord[] = [
-  session({type: 'session', version: 2, id: 'session-2026-06-23', cwd: '/workspace/platform'}, 0),
-  session({type: 'session_info', message: 'Restored 14 messages from prior context.'}, 1),
-  session({type: 'label', label: 'Review setup', targetId: 'entry-review'}, 2),
-  session({type: 'thinking_level_change', thinkingLevel: 'high'}, 3),
-  session({type: 'model_change', modelId: 'gpt-5-codex', provider: 'openai'}, 4),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'user',
-        content: [
-          {type: 'text', text: 'Review the failed workflow attempt and patch the tests.'},
-          {type: 'image', mimeType: 'image/png', data: 'base64-payload'},
-        ],
-      },
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Session started',
+      detail: 'session-2026-06-23',
+      meta: [{label: 'cwd', value: '/workspace/platform'}],
+      tone: 'default',
+      terminalFailure: false,
+    },
+    0,
+  ),
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Session info',
+      detail: 'Restored 14 messages from prior context.',
+      meta: [],
+      tone: 'default',
+      terminalFailure: false,
+    },
+    1,
+  ),
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Review setup',
+      detail: 'entry-review',
+      meta: [],
+      tone: 'default',
+      terminalFailure: false,
+    },
+    2,
+  ),
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Thinking level changed',
+      detail: 'high',
+      meta: [],
+      tone: 'default',
+      terminalFailure: false,
+    },
+    3,
+  ),
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Model changed',
+      detail: 'gpt-5-codex',
+      meta: [{label: 'provider', value: 'openai'}],
+      tone: 'default',
+      terminalFailure: false,
+    },
+    4,
+  ),
+  session(
+    {
+      kind: 'message',
+      timestamp: 0,
+      role: 'user',
+      label: 'user',
+      meta: [{label: 'attachment', value: 'image/png'}],
+      text: 'Review the failed workflow attempt and patch the tests.',
+      terminalFailure: false,
     },
     5,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'assistant',
-        model: 'gpt-5-codex',
-        provider: 'openai',
-        content: [
-          {type: 'text', text: 'I will inspect the failure anchor and the log selector.'},
-          {
-            type: 'thinking',
-            thinking:
-              'The UI needs to preserve the terminal assistant message while still showing the tool activity inline.',
-          },
-          {
-            type: 'tool_call',
-            id: 'call-read',
-            name: 'read_file',
-            arguments: {path: 'libs/client/logs/src/core/agent-session/selector.ts'},
-          },
-        ],
-      },
+      kind: 'message',
+      timestamp: 0,
+      role: 'assistant',
+      label: 'assistant',
+      meta: [
+        {label: 'model', value: 'gpt-5-codex'},
+        {label: 'provider', value: 'openai'},
+      ],
+      text: 'I will inspect the failure anchor and the log renderer.',
+      terminalFailure: false,
     },
     6,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'toolResult',
-        toolCallId: 'call-read',
-        toolName: 'read_file',
-        content: [{type: 'text', text: 'function expandSessionRecord(record) { /* ... */ }'}],
-      },
+      kind: 'thinking',
+      timestamp: 0,
+      text: 'The UI needs to preserve the terminal assistant message while still showing the tool activity inline.',
+    },
+    6.1,
+  ),
+  session(
+    {
+      kind: 'tool-call',
+      timestamp: 0,
+      id: 'call-read',
+      name: 'read_file',
+      input: JSON.stringify({path: 'libs/client/logs/src/components/log-view.tsx'}, null, 2),
+    },
+    6.2,
+  ),
+  session(
+    {
+      kind: 'tool-result',
+      timestamp: 0,
+      toolCallId: 'call-read',
+      toolName: 'read_file',
+      output: '<AgentSessionRows rows={[node.record.row]} />',
+      isError: false,
     },
     7,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        toolCallId: 'call-test',
-        toolName: 'run_tests',
-        content: [{type: 'text', text: 'FAIL selector.test.ts > parses tool results'}],
-        isError: true,
-      },
+      kind: 'tool-result',
+      timestamp: 0,
+      toolCallId: 'call-test',
+      toolName: 'run_tests',
+      output: 'FAIL log-view.test.tsx > renders tool results',
+      isError: true,
     },
     8,
   ),
   session(
     {
-      type: 'branch_summary',
-      summary: 'Kept the parser scoped to agent_session records and log-tree ordering.',
-      fromId: 'entry-review',
+      kind: 'message',
+      timestamp: 0,
+      role: 'system',
+      label: 'branch summary',
+      meta: [{label: 'from', value: 'entry-review'}],
+      text: 'Kept the renderer scoped to canonical agent_session rows and log-tree ordering.',
+      terminalFailure: false,
     },
     9,
   ),
   session(
     {
-      type: 'compaction',
-      summary: 'Previous context summarized into 3 decisions.',
-      tokensBefore: 42000,
+      kind: 'message',
+      timestamp: 0,
+      role: 'system',
+      label: 'compaction',
+      meta: [{label: 'tokens', value: '42000'}],
+      text: 'Previous context summarized into 3 decisions.',
+      terminalFailure: false,
     },
     10,
   ),
   session(
-    {type: 'custom', customType: 'review', data: {verdict: 'parser coverage looks complete'}},
+    {
+      kind: 'message',
+      timestamp: 0,
+      role: 'system',
+      label: 'custom',
+      meta: [{label: 'type', value: 'review'}],
+      text: '{"verdict":"coverage looks complete"}',
+      terminalFailure: false,
+    },
     11,
   ),
   session(
     {
-      type: 'custom_message',
-      customType: 'operator-note',
-      content: 'Retry after the fixture update.',
+      kind: 'message',
+      timestamp: 0,
+      role: 'system',
+      label: 'operator note',
+      meta: [],
+      text: 'Retry after the fixture update.',
+      terminalFailure: false,
     },
     12,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'assistant',
-        content: [{type: 'text', text: 'I cannot continue because the test harness aborted.'}],
-        stopReason: 'aborted',
-        errorMessage: 'Harness aborted before the retry finished.',
-      },
+      kind: 'message',
+      timestamp: 0,
+      role: 'assistant',
+      label: 'assistant',
+      meta: [{label: 'error', value: 'Harness aborted before the retry finished.'}],
+      text: 'I cannot continue because the test harness aborted.',
+      terminalFailure: true,
     },
     13,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'bashExecution',
-        command: 'pnpm test',
-        output: 'FAIL selector.test.ts > parses tool results',
-        exitCode: 1,
-        cancelled: false,
-        truncated: true,
-        fullOutputPath: '/tmp/shipfox-agent-output.log',
-      },
+      kind: 'message',
+      timestamp: 0,
+      role: 'tool',
+      label: 'bash execution',
+      meta: [
+        {label: 'command', value: 'pnpm test'},
+        {label: 'exit', value: '1'},
+        {label: 'truncated', value: 'true'},
+        {label: 'full output', value: '/tmp/shipfox-agent-output.log', inline: false},
+      ],
+      text: 'FAIL log-view.test.tsx > renders tool results',
+      terminalFailure: false,
     },
     14,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'custom',
-        customType: 'status',
-        content: 'Extension status update.',
-        display: true,
-      },
+      kind: 'message',
+      timestamp: 0,
+      role: 'custom',
+      label: 'status',
+      meta: [],
+      text: 'Extension status update.',
+      terminalFailure: false,
     },
     15,
   ),
   session(
     {
-      type: 'message',
-      message: {
-        role: 'branchSummary',
-        summary: 'Created a branch for selector fixes.',
-        fromId: 'entry-review',
-      },
+      kind: 'raw',
+      timestamp: 0,
+      label: 'Unknown session entry: future_entry',
+      raw: '{"type":"future_entry","payload":{"feature":"new-session-event"}}',
     },
     16,
   ),
-  session(
-    {
-      type: 'message',
-      message: {
-        role: 'compactionSummary',
-        summary: 'Summarized earlier tool output.',
-        tokensBefore: 96000,
-      },
-    },
-    17,
-  ),
-  session({type: 'future_entry', payload: {feature: 'new-session-event'}}, 18),
-  session('{not-json', 19),
+  session({kind: 'raw', timestamp: 0, label: 'Malformed session entry', raw: '{not-json'}, 17),
   {v: 1, ts: at(20), type: 'end', total_bytes: 12_288},
 ];
 
@@ -568,7 +528,20 @@ export const UnknownAgentEntry: Story = {
   args: {showLineNumbers: true},
   render: (args) => (
     <div className="max-w-3xl">
-      <LogView {...args} records={[session({type: 'future_entry', payload: {value: true}}, 0)]} />
+      <LogView
+        {...args}
+        records={[
+          session(
+            {
+              kind: 'raw',
+              timestamp: 0,
+              label: 'Unknown session entry: future_entry',
+              raw: '{"type":"future_entry","payload":{"value":true}}',
+            },
+            0,
+          ),
+        ]}
+      />
     </div>
   ),
 };
@@ -582,11 +555,13 @@ export const LargeAgentPayload: Story = {
         records={[
           session(
             {
-              type: 'message',
-              message: {
-                role: 'assistant',
-                content: [{type: 'text', text: 'Large payload '.repeat(180)}],
-              },
+              kind: 'message',
+              timestamp: 0,
+              role: 'assistant',
+              label: 'assistant',
+              meta: [],
+              text: 'Large payload '.repeat(180),
+              terminalFailure: false,
             },
             0,
           ),
