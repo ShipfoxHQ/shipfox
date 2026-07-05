@@ -1,0 +1,77 @@
+{
+  "name": "@shipfox/e2e-kit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/kit"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./test/*",
+    "#*": "./src/*"
+  },
+  "exports": {
+    "./config": {
+      "development": {
+        "types": "./src/config/index.ts",
+        "default": "./src/config/index.ts"
+      },
+      "default": {
+        "types": "./dist/config/index.d.ts",
+        "default": "./dist/config/index.js"
+      }
+    },
+    "./fixtures": {
+      "development": {
+        "types": "./src/fixtures/index.ts",
+        "default": "./src/fixtures/index.ts"
+      },
+      "default": {
+        "types": "./dist/fixtures/index.d.ts",
+        "default": "./dist/fixtures/index.js"
+      }
+    },
+    "./global-setup": {
+      "development": {
+        "types": "./src/setup/global-setup.ts",
+        "default": "./src/setup/global-setup.ts"
+      },
+      "default": {
+        "types": "./dist/setup/global-setup.d.ts",
+        "default": "./dist/setup/global-setup.js"
+      }
+    },
+    "./api-global-setup": {
+      "development": {
+        "types": "./src/setup/api-global-setup.ts",
+        "default": "./src/setup/api-global-setup.ts"
+      },
+      "default": {
+        "types": "./dist/setup/api-global-setup.d.ts",
+        "default": "./dist/setup/api-global-setup.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-helper-auth": "workspace:*",
+    "@shipfox/e2e-helper-projects": "workspace:*",
+    "@shipfox/e2e-helper-workspaces": "workspace:*",
+    "@shipfox/playwright": "workspace:*"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*"
+  }
+}

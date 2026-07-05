@@ -27,6 +27,7 @@
     "@shipfox/e2e-helper-auth": "workspace:*",
     "@shipfox/e2e-helper-projects": "workspace:*",
     "@shipfox/e2e-helper-workspaces": "workspace:*",
+    "@shipfox/e2e-kit": "workspace:*",
     "@shipfox/playwright": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*"
