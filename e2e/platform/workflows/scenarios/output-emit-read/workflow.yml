@@ -1,0 +1,26 @@
+name: Output emit read
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: produce
+        run: |
+          echo "sha=abc123" >> "$SHIPFOX_OUTPUT"
+          {
+            echo "notes<<EOF"
+            echo "line one"
+            echo "line two"
+            echo "EOF"
+          } >> "$SHIPFOX_OUTPUT"
+      - key: consume
+        env:
+          SHA: ${{ steps.produce.outputs.sha }}
+          NOTES: ${{ steps.produce.outputs.notes }}
+        run: |
+          echo "sha=$SHA"
+          printf "%s\n" "$NOTES"

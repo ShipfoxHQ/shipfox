@@ -38,9 +38,11 @@ export const stepErrorCategorySchema = z.enum(['setup', 'user']);
 
 export type StepErrorCategoryDto = z.infer<typeof stepErrorCategorySchema>;
 
+export const STEP_ERROR_MESSAGE_MAX_LENGTH = 2048;
+
 export const stepErrorDtoSchema = z
   .object({
-    message: z.string(),
+    message: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH),
     exit_code: z.number().int().nullable().optional(),
     signal: z.string().optional(),
     reason: stepErrorReasonSchema.optional(),

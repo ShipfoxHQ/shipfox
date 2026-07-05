@@ -1,13 +1,14 @@
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {accessSync, constants, statSync} from 'node:fs';
-import {unlink, writeFile} from 'node:fs/promises';
+import {open, unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
 import {TextDecoder} from 'node:util';
 import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets, safeRedactionPrefixLength, secretWireForms} from '@shipfox/redact';
+import {MAX_OUTPUT_TOTAL_BYTES, parseStepOutput, StepOutputError} from '#core/step-output.js';
 import type {StepResult} from '#core/step-result.js';
 
 /**
@@ -69,20 +70,25 @@ async function runShellCommand(
   options: RunStepOptions,
 ): Promise<StepResult> {
   const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
+  const outputPath = join(tmpdir(), `shipfox-output-${randomUUID()}`);
   const metadata = commandStartMetadata({command, scriptPath, cwd: options.cwd});
   notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(metadata));
 
   try {
     await writeFile(scriptPath, command, {mode: 0o700});
-    return await spawnAndCapture(metadata, stepEnv, options);
+    await writeFile(outputPath, '', {mode: 0o600});
+    const result = await spawnAndCapture(metadata, stepEnv, outputPath, options);
+    return await finalizeStepOutput(result, outputPath);
   } finally {
     await unlink(scriptPath).catch(() => undefined);
+    await unlink(outputPath).catch(() => undefined);
   }
 }
 
 function spawnAndCapture(
   metadata: CommandStartMetadata,
   stepEnv: Readonly<Record<string, string>>,
+  outputPath: string,
   options: RunStepOptions,
 ): Promise<StepResult> {
   return new Promise((resolve) => {
@@ -98,7 +104,7 @@ function spawnAndCapture(
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
       cwd: options.cwd,
-      env: {...process.env, ...stepEnv},
+      env: {...process.env, ...stepEnv, SHIPFOX_OUTPUT: outputPath},
     });
 
     // stdout and stderr are two separate pipes, so the sink sees them merged by
@@ -203,6 +209,62 @@ function spawnAndCapture(
       });
     });
   });
+}
+
+async function finalizeStepOutput(result: StepResult, outputPath: string): Promise<StepResult> {
+  let raw: string | undefined;
+  try {
+    raw = await readBoundedStepOutput(outputPath);
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return result;
+    if (!result.success) return result;
+    return {
+      success: false,
+      error: {message: stepOutputErrorMessage(error)},
+      exit_code: null,
+    };
+  }
+
+  if (raw === undefined || raw === '') return result;
+
+  try {
+    const outputs = parseStepOutput(raw);
+    if (Object.keys(outputs).length === 0) return result;
+    return {...result, outputs};
+  } catch (error) {
+    if (!result.success) return result;
+    return {
+      success: false,
+      error: {message: stepOutputErrorMessage(error)},
+      exit_code: null,
+    };
+  }
+}
+
+async function readBoundedStepOutput(outputPath: string): Promise<string | undefined> {
+  const handle = await open(outputPath, 'r');
+  try {
+    const buffer = Buffer.alloc(MAX_OUTPUT_TOTAL_BYTES + 1);
+    const {bytesRead} = await handle.read(buffer, 0, buffer.length, 0);
+    if (bytesRead === 0) return undefined;
+    if (bytesRead > MAX_OUTPUT_TOTAL_BYTES) {
+      throw new StepOutputError(`Step output exceeds ${MAX_OUTPUT_TOTAL_BYTES} bytes.`);
+    }
+    return buffer.subarray(0, bytesRead).toString('utf8');
+  } finally {
+    await handle.close();
+  }
+}
+
+function stepOutputErrorMessage(error: unknown): string {
+  if (error instanceof StepOutputError) return error.message;
+  return 'Step output file could not be read.';
+}
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String(error.code)
+    : undefined;
 }
 
 function writeTeeOutput(

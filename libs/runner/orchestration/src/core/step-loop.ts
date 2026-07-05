@@ -404,7 +404,7 @@ export async function executeStep(params: {
     runStream = stepStream;
     registerStreamSecrets(stepStream);
 
-    const result = await executeRunStep(step, {
+    let result = await executeRunStep(step, {
       signal,
       cwd,
       ...(runSecretMaterial?.secretEnv ? {secretEnv: runSecretMaterial.secretEnv} : {}),
@@ -412,6 +412,7 @@ export async function executeStep(params: {
       onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
       onOutput: (chunk, source) => stepStream?.write(chunk, source),
     });
+    result = maskRunStepOutputs(result, buildSecretVariants(runSecrets));
     writeRunFailureContext(stepStream, result);
     return {
       result,
@@ -531,6 +532,27 @@ function maskAgentFailure(result: StepResult, secretVariants: string[]): StepRes
   return {...result, output: '', error};
 }
 
+function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepResult {
+  const outputs =
+    result.outputs === undefined
+      ? result.outputs
+      : Object.fromEntries(
+          Object.entries(result.outputs).map(([key, value]) => [
+            key,
+            redactSecrets(value, secretVariants),
+          ]),
+        );
+  const error =
+    result.success || result.error === null || result.error === undefined
+      ? result.error
+      : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
+  return {
+    ...result,
+    ...(outputs === undefined ? {} : {outputs}),
+    error,
+  };
+}
+
 function agentRuntimeConfigFailure(error: unknown): StepResult {
   if (error instanceof AgentRuntimeConfigRequestError) {
     const agentConfigIssue =
@@ -617,6 +639,7 @@ export async function reportStepResult(params: {
     // null on success, the error shape on failure — matches reportStepBodySchema's refine.
     error: result.error,
     exitCode: result.exit_code,
+    ...(result.outputs ? {output: result.outputs} : {}),
     logOutcome,
     signal,
   });

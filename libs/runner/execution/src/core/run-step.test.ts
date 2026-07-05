@@ -4,12 +4,14 @@ import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
+import {MAX_OUTPUT_TOTAL_BYTES} from '#core/step-output.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
 const READY_REGEX = /READY/;
 const ESRCH_REGEX = /ESRCH/;
 const SHELL_EXECUTABLE_REGEX = /(?:^|\/)(bash|sh)$/;
 const SCRIPT_PATH_REGEX = /shipfox-runner-.*\.sh$/;
+const OUTPUT_PATH_REGEX = /shipfox-output-/;
 const PROCESS_TEST_WAIT_TIMEOUT_MS = 4_000;
 
 function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
@@ -136,6 +138,110 @@ describe('executeRunStep', () => {
     } finally {
       if (previous !== undefined) process.env.SHIPFOX_ENV_TEST_SECRET = previous;
     }
+  });
+
+  it('populates outputs from SHIPFOX_OUTPUT on success', async () => {
+    const step = buildStep({
+      config: {run: 'echo "sha=abc123" >> "$SHIPFOX_OUTPUT"'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.outputs).toEqual({sha: 'abc123'});
+  });
+
+  it('exposes SHIPFOX_OUTPUT to the child and overrides user env', async () => {
+    const step = buildStep({
+      config: {
+        run: 'echo "path=$SHIPFOX_OUTPUT" >> "$SHIPFOX_OUTPUT"',
+        env: {SHIPFOX_OUTPUT: '/tmp/user-output'},
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.outputs?.path).toMatch(OUTPUT_PATH_REGEX);
+    expect(result.outputs?.path).not.toBe('/tmp/user-output');
+  });
+
+  it('fails a succeeded step when emitted output exceeds the total byte cap', async () => {
+    const script = `require('node:fs').writeFileSync(process.env.SHIPFOX_OUTPUT, 'x'.repeat(${MAX_OUTPUT_TOTAL_BYTES + 1}))`;
+    const step = buildStep({config: {run: `node -e ${JSON.stringify(script)}`}});
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain('Step output exceeds');
+    expect(result.exit_code).toBeNull();
+  });
+
+  it('attaches valid outputs when the process exits non-zero', async () => {
+    const step = buildStep({
+      config: {run: 'echo "sha=abc123" >> "$SHIPFOX_OUTPUT"; exit 5'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({message: 'Command exited with code 5', exit_code: 5});
+    expect(result.exit_code).toBe(5);
+    expect(result.outputs).toEqual({sha: 'abc123'});
+  });
+
+  it('keeps the original failure when a failed process writes invalid output', async () => {
+    const step = buildStep({
+      config: {run: 'echo "bad key=value" >> "$SHIPFOX_OUTPUT"; exit 7'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({message: 'Command exited with code 7', exit_code: 7});
+    expect(result.exit_code).toBe(7);
+    expect(result.outputs).toBeUndefined();
+  });
+
+  it('fails a succeeded step that writes invalid output without echoing content', async () => {
+    const step = buildStep({
+      config: {run: 'echo "bad key=secret-value" >> "$SHIPFOX_OUTPUT"'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain('invalid key');
+    expect(result.error?.message).not.toContain('secret-value');
+    expect(result.exit_code).toBeNull();
+  });
+
+  it('leaves outputs unset when there is no emission', async () => {
+    const step = buildStep({config: {run: 'true'}});
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.outputs).toBeUndefined();
+  });
+
+  it('treats a deleted output file as no output', async () => {
+    const step = buildStep({config: {run: 'rm "$SHIPFOX_OUTPUT"'}});
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.outputs).toBeUndefined();
+  });
+
+  it('fails a succeeded step when the output file cannot be read', async () => {
+    const step = buildStep({config: {run: 'chmod 000 "$SHIPFOX_OUTPUT"'}});
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toBe('Step output file could not be read.');
+    expect(result.exit_code).toBeNull();
   });
 
   it('does not resolve the shell executable through step env PATH', async () => {

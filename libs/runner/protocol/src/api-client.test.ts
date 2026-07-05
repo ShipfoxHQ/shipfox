@@ -3,6 +3,7 @@
 // from test/env.ts (setupFiles), loaded before config is imported.
 
 import {RUNNER_SESSION_EXHAUSTED_CODE} from '@shipfox/api-runners-dto';
+import {STEP_ERROR_MESSAGE_MAX_LENGTH} from '@shipfox/api-workflows-dto';
 import {
   AgentRuntimeConfigRequestError,
   appendStepLogs,
@@ -388,6 +389,61 @@ describe('api-client auth contexts', () => {
     expect(result).toEqual({ok: true, cancel: false});
     expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/report`);
     expect(calls[0]?.authorization).toBe('Bearer lease-def');
+  });
+
+  it('reportStep includes output when present', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-output');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'succeeded',
+      exitCode: 0,
+      output: {sha: 'abc123'},
+      logOutcome: 'drained',
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      status: 'succeeded',
+      attempt: 1,
+      exit_code: 0,
+      output: {sha: 'abc123'},
+      log_outcome: 'drained',
+    });
+  });
+
+  it('reportStep omits output when it is undefined', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-output');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'succeeded',
+      exitCode: 0,
+      logOutcome: 'drained',
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).not.toHaveProperty('output');
+  });
+
+  it('reportStep truncates long error messages before validation and send', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-error');
+    const message = 'x'.repeat(STEP_ERROR_MESSAGE_MAX_LENGTH + 1);
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'failed',
+      error: {message},
+      exitCode: null,
+      logOutcome: 'drained',
+    });
+
+    const body = JSON.parse(calls[0]?.body ?? '{}');
+    expect(body.error.message).toHaveLength(STEP_ERROR_MESSAGE_MAX_LENGTH);
   });
 });
 
