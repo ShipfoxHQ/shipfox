@@ -12,7 +12,7 @@ export function defineClientE2eConfig(options: ClientE2eConfigOptions) {
     testDir: './tests',
     testMatch: '**/*.e2e.ts',
     globalSetup: './tests/global-setup.ts',
-    ...(options.timeout ? {timeout: options.timeout} : {}),
+    ...(options.timeout !== undefined ? {timeout: options.timeout} : {}),
     reporter: process.env.CI
       ? [
           ['github'],
