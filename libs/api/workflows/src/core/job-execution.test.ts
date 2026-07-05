@@ -461,6 +461,136 @@ describe('recordStepResult', () => {
     expect(after[2]?.status).toBe('cancelled');
     expect(await jobStepsSettledEvents(jobId)).toHaveLength(1);
   });
+
+  test('coerces declared output before persisting and filling later step config', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const producer = steps[0];
+    const consumer = steps[1];
+    if (!producer || !consumer) throw new Error('Expected arranged steps');
+    const countPlan = stepOutputField('build', 'count');
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'build',
+        config: {run: 'build', outputs: {count: {type: 'number'}}},
+      })
+      .where(eq(stepsTable.id, producer.id));
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'deploy',
+        config: {run: 'deploy'},
+        configPlan: {env: {COUNT: countPlan}},
+      })
+      .where(eq(stepsTable.id, consumer.id));
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId: producer.id,
+      status: 'succeeded',
+      output: {count: '42'},
+    });
+    const next = await nextStepForJob(jobId);
+
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts.find((attempt) => attempt.stepId === producer.id)).toMatchObject({
+      status: 'succeeded',
+      output: {count: 42},
+    });
+    expect(next).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: consumer.id,
+        config: {run: 'deploy', env: {COUNT: '42'}},
+      }),
+    });
+  });
+
+  test('coerces JSON output against its declared schema', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await db()
+      .update(stepsTable)
+      .set({
+        config: {
+          run: 'build',
+          outputs: {
+            meta: {
+              type: 'json',
+              schema: {
+                type: 'object',
+                properties: {
+                  registry: {type: 'string'},
+                  size_bytes: {type: 'integer'},
+                },
+                required: ['registry', 'size_bytes'],
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+      })
+      .where(eq(stepsTable.id, stepId));
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      output: {meta: '{"registry":"ghcr.io","size_bytes":"42"}'},
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.output).toEqual({meta: {registry: 'ghcr.io', size_bytes: 42}});
+  });
+
+  it.each([
+    ['missing declared key', {}, 'outputs.count'],
+    ['undeclared emitted key', {count: '1', extra: 'nope'}, 'outputs.extra'],
+    ['non-parsing scalar', {count: 'nope'}, 'outputs.count'],
+  ])('fails declared output report for %s', async (_label, output, field) => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await db()
+      .update(stepsTable)
+      .set({config: {run: 'build', outputs: {count: {type: 'number'}}}})
+      .where(eq(stepsTable.id, stepId));
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({jobId, stepId, status: 'succeeded', output});
+
+    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]).toMatchObject({
+      status: 'failed',
+      error: {reason: 'output_invalid', field},
+    });
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      status: 'failed',
+      output: null,
+      error: {reason: 'output_invalid', field},
+    });
+  });
+
+  test('keeps untyped steps open to arbitrary output keys', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      output: {count: 'not typed', extra: 'allowed'},
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.output).toEqual({count: 'not typed', extra: 'allowed'});
+  });
 });
 
 describe('nextStepForJob concurrency', () => {
@@ -956,6 +1086,7 @@ describe('durable gate restart', () => {
   // producer (named) → reviewer (gated `success: step.exit_code == 0`, on_failure restart_from producer)
   async function arrangeGatedJob(params: {
     source: string;
+    outputs?: Record<string, unknown>;
     feedback?: string;
     feedbackTemplate?: ReturnType<typeof plannedField>;
   }): Promise<{jobId: string; producer: string; reviewer: string}> {
@@ -968,6 +1099,7 @@ describe('durable gate restart', () => {
       .set({
         config: {
           run: 'review',
+          ...(params.outputs === undefined ? {} : {outputs: params.outputs}),
           gate: {
             success: {language: 'cel', check: 'syntax', source: params.source},
             on_failure: {
@@ -1014,6 +1146,39 @@ describe('durable gate restart', () => {
     const reviewerAttempt = attempts.find((a) => a.stepId === reviewer && a.attempt === 1);
     expect(reviewerAttempt?.status).toBe('failed');
     expect(reviewerAttempt?.restartFeedback).toBeTruthy();
+  });
+
+  test('output coercion failure bypasses gate restart evaluation', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.outputs.pass == true',
+      outputs: {pass: {type: 'boolean'}},
+    });
+
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+    const outcome = await recordStepResult({
+      jobId,
+      stepId: reviewer,
+      status: 'succeeded',
+      output: {pass: 'not-a-boolean'},
+      exitCode: 0,
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.map((step) => step.status)).toEqual(['succeeded', 'failed']);
+    expect(after.every((step) => step.currentAttempt === 1)).toBe(true);
+    expect(after.find((step) => step.id === reviewer)?.error).toMatchObject({
+      reason: 'output_invalid',
+      field: 'outputs.pass',
+    });
+    expect(await restartEventCount(jobId)).toBe(0);
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts.find((attempt) => attempt.stepId === reviewer)).toMatchObject({
+      gateResult: null,
+      output: null,
+      error: {reason: 'output_invalid'},
+    });
   });
 
   test('restart event identifies the failed gate attempt and restart target', async () => {

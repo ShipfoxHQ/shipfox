@@ -49,6 +49,7 @@ const stepErrorReasonSchema = z.enum([
   'workspace_prep_failed',
   'setup_aborted',
   'config_unresolvable',
+  'output_invalid',
   'agent_config_invalid',
   'agent_invocation_failed',
 ]);
