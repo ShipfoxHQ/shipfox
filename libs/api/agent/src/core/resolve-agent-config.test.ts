@@ -13,6 +13,7 @@ import {
   UnsupportedHarnessThinkingError,
   UnsupportedModelProviderError,
 } from './errors.js';
+import * as harnessCatalog from './harness/index.js';
 import {catalogDefaultAgentResolver, resolveAgentConfig} from './resolve-agent-config.js';
 import {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';
 
@@ -225,6 +226,24 @@ describe('resolveAgentConfig', () => {
         instanceDefaultModel: 'not-a-model',
       },
     );
+
+    expect(resolved.model).toBe('claude-opus-4-8');
+  });
+
+  test('does not evaluate catalog model fallback before a valid workspace default model', () => {
+    vi.spyOn(harnessCatalog, 'listHarnessProviderModels').mockImplementation(
+      (harness, provider) => {
+        if (new Error('capture catalog lookup stack').stack?.includes('catalogDefaultModel')) {
+          throw new InvalidAgentModelError(harness, provider, '');
+        }
+        return [{id: 'claude-opus-4-8', label: 'Claude Opus 4.8'}];
+      },
+    );
+    const workspaceProviderConfigs = new Map([
+      ['anthropic' as const, {defaultModel: 'claude-opus-4-8', defaultThinking: 'medium' as const}],
+    ]);
+
+    const resolved = resolveAgentConfig({provider: 'anthropic'}, {workspaceProviderConfigs});
 
     expect(resolved.model).toBe('claude-opus-4-8');
   });

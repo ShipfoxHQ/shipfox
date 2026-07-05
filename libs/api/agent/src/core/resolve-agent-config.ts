@@ -49,6 +49,8 @@ interface WorkspaceProviderDefaults {
   readonly models?: readonly CustomAgentModelDto[] | null | undefined;
 }
 
+type ModelCandidateResolver = () => string | null | undefined;
+
 export function resolveAgentConfig(
   step: ContextualAgentConfig,
   ctx: AgentConfigResolutionContext = {},
@@ -137,15 +139,18 @@ function resolveModel(params: {
     return params.step.model;
   }
 
-  const candidates = [params.workspaceProviderConfig?.defaultModel];
+  const candidates: ModelCandidateResolver[] = [() => params.workspaceProviderConfig?.defaultModel];
   if (params.workspaceProviderConfig?.kind === 'custom') {
-    candidates.push(customDefaultModel(params.workspaceProviderConfig));
+    candidates.push(() => customDefaultModel(params.workspaceProviderConfig));
   } else {
-    candidates.push(instanceDefaultModel(params.provider, params.ctx));
-    candidates.push(catalogDefaultModel(params.harness, params.provider));
+    candidates.push(
+      () => instanceDefaultModel(params.provider, params.ctx),
+      () => catalogDefaultModel(params.harness, params.provider),
+    );
   }
 
-  for (const candidate of candidates) {
+  for (const resolveCandidate of candidates) {
+    const candidate = resolveCandidate();
     if (candidate === undefined || candidate === null) continue;
     if (
       modelIsAvailable(params.harness, params.provider, candidate, params.workspaceProviderConfig)
