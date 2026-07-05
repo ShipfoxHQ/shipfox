@@ -1,5 +1,5 @@
 import type {CreateProvisionerTokenResponseDto} from '@shipfox/api-runners-dto';
-import {requestJson} from '@shipfox/e2e-core';
+import {createApiClient} from '@shipfox/e2e-core';
 
 export interface MintProvisionerTokenParams {
   workspaceId: string;
@@ -20,12 +20,11 @@ export interface MintProvisionerTokenParams {
 export async function mintProvisionerToken(
   params: MintProvisionerTokenParams,
 ): Promise<CreateProvisionerTokenResponseDto> {
-  return await requestJson<CreateProvisionerTokenResponseDto>(
+  const client = createApiClient({token: params.userToken});
+
+  return await client.requestJson<CreateProvisionerTokenResponseDto>(
     'post',
     `/workspaces/${params.workspaceId}/provisioners/tokens`,
-    {
-      headers: {authorization: `Bearer ${params.userToken}`},
-      json: {name: params.name, ttl_seconds: params.ttlSeconds},
-    },
+    {json: {name: params.name, ttl_seconds: params.ttlSeconds}},
   );
 }

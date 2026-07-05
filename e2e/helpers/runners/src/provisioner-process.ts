@@ -7,8 +7,7 @@ import type {
   ActiveProvisionerDto,
   ListActiveProvisionersResponseDto,
 } from '@shipfox/api-runners-dto';
-import {config, requestJson} from '@shipfox/e2e-core';
-import {pollUntil} from './poll.js';
+import {config, createApiClient, pollUntil} from '@shipfox/e2e-core';
 
 const execFileAsync = promisify(execFile);
 
@@ -99,6 +98,7 @@ async function waitForActiveProvisioner(params: {
   logFile: string;
 }): Promise<ActiveProvisionerDto> {
   let lastSeen: ActiveProvisionerDto[] = [];
+  const client = createApiClient({token: params.userToken});
   const abortController = new AbortController();
 
   let onError: ((error: Error) => void) | undefined;
@@ -128,10 +128,9 @@ async function waitForActiveProvisioner(params: {
         `provisioner ${params.tokenPrefix ?? '(any)'} to become active for workspace ${params.workspaceId} (last active list: ${JSON.stringify(lastSeen)})`,
     },
     async () => {
-      const {provisioners} = await requestJson<ListActiveProvisionersResponseDto>(
+      const {provisioners} = await client.requestJson<ListActiveProvisionersResponseDto>(
         'get',
         `/workspaces/${params.workspaceId}/provisioners/active`,
-        {headers: {authorization: `Bearer ${params.userToken}`}},
       );
       lastSeen = provisioners;
       const match =

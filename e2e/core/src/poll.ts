@@ -2,6 +2,7 @@ export interface PollOptions {
   timeoutMs: number;
   intervalMs?: number;
   maxIntervalMs?: number;
+  backoffFactor?: number;
   describe: () => string;
   /** Stops polling early (used to fail fast when the polled process dies). */
   signal?: AbortSignal;
@@ -9,6 +10,7 @@ export interface PollOptions {
 
 const DEFAULT_INTERVAL_MS = 500;
 const DEFAULT_MAX_INTERVAL_MS = 2_000;
+const DEFAULT_BACKOFF_FACTOR = 2;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -45,6 +47,7 @@ export async function pollUntil<T>(
   const deadline = Date.now() + options.timeoutMs;
   let delay = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   const maxIntervalMs = options.maxIntervalMs ?? DEFAULT_MAX_INTERVAL_MS;
+  const backoffFactor = options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR;
   let lastError: unknown;
 
   for (;;) {
@@ -68,6 +71,6 @@ export async function pollUntil<T>(
     }
 
     await sleep(Math.min(delay, remaining), options.signal);
-    delay = Math.min(delay * 2, maxIntervalMs);
+    delay = Math.min(delay * backoffFactor, maxIntervalMs);
   }
 }

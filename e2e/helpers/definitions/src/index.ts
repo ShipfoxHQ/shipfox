@@ -1,6 +1,5 @@
-import {setTimeout as sleep} from 'node:timers/promises';
 import type {DefinitionDto, DefinitionListResponseDto} from '@shipfox/api-definitions-dto';
-import {type ApiFetch, createApiClient} from '@shipfox/e2e-core';
+import {type ApiFetch, createApiClient, pollUntil} from '@shipfox/e2e-core';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_INITIAL_DELAY_MS = 250;
@@ -28,12 +27,6 @@ export type WaitForDefinitionOptions = DefinitionSelector & {
   timeoutMs?: number | undefined;
   token: string;
 };
-
-function nextDelay(currentDelayMs: number, options: WaitForDefinitionOptions): number {
-  const factor = options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR;
-  const maxDelayMs = options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
-  return Math.min(Math.ceil(currentDelayMs * factor), maxDelayMs);
-}
 
 function assertDefinitionSelector(options: WaitForDefinitionOptions): void {
   if (!options.configPath && !options.definitionId) {
@@ -75,16 +68,6 @@ function formatObserved(response: DefinitionListResponseDto | null, selector: De
   return `${selectorLabel(selector)} ${sync} definitions=[${definitions.join(', ')}${more}]`;
 }
 
-async function waitForNextPoll(params: {
-  delayMs: number;
-  deadline: number;
-  signal?: AbortSignal | undefined;
-}): Promise<void> {
-  const remainingMs = params.deadline - Date.now();
-  if (remainingMs <= 0) return;
-  await sleep(Math.min(params.delayMs, remainingMs), undefined, {signal: params.signal});
-}
-
 export async function waitForDefinition(options: WaitForDefinitionOptions): Promise<DefinitionDto> {
   assertDefinitionSelector(options);
   const selector = {
@@ -97,37 +80,42 @@ export async function waitForDefinition(options: WaitForDefinitionOptions): Prom
     token: options.token,
   });
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const deadline = Date.now() + timeoutMs;
-  let delayMs = options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
   let lastResponse: DefinitionListResponseDto | null = null;
 
-  while (Date.now() <= deadline) {
-    options.signal?.throwIfAborted();
-    const params = new URLSearchParams({project_id: options.projectId, limit: '100'});
-    lastResponse = await client.requestJson<DefinitionListResponseDto>(
-      'get',
-      `/definitions?${params}`,
-      {
-        signal: options.signal,
-      },
-    );
-
-    if (lastResponse.sync?.status === 'failed') {
-      throw new Error(
-        `Definition sync failed while waiting: ${formatObserved(lastResponse, selector)}`,
+  const result = await pollUntil<DefinitionDto | Error>(
+    {
+      timeoutMs,
+      intervalMs: options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS,
+      maxIntervalMs: options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS,
+      backoffFactor: options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR,
+      ...(options.signal ? {signal: options.signal} : {}),
+      describe: () => `Timed out waiting for definition: ${formatObserved(lastResponse, selector)}`,
+    },
+    async () => {
+      options.signal?.throwIfAborted();
+      const params = new URLSearchParams({project_id: options.projectId, limit: '100'});
+      lastResponse = await client.requestJson<DefinitionListResponseDto>(
+        'get',
+        `/definitions?${params}`,
+        {
+          signal: options.signal,
+        },
       );
-    }
 
-    const definition = lastResponse.definitions.find((candidate) =>
-      matchesDefinition(candidate, selector),
-    );
-    if (definition) return definition;
+      if (lastResponse.sync?.status === 'failed') {
+        return new Error(
+          `Definition sync failed while waiting: ${formatObserved(lastResponse, selector)}`,
+        );
+      }
 
-    await waitForNextPoll({deadline, delayMs, signal: options.signal});
-    delayMs = nextDelay(delayMs, options);
-  }
+      return (
+        lastResponse.definitions.find((candidate) => matchesDefinition(candidate, selector)) ?? null
+      );
+    },
+  );
 
-  throw new Error(`Timed out waiting for definition: ${formatObserved(lastResponse, selector)}`);
+  if (result instanceof Error) throw result;
+  return result;
 }
 
 export function createDefinitionsHelper(options: {

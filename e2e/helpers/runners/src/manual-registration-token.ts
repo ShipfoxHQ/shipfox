@@ -1,5 +1,5 @@
 import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
-import {requestJson} from '@shipfox/e2e-core';
+import {createApiClient} from '@shipfox/e2e-core';
 
 export interface MintManualRegistrationTokenParams {
   workspaceId: string;
@@ -14,11 +14,12 @@ export interface MintManualRegistrationTokenParams {
 export async function mintManualRegistrationToken(
   params: MintManualRegistrationTokenParams,
 ): Promise<CreateManualRegistrationTokenResponseDto> {
-  return await requestJson<CreateManualRegistrationTokenResponseDto>(
+  const client = createApiClient({token: params.userToken});
+
+  return await client.requestJson<CreateManualRegistrationTokenResponseDto>(
     'post',
     `/workspaces/${params.workspaceId}/runners/manual-registration-tokens`,
     {
-      headers: {authorization: `Bearer ${params.userToken}`},
       json: {
         ...(params.name !== undefined ? {name: params.name} : {}),
         ...(params.ttlSeconds !== undefined ? {ttl_seconds: params.ttlSeconds} : {}),

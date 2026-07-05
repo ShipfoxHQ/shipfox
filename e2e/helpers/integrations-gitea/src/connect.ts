@@ -2,7 +2,7 @@ import type {
   CreateGiteaConnectionBodyDto,
   CreateGiteaConnectionResponseDto,
 } from '@shipfox/api-integration-gitea-dto';
-import {requestJson} from '@shipfox/e2e-core';
+import {createApiClient} from '@shipfox/e2e-core';
 
 export interface ConnectGiteaOrgParams {
   workspaceId: string;
@@ -19,10 +19,11 @@ export async function connectGiteaOrg(
     workspace_id: params.workspaceId,
     org: params.org,
   };
+  const client = createApiClient({token: params.sessionToken});
 
-  return await requestJson<CreateGiteaConnectionResponseDto>(
+  return await client.requestJson<CreateGiteaConnectionResponseDto>(
     'post',
     '/integrations/gitea/connections',
-    {json: body, headers: {authorization: `Bearer ${params.sessionToken}`}},
+    {json: body},
   );
 }

@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from '@shipfox/vitest/vi';
 
+const createApiClient = vi.fn();
 const requestJson = vi.fn();
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const sessionToken = 'user-session-token';
@@ -7,8 +8,10 @@ const sessionToken = 'user-session-token';
 describe('agent e2e helper', () => {
   beforeEach(() => {
     vi.resetModules();
+    createApiClient.mockReset();
     requestJson.mockReset();
-    vi.doMock('@shipfox/e2e-core', () => ({requestJson}));
+    createApiClient.mockReturnValue({requestJson});
+    vi.doMock('@shipfox/e2e-core', () => ({createApiClient}));
   });
 
   afterEach(() => {
@@ -101,11 +104,11 @@ describe('agent e2e helper', () => {
       displayName: 'Local Ollama E2E',
     });
 
+    expect(createApiClient).toHaveBeenCalledWith({token: sessionToken});
     expect(requestJson).toHaveBeenCalledWith(
       'post',
       `/workspaces/${workspaceId}/agent/custom-model-providers`,
       {
-        headers: {authorization: `Bearer ${sessionToken}`},
         json: {
           slug: 'local-ollama-e2e',
           display_name: 'Local Ollama E2E',
@@ -124,12 +127,10 @@ describe('agent e2e helper', () => {
 
     await listModelProviderConfigs({workspaceId, sessionToken});
 
+    expect(createApiClient).toHaveBeenCalledWith({token: sessionToken});
     expect(requestJson).toHaveBeenCalledWith(
       'get',
       `/workspaces/${workspaceId}/agent/model-providers`,
-      {
-        headers: {authorization: `Bearer ${sessionToken}`},
-      },
     );
   });
 });
