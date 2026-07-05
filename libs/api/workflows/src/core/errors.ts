@@ -82,7 +82,8 @@ export function isPermanentRunWorkflowError(error: unknown): boolean {
     error instanceof DefinitionNotFoundError ||
     error instanceof ProjectMismatchError ||
     error instanceof AgentConfigUnresolvableError ||
-    error instanceof InterpolationUnresolvableError
+    error instanceof InterpolationUnresolvableError ||
+    error instanceof InvalidJobRunnerLabelsError
   );
 }
 

@@ -1,6 +1,7 @@
 import {
   AgentConfigUnresolvableError,
   DefinitionNotFoundError,
+  InvalidJobRunnerLabelsError,
   isPermanentRunWorkflowError,
   ProjectMismatchError,
 } from './errors.js';
@@ -20,6 +21,12 @@ describe('isPermanentRunWorkflowError', () => {
 
   test('is true for unresolvable agent configuration', () => {
     const result = isPermanentRunWorkflowError(new AgentConfigUnresolvableError('def-1'));
+
+    expect(result).toBe(true);
+  });
+
+  test('is true for invalid job runner labels', () => {
+    const result = isPermanentRunWorkflowError(new InvalidJobRunnerLabelsError(['has space']));
 
     expect(result).toBe(true);
   });
