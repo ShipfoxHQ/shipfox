@@ -1,0 +1,36 @@
+{
+  "name": "@shipfox/e2e-client-agent",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/suites/client/agent"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/client-agent": "workspace:*",
+    "@shipfox/client-router": "workspace:*",
+    "@shipfox/client-workspace-settings": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-setup-agent": "workspace:*",
+    "@shipfox/e2e-setup-auth": "workspace:*",
+    "@shipfox/e2e-setup-projects": "workspace:*",
+    "@shipfox/e2e-setup-workspaces": "workspace:*",
+    "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-agent": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*"
+  }
+}

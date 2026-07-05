@@ -1,0 +1,30 @@
+{
+  "name": "@shipfox/e2e-client-auth",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/suites/client/auth"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/client-auth": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-auth": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*"
+  }
+}

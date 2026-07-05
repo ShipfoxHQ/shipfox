@@ -1,0 +1,31 @@
+{
+  "name": "@shipfox/e2e-api-auth",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/suites/api/auth"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/api-auth": "workspace:*",
+    "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-setup-auth": "workspace:*",
+    "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*"
+  }
+}

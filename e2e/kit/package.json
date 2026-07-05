@@ -75,9 +75,9 @@
   },
   "dependencies": {
     "@shipfox/e2e-core": "workspace:*",
-    "@shipfox/e2e-helper-auth": "workspace:*",
-    "@shipfox/e2e-helper-projects": "workspace:*",
-    "@shipfox/e2e-helper-workspaces": "workspace:*",
+    "@shipfox/e2e-setup-auth": "workspace:*",
+    "@shipfox/e2e-setup-projects": "workspace:*",
+    "@shipfox/e2e-setup-workspaces": "workspace:*",
     "@shipfox/playwright": "workspace:*"
   },
   "devDependencies": {

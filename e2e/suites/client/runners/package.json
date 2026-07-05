@@ -1,0 +1,38 @@
+{
+  "name": "@shipfox/e2e-client-runners",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/suites/client/runners"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/api-runners": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/client-router": "workspace:*",
+    "@shipfox/client-runners": "workspace:*",
+    "@shipfox/client-workspace-settings": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-setup-auth": "workspace:*",
+    "@shipfox/e2e-setup-projects": "workspace:*",
+    "@shipfox/e2e-driver-runner-process": "workspace:*",
+    "@shipfox/e2e-setup-workspaces": "workspace:*",
+    "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-runners": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/regex": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "@shipfox/e2e-flow-workflows",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/suites/flow/workflows"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*",
+    "#attachments.js": "./src/attachments.ts",
+    "#create-project.js": "./src/create-project.ts",
+    "#expect.js": "./src/expect.ts",
+    "#listener-helpers.js": "./src/listener-helpers.ts",
+    "#listener-jobs.js": "./src/listener-jobs.ts",
+    "#polling.js": "./src/polling.ts",
+    "#run-scenario.js": "./src/run-scenario.ts",
+    "#runner.js": "./src/runner.ts",
+    "#scenarios.js": "./src/scenarios.ts",
+    "#suite-context.js": "./src/suite-context.ts",
+    "#triggers.js": "./src/triggers.ts",
+    "#webhook.js": "./src/webhook.ts",
+    "#workflow-project.js": "./src/workflow-project.ts"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/api-definitions-dto": "workspace:*",
+    "@shipfox/api-integration-webhook-dto": "workspace:*",
+    "@shipfox/api-logs-dto": "workspace:*",
+    "@shipfox/api-projects-dto": "workspace:*",
+    "@shipfox/api-triggers-dto": "workspace:*",
+    "@shipfox/api-workflows-dto": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-setup-auth": "workspace:*",
+    "@shipfox/e2e-observe-definitions": "workspace:*",
+    "@shipfox/e2e-driver-gitea": "workspace:*",
+    "@shipfox/e2e-observe-logs": "workspace:*",
+    "@shipfox/e2e-driver-runner-process": "workspace:*",
+    "@shipfox/e2e-setup-secrets": "workspace:*",
+    "@shipfox/e2e-observe-workflows": "workspace:*",
+    "@shipfox/e2e-setup-workspaces": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
+    "js-yaml": "^4.1.0",
+    "zod": "^4.4.3"
+  }
+}
