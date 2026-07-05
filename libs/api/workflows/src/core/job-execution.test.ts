@@ -5,7 +5,11 @@ import {
   type WorkflowsStepAttemptTerminatedEventDto,
   type WorkflowsStepRestartEnqueuedEventDto,
 } from '@shipfox/api-workflows-dto';
-import {createWorkflowExpression} from '@shipfox/expression';
+import {
+  createWorkflowExpression,
+  parseWorkflowTemplate,
+  planInterpolationField,
+} from '@shipfox/expression';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
@@ -40,6 +44,12 @@ async function bulkUpdateJobStepStatuses(
   const jobExecutionId = steps[0]?.jobExecutionId;
   if (!jobExecutionId) throw new JobNotFoundError(params.jobId);
   await bulkUpdateStepStatuses({jobExecutionId, status: params.status});
+}
+
+function plannedField(field: 'run' | 'step.feedback', source: string) {
+  const plan = planInterpolationField({field, segments: parseWorkflowTemplate(source)});
+  if (!plan.ok) throw new Error('Expected test template to plan');
+  return plan.plan.field;
 }
 
 async function jobStepsSettledEvents(jobId: string): Promise<Array<{status: string}>> {
@@ -944,9 +954,11 @@ describe('durable gate restart', () => {
   }
 
   // producer (named) → reviewer (gated `success: step.exit_code == 0`, on_failure restart_from producer)
-  async function arrangeGatedJob(
-    source: string,
-  ): Promise<{jobId: string; producer: string; reviewer: string}> {
+  async function arrangeGatedJob(params: {
+    source: string;
+    feedback?: string;
+    feedbackTemplate?: ReturnType<typeof plannedField>;
+  }): Promise<{jobId: string; producer: string; reviewer: string}> {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const producer = steps[0]?.id as string;
     const reviewer = steps[1]?.id as string;
@@ -957,8 +969,14 @@ describe('durable gate restart', () => {
         config: {
           run: 'review',
           gate: {
-            success: {language: 'cel', check: 'syntax', source},
-            on_failure: {restart_from: 'producer'},
+            success: {language: 'cel', check: 'syntax', source: params.source},
+            on_failure: {
+              restart_from: 'producer',
+              ...(params.feedback === undefined ? {} : {feedback: params.feedback}),
+              ...(params.feedbackTemplate === undefined
+                ? {}
+                : {feedback_template: params.feedbackTemplate}),
+            },
           },
         },
       })
@@ -978,7 +996,7 @@ describe('durable gate restart', () => {
   }
 
   test('a failing gate rewinds the job to the restart_from step, keeping it running', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 
     await runStep(jobId, producer, 0); // producer succeeds, attempt 1
     const restart = await runStep(jobId, reviewer, 1); // reviewer gate fails → restart
@@ -995,11 +1013,11 @@ describe('durable gate restart', () => {
     );
     const reviewerAttempt = attempts.find((a) => a.stepId === reviewer && a.attempt === 1);
     expect(reviewerAttempt?.status).toBe('failed');
-    expect(reviewerAttempt?.restartReason).toBeTruthy();
+    expect(reviewerAttempt?.restartFeedback).toBeTruthy();
   });
 
   test('restart event identifies the failed gate attempt and restart target', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 
     await runStep(jobId, producer, 0);
     await runStep(jobId, reviewer, 1);
@@ -1009,11 +1027,60 @@ describe('durable gate restart', () => {
       failedStepId: reviewer,
       failedStepAttempt: 1,
       restartFromStepId: producer,
+      feedback: 'gate condition not met',
     });
   });
 
+  test('a retried step materializes restart feedback and source attempt output', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.exit_code == 0',
+      feedback: 'failed',
+      feedbackTemplate: plannedField('step.feedback', `failed: \${{ step.outputs.summary }}`),
+    });
+    await db()
+      .update(stepsTable)
+      .set({
+        configPlan: {
+          run: plannedField(
+            'run',
+            `fix \${{ step.is_retry ? step.restart.feedback : 'fresh' }} from \${{ step.is_retry ? step.restart.from.outputs.summary : 'none' }}`,
+          ),
+        },
+      })
+      .where(eq(stepsTable.id, producer));
+
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+    const restart = await recordStepResult({
+      jobId,
+      stepId: reviewer,
+      status: 'failed',
+      output: {summary: 'unit failed'},
+      exitCode: 1,
+    });
+    const retry = await nextStepForJob(jobId);
+
+    expect(restart).toEqual({jobFinished: false});
+    expect(retry).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: producer,
+        config: {
+          run: `fix "\${__sf_2}" from "\${__sf_3}"`,
+          env: expect.objectContaining({
+            __sf_2: 'failed: unit failed',
+            __sf_3: 'unit failed',
+          }),
+        },
+      }),
+    });
+    const attempts = await getStepAttempts(jobId);
+    const reviewerAttempt = attempts.find((attempt) => attempt.stepId === reviewer);
+    expect(reviewerAttempt?.restartFeedback).toBe('failed: unit failed');
+  });
+
   test('a passing rerun after a restart completes the job', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 
     await runStep(jobId, producer, 0);
     await runStep(jobId, reviewer, 1); // restart
@@ -1037,7 +1104,7 @@ describe('durable gate restart', () => {
   });
 
   test('a permanently-failing gate terminates via the attempt cap (no infinite loop)', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 
     // Default cap is 3: reviewer attempts 1 and 2 restart; attempt 3 exhausts.
     await runStep(jobId, producer, 0);
@@ -1053,8 +1120,54 @@ describe('durable gate restart', () => {
     expect(await restartEventCount(jobId)).toBe(2); // only the two successful restarts
   });
 
+  test('an exhausted restart loop does not evaluate restart feedback templates', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.exit_code == 0',
+      feedbackTemplate: plannedField('step.feedback', `failed: \${{ step.outputs.summary }}`),
+    });
+
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+    expect(
+      await recordStepResult({
+        jobId,
+        stepId: reviewer,
+        status: 'failed',
+        output: {summary: 'first failure'},
+        exitCode: 1,
+      }),
+    ).toEqual({jobFinished: false});
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+    expect(
+      await recordStepResult({
+        jobId,
+        stepId: reviewer,
+        status: 'failed',
+        output: {summary: 'second failure'},
+        exitCode: 1,
+      }),
+    ).toEqual({jobFinished: false});
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+
+    const exhausted = await recordStepResult({
+      jobId,
+      stepId: reviewer,
+      status: 'failed',
+      exitCode: 1,
+    });
+
+    expect(exhausted).toEqual({jobFinished: true, status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === reviewer)?.error).toMatchObject({
+      kind: 'restart_exhausted',
+    });
+    expect(await restartEventCount(jobId)).toBe(2);
+  });
+
   test('a duplicate report of a superseded attempt does not restart twice', async () => {
-    const {jobId, producer, reviewer} = await arrangeGatedJob('step.exit_code == 0');
+    const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 
     await runStep(jobId, producer, 0);
     await runStep(jobId, reviewer, 1); // restart (reviewer now pending at attempt 2)

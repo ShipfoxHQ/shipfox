@@ -89,7 +89,7 @@ const validStepRestartEnqueued = {
   failedStepId: 'step-1',
   failedStepAttempt: 2,
   restartFromStepId: 'step-0',
-  reason: 'gate failed',
+  feedback: 'gate failed',
 };
 
 const validStepAttemptTerminated = {
@@ -215,6 +215,16 @@ describe('workflowsJobActivatedSchema', () => {
     const result = workflowsJobActivatedSchema.parse(payload);
 
     expect(result).toEqual(payload);
+  });
+});
+
+describe('workflowsStepRestartEnqueuedSchema', () => {
+  it('rejects empty restart feedback', () => {
+    const input = {...validStepRestartEnqueued, feedback: ''};
+
+    const parse = () => workflowsStepRestartEnqueuedSchema.parse(input);
+
+    expect(parse).toThrow();
   });
 });
 

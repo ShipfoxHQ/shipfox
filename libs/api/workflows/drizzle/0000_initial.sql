@@ -99,7 +99,7 @@ CREATE TABLE "workflows_step_attempts" (
 	"exit_code" integer,
 	"log_outcome" text,
 	"gate_result" jsonb,
-	"restart_reason" text,
+	"restart_feedback" text,
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"finished_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

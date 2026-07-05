@@ -177,7 +177,7 @@ const baseAttempt: StepAttempt = {
   error: null,
   exitCode: 1,
   gateResult: {passed: 'yes'},
-  restartReason: null,
+  restartFeedback: null,
   logOutcome: null,
   startedAt: new Date('2026-01-01T00:00:00.000Z'),
   finishedAt: new Date('2026-01-01T00:01:00.000Z'),
@@ -242,7 +242,7 @@ describe('toStepAttemptDto', () => {
     const result = toStepAttemptDto(attempt);
 
     expect(result.gate_result).toEqual({kind: 'none'});
-    expect(result.restart_result).toBeNull();
+    expect(result.restart_feedback).toBeNull();
   });
 
   it('maps running attempts without gate payloads to not evaluated', () => {
@@ -273,53 +273,12 @@ describe('toStepAttemptDto', () => {
     });
   });
 
-  it('maps restart reasons to typed restart results', () => {
-    const attempt: StepAttempt = {...baseAttempt, restartReason: 'gate condition not met'};
+  it('maps restart feedback', () => {
+    const attempt: StepAttempt = {...baseAttempt, restartFeedback: 'gate condition not met'};
 
     const result = toStepAttemptDto(attempt);
 
-    expect(result.restart_result).toEqual({
-      kind: 'restart_enqueued',
-      reason: 'gate condition not met',
-    });
-  });
-
-  it('maps restart-exhausted errors to typed restart results', () => {
-    const attempt: StepAttempt = {
-      ...baseAttempt,
-      error: {
-        kind: 'restart_exhausted',
-        maxAttempts: 3,
-        restart_from: 'producer',
-      },
-    };
-
-    const result = toStepAttemptDto(attempt);
-
-    expect(result.restart_result).toEqual({
-      kind: 'restart_exhausted',
-      max_attempts: 3,
-      restart_from: 'producer',
-    });
-  });
-
-  it('maps restart-exhausted errors with camelCase restart targets', () => {
-    const attempt: StepAttempt = {
-      ...baseAttempt,
-      error: {
-        kind: 'restart_exhausted',
-        max_attempts: 3,
-        restartFrom: 'producer',
-      },
-    };
-
-    const result = toStepAttemptDto(attempt);
-
-    expect(result.restart_result).toEqual({
-      kind: 'restart_exhausted',
-      max_attempts: 3,
-      restart_from: 'producer',
-    });
+    expect(result.restart_feedback).toBe('gate condition not met');
   });
 
   it('maps legacy gate payloads to an explicit unknown result', () => {

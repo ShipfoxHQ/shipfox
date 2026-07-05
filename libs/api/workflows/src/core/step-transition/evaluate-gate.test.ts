@@ -1,4 +1,10 @@
-import {evaluateGate, gateResultPayload, readStepGate} from './evaluate-gate.js';
+import {parseWorkflowTemplate, planInterpolationField} from '@shipfox/expression';
+import {
+  evaluateGate,
+  evaluateGateFeedback,
+  gateResultPayload,
+  readStepGate,
+} from './evaluate-gate.js';
 
 function gateConfig(source: string, restartFrom?: string): Record<string, unknown> {
   return {
@@ -10,6 +16,15 @@ function gateConfig(source: string, restartFrom?: string): Record<string, unknow
   };
 }
 
+function feedbackTemplate(source: string) {
+  const plan = planInterpolationField({
+    field: 'step.feedback',
+    segments: parseWorkflowTemplate(source),
+  });
+  if (!plan.ok) throw new Error('Expected test feedback template to plan');
+  return plan.plan.field;
+}
+
 describe('readStepGate', () => {
   test('returns undefined when the config has no gate', () => {
     expect(readStepGate({run: 'echo hi'})).toBeUndefined();
@@ -19,6 +34,24 @@ describe('readStepGate', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer'));
     expect(gate?.success?.source).toBe('step.exit_code == 0');
     expect(gate?.onFailure).toEqual({restartFrom: 'producer'});
+  });
+
+  test('parses feedback templates from on_failure', () => {
+    const gate = readStepGate({
+      ...gateConfig('step.exit_code == 0'),
+      gate: {
+        success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+        on_failure: {
+          restart_from: 'producer',
+          feedback: 'failed',
+          feedback_template: feedbackTemplate(`failed: \${{ step.outputs.summary }}`),
+        },
+      },
+    });
+
+    expect(gate?.onFailure?.feedbackTemplate).toEqual(
+      feedbackTemplate(`failed: \${{ step.outputs.summary }}`),
+    );
   });
 });
 
@@ -133,6 +166,50 @@ describe('evaluateGate', () => {
     expect(evaluateGate(gate, {status: 'succeeded', exitCode: 0})).toMatchObject({
       kind: 'uncheckable',
     });
+  });
+});
+
+describe('evaluateGateFeedback', () => {
+  test('returns literal feedback when no template was planned', () => {
+    const gate = readStepGate({
+      ...gateConfig('step.exit_code == 0'),
+      gate: {
+        success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+        on_failure: {restart_from: 'producer', feedback: 'try again'},
+      },
+    });
+    if (!gate) throw new Error('Expected gate');
+
+    const result = evaluateGateFeedback({
+      gate,
+      result: {status: 'failed', exitCode: 1, output: {summary: 'unit failed'}},
+      definitionId: 'definition-1',
+    });
+
+    expect(result).toBe('try again');
+  });
+
+  test('evaluates feedback templates against the reported step self-root', () => {
+    const gate = readStepGate({
+      ...gateConfig('step.exit_code == 0'),
+      gate: {
+        success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+        on_failure: {
+          restart_from: 'producer',
+          feedback: 'try again',
+          feedback_template: feedbackTemplate(`failed: \${{ step.outputs.summary }}`),
+        },
+      },
+    });
+    if (!gate) throw new Error('Expected gate');
+
+    const result = evaluateGateFeedback({
+      gate,
+      result: {status: 'failed', exitCode: 1, output: {summary: 'unit failed'}},
+      definitionId: 'definition-1',
+    });
+
+    expect(result).toBe('failed: unit failed');
   });
 });
 

@@ -379,6 +379,72 @@ describe('assembleStepDispatchContext', () => {
     });
   });
 
+  it('assembles restart provenance from the latest restart covering the target step', () => {
+    const targetStep = step({
+      id: 'step-1',
+      key: 'producer',
+      status: 'pending',
+      currentAttempt: 2,
+      position: 1,
+    });
+    const reviewer = step({
+      id: 'step-2',
+      key: 'reviewer',
+      status: 'pending',
+      currentAttempt: 2,
+      position: 2,
+    });
+    const attempts = [
+      attempt({
+        id: 'attempt-1',
+        stepId: 'step-1',
+        attempt: 1,
+        executionOrder: 1,
+        output: {patch: 'old'},
+      }),
+      attempt({
+        id: 'attempt-2',
+        stepId: 'step-2',
+        attempt: 1,
+        executionOrder: 2,
+        status: 'failed',
+        output: {summary: 'tests failed'},
+        exitCode: 1,
+        gateResult: {passed: false, source: 'step.exit_code == 0', exit_code: 1},
+        config: {gate: {on_failure: {restart_from: 'producer'}}},
+        restartFeedback: 'failed: tests failed',
+      }),
+    ];
+
+    const context = assembleStepDispatchContext({
+      steps: [targetStep, reviewer],
+      attempts,
+      targetStepId: targetStep.id,
+    });
+
+    expect(context.values.step).toEqual({
+      attempt: 2n,
+      is_retry: true,
+      restart: {
+        from: {
+          status: 'failed',
+          exit_code: 1n,
+          outputs: {summary: 'tests failed'},
+          gate: {passed: false, source: 'step.exit_code == 0', exit_code: 1},
+          attempts: [
+            {
+              status: 'failed',
+              exit_code: 1n,
+              outputs: {summary: 'tests failed'},
+              gate: {passed: false, source: 'step.exit_code == 0', exit_code: 1},
+            },
+          ],
+        },
+        feedback: 'failed: tests failed',
+      },
+    });
+  });
+
   it('omits response for run steps so response resolves as a missing path', () => {
     const targetStep = step({id: 'step-2', key: 'deploy'});
     const steps = [step({id: 'step-1', key: 'build', status: 'succeeded'}), targetStep];
@@ -538,7 +604,7 @@ function attempt(overrides: Partial<StepAttempt> = {}): StepAttempt {
     error: null,
     exitCode: 0,
     gateResult: null,
-    restartReason: null,
+    restartFeedback: null,
     logOutcome: null,
     startedAt: date,
     finishedAt: date,

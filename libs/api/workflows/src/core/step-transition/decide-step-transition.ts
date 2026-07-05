@@ -42,6 +42,7 @@ export interface DecideStepTransitionInput {
   gateOutcome?: GateOutcome;
   // The gate's on_failure policy, if any. Drives the restart branch.
   gateOnFailure?: {restartFrom: string; feedback?: string};
+  restartFeedback?: string;
   // Max total attempts for the gating step before restart is exhausted; defaults
   // to DEFAULT_RESTART_ATTEMPT_CAP.
   maxAttempts?: number;
@@ -77,7 +78,7 @@ export type StepTransitionDecision =
       restartFromStepId: string;
       restartFromPosition: number;
       attempt: number;
-      reason: string;
+      feedback: string;
       // Recorded on the failed attempt before the rewind clears the projection.
       failureError: Record<string, unknown> | null;
     }
@@ -181,7 +182,7 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
       restartFromStepId: restartStep.id,
       restartFromPosition: restartStep.position,
       attempt: reportedAttempt,
-      reason: gateOnFailure.feedback ?? 'gate condition not met',
+      feedback: input.restartFeedback ?? gateOnFailure.feedback ?? 'gate condition not met',
       failureError,
     };
   }

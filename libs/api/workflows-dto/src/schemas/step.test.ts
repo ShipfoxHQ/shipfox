@@ -9,8 +9,7 @@ const baseAttempt = {
   exit_code: 0,
   output: null,
   error: null,
-  restart_reason: null,
-  restart_result: null,
+  restart_feedback: null,
   started_at: '2026-01-01T00:00:00.000Z',
   finished_at: '2026-01-01T00:01:00.000Z',
 };
@@ -56,13 +55,13 @@ describe('stepErrorDtoSchema', () => {
 });
 
 describe('stepAttemptDtoSchema', () => {
-  it('accepts an attempt with no gate or restart result', () => {
+  it('accepts an attempt with no gate or restart feedback', () => {
     const attempt = {...baseAttempt, gate_result: {kind: 'none'}};
 
     const result = stepAttemptDtoSchema.parse(attempt);
 
     expect(result.gate_result).toEqual({kind: 'none'});
-    expect(result.restart_result).toBeNull();
+    expect(result.restart_feedback).toBeNull();
   });
 
   it('accepts not-evaluated and evaluation-error gate results', () => {
@@ -87,7 +86,7 @@ describe('stepAttemptDtoSchema', () => {
     });
   });
 
-  it('accepts typed gate and restart results', () => {
+  it('accepts typed gate results and restart feedback', () => {
     const attempt = {
       ...baseAttempt,
       status: 'failed',
@@ -98,11 +97,7 @@ describe('stepAttemptDtoSchema', () => {
         source: 'exit_code == 0',
         exit_code: 1,
       },
-      restart_reason: 'gate condition not met',
-      restart_result: {
-        kind: 'restart_enqueued',
-        reason: 'gate condition not met',
-      },
+      restart_feedback: 'gate condition not met',
     };
 
     const result = stepAttemptDtoSchema.parse(attempt);
@@ -113,10 +108,7 @@ describe('stepAttemptDtoSchema', () => {
       source: 'exit_code == 0',
       exit_code: 1,
     });
-    expect(result.restart_result).toEqual({
-      kind: 'restart_enqueued',
-      reason: 'gate condition not met',
-    });
+    expect(result.restart_feedback).toBe('gate condition not met');
   });
 
   it('accepts an explicit unknown gate result for legacy data', () => {
@@ -148,23 +140,5 @@ describe('stepAttemptDtoSchema', () => {
     });
 
     expect(result.success).toBe(false);
-  });
-
-  it('accepts restart-exhausted results', () => {
-    const result = stepAttemptDtoSchema.parse({
-      ...baseAttempt,
-      gate_result: null,
-      restart_result: {
-        kind: 'restart_exhausted',
-        max_attempts: 3,
-        restart_from: 'producer',
-      },
-    });
-
-    expect(result.restart_result).toEqual({
-      kind: 'restart_exhausted',
-      max_attempts: 3,
-      restart_from: 'producer',
-    });
   });
 });

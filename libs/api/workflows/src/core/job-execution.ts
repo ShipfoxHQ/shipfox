@@ -39,8 +39,14 @@ import {
   decideStepTransition,
   deriveCompletion,
   isTerminal,
+  type StepTransitionDecision,
 } from './step-transition/decide-step-transition.js';
-import {evaluateGate, gateResultPayload, readStepGate} from './step-transition/evaluate-gate.js';
+import {
+  evaluateGate,
+  evaluateGateFeedback,
+  gateResultPayload,
+  readStepGate,
+} from './step-transition/evaluate-gate.js';
 import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
@@ -331,9 +337,15 @@ async function recordStepResultInTransaction(
     ...(gate?.onFailure ? {gateOnFailure: gate.onFailure} : {}),
     ...(gatingAttemptCount !== undefined ? {gatingAttemptCount} : {}),
   });
+  const resolvedDecision = resolveRestartFeedback({
+    decision,
+    gate,
+    result,
+    definitionId: jobExecution.jobId,
+  });
 
   return applyStepTransition(
-    decision,
+    resolvedDecision,
     {
       jobId: jobExecution.jobId,
       jobExecutionId,
@@ -343,6 +355,42 @@ async function recordStepResultInTransaction(
     },
     tx,
   );
+}
+
+function resolveRestartFeedback(params: {
+  decision: StepTransitionDecision;
+  gate: ReturnType<typeof readStepGate>;
+  result: {
+    status: 'succeeded' | 'failed';
+    error: Record<string, unknown> | null;
+    output: Record<string, unknown> | null;
+    exitCode: number | null;
+  };
+  definitionId: string;
+}): StepTransitionDecision {
+  if (params.decision.kind !== 'restart-job-from-step') return params.decision;
+  if (params.gate === undefined) return params.decision;
+
+  try {
+    return {
+      ...params.decision,
+      feedback: evaluateGateFeedback({
+        gate: params.gate,
+        result: params.result,
+        definitionId: params.definitionId,
+      }),
+    };
+  } catch (error) {
+    if (error instanceof InterpolationUnresolvableError) {
+      return {
+        kind: 'fail-job',
+        failedStepId: params.decision.failedStepId,
+        attempt: params.decision.attempt,
+        failureError: dispatchConfigError(error),
+      };
+    }
+    throw error;
+  }
 }
 
 function recordStepProgressionMetrics(metrics: StepProgressionMetrics): void {

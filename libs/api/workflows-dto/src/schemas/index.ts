@@ -54,14 +54,12 @@ export {
   type StepErrorDto,
   type StepErrorReasonDto,
   type StepGateResultDto,
-  type StepRestartResultDto,
   stepAttemptDtoSchema,
   stepDtoSchema,
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
   stepGateResultDtoSchema,
-  stepRestartResultDtoSchema,
 } from './step.js';
 export {
   type RerunWorkflowRunBodyDto,

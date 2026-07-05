@@ -1,12 +1,7 @@
-import type {
-  StepAttemptDto,
-  StepGateResultDto,
-  StepRestartResultDto,
-} from '@shipfox/api-workflows-dto';
+import type {StepAttemptDto, StepGateResultDto} from '@shipfox/api-workflows-dto';
 import {type Duration, intervalToDuration} from 'date-fns';
 
 export type StepGateResult = StepGateResultDto;
-export type StepRestartResult = StepRestartResultDto;
 export type StepAttemptDisplayDuration =
   | {state: 'fixed'; elapsed: Duration}
   | {state: 'live'; fromIso: string};
@@ -22,8 +17,7 @@ interface StepAttemptFields {
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   gateResult: StepGateResult;
-  restartReason: string | null;
-  restartResult: StepRestartResult;
+  restartFeedback: string | null;
   startedAt: string;
   finishedAt: string | null;
 }
@@ -39,8 +33,7 @@ export class StepAttempt {
   output!: Record<string, unknown> | null;
   error!: Record<string, unknown> | null;
   gateResult!: StepGateResult;
-  restartReason!: string | null;
-  restartResult!: StepRestartResult;
+  restartFeedback!: string | null;
   startedAt!: string;
   finishedAt!: string | null;
 
@@ -65,8 +58,7 @@ export function toStepAttempt(dto: StepAttemptDto, jobExecutionId: string): Step
     output: dto.output ?? null,
     error: dto.error ?? null,
     gateResult: dto.gate_result ?? null,
-    restartReason: dto.restart_reason ?? null,
-    restartResult: dto.restart_result ?? null,
+    restartFeedback: dto.restart_feedback ?? null,
     startedAt: dto.started_at,
     finishedAt: dto.finished_at ?? null,
   });

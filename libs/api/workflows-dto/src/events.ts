@@ -129,7 +129,7 @@ export const workflowsStepRestartEnqueuedSchema = z.object({
   failedStepId: nonEmptyStringSchema,
   failedStepAttempt: z.number(),
   restartFromStepId: nonEmptyStringSchema,
-  reason: z.string(),
+  feedback: nonEmptyStringSchema,
 });
 export type WorkflowsStepRestartEnqueuedEventDto = z.infer<
   typeof workflowsStepRestartEnqueuedSchema

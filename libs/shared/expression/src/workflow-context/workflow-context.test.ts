@@ -524,6 +524,7 @@ describe('workflow context registry', () => {
       expect(getWorkflowInterpolationFieldFailurePolicy('job.runner')).toBe('fail');
       expect(getWorkflowInterpolationFieldFailurePolicy('job.name')).toBe('degrade');
       expect(getWorkflowInterpolationFieldFailurePolicy('step.name')).toBe('degrade');
+      expect(getWorkflowInterpolationFieldFailurePolicy('step.feedback')).toBe('fail');
       expect(
         workflowInterpolationFields.map(
           (field) => workflowInterpolationFieldPolicies[field].failurePolicy,
@@ -646,6 +647,7 @@ describe('workflow interpolation field policies', () => {
       'job.runner',
       'job.name',
       'step.name',
+      'step.feedback',
     ]);
     expect(Object.keys(workflowInterpolationFieldPolicies)).toEqual(workflowInterpolationFields);
   });
@@ -660,6 +662,7 @@ describe('workflow interpolation field policies', () => {
     ['job.runner', ['trusted', 'untrusted']],
     ['job.name', ['trusted', 'untrusted']],
     ['step.name', ['trusted', 'untrusted']],
+    ['step.feedback', ['trusted', 'untrusted']],
   ] satisfies readonly [
     WorkflowInterpolationField,
     readonly WorkflowContextTrustTier[],
@@ -677,6 +680,7 @@ describe('workflow interpolation field policies', () => {
     ['job.runner', ['server']],
     ['job.name', ['server']],
     ['step.name', ['server']],
+    ['step.feedback', ['server']],
   ] satisfies readonly [
     WorkflowInterpolationField,
     readonly string[],
@@ -702,6 +706,7 @@ describe('workflow interpolation field policies', () => {
       'job.runner',
       'job.name',
       'step.name',
+      'step.feedback',
     ] as const) {
       for (const context of workflowContextNames) {
         expect(workflowInterpolationFieldAcceptsContext(field, context)).toBe(true);
@@ -718,6 +723,7 @@ describe('workflow interpolation field policies', () => {
     expect(workflowInterpolationFieldAcceptsHost('job.runner', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('job.name', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('step.name', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('step.feedback', 'runner')).toBe(false);
   });
 
   it('marks display names for render sanitization', () => {
