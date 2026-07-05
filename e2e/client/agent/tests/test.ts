@@ -1,15 +1,9 @@
 import {test as base, expect} from '@shipfox/e2e-core/playwright';
 import {type AgentFixtures, agentHelper} from '@shipfox/e2e-helper-agent';
-import {type AuthFixtures, authHelper} from '@shipfox/e2e-helper-auth';
-import {type ProjectsFixtures, projectsHelper} from '@shipfox/e2e-helper-projects';
-import {type WorkspacesFixtures, workspacesHelper} from '@shipfox/e2e-helper-workspaces';
+import {type WorkspaceFixtures, workspaceFixtures} from '@shipfox/e2e-kit/fixtures';
 
-export const test = base.extend<
-  AuthFixtures & AgentFixtures & ProjectsFixtures & WorkspacesFixtures
->({
-  ...authHelper,
+export const test = base.extend<WorkspaceFixtures & AgentFixtures>({
+  ...workspaceFixtures,
   ...agentHelper,
-  ...projectsHelper,
-  ...workspacesHelper,
 });
 export {expect};

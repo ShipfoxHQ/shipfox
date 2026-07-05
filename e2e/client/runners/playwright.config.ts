@@ -1,33 +1,3 @@
-import {config} from '@shipfox/e2e-core';
-import {defineConfig, devices} from '@shipfox/playwright';
+import {defineClientE2eConfig} from '@shipfox/e2e-kit/config';
 
-export default defineConfig({
-  testDir: './tests',
-  testMatch: '**/*.e2e.ts',
-  globalSetup: './tests/global-setup.ts',
-  reporter: process.env.CI
-    ? [
-        ['github'],
-        [
-          '@argos-ci/playwright/reporter',
-          {
-            uploadToArgos: Boolean(process.env.ARGOS_TOKEN),
-            buildName: 'e2e-client-runners',
-            ignoreUploadFailures: true,
-          },
-        ],
-      ]
-    : 'list',
-  use: {
-    baseURL: config.CLIENT_URL,
-    trace: 'retain-on-failure',
-    timezoneId: 'UTC',
-    contextOptions: {reducedMotion: 'reduce'},
-  },
-  projects: [
-    {
-      name: 'chromium',
-      use: devices['Desktop Chrome'],
-    },
-  ],
-});
+export default defineClientE2eConfig({buildName: 'e2e-client-runners'});

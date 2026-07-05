@@ -1,11 +1,3 @@
-import {defineConfig} from '@shipfox/playwright';
+import {defineApiE2eConfig} from '@shipfox/e2e-kit/config';
 
-export default defineConfig({
-  testDir: './tests',
-  testMatch: '**/*.e2e.ts',
-  globalSetup: './tests/global-setup.ts',
-  reporter: process.env.CI ? 'github' : 'list',
-  use: {
-    trace: 'retain-on-failure',
-  },
-});
+export default defineApiE2eConfig();

@@ -246,6 +246,9 @@ importers:
       '@shipfox/e2e-helper-auth':
         specifier: workspace:*
         version: link:../../helpers/auth
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -285,6 +288,9 @@ importers:
       '@shipfox/e2e-helper-workspaces':
         specifier: workspace:*
         version: link:../../helpers/workspaces
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -306,12 +312,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core
-      '@shipfox/e2e-helper-auth':
+      '@shipfox/e2e-kit':
         specifier: workspace:*
-        version: link:../../helpers/auth
-      '@shipfox/e2e-helper-workspaces':
-        specifier: workspace:*
-        version: link:../../helpers/workspaces
+        version: link:../../kit
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -339,18 +342,12 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core
-      '@shipfox/e2e-helper-auth':
-        specifier: workspace:*
-        version: link:../../helpers/auth
       '@shipfox/e2e-helper-integrations-gitea':
         specifier: workspace:*
         version: link:../../helpers/integrations-gitea
-      '@shipfox/e2e-helper-projects':
+      '@shipfox/e2e-kit':
         specifier: workspace:*
-        version: link:../../helpers/projects
-      '@shipfox/e2e-helper-workspaces':
-        specifier: workspace:*
-        version: link:../../helpers/workspaces
+        version: link:../../kit
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -393,6 +390,9 @@ importers:
       '@shipfox/e2e-helper-workspaces':
         specifier: workspace:*
         version: link:../../helpers/workspaces
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -438,6 +438,9 @@ importers:
       '@shipfox/e2e-helper-workspaces':
         specifier: workspace:*
         version: link:../../helpers/workspaces
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -462,18 +465,12 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core
-      '@shipfox/e2e-helper-auth':
-        specifier: workspace:*
-        version: link:../../helpers/auth
       '@shipfox/e2e-helper-integrations-gitea':
         specifier: workspace:*
         version: link:../../helpers/integrations-gitea
-      '@shipfox/e2e-helper-projects':
+      '@shipfox/e2e-kit':
         specifier: workspace:*
-        version: link:../../helpers/projects
-      '@shipfox/e2e-helper-workspaces':
-        specifier: workspace:*
-        version: link:../../helpers/workspaces
+        version: link:../../kit
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -773,6 +770,37 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../tools/typescript
+
+  e2e/kit:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../core
+      '@shipfox/e2e-helper-auth':
+        specifier: workspace:*
+        version: link:../helpers/auth
+      '@shipfox/e2e-helper-projects':
+        specifier: workspace:*
+        version: link:../helpers/projects
+      '@shipfox/e2e-helper-workspaces':
+        specifier: workspace:*
+        version: link:../helpers/workspaces
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../tools/playwright
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../tools/typescript
 
   e2e/platform/workflows:
     devDependencies:
