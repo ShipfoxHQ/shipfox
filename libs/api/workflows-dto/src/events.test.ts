@@ -218,6 +218,16 @@ describe('workflowsJobActivatedSchema', () => {
   });
 });
 
+describe('workflowsStepRestartEnqueuedSchema', () => {
+  it('rejects empty restart feedback', () => {
+    const input = {...validStepRestartEnqueued, feedback: ''};
+
+    const parse = () => workflowsStepRestartEnqueuedSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+});
+
 describe.each([
   [
     'workflowsWorkflowRunAttemptCreatedSchema',

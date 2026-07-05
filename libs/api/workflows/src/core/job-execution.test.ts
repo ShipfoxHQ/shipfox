@@ -1120,6 +1120,52 @@ describe('durable gate restart', () => {
     expect(await restartEventCount(jobId)).toBe(2); // only the two successful restarts
   });
 
+  test('an exhausted restart loop does not evaluate restart feedback templates', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.exit_code == 0',
+      feedbackTemplate: plannedField('step.feedback', `failed: \${{ step.outputs.summary }}`),
+    });
+
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+    expect(
+      await recordStepResult({
+        jobId,
+        stepId: reviewer,
+        status: 'failed',
+        output: {summary: 'first failure'},
+        exitCode: 1,
+      }),
+    ).toEqual({jobFinished: false});
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+    expect(
+      await recordStepResult({
+        jobId,
+        stepId: reviewer,
+        status: 'failed',
+        output: {summary: 'second failure'},
+        exitCode: 1,
+      }),
+    ).toEqual({jobFinished: false});
+    await runStep(jobId, producer, 0);
+    await nextStepForJob(jobId);
+
+    const exhausted = await recordStepResult({
+      jobId,
+      stepId: reviewer,
+      status: 'failed',
+      exitCode: 1,
+    });
+
+    expect(exhausted).toEqual({jobFinished: true, status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === reviewer)?.error).toMatchObject({
+      kind: 'restart_exhausted',
+    });
+    expect(await restartEventCount(jobId)).toBe(2);
+  });
+
   test('a duplicate report of a superseded attempt does not restart twice', async () => {
     const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 

@@ -39,6 +39,7 @@ import {
   decideStepTransition,
   deriveCompletion,
   isTerminal,
+  type StepTransitionDecision,
 } from './step-transition/decide-step-transition.js';
 import {
   evaluateGate,
@@ -327,30 +328,6 @@ async function recordStepResultInTransaction(
   const gatingAttemptCount = hasRestartPolicy
     ? await countStepAttempts(params.stepId, tx)
     : undefined;
-  const restartFeedback = resolveRestartFeedback({
-    gate,
-    gateOutcome,
-    result,
-    definitionId: jobExecution.jobId,
-  });
-  if (restartFeedback.kind === 'failed') {
-    return applyStepTransition(
-      {
-        kind: 'fail-job',
-        failedStepId: target.id,
-        attempt: reported,
-        failureError: dispatchConfigError(restartFeedback.error),
-      },
-      {
-        jobId: jobExecution.jobId,
-        jobExecutionId,
-        result,
-        logOutcome: params.logOutcome ?? 'drained',
-        gateResult: gateResultPayload(gateOutcome, result.exitCode),
-      },
-      tx,
-    );
-  }
   const decision = decideStepTransition({
     steps,
     target,
@@ -358,12 +335,17 @@ async function recordStepResultInTransaction(
     result,
     gateOutcome,
     ...(gate?.onFailure ? {gateOnFailure: gate.onFailure} : {}),
-    ...(restartFeedback.value === undefined ? {} : {restartFeedback: restartFeedback.value}),
     ...(gatingAttemptCount !== undefined ? {gatingAttemptCount} : {}),
+  });
+  const resolvedDecision = resolveRestartFeedback({
+    decision,
+    gate,
+    result,
+    definitionId: jobExecution.jobId,
   });
 
   return applyStepTransition(
-    decision,
+    resolvedDecision,
     {
       jobId: jobExecution.jobId,
       jobExecutionId,
@@ -376,8 +358,8 @@ async function recordStepResultInTransaction(
 }
 
 function resolveRestartFeedback(params: {
+  decision: StepTransitionDecision;
   gate: ReturnType<typeof readStepGate>;
-  gateOutcome: ReturnType<typeof evaluateGate>;
   result: {
     status: 'succeeded' | 'failed';
     error: Record<string, unknown> | null;
@@ -385,26 +367,28 @@ function resolveRestartFeedback(params: {
     exitCode: number | null;
   };
   definitionId: string;
-}): {kind: 'resolved'; value?: string} | {kind: 'failed'; error: InterpolationUnresolvableError} {
-  if (params.gate?.onFailure === undefined) return {kind: 'resolved'};
-  const gatePassed =
-    params.gateOutcome.kind === 'no-gate'
-      ? params.result.status === 'succeeded'
-      : params.gateOutcome.kind === 'passed';
-  const gateUncheckable = params.gateOutcome.kind === 'uncheckable';
-  if (gatePassed || gateUncheckable) return {kind: 'resolved'};
+}): StepTransitionDecision {
+  if (params.decision.kind !== 'restart-job-from-step') return params.decision;
+  if (params.gate === undefined) return params.decision;
 
   try {
     return {
-      kind: 'resolved',
-      value: evaluateGateFeedback({
+      ...params.decision,
+      feedback: evaluateGateFeedback({
         gate: params.gate,
         result: params.result,
         definitionId: params.definitionId,
       }),
     };
   } catch (error) {
-    if (error instanceof InterpolationUnresolvableError) return {kind: 'failed', error};
+    if (error instanceof InterpolationUnresolvableError) {
+      return {
+        kind: 'fail-job',
+        failedStepId: params.decision.failedStepId,
+        attempt: params.decision.attempt,
+        failureError: dispatchConfigError(error),
+      };
+    }
     throw error;
   }
 }

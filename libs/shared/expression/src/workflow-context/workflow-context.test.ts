@@ -706,6 +706,7 @@ describe('workflow interpolation field policies', () => {
       'job.runner',
       'job.name',
       'step.name',
+      'step.feedback',
     ] as const) {
       for (const context of workflowContextNames) {
         expect(workflowInterpolationFieldAcceptsContext(field, context)).toBe(true);
