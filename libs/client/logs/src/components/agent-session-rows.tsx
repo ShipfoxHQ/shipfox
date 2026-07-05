@@ -1,5 +1,6 @@
 'use client';
 
+import type {SessionViewRow, SessionViewRowMeta} from '@shipfox/api-logs-dto';
 import {Icon} from '@shipfox/react-ui/icon';
 import {
   LogContent,
@@ -11,7 +12,6 @@ import {
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {cn} from '@shipfox/react-ui/utils';
 import {Fragment, useState} from 'react';
-import type {AgentRowMeta, AgentSessionRow} from '#core/agent-session/selector.js';
 
 const PREVIEW_CHAR_LIMIT = 1200;
 const WORD_SUMMARY_CHAR_LIMIT = 5000;
@@ -19,7 +19,7 @@ const WHITESPACE = /\s+/g;
 const WORD_SEPARATOR = /\s+/;
 
 export interface AgentSessionRowsProps {
-  rows: readonly AgentSessionRow[];
+  rows: readonly SessionViewRow[];
   resolvedToolCallIds: ReadonlySet<string>;
   indent: number;
 }
@@ -27,7 +27,7 @@ export interface AgentSessionRowsProps {
 export function AgentSessionRows({rows, resolvedToolCallIds, indent}: AgentSessionRowsProps) {
   return rows.map((row, index) => (
     <AgentSessionRowView
-      // biome-ignore lint/suspicious/noArrayIndexKey: a record's rows are immutable and never reordered (deterministic expandSessionRecord), so the index is a stable identity; content keys would balloon to megabyte strings and collide on a repeated id-less tool call.
+      // biome-ignore lint/suspicious/noArrayIndexKey: session rows are immutable and never reordered, so the index is stable; content keys would balloon to megabyte strings and collide on repeated id-less tool calls.
       key={`${row.kind}-${index}`}
       row={row}
       resolvedToolCallIds={resolvedToolCallIds}
@@ -41,7 +41,7 @@ function AgentSessionRowView({
   resolvedToolCallIds,
   indent,
 }: {
-  row: AgentSessionRow;
+  row: SessionViewRow;
   resolvedToolCallIds: ReadonlySet<string>;
   indent: number;
 }) {
@@ -247,7 +247,7 @@ function MessageRoleLabel({label, terminalFailure}: {label: string; terminalFail
   );
 }
 
-function RowMetadata({meta, className}: {meta: readonly AgentRowMeta[]; className?: string}) {
+function RowMetadata({meta, className}: {meta: readonly SessionViewRowMeta[]; className?: string}) {
   if (meta.length === 0) return null;
 
   const inlineMeta = meta.length === 1 && meta[0]?.inline !== false ? meta[0] : null;
@@ -269,7 +269,7 @@ function RowMetadata({meta, className}: {meta: readonly AgentRowMeta[]; classNam
   );
 }
 
-function MetadataTrigger({meta}: {meta: readonly AgentRowMeta[]}) {
+function MetadataTrigger({meta}: {meta: readonly SessionViewRowMeta[]}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>

@@ -5,7 +5,6 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {LogContent, LogRow, LogRows, type LogTimestampMode} from '@shipfox/react-ui/log';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {type ReactNode, type UIEventHandler, useEffect, useMemo, useRef} from 'react';
-import {expandSessionRecord} from '#core/agent-session/selector.js';
 import {
   assertNever,
   buildLogTree,
@@ -208,7 +207,7 @@ function renderNodes(
         return (
           <AgentSessionRows
             key={node.seq}
-            rows={expandSessionRecord(node.record)}
+            rows={[node.record.row]}
             resolvedToolCallIds={resolvedToolCallIds}
             indent={depth}
           />
@@ -229,8 +228,8 @@ function collectResolvedToolCallIdsInto(nodes: readonly LogNode[], ids: Set<stri
   for (const node of nodes) {
     switch (node.kind) {
       case 'session':
-        for (const row of expandSessionRecord(node.record)) {
-          if (row.kind === 'tool-result' && row.toolCallId != null) ids.add(row.toolCallId);
+        if (node.record.row.kind === 'tool-result' && node.record.row.toolCallId != null) {
+          ids.add(node.record.row.toolCallId);
         }
         break;
       case 'group':
