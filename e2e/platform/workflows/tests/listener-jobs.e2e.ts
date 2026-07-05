@@ -11,6 +11,7 @@ import {
 import {logText} from '#expect.js';
 import {
   batchedListenerExecutionMatches,
+  findListenerExecutionByDeliveryId,
   findListenerExecutionBySequence,
   sendWebhookDeliveryUntilObserved,
   waitForListenerExecution,
@@ -192,6 +193,7 @@ async function sendFire(testCase: ListenerCase, runId: string, label: string, me
     token: testCase.token,
     jobKey: LISTENER_JOB,
     deliveryIdPrefix: `${testCase.uniqueId}-${label}`,
+    attemptTimeoutMs: 15_000,
     body: (_attempt, deliveryId) => ({message, delivery_id: deliveryId}),
   });
   testCase.fireDiagnostics.deliveryIds.push(...result.deliveryIds);
@@ -384,7 +386,9 @@ jobs:
 `;
 
 test.describe('listener jobs', () => {
-  test('fires on webhook events and resolves on an until event', async ({suite}, testInfo) => {
+  test('creates multiple executions before resolving on an until event', async ({
+    suite,
+  }, testInfo) => {
     let testCase: (ListenerCase & {definitionId: string}) | undefined;
     let runId: string | undefined;
     try {
@@ -400,7 +404,8 @@ test.describe('listener jobs', () => {
       });
       runId = await fireManualRun(testCase);
 
-      const fire = await sendFire(testCase, runId, 'fire', 'hello-listener');
+      const firstFire = await sendFire(testCase, runId, 'fire-one', 'hello-listener');
+      const secondFire = await sendFire(testCase, runId, 'fire-two', 'hello-again');
       const resolveDeliveryId = await sendResolve(testCase, 'resolve');
       const resolved = await waitForListenerResolution({
         token: testCase.token,
@@ -419,11 +424,31 @@ test.describe('listener jobs', () => {
 
       const listen = terminal.jobs.find((job) => job.key === LISTENER_JOB);
       const deploy = terminal.jobs.find((job) => job.key === 'deploy');
-      const logs = await stepLogText({
+      const firstExecution = findListenerExecutionByDeliveryId({
+        runDetail: terminal,
+        jobKey: LISTENER_JOB,
+        deliveryId: firstFire.deliveryId,
+      });
+      const secondExecution = findListenerExecutionByDeliveryId({
+        runDetail: terminal,
+        jobKey: LISTENER_JOB,
+        deliveryId: secondFire.deliveryId,
+      });
+      if (!firstExecution || !secondExecution) {
+        throw new Error('Expected both listener fire deliveries to create executions');
+      }
+      const firstLogs = await stepLogText({
         runDetail: terminal,
         token: testCase.token,
         jobKey: LISTENER_JOB,
-        sequence: 1,
+        sequence: firstExecution.sequence,
+        stepKey: 'show-event',
+      });
+      const secondLogs = await stepLogText({
+        runDetail: terminal,
+        token: testCase.token,
+        jobKey: LISTENER_JOB,
+        sequence: secondExecution.sequence,
         stepKey: 'show-event',
       });
       expect(resolved.jobs.find((job) => job.key === LISTENER_JOB)?.resolution_reason).toBe(
@@ -431,10 +456,13 @@ test.describe('listener jobs', () => {
       );
       expect(terminal.status).toBe('succeeded');
       expect(listen?.listener_status).toBe('resolved');
-      expect(listen?.job_executions[0]?.trigger_events[0]?.delivery_id).toBe(fire.deliveryId);
+      expect(listen?.job_executions.length).toBeGreaterThanOrEqual(2);
+      expect(firstExecution.sequence).not.toBe(secondExecution.sequence);
       expect(deploy?.status).toBe('succeeded');
-      expect(logs).toContain('listener_message=hello-listener');
-      expect(logs).toContain(`listener_delivery=${fire.deliveryId}`);
+      expect(firstLogs).toContain('listener_message=hello-listener');
+      expect(firstLogs).toContain(`listener_delivery=${firstFire.deliveryId}`);
+      expect(secondLogs).toContain('listener_message=hello-again');
+      expect(secondLogs).toContain(`listener_delivery=${secondFire.deliveryId}`);
       expect(resolveDeliveryId).toContain('resolve');
     } catch (error) {
       await cleanupListenerCase(testCase, runId);
