@@ -58,6 +58,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+      - name: Start test services
+        id: test-services
+        run: |
+          docker compose up --wait -d postgres temporal garage
+          docker compose run --rm garage-init
+        background: true
+
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
@@ -67,10 +74,8 @@ jobs:
       - name: Set up Playwright
         uses: ./.github/actions/setup-playwright
 
-      - name: Start test services
-        run: |
-          docker compose up --wait -d postgres temporal garage
-          docker compose run --rm garage-init
+      - name: Wait for test services
+        wait: test-services
 
       - name: Run tests
         env:
@@ -88,8 +93,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+      - name: Start test services
+        id: test-services
+        env:
+          SHIPFOX_GITEA_HTTP_HOST: 0.0.0.0
+        run: |
+          docker compose up --wait -d postgres temporal garage gitea
+          docker compose run --rm garage-init
+          docker compose run --rm gitea-init
+        background: true
+
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Start Ollama
+        id: ollama
+        run: mise run ollama:up
+        background: true
 
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
@@ -97,24 +117,13 @@ jobs:
       - name: Set up Playwright
         uses: ./.github/actions/setup-playwright
 
-      - name: Start test services
-        env:
-          SHIPFOX_GITEA_HTTP_HOST: 0.0.0.0
-        run: |
-          docker compose up --wait -d postgres temporal garage gitea
-          docker compose run --rm garage-init
-          docker compose run --rm gitea-init
-
-      - name: Install Playwright browsers
-        run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
-
       # E2E dev servers still depend on dist/ for Temporal workflow bundles and
       # the shared vite-dev bin.
       - name: Build dev server dependencies
         run: turbo build --filter @shipfox/api --filter @shipfox/vite
 
-      - name: Start Ollama
-        run: mise run ollama:up
+      - name: Wait for test services and Ollama
+        wait: [test-services, ollama]
 
       - name: Run E2E tests
         id: e2e
