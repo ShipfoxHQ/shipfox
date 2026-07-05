@@ -19,18 +19,20 @@ export interface ReadyWorkspaceFixtures {
 }
 
 async function createReadyWorkspace(params: {
-  fixtures: WorkspaceFixtures;
+  auth: WorkspaceFixtures['auth'];
+  workspaces: WorkspaceFixtures['workspaces'];
+  projects: WorkspaceFixtures['projects'];
   page: Page;
   workspace: CreateReadyWorkspaceParams | undefined;
 }): Promise<ReadyWorkspace> {
-  const user = await params.fixtures.auth.createUser();
-  const workspace = await params.fixtures.workspaces.create({
+  const user = await params.auth.createUser();
+  const workspace = await params.workspaces.create({
     userId: user.user.id,
     ...(params.workspace?.name === undefined ? {} : {name: params.workspace.name}),
   });
-  const project = await params.fixtures.projects.createProject({workspaceId: workspace.id});
-  const session = await params.fixtures.auth.createSession({user_id: user.user.id});
-  await params.fixtures.auth.loginAs(params.page, user);
+  const project = await params.projects.createProject({workspaceId: workspace.id});
+  const session = await params.auth.createSession({user_id: user.user.id});
+  await params.auth.loginAs(params.page, user);
 
   return {
     userId: user.user.id,
@@ -42,9 +44,9 @@ async function createReadyWorkspace(params: {
 
 export const readyWorkspaceFixtures = {
   createReadyWorkspace: async (
-    fixtures: WorkspaceFixtures & {page: Page},
+    {auth, workspaces, projects, page}: WorkspaceFixtures & {page: Page},
     use: (create: CreateReadyWorkspace) => Promise<void>,
   ) => {
-    await use((workspace) => createReadyWorkspace({fixtures, page: fixtures.page, workspace}));
+    await use((workspace) => createReadyWorkspace({auth, workspaces, projects, page, workspace}));
   },
 };
