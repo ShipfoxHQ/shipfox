@@ -244,6 +244,16 @@ describe('executeRunStep', () => {
     expect(result.exit_code).toBeNull();
   });
 
+  it('fails a succeeded step when the output file is replaced by a non-regular file', async () => {
+    const step = buildStep({config: {run: 'rm "$SHIPFOX_OUTPUT"; mkfifo "$SHIPFOX_OUTPUT"'}});
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toBe('Step output file is not a regular file.');
+    expect(result.exit_code).toBeNull();
+  });
+
   it('does not resolve the shell executable through step env PATH', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'shipfox-shell-path-test-'));
     try {

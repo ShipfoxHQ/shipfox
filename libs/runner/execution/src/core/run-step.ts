@@ -242,8 +242,13 @@ async function finalizeStepOutput(result: StepResult, outputPath: string): Promi
 }
 
 async function readBoundedStepOutput(outputPath: string): Promise<string | undefined> {
-  const handle = await open(outputPath, 'r');
+  const handle = await open(outputPath, constants.O_RDONLY | constants.O_NONBLOCK);
   try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) {
+      throw new StepOutputError('Step output file is not a regular file.');
+    }
+
     const buffer = Buffer.alloc(MAX_OUTPUT_TOTAL_BYTES + 1);
     const {bytesRead} = await handle.read(buffer, 0, buffer.length, 0);
     if (bytesRead === 0) return undefined;

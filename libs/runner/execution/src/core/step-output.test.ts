@@ -31,6 +31,12 @@ describe('parseStepOutput', () => {
     expect(result).toEqual({first: 'one', notes: 'line one\n\nline three'});
   });
 
+  it('skips whitespace-only lines between entries and preserves them inside heredocs', () => {
+    const result = parseStepOutput('first=one\n  \t  \nnotes<<EOF\n  \t  \nEOF\n');
+
+    expect(result).toEqual({first: 'one', notes: '  \t  '});
+  });
+
   it('parses CRLF input', () => {
     const result = parseStepOutput('sha=abc123\r\nnotes<<EOF\r\nline one\r\nEOF\r\n');
 
@@ -66,6 +72,12 @@ describe('parseStepOutput', () => {
     const result = parseStepOutput('notes<<EOF\nnot EOF yet\nEOF\n');
 
     expect(result).toEqual({notes: 'not EOF yet'});
+  });
+
+  it('parses heredoc markers inside single-line values literally', () => {
+    const result = parseStepOutput('payload=value-with-<<-marker\n');
+
+    expect(result).toEqual({payload: 'value-with-<<-marker'});
   });
 
   it('returns an empty object for empty input', () => {

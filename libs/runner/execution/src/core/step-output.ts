@@ -19,17 +19,17 @@ export function parseStepOutput(raw: string): Record<string, string> {
     const line = lines[index] ?? '';
     if (isSkippableLine(line)) continue;
 
+    const singleLine = parseSingleLineOutput(line);
+    if (singleLine) {
+      setOutput(outputs, singleLine.key, singleLine.value);
+      continue;
+    }
+
     const heredoc = parseHeredocStart(line);
     if (heredoc) {
       const body = collectHeredocBody(lines, index + 1, heredoc);
       setOutput(outputs, heredoc.key, body.value);
       index = body.endIndex;
-      continue;
-    }
-
-    const singleLine = parseSingleLineOutput(line);
-    if (singleLine) {
-      setOutput(outputs, singleLine.key, singleLine.value);
       continue;
     }
 
@@ -59,7 +59,7 @@ function outputLines(raw: string): string[] {
 }
 
 function isSkippableLine(line: string): boolean {
-  return line === '';
+  return line.trim() === '';
 }
 
 function parseHeredocStart(line: string): HeredocStart | undefined {
@@ -95,6 +95,9 @@ function collectHeredocBody(
 function parseSingleLineOutput(line: string): ParsedOutput | undefined {
   const equals = line.indexOf('=');
   if (equals === -1) return undefined;
+
+  const heredocMarker = line.indexOf('<<');
+  if (heredocMarker !== -1 && heredocMarker < equals) return undefined;
 
   const key = line.slice(0, equals);
   assertOutputKey(key);
