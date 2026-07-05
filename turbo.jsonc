@@ -87,6 +87,7 @@
     },
     "depcruise": {
       "cache": true,
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.dependency-cruiser.cjs"],
       "dependsOn": ["@shipfox/depcruise#build"]
     },
     "image": {

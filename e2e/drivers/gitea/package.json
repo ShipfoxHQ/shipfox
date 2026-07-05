@@ -30,6 +30,7 @@
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "depcruise": "shipfox-depcruise",
     "test": "shipfox-vitest-run",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
