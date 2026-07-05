@@ -1,3 +1,5 @@
+export type {BoundedMapOptions} from './bounded-map.js';
+export {boundedMap} from './bounded-map.js';
 export type {
   InitializedModules,
   InitializeModulesOptions,
@@ -5,12 +7,14 @@ export type {
 } from './initialize.js';
 export {initializeModules, registerModuleMetrics, startModuleWorkers} from './initialize.js';
 export type {
+  DrainAllResult,
   DrainedEvent,
   OutboxDispatchFailure,
   PruneDispatchedOutboxRowsOptions,
   PrunedOutboxSource,
 } from './publisher-registry.js';
 export {
+  BATCH_SIZE,
   drainAll,
   getEventSchema,
   markDispatched,

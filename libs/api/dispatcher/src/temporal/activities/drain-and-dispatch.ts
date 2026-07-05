@@ -1,5 +1,6 @@
 import {captureException} from '@shipfox/node-error-monitoring';
 import {
+  boundedMap,
   type DrainedEvent,
   drainAll,
   getEventSchema,
@@ -11,52 +12,104 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import {dispatchFailureCount, drainBatchSize, eventDispatchedCount} from '#metrics/index.js';
 
-export async function drainAndDispatch(): Promise<void> {
-  const rows = await drainAll();
-  drainBatchSize.record(rows.length);
-  if (rows.length === 0) return;
+const DISPATCH_CONCURRENCY = 8;
 
-  const dispatched = new Map<string, string[]>();
+export async function drainAndDispatch(): Promise<boolean> {
+  const {events: rows, hasMore} = await drainAll();
+  drainBatchSize.record(rows.length);
+  if (rows.length === 0) return hasMore;
+
+  const groups = groupRows(rows);
+
+  try {
+    await boundedMap(
+      groups,
+      DISPATCH_CONCURRENCY,
+      async (group) => {
+        const dispatchedIds: string[] = [];
+
+        for (const row of group.rows) {
+          const succeeded = await dispatchRow(row);
+          if (!succeeded) break;
+          dispatchedIds.push(row.id);
+        }
+
+        if (dispatchedIds.length > 0) {
+          await markDispatched(group.source, dispatchedIds);
+          eventDispatchedCount.add(dispatchedIds.length, {
+            module: group.source,
+            outcome: 'succeeded',
+          });
+        }
+      },
+      {stopOnError: false},
+    );
+  } catch (error) {
+    logger().warn({err: error}, 'Outbox dispatch groups completed with errors');
+  }
+
+  return hasMore;
+}
+
+async function dispatchRow(row: DrainedEvent): Promise<boolean> {
+  const validation = validatePayload(row);
+  if (!validation.success) {
+    await recordDispatchFailure(row.source, row.id, validation.failure);
+    recordFailureMetric(row.source, validation.failure.kind);
+    return false;
+  }
+
+  const event = validation.event;
+  const handlers = getSubscribers(event.type);
+  let dispatchFailure: OutboxDispatchFailure | undefined;
+
+  for (const handler of handlers) {
+    try {
+      await handler(event);
+    } catch (error) {
+      const errorContext = failureFromHandler(row, error);
+      logger().error({err: error, ...errorContext}, 'Handler failed for outbox event');
+      captureException(error, {extra: errorContext});
+      dispatchFailure ??= errorContext;
+    }
+  }
+
+  if (!dispatchFailure) return true;
+
+  await recordDispatchFailure(row.source, row.id, dispatchFailure);
+  recordFailureMetric(row.source, dispatchFailure.kind);
+  return false;
+}
+
+interface DispatchGroup {
+  source: string;
+  orderingKey: string;
+  rows: DrainedEvent[];
+}
+
+function groupRows(rows: DrainedEvent[]): DispatchGroup[] {
+  const groups = new Map<string, DispatchGroup>();
 
   for (const row of rows) {
-    const validation = validatePayload(row);
-    if (!validation.success) {
-      await recordDispatchFailure(row.source, row.id, validation.failure);
-      recordFailureMetric(row.source, validation.failure.kind);
-      continue;
+    const mapKey = JSON.stringify([row.source, row.orderingKey]);
+    let group = groups.get(mapKey);
+    if (!group) {
+      group = {source: row.source, orderingKey: row.orderingKey, rows: []};
+      groups.set(mapKey, group);
     }
-
-    const event = validation.event;
-    const handlers = getSubscribers(event.type);
-    let allSucceeded = true;
-    let dispatchFailure: OutboxDispatchFailure | undefined;
-
-    for (const handler of handlers) {
-      try {
-        await handler(event);
-      } catch (error) {
-        const errorContext = failureFromHandler(row, error);
-        logger().error({err: error, ...errorContext}, 'Handler failed for outbox event');
-        captureException(error, {extra: errorContext});
-        dispatchFailure ??= errorContext;
-        allSucceeded = false;
-      }
-    }
-
-    if (allSucceeded) {
-      const ids = dispatched.get(row.source) ?? [];
-      ids.push(row.id);
-      dispatched.set(row.source, ids);
-    } else if (dispatchFailure) {
-      await recordDispatchFailure(row.source, row.id, dispatchFailure);
-      recordFailureMetric(row.source, dispatchFailure.kind);
-    }
+    group.rows.push(row);
   }
 
-  for (const [source, ids] of dispatched) {
-    await markDispatched(source, ids);
-    eventDispatchedCount.add(ids.length, {module: source, outcome: 'succeeded'});
+  for (const group of groups.values()) {
+    group.rows.sort(compareDrainedRows);
   }
+
+  return [...groups.values()];
+}
+
+function compareDrainedRows(a: DrainedEvent, b: DrainedEvent): number {
+  const createdAtDelta = a.event.createdAt.getTime() - b.event.createdAt.getTime();
+  return createdAtDelta === 0 ? a.id.localeCompare(b.id) : createdAtDelta;
 }
 
 /**

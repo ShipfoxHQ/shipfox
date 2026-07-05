@@ -12,8 +12,14 @@ interface PublisherSource {
 
 export interface DrainedEvent {
   source: string;
+  orderingKey: string;
   id: string;
   event: DomainEvent;
+}
+
+export interface DrainAllResult {
+  events: DrainedEvent[];
+  hasMore: boolean;
 }
 
 export interface OutboxDispatchIssue {
@@ -52,7 +58,7 @@ export interface PrunedOutboxSource {
 const _sources: PublisherSource[] = [];
 const _schemasByType = new Map<string, ZodType>();
 
-const BATCH_SIZE = 100;
+export const BATCH_SIZE = 500;
 const MAX_DISPATCH_ATTEMPTS = 5;
 
 export function registerPublisher(config: PublisherSource): void {
@@ -76,8 +82,9 @@ export function getEventSchema(type: string): ZodType | undefined {
   return _schemasByType.get(type);
 }
 
-export async function drainAll(): Promise<DrainedEvent[]> {
+export async function drainAll(): Promise<DrainAllResult> {
   const results: DrainedEvent[] = [];
+  let hasMore = false;
 
   for (const source of _sources) {
     const rows = await source
@@ -89,14 +96,25 @@ export async function drainAll(): Promise<DrainedEvent[]> {
           isNull(source.table.dispatchedAt),
           isNull(source.table.deadLetteredAt),
           lte(source.table.nextDispatchAt, sql`now()`),
+          sql`NOT EXISTS (
+            SELECT 1
+            FROM ${sql.raw(quoteIdentifier(getTableName(source.table)))} AS earlier
+            WHERE earlier.dispatched_at IS NULL
+              AND earlier.dead_lettered_at IS NULL
+              AND COALESCE(earlier.ordering_key, ${source.name}) = COALESCE(${source.table.orderingKey}, ${source.name})
+              AND (earlier.created_at, earlier.id) < (${source.table.createdAt}, ${source.table.id})
+              AND earlier.next_dispatch_at > now()
+          )`,
         ),
       )
-      .orderBy(asc(source.table.nextDispatchAt), asc(source.table.createdAt))
+      .orderBy(asc(source.table.createdAt), asc(source.table.id))
       .limit(BATCH_SIZE);
+    if (rows.length === BATCH_SIZE) hasMore = true;
 
     for (const row of rows) {
       results.push({
         source: source.name,
+        orderingKey: row.orderingKey ?? source.name,
         id: row.id,
         event: {
           id: row.id,
@@ -108,7 +126,7 @@ export async function drainAll(): Promise<DrainedEvent[]> {
     }
   }
 
-  return results;
+  return {events: results, hasMore};
 }
 
 export async function markDispatched(source: string, ids: string[]): Promise<void> {

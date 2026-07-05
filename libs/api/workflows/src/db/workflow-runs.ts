@@ -14,7 +14,6 @@ import {
   WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
-  type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import {
   analyzeContextKeyAccess,
@@ -29,7 +28,6 @@ import {
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {logger} from '@shipfox/node-opentelemetry';
-import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {
   and,
   asc,
@@ -92,10 +90,10 @@ import {
   recordWorkflowRunStatusChanged,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
+import {writeWorkflowsOutboxEvent, writeWorkflowsOutboxEvents} from './outbox-writes.js';
 import {runningJobExecutions} from './runner-lease-table.js';
 import {jobExecutions, toJobExecution} from './schema/job-executions.js';
 import {jobs, toJob} from './schema/jobs.js';
-import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts, toStepAttempt} from './schema/step-attempts.js';
 import {steps, toStep} from './schema/steps.js';
 import {toWorkflowRunAttempt, workflowRunAttempts} from './schema/workflow-run-attempts.js';
@@ -323,7 +321,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       await tx.insert(steps).values(stepValues);
     }
 
-    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+    await writeWorkflowsOutboxEvent(tx, {
       type: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
       payload: {
         workflowRunId: runRow.id,
@@ -726,7 +724,7 @@ export async function createRerunWorkflowRun(
       .returning();
     if (!newRunRow) throw new Error(`Workflow run missing after rerun: ${sourceRow.id}`);
 
-    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+    await writeWorkflowsOutboxEvent(tx, {
       type: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
       payload: {
         workflowRunId: newRunRow.id,
@@ -1444,7 +1442,7 @@ async function terminateRunAttempt(
     .returning();
 
   const run = toWorkflowRun(terminatedRunRow ?? lockedRun);
-  await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+  await writeWorkflowsOutboxEvent(tx, {
     type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
     payload: {
       workflowRunId: run.id,
@@ -1454,7 +1452,7 @@ async function terminateRunAttempt(
     },
   });
   if (spec.emitCancelledEvent) {
-    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+    await writeWorkflowsOutboxEvent(tx, {
       type: WORKFLOWS_WORKFLOW_RUN_CANCELLED,
       payload: {
         workflowRunId: run.id,
@@ -1674,7 +1672,7 @@ export async function updateWorkflowRunStatus(
     const run = {...toWorkflowRun(runRow ?? target.run), version: attemptRow.version};
 
     if (shouldMirror && isWorkflowRunTerminal(run.status)) {
-      await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+      await writeWorkflowsOutboxEvent(tx, {
         type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
         payload: {
           workflowRunId: run.id,
@@ -1822,7 +1820,7 @@ export async function updateJobStatusAtVersion(
     if (!identity) {
       throw new Error(`Cannot enqueue job-terminal event: job ${job.id} not found`);
     }
-    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+    await writeWorkflowsOutboxEvent(tx, {
       type: WORKFLOWS_JOB_TERMINATED,
       payload: {
         jobId: job.id,
@@ -1934,7 +1932,7 @@ export async function failJobExecutionAsTimedOut(params: {
       );
     }
 
-    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+    await writeWorkflowsOutboxEvent(tx, {
       type: WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
       payload: {
         jobId: updated.execution.jobId,
@@ -2118,7 +2116,7 @@ export async function writeJobStepsSettledOutbox(
     throw new Error(`Cannot enqueue job-steps-settled event: job ${params.jobId} not found`);
   }
 
-  await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+  await writeWorkflowsOutboxEvent(tx, {
     type: WORKFLOWS_JOB_STEPS_SETTLED,
     payload: {
       jobId: params.jobId,
@@ -2186,9 +2184,8 @@ export async function bulkUpdateStepStatuses(
       const firstAttempt = finalizedAttempts[0];
       if (!firstAttempt) return;
       const identity = await getStepAttemptTerminatedOutboxIdentity(tx, firstAttempt.stepId);
-      await writeOutboxEvents<WorkflowsEventMapDto>(
+      await writeWorkflowsOutboxEvents(
         tx,
-        workflowsOutbox,
         finalizedAttempts.map((attempt) => ({
           type: WORKFLOWS_STEP_ATTEMPT_TERMINATED,
           payload: {
@@ -2432,7 +2429,7 @@ export async function writeStepAttemptTerminatedOutbox(
 ): Promise<void> {
   const identity = await getStepAttemptTerminatedOutboxIdentity(tx, params.stepId);
 
-  await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+  await writeWorkflowsOutboxEvent(tx, {
     type: WORKFLOWS_STEP_ATTEMPT_TERMINATED,
     payload: {
       jobId: identity.jobId,
@@ -2539,7 +2536,7 @@ export async function writeStepRestartEnqueuedOutbox(
     throw new Error(`Cannot enqueue step-restart event: job ${params.jobId} not found`);
   }
 
-  await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+  await writeWorkflowsOutboxEvent(tx, {
     type: WORKFLOWS_STEP_RESTART_ENQUEUED,
     payload: {
       jobId: params.jobId,

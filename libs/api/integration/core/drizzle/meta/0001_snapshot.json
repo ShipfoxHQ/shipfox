@@ -1,6 +1,6 @@
 {
-  "id": "e3544ba8-0307-4ffd-a646-3851b89bcbfb",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "a808bfbe-960e-418d-a72a-d88ddca95096",
+  "prevId": "e3544ba8-0307-4ffd-a646-3851b89bcbfb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -95,21 +95,6 @@
           "method": "btree",
           "with": {}
         },
-        "integrations_connections_workspace_id_idx": {
-          "name": "integrations_connections_workspace_id_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "integrations_connections_workspace_slug_unique": {
           "name": "integrations_connections_workspace_slug_unique",
           "columns": [
@@ -127,6 +112,21 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "integrations_connections_workspace_id_idx": {
+          "name": "integrations_connections_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -155,6 +155,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "ordering_key": {
+          "name": "ordering_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "payload": {
           "name": "payload",

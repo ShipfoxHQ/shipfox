@@ -2,8 +2,7 @@ import {
   type AgentDefaultsResolver,
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
-import {WORKFLOWS_JOB_ACTIVATED, type WorkflowsEventMapDto} from '@shipfox/api-workflows-dto';
-import {writeOutboxEvent} from '@shipfox/node-outbox';
+import {WORKFLOWS_JOB_ACTIVATED} from '@shipfox/api-workflows-dto';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
 import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
@@ -24,10 +23,10 @@ import {
   recordWorkflowListenerResolved,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
+import {writeWorkflowsOutboxEvent} from './outbox-writes.js';
 import {jobExecutions, toJobExecution} from './schema/job-executions.js';
 import {jobListenerEvents} from './schema/job-listener-events.js';
 import {jobs, toJob} from './schema/jobs.js';
-import {workflowsOutbox} from './schema/outbox.js';
 import {steps} from './schema/steps.js';
 import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
@@ -106,7 +105,7 @@ export async function activateJobListener(
       .returning();
 
     if (listenerRows[0]) {
-      await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+      await writeWorkflowsOutboxEvent(tx, {
         type: WORKFLOWS_JOB_ACTIVATED,
         payload: {
           jobId: params.jobId,

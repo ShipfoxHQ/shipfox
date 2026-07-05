@@ -13,6 +13,7 @@ export function createOutboxTable(pgTable: ReturnType<typeof pgTableCreator>) {
     {
       id: uuidv7PrimaryKey(),
       eventType: text('event_type').notNull(),
+      orderingKey: text('ordering_key'),
       payload: jsonb('payload').notNull(),
       createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
       dispatchedAt: timestamp('dispatched_at', {withTimezone: true}),

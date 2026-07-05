@@ -108,5 +108,6 @@ describe('deliverEventToListener', () => {
       eventRef,
       eventName: 'pull_request_review',
     });
+    expect(matching?.orderingKey).toBeNull();
   });
 });

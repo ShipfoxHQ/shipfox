@@ -1,5 +1,6 @@
 import {DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
 import {
+  BATCH_SIZE,
   type DrainedEvent,
   drainAll,
   markDispatched,
@@ -58,6 +59,9 @@ function eventsForProject(events: DrainedEvent[], projectId: string) {
 async function insertOutboxRow(params: {
   projectId: string;
   marker: string;
+  orderingKey?: string | null;
+  createdAt?: Date;
+  nextDispatchAt?: Date;
   dispatchedAt?: Date | null;
   deadLetteredAt?: Date | null;
 }) {
@@ -67,7 +71,10 @@ async function insertOutboxRow(params: {
     .values({
       id,
       eventType: DEFINITION_RESOLVED,
+      orderingKey: params.orderingKey ?? null,
       payload: {projectId: params.projectId, marker: params.marker},
+      createdAt: params.createdAt,
+      nextDispatchAt: params.nextDispatchAt,
       dispatchedAt: params.dispatchedAt ?? null,
       deadLetteredAt: params.deadLetteredAt ?? null,
     });
@@ -720,8 +727,12 @@ describe('definition queries', () => {
       });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
       resetPublishers();
+      await db()
+        .update(definitionsOutbox)
+        .set({dispatchedAt: sql`COALESCE(${definitionsOutbox.dispatchedAt}, now())`})
+        .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
     });
 
     test('drainAll returns undispatched outbox events', async () => {
@@ -733,12 +744,84 @@ describe('definition queries', () => {
         ...definitionFields(),
       });
 
-      const events = await drainAll();
+      const events = (await drainAll()).events;
       const projectEvents = eventsForProject(events, projectId);
 
       expect(projectEvents).toHaveLength(1);
       expect(projectEvents[0]?.source).toBe('definitions');
+      expect(projectEvents[0]?.orderingKey).toBe('definitions');
       expect(projectEvents[0]?.event.type).toBe(DEFINITION_RESOLVED);
+    });
+
+    test('drainAll resolves orderingKey from the column', async () => {
+      await insertOutboxRow({projectId, marker: 'keyed', orderingKey: 'run-1'});
+
+      const projectEvents = eventsForProject((await drainAll()).events, projectId);
+
+      expect(projectEvents).toHaveLength(1);
+      expect(projectEvents[0]?.orderingKey).toBe('run-1');
+    });
+
+    test('drainAll blocks later same-key rows while an earlier row waits for retry', async () => {
+      const base = new Date(Date.now() - 60_000);
+      const retry = await insertOutboxRow({
+        projectId,
+        marker: 'retry',
+        orderingKey: 'run-1',
+        createdAt: base,
+        nextDispatchAt: new Date(Date.now() + 60 * 60_000),
+      });
+      await insertOutboxRow({
+        projectId,
+        marker: 'later-same-key',
+        orderingKey: 'run-1',
+        createdAt: new Date(base.getTime() + 1_000),
+      });
+      await insertOutboxRow({
+        projectId,
+        marker: 'other-key',
+        orderingKey: 'run-2',
+        createdAt: new Date(base.getTime() + 2_000),
+      });
+
+      try {
+        const projectEvents = eventsForProject((await drainAll()).events, projectId);
+
+        expect(projectEvents.map((event) => event.id)).not.toContain(retry);
+        expect(projectEvents.map((event) => event.event.payload)).toEqual([
+          {projectId, marker: 'other-key'},
+        ]);
+      } finally {
+        await db()
+          .update(definitionsOutbox)
+          .set({dispatchedAt: sql`now()`})
+          .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+      }
+    });
+
+    test('drainAll reports hasMore when a source returns a full batch', async () => {
+      const rows = Array.from({length: BATCH_SIZE}, (_, index) => ({
+        id: crypto.randomUUID(),
+        eventType: DEFINITION_RESOLVED,
+        payload: {projectId, marker: `batch-${index}`},
+      }));
+      await db().insert(definitionsOutbox).values(rows);
+
+      const drain = await drainAll();
+
+      try {
+        expect(drain.events).toHaveLength(BATCH_SIZE);
+        expect(drain.hasMore).toBe(true);
+      } finally {
+        await markDispatched(
+          'definitions',
+          drain.events.map((event) => event.id),
+        );
+        await db()
+          .update(definitionsOutbox)
+          .set({dispatchedAt: sql`now()`})
+          .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+      }
     });
 
     test('markDispatched sets dispatchedAt for a single event', async () => {
@@ -749,7 +832,7 @@ describe('definition queries', () => {
         name: 'Test',
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
 
       await markDispatched('definitions', [events[0]?.id as string]);
 
@@ -774,7 +857,7 @@ describe('definition queries', () => {
         name: 'B',
         ...definitionFields('B'),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       const ids = events.map((e) => e.id);
 
       await markDispatched('definitions', ids);
@@ -792,10 +875,10 @@ describe('definition queries', () => {
         name: 'Test',
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       await markDispatched('definitions', [events[0]?.id as string]);
 
-      const secondDrain = eventsForProject(await drainAll(), projectId);
+      const secondDrain = eventsForProject((await drainAll()).events, projectId);
 
       expect(secondDrain).toHaveLength(0);
     });
@@ -808,13 +891,13 @@ describe('definition queries', () => {
         name: 'Retry',
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       await db()
         .update(definitionsOutbox)
         .set({nextDispatchAt: sql`now() + interval '1 hour'`})
         .where(sql`${definitionsOutbox.id} = ${events[0]?.id as string}`);
 
-      const secondDrain = eventsForProject(await drainAll(), projectId);
+      const secondDrain = eventsForProject((await drainAll()).events, projectId);
 
       expect(secondDrain).toHaveLength(0);
     });
@@ -834,13 +917,13 @@ describe('definition queries', () => {
         ...definitionFields(),
       });
       const before = new Date();
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
 
       await recordDispatchFailure('definitions', events[0]?.id as string, failure);
 
       const after = new Date();
       const rows = await listOutboxRowsForProject(projectId);
-      const secondDrain = eventsForProject(await drainAll(), projectId);
+      const secondDrain = eventsForProject((await drainAll()).events, projectId);
       expect(rows[0]?.dispatchAttempts).toBe(1);
       expect(rows[0]?.lastDispatchError).toEqual(failure);
       expect(rows[0]?.lastDispatchFailedAt).toBeInstanceOf(Date);
@@ -866,7 +949,7 @@ describe('definition queries', () => {
         name: 'Poison',
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       await db()
         .update(definitionsOutbox)
         .set({dispatchAttempts: 4})
@@ -875,7 +958,7 @@ describe('definition queries', () => {
       await recordDispatchFailure('definitions', events[0]?.id as string, failure);
 
       const rows = await listOutboxRowsForProject(projectId);
-      const secondDrain = eventsForProject(await drainAll(), projectId);
+      const secondDrain = eventsForProject((await drainAll()).events, projectId);
       expect(rows[0]?.dispatchAttempts).toBe(5);
       expect(rows[0]?.lastDispatchError).toEqual(failure);
       expect(rows[0]?.deadLetteredAt).toBeInstanceOf(Date);
@@ -891,7 +974,7 @@ describe('definition queries', () => {
         name: 'Dead',
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       await db()
         .update(definitionsOutbox)
         .set({deadLetteredAt: sql`now()`})
@@ -919,7 +1002,7 @@ describe('definition queries', () => {
         name: 'Dispatched',
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       await markDispatched('definitions', [events[0]?.id as string]);
 
       await recordDispatchFailure('definitions', events[0]?.id as string, failure);
@@ -952,7 +1035,7 @@ describe('definition queries', () => {
         name: `Backoff ${priorAttempts}`,
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       await db()
         .update(definitionsOutbox)
         .set({dispatchAttempts: priorAttempts})
@@ -989,21 +1072,21 @@ describe('definition queries', () => {
         name: 'Recover',
         ...definitionFields(),
       });
-      const events = eventsForProject(await drainAll(), projectId);
+      const events = eventsForProject((await drainAll()).events, projectId);
       await recordDispatchFailure('definitions', events[0]?.id as string, failure);
       await db()
         .update(definitionsOutbox)
         .set({nextDispatchAt: sql`now() - interval '1 second'`})
         .where(sql`${definitionsOutbox.id} = ${events[0]?.id as string}`);
 
-      const retryDrain = eventsForProject(await drainAll(), projectId);
+      const retryDrain = eventsForProject((await drainAll()).events, projectId);
       await markDispatched(
         'definitions',
         retryDrain.map((event) => event.id),
       );
 
       const rows = await listOutboxRowsForProject(projectId);
-      const finalDrain = eventsForProject(await drainAll(), projectId);
+      const finalDrain = eventsForProject((await drainAll()).events, projectId);
       expect(retryDrain).toHaveLength(1);
       expect(retryDrain[0]?.id).toBe(events[0]?.id);
       expect(rows[0]?.dispatchAttempts).toBe(1);

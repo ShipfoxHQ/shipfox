@@ -1,4 +1,5 @@
 import {DEFINITION_RESOLVED, definitionsEventSchemas} from '@shipfox/api-definitions-dto';
+import type {DrainAllResult, DrainedEvent} from '@shipfox/node-module';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {drainAndDispatch} from './drain-and-dispatch.js';
 
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   markDispatched: vi.fn(),
   recordDispatchFailure: vi.fn(),
   errorLog: vi.fn(),
+  warnLog: vi.fn(),
   eventDispatchedAdd: vi.fn(),
   dispatchFailureAdd: vi.fn(),
   drainBatchRecord: vi.fn(),
@@ -19,13 +21,18 @@ vi.mock('@shipfox/node-error-monitoring', () => ({
   captureException: mocks.captureException,
 }));
 
-vi.mock('@shipfox/node-module', () => ({
-  drainAll: mocks.drainAll,
-  getEventSchema: mocks.getEventSchema,
-  getSubscribers: mocks.getSubscribers,
-  markDispatched: mocks.markDispatched,
-  recordDispatchFailure: mocks.recordDispatchFailure,
-}));
+vi.mock('@shipfox/node-module', async () => {
+  const actual =
+    await vi.importActual<typeof import('@shipfox/node-module')>('@shipfox/node-module');
+  return {
+    ...actual,
+    drainAll: mocks.drainAll,
+    getEventSchema: mocks.getEventSchema,
+    getSubscribers: mocks.getSubscribers,
+    markDispatched: mocks.markDispatched,
+    recordDispatchFailure: mocks.recordDispatchFailure,
+  };
+});
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
   instanceMetrics: {
@@ -43,8 +50,22 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
   },
   logger: () => ({
     error: mocks.errorLog,
+    warn: mocks.warnLog,
   }),
 }));
+
+function drain(events: DrainedEvent[], hasMore = false): DrainAllResult {
+  return {events, hasMore};
+}
+
+function event(id: string, createdAt: Date): DomainEvent {
+  return {
+    id,
+    type: 'workflows.job.terminated',
+    createdAt,
+    payload: {jobId: id, workflowRunId: 'run-1', status: 'succeeded'},
+  };
+}
 
 describe('drainAndDispatch', () => {
   beforeEach(() => {
@@ -55,19 +76,29 @@ describe('drainAndDispatch', () => {
     mocks.markDispatched.mockReset();
     mocks.recordDispatchFailure.mockReset();
     mocks.errorLog.mockReset();
+    mocks.warnLog.mockReset();
     mocks.eventDispatchedAdd.mockReset();
     mocks.dispatchFailureAdd.mockReset();
     mocks.drainBatchRecord.mockReset();
   });
 
   it('records an empty drain batch tick', async () => {
-    mocks.drainAll.mockResolvedValueOnce([]);
+    mocks.drainAll.mockResolvedValueOnce(drain([]));
 
-    await drainAndDispatch();
+    const hasMore = await drainAndDispatch();
 
     expect(mocks.drainBatchRecord).toHaveBeenCalledWith(0);
+    expect(hasMore).toBe(false);
     expect(mocks.eventDispatchedAdd).not.toHaveBeenCalled();
     expect(mocks.dispatchFailureAdd).not.toHaveBeenCalled();
+  });
+
+  it('returns hasMore from drainAll', async () => {
+    mocks.drainAll.mockResolvedValueOnce(drain([], true));
+
+    const hasMore = await drainAndDispatch();
+
+    expect(hasMore).toBe(true);
   });
 
   it('logs sanitized context, captures failed subscriber exceptions, and records a row failure', async () => {
@@ -82,7 +113,9 @@ describe('drainAndDispatch', () => {
         workspaceId: crypto.randomUUID(),
       },
     };
-    mocks.drainAll.mockResolvedValueOnce([{id: rowId, source: 'projects', event}]);
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([{id: rowId, source: 'projects', orderingKey: 'projects', event}]),
+    );
     mocks.getSubscribers.mockReturnValueOnce([vi.fn().mockRejectedValueOnce(failure)]);
 
     await drainAndDispatch();
@@ -125,6 +158,35 @@ describe('drainAndDispatch', () => {
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 
+  it('returns hasMore after group-level persistence failures', async () => {
+    const success = event('success', new Date('2026-01-01T00:00:00.000Z'));
+    const other = event('other', new Date('2026-01-01T00:00:00.000Z'));
+    mocks.drainAll.mockResolvedValueOnce(
+      drain(
+        [
+          {id: success.id, source: 'workflows', orderingKey: 'run-1', event: success},
+          {id: other.id, source: 'integrations', orderingKey: 'integrations', event: other},
+        ],
+        true,
+      ),
+    );
+    mocks.getSubscribers.mockReturnValue([vi.fn().mockResolvedValue(undefined)]);
+    mocks.markDispatched.mockImplementation(async (source: string) => {
+      await Promise.resolve();
+      if (source === 'workflows') throw new Error('db unavailable');
+    });
+
+    const hasMore = await drainAndDispatch();
+
+    expect(hasMore).toBe(true);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['success']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', ['other']);
+    expect(mocks.warnLog).toHaveBeenCalledWith(
+      {err: expect.any(AggregateError)},
+      'Outbox dispatch groups completed with errors',
+    );
+  });
+
   it('rejects a malformed schema-covered payload without capturing raw payload data', async () => {
     const event: DomainEvent = {
       id: crypto.randomUUID(),
@@ -138,7 +200,9 @@ describe('drainAndDispatch', () => {
         secret: 'raw-secret',
       },
     };
-    mocks.drainAll.mockResolvedValueOnce([{id: event.id, source: 'definitions', event}]);
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([{id: event.id, source: 'definitions', orderingKey: 'definitions', event}]),
+    );
     mocks.getEventSchema.mockReturnValueOnce(definitionsEventSchemas[DEFINITION_RESOLVED]);
 
     await drainAndDispatch();
@@ -187,7 +251,9 @@ describe('drainAndDispatch', () => {
       createdAt: new Date(),
       payload: {...parsed, extra: 'raw'},
     };
-    mocks.drainAll.mockResolvedValueOnce([{id: event.id, source: 'workflows', event}]);
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([{id: event.id, source: 'workflows', orderingKey: 'run-1', event}]),
+    );
     mocks.getEventSchema.mockReturnValueOnce({safeParse: () => ({success: true, data: parsed})});
     mocks.getSubscribers.mockReturnValueOnce([handler]);
 
@@ -212,7 +278,9 @@ describe('drainAndDispatch', () => {
       createdAt: new Date(),
       payload: parsed,
     };
-    mocks.drainAll.mockResolvedValueOnce([{id: event.id, source: 'workflows', event}]);
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([{id: event.id, source: 'workflows', orderingKey: 'run-1', event}]),
+    );
     mocks.getEventSchema.mockReturnValueOnce({safeParse: () => ({success: true, data: parsed})});
     mocks.getSubscribers.mockReturnValueOnce([]);
 
@@ -247,11 +315,18 @@ describe('drainAndDispatch', () => {
       payload: {deliveryId: 'delivery-1'},
     };
     const handler = vi.fn().mockResolvedValue(undefined);
-    mocks.drainAll.mockResolvedValueOnce([
-      {id: validJob.id, source: 'workflows', event: validJob},
-      {id: poison.id, source: 'workflows', event: poison},
-      {id: validPush.id, source: 'integrations', event: validPush},
-    ]);
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([
+        {id: validJob.id, source: 'workflows', orderingKey: 'run-1', event: validJob},
+        {id: poison.id, source: 'workflows', orderingKey: 'run-2', event: poison},
+        {
+          id: validPush.id,
+          source: 'integrations',
+          orderingKey: 'integrations',
+          event: validPush,
+        },
+      ]),
+    );
     mocks.getEventSchema
       .mockReturnValueOnce({safeParse: () => ({success: true, data: validJob.payload})})
       .mockReturnValueOnce({safeParse: () => ({success: false, error})})
@@ -310,7 +385,9 @@ describe('drainAndDispatch', () => {
     };
     const succeedingHandler = vi.fn().mockResolvedValue(undefined);
     const failingHandler = vi.fn().mockRejectedValueOnce(failure);
-    mocks.drainAll.mockResolvedValueOnce([{id: rowId, source: 'workflows', event}]);
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([{id: rowId, source: 'workflows', orderingKey: 'run-1', event}]),
+    );
     mocks.getEventSchema.mockReturnValueOnce({safeParse: () => ({success: true, data: parsed})});
     mocks.getSubscribers.mockReturnValueOnce([succeedingHandler, failingHandler]);
 
@@ -335,5 +412,144 @@ describe('drainAndDispatch', () => {
       reason: 'handler',
     });
     expect(mocks.markDispatched).not.toHaveBeenCalled();
+  });
+
+  it('dispatches interleaved same-key events in created-at/id order while other keys run concurrently', async () => {
+    const earlier = event('a', new Date('2026-01-01T00:00:00.000Z'));
+    const later = event('b', new Date('2026-01-01T00:00:01.000Z'));
+    const other = event('c', new Date('2026-01-01T00:00:00.500Z'));
+    const calls: string[] = [];
+    const handler = vi.fn(async (handled: DomainEvent) => {
+      await Promise.resolve();
+      calls.push((handled.payload as {jobId: string}).jobId);
+    });
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([
+        {id: later.id, source: 'workflows', orderingKey: 'run-1', event: later},
+        {id: other.id, source: 'workflows', orderingKey: 'run-2', event: other},
+        {id: earlier.id, source: 'workflows', orderingKey: 'run-1', event: earlier},
+      ]),
+    );
+    mocks.getSubscribers.mockReturnValue([handler]);
+
+    await drainAndDispatch();
+
+    expect(calls.indexOf('a')).toBeLessThan(calls.indexOf('b'));
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['a', 'b']);
+  });
+
+  it('sorts each group by created-at then id even when drain order is scrambled', async () => {
+    const first = event('a', new Date('2026-01-01T00:00:00.000Z'));
+    const second = event('b', new Date('2026-01-01T00:00:00.000Z'));
+    const third = event('c', new Date('2026-01-01T00:00:01.000Z'));
+    const calls: string[] = [];
+    const handler = vi.fn(async (handled: DomainEvent) => {
+      await Promise.resolve();
+      calls.push((handled.payload as {jobId: string}).jobId);
+    });
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([
+        {id: third.id, source: 'workflows', orderingKey: 'run-1', event: third},
+        {id: second.id, source: 'workflows', orderingKey: 'run-1', event: second},
+        {id: first.id, source: 'workflows', orderingKey: 'run-1', event: first},
+      ]),
+    );
+    mocks.getSubscribers.mockReturnValue([handler]);
+
+    await drainAndDispatch();
+
+    expect(calls).toEqual(['a', 'b', 'c']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['a', 'b', 'c']);
+  });
+
+  it('halts a key group on the first failed row in the batch', async () => {
+    const rows = [
+      event('a', new Date('2026-01-01T00:00:00.000Z')),
+      event('b', new Date('2026-01-01T00:00:01.000Z')),
+      event('c', new Date('2026-01-01T00:00:02.000Z')),
+    ];
+    const handler = vi.fn(async (handled: DomainEvent) => {
+      await Promise.resolve();
+      if ((handled.payload as {jobId: string}).jobId === 'a') throw new Error('failed');
+    });
+    mocks.drainAll.mockResolvedValueOnce(
+      drain(
+        rows.map((row) => ({id: row.id, source: 'workflows', orderingKey: 'run-1', event: row})),
+      ),
+    );
+    mocks.getSubscribers.mockReturnValue([handler]);
+
+    await drainAndDispatch();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', 'a', {
+      kind: 'handler',
+      eventType: rows[0]?.type,
+      eventId: 'a',
+      errorName: 'Error',
+      errorMessage: 'failed',
+    });
+    expect(mocks.markDispatched).not.toHaveBeenCalled();
+  });
+
+  it('marks completed groups incrementally when a later group fails', async () => {
+    const success = event('success', new Date('2026-01-01T00:00:00.000Z'));
+    const failure = event('failure', new Date('2026-01-01T00:00:00.000Z'));
+    const handler = vi.fn(async (handled: DomainEvent) => {
+      await Promise.resolve();
+      if ((handled.payload as {jobId: string}).jobId === 'failure') throw new Error('failed');
+    });
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([
+        {id: success.id, source: 'workflows', orderingKey: 'run-1', event: success},
+        {id: failure.id, source: 'workflows', orderingKey: 'run-2', event: failure},
+      ]),
+    );
+    mocks.getSubscribers.mockReturnValue([handler]);
+
+    await drainAndDispatch();
+
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['success']);
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
+      'workflows',
+      'failure',
+      expect.objectContaining({kind: 'handler', eventId: 'failure'}),
+    );
+  });
+
+  it('runs cross-source groups in parallel while the source fallback key stays serial', async () => {
+    let releaseWorkflow!: () => void;
+    const workflowGate = new Promise<void>((resolve) => {
+      releaseWorkflow = resolve;
+    });
+    const calls: string[] = [];
+    const handler = vi.fn(async (handled: DomainEvent) => {
+      const id = (handled.payload as {jobId: string}).jobId;
+      calls.push(id);
+      if (id === 'w1') await workflowGate;
+    });
+    const w1 = event('w1', new Date('2026-01-01T00:00:00.000Z'));
+    const w2 = event('w2', new Date('2026-01-01T00:00:01.000Z'));
+    const i1 = event('i1', new Date('2026-01-01T00:00:00.000Z'));
+    mocks.drainAll.mockResolvedValueOnce(
+      drain([
+        {id: w1.id, source: 'workflows', orderingKey: 'workflows', event: w1},
+        {id: w2.id, source: 'workflows', orderingKey: 'workflows', event: w2},
+        {id: i1.id, source: 'integrations', orderingKey: 'integrations', event: i1},
+      ]),
+    );
+    mocks.getSubscribers.mockReturnValue([handler]);
+
+    const dispatch = drainAndDispatch();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls).toEqual(['w1', 'i1']);
+
+    releaseWorkflow();
+    await dispatch;
+
+    expect(calls).toEqual(['w1', 'i1', 'w2']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['w1', 'w2']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', ['i1']);
   });
 });

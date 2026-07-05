@@ -1,13 +1,12 @@
-import {WORKFLOWS_JOB_EVENT_DELIVERED, type WorkflowsEventMapDto} from '@shipfox/api-workflows-dto';
-import {writeOutboxEvent} from '@shipfox/node-outbox';
+import {WORKFLOWS_JOB_EVENT_DELIVERED} from '@shipfox/api-workflows-dto';
 import {eq} from 'drizzle-orm';
 import {isJobTerminal} from '#core/entities/job.js';
 import type {JobListenerEventDisposition} from '#core/entities/job-listener-event.js';
 import {recordListenerEventReceived} from '#metrics/instance.js';
 import {db} from './db.js';
+import {writeWorkflowsOutboxEvent} from './outbox-writes.js';
 import {jobListenerEvents} from './schema/job-listener-events.js';
 import {jobs} from './schema/jobs.js';
-import {workflowsOutbox} from './schema/outbox.js';
 
 export interface DeliverEventToListenerParams {
   jobId: string;
@@ -55,7 +54,7 @@ export async function deliverEventToListener(
       .returning({id: jobListenerEvents.id});
 
     if (!rows[0]) return {buffered: false, skipped: false};
-    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+    await writeWorkflowsOutboxEvent(tx, {
       type: WORKFLOWS_JOB_EVENT_DELIVERED,
       payload: {
         jobId: params.jobId,

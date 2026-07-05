@@ -11,6 +11,7 @@ interface TestEventMap {
 
 describe('createOutboxTable', () => {
   it('exposes dispatch retry and dead-letter columns', () => {
+    expect(outboxTable.orderingKey.name).toBe('ordering_key');
     expect(outboxTable.dispatchAttempts.name).toBe('dispatch_attempts');
     expect(outboxTable.nextDispatchAt.name).toBe('next_dispatch_at');
     expect(outboxTable.lastDispatchError.name).toBe('last_dispatch_error');
@@ -59,8 +60,22 @@ describe('writeOutboxEvents', () => {
     expect(insert).toHaveBeenCalledWith(outboxTable);
     expect(values).toHaveBeenCalledTimes(1);
     expect(values).toHaveBeenCalledWith([
-      {eventType: 'thing.created', payload: {id: 'a'}},
-      {eventType: 'thing.deleted', payload: {id: 'b', reason: 'gone'}},
+      {eventType: 'thing.created', orderingKey: null, payload: {id: 'a'}},
+      {eventType: 'thing.deleted', orderingKey: null, payload: {id: 'b', reason: 'gone'}},
+    ]);
+  });
+
+  it('persists non-empty ordering keys and normalizes blank keys to null', async () => {
+    const {tx, values} = fakeTx();
+
+    await writeOutboxEvents<TestEventMap>(tx, outboxTable, [
+      {type: 'thing.created', orderingKey: '  key-1  ', payload: {id: 'a'}},
+      {type: 'thing.deleted', orderingKey: '   ', payload: {id: 'b', reason: 'gone'}},
+    ]);
+
+    expect(values).toHaveBeenCalledWith([
+      {eventType: 'thing.created', orderingKey: 'key-1', payload: {id: 'a'}},
+      {eventType: 'thing.deleted', orderingKey: null, payload: {id: 'b', reason: 'gone'}},
     ]);
   });
 });
@@ -75,6 +90,8 @@ describe('writeOutboxEvent', () => {
     });
 
     expect(values).toHaveBeenCalledTimes(1);
-    expect(values).toHaveBeenCalledWith([{eventType: 'thing.created', payload: {id: 'a'}}]);
+    expect(values).toHaveBeenCalledWith([
+      {eventType: 'thing.created', orderingKey: null, payload: {id: 'a'}},
+    ]);
   });
 });

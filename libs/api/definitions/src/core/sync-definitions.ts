@@ -7,6 +7,7 @@ import {
   type IntegrationSourceControlService,
   MAX_REPOSITORY_FILE_BYTES,
 } from '@shipfox/api-integration-core';
+import {boundedMap} from '@shipfox/node-module';
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
@@ -88,38 +89,43 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
 export async function fetchAndParseWorkflows(
   params: FetchAndParseWorkflowsParams,
 ): Promise<ParsedWorkflow[]> {
-  return await mapWithConcurrency(params.paths, FILE_FETCH_CONCURRENCY, async (path) => {
-    params.onProgress?.(path);
+  return await boundedMap(
+    params.paths,
+    FILE_FETCH_CONCURRENCY,
+    async (path) => {
+      params.onProgress?.(path);
 
-    const snapshot = await params.sourceControl.fetchFile({
-      workspaceId: params.workspaceId,
-      connectionId: params.sourceConnectionId,
-      externalRepositoryId: params.sourceExternalRepositoryId,
-      ref: params.ref,
-      path,
-    });
+      const snapshot = await params.sourceControl.fetchFile({
+        workspaceId: params.workspaceId,
+        connectionId: params.sourceConnectionId,
+        externalRepositoryId: params.sourceExternalRepositoryId,
+        ref: params.ref,
+        path,
+      });
 
-    if (Buffer.byteLength(snapshot.content, 'utf8') > MAX_REPOSITORY_FILE_BYTES) {
-      throw new DefinitionSyncPermanentError(
-        'content-too-large',
-        `Workflow file is larger than ${MAX_REPOSITORY_FILE_BYTES} bytes: ${snapshot.path}`,
-      );
-    }
-
-    try {
-      const definition = parseDefinition(snapshot.content);
-      const contentHash = sha256Hex(snapshot.content);
-      return {path: snapshot.path, name: definition.document.name, definition, contentHash};
-    } catch (error) {
-      if (error instanceof DefinitionParseError) {
+      if (Buffer.byteLength(snapshot.content, 'utf8') > MAX_REPOSITORY_FILE_BYTES) {
         throw new DefinitionSyncPermanentError(
-          'invalid-definition',
-          `Invalid workflow definition at ${snapshot.path}: ${error.message}`,
+          'content-too-large',
+          `Workflow file is larger than ${MAX_REPOSITORY_FILE_BYTES} bytes: ${snapshot.path}`,
         );
       }
-      throw error;
-    }
-  });
+
+      try {
+        const definition = parseDefinition(snapshot.content);
+        const contentHash = sha256Hex(snapshot.content);
+        return {path: snapshot.path, name: definition.document.name, definition, contentHash};
+      } catch (error) {
+        if (error instanceof DefinitionParseError) {
+          throw new DefinitionSyncPermanentError(
+            'invalid-definition',
+            `Invalid workflow definition at ${snapshot.path}: ${error.message}`,
+          );
+        }
+        throw error;
+      }
+    },
+    {stopOnError: true},
+  );
 }
 
 export interface SyncFailureClassification {
@@ -172,31 +178,4 @@ function providerErrorCode(reason: string): DefinitionSyncErrorCode {
 
 function sha256Hex(content: string): string {
   return createHash('sha256').update(content, 'utf8').digest('hex');
-}
-
-async function mapWithConcurrency<T, U>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T) => Promise<U>,
-): Promise<U[]> {
-  const results = new Array<U>(items.length);
-  let next = 0;
-  let aborted = false;
-
-  async function worker(): Promise<void> {
-    while (!aborted && next < items.length) {
-      const index = next;
-      next += 1;
-      try {
-        results[index] = await mapper(items[index] as T);
-      } catch (error) {
-        aborted = true;
-        throw error;
-      }
-    }
-  }
-
-  await Promise.all(Array.from({length: Math.min(concurrency, items.length)}, () => worker()));
-
-  return results;
 }
