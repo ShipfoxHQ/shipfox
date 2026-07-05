@@ -75,7 +75,7 @@ const _schemasByType = new Map<string, ZodType>();
 
 export const BATCH_SIZE = 500;
 const MAX_DISPATCH_ATTEMPTS = 5;
-const CLAIM_LEASE_SECONDS = 120;
+const CLAIM_LEASE_EXTENSION_SECONDS = 120;
 
 export function registerPublisher(config: PublisherSource): void {
   _sources.push(config);
@@ -400,5 +400,5 @@ function nextDispatchAtSql(table: OutboxTable) {
 }
 
 function claimExpiresAtSql() {
-  return sql`date_trunc('milliseconds', now() + (${CLAIM_LEASE_SECONDS} * interval '1 second'))`;
+  return sql`date_trunc('milliseconds', now() + (${CLAIM_LEASE_EXTENSION_SECONDS} * interval '1 second'))`;
 }
