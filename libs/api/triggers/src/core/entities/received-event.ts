@@ -1,4 +1,4 @@
-export const triggerEventOrigins = ['integration', 'manual'] as const;
+export const triggerEventOrigins = ['integration', 'manual', 'cron'] as const;
 export type TriggerEventOrigin = (typeof triggerEventOrigins)[number];
 
 export const triggerEventOutcomes = [

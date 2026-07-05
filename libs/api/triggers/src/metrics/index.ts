@@ -1,1 +1,8 @@
-export {eventOutcomeCount, eventReceivedCount, subscriptionTriggeredCount} from './instance.js';
+export {
+  cronFiredCount,
+  cronFireLag,
+  eventOutcomeCount,
+  eventReceivedCount,
+  subscriptionTriggeredCount,
+} from './instance.js';
+export {registerTriggersServiceMetrics} from './service.js';

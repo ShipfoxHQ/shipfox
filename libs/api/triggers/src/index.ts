@@ -16,6 +16,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, triggersOutbox} from '#db/index.js';
+import {registerTriggersServiceMetrics} from '#metrics/index.js';
 import {routes} from '#presentation/index.js';
 import {
   onDefinitionDeleted,
@@ -24,8 +25,11 @@ import {
   onJobActivated,
   onJobTerminated,
 } from '#presentation/subscribers/index.js';
-import {createTriggersMaintenanceActivities} from '#temporal/activities/index.js';
-import {TRIGGERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
+import {
+  createTriggersCronActivities,
+  createTriggersMaintenanceActivities,
+} from '#temporal/activities/index.js';
+import {TRIGGERS_CRON_TASK_QUEUE, TRIGGERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
 export type {
   JobListenerMatcherKind,
@@ -33,8 +37,10 @@ export type {
 } from '#core/entities/job-listener-subscription.js';
 export type {TriggerSubscription} from '#core/entities/subscription.js';
 export {
+  fireCronSubscription,
   fireManualSubscription,
   ManualTriggerNotFoundError,
+  TriggerSubscriptionNotCronError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -54,7 +60,7 @@ export {
 } from '#db/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
+const temporalWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<
   DefinitionsEventMap & IntegrationsEventMap & WorkflowsEventMapDto
@@ -64,6 +70,7 @@ export const triggersModule: ShipfoxModule = {
   name: 'triggers',
   database: {db, migrationsPath},
   routes,
+  metrics: registerTriggersServiceMetrics,
   publishers: [{name: 'triggers', table: triggersOutbox, db}],
   subscribers: [
     subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
@@ -75,13 +82,25 @@ export const triggersModule: ShipfoxModule = {
   workers: [
     {
       taskQueue: TRIGGERS_MAINTENANCE_TASK_QUEUE,
-      workflowsPath: maintenanceWorkflowsPath,
+      workflowsPath: temporalWorkflowsPath,
       activities: createTriggersMaintenanceActivities,
       workflows: [
         {
           name: 'pruneTriggerEventsCron',
           id: 'triggers-prune-trigger-events',
           cronSchedule: '0 * * * *',
+        },
+      ],
+    },
+    {
+      taskQueue: TRIGGERS_CRON_TASK_QUEUE,
+      workflowsPath: temporalWorkflowsPath,
+      activities: createTriggersCronActivities,
+      workflows: [
+        {
+          name: 'cronTickCron',
+          id: 'triggers-cron-tick',
+          cronSchedule: '* * * * *',
         },
       ],
     },
