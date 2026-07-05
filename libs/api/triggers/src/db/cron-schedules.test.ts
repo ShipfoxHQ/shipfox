@@ -236,6 +236,37 @@ describe('cron schedule projection', () => {
     expect(schedule).toBeUndefined();
   });
 
+  test.each([
+    {name: 'missing schedule', config: {}},
+    {name: 'invalid expression', config: {schedule: 'not a cron', timezone: 'UTC'}},
+  ])('drops a stale cron schedule when resynced with $name', async ({config}) => {
+    await projectDefinitionTriggers({
+      workspaceId,
+      projectId,
+      workflowDefinitionId,
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          config: {schedule: '0 2 * * *', timezone: 'UTC'},
+        },
+      },
+    });
+    const subscription = await getSubscriptionByName(workflowDefinitionId, 'nightly');
+
+    await projectDefinitionTriggers({
+      workspaceId,
+      projectId,
+      workflowDefinitionId,
+      triggers: {
+        nightly: {source: 'cron', event: 'tick', config},
+      },
+    });
+    const schedule = await getCronScheduleBySubscriptionId(subscription.id);
+
+    expect(schedule).toBeUndefined();
+  });
+
   test('skips invalid cron config without blocking sibling trigger sync', async () => {
     await projectDefinitionTriggers({
       workspaceId,

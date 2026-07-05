@@ -23,6 +23,7 @@ export async function syncCronSchedule(params: SyncCronScheduleParams): Promise<
       {subscriptionId: params.subscriptionId},
       'cron trigger missing/invalid schedule config; skipping cron row',
     );
+    await deleteCronScheduleForSubscription(params);
     return;
   }
 
@@ -42,6 +43,7 @@ export async function syncCronSchedule(params: SyncCronScheduleParams): Promise<
       {err: error, reason: errorMessage(error), subscriptionId: params.subscriptionId},
       'cron trigger schedule could not be parsed; skipping cron row',
     );
+    await deleteCronScheduleForSubscription(params);
     return;
   }
 
