@@ -6,6 +6,7 @@ import {
   getEventSchema,
   getSubscribers,
   markDispatched,
+  type OutboxDispatcherPartition,
   type OutboxDispatchFailure,
   recordDispatchFailure,
 } from '@shipfox/node-module';
@@ -14,8 +15,8 @@ import {dispatchFailureCount, drainBatchSize, eventDispatchedCount} from '#metri
 
 const DISPATCH_CONCURRENCY = 8;
 
-export async function drainAndDispatch(): Promise<boolean> {
-  const {events: rows, hasMore} = await drainAll();
+export async function drainAndDispatch(partition?: OutboxDispatcherPartition): Promise<boolean> {
+  const {events: rows, hasMore} = await drainAll(partition ? {partition} : {});
   drainBatchSize.record(rows.length);
   if (rows.length === 0) return hasMore;
 

@@ -7,8 +7,10 @@ export type {
 } from './initialize.js';
 export {initializeModules, registerModuleMetrics, startModuleWorkers} from './initialize.js';
 export type {
+  DrainAllOptions,
   DrainAllResult,
   DrainedEvent,
+  OutboxDispatcherPartition,
   OutboxDispatchFailure,
   PruneDispatchedOutboxRowsOptions,
   PrunedOutboxSource,

@@ -172,6 +172,20 @@ describe('startModuleWorkers', () => {
     });
   });
 
+  it('starts declared workflows with args when provided', async () => {
+    const args = [{workerIndex: 1, workerCount: 4}];
+
+    await startModuleWorkers({
+      workers: [moduleWorker({workflows: [{name: 'dispatch', id: 'dispatch-1', args}]})],
+    });
+
+    expect(mocks.workflowStart).toHaveBeenCalledWith('dispatch', {
+      taskQueue: 'test-queue',
+      workflowId: 'dispatch-1',
+      args,
+    });
+  });
+
   it('tolerates already-started workflows', async () => {
     mocks.workflowStart.mockRejectedValueOnce(alreadyStartedError());
 

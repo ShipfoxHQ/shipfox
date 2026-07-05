@@ -101,6 +101,15 @@ describe('drainAndDispatch', () => {
     expect(hasMore).toBe(true);
   });
 
+  it('passes dispatcher partition options to drainAll', async () => {
+    const partition = {workerIndex: 1, workerCount: 4};
+    mocks.drainAll.mockResolvedValueOnce(drain([]));
+
+    await drainAndDispatch(partition);
+
+    expect(mocks.drainAll).toHaveBeenCalledWith({partition});
+  });
+
   it('logs sanitized context, captures failed subscriber exceptions, and records a row failure', async () => {
     const failure = new Error('subscriber failed');
     const rowId = crypto.randomUUID();

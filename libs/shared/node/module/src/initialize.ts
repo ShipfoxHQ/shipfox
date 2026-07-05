@@ -136,6 +136,7 @@ export async function startModuleWorkers(options: StartModuleWorkersOptions): Pr
           await temporalClient().workflow.start(workflow.name, {
             taskQueue: workerDef.taskQueue,
             workflowId: workflow.id,
+            ...(workflow.args ? {args: workflow.args} : {}),
             ...(workflow.cronSchedule ? {cronSchedule: workflow.cronSchedule} : {}),
           });
         } catch (error) {
