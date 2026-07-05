@@ -1,3 +1,4 @@
+import {cronProviderModule} from '#providers/cron.js';
 import {giteaProviderModule} from '#providers/gitea.js';
 import {githubProviderModule} from '#providers/github.js';
 import {sentryProviderModule} from '#providers/sentry.js';
@@ -10,6 +11,7 @@ const providerModules = [
   githubProviderModule,
   sentryProviderModule,
   giteaProviderModule,
+  cronProviderModule,
   webhookProviderModule,
 ];
 

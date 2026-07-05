@@ -1,6 +1,10 @@
 import {bool, createConfig} from '@shipfox/config';
 
 export const config = createConfig({
+  INTEGRATIONS_ENABLE_CRON_PROVIDER: bool({
+    desc: 'Enables the cron integration provider so workflow schedules can use the built-in cron source. It is enabled by default because it does not require provider setup.',
+    default: true,
+  }),
   INTEGRATIONS_ENABLE_GITEA_PROVIDER: bool({
     desc: 'Enables the Gitea integration provider so users can connect a Gitea instance.',
     default: false,
