@@ -11,8 +11,9 @@ describe('routeExpression', () => {
     ['1 + 1', [], [], 'ingest'],
     ['run.id', ['run'], [], 'run-creation'],
     ['run.id + execution.name', ['execution', 'run'], [], 'execution-creation'],
+    ['jobs.build.outputs.sha', ['jobs'], [], 'job-activation'],
     ['steps.build.outputs.sha', ['steps'], [], 'step-dispatch'],
-    ['step.status', ['step'], [], 'step-report'],
+    ['step.status', ['step'], [], 'step-dispatch'],
     ['runner.os', ['runner'], ['runner'], 'runner-fill'],
     ['runner.os + step.status', ['runner', 'step'], ['runner'], 'runner-fill'],
     ['typo_root.value + run.id', ['run', 'typo_root'], [], 'run-creation'],
@@ -28,6 +29,7 @@ describe('routeExpression', () => {
     'run.id',
     'run.id + execution.name',
     'step.status',
+    'jobs.build.outputs.sha',
   ])('does not target a server site before %s roots are available', (source) => {
     const expression = createWorkflowExpression({source, check: {mode: 'syntax'}});
 

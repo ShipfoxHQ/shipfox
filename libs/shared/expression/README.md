@@ -16,7 +16,7 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
   by an expression for downstream context and trust checks.
 - **Typed errors**: Reports bad text and run failures with stable error classes.
 - **`workflowContextDefinitions`**: Names the workflow contexts (`run`,
-  `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `step`) and
+  `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `jobs`, `step`) and
   gives each a shape, trust tier, availability site, sensitivity, and host.
   Known-shape contexts ship a typed environment; open ones use `syntax`.
 - **`workflowInterpolationFieldPolicies`**: Says which trust tier each
@@ -66,7 +66,7 @@ const passed = evaluateWorkflowPredicate(expression, {
 
 - Use `syntax` when fields are not known yet.
 - Use `typed` when the caller knows the names and field types in scope.
-- Treat the `event` and `inputs` contexts as untrusted; the rest are trusted.
+- Treat the `event`, `inputs`, and open `jobs` contexts as untrusted.
   Interpolation field policies decide what untrusted data may reach each field.
 - Evaluation is deterministic and has no side effects.
 - The caller must pass values that match the checked data shape.

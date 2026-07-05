@@ -41,6 +41,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'jobs',
       'steps',
       'step',
       'vars',
@@ -50,13 +51,12 @@ describe('workflow context registry', () => {
 
   it('keeps future roots reserved out of the referenceable registry', () => {
     expect(workflowContextReservedRoots).toEqual({
-      jobs: {host: 'server', availability: 'job-resolution'},
       matrix: {host: 'server', availability: 'job-activation'},
       runner: {host: 'runner'},
     });
+    expect(workflowContextNames).toContain('jobs');
     expect(workflowContextNames).toContain('step');
     expect(workflowContextNames).toContain('steps');
-    expect(workflowContextNames).not.toContain('jobs');
     expect(workflowContextNames).not.toContain('matrix');
     expect(workflowContextNames).not.toContain('runner');
   });
@@ -84,7 +84,7 @@ describe('workflow context registry', () => {
       'vars',
       'secrets',
     ]);
-    expect(contextsByTrust.untrusted).toEqual(['event', 'inputs']);
+    expect(contextsByTrust.untrusted).toEqual(['event', 'inputs', 'jobs']);
   });
 
   it('marks known-shape contexts as typed and open contexts as syntax-only', () => {
@@ -110,8 +110,14 @@ describe('workflow context registry', () => {
       checkMode: 'typed',
       untrustedPaths: ['events'],
     });
+    expect(workflowContextDefinitions.jobs).toMatchObject({
+      availability: 'job-activation',
+      trustTier: 'untrusted',
+      shape: 'open',
+      checkMode: 'syntax',
+    });
     expect(workflowContextDefinitions.step).toMatchObject({
-      availability: 'step-report',
+      availability: 'step-dispatch',
       trustTier: 'trusted',
       shape: 'known',
       checkMode: 'typed',
@@ -202,10 +208,66 @@ describe('workflow context registry', () => {
         },
       },
     });
-    expect(getWorkflowContextTypeEnvironment('step')).toEqual({
-      step: {
-        kind: 'object',
+    expect(getWorkflowContextTypeEnvironment('execution')).toMatchObject({
+      execution: {
         fields: {
+          outputs: {kind: 'map'},
+        },
+      },
+    });
+    expect(getWorkflowContextTypeEnvironment('executions')).toMatchObject({
+      executions: {
+        element: {
+          fields: {
+            outputs: {kind: 'map'},
+          },
+        },
+      },
+    });
+    expect(getWorkflowContextTypeEnvironment('step')).toMatchObject({
+      step: {
+        fields: {
+          attempt: 'int',
+          is_retry: 'bool',
+          restart: {
+            fields: {
+              from: {
+                fields: {
+                  status: 'string',
+                  exit_code: 'int',
+                  outputs: {kind: 'map'},
+                  response: 'string',
+                  gate: {
+                    fields: {
+                      passed: 'bool',
+                      source: 'string',
+                      reason: 'string',
+                      exit_code: 'int',
+                    },
+                  },
+                  attempts: {
+                    element: {
+                      fields: {
+                        status: 'string',
+                        exit_code: 'int',
+                        outputs: {kind: 'map'},
+                        response: 'string',
+                        gate: {
+                          fields: {
+                            passed: 'bool',
+                            source: 'string',
+                            reason: 'string',
+                            exit_code: 'int',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              feedback: 'string',
+            },
+          },
           exit_code: 'int',
           status: 'string',
           outputs: {kind: 'map'},
@@ -217,6 +279,7 @@ describe('workflow context registry', () => {
   it('does not expose type environments for open contexts', () => {
     expect(getWorkflowContextTypeEnvironment('event')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('inputs')).toBeUndefined();
+    expect(getWorkflowContextTypeEnvironment('jobs')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('steps')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('vars')).toBeUndefined();
     expect(getWorkflowContextTypeEnvironment('secrets')).toBeUndefined();
@@ -250,6 +313,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'jobs',
       'vars',
     ]);
     expect(rootsAvailableAt('step-dispatch')).toEqual([
@@ -260,7 +324,9 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'jobs',
       'steps',
+      'step',
       'vars',
     ]);
     expect(rootsAvailableAt('step-report')).toEqual([
@@ -271,6 +337,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'jobs',
       'steps',
       'step',
       'vars',
@@ -283,6 +350,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'jobs',
       'steps',
       'step',
       'vars',
@@ -295,6 +363,7 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
+      'jobs',
       'steps',
       'step',
       'vars',
@@ -327,9 +396,9 @@ describe('workflow context registry', () => {
 
   it.each(
     availabilitySites.filter(
-      (site) => availabilitySites.indexOf(site) < availabilitySites.indexOf('step-report'),
+      (site) => availabilitySites.indexOf(site) < availabilitySites.indexOf('step-dispatch'),
     ),
-  )('reports step as unavailable before step-report at %s', (site) => {
+  )('reports step as unavailable before step-dispatch at %s', (site) => {
     const unavailableRoots = unavailableRootsAt(['step'], site);
 
     expect(unavailableRoots).toEqual(['step']);
@@ -428,6 +497,8 @@ describe('workflow context registry', () => {
     expect(resolveContextRootAvailability('run')).toBe('run-creation');
     expect(resolveContextRootHost('steps')).toBe('server');
     expect(resolveContextRootAvailability('steps')).toBe('step-dispatch');
+    expect(resolveContextRootHost('jobs')).toBe('server');
+    expect(resolveContextRootAvailability('jobs')).toBe('job-activation');
     expect(resolveContextRootHost('vars')).toBe('server');
     expect(resolveContextRootAvailability('vars')).toBe('run-creation');
     expect(resolveContextRootHost('secrets')).toBe('runner');
@@ -479,7 +550,8 @@ describe('workflow context registry', () => {
       check: {mode: 'typed', typeEnvironment: workflowContextDefinitions.job.typeEnvironment},
     });
     const executionsExpression = createWorkflowExpression({
-      source: 'executions[0].name == execution.name',
+      source:
+        'executions[0].outputs.sha == execution.outputs.sha && executions.map(e, e.outputs.sha).size() >= 0',
       check: {
         mode: 'typed',
         typeEnvironment: {
@@ -495,9 +567,24 @@ describe('workflow context registry', () => {
     expect(executionsExpression.check).toBe('typed');
   });
 
+  it('syntax-checks open jobs root output and execution references', () => {
+    const outputExpression = createWorkflowExpression({
+      source: 'jobs.build.outputs.image_sha',
+      check: {mode: workflowContextDefinitions.jobs.checkMode},
+    });
+    const executionsExpression = createWorkflowExpression({
+      source: 'jobs.review.executions.map(e, e.outputs.verdict)',
+      check: {mode: workflowContextDefinitions.jobs.checkMode},
+    });
+
+    expect(outputExpression.check).toBe('syntax');
+    expect(executionsExpression.check).toBe('syntax');
+  });
+
   it('type-checks step self-root gate expressions', () => {
     const gateExpression = createWorkflowExpression({
-      source: 'step.exit_code == 0 && step.status == "succeeded"',
+      source:
+        'step.attempt >= 1 && step.is_retry == (step.attempt > 1) && step.exit_code == 0 && step.status == "succeeded"',
       check: {
         mode: 'typed',
         typeEnvironment: workflowContextDefinitions.step.typeEnvironment,
@@ -506,6 +593,20 @@ describe('workflow context registry', () => {
     });
 
     expect(gateExpression.check).toBe('typed');
+  });
+
+  it('type-checks step restart provenance expressions', () => {
+    const restartExpression = createWorkflowExpression({
+      source:
+        'step.restart.feedback != "" && step.restart.from.outputs.summary != "" && step.restart.from.gate.passed == false',
+      check: {
+        mode: 'typed',
+        typeEnvironment: workflowContextDefinitions.step.typeEnvironment,
+        expectedResultType: 'bool',
+      },
+    });
+
+    expect(restartExpression.check).toBe('typed');
   });
 
   it('keeps executions event data dynamic after type conversion', () => {
@@ -583,7 +684,9 @@ describe('workflow interpolation field policies', () => {
     expect(workflowInterpolationFieldAcceptsTrustTier('run', 'untrusted')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('run', 'event')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('run', 'inputs')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsContext('run', 'jobs')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('agent.model', 'event')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsContext('agent.model', 'jobs')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('agent.provider', 'inputs')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('agent.thinking', 'event')).toBe(false);
   });
