@@ -50,6 +50,7 @@ export interface Job {
   resolutionReason: ResolutionReason | null;
   listeningOn: JobListeningTrigger[] | null;
   listeningUntil: JobListeningTrigger[] | null;
+  outputs: Record<string, unknown> | null;
   dependencies: string[];
   runner: string[] | null;
   position: number;

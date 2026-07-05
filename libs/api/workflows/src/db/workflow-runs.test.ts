@@ -301,6 +301,125 @@ describe('workflow run queries', () => {
       expect(executions[0]?.runner).toEqual(['gpu', 'linux']);
     });
 
+    async function createJobOutputRun() {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [{key: 'pack', run: 'echo pack'}],
+              outputs: {
+                image_sha: template('steps.pack.outputs.sha'),
+              },
+            },
+            deploy: {
+              needs: 'build',
+              steps: [
+                {
+                  key: 'deploy',
+                  run: 'deploy',
+                  env: {IMAGE_SHA: template('jobs.build.outputs.image_sha')},
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [build, deploy] = await getJobsByWorkflowRunId(run.id);
+      if (!build || !deploy) throw new Error('Expected build and deploy jobs');
+      const [buildExecution] = await getJobExecutionsByJobId(build.id);
+      if (!buildExecution) throw new Error('Expected build execution');
+      const [buildSetup, pack] = await getStepsByJobId(build.id);
+      if (!buildSetup || !pack) throw new Error('Expected build steps');
+      const [deploySetup] = await getStepsByJobId(deploy.id);
+      if (!deploySetup) throw new Error('Expected deploy setup step');
+
+      return {run, build, deploy, buildExecution, buildSetup, pack, deploySetup};
+    }
+
+    async function recordBuildStepOutputs(state: Awaited<ReturnType<typeof createJobOutputRun>>) {
+      await nextStepForJob(state.build.id);
+      await recordStepResult({
+        jobExecutionId: state.buildExecution.id,
+        stepId: state.buildSetup.id,
+        status: 'succeeded',
+      });
+      await nextStepForJob(state.build.id);
+      await recordStepResult({
+        jobExecutionId: state.buildExecution.id,
+        stepId: state.pack.id,
+        status: 'succeeded',
+        output: {sha: 'abc123'},
+      });
+    }
+
+    test('persists mapped outputs on the succeeded job execution', async () => {
+      const state = await createJobOutputRun();
+      await recordBuildStepOutputs(state);
+
+      const outputExecution = await updateJobExecutionStatus({
+        jobExecutionId: state.buildExecution.id,
+        expectedVersion: state.buildExecution.version,
+        status: 'succeeded',
+      });
+
+      expect(outputExecution.outputs).toEqual({image_sha: 'abc123'});
+    });
+
+    test('reduces the latest succeeded execution outputs onto the job', async () => {
+      const state = await createJobOutputRun();
+      await recordBuildStepOutputs(state);
+      await updateJobExecutionStatus({
+        jobExecutionId: state.buildExecution.id,
+        expectedVersion: state.buildExecution.version,
+        status: 'succeeded',
+      });
+
+      await resolveJobStatusFromJobExecutions({jobId: state.build.id});
+
+      const [build] = (await getJobsByWorkflowRunId(state.run.id)).filter(
+        (job) => job.id === state.build.id,
+      );
+      expect(build?.outputs).toEqual({image_sha: 'abc123'});
+    });
+
+    test('fills dependent step configs from direct dependency job outputs', async () => {
+      const state = await createJobOutputRun();
+      await recordBuildStepOutputs(state);
+      await updateJobExecutionStatus({
+        jobExecutionId: state.buildExecution.id,
+        expectedVersion: state.buildExecution.version,
+        status: 'succeeded',
+      });
+      await resolveJobStatusFromJobExecutions({jobId: state.build.id});
+      await nextStepForJob(state.deploy.id);
+      const [deployExecution] = await getJobExecutionsByJobId(state.deploy.id);
+      if (!deployExecution) throw new Error('Expected deploy execution');
+      await recordStepResult({
+        jobExecutionId: deployExecution.id,
+        stepId: state.deploySetup.id,
+        status: 'succeeded',
+      });
+
+      const deployStep = await nextStepForJob(state.deploy.id);
+
+      expect(deployStep).toEqual({
+        kind: 'step',
+        step: expect.objectContaining({
+          key: 'deploy',
+          config: expect.objectContaining({env: {IMAGE_SHA: 'abc123'}}),
+        }),
+      });
+    });
+
     test('persists the resolved one-shot job execution name', async () => {
       const model = buildModel({
         jobs: {
@@ -2200,6 +2319,7 @@ jobs:
         runner: null,
         status,
         statusReason: status === 'failed' ? 'step_failed' : null,
+        outputs: null,
         triggerEvents: [],
         version: 1,
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -2390,6 +2510,55 @@ jobs:
       const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
 
       expect(resolved.status).toBe('succeeded');
+    });
+
+    test('resolves custom job success expressions over direct dependency outputs', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {steps: [{run: 'build'}]},
+            deploy: {
+              needs: ['build'],
+              success: 'jobs.build.status == "succeeded" && jobs.build.outputs.release == "yes"',
+              steps: [{run: 'deploy'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const build = runJobs.find((job) => job.key === 'build');
+      const deploy = runJobs.find((job) => job.key === 'deploy');
+      if (!build || !deploy) throw new Error('Expected workflow jobs');
+      await db()
+        .update(jobs)
+        .set({status: 'succeeded', outputs: {release: 'yes'}})
+        .where(eq(jobs.id, build.id));
+      const deployExecution = await getFirstJobExecutionByJobId(deploy.id);
+      if (!deployExecution) throw new Error('Expected deploy job execution');
+      await updateJobExecutionStatus({
+        jobExecutionId: deployExecution.id,
+        status: 'succeeded',
+        expectedVersion: deployExecution.version,
+      });
+
+      const resolved = await resolveJobStatusFromJobExecutions({jobId: deploy.id});
+
+      expect(resolved.status).toBe('succeeded');
+      expect(
+        (await getJobsByWorkflowRunId(run.id)).find((job) => job.id === deploy.id),
+      ).toMatchObject({
+        status: 'succeeded',
+        statusReason: null,
+      });
     });
 
     test('fails closed when the success expression throws at runtime', async () => {

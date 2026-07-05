@@ -72,6 +72,7 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
     resolutionReason: null,
     listeningOn: null,
     listeningUntil: null,
+    outputs: null,
     dependencies: [],
     runner: null,
     position: 0,

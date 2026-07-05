@@ -3,11 +3,13 @@ export {
   type AssembleWorkflowRunContextParams,
   assembleCreationContext,
   assembleExecutionCreationContext,
+  assembleExecutionResolutionContext,
   assembleExecutionsContext,
   assembleGateContext,
   assembleJobResolutionContext,
   assembleStepDispatchContext,
   assembleWorkflowRunContext,
+  type JobContextInput,
 } from './assemble-run-context.js';
 export {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
 export {
@@ -18,6 +20,7 @@ export {
 export {
   type MaterializedWorkflowJob,
   type MaterializeWorkflowModelParams,
+  materializeJobOutputs,
   materializeJobRunner,
   materializeWorkflowModel,
   modelHasAgentStep,

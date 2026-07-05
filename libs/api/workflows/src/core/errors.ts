@@ -34,6 +34,7 @@ export type InterpolationUnresolvableField =
   | 'agent.model'
   | 'agent.provider'
   | 'job.runner'
+  | 'job.outputs'
   | 'job.name'
   | 'step.name'
   | 'step.feedback';

@@ -1,6 +1,10 @@
 import type {WorkflowTemplateSegment} from '../template/template-segment.js';
 import {
+  type AvailabilitySite,
+  availabilitySites,
+  type FillTarget,
   getWorkflowInterpolationFieldFailurePolicy,
+  getWorkflowInterpolationFieldMinimumFillTarget,
   type WorkflowInterpolationFailurePolicy,
   type WorkflowInterpolationField,
 } from '../workflow-context/workflow-context.js';
@@ -34,6 +38,7 @@ export function planInterpolationField(params: {
   readonly segments: readonly WorkflowTemplateSegment[];
 }): FieldPlanResult {
   const violations: PlanViolation[] = [];
+  const minimumFillTarget = getWorkflowInterpolationFieldMinimumFillTarget(params.field);
   const resolvedSegments: ResolvedField['segments'] = params.segments.map((segment) => {
     if (segment.kind === 'literal') return {kind: 'literal', value: segment.text};
 
@@ -61,7 +66,7 @@ export function planInterpolationField(params: {
       kind: 'deferred',
       expression: segment.expression,
       roots: route.roots,
-      fillTarget: route.fillTarget,
+      fillTarget: applyMinimumFillTarget(route.fillTarget, minimumFillTarget),
     };
   });
 
@@ -74,4 +79,17 @@ export function planInterpolationField(params: {
       failurePolicy: getWorkflowInterpolationFieldFailurePolicy(params.field),
     },
   };
+}
+
+function applyMinimumFillTarget(
+  fillTarget: FillTarget,
+  minimumFillTarget: AvailabilitySite | undefined,
+): FillTarget {
+  if (minimumFillTarget === undefined || fillTarget === 'runner-fill') return fillTarget;
+
+  const fillTargetIndex = availabilitySites.indexOf(fillTarget);
+  const minimumFillTargetIndex = availabilitySites.indexOf(minimumFillTarget);
+  if (fillTargetIndex < 0 || minimumFillTargetIndex < 0) return fillTarget;
+
+  return availabilitySites[Math.max(fillTargetIndex, minimumFillTargetIndex)] ?? fillTarget;
 }

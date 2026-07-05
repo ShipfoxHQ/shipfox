@@ -3,6 +3,7 @@ import type {Step, StepAttempt} from '#core/entities/step.js';
 import {
   assembleCreationContext,
   assembleExecutionCreationContext,
+  assembleExecutionResolutionContext,
   assembleGateContext,
   assembleJobResolutionContext,
   assembleStepDispatchContext,
@@ -172,6 +173,7 @@ describe('assembleExecutionCreationContext', () => {
             started_at: date,
             finished_at: date,
             events: prior.triggerEvents,
+            outputs: {},
           },
           {
             index: 1,
@@ -188,6 +190,7 @@ describe('assembleExecutionCreationContext', () => {
                 data: {environment: 'prod'},
               },
             ],
+            outputs: {},
           },
         ],
         execution: {
@@ -205,6 +208,7 @@ describe('assembleExecutionCreationContext', () => {
               data: {environment: 'prod'},
             },
           ],
+          outputs: {},
         },
       },
     });
@@ -256,6 +260,7 @@ describe('assembleStepDispatchContext', () => {
               data: {ref: 'refs/heads/main'},
             },
           ],
+          outputs: {},
         },
         step: {
           attempt: 2n,
@@ -547,6 +552,7 @@ describe('assembleJobResolutionContext', () => {
                 data: {ref: 'refs/heads/main'},
               },
             ],
+            outputs: {},
           },
           {
             index: 1,
@@ -563,9 +569,61 @@ describe('assembleJobResolutionContext', () => {
                 data: {ref: 'refs/heads/main'},
               },
             ],
+            outputs: {},
           },
         ],
       },
+    });
+  });
+});
+
+describe('assembleExecutionResolutionContext', () => {
+  const run = {
+    id: 'run-1',
+    name: 'Build',
+    definitionId: 'def-1',
+    projectId: 'proj-1',
+    workspaceId: 'workspace-1',
+    createdAt: new Date('2026-06-30T12:00:00.000Z'),
+  };
+
+  it('uses the target execution for the execution self-root', () => {
+    const priorExecution = jobExecution({
+      id: 'exec-1',
+      sequence: 1,
+      name: 'Build #1',
+      outputs: {sha: 'old'},
+    });
+    const targetExecution = jobExecution({
+      id: 'exec-2',
+      sequence: 2,
+      name: 'Build #2',
+      outputs: {sha: 'target'},
+    });
+
+    const context = assembleExecutionResolutionContext({
+      run,
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: 'sub-1',
+        userId: 'user-1',
+      },
+      job: {key: 'build'},
+      jobExecution: targetExecution,
+      executions: [targetExecution, priorExecution],
+      steps: [],
+      attempts: [],
+    });
+
+    expect(context.values.execution).toEqual({
+      index: 0,
+      name: 'Build #2',
+      status: 'running',
+      started_at: date,
+      finished_at: null,
+      events: targetExecution.triggerEvents,
+      outputs: {sha: 'target'},
     });
   });
 });
@@ -631,6 +689,7 @@ function jobExecution(overrides: Partial<JobExecution> = {}): JobExecution {
         data: {ref: 'refs/heads/main'},
       },
     ],
+    outputs: null,
     version: 1,
     createdAt: date,
     updatedAt: date,

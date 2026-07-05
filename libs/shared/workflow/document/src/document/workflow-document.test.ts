@@ -4,6 +4,13 @@ import {
   workflowDocumentSchema,
 } from './workflow-document.js';
 
+const interpolationOpen = '$' + '{{';
+const interpolationClose = '}' + '}';
+
+function interpolation(source: string): string {
+  return `${interpolationOpen} ${source} ${interpolationClose}`;
+}
+
 describe('workflowDocumentSchema', () => {
   it('accepts a valid minimal workflow document', () => {
     const workflowDocument = {
@@ -11,6 +18,25 @@ describe('workflowDocumentSchema', () => {
       jobs: {
         build: {
           steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts job output mappings', () => {
+    const workflowDocument = {
+      name: 'job outputs',
+      jobs: {
+        build: {
+          steps: [{key: 'build', run: 'npm run build'}],
+          outputs: {
+            image_sha: interpolation('steps.build.outputs.sha'),
+            registry: 'registry.example.com',
+          },
         },
       },
     };

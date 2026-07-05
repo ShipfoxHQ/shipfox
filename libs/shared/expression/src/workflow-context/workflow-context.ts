@@ -338,6 +338,7 @@ export type WorkflowInterpolationField =
   | 'agent.provider'
   | 'agent.thinking'
   | 'job.runner'
+  | 'job.outputs'
   | 'job.name'
   | 'step.name'
   | 'step.feedback';
@@ -351,6 +352,7 @@ export interface WorkflowInterpolationFieldPolicy {
   readonly acceptedHosts: readonly WorkflowContextHost[];
   readonly failurePolicy: WorkflowInterpolationFailurePolicy;
   readonly renderSanitize: boolean;
+  readonly minimumFillTarget?: AvailabilitySite;
 }
 
 const trustedOnlyTrustTiers: readonly WorkflowContextTrustTier[] = ['trusted'];
@@ -400,6 +402,13 @@ export const workflowInterpolationFieldPolicies = {
     acceptedHosts: serverOnlyHosts,
     failurePolicy: 'fail',
     renderSanitize: false,
+  },
+  'job.outputs': {
+    acceptedTrustTiers: anyTrustTier,
+    acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+    renderSanitize: false,
+    minimumFillTarget: 'execution-resolution',
   },
   'job.name': {
     acceptedTrustTiers: anyTrustTier,
@@ -536,6 +545,13 @@ export function getWorkflowInterpolationFieldFailurePolicy(
   field: WorkflowInterpolationField,
 ): WorkflowInterpolationFailurePolicy {
   return workflowInterpolationFieldPolicies[field].failurePolicy;
+}
+
+export function getWorkflowInterpolationFieldMinimumFillTarget(
+  field: WorkflowInterpolationField,
+): AvailabilitySite | undefined {
+  const policy = workflowInterpolationFieldPolicies[field];
+  return 'minimumFillTarget' in policy ? policy.minimumFillTarget : undefined;
 }
 
 export interface WorkflowContextAvailabilityReferenceEntry {

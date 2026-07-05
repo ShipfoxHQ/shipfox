@@ -19,6 +19,7 @@ export interface JobExecution {
   status: JobExecutionStatus;
   statusReason: JobStatusReason | null;
   triggerEvents: WorkflowExecutionEvent[];
+  outputs: Record<string, unknown> | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;

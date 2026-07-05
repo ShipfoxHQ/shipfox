@@ -48,6 +48,28 @@ describe('planInterpolationField', () => {
     });
   });
 
+  it('applies field minimum fill targets', () => {
+    const segments = parseWorkflowTemplate(templateExpression(' steps.build.outputs.sha '));
+
+    const result = planInterpolationField({field: 'job.outputs', segments});
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        failurePolicy: 'fail',
+        field: {
+          segments: [
+            {
+              kind: 'deferred',
+              roots: ['steps'],
+              fillTarget: 'execution-resolution',
+            },
+          ],
+        },
+      },
+    });
+  });
+
   it('keeps template segment boundaries while assigning fill targets', () => {
     const segments = parseWorkflowTemplate(
       `${templateExpression(' run.id ')}-${templateExpression(' trigger.event ')}`,

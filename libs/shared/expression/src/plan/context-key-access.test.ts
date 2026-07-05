@@ -1,4 +1,4 @@
-import {analyzeContextKeyAccess} from './context-key-access.js';
+import {analyzeContextKeyAccess, analyzeContextRootKeyAccess} from './context-key-access.js';
 
 describe('analyzeContextKeyAccess', () => {
   it('returns canonical references for vars and secrets', () => {
@@ -49,5 +49,46 @@ describe('analyzeContextKeyAccess', () => {
     const result = analyzeContextKeyAccess('{vars: event.region, secrets: event.token}');
 
     expect(result).toEqual({references: [], violations: []});
+  });
+});
+
+describe('analyzeContextRootKeyAccess', () => {
+  it('returns first literal keys for selected roots', () => {
+    const result = analyzeContextRootKeyAccess(
+      'jobs.build.outputs.sha + jobs.review.executions.map(e, e.outputs.verdict).join(",")',
+      ['jobs'],
+    );
+
+    expect(result).toEqual({
+      references: [
+        {root: 'jobs', key: 'build'},
+        {root: 'jobs', key: 'review'},
+      ],
+      violations: [],
+    });
+  });
+
+  it.each([
+    'jobs',
+    'jobs[event.name]',
+    'jobs["build"]',
+  ])('reports non-dot-key root access: %s', (source) => {
+    const result = analyzeContextRootKeyAccess(source, ['jobs']);
+
+    expect(result).toEqual({
+      references: [],
+      violations: [{root: 'jobs', source}],
+    });
+  });
+
+  it('does not treat comprehension aliases as selected roots', () => {
+    const result = analyzeContextRootKeyAccess('jobs.review.executions.map(jobs, jobs.status)', [
+      'jobs',
+    ]);
+
+    expect(result).toEqual({
+      references: [{root: 'jobs', key: 'review'}],
+      violations: [],
+    });
   });
 });

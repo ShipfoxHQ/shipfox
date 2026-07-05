@@ -93,16 +93,24 @@ describe('extractCelContextRoots', () => {
     expect(contextRoots).toEqual([]);
   });
 
-  it('intentionally over-includes comprehension bound names', () => {
+  it('excludes comprehension bound names', () => {
     const contextRoots = extractCelContextRoots('list.exists(x, x.enabled)');
 
-    expect(contextRoots).toEqual(['list', 'x']);
+    expect(contextRoots).toEqual(['list']);
   });
 
-  it('intentionally over-includes struct keys', () => {
+  it('excludes struct keys', () => {
     const contextRoots = extractCelContextRoots('{foo: event.x}');
 
-    expect(contextRoots).toEqual(['event', 'foo']);
+    expect(contextRoots).toEqual(['event']);
+  });
+
+  it('excludes aliases from mapped execution outputs', () => {
+    const contextRoots = extractCelContextRoots(
+      'jobs.listen.executions.map(e, e.outputs.message).size()',
+    );
+
+    expect(contextRoots).toEqual(['jobs']);
   });
 
   it('extracts every known v1 workflow context root', () => {

@@ -253,6 +253,35 @@ describe('runJobSteps', () => {
     expect(requestNextStepMock).toHaveBeenCalledTimes(3);
   });
 
+  it('reports run step outputs', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({
+      success: true,
+      outputs: {image_sha: 'sha-123'},
+      error: null,
+      exit_code: 0,
+    });
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      status: 'succeeded',
+      error: null,
+      exitCode: 0,
+      outputs: {image_sha: 'sha-123'},
+      logOutcome: 'drained',
+      signal: ac.signal,
+    });
+  });
+
   it('pullNextStep returns the step-scoped lease token', async () => {
     const setup = buildSetupStep();
     requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 4, 'lease-pulled'));

@@ -645,6 +645,7 @@ describe('workflow interpolation field policies', () => {
       'agent.provider',
       'agent.thinking',
       'job.runner',
+      'job.outputs',
       'job.name',
       'step.name',
       'step.feedback',
@@ -660,6 +661,7 @@ describe('workflow interpolation field policies', () => {
     ['agent.provider', ['trusted']],
     ['agent.thinking', ['trusted']],
     ['job.runner', ['trusted', 'untrusted']],
+    ['job.outputs', ['trusted', 'untrusted']],
     ['job.name', ['trusted', 'untrusted']],
     ['step.name', ['trusted', 'untrusted']],
     ['step.feedback', ['trusted', 'untrusted']],
@@ -678,6 +680,7 @@ describe('workflow interpolation field policies', () => {
     ['agent.provider', ['server']],
     ['agent.thinking', ['server']],
     ['job.runner', ['server']],
+    ['job.outputs', ['server']],
     ['job.name', ['server']],
     ['step.name', ['server']],
     ['step.feedback', ['server']],
@@ -704,6 +707,7 @@ describe('workflow interpolation field policies', () => {
       'env.value',
       'agent.prompt',
       'job.runner',
+      'job.outputs',
       'job.name',
       'step.name',
       'step.feedback',
@@ -720,6 +724,8 @@ describe('workflow interpolation field policies', () => {
     expect(workflowInterpolationFieldAcceptsHost('agent.prompt', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('agent.model', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('agent.provider', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('job.runner', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('job.outputs', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('job.runner', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('job.name', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('step.name', 'runner')).toBe(false);

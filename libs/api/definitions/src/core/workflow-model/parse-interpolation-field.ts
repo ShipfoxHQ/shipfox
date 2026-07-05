@@ -31,6 +31,7 @@ import type {
   WorkflowModelValidationIssueCode,
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
+import {validateDirectJobReferences} from './validate-job-references.js';
 
 export type StoredInterpolationField =
   | 'run'
@@ -38,6 +39,7 @@ export type StoredInterpolationField =
   | 'agent.prompt'
   | 'agent.model'
   | 'agent.provider'
+  | 'job.outputs'
   | 'job.name'
   | 'job.runner'
   | 'step.name'
@@ -49,6 +51,7 @@ export function parseInterpolationField(params: {
   path: readonly WorkflowModelValidationIssuePathSegment[];
   issues: WorkflowModelValidationIssue[];
   fillSite?: AvailabilitySite;
+  allowedJobReferences?: ReadonlySet<string>;
 }): WorkflowFieldTemplate | undefined {
   const segments = parseTemplate(params);
   if (segments === undefined) return undefined;
@@ -109,6 +112,7 @@ function validateExpressionSegment(params: {
   issues: WorkflowModelValidationIssue[];
   segment: WorkflowTemplateExprSegment;
   fillSite?: AvailabilitySite;
+  allowedJobReferences?: ReadonlySet<string>;
 }): WorkflowTemplateExprSegment | undefined {
   const contextRoots = uniqueStrings(params.segment.contextRoots);
   const knownRoots = contextRoots.filter(isWorkflowContextName);
@@ -152,6 +156,21 @@ function validateExpressionSegment(params: {
   });
   if (invalidReferenceIssue !== undefined) {
     params.issues.push(invalidReferenceIssue);
+    return undefined;
+  }
+
+  const invalidJobReferenceIssue =
+    params.allowedJobReferences === undefined
+      ? undefined
+      : validateDirectJobReferences({
+          source: params.source,
+          expression: params.segment.expression,
+          field: params.field,
+          path: params.path,
+          allowedJobReferences: params.allowedJobReferences,
+        });
+  if (invalidJobReferenceIssue !== undefined) {
+    params.issues.push(invalidJobReferenceIssue);
     return undefined;
   }
 

@@ -1,8 +1,14 @@
 import type {WorkflowExpressionEvaluationContext} from '@shipfox/expression';
+import type {Job} from '#core/entities/job.js';
 import type {JobExecution} from '#core/entities/job-execution.js';
 import type {Step, StepAttempt, StepStatus} from '#core/entities/step.js';
 import type {TriggerPayload, WorkflowRun} from '#core/entities/workflow-run.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
+
+export interface JobContextInput {
+  readonly job: Pick<Job, 'key' | 'status' | 'outputs'>;
+  readonly executions: readonly JobExecution[];
+}
 
 export interface AssembleWorkflowRunContextParams {
   readonly run: Pick<
@@ -66,6 +72,7 @@ export function assembleExecutionCreationContext(
     status: params.status,
     statusReason: null,
     triggerEvents: [...params.triggerEvents],
+    outputs: null,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -94,23 +101,55 @@ export function assembleExecutionsContext(
   executions: readonly JobExecution[],
 ): WorkflowExpressionEvaluationContext {
   return {
-    executions: executions.map((execution, index) => ({
-      index,
-      name: execution.name,
-      status: execution.status,
-      started_at: execution.startedAt,
-      finished_at: execution.finishedAt,
-      events: execution.triggerEvents,
-    })),
+    executions: executions.map((execution, index) => assembleExecutionContext(execution, index)),
   };
 }
 
-export function assembleStepDispatchContext(params: {
+function assembleExecutionContext(execution: JobExecution, index: number): Record<string, unknown> {
+  return {
+    index,
+    name: execution.name,
+    status: execution.status,
+    started_at: execution.startedAt,
+    finished_at: execution.finishedAt,
+    events: execution.triggerEvents,
+    outputs: execution.outputs ?? {},
+  };
+}
+
+export function assembleJobsContext(
+  jobs: readonly JobContextInput[],
+): WorkflowExpressionEvaluationContext {
+  return {
+    jobs: Object.fromEntries(
+      jobs.map(({job, executions}) => [
+        job.key,
+        {
+          status: job.status,
+          outputs: job.outputs ?? {},
+          executions: assembleExecutionsContext(executions).executions,
+        },
+      ]),
+    ),
+  };
+}
+
+function assembleStepsContext(params: {
   readonly steps: readonly Step[];
   readonly attempts: readonly StepAttempt[];
-  readonly targetStepId: string;
-  readonly jobExecution?: JobExecution;
-}): WorkflowEvaluationContext {
+}): Record<string, Record<string, unknown>> {
+  return buildStepAttemptContext(params).stepsContext;
+}
+
+function buildStepAttemptContext(params: {
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+}): {
+  readonly stepsContext: Record<string, Record<string, unknown>>;
+  readonly orderedAttempts: readonly StepAttempt[];
+  readonly stepsByKey: ReadonlyMap<string, Step>;
+  readonly terminalAttemptsByStepId: ReadonlyMap<string, readonly StepAttempt[]>;
+} {
   const stepsByKey = new Map(
     params.steps.flatMap((step) => (step.key === null ? [] : [[step.key, step] as const])),
   );
@@ -139,20 +178,32 @@ export function assembleStepDispatchContext(params: {
     };
   }
 
+  return {stepsContext, orderedAttempts, stepsByKey, terminalAttemptsByStepId};
+}
+
+export function assembleStepDispatchContext(params: {
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+  readonly targetStepId: string;
+  readonly jobExecution?: JobExecution;
+  readonly jobs?: readonly JobContextInput[];
+}): WorkflowEvaluationContext {
   const targetStep = params.steps.find((step) => step.id === params.targetStepId);
+  const stepAttemptContext = buildStepAttemptContext(params);
   const restart =
     targetStep === undefined || targetStep.currentAttempt <= 1
       ? undefined
       : restartProvenance({
           targetStep,
-          orderedAttempts,
-          stepsByKey,
-          terminalAttemptsByStepId,
+          orderedAttempts: stepAttemptContext.orderedAttempts,
+          stepsByKey: stepAttemptContext.stepsByKey,
+          terminalAttemptsByStepId: stepAttemptContext.terminalAttemptsByStepId,
         });
 
   return {
     site: 'step-dispatch',
     values: {
+      ...(params.jobs === undefined ? {} : assembleJobsContext(params.jobs)),
       ...(params.jobExecution === undefined
         ? {}
         : {
@@ -163,6 +214,7 @@ export function assembleStepDispatchContext(params: {
               started_at: params.jobExecution.startedAt,
               finished_at: params.jobExecution.finishedAt,
               events: params.jobExecution.triggerEvents,
+              outputs: params.jobExecution.outputs ?? {},
             },
           }),
       ...(targetStep === undefined
@@ -174,7 +226,7 @@ export function assembleStepDispatchContext(params: {
               ...(restart === undefined ? {} : {restart}),
             },
           }),
-      steps: stepsContext,
+      steps: stepAttemptContext.stepsContext,
     },
   };
 }
@@ -255,5 +307,38 @@ export function assembleJobResolutionContext(
   return {
     site: 'job-resolution',
     values: assembleExecutionsContext(executions),
+  };
+}
+
+export function assembleExecutionResolutionContext(params: {
+  readonly run: AssembleWorkflowRunContextParams['run'];
+  readonly triggerPayload: TriggerPayload;
+  readonly inputs?: Record<string, unknown> | null | undefined;
+  readonly vars?: Record<string, string> | undefined;
+  readonly job: Pick<Job, 'key'>;
+  readonly jobExecution: JobExecution;
+  readonly executions: readonly JobExecution[];
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+  readonly jobs?: readonly JobContextInput[];
+}): WorkflowEvaluationContext {
+  const executions = assembleExecutionsContext(params.executions);
+  const executionIndex = params.executions.findIndex(
+    (execution) => execution.id === params.jobExecution.id,
+  );
+
+  return {
+    site: 'execution-resolution',
+    values: {
+      ...assembleWorkflowRunContext(params),
+      ...executions,
+      ...(params.jobs === undefined ? {} : assembleJobsContext(params.jobs)),
+      execution: assembleExecutionContext(
+        params.jobExecution,
+        executionIndex < 0 ? params.jobExecution.sequence - 1 : executionIndex,
+      ),
+      job: {key: params.job.key},
+      steps: assembleStepsContext({steps: params.steps, attempts: params.attempts}),
+    },
   };
 }

@@ -11,6 +11,7 @@ export function normalizeEnv(params: {
   path: readonly WorkflowModelValidationIssuePathSegment[];
   issues: WorkflowModelValidationIssue[];
   fillSite?: AvailabilitySite;
+  allowedJobReferences?: ReadonlySet<string>;
 }): {env?: Readonly<Record<string, string>>; templates?: {env: WorkflowEnvTemplates}} {
   const env = params.env;
   if (env === undefined || Object.keys(env).length === 0) return {};
@@ -31,6 +32,9 @@ export function normalizeEnv(params: {
       path: [...params.path, key],
       issues: params.issues,
       ...(params.fillSite === undefined ? {} : {fillSite: params.fillSite}),
+      ...(params.allowedJobReferences === undefined
+        ? {}
+        : {allowedJobReferences: params.allowedJobReferences}),
     });
     if (template !== undefined) templates[key] = template;
   }

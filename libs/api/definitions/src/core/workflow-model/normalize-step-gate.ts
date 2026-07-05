@@ -13,6 +13,7 @@ export function normalizeStepGate(params: {
   stepId: string;
   previousStepKeys: ReadonlySet<string>;
   issues: WorkflowModelValidationIssue[];
+  allowedJobReferences: ReadonlySet<string>;
 }): WorkflowModelStepGate | undefined {
   const gate = params.step.gate;
   if (gate === undefined) return undefined;
@@ -22,6 +23,7 @@ export function normalizeStepGate(params: {
     sourceName: params.sourceName,
     stepIndex: params.stepIndex,
     issues: params.issues,
+    allowedJobReferences: params.allowedJobReferences,
   });
   const feedbackTemplate =
     gate.on_failure?.feedback === undefined
@@ -66,6 +68,7 @@ function normalizeGateSuccess(params: {
   sourceName: string;
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
+  allowedJobReferences: ReadonlySet<string>;
 }): WorkflowExpression | undefined {
   if (params.source === undefined) return undefined;
 
@@ -77,5 +80,6 @@ function normalizeGateSuccess(params: {
     invalidCode: 'invalid-step-gate-success',
     invalidMessage: 'Step gate success must be a valid CEL boolean expression.',
     issues: params.issues,
+    allowedJobReferences: params.allowedJobReferences,
   });
 }

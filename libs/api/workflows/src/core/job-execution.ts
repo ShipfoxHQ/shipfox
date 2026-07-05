@@ -5,6 +5,7 @@ import {
   countStepAttempts,
   dispatchStepWithCompletedConfig,
   finishStepAttempt,
+  getDirectDependencyJobContexts,
   getJobExecutionById,
   getLatestJobExecutionByJobId,
   getStepAttemptsByJobExecutionId,
@@ -107,11 +108,13 @@ async function dispatchPendingStepWithConfigPlan({
   if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
 
   const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
+  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
   const context = assembleStepDispatchContext({
     steps,
     attempts,
     targetStepId: pending.id,
     jobExecution,
+    jobs,
   });
 
   try {

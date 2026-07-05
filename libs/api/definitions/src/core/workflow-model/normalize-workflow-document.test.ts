@@ -23,7 +23,11 @@ function expectInvalid(
   }
 }
 
-const workflowInterpolation = (source: string) => '$'.concat('{{ ', source, ' }}');
+function interpolation(source: string): string {
+  return '$'.concat('{{ ', source, ' }}');
+}
+
+const workflowInterpolation = interpolation;
 
 describe('normalizeWorkflowDocument', () => {
   it('normalizes a workflow document into a WorkflowModel', () => {
@@ -914,6 +918,97 @@ describe('normalizeWorkflowDocument', () => {
       source: 'jobs.build.status == "succeeded"',
       check: 'syntax',
     });
+  });
+
+  it('parses job output mappings at execution resolution', () => {
+    const document: WorkflowDocument = {
+      name: 'job outputs',
+      jobs: {
+        build: {
+          steps: [{key: 'build', run: 'npm run build'}],
+          outputs: {
+            image_sha: interpolation('steps.build.outputs.sha'),
+            registry: 'registry.example.com',
+          },
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.outputs).toEqual({
+      image_sha: [
+        {
+          kind: 'deferred',
+          expression: {
+            language: 'cel',
+            source: 'steps.build.outputs.sha',
+            check: 'syntax',
+          },
+          roots: ['steps'],
+          fillTarget: 'execution-resolution',
+        },
+      ],
+      registry: [{kind: 'literal', value: 'registry.example.com'}],
+    });
+  });
+
+  it('rejects job output references without a direct needs edge', () => {
+    const document: WorkflowDocument = {
+      name: 'missing output edge',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+        deploy: {
+          steps: [{run: 'npm run deploy'}],
+          outputs: {
+            image_sha: interpolation('jobs.build.outputs.image_sha'),
+          },
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'missing-job-needs-edge',
+        path: ['jobs', 'deploy', 'outputs', 'image_sha'],
+        details: expect.objectContaining({
+          field: 'job.outputs',
+          job: 'build',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects config references without a direct needs edge', () => {
+    const document: WorkflowDocument = {
+      name: 'missing config edge',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+        deploy: {
+          env: {IMAGE_SHA: interpolation('jobs.build.outputs.image_sha')},
+          steps: [{run: 'npm run deploy'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'missing-job-needs-edge',
+        path: ['jobs', 'deploy', 'env', 'IMAGE_SHA'],
+        details: expect.objectContaining({
+          field: 'env.value',
+          job: 'build',
+        }),
+      }),
+    ]);
   });
 
   it('accepts execution fields and event data in job success expressions', () => {

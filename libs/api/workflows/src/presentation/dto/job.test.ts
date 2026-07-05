@@ -50,6 +50,7 @@ function jobEntity(overrides: Partial<Job> = {}): Job {
     mode: 'one_shot',
     status: 'pending',
     statusReason: null,
+    outputs: null,
     carriedOver: false,
     checkout: {
       permissions: {contents: 'read'},
@@ -86,6 +87,7 @@ function jobExecutionEntity(overrides: Partial<JobExecution> = {}): JobExecution
     runner: null,
     status: 'pending',
     statusReason: null,
+    outputs: null,
     triggerEvents: [],
     version: 1,
     createdAt: new Date('2026-06-25T00:00:00.000Z'),
