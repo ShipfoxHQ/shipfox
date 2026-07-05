@@ -7,6 +7,8 @@ export type WorkflowModelValidationIssueCode =
   | 'duplicate-job-id'
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
+  | 'harness-provider-incompatible'
+  | 'harness-thinking-incompatible'
   | 'invalid-cron-event'
   | 'invalid-cron-schedule'
   | 'invalid-cron-timezone'

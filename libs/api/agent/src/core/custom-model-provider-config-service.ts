@@ -422,7 +422,7 @@ function resolveNextDefaultModel(
   const requestedDefaultModel = body.default_model ?? null;
   if (requestedDefaultModel === null) return null;
   if (models.some((model) => model.id === requestedDefaultModel)) return requestedDefaultModel;
-  throw new InvalidAgentModelError(providerId, requestedDefaultModel);
+  throw new InvalidAgentModelError('pi', providerId, requestedDefaultModel);
 }
 
 function selectProbeModel(

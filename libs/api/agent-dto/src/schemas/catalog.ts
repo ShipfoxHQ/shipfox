@@ -1,9 +1,13 @@
 import {
+  agentThinkingByHarness,
   agentThinkingSchema,
+  claudeAgentThinkingSchema,
   DEFAULT_AGENT_THINKING,
   DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
   harnessSchema,
+  piAgentThinkingSchema,
+  thinkingLevelsForHarness,
 } from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {
@@ -16,11 +20,15 @@ import {
 
 export type {AgentThinking, Harness} from '@shipfox/workflow-document';
 export {
+  agentThinkingByHarness,
   agentThinkingSchema,
+  claudeAgentThinkingSchema,
   DEFAULT_AGENT_THINKING,
   DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
   harnessSchema,
+  piAgentThinkingSchema,
+  thinkingLevelsForHarness,
 };
 
 export const agentModelOptionSchema = z.object({

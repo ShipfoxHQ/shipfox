@@ -1,11 +1,15 @@
 export {
   type AgentThinking,
+  agentThinkingByHarness,
   agentThinkingSchema,
+  claudeAgentThinkingSchema,
   DEFAULT_AGENT_THINKING,
   DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
   type Harness,
   harnessSchema,
+  piAgentThinkingSchema,
+  thinkingLevelsForHarness,
 } from './step-enums.js';
 export {
   triggerSourceConfigSchemas,

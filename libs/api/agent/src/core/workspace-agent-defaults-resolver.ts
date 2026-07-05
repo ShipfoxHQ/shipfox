@@ -30,6 +30,7 @@ export async function createWorkspaceAgentDefaultsResolver(
     });
   }
   const ctx: AgentConfigResolutionContext = {
+    workspaceDefaultHarnessId: snapshot.defaultHarnessId ?? null,
     workspaceDefaultProviderId: snapshot.defaultProviderId ?? null,
     workspaceProviderConfigs,
     instanceDefaultProvider: config.AGENT_DEFAULT_PROVIDER as SupportedModelProviderId | undefined,

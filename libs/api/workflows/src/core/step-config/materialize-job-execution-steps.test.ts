@@ -177,7 +177,7 @@ describe('materializeJobExecutionSteps', () => {
 
   it.each([
     new UnsupportedModelProviderError('unknown-provider'),
-    new InvalidAgentModelError('anthropic', 'missing-model'),
+    new InvalidAgentModelError('pi', 'anthropic', 'missing-model'),
   ])('wraps known resolver errors as permanent agent config errors', (cause) => {
     const model = workflowModel({
       jobs: {

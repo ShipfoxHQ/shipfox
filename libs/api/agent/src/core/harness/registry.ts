@@ -1,17 +1,26 @@
-import type {AgentModelOptionDto, Harness, SupportedModelProviderId} from '@shipfox/api-agent-dto';
-import {SUPPORTED_MODEL_PROVIDER_IDS} from '@shipfox/api-agent-dto';
+import type {
+  AgentModelOptionDto,
+  Harness,
+  HarnessDescriptor,
+  SupportedModelProviderId,
+} from '@shipfox/api-agent-dto';
+import {
+  getHarnessDescriptor,
+  harnessSupportsProvider,
+  listHarnessDescriptors,
+  SUPPORTED_MODEL_PROVIDER_IDS,
+} from '@shipfox/api-agent-dto';
 import {UnsupportedHarnessProviderError} from '../errors.js';
 import {runProviderProbe} from '../model-provider-validation.js';
-import {CLAUDE_HARNESS, claudeHarnessCatalog} from './claude.js';
-import {PI_HARNESS, piHarnessCatalog} from './pi.js';
+import {claudeHarnessCatalog} from './claude.js';
+import {piHarnessCatalog} from './pi.js';
 
-export interface HarnessDescriptor {
-  id: Harness;
-  label: string;
-  supportedProviderIds: readonly string[];
-  thinkingLevels: readonly string[];
-  defaultThinking: string;
-}
+export {
+  getHarnessDescriptor,
+  type HarnessDescriptor,
+  harnessSupportsProvider,
+  listHarnessDescriptors,
+};
 
 export interface HarnessProviderCatalog {
   listModels(providerId: string): AgentModelOptionDto[];
@@ -31,43 +40,30 @@ export interface ProbeHarnessProviderCredentialsParams {
   signal?: AbortSignal | undefined;
 }
 
-const REGISTRY: Record<Harness, {descriptor: HarnessDescriptor; catalog: HarnessProviderCatalog}> =
-  {
-    pi: {descriptor: PI_HARNESS, catalog: piHarnessCatalog},
-    claude: {descriptor: CLAUDE_HARNESS, catalog: claudeHarnessCatalog},
-  };
+const CATALOGS: Record<Harness, HarnessProviderCatalog> = {
+  pi: piHarnessCatalog,
+  claude: claudeHarnessCatalog,
+};
 
 const supportedModelProviderIds = new Set<string>(SUPPORTED_MODEL_PROVIDER_IDS);
-
-export function getHarnessDescriptor(id: Harness): HarnessDescriptor {
-  return REGISTRY[id].descriptor;
-}
-
-export function listHarnessDescriptors(): HarnessDescriptor[] {
-  return Object.values(REGISTRY).map((entry) => entry.descriptor);
-}
-
-export function harnessSupportsProvider(id: Harness, providerId: string): boolean {
-  return REGISTRY[id].descriptor.supportedProviderIds.includes(providerId);
-}
 
 export function listHarnessProviderModels(
   harness: Harness,
   providerId: string,
 ): AgentModelOptionDto[] {
-  const entry = REGISTRY[harness];
-  assertHarnessSupportsProvider(entry.descriptor, providerId);
-  return entry.catalog.listModels(providerId);
+  const descriptor = getHarnessDescriptor(harness);
+  assertHarnessSupportsProvider(descriptor, providerId);
+  return CATALOGS[harness].listModels(providerId);
 }
 
 export async function probeHarnessProviderCredentials(
   params: ProbeHarnessProviderCredentialsParams,
 ): Promise<void> {
-  const entry = REGISTRY[params.harness];
-  assertHarnessSupportsProvider(entry.descriptor, params.providerId);
+  const descriptor = getHarnessDescriptor(params.harness);
+  assertHarnessSupportsProvider(descriptor, params.providerId);
 
   await runProviderProbe({
-    probe: entry.catalog.validateCredentials,
+    probe: CATALOGS[params.harness].validateCredentials,
     args: {
       providerId: params.providerId,
       model: params.model,

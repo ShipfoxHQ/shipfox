@@ -100,7 +100,7 @@ describe('normalizeWorkflowDocument', () => {
               key: 'review',
               harness: 'claude',
               model: 'gpt-5.5-pro',
-              provider: 'openai',
+              provider: 'anthropic',
               prompt: 'Review the fix.',
               thinking: 'low',
               gate: {success: 'step.exit_code == 0', on_failure: {restart_from: 'implement'}},
@@ -129,7 +129,7 @@ describe('normalizeWorkflowDocument', () => {
       id: 'fix-review',
       kind: 'agent',
       harness: 'claude',
-      provider: 'openai',
+      provider: 'anthropic',
       thinking: 'low',
       gate: {onFailure: {restartFrom: 'implement'}},
     });
@@ -155,6 +155,61 @@ describe('normalizeWorkflowDocument', () => {
         details: {provider: 'github-copilot'},
       },
     ]);
+  });
+
+  it('reports explicit harness/provider incompatibility', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{harness: 'claude', provider: 'openai', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'harness-provider-incompatible',
+        message:
+          'Harness "claude" does not support provider: openai. Supported providers: anthropic.',
+        path: ['jobs', 'fix', 'steps', 0, 'provider'],
+        details: {harness: 'claude', provider: 'openai', supportedProviders: ['anthropic']},
+      },
+    ]);
+  });
+
+  it('reports harness/thinking incompatibility even with a templated provider', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'claude',
+              provider: workflowInterpolation('vars.provider'),
+              prompt: 'Fix it.',
+              thinking: 'off',
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toContainEqual({
+      code: 'harness-thinking-incompatible',
+      message:
+        'Harness "claude" does not support thinking: off. Supported levels: low, medium, high, xhigh, max.',
+      path: ['jobs', 'fix', 'steps', 0, 'thinking'],
+      details: {
+        harness: 'claude',
+        thinking: 'off',
+        supportedLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+      },
+    });
   });
 
   it('normalizes job success expressions and execution timeouts', () => {

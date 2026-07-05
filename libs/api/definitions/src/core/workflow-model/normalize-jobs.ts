@@ -1,4 +1,8 @@
-import {getModelProviderEntry} from '@shipfox/api-agent-dto';
+import {
+  agentThinkingByHarness,
+  getHarnessDescriptor,
+  getModelProviderEntry,
+} from '@shipfox/api-agent-dto';
 import type {AvailabilitySite} from '@shipfox/expression';
 import {
   canonicalizeLabels,
@@ -416,14 +420,13 @@ function normalizeAgentStep(params: {
           fillSite: params.fillSite,
           allowedJobReferences: params.allowedJobReferences,
         });
-  if (providerTemplate === undefined) {
-    validateAgentStep({
-      step: params.step,
-      sourceName: params.sourceName,
-      stepIndex: params.stepIndex,
-      issues: params.issues,
-    });
-  }
+  validateAgentStep({
+    step: params.step,
+    sourceName: params.sourceName,
+    stepIndex: params.stepIndex,
+    issues: params.issues,
+    validateLiteralProvider: providerTemplate === undefined,
+  });
   const templates = optionalAgentStepTemplates({
     prompt: promptTemplate,
     model: modelTemplate,
@@ -448,7 +451,11 @@ function validateAgentStep(params: {
   sourceName: string;
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
+  validateLiteralProvider: boolean;
 }): void {
+  validateHarnessThinking(params);
+  if (!params.validateLiteralProvider) return;
+
   const providerId = params.step.provider;
   if (providerId === undefined) return;
 
@@ -464,6 +471,44 @@ function validateAgentStep(params: {
     );
     return;
   }
+
+  const harness = params.step.harness;
+  if (harness === undefined) return;
+
+  const descriptor = getHarnessDescriptor(harness);
+  if (descriptor.supportedProviderIds.includes(providerId)) return;
+
+  params.issues.push(
+    issue({
+      code: 'harness-provider-incompatible',
+      message: `Harness "${harness}" does not support provider: ${providerId}. Supported providers: ${descriptor.supportedProviderIds.join(', ')}.`,
+      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
+      details: {harness, provider: providerId, supportedProviders: descriptor.supportedProviderIds},
+    }),
+  );
+}
+
+function validateHarnessThinking(params: {
+  step: WorkflowDocumentStep;
+  sourceName: string;
+  stepIndex: number;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const {harness, thinking} = params.step;
+  if (harness === undefined || thinking === undefined) return;
+
+  const thinkingSchema = agentThinkingByHarness[harness];
+  if (thinkingSchema.safeParse(thinking).success) return;
+
+  const supportedLevels = thinkingSchema.options;
+  params.issues.push(
+    issue({
+      code: 'harness-thinking-incompatible',
+      message: `Harness "${harness}" does not support thinking: ${thinking}. Supported levels: ${supportedLevels.join(', ')}.`,
+      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'thinking'],
+      details: {harness, thinking, supportedLevels},
+    }),
+  );
 }
 function normalizeRunner(params: {
   document: WorkflowDocument;

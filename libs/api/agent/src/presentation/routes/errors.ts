@@ -81,6 +81,7 @@ export function translateModelProviderRouteError(error: unknown): never {
     throw new ClientError('Invalid agent model', 'invalid-agent-model', {
       status: 422,
       details: {
+        harness: error.harness,
         provider_id: error.providerId,
         model: error.model,
       },

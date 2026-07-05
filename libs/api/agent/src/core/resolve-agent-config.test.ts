@@ -2,11 +2,17 @@ import crypto from 'node:crypto';
 import type {AgentThinking, SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {
   getAgentWorkspaceSettings,
+  setDefaultHarness,
   setDefaultModelProvider,
   type UpsertModelProviderConfigParams,
   upsertModelProviderConfig,
 } from '#db/index.js';
-import {InvalidAgentModelError, UnsupportedModelProviderError} from './errors.js';
+import {
+  InvalidAgentModelError,
+  UnsupportedHarnessProviderError,
+  UnsupportedHarnessThinkingError,
+  UnsupportedModelProviderError,
+} from './errors.js';
 import {catalogDefaultAgentResolver, resolveAgentConfig} from './resolve-agent-config.js';
 import {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';
 
@@ -121,9 +127,11 @@ describe('resolveAgentConfig', () => {
 
   test('resolves harness from explicit step, then default', () => {
     const explicit = resolveAgentConfig({harness: 'claude'});
+    const workspace = resolveAgentConfig({}, {workspaceDefaultHarnessId: 'claude'});
     const fallback = resolveAgentConfig({});
 
     expect(explicit.harness).toBe('claude');
+    expect(workspace.harness).toBe('claude');
     expect(fallback.harness).toBe('pi');
   });
 
@@ -158,6 +166,90 @@ describe('resolveAgentConfig', () => {
     );
   });
 
+  test('rejects explicit provider values incompatible with the harness', () => {
+    const resolve = () => resolveAgentConfig({harness: 'claude', provider: 'openai'});
+
+    expect(resolve).toThrow(UnsupportedHarnessProviderError);
+  });
+
+  test('skips incompatible default providers for the selected harness', () => {
+    const workspaceProviderConfigs = new Map([
+      ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],
+    ]);
+
+    const resolved = resolveAgentConfig(
+      {harness: 'claude'},
+      {
+        workspaceDefaultProviderId: 'openai',
+        workspaceProviderConfigs,
+        instanceDefaultProvider: 'deepseek',
+      },
+    );
+
+    expect(resolved.provider).toBe('anthropic');
+  });
+
+  test('keeps custom providers pi-only', () => {
+    const workspaceProviderConfigs = new Map([
+      [
+        'local-vllm',
+        {
+          kind: 'custom' as const,
+          defaultModel: null,
+          defaultThinking: 'medium' as const,
+          models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
+        },
+      ],
+    ]);
+
+    const pi = resolveAgentConfig({provider: 'local-vllm'}, {workspaceProviderConfigs});
+    const claude = () =>
+      resolveAgentConfig({harness: 'claude', provider: 'local-vllm'}, {workspaceProviderConfigs});
+
+    expect(pi.provider).toBe('local-vllm');
+    expect(claude).toThrow(UnsupportedHarnessProviderError);
+  });
+
+  test('rejects explicit models outside the harness catalog', () => {
+    const resolve = () =>
+      resolveAgentConfig({harness: 'claude', provider: 'anthropic', model: 'gpt-5.5-pro'});
+
+    expect(resolve).toThrow(InvalidAgentModelError);
+  });
+
+  test('skips default models outside the harness catalog', () => {
+    const resolved = resolveAgentConfig(
+      {harness: 'claude', provider: 'anthropic'},
+      {
+        instanceDefaultProvider: 'anthropic',
+        instanceDefaultModel: 'not-a-model',
+      },
+    );
+
+    expect(resolved.model).toBe('claude-opus-4-8');
+  });
+
+  test('validates thinking against the selected harness', () => {
+    const claudeOff = () => resolveAgentConfig({harness: 'claude', thinking: 'off'});
+    const piMax = () => resolveAgentConfig({harness: 'pi', thinking: 'max'});
+
+    expect(claudeOff).toThrow(UnsupportedHarnessThinkingError);
+    expect(piMax).toThrow(UnsupportedHarnessThinkingError);
+  });
+
+  test('ignores stale provider thinking defaults outside the selected harness', () => {
+    const workspaceProviderConfigs = new Map([
+      ['anthropic' as const, {defaultModel: 'claude-opus-4-8', defaultThinking: 'off' as const}],
+    ]);
+
+    const resolved = resolveAgentConfig(
+      {harness: 'claude', provider: 'anthropic'},
+      {workspaceProviderConfigs},
+    );
+
+    expect(resolved.thinking).toBe('xhigh');
+  });
+
   test('falls through to the instance default when the workspace default model provider is null', () => {
     const resolved = resolveAgentConfig(
       {},
@@ -167,27 +259,25 @@ describe('resolveAgentConfig', () => {
     expect(resolved.provider).toBe('anthropic');
   });
 
-  test('throws when a stored workspace default model provider is no longer supported', () => {
-    const resolve = () =>
-      resolveAgentConfig(
-        {},
-        {workspaceDefaultProviderId: 'amazon-bedrock' as SupportedModelProviderId},
-      );
+  test('skips a stored workspace default model provider that is no longer supported', () => {
+    const resolved = resolveAgentConfig(
+      {},
+      {workspaceDefaultProviderId: 'amazon-bedrock' as SupportedModelProviderId},
+    );
 
-    expect(resolve).toThrow(UnsupportedModelProviderError);
+    expect(resolved.provider).toBe('anthropic');
   });
 
-  test('validates the instance default model and rejects an unknown one', () => {
-    const resolve = () =>
-      resolveAgentConfig(
-        {},
-        {
-          instanceDefaultProvider: 'anthropic',
-          instanceDefaultModel: 'not-a-model',
-        },
-      );
+  test('skips an unknown instance default model', () => {
+    const resolved = resolveAgentConfig(
+      {},
+      {
+        instanceDefaultProvider: 'anthropic',
+        instanceDefaultModel: 'not-a-model',
+      },
+    );
 
-    expect(resolve).toThrow(InvalidAgentModelError);
+    expect(resolved.model).toBe('claude-opus-4-8');
   });
 
   test('catalogDefaultAgentResolver uses catalog-only defaults', () => {
@@ -219,17 +309,19 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
       }),
     );
     await setDefaultModelProvider({workspaceId, providerId: 'openai'});
+    await setDefaultHarness({workspaceId, harnessId: 'claude'});
 
     const resolver = await createWorkspaceAgentDefaultsResolver(workspaceId);
     const resolved = resolver({});
     const settings = await getAgentWorkspaceSettings(workspaceId);
 
     expect(settings?.defaultProviderId).toBe('openai');
+    expect(settings?.defaultHarnessId).toBe('claude');
     expect(resolved).toEqual({
-      harness: 'pi',
-      provider: 'openai',
-      model: 'gpt-5.5-pro',
-      thinking: 'medium',
+      harness: 'claude',
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'xhigh',
     });
   });
 

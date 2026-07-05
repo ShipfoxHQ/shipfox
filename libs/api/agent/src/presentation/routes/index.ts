@@ -6,6 +6,7 @@ import {discoverCustomModelProviderModelsRoute} from './discover-custom-model-pr
 import {discoverCustomModelProviderModelsBySlugRoute} from './discover-custom-model-provider-models-by-slug.js';
 import {listModelProviderCatalogRoute} from './list-model-provider-catalog.js';
 import {listModelProviderConfigsRoute} from './list-model-provider-configs.js';
+import {setDefaultHarnessRoute} from './set-default-harness.js';
 import {setDefaultModelProviderRoute} from './set-default-model-provider.js';
 import {updateCustomModelProviderRoute} from './update-custom-model-provider.js';
 import {updateModelProviderDefaultModelRoute} from './update-model-provider-default-model.js';
@@ -24,6 +25,7 @@ export const agentRoutes: RouteGroup[] = [
       upsertModelProviderConfigRoute,
       updateModelProviderDefaultModelRoute,
       deleteModelProviderConfigRoute,
+      setDefaultHarnessRoute,
       setDefaultModelProviderRoute,
     ],
   },

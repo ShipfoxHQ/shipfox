@@ -87,7 +87,7 @@ export async function probeModelProviderCredentials(
   }
 
   const model = getModels(params.providerId).find((candidate) => candidate.id === params.model);
-  if (!model) throw new InvalidAgentModelError(params.providerId, params.model);
+  if (!model) throw new InvalidAgentModelError('pi', params.providerId, params.model);
 
   const secretField = entry.credential_fields.find((field) => field.secret);
   if (!secretField) throw new ModelProviderValidationUnavailableError(params.providerId);

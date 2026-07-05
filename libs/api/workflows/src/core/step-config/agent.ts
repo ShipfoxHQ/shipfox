@@ -1,5 +1,7 @@
 import {
   InvalidAgentModelError,
+  UnsupportedHarnessProviderError,
+  UnsupportedHarnessThinkingError,
   UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
@@ -150,7 +152,12 @@ export function completeAgentDefaults(params: {
       thinking: params.thinking,
     });
   } catch (error) {
-    if (error instanceof UnsupportedModelProviderError || error instanceof InvalidAgentModelError) {
+    if (
+      error instanceof UnsupportedModelProviderError ||
+      error instanceof UnsupportedHarnessProviderError ||
+      error instanceof UnsupportedHarnessThinkingError ||
+      error instanceof InvalidAgentModelError
+    ) {
       throw new AgentConfigUnresolvableError(params.definitionId, {cause: error});
     }
     throw error;

@@ -2,7 +2,9 @@ export {
   type AgentModelOptionDto,
   type AgentThinking,
   agentModelOptionSchema,
+  agentThinkingByHarness,
   agentThinkingSchema,
+  claudeAgentThinkingSchema,
   DEFAULT_AGENT_THINKING,
   DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
@@ -21,6 +23,8 @@ export {
   modelProviderCatalogSeedSchema,
   modelProviderCredentialFieldSchema,
   modelProviderSupportStatusSchema,
+  piAgentThinkingSchema,
+  thinkingLevelsForHarness,
 } from './catalog.js';
 export {
   type CreateCustomModelProviderBodyDto,
@@ -53,6 +57,14 @@ export {
   updateCustomModelProviderBodySchema,
   updateCustomModelProviderHeaderRequestSchema,
 } from './custom-model-provider.js';
+export {
+  CLAUDE_HARNESS,
+  getHarnessDescriptor,
+  type HarnessDescriptor,
+  harnessSupportsProvider,
+  listHarnessDescriptors,
+  PI_HARNESS,
+} from './harness.js';
 export {
   type MaterializedAgentStepConfigDto,
   materializedAgentStepConfigSchema,
@@ -92,3 +104,9 @@ export {
   type AgentRuntimeCredentialsResponseDto,
   agentRuntimeCredentialsResponseSchema,
 } from './runtime-config.js';
+export {
+  type SetDefaultHarnessBodyDto,
+  type SetDefaultHarnessResponseDto,
+  setDefaultHarnessBodySchema,
+  setDefaultHarnessResponseSchema,
+} from './workspace-defaults.js';

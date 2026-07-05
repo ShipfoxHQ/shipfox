@@ -15,6 +15,7 @@ import {db} from '#db/db.js';
 import {
   getAgentWorkspaceSettings,
   getModelProviderConfig,
+  setDefaultHarness,
   setDefaultModelProvider,
   upsertModelProviderConfig,
 } from '#db/index.js';
@@ -123,7 +124,11 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode, res.body).toBe(200);
-      expect(res.json()).toEqual({configs: [], default_provider_id: null});
+      expect(res.json()).toEqual({
+        configs: [],
+        default_harness_id: null,
+        default_provider_id: null,
+      });
     });
 
     it('returns provider configs and the workspace default model provider', async () => {
@@ -138,10 +143,51 @@ describe('model provider config routes', () => {
       });
 
       expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().default_harness_id).toBeNull();
       expect(res.json().default_provider_id).toBe('openai');
       expect(res.json().configs.map((config: {provider_id: string}) => config.provider_id)).toEqual(
         ['anthropic', 'openai'],
       );
+    });
+
+    it('returns the workspace default harness', async () => {
+      await setDefaultHarness({workspaceId, harnessId: 'claude'});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/workspaces/${workspaceId}/agent/model-providers`,
+        headers: {authorization: 'Bearer user'},
+      });
+
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().default_harness_id).toBe('claude');
+    });
+  });
+
+  describe('PUT /workspaces/:workspaceId/agent/default-harness', () => {
+    it('persists the workspace default harness', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/default-harness`,
+        headers: {authorization: 'Bearer user'},
+        payload: {harness_id: 'claude'},
+      });
+
+      const settings = await getAgentWorkspaceSettings(workspaceId);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json()).toEqual({default_harness_id: 'claude'});
+      expect(settings?.defaultHarnessId).toBe('claude');
+    });
+
+    it('rejects an invalid harness id', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/default-harness`,
+        headers: {authorization: 'Bearer user'},
+        payload: {harness_id: 'codex'},
+      });
+
+      expect(res.statusCode).toBe(400);
     });
   });
 

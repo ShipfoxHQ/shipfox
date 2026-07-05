@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type {AgentThinking, SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {ModelProviderConfigNotFoundError} from '#core/index.js';
-import {getAgentWorkspaceSettings, setDefaultModelProvider} from '#db/index.js';
+import {getAgentWorkspaceSettings, setDefaultHarness, setDefaultModelProvider} from '#db/index.js';
 import {
   type UpsertModelProviderConfigParams,
   upsertModelProviderConfig,
@@ -25,6 +25,7 @@ describe('agent workspace settings', () => {
     expect(found).toEqual(settings);
     expect(found).toMatchObject({
       workspaceId,
+      defaultHarnessId: null,
       defaultProviderId: 'anthropic',
     });
     expect(found?.createdAt).toBeInstanceOf(Date);
@@ -63,6 +64,30 @@ describe('agent workspace settings', () => {
     const found = await getAgentWorkspaceSettings(workspaceId);
 
     expect(found).toBeUndefined();
+  });
+
+  it('persists the workspace default harness', async () => {
+    const settings = await setDefaultHarness({workspaceId, harnessId: 'claude'});
+
+    const found = await getAgentWorkspaceSettings(workspaceId);
+    expect(found).toEqual(settings);
+    expect(found).toMatchObject({
+      workspaceId,
+      defaultHarnessId: 'claude',
+      defaultProviderId: null,
+    });
+  });
+
+  it('updates the workspace default harness without clearing the model provider default', async () => {
+    await upsertModelProviderConfig(
+      createModelProviderConfigParams({workspaceId, providerId: 'anthropic'}),
+    );
+    await setDefaultModelProvider({workspaceId, providerId: 'anthropic'});
+
+    const updated = await setDefaultHarness({workspaceId, harnessId: 'claude'});
+
+    expect(updated.defaultHarnessId).toBe('claude');
+    expect(updated.defaultProviderId).toBe('anthropic');
   });
 
   it('rejects a default model provider without a matching config', async () => {

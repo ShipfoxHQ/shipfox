@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {getModelProviderEntry} from './catalog.js';
+import {getModelProviderEntry, harnessSchema} from './catalog.js';
 import {customModelProviderConfigDtoSchema} from './custom-model-provider.js';
 import {modelProviderRefSchema, type SupportedModelProviderId} from './model-provider-id.js';
 
@@ -26,6 +26,7 @@ export type ModelProviderConfigResponseDto = z.infer<typeof modelProviderConfigR
 export const listModelProviderConfigsResponseSchema = z.object({
   configs: z.array(modelProviderConfigResponseSchema),
   default_provider_id: modelProviderRefSchema.nullable(),
+  default_harness_id: harnessSchema.nullable(),
 });
 
 export type ListModelProviderConfigsResponseDto = z.infer<

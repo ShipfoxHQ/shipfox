@@ -1,6 +1,8 @@
 export {
   type AgentThinking,
+  agentThinkingByHarness,
   agentThinkingSchema,
+  claudeAgentThinkingSchema,
   DEFAULT_AGENT_THINKING,
   DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
@@ -9,6 +11,8 @@ export {
   InvalidWorkflowDocumentError,
   invalidWorkflowDocumentErrorCode,
   parseWorkflowDocument,
+  piAgentThinkingSchema,
+  thinkingLevelsForHarness,
   triggerSourceConfigSchemas,
   WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES,
   WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES,

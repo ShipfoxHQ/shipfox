@@ -1,4 +1,4 @@
-import type {ModelProviderRef} from '@shipfox/api-agent-dto';
+import type {Harness, ModelProviderRef} from '@shipfox/api-agent-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {AgentWorkspaceSettings} from '#core/entities/agent-workspace-settings.js';
 import {ModelProviderConfigNotFoundError} from '#core/errors.js';
@@ -65,4 +65,28 @@ export async function setDefaultModelProvider(params: {
     if (!row) throw new Error('Upsert returned no rows');
     return toAgentWorkspaceSettings(row);
   });
+}
+
+export async function setDefaultHarness(params: {
+  workspaceId: string;
+  harnessId: Harness;
+}): Promise<AgentWorkspaceSettings> {
+  const rows = await db()
+    .insert(agentWorkspaceSettings)
+    .values({
+      workspaceId: params.workspaceId,
+      defaultHarnessId: params.harnessId,
+    })
+    .onConflictDoUpdate({
+      target: agentWorkspaceSettings.workspaceId,
+      set: {
+        defaultHarnessId: params.harnessId,
+        updatedAt: sql`NOW()`,
+      },
+    })
+    .returning();
+
+  const row = rows[0];
+  if (!row) throw new Error('Upsert returned no rows');
+  return toAgentWorkspaceSettings(row);
 }
