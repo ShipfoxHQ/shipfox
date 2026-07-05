@@ -1,4 +1,4 @@
-import type {AgentThinking} from '@shipfox/api-agent-dto';
+import type {AgentThinking, Harness} from '@shipfox/api-agent-dto';
 import type {ResolvedField} from '@shipfox/expression';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
@@ -20,6 +20,7 @@ export interface StepConfigDispatchPlan {
     prompt?: ResolvedField;
     model?: ResolvedField;
     provider?: ResolvedField;
+    harness?: Harness;
     thinking?: AgentThinking;
   };
 }

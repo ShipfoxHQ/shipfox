@@ -8,6 +8,7 @@ import type {AgentInvocation} from '#core/run-agent.js';
 import {executeAgentStep} from '#core/step.js';
 
 const RUNTIME = {
+  harness: 'pi',
   provider: 'anthropic',
   model: 'claude-opus-4-8',
   thinking: 'high',
@@ -61,6 +62,7 @@ describe('executeAgentStep', () => {
 
     await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
       runtime: {
+        harness: 'pi',
         provider: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',
@@ -91,6 +93,7 @@ describe('executeAgentStep', () => {
 
     await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
       runtime: {
+        harness: 'pi',
         provider: 'workspace-models',
         model: 'custom-gpt',
         thinking: 'medium',
@@ -130,6 +133,7 @@ describe('executeAgentStep', () => {
       }),
       {
         runtime: {
+          harness: 'pi',
           provider: 'openai',
           model: 'gpt-5.1',
           thinking: 'low',

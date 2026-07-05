@@ -2,6 +2,7 @@ import {
   type AgentRuntimeCredentialsResponseDto,
   type AgentThinking,
   getModelProviderEntry,
+  type Harness,
   type ModelProviderRef,
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
@@ -20,6 +21,7 @@ import {ModelProviderConfigNotFoundError} from './errors.js';
 
 export interface ResolveRuntimeCredentialsParams {
   workspaceId: string;
+  harness: Harness;
   provider: ModelProviderRef;
   model: string;
   thinking: AgentThinking;
@@ -120,6 +122,7 @@ function toResponse(
   providerConfig?: ModelProviderConfig | undefined,
 ): AgentRuntimeCredentialsResponseDto {
   const response: AgentRuntimeCredentialsResponseDto = {
+    harness: params.harness,
     provider_id: params.provider,
     model: params.model,
     thinking: params.thinking,

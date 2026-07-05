@@ -350,6 +350,7 @@ export async function executeStep(params: {
         cwd,
         ...(ambientGitConfigPath ? {gitConfigGlobal: ambientGitConfigPath} : {}),
         runtime: {
+          harness: runtimeConfig.harness,
           provider: runtimeConfig.provider_id,
           model: runtimeConfig.model,
           thinking: runtimeConfig.thinking,

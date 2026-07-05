@@ -15,6 +15,7 @@ export function executeAgentStep(
     signal?: AbortSignal;
     cwd?: string;
     runtime: {
+      harness: string;
       provider: string;
       model: string;
       thinking: string;

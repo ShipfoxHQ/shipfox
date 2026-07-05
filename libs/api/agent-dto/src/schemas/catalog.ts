@@ -1,7 +1,9 @@
 import {
   agentThinkingSchema,
   DEFAULT_AGENT_THINKING,
+  DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
+  harnessSchema,
 } from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {
@@ -12,8 +14,14 @@ import {
   UNSUPPORTED_MODEL_PROVIDER_IDS,
 } from './model-provider-id.js';
 
-export type {AgentThinking} from '@shipfox/workflow-document';
-export {agentThinkingSchema, DEFAULT_AGENT_THINKING, DEFAULT_MODEL_PROVIDER};
+export type {AgentThinking, Harness} from '@shipfox/workflow-document';
+export {
+  agentThinkingSchema,
+  DEFAULT_AGENT_THINKING,
+  DEFAULT_HARNESS,
+  DEFAULT_MODEL_PROVIDER,
+  harnessSchema,
+};
 
 export const agentModelOptionSchema = z.object({
   id: z.string().min(1),

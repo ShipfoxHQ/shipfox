@@ -220,6 +220,7 @@ describe('api-client auth contexts', () => {
   it('requestAgentRuntimeConfig sends the lease token and parses credentials', async () => {
     stubFetch(() =>
       jsonResponse({
+        harness: 'pi',
         provider_id: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
@@ -304,6 +305,7 @@ describe('api-client auth contexts', () => {
       new Response(null, {status: 429}),
       new Response(null, {status: 500}),
       jsonResponse({
+        harness: 'pi',
         provider_id: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',

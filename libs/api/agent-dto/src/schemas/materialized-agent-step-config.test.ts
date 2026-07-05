@@ -3,6 +3,7 @@ import {materializedAgentStepConfigSchema} from './materialized-agent-step-confi
 describe('materializedAgentStepConfigSchema', () => {
   it('accepts a materialized agent step config', () => {
     const parsed = materializedAgentStepConfigSchema.parse({
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -10,6 +11,7 @@ describe('materializedAgentStepConfigSchema', () => {
     });
 
     expect(parsed).toEqual({
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -19,6 +21,7 @@ describe('materializedAgentStepConfigSchema', () => {
 
   it('accepts a custom provider ref', () => {
     const parsed = materializedAgentStepConfigSchema.parse({
+      harness: 'pi',
       provider: 'local-vllm',
       model: 'llama-3.1',
       thinking: 'high',
@@ -36,6 +39,7 @@ describe('materializedAgentStepConfigSchema', () => {
         prompt: 'Fix the failing tests.',
       });
     const extraField = materializedAgentStepConfigSchema.parse({
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -45,6 +49,7 @@ describe('materializedAgentStepConfigSchema', () => {
 
     expect(missingField).toThrow();
     expect(extraField).toEqual({
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',

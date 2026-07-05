@@ -102,12 +102,14 @@ export function completeAgentConfig(params: {
         });
 
   const defaults = completeAgentDefaults({
+    harness: agent.harness ?? readConfigHarness(params.config),
     provider,
     model,
     thinking: agent.thinking ?? readConfigThinking(params.config),
     resolveAgentDefaults: params.resolveAgentDefaults,
     definitionId: params.definitionId,
   });
+  params.config.harness = defaults.harness;
   params.config.provider = defaults.provider;
   params.config.model = defaults.model;
   params.config.thinking = defaults.thinking;
@@ -115,6 +117,7 @@ export function completeAgentConfig(params: {
 }
 
 export function completeAgentDefaults(params: {
+  readonly harness: WorkflowModelAgentStep['harness'] | undefined;
   readonly provider: string | undefined;
   readonly model: string | undefined;
   readonly thinking: AgentThinking | undefined;
@@ -123,6 +126,7 @@ export function completeAgentDefaults(params: {
 }): ReturnType<AgentDefaultsResolver> {
   try {
     return params.resolveAgentDefaults({
+      harness: params.harness,
       provider: params.provider,
       model: params.model,
       thinking: params.thinking,
@@ -180,6 +184,7 @@ function authoredAgentStepConfig(
     config: {
       ...(step.provider === undefined ? {} : {provider: step.provider}),
       ...(step.model === undefined ? {} : {model: step.model}),
+      ...(step.harness === undefined ? {} : {harness: step.harness}),
       ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
       prompt: step.prompt,
     },
@@ -200,6 +205,7 @@ function deferredAgentStepConfig(
         prompt: dispatchPlanField(fields.prompt),
         ...(fields.model === undefined ? {} : {model: dispatchPlanField(fields.model)}),
         ...(fields.provider === undefined ? {} : {provider: dispatchPlanField(fields.provider)}),
+        ...(step.harness === undefined ? {} : {harness: step.harness}),
         ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
       },
     },
@@ -218,6 +224,7 @@ function agentStepConfigWithDefaults(
   const promptIsDeferred = fields.prompt.kind === 'residual';
 
   const resolved = completeAgentDefaults({
+    harness: step.harness,
     provider: providerValue,
     model: modelValue,
     thinking: step.thinking,
@@ -229,6 +236,7 @@ function agentStepConfigWithDefaults(
       config: {
         provider: resolved.provider,
         model: resolved.model,
+        harness: resolved.harness,
         thinking: resolved.thinking,
       },
       configPlan: {
@@ -246,6 +254,7 @@ function agentStepConfigWithDefaults(
     config: {
       provider: resolved.provider,
       model: resolved.model,
+      harness: resolved.harness,
       thinking: resolved.thinking,
       prompt: promptValue,
     },
@@ -327,4 +336,10 @@ function readConfigThinking(config: Record<string, unknown>): AgentThinking | un
     value === 'xhigh'
     ? value
     : undefined;
+}
+
+function readConfigHarness(
+  config: Record<string, unknown>,
+): WorkflowModelAgentStep['harness'] | undefined {
+  return config.harness === 'pi' || config.harness === 'claude' ? config.harness : undefined;
 }

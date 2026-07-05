@@ -64,7 +64,7 @@ describe('testAndSaveModelProviderConfig', () => {
     expect(stored).toEqual(config);
     expect(secrets).toEqual({API_KEY: credentials.api_key});
     expect(stored?.defaultModel).toBeNull();
-    expect(stored?.defaultThinking).toBe('high');
+    expect(stored?.defaultThinking).toBe('xhigh');
   });
 
   it('validates and stores an explicit provider default model', async () => {

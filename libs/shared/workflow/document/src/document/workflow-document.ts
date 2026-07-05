@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {agentThinkingSchema} from './step-enums.js';
+import {agentThinkingSchema, harnessSchema} from './step-enums.js';
 
 const stringOrStringArraySchema = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
 const nonEmptyRecordSchema = <ValueSchema extends z.ZodType>(valueSchema: ValueSchema) =>
@@ -140,6 +140,7 @@ export const workflowDocumentStepSchema = z
     run: z.string().min(1).optional(),
     model: z.string().min(1).optional(),
     prompt: z.string().min(1).optional(),
+    harness: harnessSchema.optional(),
     thinking: agentThinkingSchema.optional(),
     provider: z.string().min(1).optional(),
     agent: z.unknown().optional(),
@@ -157,7 +158,7 @@ export const workflowDocumentStepSchema = z
     }
 
     if (step.run !== undefined) {
-      for (const key of ['model', 'prompt', 'thinking', 'provider'] as const) {
+      for (const key of ['model', 'prompt', 'harness', 'thinking', 'provider'] as const) {
         if (step[key] !== undefined) {
           ctx.addIssue({
             code: 'custom',
@@ -172,6 +173,7 @@ export const workflowDocumentStepSchema = z
     const isAgent =
       step.model !== undefined ||
       step.prompt !== undefined ||
+      step.harness !== undefined ||
       step.thinking !== undefined ||
       step.provider !== undefined;
 

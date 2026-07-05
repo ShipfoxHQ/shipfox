@@ -231,6 +231,7 @@ async function createStep(params: {
     definitionId: crypto.randomUUID(),
     model: workflowModel({jobs: {build: {steps: params.steps}}}),
     resolveAgentDefaults: (defaults) => ({
+      harness: defaults.harness ?? 'pi',
       provider: defaults.provider ?? 'anthropic',
       model: defaults.model ?? 'claude-opus-4-8',
       thinking: defaults.thinking ?? 'high',

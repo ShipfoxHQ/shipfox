@@ -1,4 +1,4 @@
-import {agentThinkingSchema} from '@shipfox/workflow-document';
+import {agentThinkingSchema, harnessSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {customModelProviderRuntimeConfigSchema} from './custom-model-provider.js';
 import {isReservedModelProviderId, modelProviderRefSchema} from './model-provider-id.js';
@@ -12,6 +12,7 @@ const credentialValueSchema = z.string().min(1);
  */
 export const agentRuntimeCredentialsResponseSchema = z
   .object({
+    harness: harnessSchema,
     provider_id: modelProviderRefSchema,
     model: z.string().min(1),
     thinking: agentThinkingSchema,

@@ -105,9 +105,10 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.json()).toEqual({
+      harness: 'pi',
       provider_id: 'anthropic',
       model: 'claude-opus-4-8',
-      thinking: 'high',
+      thinking: 'xhigh',
       credentials: {api_key: 'sk-workspace-secret'},
     });
   });
@@ -178,6 +179,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     const {job, step} = await createRunningAgentStep({
       workspaceId,
       resolveAgentDefaults: () => ({
+        harness: 'pi',
         provider: 'local-vllm',
         model: 'llama-3.1',
         thinking: 'high',
@@ -201,6 +203,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
+      harness: 'pi',
       provider_id: 'local-vllm',
       model: 'llama-3.1',
       credentials: {

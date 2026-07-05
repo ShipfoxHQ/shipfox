@@ -92,6 +92,7 @@ describe('normalizeWorkflowDocument', () => {
             {key: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
             {
               key: 'review',
+              harness: 'claude',
               model: 'gpt-5.5-pro',
               provider: 'openai',
               prompt: 'Review the fix.',
@@ -121,6 +122,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs[0]?.steps[2]).toMatchObject({
       id: 'fix-review',
       kind: 'agent',
+      harness: 'claude',
       provider: 'openai',
       thinking: 'low',
       gate: {onFailure: {restartFrom: 'implement'}},

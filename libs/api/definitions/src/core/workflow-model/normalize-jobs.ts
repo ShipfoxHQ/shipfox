@@ -362,6 +362,7 @@ function normalizeAgentStep(params: {
   return {
     ...params.stepBase,
     kind: 'agent',
+    ...(params.step.harness === undefined ? {} : {harness: params.step.harness}),
     ...(params.step.model === undefined ? {} : {model: params.step.model}),
     ...(params.step.provider === undefined ? {} : {provider: params.step.provider}),
     prompt: params.step.prompt,

@@ -21,12 +21,14 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
 
     expect(result).toEqual({
+      harness: 'pi',
       provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -43,6 +45,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
+        harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
@@ -57,6 +60,7 @@ describe('resolveRuntimeCredentials', () => {
     const matching = await resolveRuntimeCredentials(
       {
         workspaceId,
+        harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
@@ -66,6 +70,7 @@ describe('resolveRuntimeCredentials', () => {
     const mismatched = resolveRuntimeCredentials(
       {
         workspaceId,
+        harness: 'pi',
         provider: 'openai',
         model: 'gpt-5.5-pro',
         thinking: 'high',
@@ -93,12 +98,14 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'local-vllm',
       model: 'llama-3.1',
       thinking: 'high',
     });
 
     expect(result).toEqual({
+      harness: 'pi',
       provider_id: 'local-vllm',
       model: 'llama-3.1',
       thinking: 'high',
@@ -130,6 +137,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'local-ollama',
       model: 'llama-3.1',
       thinking: 'high',
@@ -147,6 +155,7 @@ describe('resolveRuntimeCredentials', () => {
   it('throws when no workspace or instance credential is available', async () => {
     const result = resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -165,6 +174,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -183,6 +193,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -206,6 +217,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'cloudflare-ai-gateway',
       model: '@cf/meta/llama-3.1-8b-instruct',
       thinking: 'high',
@@ -223,6 +235,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -243,6 +256,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = resolveRuntimeCredentials(
       {
         workspaceId,
+        harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',

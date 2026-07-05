@@ -196,6 +196,7 @@ describe('materializeWorkflowModel', () => {
       status: 'pending',
       type: 'agent',
       config: {
+        harness: 'pi',
         model: 'claude-opus-4-8',
         provider: 'anthropic',
         thinking: 'high',
@@ -211,6 +212,7 @@ describe('materializeWorkflowModel', () => {
       status: 'pending',
       type: 'agent',
       config: {
+        harness: 'pi',
         model: 'gpt-5.5-pro',
         provider: 'openai',
         thinking: 'low',
@@ -243,9 +245,10 @@ describe('materializeWorkflowModel', () => {
       status: 'pending',
       type: 'agent',
       config: {
+        harness: 'pi',
         model: 'claude-opus-4-8',
         provider: 'anthropic',
-        thinking: 'high',
+        thinking: 'xhigh',
         prompt: 'Fix the failing tests.',
       },
       authoredConfig: null,
@@ -265,9 +268,10 @@ describe('materializeWorkflowModel', () => {
     const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
+      harness: 'pi',
       model: 'gpt-5.5-pro',
       provider: 'openai',
-      thinking: 'high',
+      thinking: 'xhigh',
       prompt: 'Fix the failing tests.',
     });
   });
@@ -310,6 +314,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
     const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
@@ -318,6 +323,7 @@ describe('materializeWorkflowModel', () => {
     const rows = materializeWorkflowModel({model, resolveAgentDefaults, definitionId: 'def-1'});
 
     expect(resolveAgentDefaults).toHaveBeenCalledWith({
+      harness: undefined,
       provider: 'anthropic',
       model: undefined,
       thinking: undefined,
@@ -325,6 +331,7 @@ describe('materializeWorkflowModel', () => {
     expect(rows[0]?.steps[1]).toMatchObject({
       name: 'Fix the failing tests.',
       config: {
+        harness: 'pi',
         model: 'gpt-5.5-pro',
         provider: 'openai',
         thinking: 'medium',
@@ -403,6 +410,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
     expect(rows[0]?.steps[2]?.config).toEqual({
+      harness: 'pi',
       model: 'claude-opus-4-8',
       provider: 'anthropic',
       thinking: 'high',
@@ -672,6 +680,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
     const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
@@ -688,11 +697,13 @@ describe('materializeWorkflowModel', () => {
     });
 
     expect(resolveAgentDefaults).toHaveBeenCalledWith({
+      harness: undefined,
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: undefined,
     });
     expect(rows[0]?.steps[1]?.config).toEqual({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
