@@ -67,7 +67,12 @@ export class WorkspaceHomeScreen {
       LAST_WORKSPACE_KEY,
     );
     if (!raw) return undefined;
-    const parsed: unknown = JSON.parse(raw);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
     return typeof parsed === 'string' ? parsed : undefined;
   }
 
