@@ -1,5 +1,5 @@
 import {logger} from '@shipfox/node-opentelemetry';
-import {advanceCronSchedule, claimDueCronSchedules} from '#db/cron-schedules.js';
+import {advanceCronSchedule, claimDueCronSchedules, selectDbNow} from '#db/cron-schedules.js';
 import {db} from '#db/db.js';
 import {computeNextFireAt} from './compute-next-fire-at.js';
 import {fireCronSubscription} from './fire-cron.js';
@@ -43,7 +43,10 @@ export async function drainDueCronSchedules(
   let retried = 0;
 
   await db().transaction(async (tx) => {
-    const due = await claimDueCronSchedules({tx, limit: params.batchSize});
+    // One database-clock reading shared by the due check and every advance, so the two
+    // never disagree under application/database clock skew.
+    const now = await selectDbNow(tx);
+    const due = await claimDueCronSchedules({tx, limit: params.batchSize, now});
     claimed = due.length;
 
     for (const schedule of due) {
@@ -53,7 +56,7 @@ export async function drainDueCronSchedules(
           const nextFireAt = computeNextFireAt({
             cronExpression: schedule.cronExpression,
             timezone: schedule.timezone,
-            from: new Date(),
+            from: now,
             subscriptionId: schedule.subscriptionId,
             jitterWindowSeconds: params.jitterWindowSeconds,
           });
