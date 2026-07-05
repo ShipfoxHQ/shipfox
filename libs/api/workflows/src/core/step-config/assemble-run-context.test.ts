@@ -212,16 +212,21 @@ describe('assembleExecutionCreationContext', () => {
 });
 
 describe('assembleStepDispatchContext', () => {
-  it('wraps upstream step outputs and the current execution with the dispatch site', () => {
-    const targetStep = step({id: 'step-2', key: 'test'});
+  it('wraps coherent step entities, the step self-root, and the current execution', () => {
+    const targetStep = step({id: 'step-2', key: 'test', currentAttempt: 2});
     const steps = [
-      step({id: 'step-1', key: 'build'}),
+      step({id: 'step-1', key: 'build', status: 'succeeded'}),
       targetStep,
       step({id: 'step-3', key: null}),
-      step({id: 'step-4', key: 'running'}),
+      step({id: 'step-4', key: 'running', status: 'running'}),
     ];
     const attempts = [
-      attempt({stepId: 'step-1', output: {image: 'app:123'}}),
+      attempt({
+        id: 'attempt-1',
+        stepId: 'step-1',
+        output: {image: 'app:123'},
+        gateResult: {passed: true, source: 'step.exit_code == 0', exit_code: 0},
+      }),
       attempt({stepId: 'step-4', status: 'running', output: {ignored: true}}),
     ];
     const execution = jobExecution();
@@ -252,11 +257,168 @@ describe('assembleStepDispatchContext', () => {
             },
           ],
         },
+        step: {
+          attempt: 2n,
+          is_retry: true,
+        },
         steps: {
-          build: {outputs: {image: 'app:123'}},
+          build: {
+            status: 'succeeded',
+            exit_code: 0n,
+            outputs: {image: 'app:123'},
+            gate: {passed: true, source: 'step.exit_code == 0', exit_code: 0},
+            attempts: [
+              {
+                status: 'succeeded',
+                exit_code: 0n,
+                outputs: {image: 'app:123'},
+                gate: {passed: true, source: 'step.exit_code == 0', exit_code: 0},
+              },
+            ],
+          },
+          test: {status: 'pending', attempts: []},
+          running: {status: 'running', attempts: []},
         },
       },
     });
+  });
+
+  it('uses the latest terminal attempt by execution order and keeps history ordered', () => {
+    const targetStep = step({id: 'step-2', key: 'deploy'});
+    const steps = [step({id: 'step-1', key: 'build', status: 'succeeded'}), targetStep];
+    const attempts = [
+      attempt({
+        id: 'attempt-2',
+        stepId: 'step-1',
+        attempt: 2,
+        executionOrder: 3,
+        output: {image: 'app:good'},
+      }),
+      attempt({
+        id: 'attempt-1',
+        stepId: 'step-1',
+        attempt: 1,
+        executionOrder: 1,
+        status: 'failed',
+        output: {image: 'app:bad'},
+        exitCode: 1,
+      }),
+      attempt({
+        id: 'attempt-3',
+        stepId: 'step-1',
+        attempt: 3,
+        executionOrder: 4,
+        status: 'running',
+        output: {image: 'app:ignored'},
+      }),
+    ];
+
+    const context = assembleStepDispatchContext({
+      steps,
+      attempts,
+      targetStepId: targetStep.id,
+    });
+
+    expect(context.values.steps).toEqual({
+      build: {
+        status: 'succeeded',
+        exit_code: 0n,
+        outputs: {image: 'app:good'},
+        attempts: [
+          {status: 'failed', exit_code: 1n, outputs: {image: 'app:bad'}},
+          {status: 'succeeded', exit_code: 0n, outputs: {image: 'app:good'}},
+        ],
+      },
+      deploy: {status: 'pending', attempts: []},
+    });
+  });
+
+  it('includes the target step prior attempts but excludes the in-flight attempt', () => {
+    const targetStep = step({
+      id: 'step-1',
+      key: 'build',
+      status: 'running',
+      currentAttempt: 3,
+    });
+    const attempts = [
+      attempt({id: 'attempt-1', attempt: 1, executionOrder: 1, output: {sha: 'old'}}),
+      attempt({
+        id: 'attempt-2',
+        attempt: 2,
+        executionOrder: 2,
+        status: 'failed',
+        output: {sha: 'failed'},
+        exitCode: 1,
+      }),
+      attempt({
+        id: 'attempt-3',
+        attempt: 3,
+        executionOrder: 3,
+        status: 'running',
+        output: {sha: 'in-flight'},
+      }),
+    ];
+
+    const context = assembleStepDispatchContext({
+      steps: [targetStep],
+      attempts,
+      targetStepId: targetStep.id,
+    });
+
+    expect(context.values.step).toEqual({attempt: 3n, is_retry: true});
+    expect(context.values.steps).toEqual({
+      build: {
+        status: 'running',
+        exit_code: 1n,
+        outputs: {sha: 'failed'},
+        attempts: [
+          {status: 'succeeded', exit_code: 0n, outputs: {sha: 'old'}},
+          {status: 'failed', exit_code: 1n, outputs: {sha: 'failed'}},
+        ],
+      },
+    });
+  });
+
+  it('omits response for run steps so response resolves as a missing path', () => {
+    const targetStep = step({id: 'step-2', key: 'deploy'});
+    const steps = [step({id: 'step-1', key: 'build', status: 'succeeded'}), targetStep];
+
+    const context = assembleStepDispatchContext({
+      steps,
+      attempts: [attempt({stepId: 'step-1'})],
+      targetStepId: targetStep.id,
+    });
+
+    const stepsContext = context.values.steps as Record<string, Record<string, unknown>>;
+    const build = stepsContext.build as Record<string, unknown>;
+    const buildAttempt = (build.attempts as Record<string, unknown>[])[0];
+    expect(build).not.toHaveProperty('response');
+    expect(buildAttempt).not.toHaveProperty('response');
+  });
+
+  it('exposes projection status when a step has no terminal attempt', () => {
+    const skipped = step({
+      id: 'step-1',
+      key: 'conditional',
+      status: 'skipped' as Step['status'],
+    });
+
+    const context = assembleStepDispatchContext({
+      steps: [skipped],
+      attempts: [],
+      targetStepId: skipped.id,
+    });
+
+    const stepsContext = context.values.steps as Record<string, Record<string, unknown>>;
+    expect(stepsContext).toEqual({
+      conditional: {
+        status: 'skipped',
+        attempts: [],
+      },
+    });
+    expect(stepsContext.conditional).not.toHaveProperty('outputs');
+    expect(stepsContext.conditional).not.toHaveProperty('exit_code');
+    expect(stepsContext.conditional).not.toHaveProperty('gate');
   });
 });
 
