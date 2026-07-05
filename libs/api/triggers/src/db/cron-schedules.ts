@@ -1,6 +1,6 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {triggerSourceConfigSchemas} from '@shipfox/workflow-document';
-import {eq, sql} from 'drizzle-orm';
+import {eq, lte, sql} from 'drizzle-orm';
 import {config} from '#config.js';
 import {computeNextFireAt} from '#core/compute-next-fire-at.js';
 import type {CronSchedule} from '#core/entities/cron-schedule.js';
@@ -79,6 +79,55 @@ export async function deleteCronScheduleForSubscription(
   await params.tx
     .delete(triggersCronSchedules)
     .where(eq(triggersCronSchedules.subscriptionId, params.subscriptionId));
+}
+
+export interface ClaimDueCronSchedulesParams {
+  readonly tx: Tx;
+  readonly limit: number;
+}
+
+/**
+ * Uses the database clock for due checks and holds `FOR UPDATE SKIP LOCKED` locks
+ * until the caller's transaction ends, so concurrent drains partition due rows
+ * instead of double-claiming them.
+ */
+export async function claimDueCronSchedules(
+  params: ClaimDueCronSchedulesParams,
+): Promise<CronSchedule[]> {
+  const rows = await params.tx
+    .select()
+    .from(triggersCronSchedules)
+    .where(lte(triggersCronSchedules.nextFireAt, sql`now()`))
+    .orderBy(triggersCronSchedules.nextFireAt)
+    .limit(params.limit)
+    .for('update', {skipLocked: true});
+  return rows.map(toCronSchedule);
+}
+
+export interface AdvanceCronScheduleParams {
+  readonly tx: Tx;
+  readonly subscriptionId: string;
+  readonly nextFireAt: Date;
+  readonly lastFiredAt: Date;
+}
+
+export async function advanceCronSchedule(params: AdvanceCronScheduleParams): Promise<void> {
+  await params.tx
+    .update(triggersCronSchedules)
+    .set({
+      nextFireAt: params.nextFireAt,
+      lastFiredAt: params.lastFiredAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(triggersCronSchedules.subscriptionId, params.subscriptionId));
+}
+
+export async function countDueCronSchedules(): Promise<number> {
+  const [row] = await db()
+    .select({count: sql<number>`count(*)::int`})
+    .from(triggersCronSchedules)
+    .where(lte(triggersCronSchedules.nextFireAt, sql`now()`));
+  return row?.count ?? 0;
 }
 
 export async function getCronScheduleBySubscriptionId(

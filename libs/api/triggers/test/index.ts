@@ -1,3 +1,4 @@
+export {cronScheduleFactory} from './factories/cron-schedule.js';
 export {decisionFactory} from './factories/decision.js';
 export {jobListenerSubscriptionFactory} from './factories/job-listener-subscription.js';
 export {receivedEventFactory} from './factories/received-event.js';

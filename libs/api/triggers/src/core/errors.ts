@@ -32,6 +32,20 @@ export class TriggerSubscriptionNotManualError extends Error {
   }
 }
 
+export class TriggerSubscriptionNotCronError extends Error {
+  readonly subscriptionId: string;
+  readonly source: string;
+
+  constructor(subscriptionId: string, source: string) {
+    super(
+      `Trigger subscription ${subscriptionId} has source '${source}', expected 'cron' for cron fire`,
+    );
+    this.name = 'TriggerSubscriptionNotCronError';
+    this.subscriptionId = subscriptionId;
+    this.source = source;
+  }
+}
+
 export class TriggerWorkspaceMismatchError extends Error {
   readonly subscriptionId: string;
   readonly subscriptionWorkspaceId: string;

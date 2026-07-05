@@ -20,3 +20,14 @@ export const eventOutcomeCount = meter.createCounter<{
 }>('triggers_event_outcome', {
   description: 'Final outcomes of trigger events by provider and outcome',
 });
+
+export const cronFiredCount = meter.createCounter<{outcome: 'fired' | 'errored'}>(
+  'triggers_cron_fired',
+  {description: 'Cron schedule slots consumed by the tick, by fire outcome'},
+);
+
+export const cronFireLag = meter.createHistogram<Record<string, never>>('triggers_cron_fire_lag', {
+  description: 'Delay between a cron scheduled slot and when the tick actually fired it',
+  unit: 'ms',
+  advice: {explicitBucketBoundaries: [0, 100, 500, 1000, 5000, 15000, 60000, 300000]},
+});
