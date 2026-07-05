@@ -110,19 +110,32 @@ export function assembleStepDispatchContext(params: {
   readonly targetStepId: string;
   readonly jobExecution?: JobExecution;
 }): WorkflowEvaluationContext {
-  const attemptsByStepId = new Map(
-    params.attempts
-      .filter((attempt) => attempt.status !== 'running')
-      .map((attempt) => [attempt.stepId, attempt]),
+  const terminalAttemptsByStepId = new Map<string, StepAttempt[]>();
+  const orderedAttempts = [...params.attempts].sort(
+    (left, right) => left.executionOrder - right.executionOrder,
   );
-  const stepsContext: Record<string, {outputs: Record<string, unknown>}> = {};
+
+  for (const attempt of orderedAttempts) {
+    if (attempt.status === 'running') continue;
+    const attemptsForStep = terminalAttemptsByStepId.get(attempt.stepId) ?? [];
+    attemptsForStep.push(attempt);
+    terminalAttemptsByStepId.set(attempt.stepId, attemptsForStep);
+  }
+
+  const stepsContext: Record<string, Record<string, unknown>> = {};
 
   for (const step of params.steps) {
-    if (step.id === params.targetStepId || step.key === null) continue;
-    const attempt = attemptsByStepId.get(step.id);
-    if (attempt === undefined) continue;
-    stepsContext[step.key] = {outputs: attempt.output ?? {}};
+    if (step.key === null) continue;
+    const attempts = terminalAttemptsByStepId.get(step.id) ?? [];
+    const latestAttempt = attempts.at(-1);
+    stepsContext[step.key] = {
+      status: step.status,
+      ...(latestAttempt === undefined ? {} : latestAttemptFields(latestAttempt)),
+      attempts: attempts.map(attemptFields),
+    };
   }
+
+  const targetStep = params.steps.find((step) => step.id === params.targetStepId);
 
   return {
     site: 'step-dispatch',
@@ -139,9 +152,32 @@ export function assembleStepDispatchContext(params: {
               events: params.jobExecution.triggerEvents,
             },
           }),
+      ...(targetStep === undefined
+        ? {}
+        : {
+            step: {
+              attempt: BigInt(targetStep.currentAttempt),
+              is_retry: targetStep.currentAttempt > 1,
+            },
+          }),
       steps: stepsContext,
     },
   };
+}
+
+function attemptFields(attempt: StepAttempt): Record<string, unknown> {
+  return {
+    status: attempt.status,
+    outputs: attempt.output ?? {},
+    ...(attempt.exitCode === null ? {} : {exit_code: BigInt(attempt.exitCode)}),
+    ...(attempt.gateResult === null ? {} : {gate: attempt.gateResult}),
+  };
+}
+
+function latestAttemptFields(attempt: StepAttempt): Record<string, unknown> {
+  const fields = attemptFields(attempt);
+  delete fields.status;
+  return fields;
 }
 
 export function assembleGateContext(params: {
