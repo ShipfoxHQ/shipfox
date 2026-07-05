@@ -1,6 +1,5 @@
 import {
   type EvaluationTraceEntry,
-  type EvaluationTraceLimitEntry,
   freezeResolvedFieldAtSite,
   getWorkflowInterpolationFieldFailurePolicy,
   type ResolvedField,
@@ -25,10 +24,6 @@ export interface WorkflowStepEvaluationTraceEntry extends EvaluationTraceEntry {
   readonly field: StepConfigField;
   readonly envKey?: string;
 }
-
-export type WorkflowStepEvaluationTraceRecord =
-  | WorkflowStepEvaluationTraceEntry
-  | EvaluationTraceLimitEntry;
 
 export interface ResolveStepFieldParams {
   readonly field: WorkflowInterpolationField;

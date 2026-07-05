@@ -3,6 +3,7 @@ import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions
 import {
   type AvailabilitySite,
   capTraceEntries,
+  type EvaluationTraceLimitEntry,
   type WorkflowExpressionEvaluationContext,
 } from '@shipfox/expression';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
@@ -11,7 +12,6 @@ import {
   freezeStepField,
   type StepConfigField,
   type WorkflowStepEvaluationTraceEntry,
-  type WorkflowStepEvaluationTraceRecord,
   type WorkflowStepTemplateDiagnostic,
 } from './fields.js';
 import {resolveRunStepConfig, type StepConfigMode} from './run.js';
@@ -30,7 +30,7 @@ export interface ResolvedStepConfig {
   readonly authoredConfig: Record<string, unknown> | null;
   readonly name?: string;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
-  readonly trace: readonly WorkflowStepEvaluationTraceRecord[];
+  readonly trace: readonly (WorkflowStepEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }
 
 export interface ResolveStepConfigParams {
