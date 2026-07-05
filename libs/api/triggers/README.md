@@ -201,6 +201,10 @@ declarations live in raw form.
 which carry the parsed `triggers` map. The triggers module never reads the
 definitions table — the event is the contract.
 
+Cron triggers also project into `triggers_cron_schedules`, keyed by
+`subscription_id`. That table stores the resolved cron expression, timezone,
+next fire time, and last fire time used by the cron firing engine.
+
 Indexes:
 
 - `(workflow_definition_id, name)` — unique. One row per YAML trigger.
@@ -208,6 +212,8 @@ Indexes:
   integration events at workspace scope.
 - `(workflow_definition_id)` — used to clean up the projection on
   `DEFINITION_DELETED`.
+- `triggers_cron_schedules.next_fire_at` — used to drain due cron schedules
+  in next-fire order.
 
 ### Layer 3 — run history (immutable)
 

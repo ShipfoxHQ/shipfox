@@ -1,4 +1,15 @@
 CREATE TYPE "public"."triggers_job_listener_matcher_kind" AS ENUM('on', 'until');--> statement-breakpoint
+CREATE TABLE "triggers_cron_schedules" (
+	"subscription_id" uuid PRIMARY KEY NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"cron_expression" text NOT NULL,
+	"timezone" text NOT NULL,
+	"next_fire_at" timestamp with time zone NOT NULL,
+	"last_fired_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "triggers_decisions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"received_event_id" uuid NOT NULL,
@@ -71,7 +82,9 @@ CREATE TABLE "triggers_subscriptions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "triggers_cron_schedules" ADD CONSTRAINT "triggers_cron_schedules_subscription_id_triggers_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."triggers_subscriptions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "triggers_decisions" ADD CONSTRAINT "triggers_decisions_received_event_id_triggers_received_events_id_fk" FOREIGN KEY ("received_event_id") REFERENCES "public"."triggers_received_events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "triggers_cron_schedules_next_fire_at_idx" ON "triggers_cron_schedules" USING btree ("next_fire_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "triggers_decisions_event_subscription_unique" ON "triggers_decisions" USING btree ("received_event_id","subscription_id");--> statement-breakpoint
 CREATE INDEX "triggers_decisions_run_idx" ON "triggers_decisions" USING btree ("run_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "triggers_job_listener_subscriptions_job_kind_ordinal_unique" ON "triggers_job_listener_subscriptions" USING btree ("job_id","kind","matcher_ordinal");--> statement-breakpoint
