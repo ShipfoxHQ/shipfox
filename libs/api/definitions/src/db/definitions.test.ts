@@ -8,6 +8,7 @@ import {
   pruneDispatchedOutboxRows,
   recordDispatchFailure,
   registerPublisher,
+  renewDispatchClaim,
   resetPublishers,
 } from '@shipfox/node-module';
 import {sql} from 'drizzle-orm';
@@ -718,7 +719,11 @@ describe('definition queries', () => {
   });
 
   describe('publisher registry (drainAll + markDispatched)', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+      await db()
+        .update(definitionsOutbox)
+        .set({dispatchedAt: sql`COALESCE(${definitionsOutbox.dispatchedAt}, now())`})
+        .where(sql`${definitionsOutbox.dispatchedAt} IS NULL`);
       resetPublishers();
       registerPublisher({
         name: 'definitions',
@@ -822,6 +827,129 @@ describe('definition queries', () => {
           .set({dispatchedAt: sql`now()`})
           .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
       }
+    });
+
+    test('concurrent drainAll calls claim each row at most once', async () => {
+      await insertOutboxRow({projectId, marker: 'first', orderingKey: 'run-1'});
+      await insertOutboxRow({projectId, marker: 'second', orderingKey: 'run-2'});
+
+      const [firstDrain, secondDrain] = await Promise.all([drainAll(), drainAll()]);
+
+      const firstEvents = eventsForProject(firstDrain.events, projectId);
+      const secondEvents = eventsForProject(secondDrain.events, projectId);
+      const firstIds = new Set(firstEvents.map((event) => event.id));
+      const duplicateIds = secondEvents
+        .map((event) => event.id)
+        .filter((eventId) => firstIds.has(eventId));
+      expect(firstEvents.length + secondEvents.length).toBe(2);
+      expect(duplicateIds).toEqual([]);
+    });
+
+    test('drainAll leases claimed rows so a crashed worker redelivers after the lease expires', async () => {
+      const id = await insertOutboxRow({projectId, marker: 'leased', orderingKey: 'run-1'});
+
+      const firstDrain = eventsForProject((await drainAll()).events, projectId);
+      const secondDrain = eventsForProject((await drainAll()).events, projectId);
+      await db()
+        .update(definitionsOutbox)
+        .set({nextDispatchAt: sql`now() - interval '1 second'`})
+        .where(sql`${definitionsOutbox.id} = ${id}`);
+      const redeliveryDrain = eventsForProject((await drainAll()).events, projectId);
+
+      expect(firstDrain.map((event) => event.id)).toEqual([id]);
+      expect(secondDrain).toHaveLength(0);
+      expect(redeliveryDrain.map((event) => event.id)).toEqual([id]);
+    });
+
+    test('renewDispatchClaim extends only the currently owned claim', async () => {
+      await insertOutboxRow({projectId, marker: 'renewed', orderingKey: 'run-1'});
+      const [event] = eventsForProject((await drainAll()).events, projectId);
+
+      const renewedClaimExpiresAt = await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+      const staleRenewal = await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+
+      expect(renewedClaimExpiresAt).toBeInstanceOf(Date);
+      expect(renewedClaimExpiresAt?.getTime()).toBeGreaterThanOrEqual(
+        (event?.claimExpiresAt as Date).getTime(),
+      );
+      expect(staleRenewal).toBeUndefined();
+    });
+
+    test('markDispatched ignores stale claims that have already been renewed', async () => {
+      await insertOutboxRow({projectId, marker: 'stale-success', orderingKey: 'run-1'});
+      const [event] = eventsForProject((await drainAll()).events, projectId);
+      await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+
+      await markDispatched('definitions', [
+        {id: event?.id as string, claimExpiresAt: event?.claimExpiresAt as Date},
+      ]);
+
+      const rows = await listOutboxRowsForProject(projectId);
+      expect(rows[0]?.dispatchedAt).toBeNull();
+    });
+
+    test('recordDispatchFailure ignores stale claims that have already been renewed', async () => {
+      const failure: OutboxDispatchFailure = {
+        kind: 'handler',
+        eventType: DEFINITION_RESOLVED,
+        eventId: crypto.randomUUID(),
+        errorName: 'Error',
+        errorMessage: 'subscriber failed',
+      };
+      await insertOutboxRow({projectId, marker: 'stale-failure', orderingKey: 'run-1'});
+      const [event] = eventsForProject((await drainAll()).events, projectId);
+      await renewDispatchClaim('definitions', {
+        id: event?.id as string,
+        claimExpiresAt: event?.claimExpiresAt as Date,
+      });
+
+      await recordDispatchFailure(
+        'definitions',
+        event?.id as string,
+        failure,
+        event?.claimExpiresAt as Date,
+      );
+
+      const rows = await listOutboxRowsForProject(projectId);
+      expect(rows[0]?.dispatchAttempts).toBe(0);
+      expect(rows[0]?.lastDispatchError).toBeNull();
+    });
+
+    test('partitioned drainAll assigns the same ordering key to one worker', async () => {
+      await insertOutboxRow({projectId, marker: 'shared-1', orderingKey: 'run-shared'});
+      await insertOutboxRow({projectId, marker: 'shared-2', orderingKey: 'run-shared'});
+      await insertOutboxRow({projectId, marker: 'other-1', orderingKey: 'run-other-1'});
+      await insertOutboxRow({projectId, marker: 'other-2', orderingKey: 'run-other-2'});
+      const workerCount = 4;
+
+      const drains = await Promise.all(
+        Array.from({length: workerCount}, (_, workerIndex) =>
+          drainAll({partition: {workerIndex, workerCount}}),
+        ),
+      );
+
+      const partitionsByKey = new Map<string, Set<number>>();
+      const projectEvents = drains.flatMap((drain, workerIndex) =>
+        eventsForProject(drain.events, projectId).map((event) => ({...event, workerIndex})),
+      );
+      for (const event of projectEvents) {
+        const workers = partitionsByKey.get(event.orderingKey) ?? new Set<number>();
+        workers.add(event.workerIndex);
+        partitionsByKey.set(event.orderingKey, workers);
+      }
+      const sharedEvents = projectEvents.filter((event) => event.orderingKey === 'run-shared');
+      expect(projectEvents).toHaveLength(4);
+      expect(sharedEvents).toHaveLength(2);
+      expect(partitionsByKey.get('run-shared')?.size).toBe(1);
     });
 
     test('markDispatched sets dispatchedAt for a single event', async () => {

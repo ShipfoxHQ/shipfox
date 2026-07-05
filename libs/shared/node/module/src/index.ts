@@ -7,8 +7,11 @@ export type {
 } from './initialize.js';
 export {initializeModules, registerModuleMetrics, startModuleWorkers} from './initialize.js';
 export type {
+  DrainAllOptions,
   DrainAllResult,
   DrainedEvent,
+  OutboxDispatchClaim,
+  OutboxDispatcherPartition,
   OutboxDispatchFailure,
   PruneDispatchedOutboxRowsOptions,
   PrunedOutboxSource,
@@ -21,6 +24,7 @@ export {
   pruneDispatchedOutboxRows,
   recordDispatchFailure,
   registerPublisher,
+  renewDispatchClaim,
   resetPublishers,
 } from './publisher-registry.js';
 export type {EventHandler} from './registry.js';

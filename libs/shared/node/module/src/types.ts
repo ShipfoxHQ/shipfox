@@ -34,6 +34,7 @@ export interface ModulePublisher {
 export interface WorkflowStart {
   name: string;
   id: string;
+  args?: unknown[];
   /**
    * Optional Temporal cron expression (e.g. `* * * * *`). When set, the
    * workflow is started with `cronSchedule` so Temporal handles recurrence

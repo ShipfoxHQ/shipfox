@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {
   DISPATCHER_TASK_QUEUE,
+  DISPATCHER_WORKER_COUNT,
   DISPATCHER_WORKFLOW_ID,
   OUTBOX_RETENTION_WORKFLOW_ID,
 } from '#core/constants.js';
@@ -21,7 +22,19 @@ export const dispatcherModule: ShipfoxModule = {
       workflowsPath,
       activities: createActivities,
       workflows: [
-        {name: 'outboxDispatcherWorkflow', id: DISPATCHER_WORKFLOW_ID},
+        {
+          name: 'outboxDispatcherWorkflow',
+          id: DISPATCHER_WORKFLOW_ID,
+          args: [{workerIndex: 0, workerCount: DISPATCHER_WORKER_COUNT}],
+        },
+        ...Array.from({length: DISPATCHER_WORKER_COUNT - 1}, (_, index) => {
+          const workerIndex = index + 1;
+          return {
+            name: 'outboxDispatcherWorkflow',
+            id: `${DISPATCHER_WORKFLOW_ID}-${workerIndex}`,
+            args: [{workerIndex, workerCount: DISPATCHER_WORKER_COUNT}],
+          };
+        }),
         {
           name: 'outboxRetentionWorkflow',
           id: OUTBOX_RETENTION_WORKFLOW_ID,

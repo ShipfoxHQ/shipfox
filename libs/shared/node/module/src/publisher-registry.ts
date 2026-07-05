@@ -1,5 +1,5 @@
 import type {DomainEvent, OutboxTable} from '@shipfox/node-outbox';
-import {and, asc, eq, getTableName, inArray, isNull, lte, sql} from 'drizzle-orm';
+import {and, eq, getTableName, inArray, isNull, type SQL, sql} from 'drizzle-orm';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {ZodType} from 'zod';
 
@@ -14,12 +14,27 @@ export interface DrainedEvent {
   source: string;
   orderingKey: string;
   id: string;
+  claimExpiresAt: Date;
   event: DomainEvent;
 }
 
 export interface DrainAllResult {
   events: DrainedEvent[];
   hasMore: boolean;
+}
+
+export interface OutboxDispatcherPartition {
+  workerIndex: number;
+  workerCount: number;
+}
+
+export interface OutboxDispatchClaim {
+  id: string;
+  claimExpiresAt: Date;
+}
+
+export interface DrainAllOptions {
+  partition?: OutboxDispatcherPartition;
 }
 
 export interface OutboxDispatchIssue {
@@ -60,6 +75,7 @@ const _schemasByType = new Map<string, ZodType>();
 
 export const BATCH_SIZE = 500;
 const MAX_DISPATCH_ATTEMPTS = 5;
+const CLAIM_LEASE_EXTENSION_SECONDS = 120;
 
 export function registerPublisher(config: PublisherSource): void {
   _sources.push(config);
@@ -82,45 +98,28 @@ export function getEventSchema(type: string): ZodType | undefined {
   return _schemasByType.get(type);
 }
 
-export async function drainAll(): Promise<DrainAllResult> {
+export async function drainAll(options: DrainAllOptions = {}): Promise<DrainAllResult> {
+  const partition = normalizePartition(options.partition);
   const results: DrainedEvent[] = [];
   let hasMore = false;
 
   for (const source of _sources) {
-    const rows = await source
-      .db()
-      .select()
-      .from(source.table)
-      .where(
-        and(
-          isNull(source.table.dispatchedAt),
-          isNull(source.table.deadLetteredAt),
-          lte(source.table.nextDispatchAt, sql`now()`),
-          sql`NOT EXISTS (
-            SELECT 1
-            FROM ${sql.raw(quoteIdentifier(getTableName(source.table)))} AS earlier
-            WHERE earlier.dispatched_at IS NULL
-              AND earlier.dead_lettered_at IS NULL
-              AND COALESCE(earlier.ordering_key, ${source.name}) = COALESCE(${source.table.orderingKey}, ${source.name})
-              AND (earlier.created_at, earlier.id) < (${source.table.createdAt}, ${source.table.id})
-              AND earlier.next_dispatch_at > now()
-          )`,
-        ),
-      )
-      .orderBy(asc(source.table.createdAt), asc(source.table.id))
-      .limit(BATCH_SIZE);
+    const rows = await claimSourceRows(source, partition);
     if (rows.length === BATCH_SIZE) hasMore = true;
 
     for (const row of rows) {
+      const createdAt = new Date(row.createdAt);
+      const claimExpiresAt = new Date(row.claimExpiresAt);
       results.push({
         source: source.name,
         orderingKey: row.orderingKey ?? source.name,
         id: row.id,
+        claimExpiresAt,
         event: {
           id: row.id,
           type: row.eventType,
           payload: row.payload,
-          createdAt: row.createdAt,
+          createdAt,
         },
       });
     }
@@ -129,11 +128,71 @@ export async function drainAll(): Promise<DrainAllResult> {
   return {events: results, hasMore};
 }
 
-export async function markDispatched(source: string, ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
+type ClaimedOutboxRow = Record<string, unknown> & {
+  id: string;
+  eventType: string;
+  orderingKey: string | null;
+  payload: unknown;
+  createdAt: Date | string;
+  claimExpiresAt: Date | string;
+};
 
+async function claimSourceRows(
+  source: PublisherSource,
+  partition: OutboxDispatcherPartition,
+): Promise<ClaimedOutboxRow[]> {
+  const table = sql.raw(quoteIdentifier(getTableName(source.table)));
+  const result = await source.db().transaction(async (tx) => {
+    return await tx.execute<ClaimedOutboxRow>(sql`
+      WITH claimed AS (
+        SELECT outbox.id
+        FROM ${table} AS outbox
+        WHERE outbox.dispatched_at IS NULL
+          AND outbox.dead_lettered_at IS NULL
+          AND outbox.next_dispatch_at <= now()
+          AND ${partitionPredicateSql(source, partition)}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${table} AS earlier
+            WHERE earlier.dispatched_at IS NULL
+              AND earlier.dead_lettered_at IS NULL
+              AND COALESCE(earlier.ordering_key, ${source.name}) = COALESCE(outbox.ordering_key, ${source.name})
+              AND (earlier.created_at, earlier.id) < (outbox.created_at, outbox.id)
+              AND earlier.next_dispatch_at > now()
+          )
+        ORDER BY outbox.created_at, outbox.id
+        FOR UPDATE SKIP LOCKED
+        LIMIT ${BATCH_SIZE}
+      )
+      UPDATE ${table} AS outbox
+      SET next_dispatch_at = ${claimExpiresAtSql()}
+      FROM claimed
+      WHERE outbox.id = claimed.id
+      RETURNING
+        outbox.id,
+        outbox.event_type AS "eventType",
+        outbox.ordering_key AS "orderingKey",
+        outbox.payload,
+        outbox.created_at AS "createdAt",
+        outbox.next_dispatch_at AS "claimExpiresAt"
+    `);
+  });
+
+  return [...result.rows].sort(compareClaimedRows);
+}
+
+export async function markDispatched(
+  source: string,
+  claims: string[] | OutboxDispatchClaim[],
+): Promise<void> {
+  if (claims.length === 0) return;
   const config = _sources.find((s) => s.name === source);
   if (!config) return;
+
+  if (isDispatchClaims(claims)) {
+    await markClaimedDispatched(config, claims);
+    return;
+  }
 
   await config
     .db()
@@ -141,17 +200,66 @@ export async function markDispatched(source: string, ids: string[]): Promise<voi
     .set({dispatchedAt: sql`now()`})
     .where(
       and(
-        inArray(config.table.id, ids),
+        inArray(config.table.id, claims),
         isNull(config.table.dispatchedAt),
         isNull(config.table.deadLetteredAt),
       ),
     );
 }
 
+async function markClaimedDispatched(
+  source: PublisherSource,
+  claims: OutboxDispatchClaim[],
+): Promise<void> {
+  const table = sql.raw(quoteIdentifier(getTableName(source.table)));
+  const values = sql.join(
+    claims.map((claim) => sql`(${claim.id}::uuid, ${claim.claimExpiresAt}::timestamptz)`),
+    sql`, `,
+  );
+  await source.db().execute(sql`
+    WITH claim(id, claim_expires_at) AS (VALUES ${values})
+    UPDATE ${table} AS outbox
+    SET dispatched_at = now()
+    FROM claim
+    WHERE outbox.id = claim.id
+      AND outbox.next_dispatch_at = claim.claim_expires_at
+      AND outbox.dispatched_at IS NULL
+      AND outbox.dead_lettered_at IS NULL
+  `);
+}
+
+function isDispatchClaims(
+  claims: string[] | OutboxDispatchClaim[],
+): claims is OutboxDispatchClaim[] {
+  return typeof claims[0] === 'object';
+}
+
+export async function renewDispatchClaim(
+  source: string,
+  claim: OutboxDispatchClaim,
+): Promise<Date | undefined> {
+  const config = _sources.find((s) => s.name === source);
+  if (!config) return undefined;
+
+  const table = sql.raw(quoteIdentifier(getTableName(config.table)));
+  const result = await config.db().execute<{claimExpiresAt: Date | string}>(sql`
+    UPDATE ${table}
+    SET next_dispatch_at = ${claimExpiresAtSql()}
+    WHERE id = ${claim.id}
+      AND next_dispatch_at = ${claim.claimExpiresAt}
+      AND dispatched_at IS NULL
+      AND dead_lettered_at IS NULL
+    RETURNING next_dispatch_at AS "claimExpiresAt"
+  `);
+  const claimExpiresAt = result.rows[0]?.claimExpiresAt;
+  return claimExpiresAt ? new Date(claimExpiresAt) : undefined;
+}
+
 export async function recordDispatchFailure(
   source: string,
   id: string,
   failure: OutboxDispatchFailure,
+  claimExpiresAt?: Date,
 ): Promise<void> {
   const config = _sources.find((s) => s.name === source);
   if (!config) return;
@@ -171,6 +279,7 @@ export async function recordDispatchFailure(
     .where(
       and(
         eq(config.table.id, id),
+        claimExpiresAt ? eq(config.table.nextDispatchAt, claimExpiresAt) : undefined,
         isNull(config.table.dispatchedAt),
         isNull(config.table.deadLetteredAt),
       ),
@@ -244,6 +353,38 @@ function assertPositiveInteger(value: number, name: string): void {
   }
 }
 
+function normalizePartition(
+  partition: OutboxDispatcherPartition | undefined,
+): OutboxDispatcherPartition {
+  if (!partition) return {workerIndex: 0, workerCount: 1};
+  assertPositiveInteger(partition.workerCount, 'workerCount');
+
+  if (!Number.isInteger(partition.workerIndex) || partition.workerIndex < 0) {
+    throw new Error('workerIndex must be a non-negative integer');
+  }
+  if (partition.workerIndex >= partition.workerCount) {
+    throw new Error('workerIndex must be less than workerCount');
+  }
+
+  return partition;
+}
+
+function partitionPredicateSql(source: PublisherSource, partition: OutboxDispatcherPartition): SQL {
+  if (partition.workerCount === 1) return sql`TRUE`;
+
+  return sql`
+    mod(
+      abs(hashtext(COALESCE(outbox.ordering_key, ${source.name}))::bigint),
+      ${partition.workerCount}
+    ) = ${partition.workerIndex}
+  `;
+}
+
+function compareClaimedRows(a: ClaimedOutboxRow, b: ClaimedOutboxRow): number {
+  const createdAtDelta = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  return createdAtDelta === 0 ? a.id.localeCompare(b.id) : createdAtDelta;
+}
+
 function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
@@ -256,4 +397,8 @@ function nextDispatchAtSql(table: OutboxTable) {
     WHEN ${table.dispatchAttempts} = 3 THEN now() + interval '30 minutes'
     ELSE now()
   END`;
+}
+
+function claimExpiresAtSql() {
+  return sql`date_trunc('milliseconds', now() + (${CLAIM_LEASE_EXTENSION_SECONDS} * interval '1 second'))`;
 }
