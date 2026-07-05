@@ -520,7 +520,19 @@ describe('materializeWorkflowModel', () => {
     expect(rows[0]?.steps[1]?.config).toMatchObject({
       env: {REGION: 'eu-west'},
     });
-    expect(rows[0]?.steps[1]?.configPlan).toBeUndefined();
+    expect(rows[0]?.steps[1]?.configPlan).toEqual({
+      trace: [
+        {
+          expression: '"eu-" + vars.REGION',
+          roots: ['vars'],
+          fillTarget: 'run-creation',
+          evaluatedAt: 'run-creation',
+          value: 'eu-west',
+          field: 'env',
+          envKey: 'REGION',
+        },
+      ],
+    });
   });
 
   it('merges env before resolving and only resolves the winning values', () => {

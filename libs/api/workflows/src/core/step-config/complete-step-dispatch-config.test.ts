@@ -180,19 +180,31 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const config = completeStepDispatchConfig({
+    const result = completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
       definitionId: 'def-1',
     });
 
-    expect(config).toEqual({
-      harness: 'claude',
-      provider: 'openai',
-      model: 'gpt-5.5',
-      thinking: 'off',
-      prompt: 'Review abc123',
+    expect(result).toEqual({
+      config: {
+        harness: 'claude',
+        provider: 'openai',
+        model: 'gpt-5.5',
+        thinking: 'off',
+        prompt: 'Review abc123',
+      },
+      trace: [
+        {
+          expression: 'steps.build.outputs.sha',
+          roots: ['steps'],
+          fillTarget: 'step-dispatch',
+          evaluatedAt: 'step-dispatch',
+          value: 'abc123',
+          field: 'agent.prompt',
+        },
+      ],
     });
   });
 

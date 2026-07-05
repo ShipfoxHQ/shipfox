@@ -15,7 +15,7 @@ import {
   runnerFillTarget,
   UnsafeRunInterpolationError,
 } from '@shipfox/expression';
-import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {
   resolveStepField,
@@ -90,7 +90,7 @@ export function completeRunDispatchConfig(params: {
   readonly plan: StepConfigDispatchPlan;
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
-  readonly trace: WorkflowStepEvaluationTraceEntry[];
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): void {
   const env = {...readConfigEnv(params.config)};
   const secretBindings: MaterializedSecretBindingDto[] = [];
@@ -134,7 +134,7 @@ function completeRunCommand(params: {
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly reservedNames: Iterable<string>;
-  readonly trace: WorkflowStepEvaluationTraceEntry[];
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): {
   readonly command: string;
   readonly env: Readonly<Record<string, string>>;
@@ -177,7 +177,7 @@ function completeDispatchField(params: {
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly envKey?: string;
-  readonly trace: WorkflowStepEvaluationTraceEntry[];
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): CompletedDispatchField {
   const resolved = resolveStepField(params);
   params.trace.push(...tagTrace(resolved.trace, params.traceField, params.envKey));

@@ -4,6 +4,7 @@ import type {
   EvaluationTraceLimitEntry,
   ResolvedField,
 } from '@shipfox/expression';
+import type {InterpolationUnresolvableField} from '../errors.js';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type StepAttemptLogOutcome = 'drained' | 'abandoned';
@@ -33,6 +34,11 @@ export type PersistedEvaluationTraceEntry =
     })
   | EvaluationTraceLimitEntry;
 
+export interface StepConfigEvaluationTraceEntry extends EvaluationTraceEntry {
+  readonly field: InterpolationUnresolvableField;
+  readonly envKey?: string;
+}
+
 export interface StepConfigDispatchPlan {
   run?: ResolvedField;
   env?: Readonly<Record<string, ResolvedField>>;
@@ -43,7 +49,7 @@ export interface StepConfigDispatchPlan {
     harness?: Harness;
     thinking?: AgentThinking;
   };
-  trace?: readonly PersistedEvaluationTraceEntry[];
+  trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }
 
 export interface Step {

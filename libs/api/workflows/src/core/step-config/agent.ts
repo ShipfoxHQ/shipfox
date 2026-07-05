@@ -6,7 +6,7 @@ import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-
 import type {AgentThinking} from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
-import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {AgentConfigUnresolvableError} from '#core/errors.js';
 import {
   completeStepFieldWithTrace,
@@ -69,7 +69,7 @@ export function completeAgentConfig(params: {
   readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly definitionId: string;
-  readonly trace: WorkflowStepEvaluationTraceEntry[];
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): void {
   const agent = params.plan.agent;
   if (agent === undefined) return;
@@ -120,7 +120,7 @@ function completeAgentField(args: {
   readonly params: {
     readonly context: WorkflowEvaluationContext;
     readonly definitionId: string;
-    readonly trace: WorkflowStepEvaluationTraceEntry[];
+    readonly trace: PersistedEvaluationTraceEntry[];
   };
 }): string {
   const resolved = completeStepFieldWithTrace({

@@ -286,8 +286,8 @@ export async function drainListenerEventsIntoExecution(
           status: step.status,
           type: step.type,
           config: step.config,
+          configPlan: step.configPlan ?? null,
           authoredConfig: step.authoredConfig,
-          evaluationTrace: step.evaluationTrace ?? null,
           position: step.position,
         })),
       );

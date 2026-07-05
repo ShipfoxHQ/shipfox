@@ -173,6 +173,7 @@ const baseAttempt: StepAttempt = {
   executionOrder: 1,
   status: 'failed',
   config: null,
+  evaluationTrace: null,
   output: null,
   error: null,
   exitCode: 1,
