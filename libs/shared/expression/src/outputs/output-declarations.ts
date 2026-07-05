@@ -38,7 +38,12 @@ export type CoerceStepOutputsResult =
   | {readonly ok: false; readonly error: StepOutputCoercionError};
 
 const ajv = new Ajv({strict: false});
-const coercingAjv = new Ajv({strict: false, coerceTypes: true, allErrors: true});
+const coercingAjv = new Ajv({
+  strict: false,
+  coerceTypes: true,
+  allErrors: true,
+  addUsedSchema: false,
+});
 const jsonOutputValidatorCache = new Map<string, ValidateFunction>();
 const fallbackJsonType = {kind: 'map'} as const satisfies ExpressionType;
 

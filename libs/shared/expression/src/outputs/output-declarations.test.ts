@@ -241,4 +241,34 @@ describe('coerceStepOutputs', () => {
     expect(compileSpy).toHaveBeenCalledTimes(1);
     compileSpy.mockRestore();
   });
+
+  it('does not collide when different JSON Schemas reuse the same schema id', () => {
+    const first = coerceStepOutputs({
+      declarations: {
+        payload: {
+          type: 'json',
+          schema: {$id: 'https://shipfox.dev/schemas/output', type: 'integer'},
+        },
+      },
+      output: {payload: '1'},
+    });
+    const second = coerceStepOutputs({
+      declarations: {
+        payload: {
+          type: 'json',
+          schema: {
+            $id: 'https://shipfox.dev/schemas/output',
+            type: 'object',
+            properties: {name: {type: 'string'}},
+            required: ['name'],
+            additionalProperties: false,
+          },
+        },
+      },
+      output: {payload: '{"name":"artifact"}'},
+    });
+
+    expect(first).toEqual({ok: true, output: {payload: 1}});
+    expect(second).toEqual({ok: true, output: {payload: {name: 'artifact'}}});
+  });
 });
