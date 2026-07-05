@@ -4,6 +4,7 @@ export {
   SETTINGS_TAB_LABELS,
   SettingsShell,
   type SettingsTab,
+  SetupShell,
   settingsPath,
   Toast,
   TopNav,

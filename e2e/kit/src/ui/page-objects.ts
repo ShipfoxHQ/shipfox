@@ -66,7 +66,7 @@ export class WorkspaceSwitcher {
     await this.searchInput().fill(query);
   }
 
-  workspaceOption(name: string): AppLocator {
+  workspaceOption(name: string | RegExp): AppLocator {
     return this.page.getByRole('option', {name});
   }
 
@@ -80,6 +80,59 @@ export class WorkspaceSwitcher {
 
   async clickCreateWorkspace(): Promise<void> {
     await this.createWorkspaceOption().click();
+  }
+
+  noResults(): AppLocator {
+    return this.page.getByText('No workspaces found.');
+  }
+
+  async pressEnter(): Promise<void> {
+    await this.page.keyboard.press('Enter');
+  }
+
+  async scrollWorkspaceOptionsToEnd(): Promise<void> {
+    await this.page.evaluate(() => {
+      let el = document.querySelector('[role="option"]')?.parentElement ?? null;
+      while (el && el.scrollHeight <= el.clientHeight) {
+        el = el.parentElement;
+      }
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+}
+
+export class SetupShell {
+  constructor(private readonly page: Page) {}
+
+  sourceControlHeading(): AppLocator {
+    return this.page.getByRole('heading', {name: 'Install source control'});
+  }
+
+  modelProviderHeading(): AppLocator {
+    return this.page.getByRole('heading', {name: 'Configure model provider'});
+  }
+
+  projectTab(): AppLocator {
+    return this.page.getByRole('tab', {name: 'Projects'});
+  }
+
+  settingsTab(): AppLocator {
+    return this.page.getByRole('tab', {name: 'Settings'});
+  }
+
+  projectSwitcher(): AppLocator {
+    return this.page.getByLabel('Switch project');
+  }
+
+  workspaceSwitcher(): AppLocator {
+    return this.page.getByLabel('Switch workspace');
+  }
+
+  async expectNavigationHidden(): Promise<void> {
+    await expect(this.projectTab()).toHaveCount(0);
+    await expect(this.settingsTab()).toHaveCount(0);
+    await expect(this.projectSwitcher()).toHaveCount(0);
+    await expect(this.workspaceSwitcher()).toBeVisible();
   }
 }
 
