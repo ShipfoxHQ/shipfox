@@ -4,6 +4,7 @@ export default defineConfig(
   {
     test: {
       globalSetup: ['test/globalSetup.ts'],
+      maxWorkers: 2,
       setupFiles: ['test/setup.ts'],
     },
   },

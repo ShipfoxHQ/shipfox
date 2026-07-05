@@ -51,8 +51,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      SHIPFOX_TURBO_CONCURRENCY: "2"
-      SHIPFOX_VITEST_MAX_WORKERS: "2"
+      SHIPFOX_TURBO_CONCURRENCY: "4"
+      SHIPFOX_VITEST_MAX_WORKERS: "1"
 
     steps:
       - name: Check out repository

@@ -30,7 +30,7 @@ type MergeableConfigInput = ConfigInput & {
 };
 
 const maxWorkers = parseMaxWorkers(process.env.SHIPFOX_VITEST_MAX_WORKERS);
-const workerPoolConfig = maxWorkers === undefined ? {} : {maxWorkers};
+const workerPoolDefaults = maxWorkers === undefined ? {} : {maxWorkers};
 
 function parseMaxWorkers(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -46,6 +46,7 @@ function parseMaxWorkers(value: string | undefined): number | undefined {
 function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): ConfigInput {
   const mergeableConfig = resolvedConfig as MergeableConfigInput;
   const existingPlugins = mergeableConfig.plugins || [];
+  const existingTestConfig = mergeableConfig.test || {};
   const merged = {
     ...resolvedConfig,
     plugins: [...existingPlugins],
@@ -60,15 +61,15 @@ function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): 
       },
     },
     test: {
-      ...(mergeableConfig.test || {}),
+      ...workerPoolDefaults,
+      ...existingTestConfig,
       globals: true,
-      ...workerPoolConfig,
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
         '**/build/**',
         '**/out/**',
-        ...(mergeableConfig.test?.exclude || []),
+        ...(existingTestConfig.exclude || []),
       ],
     },
   };
