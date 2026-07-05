@@ -17,6 +17,15 @@ export interface StepSourceLocation {
   endLine: number;
 }
 
+/**
+ * Trace entry after a resolver-local expression trace is attached to workflow
+ * storage.
+ *
+ * Step config traces are stored on step attempts with the resolved attempt
+ * config; job-level traces are stored on the job or job-execution row whose
+ * value/status they explain. Keep `field` as the authored field path that
+ * produced the trace, not as a step-only enum.
+ */
 export type PersistedEvaluationTraceEntry =
   | (EvaluationTraceEntry & {
       readonly field: string;
