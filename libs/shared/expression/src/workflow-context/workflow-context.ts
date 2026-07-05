@@ -361,7 +361,7 @@ export const workflowInterpolationFields = Object.keys(
   workflowInterpolationFieldPolicies,
 ) as readonly WorkflowInterpolationField[];
 
-export const workflowPredicateFields = ['step.success_if', 'job.success'] as const;
+export const workflowPredicateFields = ['step.success', 'job.success'] as const;
 export type WorkflowPredicateField = (typeof workflowPredicateFields)[number];
 
 export const workflowPredicateFieldFailurePolicy =

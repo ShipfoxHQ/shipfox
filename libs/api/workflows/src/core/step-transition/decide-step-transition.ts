@@ -41,7 +41,7 @@ export interface DecideStepTransitionInput {
   // Precomputed gate evaluation. Absent ⇒ no gate, so `result.status` is authoritative.
   gateOutcome?: GateOutcome;
   // The gate's on_failure policy, if any. Drives the restart branch.
-  gateOnFailure?: {restartFrom: string; output?: string};
+  gateOnFailure?: {restartFrom: string; feedback?: string};
   // Max total attempts for the gating step before restart is exhausted; defaults
   // to DEFAULT_RESTART_ATTEMPT_CAP.
   maxAttempts?: number;
@@ -181,7 +181,7 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
       restartFromStepId: restartStep.id,
       restartFromPosition: restartStep.position,
       attempt: reportedAttempt,
-      reason: gateOnFailure.output ?? 'gate condition not met',
+      reason: gateOnFailure.feedback ?? 'gate condition not met',
       failureError,
     };
   }

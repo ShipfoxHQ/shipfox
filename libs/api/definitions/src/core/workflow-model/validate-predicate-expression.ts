@@ -267,7 +267,7 @@ function isWorkflowContextName(root: string): root is WorkflowContextName {
 }
 
 function fieldLabel(field: WorkflowPredicateField): string {
-  return field === 'step.success_if' ? 'Step gate success_if' : 'Job success';
+  return field === 'step.success' ? 'Step gate success' : 'Job success';
 }
 
 function contextNoun(roots: readonly string[]): 'context' | 'contexts' {

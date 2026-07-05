@@ -125,13 +125,13 @@ export interface WorkflowModelRunCommand {
 }
 
 export interface WorkflowModelStepGate {
-  readonly successIf?: WorkflowExpression;
+  readonly success?: WorkflowExpression;
   readonly onFailure?: WorkflowModelStepFailureAction;
 }
 
 export interface WorkflowModelStepFailureAction {
   readonly restartFrom: string;
-  readonly output?: string;
+  readonly feedback?: string;
 }
 
 export interface WorkflowModelDependency {

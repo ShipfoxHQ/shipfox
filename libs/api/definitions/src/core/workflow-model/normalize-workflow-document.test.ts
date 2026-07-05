@@ -96,7 +96,7 @@ describe('normalizeWorkflowDocument', () => {
               provider: 'openai',
               prompt: 'Review the fix.',
               thinking: 'low',
-              gate: {success_if: 'step.exit_code == 0', on_failure: {restart_from: 'implement'}},
+              gate: {success: 'step.exit_code == 0', on_failure: {restart_from: 'implement'}},
             },
           ],
         },
@@ -689,7 +689,7 @@ describe('normalizeWorkflowDocument', () => {
   });
 
   it('normalizes step gates with success conditions and failure actions', () => {
-    const reviewOutput = 'Agent rejected the PR $' + '{{ step.outputs.review }}';
+    const reviewFeedback = 'Agent rejected the PR $' + '{{ step.outputs.review }}';
     const document: WorkflowDocument = {
       name: 'review loop',
       jobs: {
@@ -700,10 +700,10 @@ describe('normalizeWorkflowDocument', () => {
               key: 'reviewer',
               run: 'npm run review',
               gate: {
-                success_if: 'step.exit_code == 0',
+                success: 'step.exit_code == 0',
                 on_failure: {
                   restart_from: 'producer',
-                  output: reviewOutput,
+                  feedback: reviewFeedback,
                 },
               },
             },
@@ -718,14 +718,14 @@ describe('normalizeWorkflowDocument', () => {
       id: 'review-reviewer',
       key: 'reviewer',
       gate: {
-        successIf: {
+        success: {
           language: 'cel',
           source: 'step.exit_code == 0',
           check: 'typed',
         },
         onFailure: {
           restartFrom: 'producer',
-          output: reviewOutput,
+          feedback: reviewFeedback,
         },
       },
     });
@@ -736,62 +736,62 @@ describe('normalizeWorkflowDocument', () => {
       name: 'simple build',
       jobs: {
         build: {
-          steps: [{name: 'build', run: 'npm run build', gate: {success_if: 'step.exit_code == 0'}}],
+          steps: [{name: 'build', run: 'npm run build', gate: {success: 'step.exit_code == 0'}}],
         },
       },
     };
 
     const model = normalizeWorkflowDocument(document);
 
-    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+    expect(model.jobs[0]?.steps[0]?.gate?.success).toEqual({
       language: 'cel',
       source: 'step.exit_code == 0',
       check: 'typed',
     });
   });
 
-  it('accepts step.status in a gate success_if', () => {
+  it('accepts step.status in a gate success', () => {
     const document: WorkflowDocument = {
       name: 'status gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'step.status == "succeeded"'}}],
+          steps: [{run: 'npm run build', gate: {success: 'step.status == "succeeded"'}}],
         },
       },
     };
 
     const model = normalizeWorkflowDocument(document);
 
-    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+    expect(model.jobs[0]?.steps[0]?.gate?.success).toEqual({
       language: 'cel',
       source: 'step.status == "succeeded"',
       check: 'typed',
     });
   });
 
-  it('accepts server roots available at step reporting in gate success_if', () => {
+  it('accepts server roots available at step reporting in gate success', () => {
     const document: WorkflowDocument = {
       name: 'server-context gate',
       jobs: {
-        build: {steps: [{run: 'npm run build', gate: {success_if: 'run.id != ""'}}]},
+        build: {steps: [{run: 'npm run build', gate: {success: 'run.id != ""'}}]},
       },
     };
 
     const model = normalizeWorkflowDocument(document);
 
-    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+    expect(model.jobs[0]?.steps[0]?.gate?.success).toEqual({
       language: 'cel',
       source: 'run.id != ""',
       check: 'typed',
     });
   });
 
-  it('rejects runner-host roots in gate success_if with a server-predicate issue', () => {
+  it('rejects runner-host roots in gate success with a server-predicate issue', () => {
     const document: WorkflowDocument = {
       name: 'runner-context gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'runner.os == "linux"'}}],
+          steps: [{run: 'npm run build', gate: {success: 'runner.os == "linux"'}}],
         },
       },
     };
@@ -802,9 +802,9 @@ describe('normalizeWorkflowDocument', () => {
       expect.objectContaining({
         code: 'runner-context-in-server-predicate',
         message: expect.stringContaining('cannot reference runner context "runner"'),
-        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success'],
         details: expect.objectContaining({
-          field: 'step.success_if',
+          field: 'step.success',
           source: 'runner.os == "linux"',
           runnerRoots: ['runner'],
           site: 'step-report',
@@ -813,12 +813,12 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
-  it('rejects vars in gate success_if with a server-predicate issue', () => {
+  it('rejects vars in gate success with a server-predicate issue', () => {
     const document: WorkflowDocument = {
       name: 'vars-context gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'vars.REQUIRED == "true"'}}],
+          steps: [{run: 'npm run build', gate: {success: 'vars.REQUIRED == "true"'}}],
         },
       },
     };
@@ -829,9 +829,9 @@ describe('normalizeWorkflowDocument', () => {
       expect.objectContaining({
         code: 'vars-context-in-server-predicate',
         message: expect.stringContaining('cannot reference vars'),
-        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success'],
         details: expect.objectContaining({
-          field: 'step.success_if',
+          field: 'step.success',
           source: 'vars.REQUIRED == "true"',
           rejectedRoots: ['vars'],
           site: 'step-report',
@@ -845,7 +845,7 @@ describe('normalizeWorkflowDocument', () => {
       name: 'future-context gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'jobs.deploy.status == "succeeded"'}}],
+          steps: [{run: 'npm run build', gate: {success: 'jobs.deploy.status == "succeeded"'}}],
         },
         deploy: {needs: ['build'], steps: [{run: 'npm run deploy'}]},
       },
@@ -856,9 +856,9 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       expect.objectContaining({
         code: 'context-unavailable-at-predicate-site',
-        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success'],
         details: expect.objectContaining({
-          field: 'step.success_if',
+          field: 'step.success',
           source: 'jobs.deploy.status == "succeeded"',
           unavailableRoots: ['jobs'],
           site: 'step-report',
@@ -1151,31 +1151,31 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('accepts step outputs in gate success_if expressions', () => {
+  it('accepts step outputs in gate success expressions', () => {
     const document: WorkflowDocument = {
       name: 'output gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'step.outputs.pass == true'}}],
+          steps: [{run: 'npm run build', gate: {success: 'step.outputs.pass == true'}}],
         },
       },
     };
 
     const model = normalizeWorkflowDocument(document);
 
-    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+    expect(model.jobs[0]?.steps[0]?.gate?.success).toEqual({
       language: 'cel',
       source: 'step.outputs.pass == true',
       check: 'typed',
     });
   });
 
-  it('reports non-boolean gate success_if expressions', () => {
+  it('reports non-boolean gate success expressions', () => {
     const document: WorkflowDocument = {
       name: 'non-boolean gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success_if: 'step.exit_code + 1'}}],
+          steps: [{run: 'npm run build', gate: {success: 'step.exit_code + 1'}}],
         },
       },
     };
@@ -1184,8 +1184,8 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(error.issues).toEqual([
       expect.objectContaining({
-        code: 'invalid-step-gate-success-if',
-        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        code: 'invalid-step-gate-success',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success'],
         details: expect.objectContaining({
           source: 'step.exit_code + 1',
           reason: expect.stringContaining('must return bool'),

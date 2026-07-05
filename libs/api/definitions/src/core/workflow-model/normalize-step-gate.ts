@@ -16,8 +16,8 @@ export function normalizeStepGate(params: {
   const gate = params.step.gate;
   if (gate === undefined) return undefined;
 
-  const successIf = normalizeGateSuccessIf({
-    source: gate.success_if,
+  const success = normalizeGateSuccess({
+    source: gate.success,
     sourceName: params.sourceName,
     stepIndex: params.stepIndex,
     issues: params.issues,
@@ -27,7 +27,7 @@ export function normalizeStepGate(params: {
       ? undefined
       : {
           restartFrom: gate.on_failure.restart_from,
-          ...(gate.on_failure.output === undefined ? {} : {output: gate.on_failure.output}),
+          ...(gate.on_failure.feedback === undefined ? {} : {feedback: gate.on_failure.feedback}),
         };
 
   if (gate.on_failure !== undefined && !params.previousStepKeys.has(gate.on_failure.restart_from)) {
@@ -41,15 +41,15 @@ export function normalizeStepGate(params: {
     );
   }
 
-  if (successIf === undefined && onFailure === undefined) return undefined;
+  if (success === undefined && onFailure === undefined) return undefined;
 
   return {
-    ...(successIf === undefined ? {} : {successIf}),
+    ...(success === undefined ? {} : {success}),
     ...(onFailure === undefined ? {} : {onFailure}),
   };
 }
 
-function normalizeGateSuccessIf(params: {
+function normalizeGateSuccess(params: {
   source: string | undefined;
   sourceName: string;
   stepIndex: number;
@@ -58,12 +58,12 @@ function normalizeGateSuccessIf(params: {
   if (params.source === undefined) return undefined;
 
   return validatePredicateExpression({
-    field: 'step.success_if',
+    field: 'step.success',
     source: params.source,
     site: 'step-report',
-    path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'gate', 'success_if'],
-    invalidCode: 'invalid-step-gate-success-if',
-    invalidMessage: 'Step gate success_if must be a valid CEL boolean expression.',
+    path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'gate', 'success'],
+    invalidCode: 'invalid-step-gate-success',
+    invalidMessage: 'Step gate success must be a valid CEL boolean expression.',
     issues: params.issues,
   });
 }

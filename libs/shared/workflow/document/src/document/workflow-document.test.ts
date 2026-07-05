@@ -424,7 +424,7 @@ describe('workflowDocumentSchema', () => {
     expect(envIssue?.message).toBe('"env" is supported only on run steps.');
   });
 
-  it('accepts a step gate with success_if and on_failure', () => {
+  it('accepts a step gate with success and on_failure feedback', () => {
     const workflowDocument = {
       name: 'review loop',
       jobs: {
@@ -435,10 +435,10 @@ describe('workflowDocumentSchema', () => {
               name: 'reviewer',
               run: 'npm run review',
               gate: {
-                success_if: 'step.outputs.pass == true',
+                success: 'step.outputs.pass == true',
                 on_failure: {
                   restart_from: 'producer',
-                  output: 'Review failed',
+                  feedback: 'Review failed',
                 },
               },
             },
@@ -493,10 +493,34 @@ describe('workflowDocumentSchema', () => {
       },
     ],
     [
+      'legacy gate success_if field',
+      {
+        name: 'simple build',
+        jobs: {build: {steps: [{run: 'npm test', gate: {success_if: 'step.exit_code == 0'}}]}},
+      },
+    ],
+    [
       'gate on_failure without restart_from',
       {
         name: 'simple build',
         jobs: {build: {steps: [{run: 'npm test', gate: {on_failure: {}}}]}},
+      },
+    ],
+    [
+      'legacy gate on_failure output field',
+      {
+        name: 'simple build',
+        jobs: {
+          build: {
+            steps: [
+              {name: 'producer', run: 'npm test'},
+              {
+                run: 'npm test',
+                gate: {on_failure: {restart_from: 'producer', output: 'Review failed'}},
+              },
+            ],
+          },
+        },
       },
     ],
     [
@@ -557,7 +581,7 @@ describe('workflowDocumentSchema', () => {
     ['agent step with name', {name: 'fix', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     [
       'agent step with gate',
-      {model: 'claude-opus-4-8', prompt: 'Fix it.', gate: {success_if: 'step.exit_code == 0'}},
+      {model: 'claude-opus-4-8', prompt: 'Fix it.', gate: {success: 'step.exit_code == 0'}},
     ],
     ['custom-model-provider model string', {model: 'openrouter/anthropic/claude', prompt: 'Hi.'}],
   ])('accepts %s', (_label, step) => {

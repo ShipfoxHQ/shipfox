@@ -1,4 +1,4 @@
-name: Reject invalid step success_if
+name: Reject invalid step success
 runner: __RUNNER_LABEL__
 triggers:
   on_push:
@@ -11,4 +11,4 @@ jobs:
       - key: gated
         run: echo ok
         gate:
-          success_if: step.exit_code + 1
+          success: step.exit_code + 1

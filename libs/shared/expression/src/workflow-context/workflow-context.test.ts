@@ -460,7 +460,7 @@ describe('workflow context registry', () => {
     });
 
     it('declares predicate fields as fail-closed', () => {
-      expect(workflowPredicateFields).toEqual(['step.success_if', 'job.success']);
+      expect(workflowPredicateFields).toEqual(['step.success', 'job.success']);
       expect(workflowPredicateFieldFailurePolicy).toBe('fail-closed');
     });
   });

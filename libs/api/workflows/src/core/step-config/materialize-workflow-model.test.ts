@@ -14,7 +14,7 @@ import {materializeWorkflowModel, modelHasAgentStep} from './materialize-workflo
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type TestWorkflowExpression = NonNullable<
-  NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['successIf']
+  NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['success']
 >;
 
 function expression(source: string): TestWorkflowExpression {
@@ -69,8 +69,8 @@ describe('materializeWorkflowModel', () => {
               run: 'npm run build',
               sourceLocation: {startLine: 7, endLine: 14},
               gate: {
-                successIf: expression('step.exit_code == 0'),
-                onFailure: {restartFrom: 'install', output: 'Build failed'},
+                success: expression('step.exit_code == 0'),
+                onFailure: {restartFrom: 'install', feedback: 'Build failed'},
               },
             },
           ],
@@ -125,8 +125,8 @@ describe('materializeWorkflowModel', () => {
             config: {
               run: 'npm run build',
               gate: {
-                success_if: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
-                on_failure: {restart_from: 'install', output: 'Build failed'},
+                success: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
+                on_failure: {restart_from: 'install', feedback: 'Build failed'},
               },
             },
             authoredConfig: null,
@@ -178,7 +178,7 @@ describe('materializeWorkflowModel', () => {
               thinking: 'low',
               prompt: 'Review it.',
               gate: {
-                successIf: expression('step.exit_code == 0'),
+                success: expression('step.exit_code == 0'),
                 onFailure: {restartFrom: 'implement'},
               },
             },
@@ -216,7 +216,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'low',
         prompt: 'Review it.',
         gate: {
-          success_if: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
+          success: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
           on_failure: {restart_from: 'implement'},
         },
       },

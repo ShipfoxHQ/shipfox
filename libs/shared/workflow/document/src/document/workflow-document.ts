@@ -106,16 +106,16 @@ const workflowDocumentListeningSchema = z
 
 const workflowDocumentStepGateSchema = z
   .strictObject({
-    success_if: z.string().min(1).optional(),
+    success: z.string().min(1).optional(),
     on_failure: z
       .strictObject({
         restart_from: z.string().min(1),
-        output: z.string().min(1).optional(),
+        feedback: z.string().min(1).optional(),
       })
       .optional(),
   })
-  .refine((value) => value.success_if !== undefined || value.on_failure !== undefined, {
-    message: 'Expected success_if or on_failure',
+  .refine((value) => value.success !== undefined || value.on_failure !== undefined, {
+    message: 'Expected success or on_failure',
   });
 
 export const workflowDocumentCheckoutSchema = z.strictObject({

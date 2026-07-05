@@ -1,4 +1,4 @@
-name: Reject runner context step success_if
+name: Reject runner context step success
 runner: __RUNNER_LABEL__
 triggers:
   on_push:
@@ -11,4 +11,4 @@ jobs:
       - key: gated
         run: echo ok
         gate:
-          success_if: runner.os == "linux"
+          success: runner.os == "linux"

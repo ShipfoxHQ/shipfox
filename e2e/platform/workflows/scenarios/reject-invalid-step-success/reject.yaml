@@ -1,0 +1,3 @@
+error_code: invalid-definition
+message_includes:
+  - Step gate success must be a valid CEL boolean expression

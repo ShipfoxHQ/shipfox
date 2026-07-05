@@ -7,7 +7,7 @@ Input shape for Shipfox workflow authoring.
 - `workflowDocumentSchema` defines the accepted Zod shape for a workflow document.
 - `parseWorkflowDocument` parses unknown input into a typed `WorkflowDocument`.
 - `InvalidWorkflowDocumentError` reports invalid input with the original Zod error as `cause`.
-- `WorkflowDocumentRunStepGate` describes the step `gate` block with `success_if`
+- `WorkflowDocumentRunStepGate` describes the step `gate` block with `success`
   and `on_failure`.
 - A job step is either a **run step** (`run: <shell command>`) or an inline
   **agent step** (`prompt`, with optional `model`, `thinking`, and `provider`).
@@ -49,7 +49,7 @@ try {
         },
         env: {NODE_ENV: 'test'},
         runner: 'ubuntu-latest',
-        steps: [{run: 'npm run build', env: {CI: true}, gate: {success_if: 'step.exit_code == 0'}}],
+        steps: [{run: 'npm run build', env: {CI: true}, gate: {success: 'step.exit_code == 0'}}],
       },
     },
   });
@@ -81,7 +81,7 @@ parseWorkflowDocument({
       steps: [
         {prompt: 'Fix the failing tests.'},
         {model: 'gpt-5.5-pro', provider: 'openai', prompt: 'Review the fix.'},
-        {run: 'npm test', gate: {success_if: 'step.exit_code == 0'}},
+        {run: 'npm test', gate: {success: 'step.exit_code == 0'}},
       ],
     },
   },

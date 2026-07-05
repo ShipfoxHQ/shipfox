@@ -26,7 +26,7 @@ jobs:
           touch .review-failed-once
           exit 1
         gate:
-          success_if: step.exit_code == 0
+          success: step.exit_code == 0
           on_failure:
             restart_from: prepare
-            output: retrying from prepare
+            feedback: retrying from prepare

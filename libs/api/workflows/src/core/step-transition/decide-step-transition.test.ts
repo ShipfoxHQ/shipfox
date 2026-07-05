@@ -259,7 +259,7 @@ describe('decideStepTransition', () => {
     expect(decision).toMatchObject({kind: 'fail-job', failureError: {kind: 'gate_failed'}});
   });
 
-  test('a raw failure with on_failure but no success_if still restarts', () => {
+  test('a raw failure with on_failure but no success still restarts', () => {
     const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
     const target = step({id: 's1', position: 1, status: 'running'});
 
@@ -268,7 +268,7 @@ describe('decideStepTransition', () => {
       target,
       reportedAttempt: 1,
       result: {status: 'failed', exitCode: 1},
-      // No gateOutcome (no success_if) but a restart policy is configured.
+      // No gateOutcome (no success) but a restart policy is configured.
       gateOnFailure: {restartFrom: 'producer'},
     });
 
