@@ -1,7 +1,4 @@
 import {type AgentHelper, ollamaConfig} from '@shipfox/e2e-helper-agent';
-import type {AuthHelper} from '@shipfox/e2e-helper-auth';
-import type {ProjectsHelper} from '@shipfox/e2e-helper-projects';
-import type {WorkspacesHelper} from '@shipfox/e2e-helper-workspaces';
 import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
@@ -15,30 +12,6 @@ const EDITED_PROVIDER_NAME = 'Local Ollama Edited';
 const DELETE_PROVIDER_ID = 'local-ollama-delete';
 const DELETE_PROVIDER_NAME = 'Local Ollama Delete';
 const PROVIDER_SAVE_TIMEOUT_MS = 75_000;
-
-interface ReadyWorkspace {
-  sessionToken: string;
-  workspaceId: string;
-}
-
-async function createReadyWorkspace(params: {
-  auth: AuthHelper;
-  page: Page;
-  projects: ProjectsHelper;
-  workspaces: WorkspacesHelper;
-  name: string;
-}): Promise<ReadyWorkspace> {
-  const user = await params.auth.createUser();
-  const workspace = await params.workspaces.create({
-    userId: user.user.id,
-    name: params.name,
-  });
-  await params.projects.createProject({workspaceId: workspace.id});
-  const session = await params.auth.createSession({user_id: user.user.id});
-  await params.auth.loginAs(params.page, user);
-
-  return {sessionToken: session.token, workspaceId: workspace.id};
-}
 
 async function gotoModelProviders(page: Page, workspaceId: string) {
   await page.goto(`/workspaces/${workspaceId}/settings/model-providers`);
@@ -82,16 +55,10 @@ async function expectProviderInApi(params: {
 
 test('creates a custom model provider backed by local Ollama', async ({
   page,
-  auth,
   agent,
-  projects,
-  workspaces,
+  createReadyWorkspace,
 }) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Agent Provider Create Workspace',
   });
 
@@ -145,16 +112,10 @@ test('creates a custom model provider backed by local Ollama', async ({
 
 test('edits an existing custom model provider and validates with local Ollama', async ({
   page,
-  auth,
   agent,
-  projects,
-  workspaces,
+  createReadyWorkspace,
 }) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Agent Provider Edit Workspace',
   });
   await agent.createOllamaCustomProvider({
@@ -194,18 +155,8 @@ test('edits an existing custom model provider and validates with local Ollama', 
   });
 });
 
-test('deletes an existing custom model provider', async ({
-  page,
-  auth,
-  agent,
-  projects,
-  workspaces,
-}) => {
+test('deletes an existing custom model provider', async ({page, agent, createReadyWorkspace}) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Agent Provider Delete Workspace',
   });
   await agent.createOllamaCustomProvider({
