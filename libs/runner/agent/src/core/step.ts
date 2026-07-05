@@ -7,7 +7,15 @@ import type {
 } from '@shipfox/api-workflows-dto';
 import type {StepResult} from '@shipfox/runner-execution';
 import {AgentConfigError} from '#core/errors.js';
-import {runAgent} from '#core/run-agent.js';
+import type {HarnessAdapter} from '#core/harness.js';
+import {piHarnessAdapter} from '#core/pi-adapter.js';
+
+// When ENG-807 adds the Claude adapter, import it lazily with dynamic import so the
+// Claude SDK and bundled native binary never load on the pi/run path.
+const HARNESS_ADAPTERS: Record<Harness, HarnessAdapter | null> = {
+  pi: piHarnessAdapter,
+  claude: null,
+};
 
 export function executeAgentStep(
   step: StepDto,
@@ -41,8 +49,9 @@ export function executeAgentStep(
     );
   }
 
-  return runAgentStep({
+  return runSelectedHarness({
     cwd: options.cwd ?? process.cwd(),
+    harness: options.runtime.harness,
     model: options.runtime.model,
     prompt,
     thinking: options.runtime.thinking,
@@ -55,8 +64,9 @@ export function executeAgentStep(
   });
 }
 
-async function runAgentStep(params: {
+async function runSelectedHarness(params: {
   cwd: string;
+  harness: Harness;
   model: string;
   prompt: string;
   thinking: string;
@@ -69,6 +79,7 @@ async function runAgentStep(params: {
 }): Promise<StepResult> {
   const {
     cwd,
+    harness,
     model,
     prompt,
     thinking,
@@ -81,8 +92,9 @@ async function runAgentStep(params: {
   const signal = params.signal ?? new AbortController().signal;
 
   try {
+    const adapter = selectHarnessAdapter(harness);
     const {summary} = await raceAbort(
-      runAgent({
+      adapter.run({
         cwd,
         model,
         provider,
@@ -108,13 +120,31 @@ async function runAgentStep(params: {
   }
 }
 
+// executeAgentStep(step, {runtime.harness, ...})
+//   -> validate step type + prompt
+//   -> selectHarnessAdapter(runtime.harness)
+//      -> pi: piHarnessAdapter.run(invocation)
+//      -> claude: null -> AgentConfigError until ENG-807 ships
+//      -> future harness: compile error until listed in this Record
+//   -> raceAbort(adapter.run(...), signal)
+function selectHarnessAdapter(harness: Harness): HarnessAdapter {
+  const adapter = HARNESS_ADAPTERS[harness];
+  if (adapter === null) {
+    throw new AgentConfigError(
+      `Harness "${harness}" is not supported by this runner build ` +
+        '(available once the Claude adapter ships).',
+    );
+  }
+  return adapter;
+}
+
 // pi has no built-in timeout and may not reject session.prompt() the instant we
-// abort. Racing the runAgent call against the abort signal guarantees the step loop
-// reaches its abort-before-report guard in seconds instead of hanging until lease
-// expiry; runAgent still calls session.abort() to stop the agent's own work.
+// abort. Racing the adapter run call against the abort signal guarantees the step
+// loop reaches its abort-before-report guard in seconds instead of hanging until
+// lease expiry; the pi adapter still calls session.abort() to stop the agent's own work.
 function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
-    // `work` (the runAgent call) is already in flight; attach a no-op catch so its
+    // `work` (the adapter run call) is already in flight; attach a no-op catch so its
     // eventual rejection can't surface as an unhandled rejection on the aborted path.
     void work.catch(() => undefined);
     return Promise.reject(abortError());

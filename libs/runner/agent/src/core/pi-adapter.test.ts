@@ -68,9 +68,10 @@ import {
   DEFAULT_CUSTOM_MODEL_REASONING,
 } from '@shipfox/api-agent-dto';
 import {AgentConfigError} from '#core/errors.js';
-import {type AgentInvocation, runAgent} from '#core/run-agent.js';
+import type {HarnessInvocation} from '#core/harness.js';
+import {piHarnessAdapter} from '#core/pi-adapter.js';
 
-function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
+function invocation(overrides: Partial<HarnessInvocation> = {}): HarnessInvocation {
   return {
     cwd: '/work',
     model: 'claude-opus-4-8',
@@ -97,7 +98,7 @@ function customProvider(
   };
 }
 
-describe('runAgent', () => {
+describe('piHarnessAdapter', () => {
   // Tracked so the temp dir is removed in afterEach even if an assertion throws first.
   let sessionDir: string | undefined;
   let priorGitConfigGlobal: string | undefined;
@@ -139,7 +140,7 @@ describe('runAgent', () => {
     const model = {provider: 'openai', id: 'gpt-5.1'};
     findMock.mockReturnValue(model);
 
-    const result = await runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}));
+    const result = await piHarnessAdapter.run(invocation({provider: 'openai', model: 'gpt-5.1'}));
 
     expect(findMock).toHaveBeenCalledWith('openai', 'gpt-5.1');
     expect(createAgentSessionMock).toHaveBeenCalledWith(
@@ -153,7 +154,7 @@ describe('runAgent', () => {
     const model = {provider: 'openai', id: 'gpt-5.1'};
     findMock.mockReturnValue(model);
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'openai',
         model: 'gpt-5.1',
@@ -171,7 +172,7 @@ describe('runAgent', () => {
     const model = {provider: 'ollama-workspace', id: 'custom-gpt'};
     findMock.mockReturnValue(model);
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'ollama-workspace',
         model: 'custom-gpt',
@@ -200,7 +201,7 @@ describe('runAgent', () => {
   });
 
   it('rejects keyed custom providers when no api key is resolved', async () => {
-    const result = runAgent(
+    const result = piHarnessAdapter.run(
       invocation({
         provider: 'workspace-models',
         model: 'custom-gpt',
@@ -218,7 +219,7 @@ describe('runAgent', () => {
   });
 
   it('rejects keyed custom providers when an empty api key is resolved', async () => {
-    const result = runAgent(
+    const result = piHarnessAdapter.run(
       invocation({
         provider: 'workspace-models',
         model: 'custom-gpt',
@@ -238,7 +239,7 @@ describe('runAgent', () => {
   it('registers keyless custom providers with a placeholder api key', async () => {
     findMock.mockReturnValue({provider: 'local-ollama', id: 'llama'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'local-ollama',
         model: 'llama',
@@ -258,7 +259,7 @@ describe('runAgent', () => {
   it('treats an empty custom provider api key as keyless', async () => {
     findMock.mockReturnValue({provider: 'local-ollama', id: 'llama'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'local-ollama',
         model: 'llama',
@@ -278,7 +279,7 @@ describe('runAgent', () => {
   it('skips missing secret headers when rebuilding custom provider headers', async () => {
     findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'custom',
         model: 'custom-gpt',
@@ -298,7 +299,7 @@ describe('runAgent', () => {
   it('skips empty secret headers when rebuilding custom provider headers', async () => {
     findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'custom',
         model: 'custom-gpt',
@@ -318,7 +319,7 @@ describe('runAgent', () => {
   it('lets secret headers override plaintext headers with the same name', async () => {
     findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'custom',
         model: 'custom-gpt',
@@ -346,7 +347,7 @@ describe('runAgent', () => {
   ] as const)('registers custom provider api "%s"', async (api) => {
     findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'custom',
         model: 'custom-gpt',
@@ -360,7 +361,7 @@ describe('runAgent', () => {
   it('synthesizes custom provider model defaults from shared constants', async () => {
     findMock.mockReturnValue({provider: 'custom', id: 'custom-gpt'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'custom',
         model: 'custom-gpt',
@@ -390,7 +391,7 @@ describe('runAgent', () => {
   it('passes explicit custom provider model metadata through to pi', async () => {
     findMock.mockReturnValue({provider: 'custom', id: 'vision-model'});
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'custom',
         model: 'vision-model',
@@ -434,7 +435,7 @@ describe('runAgent', () => {
     );
 
     await expect(
-      runAgent(
+      piHarnessAdapter.run(
         invocation({
           provider: 'local-ollama',
           model: 'llama',
@@ -457,7 +458,7 @@ describe('runAgent', () => {
     });
 
     await expect(
-      runAgent(
+      piHarnessAdapter.run(
         invocation({
           provider: 'custom',
           model: 'custom-gpt',
@@ -476,7 +477,7 @@ describe('runAgent', () => {
     const model = {provider: 'azure-openai-responses', id: 'gpt-5.5-pro'};
     findMock.mockReturnValue(model);
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'azure-openai-responses',
         model: 'gpt-5.5-pro',
@@ -500,7 +501,7 @@ describe('runAgent', () => {
     const model = {provider: 'cloudflare-ai-gateway', id: 'claude-opus-4-8'};
     findMock.mockReturnValue(model);
 
-    await runAgent(
+    await piHarnessAdapter.run(
       invocation({
         provider: 'cloudflare-ai-gateway',
         model: 'claude-opus-4-8',
@@ -526,7 +527,7 @@ describe('runAgent', () => {
 
   it('throws an AgentConfigError when runtime credentials have no API key', async () => {
     await expect(
-      runAgent(invocation({provider: 'openai', credentials: {account_id: 'acct-1'}})),
+      piHarnessAdapter.run(invocation({provider: 'openai', credentials: {account_id: 'acct-1'}})),
     ).rejects.toThrow(
       new AgentConfigError(
         'Runtime credentials for provider "openai" are missing "api_key".',
@@ -539,7 +540,7 @@ describe('runAgent', () => {
 
   it('throws an AgentConfigError when provider-specific runtime fields are missing', async () => {
     await expect(
-      runAgent(
+      piHarnessAdapter.run(
         invocation({
           provider: 'cloudflare-ai-gateway',
           credentials: {api_key: 'cf-secret', account_id: 'account-1'},
@@ -569,7 +570,7 @@ describe('runAgent', () => {
     });
     const entries: string[] = [];
 
-    await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
+    await piHarnessAdapter.run(invocation({onSessionEntry: (line) => entries.push(line)}));
 
     expect(entries).toEqual(['{"type":"session"}', '{"type":"message","id":"a"}']);
   });
@@ -577,7 +578,7 @@ describe('runAgent', () => {
   it('skips forwarding when the session is not persisted (no session file)', async () => {
     const entries: string[] = [];
 
-    await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
+    await piHarnessAdapter.run(invocation({onSessionEntry: (line) => entries.push(line)}));
 
     expect(entries).toEqual([]);
   });
@@ -589,7 +590,7 @@ describe('runAgent', () => {
       return Promise.resolve();
     });
 
-    await runAgent(invocation({gitConfigGlobal: '/runner/job/git-cred.config'}));
+    await piHarnessAdapter.run(invocation({gitConfigGlobal: '/runner/job/git-cred.config'}));
 
     expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
   });
@@ -600,7 +601,7 @@ describe('runAgent', () => {
       return Promise.resolve();
     });
 
-    await runAgent(invocation({gitConfigGlobal: '/runner/job/git-cred.config'}));
+    await piHarnessAdapter.run(invocation({gitConfigGlobal: '/runner/job/git-cred.config'}));
 
     expect(process.env.GIT_CONFIG_GLOBAL).toBeUndefined();
   });
@@ -613,7 +614,7 @@ describe('runAgent', () => {
     });
 
     await expect(
-      runAgent(invocation({gitConfigGlobal: '/runner/job/git-cred.config'})),
+      piHarnessAdapter.run(invocation({gitConfigGlobal: '/runner/job/git-cred.config'})),
     ).rejects.toThrow('prompt failed');
 
     expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
@@ -630,7 +631,7 @@ describe('runAgent', () => {
         }),
     );
 
-    const promise = runAgent(
+    const promise = piHarnessAdapter.run(
       invocation({signal: ac.signal, gitConfigGlobal: '/runner/job/git-cred.config'}),
     );
     await vi.waitFor(() => expect(promptMock).toHaveBeenCalled());
@@ -645,7 +646,9 @@ describe('runAgent', () => {
     findMock.mockReturnValue(undefined);
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
 
-    await expect(runAgent(invocation({provider: 'bogus', model: 'gpt-5.1'}))).rejects.toThrow(
+    await expect(
+      piHarnessAdapter.run(invocation({provider: 'bogus', model: 'gpt-5.1'})),
+    ).rejects.toThrow(
       new AgentConfigError(
         'Unknown provider "bogus" for agent step. ' +
           'Known providers are pi built-ins plus any from models.json.',
@@ -662,7 +665,9 @@ describe('runAgent', () => {
       {provider: 'openai', id: 'gpt-5.1'},
     ]);
 
-    await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
+    await expect(
+      piHarnessAdapter.run(invocation({provider: 'anthropic', model: 'gpt-5.1'})),
+    ).rejects.toThrow(
       new AgentConfigError(
         'Model "gpt-5.1" is not available for provider "anthropic". ' +
           'Did you mean to set provider: openai?',
@@ -676,7 +681,9 @@ describe('runAgent', () => {
     findMock.mockReturnValue(undefined);
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
 
-    await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
+    await expect(
+      piHarnessAdapter.run(invocation({provider: 'anthropic', model: 'gpt-5.1'})),
+    ).rejects.toThrow(
       new AgentConfigError(
         'Model "gpt-5.1" is not available for provider "anthropic".',
         'model_unavailable',
@@ -689,7 +696,9 @@ describe('runAgent', () => {
     findMock.mockReturnValue({provider: 'openai', id: 'gpt-5.1'});
     hasConfiguredAuthMock.mockReturnValue(false);
 
-    await expect(runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}))).rejects.toThrow(
+    await expect(
+      piHarnessAdapter.run(invocation({provider: 'openai', model: 'gpt-5.1'})),
+    ).rejects.toThrow(
       new AgentConfigError(
         'No credentials configured for provider "openai". ' +
           'Verify the provider is configured for this workspace.',
@@ -709,7 +718,7 @@ describe('runAgent', () => {
         }),
     );
 
-    const promise = runAgent(invocation({signal: ac.signal}));
+    const promise = piHarnessAdapter.run(invocation({signal: ac.signal}));
     await vi.waitFor(() => expect(promptMock).toHaveBeenCalled());
     ac.abort();
 
@@ -728,7 +737,7 @@ describe('runAgent', () => {
         }),
     );
 
-    const promise = runAgent(invocation({signal: ac.signal}));
+    const promise = piHarnessAdapter.run(invocation({signal: ac.signal}));
     await vi.waitFor(() => expect(createAgentSessionMock).toHaveBeenCalled());
     ac.abort();
     resolveCreate({session: {prompt: promptMock, abort: abortMock, messages: []}});
@@ -742,7 +751,7 @@ describe('runAgent', () => {
     const ac = new AbortController();
     ac.abort();
 
-    await expect(runAgent(invocation({signal: ac.signal}))).rejects.toThrow('aborted');
+    await expect(piHarnessAdapter.run(invocation({signal: ac.signal}))).rejects.toThrow('aborted');
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 });
