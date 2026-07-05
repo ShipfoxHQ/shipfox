@@ -15,8 +15,7 @@ import {
   DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
   DEFAULT_CUSTOM_MODEL_REASONING,
 } from '@shipfox/api-agent-dto';
-import {assertEgressAllowed, EgressDeniedError} from '@shipfox/node-egress-guard';
-import {runnerEgressPolicy} from '#config.js';
+import {assertRunnerEgressAllowed} from '#core/egress.js';
 import {AgentConfigError} from '#core/errors.js';
 import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
@@ -138,18 +137,9 @@ async function registerCustomProvider(
   credentials: Record<string, string>,
   customProvider: CustomModelProviderRuntimeConfigDto,
 ): Promise<void> {
-  try {
-    // The guard runs before registration; redirects and DNS changes after this point remain
-    // transport-layer SSRF residuals until pi exposes per-request IP pinning hooks.
-    await assertEgressAllowed(customProvider.base_url, runnerEgressPolicy());
-  } catch (error) {
-    if (error instanceof EgressDeniedError) {
-      throw new AgentConfigError(
-        `Custom model provider endpoint blocked by egress policy: ${error.reason} (${error.target}).`,
-      );
-    }
-    throw error;
-  }
+  // Redirects and DNS changes after this point remain transport-layer SSRF
+  // residuals until pi exposes per-request IP pinning hooks.
+  await assertRunnerEgressAllowed(customProvider.base_url, 'Custom model provider endpoint');
 
   const apiKey = customProviderApiKey(provider, customProvider, credentials);
 

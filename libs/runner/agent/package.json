@@ -37,6 +37,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.200",
+    "@anthropic-ai/sdk": "0.110.0",
     "@earendil-works/pi-coding-agent": "0.79.6",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",

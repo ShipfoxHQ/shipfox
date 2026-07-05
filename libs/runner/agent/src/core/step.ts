@@ -10,13 +10,6 @@ import {AgentConfigError} from '#core/errors.js';
 import type {HarnessAdapter} from '#core/harness.js';
 import {piHarnessAdapter} from '#core/pi-adapter.js';
 
-// When ENG-807 adds the Claude adapter, import it lazily with dynamic import so the
-// Claude SDK and bundled native binary never load on the pi/run path.
-const HARNESS_ADAPTERS: Record<Harness, HarnessAdapter | null> = {
-  pi: piHarnessAdapter,
-  claude: null,
-};
-
 export function executeAgentStep(
   step: StepDto,
   options: {
@@ -92,7 +85,7 @@ async function runSelectedHarness(params: {
   const signal = params.signal ?? new AbortController().signal;
 
   try {
-    const adapter = selectHarnessAdapter(harness);
+    const adapter = await selectHarnessAdapter(harness);
     const {summary} = await raceAbort(
       adapter.run({
         cwd,
@@ -120,22 +113,13 @@ async function runSelectedHarness(params: {
   }
 }
 
-// executeAgentStep(step, {runtime.harness, ...})
-//   -> validate step type + prompt
-//   -> selectHarnessAdapter(runtime.harness)
-//      -> pi: piHarnessAdapter.run(invocation)
-//      -> claude: null -> AgentConfigError until ENG-807 ships
-//      -> future harness: compile error until listed in this Record
-//   -> raceAbort(adapter.run(...), signal)
-function selectHarnessAdapter(harness: Harness): HarnessAdapter {
-  const adapter = HARNESS_ADAPTERS[harness];
-  if (adapter === null) {
-    throw new AgentConfigError(
-      `Harness "${harness}" is not supported by this runner build ` +
-        '(available once the Claude adapter ships).',
-    );
+async function selectHarnessAdapter(harness: Harness): Promise<HarnessAdapter> {
+  switch (harness) {
+    case 'pi':
+      return piHarnessAdapter;
+    case 'claude':
+      return (await import('#core/claude-adapter.js')).claudeHarnessAdapter;
   }
-  return adapter;
 }
 
 // pi has no built-in timeout and may not reject session.prompt() the instant we
