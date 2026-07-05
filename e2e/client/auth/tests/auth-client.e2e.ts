@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {argosScreenshot} from '@shipfox/playwright';
+import {stableScreenshot} from '@shipfox/e2e-kit/ui';
 import {expect, test} from './test.js';
 
 const LOGIN_URL_RE = /\/auth\/login$/u;
@@ -11,29 +11,33 @@ function workspaceUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}(/|$)`, 'u');
 }
 
-test('redirects guests from the app root to login', async ({page}) => {
-  await page.goto('/');
+test('redirects guests from the app root to login', async ({page, guestRedirects, login}) => {
+  await guestRedirects.goto('/');
 
   await expect(page).toHaveURL(LOGIN_URL_RE);
-  await expect(page.getByRole('heading', {name: 'Connect to Shipfox'})).toBeVisible();
-  await argosScreenshot(page, 'auth/login');
+  await expect(login.heading()).toBeVisible();
+  await stableScreenshot(page, 'auth/login');
 });
 
-test('logs in through the UI with an E2E-created verified user', async ({page, auth}) => {
+test('logs in through the UI with an E2E-created verified user', async ({
+  page,
+  auth,
+  guestRedirects,
+  login,
+}) => {
   const user = await auth.createUser();
 
-  await page.goto('/auth/login');
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', {name: 'Log in'}).click();
+  await login.goto();
+  await login.submit(user.email, user.password);
 
-  await expect(page.getByRole('heading', {name: 'Create your workspace'})).toBeVisible();
-  await argosScreenshot(page, 'auth/post-login-workspace');
+  await expect(guestRedirects.onboardingHeading()).toBeVisible();
+  await stableScreenshot(page, 'auth/post-login-workspace');
 });
 
 test('form login routes a user with workspaces straight to /workspaces/$wid', async ({
   page,
   auth,
+  login,
   workspaces,
 }) => {
   const user = await auth.createUser();
@@ -49,10 +53,8 @@ test('form login routes a user with workspaces straight to /workspaces/$wid', as
     }
   });
 
-  await page.goto('/auth/login');
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', {name: 'Log in'}).click();
+  await login.goto();
+  await login.submit(user.email, user.password);
 
   await expect(page).toHaveURL(workspaceUrlRe(wsA.id));
 
@@ -66,18 +68,25 @@ test('form login routes a user with workspaces straight to /workspaces/$wid', as
 test('hydrates an E2E browser session from the refresh cookie after reload', async ({
   page,
   auth,
+  guestRedirects,
 }) => {
   const user = await auth.createUser();
   await auth.loginAs(page, user);
 
-  await page.goto('/');
-  await expect(page.getByRole('heading', {name: 'Create your workspace'})).toBeVisible();
+  await guestRedirects.goto('/');
+  await expect(guestRedirects.onboardingHeading()).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole('heading', {name: 'Create your workspace'})).toBeVisible();
+  await expect(guestRedirects.onboardingHeading()).toBeVisible();
 });
 
-test('restores a nested deep link after login', async ({page, auth, workspaces}) => {
+test('restores a nested deep link after login', async ({
+  page,
+  auth,
+  guestRedirects,
+  login,
+  workspaces,
+}) => {
   const user = await auth.createUser();
   const ws = await workspaces.create({userId: user.user.id, name: `DL ${randomUUID()}`});
   // Fresh E2E workspaces have no source connections, so WorkspaceSetupGuard
@@ -92,15 +101,15 @@ test('restores a nested deep link after login', async ({page, auth, workspaces})
     }
   });
 
-  await page.goto(target);
+  await guestRedirects.goto(target);
   await expect(page).toHaveURL(LOGIN_WITH_REDIRECT_URL_RE);
 
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await login.emailField().fill(user.email);
+  await login.passwordField().fill(user.password);
   // Snapshot the navigation log before submit so the assertion ignores the
   // pre-login visit to `target` and only proves the post-login restore.
   const preLoginCount = urlsSeen.length;
-  await page.getByRole('button', {name: 'Log in'}).click();
+  await login.submitButton().click();
 
   await expect(page).toHaveURL(workspaceUrlRe(ws.id));
 
@@ -114,7 +123,13 @@ test('restores a nested deep link after login', async ({page, auth, workspaces})
   ).toBe(true);
 });
 
-test('preserves search and hash in the deep link after login', async ({page, auth, workspaces}) => {
+test('preserves search and hash in the deep link after login', async ({
+  page,
+  auth,
+  guestRedirects,
+  login,
+  workspaces,
+}) => {
   const user = await auth.createUser();
   const ws = await workspaces.create({userId: user.user.id, name: `DL ${randomUUID()}`});
   // WorkspaceSetupGuard at /workspaces/$wid redirects fresh workspaces to
@@ -130,15 +145,15 @@ test('preserves search and hash in the deep link after login', async ({page, aut
     }
   });
 
-  await page.goto(target);
+  await guestRedirects.goto(target);
   await expect(page).toHaveURL(LOGIN_WITH_REDIRECT_URL_RE);
 
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await login.emailField().fill(user.email);
+  await login.passwordField().fill(user.password);
   // Snapshot the navigation log before submit so the assertion ignores the
   // pre-login visit to `target` and only proves the post-login restore.
   const preLoginCount = urlsSeen.length;
-  await page.getByRole('button', {name: 'Log in'}).click();
+  await login.submitButton().click();
 
   await expect(page).toHaveURL(workspaceUrlRe(ws.id));
 
@@ -155,14 +170,17 @@ test('preserves search and hash in the deep link after login', async ({page, aut
   ).toBe(true);
 });
 
-test('blocks open-redirect to a cross-origin URL after login', async ({page, auth, workspaces}) => {
+test('blocks open-redirect to a cross-origin URL after login', async ({
+  page,
+  auth,
+  login,
+  workspaces,
+}) => {
   const user = await auth.createUser();
   await workspaces.create({userId: user.user.id, name: `Block ${randomUUID()}`});
 
-  await page.goto('/auth/login?redirect=//evil.com');
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', {name: 'Log in'}).click();
+  await login.gotoRawRedirect('//evil.com');
+  await login.submit(user.email, user.password);
 
   await expect(page).toHaveURL(ANY_WORKSPACE_URL_RE);
   expect(page.url()).not.toContain('evil.com');
@@ -171,27 +189,31 @@ test('blocks open-redirect to a cross-origin URL after login', async ({page, aut
 test('routes an already-authenticated visitor of /auth/login?redirect= straight to the deep link', async ({
   page,
   auth,
+  login,
   workspaces,
 }) => {
   const user = await auth.createUser();
   const ws = await workspaces.create({userId: user.user.id, name: `Auth ${randomUUID()}`});
   await auth.loginAs(page, user);
 
-  await page.goto(`/auth/login?redirect=/workspaces/${ws.id}`);
+  await login.goto(`/workspaces/${ws.id}`);
 
   await expect(page).toHaveURL(workspaceUrlRe(ws.id));
-  await expect(page.getByRole('heading', {name: 'Connect to Shipfox'})).not.toBeVisible();
+  await expect(login.heading()).not.toBeVisible();
 });
 
-test('restores a /setup deep link for a workspace-less user after login', async ({page, auth}) => {
+test('restores a /setup deep link for a workspace-less user after login', async ({
+  page,
+  auth,
+  guestRedirects,
+  login,
+}) => {
   const user = await auth.createUser();
 
-  await page.goto('/setup/workspaces/new');
+  await guestRedirects.goto('/setup/workspaces/new');
   await expect(page).toHaveURL(LOGIN_WITH_REDIRECT_URL_RE);
 
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', {name: 'Log in'}).click();
+  await login.submit(user.email, user.password);
 
   await expect(page).toHaveURL(ONBOARDING_URL_RE);
 });

@@ -1,31 +1,19 @@
-import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
 const GITEA_INSTALL_URL_RE = /\/workspaces\/[^/]+\/integrations\/gitea\/?$/u;
 const SETUP_NAVIGATION_TIMEOUT_MS = 15_000;
 
-function modelProviderUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/model-provider/?$`, 'u');
-}
-
-async function expectSetupNavigationHidden(page: Page): Promise<void> {
-  await expect(page.getByRole('tab', {name: 'Projects'})).toHaveCount(0);
-  await expect(page.getByRole('tab', {name: 'Settings'})).toHaveCount(0);
-  await expect(page.getByLabel('Switch project')).toHaveCount(0);
-  await expect(page.getByLabel('Switch workspace')).toBeVisible();
-}
-
-async function expectModelProviderSetup(page: Page, wid: string): Promise<void> {
-  await expect(page).toHaveURL(modelProviderUrlRe(wid));
-  await expect(page.getByRole('heading', {name: 'Configure model provider'})).toBeVisible();
-  await expectSetupNavigationHidden(page);
+function modelProviderUrlRe(workspaceId: string): RegExp {
+  return new RegExp(`/workspaces/${workspaceId}/model-provider/?$`, 'u');
 }
 
 test('connecting Gitea from source-control setup opens model-provider setup', async ({
   page,
   auth,
   gitea,
+  providerInstall,
+  sourceControlSetup,
   workspaces,
 }) => {
   const user = await auth.createUser();
@@ -34,20 +22,27 @@ test('connecting Gitea from source-control setup opens model-provider setup', as
 
   const org = await gitea.createOrg();
 
-  await page.goto('/');
+  await sourceControlSetup.gotoRoot();
   await expect(page).toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
   await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/integrations/?$`, 'u'));
-  await expect(page.getByRole('heading', {name: 'Install source control'})).toBeVisible();
-  await expectSetupNavigationHidden(page);
+  await expect(sourceControlSetup.heading()).toBeVisible();
+  await expect(sourceControlSetup.projectTab()).toHaveCount(0);
+  await expect(sourceControlSetup.settingsTab()).toHaveCount(0);
+  await expect(sourceControlSetup.projectSwitcher()).toHaveCount(0);
+  await expect(sourceControlSetup.workspaceSwitcher()).toBeVisible();
 
-  await page.locator(`a[href$="/workspaces/${workspace.id}/integrations/gitea"]`).click();
-  await page.getByLabel('Organization').fill(org.org);
-  await page.getByRole('button', {name: 'Install'}).click();
+  await sourceControlSetup.providerLink(workspace.id, 'gitea').click();
+  await providerInstall.installOrganization(org.org);
 
   await expect(page).toHaveURL(modelProviderUrlRe(workspace.id), {
     timeout: SETUP_NAVIGATION_TIMEOUT_MS,
   });
   await expect(page).not.toHaveURL(GITEA_INSTALL_URL_RE);
   await expect(page).not.toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
-  await expectModelProviderSetup(page, workspace.id);
+  await expect(page).toHaveURL(modelProviderUrlRe(workspace.id));
+  await expect(sourceControlSetup.modelProviderHeading()).toBeVisible();
+  await expect(sourceControlSetup.projectTab()).toHaveCount(0);
+  await expect(sourceControlSetup.settingsTab()).toHaveCount(0);
+  await expect(sourceControlSetup.projectSwitcher()).toHaveCount(0);
+  await expect(sourceControlSetup.workspaceSwitcher()).toBeVisible();
 });

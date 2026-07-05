@@ -1,6 +1,5 @@
 import {mintManualRegistrationToken, mintProvisionerToken} from '@shipfox/e2e-helper-runners';
-import type {Page} from '@shipfox/playwright';
-import {argosScreenshot} from '@shipfox/playwright';
+import {stableScreenshot} from '@shipfox/e2e-kit/ui';
 import {createShipfoxTokenPrefixRegexes} from '@shipfox/regex';
 import {expect, test} from './test.js';
 
@@ -14,66 +13,9 @@ const VISUAL_TEST_PROVISIONER_TOKEN = 'sf_pt_visual_regression_token';
 const VISUAL_TEST_CREATED_AT = 'Jan 15, 2026, 12:00 PM';
 const VISUAL_TEST_EXPIRES_AT = 'Jan 16, 2026, 12:00 PM';
 
-function manualTokensSection(page: Page) {
-  return page.locator('section', {hasText: 'Runner registration tokens'});
-}
-
-function provisionerTokensSection(page: Page) {
-  return page.locator('section', {hasText: 'Runner provisioner registration tokens'});
-}
-
-function rowByName(section: ReturnType<typeof manualTokensSection>, name: string) {
-  return section.locator('tr', {hasText: name});
-}
-
-async function gotoManualTokensSettings(page: Page, workspaceId: string) {
-  await page.goto(`/workspaces/${workspaceId}/settings/runners`);
-  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspaceId}/settings/runners/?$`, 'u'));
-  await expect(page.getByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-}
-
-async function gotoProvisionerTokensSettings(page: Page, workspaceId: string) {
-  await page.goto(`/workspaces/${workspaceId}/settings/provisioners`);
-  await expect(page).toHaveURL(
-    new RegExp(`/workspaces/${workspaceId}/settings/provisioners/?$`, 'u'),
-  );
-  await expect(page.getByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-}
-
-async function normalizeManualTokenRowForVisuals(
-  row: ReturnType<typeof rowByName>,
-  params: {prefix: string; expiresAt: string; createdAt: string},
-) {
-  const cells = row.locator('td');
-  await cells.nth(1).evaluate((element: Element, prefix) => {
-    element.textContent = prefix;
-  }, params.prefix);
-  await cells.nth(2).evaluate((element: Element, expiresAt) => {
-    element.textContent = expiresAt;
-  }, params.expiresAt);
-  await cells.nth(3).evaluate((element: Element, createdAt) => {
-    element.textContent = createdAt;
-  }, params.createdAt);
-}
-
-async function normalizeProvisionerTokenRowForVisuals(
-  row: ReturnType<typeof rowByName>,
-  params: {prefix: string; expiresAt: string; createdAt: string},
-) {
-  const cells = row.locator('td');
-  await cells.nth(1).evaluate((element: Element, prefix) => {
-    element.textContent = prefix;
-  }, params.prefix);
-  await cells.nth(3).evaluate((element: Element, expiresAt) => {
-    element.textContent = expiresAt;
-  }, params.expiresAt);
-  await cells.nth(4).evaluate((element: Element, createdAt) => {
-    element.textContent = createdAt;
-  }, params.createdAt);
-}
-
 test('creates a manual runner registration token from settings', async ({
   page,
+  runnerTokens,
   createReadyWorkspace,
 }) => {
   test.setTimeout(60_000);
@@ -83,43 +25,37 @@ test('creates a manual runner registration token from settings', async ({
     name: 'Manual Token Create Workspace',
   });
 
-  await gotoManualTokensSettings(page, workspaceId);
-  const section = manualTokensSection(page);
-  await expect(section.getByText('No usable manual registration tokens')).toBeVisible();
-  await argosScreenshot(page, 'runners/settings-runners-empty');
+  await runnerTokens.gotoManualTokens(workspaceId);
+  await expect(runnerTokens.manualEmptyState()).toBeVisible();
+  await stableScreenshot(page, 'runners/settings-runners-empty');
 
-  await section.getByRole('button', {name: 'Create token'}).click();
-  const createTokenDialog = page.getByRole('dialog', {name: 'Create manual registration token'});
-  await expect(createTokenDialog).toBeVisible();
-  await expect(createTokenDialog.getByLabel('Token name')).toBeVisible();
-  await expect(createTokenDialog.getByRole('button', {name: 'Create token'})).toBeVisible();
-  await argosScreenshot(page, 'runners/settings-runners-create-token-form');
+  const createTokenDialog = await runnerTokens.openManualCreateDialog();
+  await expect(createTokenDialog.field('Token name')).toBeVisible();
+  await expect(createTokenDialog.confirmButton('Create token')).toBeVisible();
+  await stableScreenshot(page, 'runners/settings-runners-create-token-form');
 
-  await createTokenDialog.getByLabel('Token name').fill('E2E manual runner');
-  await createTokenDialog.getByRole('button', {name: 'Create token'}).click();
+  await runnerTokens.createTokenFromDialog(createTokenDialog, 'E2E manual runner');
 
-  await expect(createTokenDialog.getByText('Token created')).toBeVisible();
-  const rawToken = createTokenDialog
-    .locator('p.font-code')
-    .filter({hasText: MANUAL_REGISTRATION_TOKEN_PREFIX_RE});
+  await expect(createTokenDialog.locator().getByText('Token created')).toBeVisible();
+  const rawToken = runnerTokens.rawToken(createTokenDialog, MANUAL_REGISTRATION_TOKEN_PREFIX_RE);
   await expect(rawToken).toBeVisible();
-  await rawToken.evaluate((element: Element, token) => {
-    element.textContent = token;
-  }, VISUAL_TEST_MANUAL_TOKEN);
-  await expect(createTokenDialog.getByText(VISUAL_TEST_MANUAL_TOKEN)).toBeVisible();
 
-  const row = rowByName(section, 'E2E manual runner');
+  const row = runnerTokens.manualTokenRow('E2E manual runner');
   await expect(row).toBeVisible();
-  await normalizeManualTokenRowForVisuals(row, {
-    prefix: VISUAL_TEST_MANUAL_TOKEN_PREFIX,
-    expiresAt: VISUAL_TEST_EXPIRES_AT,
-    createdAt: VISUAL_TEST_CREATED_AT,
-  });
-  await argosScreenshot(page, 'runners/settings-runners-create-token-success');
+  await stableScreenshot(page, 'runners/settings-runners-create-token-success', [
+    {locator: rawToken, text: VISUAL_TEST_MANUAL_TOKEN},
+    {
+      locator: runnerTokens.manualTokenCell('E2E manual runner', 1),
+      text: VISUAL_TEST_MANUAL_TOKEN_PREFIX,
+    },
+    {locator: runnerTokens.manualTokenCell('E2E manual runner', 2), text: VISUAL_TEST_EXPIRES_AT},
+    {locator: runnerTokens.manualTokenCell('E2E manual runner', 3), text: VISUAL_TEST_CREATED_AT},
+  ]);
 });
 
 test('revokes a manual runner registration token from settings', async ({
   page,
+  runnerTokens,
   createReadyWorkspace,
 }) => {
   const {sessionToken: userToken, workspaceId} = await createReadyWorkspace({
@@ -132,17 +68,11 @@ test('revokes a manual runner registration token from settings', async ({
     ttlSeconds: 3600,
   });
 
-  await gotoManualTokensSettings(page, workspaceId);
-  const section = manualTokensSection(page);
-  const row = rowByName(section, 'E2E manual revoke runner');
+  await runnerTokens.gotoManualTokens(workspaceId);
+  const row = runnerTokens.manualTokenRow('E2E manual revoke runner');
   await expect(row).toBeVisible();
 
-  await row
-    .getByRole('button', {name: 'Open E2E manual revoke runner registration token actions'})
-    .click();
-  await page.getByRole('menuitem', {name: 'Revoke token'}).click();
-  const revokeDialog = page.getByRole('dialog', {name: 'Revoke token'});
-  await expect(revokeDialog).toBeVisible();
+  const revokeDialog = await runnerTokens.openManualRevokeDialog('E2E manual revoke runner');
   await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -150,16 +80,17 @@ test('revokes a manual runner registration token from settings', async ({
         response.url().endsWith('/revoke') &&
         response.status() === 200,
     ),
-    revokeDialog.getByRole('button', {name: 'Revoke', exact: true}).click(),
+    revokeDialog.locator().getByRole('button', {name: 'Revoke', exact: true}).click(),
   ]);
-  await expect(revokeDialog).toBeHidden();
+  await revokeDialog.expectClosed();
 
   await expect(row).toHaveCount(0);
-  await expect(section.getByText('No usable manual registration tokens')).toBeVisible();
+  await expect(runnerTokens.manualEmptyState()).toBeVisible();
 });
 
 test('creates a provisioner registration token from settings', async ({
   page,
+  runnerTokens,
   createReadyWorkspace,
 }) => {
   test.setTimeout(60_000);
@@ -169,45 +100,43 @@ test('creates a provisioner registration token from settings', async ({
     name: 'Provisioner Token Create Workspace',
   });
 
-  await gotoProvisionerTokensSettings(page, workspaceId);
-  const section = provisionerTokensSection(page);
-  await expect(section.getByText('No usable provisioner registration tokens')).toBeVisible();
-  await argosScreenshot(page, 'runners/settings-provisioners-empty');
+  await runnerTokens.gotoProvisionerTokens(workspaceId);
+  await expect(runnerTokens.provisionerEmptyState()).toBeVisible();
+  await stableScreenshot(page, 'runners/settings-provisioners-empty');
 
-  await section.getByRole('button', {name: 'Create token'}).click();
-  const createTokenDialog = page.getByRole('dialog', {
-    name: 'Create provisioner registration token',
-  });
-  await expect(createTokenDialog).toBeVisible();
-  await expect(createTokenDialog.getByLabel('Token name')).toBeVisible();
-  await expect(createTokenDialog.getByRole('button', {name: 'Create token'})).toBeVisible();
-  await argosScreenshot(page, 'runners/settings-provisioners-create-token-form');
+  const createTokenDialog = await runnerTokens.openProvisionerCreateDialog();
+  await expect(createTokenDialog.field('Token name')).toBeVisible();
+  await expect(createTokenDialog.confirmButton('Create token')).toBeVisible();
+  await stableScreenshot(page, 'runners/settings-provisioners-create-token-form');
 
-  await createTokenDialog.getByLabel('Token name').fill('E2E provisioner');
-  await createTokenDialog.getByRole('button', {name: 'Create token'}).click();
+  await runnerTokens.createTokenFromDialog(createTokenDialog, 'E2E provisioner');
 
-  await expect(createTokenDialog.getByText('Token created')).toBeVisible();
-  const rawToken = createTokenDialog.locator('p.font-code').filter({
-    hasText: PROVISIONER_TOKEN_PREFIX_RE,
-  });
+  await expect(createTokenDialog.locator().getByText('Token created')).toBeVisible();
+  const rawToken = runnerTokens.rawToken(createTokenDialog, PROVISIONER_TOKEN_PREFIX_RE);
   await expect(rawToken).toBeVisible();
-  await rawToken.evaluate((element: Element, token) => {
-    element.textContent = token;
-  }, VISUAL_TEST_PROVISIONER_TOKEN);
-  await expect(createTokenDialog.getByText(VISUAL_TEST_PROVISIONER_TOKEN)).toBeVisible();
 
-  const row = rowByName(section, 'E2E provisioner');
+  const row = runnerTokens.provisionerTokenRow('E2E provisioner');
   await expect(row).toBeVisible();
-  await normalizeProvisionerTokenRowForVisuals(row, {
-    prefix: VISUAL_TEST_PROVISIONER_TOKEN_PREFIX,
-    expiresAt: VISUAL_TEST_EXPIRES_AT,
-    createdAt: VISUAL_TEST_CREATED_AT,
-  });
-  await argosScreenshot(page, 'runners/settings-provisioners-create-token-success');
+  await stableScreenshot(page, 'runners/settings-provisioners-create-token-success', [
+    {locator: rawToken, text: VISUAL_TEST_PROVISIONER_TOKEN},
+    {
+      locator: runnerTokens.provisionerTokenCell('E2E provisioner', 1),
+      text: VISUAL_TEST_PROVISIONER_TOKEN_PREFIX,
+    },
+    {
+      locator: runnerTokens.provisionerTokenCell('E2E provisioner', 3),
+      text: VISUAL_TEST_EXPIRES_AT,
+    },
+    {
+      locator: runnerTokens.provisionerTokenCell('E2E provisioner', 4),
+      text: VISUAL_TEST_CREATED_AT,
+    },
+  ]);
 });
 
 test('revokes a provisioner registration token from settings', async ({
   page,
+  runnerTokens,
   createReadyWorkspace,
 }) => {
   const {sessionToken: userToken, workspaceId} = await createReadyWorkspace({
@@ -220,15 +149,11 @@ test('revokes a provisioner registration token from settings', async ({
     ttlSeconds: 3600,
   });
 
-  await gotoProvisionerTokensSettings(page, workspaceId);
-  const section = provisionerTokensSection(page);
-  const row = rowByName(section, 'E2E revoke provisioner');
+  await runnerTokens.gotoProvisionerTokens(workspaceId);
+  const row = runnerTokens.provisionerTokenRow('E2E revoke provisioner');
   await expect(row).toBeVisible();
 
-  await row.getByRole('button', {name: 'Open E2E revoke provisioner token actions'}).click();
-  await page.getByRole('menuitem', {name: 'Revoke token'}).click();
-  const revokeDialog = page.getByRole('dialog', {name: 'Revoke token'});
-  await expect(revokeDialog).toBeVisible();
+  const revokeDialog = await runnerTokens.openProvisionerRevokeDialog('E2E revoke provisioner');
   await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -236,10 +161,10 @@ test('revokes a provisioner registration token from settings', async ({
         response.url().endsWith('/revoke') &&
         response.status() === 200,
     ),
-    revokeDialog.getByRole('button', {name: 'Revoke', exact: true}).click(),
+    revokeDialog.locator().getByRole('button', {name: 'Revoke', exact: true}).click(),
   ]);
-  await expect(revokeDialog).toBeHidden();
+  await revokeDialog.expectClosed();
 
   await expect(row).toHaveCount(0);
-  await expect(section.getByText('No usable provisioner registration tokens')).toBeVisible();
+  await expect(runnerTokens.provisionerEmptyState()).toBeVisible();
 });

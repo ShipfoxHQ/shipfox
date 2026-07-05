@@ -22,6 +22,7 @@
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-auth": "workspace:*",
     "@shipfox/playwright": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*"

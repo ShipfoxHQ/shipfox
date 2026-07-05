@@ -1,5 +1,6 @@
 import type {SentryConnectResponseDto} from '@shipfox/api-integration-sentry-dto';
-import {argosScreenshot, type Page} from '@shipfox/playwright';
+import {stableScreenshot} from '@shipfox/e2e-kit/ui';
+import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const CALLBACK_URL =
@@ -35,44 +36,53 @@ async function stubConnect(page: Page, response: {status: number; body: unknown}
 }
 
 test('Sentry callback shows an error when required params are missing', async ({
-  page,
   auth,
+  page,
+  sentryCallback,
   workspaces,
 }) => {
   const user = await auth.createUser();
   await workspaces.create({userId: user.user.id});
   await auth.loginAs(page, user);
 
-  await page.goto('/integrations/sentry/callback');
+  await sentryCallback.goto('/integrations/sentry/callback');
 
   await expect(
-    page.getByText(
+    sentryCallback.message(
       'This Sentry link is missing required parameters. Start the install again from your workspace settings.',
     ),
   ).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Back to Shipfox'})).toBeVisible();
+  await expect(sentryCallback.backToShipfoxLink()).toBeVisible();
 
-  await argosScreenshot(page, 'integrations/sentry-callback-missing-params');
+  await stableScreenshot(page, 'integrations/sentry-callback-missing-params');
 });
 
-test('Sentry callback shows the workspace picker', async ({page, auth, workspaces}) => {
+test('Sentry callback shows the workspace picker', async ({
+  page,
+  auth,
+  sentryCallback,
+  workspaces,
+}) => {
   const user = await auth.createUser();
   await workspaces.create({userId: user.user.id, name: 'Sentry Picker Workspace'});
   await auth.loginAs(page, user);
 
-  await page.goto(CALLBACK_URL);
+  await sentryCallback.goto(CALLBACK_URL);
 
-  await expect(page.getByRole('heading', {name: 'Install Sentry'})).toBeVisible();
-  await expect(page.getByText('Install the Sentry org "acme" in a workspace.')).toBeVisible();
-  await expect(page.getByRole('button', {name: 'Install'})).toBeVisible();
+  await expect(sentryCallback.heading()).toBeVisible();
+  await expect(
+    sentryCallback.message('Install the Sentry org "acme" in a workspace.'),
+  ).toBeVisible();
+  await expect(sentryCallback.installButton()).toBeVisible();
 
-  await argosScreenshot(page, 'integrations/sentry-callback-pick-workspace');
+  await stableScreenshot(page, 'integrations/sentry-callback-pick-workspace');
 });
 
 test('Sentry callback installs to a workspace on success', async ({
   page,
   auth,
   projects,
+  sentryCallback,
   workspaces,
 }) => {
   const user = await auth.createUser();
@@ -85,13 +95,13 @@ test('Sentry callback installs to a workspace on success', async ({
 
   await stubConnect(page, {status: 200, body: sentryConnectionFixture(workspace.id)});
 
-  await page.goto(CALLBACK_URL);
-  await expect(page.getByRole('heading', {name: 'Install Sentry'})).toBeVisible();
-  await page.getByRole('button', {name: 'Install'}).click();
+  await sentryCallback.goto(CALLBACK_URL);
+  await expect(sentryCallback.heading()).toBeVisible();
+  await sentryCallback.installButton().click();
 
   // The stub never persisted a connection, so we assert only the success toast
   // and the redirect target — not that Sentry appears in the gallery.
-  await expect(page.getByText('Sentry installed.')).toBeVisible();
+  await expect(sentryCallback.message('Sentry installed.')).toBeVisible();
   await expect(page).toHaveURL(
     new RegExp(`/workspaces/${workspace.id}/settings/integrations/?$`, 'u'),
   );
@@ -100,6 +110,7 @@ test('Sentry callback installs to a workspace on success', async ({
 test('Sentry callback offers Start over on a terminal failure', async ({
   page,
   auth,
+  sentryCallback,
   workspaces,
 }) => {
   const user = await auth.createUser();
@@ -116,20 +127,25 @@ test('Sentry callback offers Start over on a terminal failure', async ({
     },
   });
 
-  await page.goto(
+  await sentryCallback.goto(
     '/integrations/sentry/callback?code=spent-code&installation_id=test-install&org_slug=acme',
   );
-  await page.getByRole('button', {name: 'Install'}).click();
+  await sentryCallback.installButton().click();
 
   await expect(
-    page.getByText('This Sentry link could not be completed. Start the install again.'),
+    sentryCallback.message('This Sentry link could not be completed. Start the install again.'),
   ).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Start over'})).toBeVisible();
+  await expect(sentryCallback.startOverLink()).toBeVisible();
 
-  await argosScreenshot(page, 'integrations/sentry-callback-terminal');
+  await stableScreenshot(page, 'integrations/sentry-callback-terminal');
 });
 
-test('Sentry callback offers Retry on a retryable failure', async ({page, auth, workspaces}) => {
+test('Sentry callback offers Retry on a retryable failure', async ({
+  page,
+  auth,
+  sentryCallback,
+  workspaces,
+}) => {
   const user = await auth.createUser();
   await workspaces.create({userId: user.user.id, name: 'Sentry Retry Workspace'});
   await auth.loginAs(page, user);
@@ -141,13 +157,13 @@ test('Sentry callback offers Retry on a retryable failure', async ({page, auth, 
     body: {message: 'Sentry is rate limiting requests.', code: 'rate-limited'},
   });
 
-  await page.goto(CALLBACK_URL);
-  await page.getByRole('button', {name: 'Install'}).click();
+  await sentryCallback.goto(CALLBACK_URL);
+  await sentryCallback.installButton().click();
 
   await expect(
-    page.getByText('Sentry is rate limiting requests. Try again in a moment.'),
+    sentryCallback.message('Sentry is rate limiting requests. Try again in a moment.'),
   ).toBeVisible();
-  await expect(page.getByRole('button', {name: 'Retry'})).toBeVisible();
+  await expect(sentryCallback.retryButton()).toBeVisible();
 
-  await argosScreenshot(page, 'integrations/sentry-callback-retryable');
+  await stableScreenshot(page, 'integrations/sentry-callback-retryable');
 });

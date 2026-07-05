@@ -1,0 +1,69 @@
+import type {Page} from '@shipfox/playwright';
+
+type Locator = ReturnType<Page['locator']>;
+type FixtureUse<T> = (fixture: T) => Promise<void>;
+
+export class LoginScreen {
+  constructor(private readonly page: Page) {}
+
+  async goto(redirect?: string): Promise<void> {
+    const suffix = redirect === undefined ? '' : `?redirect=${redirect}`;
+    await this.page.goto(`/auth/login${suffix}`);
+  }
+
+  async gotoRawRedirect(redirect: string): Promise<void> {
+    await this.page.goto(`/auth/login?redirect=${redirect}`);
+  }
+
+  heading(): Locator {
+    return this.page.getByRole('heading', {name: 'Connect to Shipfox'});
+  }
+
+  emailField(): Locator {
+    return this.page.getByLabel('Email');
+  }
+
+  passwordField(): Locator {
+    return this.page.getByLabel('Password');
+  }
+
+  submitButton(): Locator {
+    return this.page.getByRole('button', {name: 'Log in'});
+  }
+
+  async submit(email: string, password: string): Promise<void> {
+    await this.emailField().fill(email);
+    await this.passwordField().fill(password);
+    await this.submitButton().click();
+  }
+}
+
+export class GuestRedirectScreen {
+  constructor(private readonly page: Page) {}
+
+  async goto(path: string): Promise<void> {
+    await this.page.goto(path);
+  }
+
+  onboardingHeading(): Locator {
+    return this.page.getByRole('heading', {name: 'Create your workspace'});
+  }
+
+  workspaceNameField(): Locator {
+    return this.page.getByLabel('Workspace name');
+  }
+}
+
+export interface AuthScreenFixtures {
+  guestRedirects: GuestRedirectScreen;
+  login: LoginScreen;
+}
+
+export const authScreens = {
+  guestRedirects: async ({page}: {page: Page}, use: FixtureUse<GuestRedirectScreen>) => {
+    await use(new GuestRedirectScreen(page));
+  },
+  login: async ({page}: {page: Page}, use: FixtureUse<LoginScreen>) => {
+    await use(new LoginScreen(page));
+  },
+};

@@ -1,5 +1,4 @@
 import {type AgentHelper, ollamaConfig} from '@shipfox/e2e-helper-agent';
-import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const OLLAMA = ollamaConfig();
@@ -12,25 +11,6 @@ const EDITED_PROVIDER_NAME = 'Local Ollama Edited';
 const DELETE_PROVIDER_ID = 'local-ollama-delete';
 const DELETE_PROVIDER_NAME = 'Local Ollama Delete';
 const PROVIDER_SAVE_TIMEOUT_MS = 75_000;
-
-async function gotoModelProviders(page: Page, workspaceId: string) {
-  await page.goto(`/workspaces/${workspaceId}/settings/model-providers`);
-  await expect(page).toHaveURL(
-    new RegExp(`/workspaces/${workspaceId}/settings/model-providers/?$`, 'u'),
-  );
-  await expect(page.getByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'Configured providers'})).toBeVisible();
-}
-
-function configuredProvidersSection(page: Page): ReturnType<Page['locator']> {
-  return page.locator('section[aria-label="Configured providers"]');
-}
-
-function configuredProviderRow(page: Page, label: string): ReturnType<Page['locator']> {
-  return configuredProvidersSection(page)
-    .locator('li')
-    .filter({has: page.getByText(label, {exact: true})});
-}
 
 async function expectProviderInApi(params: {
   agent: AgentHelper;
@@ -56,35 +36,34 @@ async function expectProviderInApi(params: {
 test('creates a custom model provider backed by local Ollama', async ({
   page,
   agent,
+  customModelProviders,
   createReadyWorkspace,
 }) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
     name: 'Agent Provider Create Workspace',
   });
 
-  await gotoModelProviders(page, workspaceId);
-  await page.getByRole('button', {name: 'Configure custom provider'}).click();
-  const dialog = page.getByRole('dialog', {name: 'Add custom provider'});
-  await expect(dialog).toBeVisible();
+  await customModelProviders.goto(workspaceId);
+  const dialog = await customModelProviders.openCreateDialog();
 
-  await dialog.getByLabel('Display name').fill(CREATE_PROVIDER_NAME);
-  await dialog.getByLabel('Provider ID').fill(CREATE_PROVIDER_ID);
-  await dialog.getByLabel('Base URL').fill(OLLAMA.openAiBaseUrl);
+  await customModelProviders.fillProviderIdentity(dialog, {
+    displayName: CREATE_PROVIDER_NAME,
+    providerId: CREATE_PROVIDER_ID,
+    baseUrl: OLLAMA.openAiBaseUrl,
+  });
   const discoveryResponse = page.waitForResponse(
     (response) =>
       response.url().includes('/agent/custom-model-providers/discover-models') &&
       response.request().method() === 'POST',
   );
-  await dialog.getByRole('button', {name: 'Fetch models'}).click();
+  await customModelProviders.fetchModels(dialog);
   expect((await discoveryResponse).ok()).toBe(true);
 
-  const defaultModelField = dialog.getByLabel('Default model');
-  const discoveredModelOption = defaultModelField.locator('option').filter({
-    hasText: OLLAMA_MODEL_ID,
-  });
+  const defaultModelField = customModelProviders.defaultModelField(dialog);
+  const discoveredModelOption = customModelProviders.discoveredModelOption(dialog, OLLAMA_MODEL_ID);
   if ((await discoveredModelOption.count()) === 0) {
-    await dialog.getByLabel('Model id').first().fill(OLLAMA_MODEL_ID);
-    await dialog.getByLabel('Label').first().fill(OLLAMA_MODEL_ID);
+    await customModelProviders.firstModelIdField(dialog).fill(OLLAMA_MODEL_ID);
+    await customModelProviders.firstModelLabelField(dialog).fill(OLLAMA_MODEL_ID);
   }
   await expect(defaultModelField).toContainText(OLLAMA_MODEL_ID);
 
@@ -96,11 +75,11 @@ test('creates a custom model provider backed by local Ollama', async ({
       !response.url().includes('/discover-models'),
     {timeout: PROVIDER_SAVE_TIMEOUT_MS},
   );
-  await dialog.getByRole('button', {name: 'Test & save'}).click();
+  await customModelProviders.save(dialog);
   expect((await saveResponse).ok()).toBe(true);
 
-  await expect(page.getByText('Custom provider saved')).toBeVisible();
-  await expect(configuredProviderRow(page, CREATE_PROVIDER_NAME)).toBeVisible();
+  await customModelProviders.expectSavedToast('Custom provider saved');
+  await expect(customModelProviders.configuredProviderRow(CREATE_PROVIDER_NAME)).toBeVisible();
   await expectProviderInApi({
     agent,
     workspaceId,
@@ -113,6 +92,7 @@ test('creates a custom model provider backed by local Ollama', async ({
 test('edits an existing custom model provider and validates with local Ollama', async ({
   page,
   agent,
+  customModelProviders,
   createReadyWorkspace,
 }) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
@@ -125,27 +105,25 @@ test('edits an existing custom model provider and validates with local Ollama', 
     displayName: EDIT_PROVIDER_NAME,
   });
 
-  await gotoModelProviders(page, workspaceId);
-  const row = configuredProviderRow(page, EDIT_PROVIDER_NAME);
+  await customModelProviders.goto(workspaceId);
+  const row = customModelProviders.configuredProviderRow(EDIT_PROVIDER_NAME);
   await expect(row).toBeVisible();
-  await row.getByRole('button', {name: `Open ${EDIT_PROVIDER_NAME} provider actions`}).click();
-  await page.getByRole('menuitem', {name: 'Edit'}).click();
-  const dialog = page.getByRole('dialog', {name: `Edit ${EDIT_PROVIDER_NAME}`});
-  await expect(dialog.getByLabel('Provider ID')).toBeDisabled();
+  const dialog = await customModelProviders.openEditDialog(EDIT_PROVIDER_NAME);
+  await expect(dialog.field('Provider ID')).toBeDisabled();
 
-  await dialog.getByLabel('Display name').fill(EDITED_PROVIDER_NAME);
+  await dialog.field('Display name').fill(EDITED_PROVIDER_NAME);
   const saveResponse = page.waitForResponse(
     (response) =>
       response.url().includes(`/agent/custom-model-providers/${EDIT_PROVIDER_ID}`) &&
       response.request().method() === 'PUT',
     {timeout: PROVIDER_SAVE_TIMEOUT_MS},
   );
-  await dialog.getByRole('button', {name: 'Test & save'}).click();
+  await customModelProviders.save(dialog);
   expect((await saveResponse).ok()).toBe(true);
 
-  await expect(page.getByText(`${EDIT_PROVIDER_NAME} saved`)).toBeVisible();
-  await expect(configuredProviderRow(page, EDITED_PROVIDER_NAME)).toBeVisible();
-  await expect(configuredProviderRow(page, EDIT_PROVIDER_NAME)).toHaveCount(0);
+  await customModelProviders.expectSavedToast(`${EDIT_PROVIDER_NAME} saved`);
+  await expect(customModelProviders.configuredProviderRow(EDITED_PROVIDER_NAME)).toBeVisible();
+  await expect(customModelProviders.configuredProviderRow(EDIT_PROVIDER_NAME)).toHaveCount(0);
   await expectProviderInApi({
     agent,
     workspaceId,
@@ -155,7 +133,11 @@ test('edits an existing custom model provider and validates with local Ollama', 
   });
 });
 
-test('deletes an existing custom model provider', async ({page, agent, createReadyWorkspace}) => {
+test('deletes an existing custom model provider', async ({
+  agent,
+  customModelProviders,
+  createReadyWorkspace,
+}) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
     name: 'Agent Provider Delete Workspace',
   });
@@ -166,15 +148,13 @@ test('deletes an existing custom model provider', async ({page, agent, createRea
     displayName: DELETE_PROVIDER_NAME,
   });
 
-  await gotoModelProviders(page, workspaceId);
-  const row = configuredProviderRow(page, DELETE_PROVIDER_NAME);
+  await customModelProviders.goto(workspaceId);
+  const row = customModelProviders.configuredProviderRow(DELETE_PROVIDER_NAME);
   await expect(row).toBeVisible();
-  await row.getByRole('button', {name: `Open ${DELETE_PROVIDER_NAME} provider actions`}).click();
-  await page.getByRole('menuitem', {name: 'Delete'}).click();
-  const dialog = page.getByRole('dialog', {name: 'Delete model provider'});
-  await dialog.getByRole('button', {name: 'Delete'}).click();
+  const dialog = await customModelProviders.openDeleteDialog(DELETE_PROVIDER_NAME);
+  await dialog.confirm('Delete');
 
-  await expect(page.getByText(`${DELETE_PROVIDER_NAME} deleted`)).toBeVisible();
+  await customModelProviders.expectSavedToast(`${DELETE_PROVIDER_NAME} deleted`);
   await expect(row).toHaveCount(0);
   const configs = await agent.listModelProviderConfigs({workspaceId, sessionToken});
   expect(configs.configs.map((config) => config.provider_id)).not.toContain(DELETE_PROVIDER_ID);

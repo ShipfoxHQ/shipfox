@@ -29,6 +29,7 @@
     "@shipfox/e2e-helper-runners": "workspace:*",
     "@shipfox/e2e-helper-workspaces": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-runners": "workspace:*",
     "@shipfox/playwright": "workspace:*",
     "@shipfox/regex": "workspace:*",
     "@shipfox/ts-config": "workspace:*",

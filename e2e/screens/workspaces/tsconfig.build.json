@@ -2,8 +2,7 @@
   "extends": "@shipfox/ts-config/node",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist",
-    "lib": ["ES2022", "DOM"]
+    "outDir": "dist"
   },
   "include": ["src"]
 }
