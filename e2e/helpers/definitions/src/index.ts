@@ -28,6 +28,16 @@ export type WaitForDefinitionOptions = DefinitionSelector & {
   token: string;
 };
 
+type DefinitionPollResult =
+  | {
+      kind: 'definition';
+      definition: DefinitionDto;
+    }
+  | {
+      kind: 'sync-failed';
+      error: Error;
+    };
+
 function assertDefinitionSelector(options: WaitForDefinitionOptions): void {
   if (!options.configPath && !options.definitionId) {
     throw new Error('waitForDefinition requires configPath or definitionId');
@@ -82,7 +92,7 @@ export async function waitForDefinition(options: WaitForDefinitionOptions): Prom
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   let lastResponse: DefinitionListResponseDto | null = null;
 
-  const result = await pollUntil<DefinitionDto | Error>(
+  const result = await pollUntil<DefinitionPollResult>(
     {
       timeoutMs,
       intervalMs: options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS,
@@ -103,19 +113,23 @@ export async function waitForDefinition(options: WaitForDefinitionOptions): Prom
       );
 
       if (lastResponse.sync?.status === 'failed') {
-        return new Error(
-          `Definition sync failed while waiting: ${formatObserved(lastResponse, selector)}`,
-        );
+        return {
+          kind: 'sync-failed',
+          error: new Error(
+            `Definition sync failed while waiting: ${formatObserved(lastResponse, selector)}`,
+          ),
+        };
       }
 
-      return (
-        lastResponse.definitions.find((candidate) => matchesDefinition(candidate, selector)) ?? null
+      const definition = lastResponse.definitions.find((candidate) =>
+        matchesDefinition(candidate, selector),
       );
+      return definition ? {kind: 'definition', definition} : null;
     },
   );
 
-  if (result instanceof Error) throw result;
-  return result;
+  if (result.kind === 'sync-failed') throw result.error;
+  return result.definition;
 }
 
 export function createDefinitionsHelper(options: {
