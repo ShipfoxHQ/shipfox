@@ -79,13 +79,12 @@ describe('workflow context registry', () => {
       'job',
       'executions',
       'execution',
-      'jobs',
       'steps',
       'step',
       'vars',
       'secrets',
     ]);
-    expect(contextsByTrust.untrusted).toEqual(['event', 'inputs']);
+    expect(contextsByTrust.untrusted).toEqual(['event', 'inputs', 'jobs']);
   });
 
   it('marks known-shape contexts as typed and open contexts as syntax-only', () => {
@@ -113,7 +112,7 @@ describe('workflow context registry', () => {
     });
     expect(workflowContextDefinitions.jobs).toMatchObject({
       availability: 'job-activation',
-      trustTier: 'trusted',
+      trustTier: 'untrusted',
       shape: 'open',
       checkMode: 'syntax',
     });
@@ -685,7 +684,9 @@ describe('workflow interpolation field policies', () => {
     expect(workflowInterpolationFieldAcceptsTrustTier('run', 'untrusted')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('run', 'event')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('run', 'inputs')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsContext('run', 'jobs')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('agent.model', 'event')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsContext('agent.model', 'jobs')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('agent.provider', 'inputs')).toBe(false);
     expect(workflowInterpolationFieldAcceptsContext('agent.thinking', 'event')).toBe(false);
   });

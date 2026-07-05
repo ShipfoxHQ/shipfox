@@ -2000,12 +2000,15 @@ describe('normalizeWorkflowDocument', () => {
       );
     });
 
-    it('rejects untrusted context in run commands with the env fix-it message', () => {
+    it.each([
+      ['event payload', 'event.pull_request.title', ['event']],
+      ['job outputs', 'jobs.build.outputs.sha', ['jobs']],
+    ] as const)('rejects untrusted %s context in run commands with the env fix-it message', (_label, source, rejectedRoots) => {
       const document: WorkflowDocument = {
         name: 'unsafe run',
         jobs: {
           build: {
-            steps: [{run: `echo ${interpolation('event.pull_request.title')}`}],
+            steps: [{run: `echo ${interpolation(source)}`}],
           },
         },
       };
@@ -2019,7 +2022,7 @@ describe('normalizeWorkflowDocument', () => {
           message: expect.stringContaining('Bind untrusted values to env'),
           details: expect.objectContaining({
             field: 'run',
-            rejectedRoots: ['event'],
+            rejectedRoots,
           }),
         }),
       ]);

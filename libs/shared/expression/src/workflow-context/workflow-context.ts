@@ -287,7 +287,7 @@ export const workflowContextDefinitions = {
   },
   jobs: {
     availability: 'job-activation',
-    trustTier: 'trusted',
+    trustTier: 'untrusted',
     sensitivity: 'persistable',
     host: 'server',
     shape: 'open',

@@ -66,7 +66,7 @@ const passed = evaluateWorkflowPredicate(expression, {
 
 - Use `syntax` when fields are not known yet.
 - Use `typed` when the caller knows the names and field types in scope.
-- Treat the `event` and `inputs` contexts as untrusted; the rest are trusted.
+- Treat the `event`, `inputs`, and open `jobs` contexts as untrusted.
   Interpolation field policies decide what untrusted data may reach each field.
 - Evaluation is deterministic and has no side effects.
 - The caller must pass values that match the checked data shape.
