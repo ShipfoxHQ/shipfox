@@ -1,7 +1,12 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export {closeDb, db, schema} from './db.js';
+export {
+  deleteCronScheduleForSubscription,
+  getCronScheduleBySubscriptionId,
+  syncCronSchedule,
+} from './cron-schedules.js';
+export {closeDb, db, type Executor, schema, type Tx} from './db.js';
 export {
   getTriggerEventById,
   type ListTriggerEventFacetsResult,
@@ -22,6 +27,12 @@ export {
   projectJobListenerSubscriptions,
   removeJobListenerSubscriptionsForJob,
 } from './job-listener-subscriptions.js';
+export {
+  type CronScheduleDb,
+  type CronScheduleInsertDb,
+  toCronSchedule,
+  triggersCronSchedules,
+} from './schema/cron-schedules.js';
 export {jobListenerSubscriptions} from './schema/job-listener-subscriptions.js';
 export {triggersOutbox} from './schema/outbox.js';
 export {triggerSubscriptions} from './schema/subscriptions.js';

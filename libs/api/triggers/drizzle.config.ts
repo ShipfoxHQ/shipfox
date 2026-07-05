@@ -2,6 +2,7 @@ import {defineConfig} from 'drizzle-kit';
 
 export default defineConfig({
   schema: [
+    './src/db/schema/cron-schedules.ts',
     './src/db/schema/decisions.ts',
     './src/db/schema/job-listener-subscriptions.ts',
     './src/db/schema/outbox.ts',

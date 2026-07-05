@@ -1,11 +1,9 @@
 import type {TriggerDto} from '@shipfox/api-definitions-dto';
 import {and, eq, inArray, notInArray} from 'drizzle-orm';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
-import {db} from './db.js';
+import {deleteCronScheduleForSubscription, syncCronSchedule} from './cron-schedules.js';
+import {db, type Executor, type Tx} from './db.js';
 import {toTriggerSubscription, triggerSubscriptions} from './schema/subscriptions.js';
-
-type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
-type Executor = ReturnType<typeof db> | Tx;
 
 export interface ProjectDefinitionTriggersParams {
   tx?: Tx | undefined;
@@ -43,7 +41,7 @@ export async function projectDefinitionTriggers(
       if (trigger.with !== undefined) config.with = trigger.with;
       if (trigger.filter !== undefined) config.filter = trigger.filter;
 
-      await tx
+      const [upserted] = await tx
         .insert(triggerSubscriptions)
         .values({
           workspaceId: params.workspaceId,
@@ -64,7 +62,20 @@ export async function projectDefinitionTriggers(
             config,
             updatedAt: new Date(),
           },
+        })
+        .returning({id: triggerSubscriptions.id});
+      if (!upserted) throw new Error('Trigger subscription upsert returned no rows');
+
+      if (trigger.source === 'cron') {
+        await syncCronSchedule({
+          tx,
+          subscriptionId: upserted.id,
+          workspaceId: params.workspaceId,
+          triggerConfig: trigger.config,
         });
+      } else {
+        await deleteCronScheduleForSubscription({tx, subscriptionId: upserted.id});
+      }
     }
   };
 
