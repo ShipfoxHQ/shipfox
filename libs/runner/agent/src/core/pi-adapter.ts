@@ -18,6 +18,7 @@ import {
 import {assertEgressAllowed, EgressDeniedError} from '@shipfox/node-egress-guard';
 import {runnerEgressPolicy} from '#config.js';
 import {AgentConfigError} from '#core/errors.js';
+import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 
 const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-keyless-custom-provider-placeholder';
@@ -28,23 +29,7 @@ type ModelRegistryInstance = ReturnType<typeof ModelRegistry.create>;
 type CustomProviderConfig = Parameters<ModelRegistryInstance['registerProvider']>[1];
 type CustomProviderModel = NonNullable<CustomProviderConfig['models']>[number];
 
-export interface AgentInvocation {
-  readonly cwd: string;
-  readonly model: string;
-  readonly provider: string;
-  readonly thinking: string;
-  readonly prompt: string;
-  readonly credentials: Record<string, string>;
-  readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;
-  readonly gitConfigGlobal?: string | undefined;
-  readonly signal: AbortSignal;
-  /**
-   * Forwards each verbatim pi session entry line as it is persisted, in order. Best-effort
-   * observability: when absent (or the session is not persisted), forwarding is skipped and
-   * the step is unaffected.
-   */
-  readonly onSessionEntry?: (line: string) => void;
-}
+export const piHarnessAdapter: HarnessAdapter = {run: runPiAgent};
 
 /**
  * Runs the pi coding agent for one step. Resolves when the agent's turn completes and
@@ -54,7 +39,7 @@ export interface AgentInvocation {
  * The returned `summary` is the agent's final assistant message, kept runner-local for
  * observability and never sent to the API, so it is optional.
  */
-export async function runAgent(invocation: AgentInvocation): Promise<{summary?: string}> {
+async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult> {
   const {
     cwd,
     model: modelId,

@@ -1,10 +1,10 @@
 const {runAgentMock} = vi.hoisted(() => ({runAgentMock: vi.fn()}));
 
-vi.mock('#core/run-agent.js', () => ({runAgent: runAgentMock}));
+vi.mock('#core/pi-adapter.js', () => ({piHarnessAdapter: {run: runAgentMock}}));
 
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {AgentConfigError} from '#core/errors.js';
-import type {AgentInvocation} from '#core/run-agent.js';
+import type {HarnessInvocation} from '#core/harness.js';
 import {executeAgentStep} from '#core/step.js';
 
 const RUNTIME = {
@@ -175,6 +175,22 @@ describe('executeAgentStep', () => {
     });
   });
 
+  it('fails unsupported harnesses without falling back to pi', async () => {
+    const result = await executeAgentStep(buildAgentStep(), {
+      runtime: {...RUNTIME, harness: 'claude'},
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({
+      message:
+        'Harness "claude" is not supported by this runner build ' +
+        '(available once the Claude adapter ships).',
+      reason: 'agent_config_invalid',
+      agent_config_issue: 'step_config_invalid',
+    });
+    expect(runAgentMock).not.toHaveBeenCalled();
+  });
+
   it('rejects a non-agent step type without running the agent', async () => {
     const result = await executeAgentStep(buildAgentStep({type: 'run', config: {run: 'x'}}), {
       runtime: RUNTIME,
@@ -199,7 +215,7 @@ describe('executeAgentStep', () => {
   it('returns promptly when the signal aborts even if the agent run never resolves', async () => {
     const ac = new AbortController();
     let sawSignal: AbortSignal | undefined;
-    runAgentMock.mockImplementation((invocation: AgentInvocation) => {
+    runAgentMock.mockImplementation((invocation: HarnessInvocation) => {
       sawSignal = invocation.signal;
       // Never settles, proving executeAgentStep returns via the abort race, not the run.
       return new Promise<never>(() => {
