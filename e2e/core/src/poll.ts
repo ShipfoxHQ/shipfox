@@ -47,7 +47,7 @@ export async function pollUntil<T>(
   const deadline = Date.now() + options.timeoutMs;
   let delay = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   const maxIntervalMs = options.maxIntervalMs ?? DEFAULT_MAX_INTERVAL_MS;
-  const backoffFactor = options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR;
+  const backoffFactor = Math.max(1, options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR);
   let lastError: unknown;
 
   for (;;) {
@@ -71,6 +71,6 @@ export async function pollUntil<T>(
     }
 
     await sleep(Math.min(delay, remaining), options.signal);
-    delay = Math.min(delay * backoffFactor, maxIntervalMs);
+    delay = Math.min(Math.ceil(delay * backoffFactor), maxIntervalMs);
   }
 }
