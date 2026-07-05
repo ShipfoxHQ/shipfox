@@ -13,40 +13,23 @@ export class StepOutputError extends Error {
 
 export function parseStepOutput(raw: string): Record<string, string> {
   const outputs: Record<string, string> = {};
-  const lines = raw.split(OUTPUT_LINE_SPLIT_REGEX);
+  const lines = outputLines(raw);
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = stripTrailingCarriageReturn(lines[index] ?? '');
-    if (line === '') continue;
+    const line = lines[index] ?? '';
+    if (isSkippableLine(line)) continue;
 
-    const heredocMarker = line.indexOf('<<');
-    if (heredocMarker !== -1) {
-      const key = line.slice(0, heredocMarker);
-      const delimiter = line.slice(heredocMarker + 2);
-      assertOutputKey(key);
-      if (delimiter === '') throw new StepOutputError(`Output "${key}" has an empty delimiter.`);
-
-      const body: string[] = [];
-      let closed = false;
-      for (index += 1; index < lines.length; index += 1) {
-        const bodyLine = stripTrailingCarriageReturn(lines[index] ?? '');
-        if (bodyLine === delimiter) {
-          closed = true;
-          break;
-        }
-        body.push(bodyLine);
-      }
-      if (!closed) throw new StepOutputError(`Output "${key}" heredoc is unterminated.`);
-
-      setOutput(outputs, key, body.join('\n'));
+    const heredoc = parseHeredocStart(line);
+    if (heredoc) {
+      const body = collectHeredocBody(lines, index + 1, heredoc);
+      setOutput(outputs, heredoc.key, body.value);
+      index = body.endIndex;
       continue;
     }
 
-    const equals = line.indexOf('=');
-    if (equals !== -1) {
-      const key = line.slice(0, equals);
-      assertOutputKey(key);
-      setOutput(outputs, key, line.slice(equals + 1));
+    const singleLine = parseSingleLineOutput(line);
+    if (singleLine) {
+      setOutput(outputs, singleLine.key, singleLine.value);
       continue;
     }
 
@@ -54,6 +37,68 @@ export function parseStepOutput(raw: string): Record<string, string> {
   }
 
   return outputs;
+}
+
+interface HeredocStart {
+  key: string;
+  delimiter: string;
+}
+
+interface ParsedOutput {
+  key: string;
+  value: string;
+}
+
+interface HeredocBody {
+  value: string;
+  endIndex: number;
+}
+
+function outputLines(raw: string): string[] {
+  return raw.split(OUTPUT_LINE_SPLIT_REGEX).map(stripTrailingCarriageReturn);
+}
+
+function isSkippableLine(line: string): boolean {
+  return line === '';
+}
+
+function parseHeredocStart(line: string): HeredocStart | undefined {
+  const marker = line.indexOf('<<');
+  if (marker === -1) return undefined;
+
+  const key = line.slice(0, marker);
+  assertOutputKey(key);
+
+  const delimiter = line.slice(marker + 2);
+  if (delimiter === '') throw new StepOutputError(`Output "${key}" has an empty delimiter.`);
+
+  return {key, delimiter};
+}
+
+function collectHeredocBody(
+  lines: readonly string[],
+  startIndex: number,
+  heredoc: HeredocStart,
+): HeredocBody {
+  const body: string[] = [];
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    if (line === heredoc.delimiter) {
+      return {value: body.join('\n'), endIndex: index};
+    }
+    body.push(line);
+  }
+
+  throw new StepOutputError(`Output "${heredoc.key}" heredoc is unterminated.`);
+}
+
+function parseSingleLineOutput(line: string): ParsedOutput | undefined {
+  const equals = line.indexOf('=');
+  if (equals === -1) return undefined;
+
+  const key = line.slice(0, equals);
+  assertOutputKey(key);
+  return {key, value: line.slice(equals + 1)};
 }
 
 function setOutput(outputs: Record<string, string>, key: string, value: string): void {
