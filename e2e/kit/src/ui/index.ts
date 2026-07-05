@@ -9,4 +9,8 @@ export {
   TopNav,
   WorkspaceSwitcher,
 } from './page-objects.js';
-export {type StableReplacement, stableScreenshot} from './stable-screenshot.js';
+export {
+  type StableReplacement,
+  type StableScreenshotOptions,
+  stableScreenshot,
+} from './stable-screenshot.js';

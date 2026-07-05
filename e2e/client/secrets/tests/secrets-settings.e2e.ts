@@ -1,4 +1,3 @@
-import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const SECRET_CREATE_KEY = 'E2E_SECRET_CREATE';
@@ -8,74 +7,25 @@ const VARIABLE_CREATE_KEY = 'E2E_VARIABLE_CREATE';
 const VARIABLE_EDIT_KEY = 'E2E_VARIABLE_EDIT';
 const VARIABLE_DELETE_KEY = 'E2E_VARIABLE_DELETE';
 
-function secretsSection(page: Page) {
-  return page.locator('section[aria-label="Secrets"]');
-}
-
-function variablesSection(page: Page) {
-  return page.locator('section[aria-label="Variables"]');
-}
-
-function rowByKey(section: ReturnType<typeof secretsSection>, key: string) {
-  return section.locator('tr', {hasText: key});
-}
-
-async function gotoSecrets(page: Page, workspaceId: string) {
-  await page.goto(`/workspaces/${workspaceId}/settings/secrets`);
-  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspaceId}/settings/secrets/?$`, 'u'));
-  await expect(page.getByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-}
-
-async function gotoVariables(page: Page, workspaceId: string) {
-  await page.goto(`/workspaces/${workspaceId}/settings/variables`);
-  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspaceId}/settings/variables/?$`, 'u'));
-  await expect(page.getByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-}
-
-async function createSecretFromSettings(page: Page, key: string, value: string) {
-  const section = secretsSection(page);
-  await section.getByRole('button', {name: 'Create secret'}).first().click();
-  const dialog = page.getByRole('dialog', {name: 'Create secret'});
-  await expect(dialog).toBeVisible();
-
-  await dialog.getByLabel('Name').fill(key);
-  await dialog.getByRole('textbox', {name: 'Value'}).fill(value);
-  await dialog.getByRole('button', {name: 'Create secret'}).click();
-
-  await expect(page.getByText('Secret created')).toBeVisible();
-  await expect(rowByKey(section, key)).toBeVisible();
-}
-
-async function createVariableFromSettings(page: Page, key: string, value: string) {
-  const section = variablesSection(page);
-  await section.getByRole('button', {name: 'Create variable'}).first().click();
-  const dialog = page.getByRole('dialog', {name: 'Create variable'});
-  await expect(dialog).toBeVisible();
-
-  await dialog.getByLabel('Name').fill(key);
-  await dialog.getByRole('textbox', {name: 'Value'}).fill(value);
-  await dialog.getByRole('button', {name: 'Create variable'}).click();
-
-  await expect(page.getByText('Variable created')).toBeVisible();
-  await expect(rowByKey(section, key)).toBeVisible();
-}
-
-test('creates a workspace secret from settings', async ({page, createReadyWorkspace}) => {
+test('creates a workspace secret from settings', async ({secretsScreen, createReadyWorkspace}) => {
   const {workspaceId} = await createReadyWorkspace({
     name: 'Secrets Create Workspace',
   });
   const value = 'secret-create-value-e2e';
 
-  await gotoSecrets(page, workspaceId);
-  await expect(secretsSection(page).getByText('No secrets yet')).toBeVisible();
-  await createSecretFromSettings(page, SECRET_CREATE_KEY, value);
+  await secretsScreen.goto(workspaceId);
+  await expect(secretsScreen.emptyState()).toBeVisible();
+  await secretsScreen.createSecret(SECRET_CREATE_KEY, value);
 
-  const row = rowByKey(secretsSection(page), SECRET_CREATE_KEY);
-  await expect(row.getByLabel('Value hidden')).toBeVisible();
-  await expect(secretsSection(page)).not.toContainText(value);
+  await expect(secretsScreen.valueHidden(SECRET_CREATE_KEY)).toBeVisible();
+  await expect(secretsScreen.section()).not.toContainText(value);
 });
 
-test('edits a workspace secret from settings', async ({page, secrets, createReadyWorkspace}) => {
+test('edits a workspace secret from settings', async ({
+  secrets,
+  secretsScreen,
+  createReadyWorkspace,
+}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
     name: 'Secrets Edit Workspace',
   });
@@ -88,24 +38,25 @@ test('edits a workspace secret from settings', async ({page, secrets, createRead
     value: oldValue,
   });
 
-  await gotoSecrets(page, workspaceId);
-  const row = rowByKey(secretsSection(page), SECRET_EDIT_KEY);
-  await row.getByRole('button', {name: `Actions for ${SECRET_EDIT_KEY}`}).click();
-  await page.getByRole('menuitem', {name: 'Edit value'}).click();
-  const dialog = page.getByRole('dialog', {name: 'Update secret'});
-  await expect(dialog.getByLabel('Name')).toBeDisabled();
-  await expect(dialog.getByLabel('Name')).toHaveValue(SECRET_EDIT_KEY);
+  await secretsScreen.goto(workspaceId);
+  const dialog = await secretsScreen.openUpdateDialog(SECRET_EDIT_KEY);
+  await expect(dialog.field('Name')).toBeDisabled();
+  await expect(dialog.field('Name')).toHaveValue(SECRET_EDIT_KEY);
 
-  await dialog.getByRole('textbox', {name: 'Value'}).fill(newValue);
-  await dialog.getByRole('button', {name: 'Update secret'}).click();
+  await dialog.locator().getByRole('textbox', {name: 'Value'}).fill(newValue);
+  await dialog.confirm('Update secret');
 
-  await expect(page.getByText('Secret updated')).toBeVisible();
-  await expect(row).toBeVisible();
-  await expect(secretsSection(page)).not.toContainText(oldValue);
-  await expect(secretsSection(page)).not.toContainText(newValue);
+  await expect(secretsScreen.toastMessage('Secret updated')).toBeVisible();
+  await expect(secretsScreen.rowByKey(SECRET_EDIT_KEY)).toBeVisible();
+  await expect(secretsScreen.section()).not.toContainText(oldValue);
+  await expect(secretsScreen.section()).not.toContainText(newValue);
 });
 
-test('deletes a workspace secret from settings', async ({page, secrets, createReadyWorkspace}) => {
+test('deletes a workspace secret from settings', async ({
+  secrets,
+  secretsScreen,
+  createReadyWorkspace,
+}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
     name: 'Secrets Delete Workspace',
   });
@@ -116,34 +67,37 @@ test('deletes a workspace secret from settings', async ({page, secrets, createRe
     value: 'secret-delete-value-e2e',
   });
 
-  await gotoSecrets(page, workspaceId);
-  const section = secretsSection(page);
-  const row = rowByKey(section, SECRET_DELETE_KEY);
-  await row.getByRole('button', {name: `Actions for ${SECRET_DELETE_KEY}`}).click();
-  await page.getByRole('menuitem', {name: 'Delete'}).click();
-  const dialog = page.getByRole('dialog', {name: new RegExp(`Delete ${SECRET_DELETE_KEY}`, 'u')});
-  await dialog.getByRole('button', {name: 'Delete'}).click();
+  await secretsScreen.goto(workspaceId);
+  const row = secretsScreen.rowByKey(SECRET_DELETE_KEY);
+  await secretsScreen.deleteSecret(SECRET_DELETE_KEY);
 
-  await expect(page.getByText('Secret deleted')).toBeVisible();
   await expect(row).toHaveCount(0);
-  await expect(section.getByText('No secrets yet')).toBeVisible();
+  await expect(secretsScreen.emptyState()).toBeVisible();
 });
 
-test('creates a workspace variable from settings', async ({page, createReadyWorkspace}) => {
+test('creates a workspace variable from settings', async ({
+  variablesScreen,
+  createReadyWorkspace,
+}) => {
   const {workspaceId} = await createReadyWorkspace({
     name: 'Variables Create Workspace',
   });
   const value = 'debug';
 
-  await gotoVariables(page, workspaceId);
-  await expect(variablesSection(page).getByText('No variables yet')).toBeVisible();
-  await createVariableFromSettings(page, VARIABLE_CREATE_KEY, value);
+  await variablesScreen.goto(workspaceId);
+  await expect(variablesScreen.emptyState()).toBeVisible();
+  await variablesScreen.createVariable(VARIABLE_CREATE_KEY, value);
 
-  const row = rowByKey(variablesSection(page), VARIABLE_CREATE_KEY);
-  await expect(row.getByText(value, {exact: true})).toBeVisible();
+  await expect(
+    variablesScreen.rowByKey(VARIABLE_CREATE_KEY).getByText(value, {exact: true}),
+  ).toBeVisible();
 });
 
-test('edits a workspace variable from settings', async ({page, secrets, createReadyWorkspace}) => {
+test('edits a workspace variable from settings', async ({
+  secrets,
+  variablesScreen,
+  createReadyWorkspace,
+}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
     name: 'Variables Edit Workspace',
   });
@@ -156,27 +110,24 @@ test('edits a workspace variable from settings', async ({page, secrets, createRe
     value: oldValue,
   });
 
-  await gotoVariables(page, workspaceId);
-  const section = variablesSection(page);
-  const row = rowByKey(section, VARIABLE_EDIT_KEY);
+  await variablesScreen.goto(workspaceId);
+  const row = variablesScreen.rowByKey(VARIABLE_EDIT_KEY);
   await expect(row.getByText(oldValue, {exact: true})).toBeVisible();
-  await row.getByRole('button', {name: `Actions for ${VARIABLE_EDIT_KEY}`}).click();
-  await page.getByRole('menuitem', {name: 'Edit value'}).click();
-  const dialog = page.getByRole('dialog', {name: 'Update variable'});
-  await expect(dialog.getByLabel('Name')).toBeDisabled();
-  await expect(dialog.getByLabel('Name')).toHaveValue(VARIABLE_EDIT_KEY);
+  const dialog = await variablesScreen.openUpdateDialog(VARIABLE_EDIT_KEY);
+  await expect(dialog.field('Name')).toBeDisabled();
+  await expect(dialog.field('Name')).toHaveValue(VARIABLE_EDIT_KEY);
 
-  await dialog.getByRole('textbox', {name: 'Value'}).fill(newValue);
-  await dialog.getByRole('button', {name: 'Update variable'}).click();
+  await dialog.locator().getByRole('textbox', {name: 'Value'}).fill(newValue);
+  await dialog.confirm('Update variable');
 
-  await expect(page.getByText('Variable updated')).toBeVisible();
+  await expect(variablesScreen.toastMessage('Variable updated')).toBeVisible();
   await expect(row.getByText(newValue, {exact: true})).toBeVisible();
   await expect(row).not.toContainText(oldValue);
 });
 
 test('deletes a workspace variable from settings', async ({
-  page,
   secrets,
+  variablesScreen,
   createReadyWorkspace,
 }) => {
   const {userId, workspaceId} = await createReadyWorkspace({
@@ -189,17 +140,10 @@ test('deletes a workspace variable from settings', async ({
     value: 'trace',
   });
 
-  await gotoVariables(page, workspaceId);
-  const section = variablesSection(page);
-  const row = rowByKey(section, VARIABLE_DELETE_KEY);
-  await row.getByRole('button', {name: `Actions for ${VARIABLE_DELETE_KEY}`}).click();
-  await page.getByRole('menuitem', {name: 'Delete'}).click();
-  const dialog = page.getByRole('dialog', {
-    name: new RegExp(`Delete ${VARIABLE_DELETE_KEY}`, 'u'),
-  });
-  await dialog.getByRole('button', {name: 'Delete'}).click();
+  await variablesScreen.goto(workspaceId);
+  const row = variablesScreen.rowByKey(VARIABLE_DELETE_KEY);
+  await variablesScreen.deleteVariable(VARIABLE_DELETE_KEY);
 
-  await expect(page.getByText('Variable deleted')).toBeVisible();
   await expect(row).toHaveCount(0);
-  await expect(section.getByText('No variables yet')).toBeVisible();
+  await expect(variablesScreen.emptyState()).toBeVisible();
 });

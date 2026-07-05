@@ -291,6 +291,9 @@ importers:
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../kit
+      '@shipfox/e2e-screens-agent':
+        specifier: workspace:*
+        version: link:../../screens/agent
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -315,6 +318,9 @@ importers:
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../kit
+      '@shipfox/e2e-screens-auth':
+        specifier: workspace:*
+        version: link:../../screens/auth
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -348,6 +354,9 @@ importers:
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../kit
+      '@shipfox/e2e-screens-integrations':
+        specifier: workspace:*
+        version: link:../../screens/integrations
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -393,6 +402,9 @@ importers:
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../kit
+      '@shipfox/e2e-screens-runners':
+        specifier: workspace:*
+        version: link:../../screens/runners
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -441,6 +453,9 @@ importers:
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../kit
+      '@shipfox/e2e-screens-secrets':
+        specifier: workspace:*
+        version: link:../../screens/secrets
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -471,6 +486,9 @@ importers:
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../kit
+      '@shipfox/e2e-screens-workspaces':
+        specifier: workspace:*
+        version: link:../../screens/workspaces
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
@@ -876,6 +894,138 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+
+  e2e/screens/agent:
+    dependencies:
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
+  e2e/screens/auth:
+    dependencies:
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
+  e2e/screens/integrations:
+    dependencies:
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
+  e2e/screens/runners:
+    dependencies:
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
+  e2e/screens/secrets:
+    dependencies:
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
+  e2e/screens/workspaces:
+    dependencies:
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
 
   libs/api/agent:
     dependencies:

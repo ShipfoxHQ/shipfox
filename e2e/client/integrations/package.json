@@ -25,6 +25,7 @@
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-helper-integrations-gitea": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-integrations": "workspace:*",
     "@shipfox/playwright": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*"

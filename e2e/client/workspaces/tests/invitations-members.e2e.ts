@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {argosScreenshot, type Page} from '@shipfox/playwright';
+import {stableScreenshot} from '@shipfox/e2e-kit/ui';
 import {expect, test} from './test.js';
 
 const PENDING_INVITATION_RE = /open invitation already exists/u;
@@ -17,113 +17,11 @@ function textRe(text: string): RegExp {
   return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u');
 }
 
-async function stableArgosScreenshot(
-  page: Page,
-  name: string,
-  replacements: ReadonlyArray<readonly [string, string]> = [],
-): Promise<void> {
-  await argosScreenshot(page, name, {
-    beforeScreenshot: async () => {
-      await page.evaluate((visualReplacements) => {
-        type RestoreEntry =
-          | {kind: 'attribute'; target: Element; attribute: string; value: string}
-          | {kind: 'text'; target: Text; value: string}
-          | {kind: 'value'; target: HTMLInputElement | HTMLTextAreaElement; value: string};
-        const visualWindow = window as Window & {
-          __shipfoxVisualRestore?: RestoreEntry[];
-          __shipfoxToasterDisplay?: string;
-        };
-        const restoreEntries: RestoreEntry[] = [];
-
-        // A prior action's success toast auto-dismisses after a few seconds, so whether
-        // it lingers into a later snapshot is a timing race. Hide the toaster region for
-        // the capture; afterScreenshot restores it so later toast assertions still see it.
-        const toaster = document.querySelector('[data-sonner-toaster]');
-        if (toaster instanceof HTMLElement) {
-          visualWindow.__shipfoxToasterDisplay = toaster.style.display;
-          toaster.style.display = 'none';
-        }
-
-        const replaceValue = (value: string): string =>
-          visualReplacements.reduce(
-            (current, [source, replacement]) => current.split(source).join(replacement),
-            value,
-          );
-
-        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-        let node = walker.nextNode();
-        while (node) {
-          const textNode = node as Text;
-          const nextValue = replaceValue(textNode.data);
-          if (nextValue !== textNode.data) {
-            restoreEntries.push({kind: 'text', target: textNode, value: textNode.data});
-            textNode.data = nextValue;
-          }
-          node = walker.nextNode();
-        }
-
-        for (const element of document.querySelectorAll('input, textarea')) {
-          if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-            const nextValue = replaceValue(element.value);
-            if (nextValue !== element.value) {
-              restoreEntries.push({kind: 'value', target: element, value: element.value});
-              element.value = nextValue;
-            }
-          }
-        }
-
-        for (const element of document.querySelectorAll('[aria-label], [placeholder], [title]')) {
-          for (const attribute of ['aria-label', 'placeholder', 'title']) {
-            const value = element.getAttribute(attribute);
-            if (value == null) continue;
-            const nextValue = replaceValue(value);
-            if (nextValue !== value) {
-              restoreEntries.push({kind: 'attribute', target: element, attribute, value});
-              element.setAttribute(attribute, nextValue);
-            }
-          }
-        }
-
-        visualWindow.__shipfoxVisualRestore = restoreEntries;
-      }, replacements);
-    },
-    afterScreenshot: async () => {
-      await page.evaluate(() => {
-        type RestoreEntry =
-          | {kind: 'attribute'; target: Element; attribute: string; value: string}
-          | {kind: 'text'; target: Text; value: string}
-          | {kind: 'value'; target: HTMLInputElement | HTMLTextAreaElement; value: string};
-        const visualWindow = window as Window & {
-          __shipfoxVisualRestore?: RestoreEntry[];
-          __shipfoxToasterDisplay?: string;
-        };
-        const restoreEntries = visualWindow.__shipfoxVisualRestore ?? [];
-
-        for (const entry of restoreEntries.reverse()) {
-          if (entry.kind === 'text') {
-            entry.target.data = entry.value;
-          } else if (entry.kind === 'value') {
-            entry.target.value = entry.value;
-          } else {
-            entry.target.setAttribute(entry.attribute, entry.value);
-          }
-        }
-
-        const toaster = document.querySelector('[data-sonner-toaster]');
-        if (toaster instanceof HTMLElement && visualWindow.__shipfoxToasterDisplay !== undefined) {
-          toaster.style.display = visualWindow.__shipfoxToasterDisplay;
-        }
-        delete visualWindow.__shipfoxToasterDisplay;
-
-        delete visualWindow.__shipfoxVisualRestore;
-      });
-    },
-  });
-}
-
 test('accepts an invitation from the public landing page via login', async ({
   page,
   auth,
+  invitationAccept,
+  membersSettings,
   projects,
   workspaces,
 }) => {
@@ -144,60 +42,64 @@ test('accepts an invitation from the public landing page via login', async ({
     invitedByDisplay: 'Owner User',
   });
 
-  await page.goto(`/invitations/accept?token=${encodeURIComponent(invitation.raw_token)}`);
-  await expect(page.getByRole('heading', {name: 'Invitation Flow Workspace'})).toBeVisible();
-  await expect(page.getByText(`Invited by Owner User to join as ${invitee.email}.`)).toBeVisible();
-  await stableArgosScreenshot(page, 'invitations/pending-unauth', [
-    [owner.email, VISUAL_OWNER_EMAIL],
-    [invitee.email, VISUAL_INVITEE_EMAIL],
-  ]);
+  await invitationAccept.goto(invitation.raw_token);
+  await expect(invitationAccept.heading('Invitation Flow Workspace')).toBeVisible();
+  await expect(
+    invitationAccept.message(`Invited by Owner User to join as ${invitee.email}.`),
+  ).toBeVisible();
+  await stableScreenshot(page, 'invitations/pending-unauth', {
+    textReplacements: [
+      [owner.email, VISUAL_OWNER_EMAIL],
+      [invitee.email, VISUAL_INVITEE_EMAIL],
+    ],
+    hideToaster: true,
+  });
 
-  await page.getByRole('link', {name: 'I already have an account'}).click();
-  await expect(page.getByRole('heading', {name: 'Join Invitation Flow Workspace'})).toBeVisible();
-  const emailInput = page.getByLabel('Email');
+  await invitationAccept.link('I already have an account').click();
+  await expect(invitationAccept.heading('Join Invitation Flow Workspace')).toBeVisible();
+  const emailInput = invitationAccept.field('Email');
   await expect(emailInput).toHaveValue(invitee.email);
   await expect(emailInput).toHaveJSProperty('readOnly', true);
-  await expect(page.getByText('Joining Invitation Flow Workspace.')).toBeHidden();
+  await expect(invitationAccept.message('Joining Invitation Flow Workspace.')).toBeHidden();
 
-  await page.getByRole('link', {name: 'Create an account'}).click();
-  await expect(page.getByRole('heading', {name: 'Join Invitation Flow Workspace'})).toBeVisible();
-  const signupEmailInput = page.getByLabel('Email');
+  await invitationAccept.link('Create an account').click();
+  await expect(invitationAccept.heading('Join Invitation Flow Workspace')).toBeVisible();
+  const signupEmailInput = invitationAccept.field('Email');
   await expect(signupEmailInput).toHaveValue(invitee.email);
   await expect(signupEmailInput).toHaveJSProperty('readOnly', true);
 
-  await page.getByRole('link', {name: 'Log in'}).click();
-  await expect(page.getByRole('heading', {name: 'Join Invitation Flow Workspace'})).toBeVisible();
-  await expect(page.getByLabel('Email')).toHaveValue(invitee.email);
+  await invitationAccept.link('Log in').click();
+  await expect(invitationAccept.heading('Join Invitation Flow Workspace')).toBeVisible();
+  await expect(invitationAccept.field('Email')).toHaveValue(invitee.email);
 
-  await page.getByLabel('Password').fill(invitee.password);
+  await invitationAccept.field('Password').fill(invitee.password);
   await projects.createProject({workspaceId: workspace.id});
-  await page.getByRole('button', {name: 'Log in'}).click();
+  await invitationAccept.button('Log in').click();
 
   await expect(page).toHaveURL(workspaceUrlRe(workspace.id));
-  await expect(page.getByText('You joined Invitation Flow Workspace.')).toBeVisible();
+  await expect(invitationAccept.message('You joined Invitation Flow Workspace.')).toBeVisible();
 
-  await page.goto(`/workspaces/${workspace.id}/settings/members`);
-  await expect(page.getByRole('heading', {name: 'Members'})).toBeVisible();
-  await expect(page.getByText(owner.email)).toBeVisible();
-  await expect(page.getByText(invitee.email)).toBeVisible();
-  await expect(page.getByText('No pending invitations.')).toBeVisible();
-  const memberJoinedText = (
-    await page
-      .getByRole('row', {name: textRe(invitee.email)})
-      .getByRole('cell')
-      .nth(2)
-      .innerText()
-  ).trim();
-  await stableArgosScreenshot(page, 'members/populated-with-empty-invitations', [
-    [owner.email, VISUAL_OWNER_EMAIL],
-    [invitee.email, VISUAL_INVITEE_EMAIL],
-    [memberJoinedText, VISUAL_JOINED_DATE],
-  ]);
+  await membersSettings.goto(workspace.id);
+  await expect(membersSettings.heading()).toBeVisible();
+  await expect(membersSettings.memberText(owner.email)).toBeVisible();
+  await expect(membersSettings.memberText(invitee.email)).toBeVisible();
+  await expect(membersSettings.emptyPendingInvitations()).toBeVisible();
+  const memberJoinedText = await membersSettings.memberCellText(textRe(invitee.email), 2);
+  await stableScreenshot(page, 'members/populated-with-empty-invitations', {
+    textReplacements: [
+      [owner.email, VISUAL_OWNER_EMAIL],
+      [invitee.email, VISUAL_INVITEE_EMAIL],
+      [memberJoinedText, VISUAL_JOINED_DATE],
+    ],
+    hideToaster: true,
+  });
 });
 
 test('creates an account from an invitation with the email locked', async ({
   page,
   auth,
+  invitationAccept,
+  membersSettings,
   projects,
   workspaces,
 }) => {
@@ -216,31 +118,32 @@ test('creates an account from an invitation with the email locked', async ({
     invitedByDisplay: 'Signup Owner',
   });
 
-  await page.goto(`/invitations/accept?token=${encodeURIComponent(invitation.raw_token)}`);
-  await page.getByRole('link', {name: 'Create account'}).click();
+  await invitationAccept.goto(invitation.raw_token);
+  await invitationAccept.link('Create account').click();
 
-  await expect(page.getByRole('heading', {name: 'Join Invitation Signup Workspace'})).toBeVisible();
-  const emailInput = page.getByLabel('Email');
+  await expect(invitationAccept.heading('Join Invitation Signup Workspace')).toBeVisible();
+  const emailInput = invitationAccept.field('Email');
   await expect(emailInput).toHaveValue(inviteeEmail);
   await expect(emailInput).toHaveJSProperty('readOnly', true);
-  await expect(page.getByText('Joining Invitation Signup Workspace.')).toBeHidden();
+  await expect(invitationAccept.message('Joining Invitation Signup Workspace.')).toBeHidden();
 
-  await page.getByLabel('Name').fill('Signup Invitee');
-  await page.getByLabel('Password').fill('correct horse battery staple');
+  await invitationAccept.field('Name').fill('Signup Invitee');
+  await invitationAccept.field('Password').fill('correct horse battery staple');
   await projects.createProject({workspaceId: workspace.id});
-  await page.getByRole('button', {name: 'Create account'}).click();
+  await invitationAccept.button('Create account').click();
 
   await expect(page).toHaveURL(workspaceUrlRe(workspace.id));
-  await expect(page.getByText('You joined Invitation Signup Workspace.')).toBeVisible();
+  await expect(invitationAccept.message('You joined Invitation Signup Workspace.')).toBeVisible();
 
-  await page.goto(`/workspaces/${workspace.id}/settings/members`);
-  await expect(page.getByText(inviteeEmail)).toBeVisible();
-  await expect(page.getByText('Signup Invitee')).toBeVisible();
+  await membersSettings.goto(workspace.id);
+  await expect(membersSettings.memberText(inviteeEmail)).toBeVisible();
+  await expect(membersSettings.memberText('Signup Invitee')).toBeVisible();
 });
 
 test('creates, rejects duplicate, and revokes a pending invitation from members settings', async ({
   page,
   auth,
+  membersSettings,
   projects,
   workspaces,
 }) => {
@@ -255,70 +158,75 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
   await projects.createProject({workspaceId: workspace.id});
   await auth.loginAs(page, owner);
 
-  await page.goto(`/workspaces/${workspace.id}/settings/members`);
-  await expect(page.getByRole('heading', {name: 'Pending invitations'})).toBeVisible();
-  await expect(page.getByText('No pending invitations.')).toBeVisible();
-  const ownerJoinedText = (
-    await page
-      .getByRole('row', {name: textRe(owner.email)})
-      .getByRole('cell')
-      .nth(2)
-      .innerText()
-  ).trim();
+  await membersSettings.goto(workspace.id);
+  await expect(membersSettings.pendingInvitationsHeading()).toBeVisible();
+  await expect(membersSettings.emptyPendingInvitations()).toBeVisible();
+  const ownerJoinedText = await membersSettings.memberCellText(textRe(owner.email), 2);
   const ownerRowReplacements = [
     [owner.email, VISUAL_OWNER_EMAIL],
     [ownerJoinedText, VISUAL_JOINED_DATE],
   ] as const;
-  await stableArgosScreenshot(page, 'members/pending-invitations-empty', ownerRowReplacements);
+  await stableScreenshot(page, 'members/pending-invitations-empty', {
+    textReplacements: ownerRowReplacements,
+    hideToaster: true,
+  });
 
-  await page.getByRole('button', {name: 'Invite member'}).click();
-  await expect(page.getByRole('heading', {name: 'Invite a member'})).toBeVisible();
-  await expect(page.getByLabel('Email')).toBeFocused();
-  await stableArgosScreenshot(page, 'members/invite-member-modal-idle', ownerRowReplacements);
+  const firstInviteDialog = await membersSettings.openInviteDialog();
+  await expect(firstInviteDialog.locator()).toBeVisible();
+  await expect(firstInviteDialog.field('Email')).toBeFocused();
+  await stableScreenshot(page, 'members/invite-member-modal-idle', {
+    textReplacements: ownerRowReplacements,
+    hideToaster: true,
+  });
 
-  await page.getByLabel('Email').fill(pendingEmail);
-  await page.getByRole('button', {name: 'Send invitation'}).click();
-  await expect(page.getByText(`Invitation sent to ${pendingEmail}.`)).toBeVisible();
-  const pendingInvitationRow = page.getByRole('row', {name: textRe(pendingEmail)});
+  await firstInviteDialog.field('Email').fill(pendingEmail);
+  await firstInviteDialog.confirm('Send invitation');
+  await expect(membersSettings.memberText(`Invitation sent to ${pendingEmail}.`)).toBeVisible();
+  const pendingInvitationRow = membersSettings.pendingInvitationRow(textRe(pendingEmail));
   await expect(pendingInvitationRow).toBeVisible();
-  const pendingExpiresText = (
-    await pendingInvitationRow.getByRole('cell').nth(2).innerText()
-  ).trim();
+  const pendingExpiresText = await membersSettings.pendingInvitationExpiresText(
+    textRe(pendingEmail),
+  );
   const pendingRowReplacements = [
     [owner.email, VISUAL_OWNER_EMAIL],
     [pendingEmail, VISUAL_PENDING_EMAIL],
     [ownerJoinedText, VISUAL_JOINED_DATE],
     [pendingExpiresText, VISUAL_EXPIRES_DATE],
   ] as const;
-  await stableArgosScreenshot(
-    page,
-    'members/pending-invitations-populated',
-    pendingRowReplacements,
-  );
+  await stableScreenshot(page, 'members/pending-invitations-populated', {
+    textReplacements: pendingRowReplacements,
+    hideToaster: true,
+  });
 
-  await page.getByRole('button', {name: 'Invite member'}).click();
-  await expect(page.getByRole('heading', {name: 'Invite a member'})).toBeVisible();
-  await expect(page.getByLabel('Email')).toBeFocused();
-  await page.getByLabel('Email').fill(pendingEmail);
-  await page.getByRole('button', {name: 'Send invitation'}).click();
-  await expect(page.getByText(PENDING_INVITATION_RE)).toBeVisible();
-  await stableArgosScreenshot(page, 'members/invite-member-modal-conflict', pendingRowReplacements);
+  const conflictDialog = await membersSettings.openInviteDialog();
+  await expect(conflictDialog.locator()).toBeVisible();
+  await expect(conflictDialog.field('Email')).toBeFocused();
+  await conflictDialog.field('Email').fill(pendingEmail);
+  await conflictDialog.confirm('Send invitation');
+  await expect(membersSettings.memberText(PENDING_INVITATION_RE)).toBeVisible();
+  await stableScreenshot(page, 'members/invite-member-modal-conflict', {
+    textReplacements: pendingRowReplacements,
+    hideToaster: true,
+  });
   await page.keyboard.press('Escape');
 
   await pendingInvitationRow.hover();
-  await page.getByRole('button', {name: 'Revoke invitation'}).click();
-  await expect(page.getByText(`Revoke invitation to ${pendingEmail}?`)).toBeVisible();
-  await stableArgosScreenshot(page, 'members/revoke-invitation-confirm', pendingRowReplacements);
-  await page.getByRole('button', {name: 'Revoke'}).click();
+  await membersSettings.revokeInvitationButton().click();
+  await expect(membersSettings.memberText(`Revoke invitation to ${pendingEmail}?`)).toBeVisible();
+  await stableScreenshot(page, 'members/revoke-invitation-confirm', {
+    textReplacements: pendingRowReplacements,
+    hideToaster: true,
+  });
+  await membersSettings.confirmRevokeButton().click();
 
-  await expect(page.getByText(`Invitation to ${pendingEmail} revoked.`)).toBeVisible();
+  await expect(membersSettings.memberText(`Invitation to ${pendingEmail} revoked.`)).toBeVisible();
   await expect(pendingInvitationRow).toBeHidden();
 });
 
-test('renders terminal public invitation states', async ({page}) => {
-  await page.goto('/invitations/accept');
-  await expect(page.getByRole('heading', {name: 'Invalid link'})).toBeVisible();
-  await argosScreenshot(page, 'invitations/missing-token');
+test('renders terminal public invitation states', async ({page, invitationAccept}) => {
+  await invitationAccept.goto();
+  await expect(invitationAccept.heading('Invalid link')).toBeVisible();
+  await stableScreenshot(page, 'invitations/missing-token');
 
   await page.route('**/invitations/preview?**', async (route) => {
     await route.fulfill({
@@ -327,9 +235,9 @@ test('renders terminal public invitation states', async ({page}) => {
       body: JSON.stringify({status: 'invalid'}),
     });
   });
-  await page.goto(`/invitations/accept?token=${encodeURIComponent(`invalid-${randomUUID()}`)}`);
-  await expect(page.getByRole('heading', {name: 'Invalid invitation'})).toBeVisible();
-  await argosScreenshot(page, 'invitations/invalid');
+  await invitationAccept.goto(`invalid-${randomUUID()}`);
+  await expect(invitationAccept.heading('Invalid invitation')).toBeVisible();
+  await stableScreenshot(page, 'invitations/invalid');
 
   await page.unroute('**/invitations/preview?**');
   await page.route('**/invitations/preview?**', async (route) => {
@@ -343,7 +251,7 @@ test('renders terminal public invitation states', async ({page}) => {
       }),
     });
   });
-  await page.goto(`/invitations/accept?token=${encodeURIComponent(`expired-${randomUUID()}`)}`);
-  await expect(page.getByRole('heading', {name: 'Invitation expired'})).toBeVisible();
-  await argosScreenshot(page, 'invitations/expired');
+  await invitationAccept.goto(`expired-${randomUUID()}`);
+  await expect(invitationAccept.heading('Invitation expired')).toBeVisible();
+  await stableScreenshot(page, 'invitations/expired');
 });

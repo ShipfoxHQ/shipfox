@@ -1,5 +1,6 @@
 import type {ListIntegrationProvidersResponseDto} from '@shipfox/api-integration-core-dto';
-import {argosScreenshot, type Page} from '@shipfox/playwright';
+import {stableScreenshot} from '@shipfox/e2e-kit/ui';
+import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const ADDED_DATE_RE = /^Added /u;
@@ -31,73 +32,56 @@ async function stubProviders(page: Page): Promise<void> {
 
 test('settings catalogue lists available providers with an empty installed state', async ({
   page,
-  auth,
-  projects,
-  workspaces,
+  integrationsCatalogue,
+  createReadyWorkspace,
 }) => {
-  const user = await auth.createUser();
-  const workspace = await workspaces.create({
-    userId: user.user.id,
+  const {workspaceId} = await createReadyWorkspace({
     name: 'Integrations Settings Workspace',
   });
-  await projects.createProject({workspaceId: workspace.id});
-  await auth.loginAs(page, user);
 
   await stubProviders(page);
 
-  await page.goto(`/workspaces/${workspace.id}/settings/integrations`);
+  await integrationsCatalogue.goto(workspaceId);
 
-  await expect(page.getByRole('heading', {name: 'Available integrations'})).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Install GitHub'})).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Install Sentry'})).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Install Gitea'})).toBeVisible();
-  await expect(page.getByText('No integrations installed yet')).toBeVisible();
+  await expect(integrationsCatalogue.availableHeading()).toBeVisible();
+  await expect(integrationsCatalogue.installLink('GitHub')).toBeVisible();
+  await expect(integrationsCatalogue.installLink('Sentry')).toBeVisible();
+  await expect(integrationsCatalogue.installLink('Gitea')).toBeVisible();
+  await expect(integrationsCatalogue.emptyInstalledState()).toBeVisible();
 
-  await argosScreenshot(page, 'integrations/settings-empty');
+  await stableScreenshot(page, 'integrations/settings-empty');
 });
 
 test('settings catalogue shows an installed provider after Gitea install', async ({
   page,
-  auth,
   gitea,
-  projects,
-  workspaces,
+  integrationsCatalogue,
+  providerInstall,
+  createReadyWorkspace,
 }) => {
-  const user = await auth.createUser();
-  const workspace = await workspaces.create({
-    userId: user.user.id,
+  const {workspaceId} = await createReadyWorkspace({
     name: 'Integrations Installed Workspace',
   });
-  await projects.createProject({workspaceId: workspace.id});
-  await auth.loginAs(page, user);
 
   const org = await gitea.createOrg();
 
-  await page.goto(`/workspaces/${workspace.id}/integrations/gitea`);
-  await page.getByLabel('Organization').fill(org.org);
-  await page.getByRole('button', {name: 'Install'}).click();
-  await expect(page.getByText('Gitea organization installed.')).toBeVisible();
+  await providerInstall.goto(workspaceId, 'gitea');
+  await providerInstall.installOrganization(org.org);
+  await providerInstall.expectInstalled('Gitea organization installed.');
 
-  await page.goto(`/workspaces/${workspace.id}/settings/integrations`);
+  await integrationsCatalogue.goto(workspaceId);
 
-  const installed = page.locator('section[aria-label="Installed integrations"]');
-  const installedName = installed.getByText(`Gitea ${org.org}`, {exact: true});
+  const installedName = integrationsCatalogue.installedProviderName(`Gitea ${org.org}`);
   await expect(installedName).toBeVisible();
-  await expect(installed.getByText('Connected')).toHaveCount(0);
-  await expect(installed.getByText(ADDED_DATE_RE)).toBeVisible();
+  await expect(integrationsCatalogue.installedStatus('Connected')).toHaveCount(0);
+  await expect(integrationsCatalogue.installedStatus(ADDED_DATE_RE)).toBeVisible();
 
-  await installedName.evaluate((element, text) => {
-    element.textContent = text;
-  }, VISUAL_GITEA_CONNECTION_NAME);
-  await installed.getByText(ADDED_DATE_RE).evaluate((element, text) => {
-    element.textContent = text;
-  }, VISUAL_ADDED_DATE);
-
-  await installed
-    .getByLabel(`Open Gitea ${org.org} integration actions`)
-    .evaluate((element, text) => {
-      element.setAttribute('aria-label', `Open ${text} integration actions`);
-    }, VISUAL_GITEA_CONNECTION_NAME);
-
-  await argosScreenshot(page, 'integrations/settings-installed');
+  await stableScreenshot(page, 'integrations/settings-installed', [
+    {locator: installedName, text: VISUAL_GITEA_CONNECTION_NAME},
+    {locator: integrationsCatalogue.installedStatus(ADDED_DATE_RE), text: VISUAL_ADDED_DATE},
+    {
+      locator: integrationsCatalogue.installedActionsButton(`Gitea ${org.org}`),
+      attributes: {'aria-label': `Open ${VISUAL_GITEA_CONNECTION_NAME} integration actions`},
+    },
+  ]);
 });
