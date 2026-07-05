@@ -7,6 +7,7 @@ export {
 } from './agent-defaults-snapshot.js';
 export {
   getAgentWorkspaceSettings,
+  setDefaultHarness,
   setDefaultModelProvider,
 } from './agent-workspace-settings.js';
 export {closeDb, db, schema} from './db.js';

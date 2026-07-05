@@ -26,6 +26,7 @@ export const listModelProviderConfigsRoute = defineRoute({
 
     return {
       configs: configs.map(toModelProviderConfigResponseDto),
+      default_harness_id: settings?.defaultHarnessId ?? null,
       default_provider_id: settings?.defaultProviderId ?? null,
     };
   },

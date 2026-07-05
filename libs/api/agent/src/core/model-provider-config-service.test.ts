@@ -241,7 +241,7 @@ describe('testAndSaveModelProviderConfig', () => {
   });
 
   it('propagates InvalidAgentModelError and persists nothing', async () => {
-    const error = new InvalidAgentModelError('anthropic', 'claude-opus-4-8');
+    const error = new InvalidAgentModelError('pi', 'anthropic', 'claude-opus-4-8');
     const probe = vi.fn().mockRejectedValue(error);
 
     const save = testAndSaveModelProviderConfig(

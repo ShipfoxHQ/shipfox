@@ -8,6 +8,13 @@
       "when": 1782630453879,
       "tag": "0000_daffy_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783264300000,
+      "tag": "0001_default_harness",
+      "breakpoints": true
     }
   ]
 }

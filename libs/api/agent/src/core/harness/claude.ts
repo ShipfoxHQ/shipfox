@@ -1,6 +1,6 @@
-import type {AgentModelOptionDto} from '@shipfox/api-agent-dto';
+import {type AgentModelOptionDto, CLAUDE_HARNESS} from '@shipfox/api-agent-dto';
 import {config} from '#config.js';
-import type {HarnessDescriptor, HarnessProviderCatalog} from './registry.js';
+import type {HarnessProviderCatalog} from './registry.js';
 
 const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -22,13 +22,7 @@ export const CLAUDE_MODEL_LINE: AgentModelOptionDto[] = [
   {id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6'},
 ];
 
-export const CLAUDE_HARNESS: HarnessDescriptor = {
-  id: 'claude',
-  label: 'Claude',
-  supportedProviderIds: ['anthropic'],
-  thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
-  defaultThinking: 'xhigh',
-};
+export {CLAUDE_HARNESS};
 
 export const claudeHarnessCatalog: HarnessProviderCatalog = {
   listModels: () => CLAUDE_MODEL_LINE,

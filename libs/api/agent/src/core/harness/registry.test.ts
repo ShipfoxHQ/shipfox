@@ -1,6 +1,10 @@
 import type {AssistantMessage, Context, ProviderStreamOptions} from '@earendil-works/pi-ai';
 import {getModels} from '@earendil-works/pi-ai';
-import {agentThinkingSchema, harnessSchema} from '@shipfox/api-agent-dto';
+import {
+  claudeAgentThinkingSchema,
+  harnessSchema,
+  piAgentThinkingSchema,
+} from '@shipfox/api-agent-dto';
 import {
   getHarnessDescriptor as getCoreHarnessDescriptor,
   listHarnessProviderModels as listCoreHarnessProviderModels,
@@ -45,15 +49,17 @@ describe('harness registry', () => {
       id: 'pi',
       label: 'pi',
       supportedProviderIds: expect.arrayContaining(['anthropic', 'openai']),
-      thinkingLevels: agentThinkingSchema.options,
+      thinkingLevels: piAgentThinkingSchema.options,
       defaultThinking: 'xhigh',
+      defaultProviderId: 'anthropic',
     });
     expect(getHarnessDescriptor('claude')).toEqual({
       id: 'claude',
       label: 'Claude',
       supportedProviderIds: ['anthropic'],
-      thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+      thinkingLevels: claudeAgentThinkingSchema.options,
       defaultThinking: 'xhigh',
+      defaultProviderId: 'anthropic',
     });
     expect(listHarnessDescriptors().map((descriptor) => descriptor.id)).toEqual(['pi', 'claude']);
   });
@@ -70,7 +76,7 @@ describe('harness registry', () => {
       (model) => !anthropicModelIds.has(model.id),
     ).map((model) => model.id);
 
-    expect(PI_HARNESS.thinkingLevels).toBe(agentThinkingSchema.options);
+    expect(PI_HARNESS.thinkingLevels).toBe(piAgentThinkingSchema.options);
     expect(CLAUDE_HARNESS.defaultThinking).toBe('xhigh');
     expect(unknownClaudeModelIds).toEqual([]);
   });

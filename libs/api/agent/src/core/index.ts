@@ -17,6 +17,7 @@ export {
   ModelProviderValidationError,
   ModelProviderValidationUnavailableError,
   UnsupportedHarnessProviderError,
+  UnsupportedHarnessThinkingError,
   UnsupportedModelProviderError,
 } from './errors.js';
 export {

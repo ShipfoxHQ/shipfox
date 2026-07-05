@@ -114,9 +114,11 @@ describe('model provider config schemas', () => {
     const parsedRow = modelProviderConfigDtoSchema.parse(row);
     const parsedList = listModelProviderConfigsResponseSchema.parse({
       configs: [row],
+      default_harness_id: null,
       default_provider_id: null,
     });
 
+    expect(parsedList.default_harness_id).toBeNull();
     expect(parsedRow.provider_id).toBe('openai');
     expect(parsedRow.default_model).toBeNull();
     expect(parsedList.default_provider_id).toBeNull();
@@ -139,10 +141,12 @@ describe('model provider config schemas', () => {
           updated_at: '2026-06-27T10:45:00.000Z',
         },
       ],
+      default_harness_id: 'claude',
       default_provider_id: 'local-vllm',
     });
 
     expect(parsedList.configs[0]?.kind).toBe('custom');
+    expect(parsedList.default_harness_id).toBe('claude');
     expect(parsedList.default_provider_id).toBe('local-vllm');
   });
 });

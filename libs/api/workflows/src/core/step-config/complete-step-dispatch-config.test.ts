@@ -1,7 +1,8 @@
+import {UnsupportedHarnessThinkingError} from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {parseWorkflowTemplate, planInterpolationField} from '@shipfox/expression';
 import type {Step} from '#core/entities/step.js';
-import {InterpolationUnresolvableError} from '#core/errors.js';
+import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -206,6 +207,39 @@ describe('completeStepDispatchConfig', () => {
         },
       ],
     });
+  });
+
+  it('wraps harness resolver errors as unresolvable agent config', () => {
+    const pending = step({
+      type: 'agent',
+      config: {},
+      configPlan: {
+        agent: {
+          harness: 'claude',
+          thinking: 'off',
+          prompt: plannedField(`Review ${template('steps.build.outputs.sha')}`),
+        },
+      },
+    });
+    const failingResolver: AgentDefaultsResolver = () => {
+      throw new UnsupportedHarnessThinkingError('claude', 'off', [
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max',
+      ]);
+    };
+
+    const act = () =>
+      completeStepDispatchConfig({
+        step: pending,
+        context,
+        resolveAgentDefaults: failingResolver,
+        definitionId: 'def-1',
+      });
+
+    expect(act).toThrow(AgentConfigUnresolvableError);
   });
 
   it('throws when a server-side segment still survives dispatch', () => {

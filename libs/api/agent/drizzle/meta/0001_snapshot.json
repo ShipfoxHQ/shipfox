@@ -1,0 +1,205 @@
+{
+  "id": "dbe0db16-5b0d-4aa0-8a5d-48fe27753e88",
+  "prevId": "9e6949f6-d9ef-4c8a-8b22-42ffd11a7e59",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.model_provider_configs": {
+      "name": "model_provider_configs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "model_provider_config_kind",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'builtin'"
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "api": {
+          "name": "api",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_url": {
+          "name": "base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "headers": {
+          "name": "headers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "secret_header_names": {
+          "name": "secret_header_names",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "models": {
+          "name": "models",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requires_api_key": {
+          "name": "requires_api_key",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "false"
+        },
+        "default_model": {
+          "name": "default_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_thinking": {
+          "name": "default_thinking",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "model_provider_configs_workspace_provider_unique": {
+          "name": "model_provider_configs_workspace_provider_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "model_provider_configs_custom_required_fields": {
+          "name": "model_provider_configs_custom_required_fields",
+          "value": "\"model_provider_configs\".\"kind\" <> 'custom' OR (\"model_provider_configs\".\"api\" IS NOT NULL AND \"model_provider_configs\".\"base_url\" IS NOT NULL AND \"model_provider_configs\".\"models\" IS NOT NULL AND \"model_provider_configs\".\"display_name\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.agent_workspace_settings": {
+      "name": "agent_workspace_settings",
+      "schema": "",
+      "columns": {
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "default_provider_id": {
+          "name": "default_provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_harness_id": {
+          "name": "default_harness_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.model_provider_config_kind": {
+      "name": "model_provider_config_kind",
+      "schema": "public",
+      "values": ["builtin", "custom"]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

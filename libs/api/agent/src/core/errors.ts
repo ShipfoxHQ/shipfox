@@ -1,4 +1,9 @@
-import type {Harness, ModelProviderRef, SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import type {
+  AgentThinking,
+  Harness,
+  ModelProviderRef,
+  SupportedModelProviderId,
+} from '@shipfox/api-agent-dto';
 
 export class ModelProviderValidationError extends Error {
   constructor(
@@ -40,6 +45,19 @@ export class UnsupportedHarnessProviderError extends Error {
   }
 }
 
+export class UnsupportedHarnessThinkingError extends Error {
+  constructor(
+    public readonly harness: Harness,
+    public readonly thinking: AgentThinking,
+    public readonly supportedLevels: readonly AgentThinking[],
+  ) {
+    super(
+      `Harness ${harness} does not support thinking ${thinking}. Supported levels: ${supportedLevels.join(', ')}`,
+    );
+    this.name = 'UnsupportedHarnessThinkingError';
+  }
+}
+
 export class InvalidCredentialFieldsError extends Error {
   constructor(public readonly providerId: SupportedModelProviderId) {
     super(`Invalid credential fields for model provider: ${providerId}`);
@@ -48,12 +66,29 @@ export class InvalidCredentialFieldsError extends Error {
 }
 
 export class InvalidAgentModelError extends Error {
+  public readonly harness: Harness;
+  public readonly providerId: ModelProviderRef;
+  public readonly model: string;
+
+  constructor(providerId: ModelProviderRef, model: string);
+  constructor(harness: Harness, providerId: ModelProviderRef, model: string);
   constructor(
-    public readonly providerId: ModelProviderRef,
-    public readonly model: string,
+    harnessOrProviderId: Harness | ModelProviderRef,
+    providerIdOrModel: ModelProviderRef | string,
+    model?: string,
   ) {
-    super(`Model provider model is not available in Pi: ${providerId}/${model}`);
+    const harness = model === undefined ? 'pi' : (harnessOrProviderId as Harness);
+    const providerId =
+      model === undefined
+        ? (harnessOrProviderId as ModelProviderRef)
+        : (providerIdOrModel as ModelProviderRef);
+    const resolvedModel = model ?? (providerIdOrModel as string);
+
+    super(`Model is not available for harness ${harness}: ${providerId}/${resolvedModel}`);
     this.name = 'InvalidAgentModelError';
+    this.harness = harness;
+    this.providerId = providerId;
+    this.model = resolvedModel;
   }
 }
 

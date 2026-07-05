@@ -125,7 +125,7 @@ export async function updateModelProviderConfigDefaultModel(
       params.defaultModel !== null &&
       !existingConfig.models?.some((model) => model.id === params.defaultModel)
     ) {
-      throw new InvalidAgentModelError(params.providerId, params.defaultModel);
+      throw new InvalidAgentModelError('pi', params.providerId, params.defaultModel);
     }
 
     const config = await updateModelProviderDefaultModel({
@@ -181,7 +181,7 @@ function resolveDefaultModel(
 
   const model = requestedModel ?? catalogEntry.default_model;
   if (!catalogEntry.models.some((candidate) => candidate.id === model)) {
-    throw new InvalidAgentModelError(providerId, model);
+    throw new InvalidAgentModelError('pi', providerId, model);
   }
   return {probeModel: model, storedModel: requestedModel ?? null};
 }
