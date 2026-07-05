@@ -33,18 +33,26 @@ class FakeElement {
 }
 
 class FakeLocator {
-  constructor(private readonly elements: FakeElement[]) {}
+  constructor(
+    private readonly elements: FakeElement[],
+    private readonly failingIndexes = new Set<number>(),
+    private readonly index?: number,
+  ) {}
 
   count(): Promise<number> {
     return Promise.resolve(this.elements.length);
   }
 
   nth(index: number): FakeLocator {
-    return new FakeLocator([this.elements[index] as FakeElement]);
+    return new FakeLocator(this.elements, this.failingIndexes, index);
   }
 
   evaluate<T, A>(callback: (element: FakeElement, arg: A) => T, arg: A): Promise<T> {
-    return Promise.resolve(callback(this.elements[0] as FakeElement, arg));
+    const index = this.index ?? 0;
+    if (this.failingIndexes.has(index)) {
+      return Promise.reject(new Error(`evaluate failed for ${index}`));
+    }
+    return Promise.resolve(callback(this.elements[index] as FakeElement, arg));
   }
 }
 
@@ -99,6 +107,22 @@ describe('stableScreenshot', () => {
 
     await expect(result).rejects.toBe(error);
     expect(element.textContent).toBe('before');
+  });
+
+  it('restores completed replacements when a later replacement fails', async () => {
+    const first = new FakeElement({text: 'first-before'});
+    const second = new FakeElement({text: 'second-before'});
+    const locator = new FakeLocator([first, second], new Set([1]));
+    const {stableScreenshot} = await import('./stable-screenshot.js');
+
+    const result = stableScreenshot({} as never, 'partial-failure', [
+      {locator: locator as never, text: 'during'},
+    ]);
+
+    await expect(result).rejects.toThrow('evaluate failed for 1');
+    expect(argosScreenshot).not.toHaveBeenCalled();
+    expect(first.textContent).toBe('first-before');
+    expect(second.textContent).toBe('second-before');
   });
 
   it('throws clearly when locator counts drift before restore', async () => {

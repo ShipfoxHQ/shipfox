@@ -34,21 +34,28 @@ export async function stableScreenshot(
   name: string,
   replacements: StableReplacement[] = [],
 ): Promise<void> {
-  const snapshots = await applyReplacements(replacements);
+  const snapshots: LocatorSnapshot[] = [];
 
   try {
+    await applyReplacements(replacements, snapshots);
     await argosScreenshot(page, name);
   } finally {
-    await restoreSnapshots(snapshots);
+    if (snapshots.length > 0) await restoreSnapshots(snapshots);
   }
 }
 
-async function applyReplacements(replacements: StableReplacement[]): Promise<LocatorSnapshot[]> {
-  const snapshots: LocatorSnapshot[] = [];
-
+async function applyReplacements(
+  replacements: StableReplacement[],
+  snapshots: LocatorSnapshot[],
+): Promise<void> {
   for (const replacement of replacements) {
     const count = await replacement.locator.count();
-    const elements: ElementSnapshot[] = [];
+    const locatorSnapshot: LocatorSnapshot = {
+      locator: replacement.locator,
+      count,
+      elements: [],
+    };
+    snapshots.push(locatorSnapshot);
 
     for (let index = 0; index < count; index += 1) {
       const locator = replacement.locator.nth(index);
@@ -85,6 +92,7 @@ async function applyReplacements(replacements: StableReplacement[]): Promise<Loc
           valueReplacement: replacement.value,
         },
       );
+      locatorSnapshot.elements.push(snapshot);
 
       if (replacement.attributes) {
         await locator.evaluate((element: MutableElement, attributes: Record<string, string>) => {
@@ -93,14 +101,8 @@ async function applyReplacements(replacements: StableReplacement[]): Promise<Loc
           }
         }, replacement.attributes);
       }
-
-      elements.push(snapshot);
     }
-
-    snapshots.push({locator: replacement.locator, count, elements});
   }
-
-  return snapshots;
 }
 
 async function restoreSnapshots(snapshots: LocatorSnapshot[]): Promise<void> {
@@ -112,7 +114,7 @@ async function restoreSnapshots(snapshots: LocatorSnapshot[]): Promise<void> {
       );
     }
 
-    for (let index = 0; index < snapshot.count; index += 1) {
+    for (let index = 0; index < snapshot.elements.length; index += 1) {
       await snapshot.locator
         .nth(index)
         .evaluate((element: MutableElement, previous: ElementSnapshot) => {
