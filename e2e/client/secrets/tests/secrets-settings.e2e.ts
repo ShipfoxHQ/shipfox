@@ -1,6 +1,3 @@
-import type {AuthHelper} from '@shipfox/e2e-helper-auth';
-import type {ProjectsHelper} from '@shipfox/e2e-helper-projects';
-import type {WorkspacesHelper} from '@shipfox/e2e-helper-workspaces';
 import type {Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
@@ -10,29 +7,6 @@ const SECRET_DELETE_KEY = 'E2E_SECRET_DELETE';
 const VARIABLE_CREATE_KEY = 'E2E_VARIABLE_CREATE';
 const VARIABLE_EDIT_KEY = 'E2E_VARIABLE_EDIT';
 const VARIABLE_DELETE_KEY = 'E2E_VARIABLE_DELETE';
-
-interface ReadyWorkspace {
-  userId: string;
-  workspaceId: string;
-}
-
-async function createReadyWorkspace(params: {
-  auth: AuthHelper;
-  page: Page;
-  projects: ProjectsHelper;
-  workspaces: WorkspacesHelper;
-  name: string;
-}): Promise<ReadyWorkspace> {
-  const user = await params.auth.createUser();
-  const workspace = await params.workspaces.create({
-    userId: user.user.id,
-    name: params.name,
-  });
-  await params.projects.createProject({workspaceId: workspace.id});
-  await params.auth.loginAs(params.page, user);
-
-  return {userId: user.user.id, workspaceId: workspace.id};
-}
 
 function secretsSection(page: Page) {
   return page.locator('section[aria-label="Secrets"]');
@@ -86,12 +60,8 @@ async function createVariableFromSettings(page: Page, key: string, value: string
   await expect(rowByKey(section, key)).toBeVisible();
 }
 
-test('creates a workspace secret from settings', async ({page, auth, projects, workspaces}) => {
+test('creates a workspace secret from settings', async ({page, createReadyWorkspace}) => {
   const {workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Secrets Create Workspace',
   });
   const value = 'secret-create-value-e2e';
@@ -105,18 +75,8 @@ test('creates a workspace secret from settings', async ({page, auth, projects, w
   await expect(secretsSection(page)).not.toContainText(value);
 });
 
-test('edits a workspace secret from settings', async ({
-  page,
-  auth,
-  projects,
-  workspaces,
-  secrets,
-}) => {
+test('edits a workspace secret from settings', async ({page, secrets, createReadyWorkspace}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Secrets Edit Workspace',
   });
   const oldValue = 'secret-edit-old-value-e2e';
@@ -145,18 +105,8 @@ test('edits a workspace secret from settings', async ({
   await expect(secretsSection(page)).not.toContainText(newValue);
 });
 
-test('deletes a workspace secret from settings', async ({
-  page,
-  auth,
-  projects,
-  workspaces,
-  secrets,
-}) => {
+test('deletes a workspace secret from settings', async ({page, secrets, createReadyWorkspace}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Secrets Delete Workspace',
   });
   await secrets.createSecret({
@@ -179,12 +129,8 @@ test('deletes a workspace secret from settings', async ({
   await expect(section.getByText('No secrets yet')).toBeVisible();
 });
 
-test('creates a workspace variable from settings', async ({page, auth, projects, workspaces}) => {
+test('creates a workspace variable from settings', async ({page, createReadyWorkspace}) => {
   const {workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Variables Create Workspace',
   });
   const value = 'debug';
@@ -197,18 +143,8 @@ test('creates a workspace variable from settings', async ({page, auth, projects,
   await expect(row.getByText(value, {exact: true})).toBeVisible();
 });
 
-test('edits a workspace variable from settings', async ({
-  page,
-  auth,
-  projects,
-  workspaces,
-  secrets,
-}) => {
+test('edits a workspace variable from settings', async ({page, secrets, createReadyWorkspace}) => {
   const {userId, workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Variables Edit Workspace',
   });
   const oldValue = 'info';
@@ -240,16 +176,10 @@ test('edits a workspace variable from settings', async ({
 
 test('deletes a workspace variable from settings', async ({
   page,
-  auth,
-  projects,
-  workspaces,
   secrets,
+  createReadyWorkspace,
 }) => {
   const {userId, workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Variables Delete Workspace',
   });
   await secrets.createVariable({

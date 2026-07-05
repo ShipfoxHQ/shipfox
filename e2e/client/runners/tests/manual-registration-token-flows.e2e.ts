@@ -1,7 +1,4 @@
-import type {AuthHelper} from '@shipfox/e2e-helper-auth';
-import type {ProjectsHelper} from '@shipfox/e2e-helper-projects';
 import {mintManualRegistrationToken, mintProvisionerToken} from '@shipfox/e2e-helper-runners';
-import type {WorkspacesHelper} from '@shipfox/e2e-helper-workspaces';
 import type {Page} from '@shipfox/playwright';
 import {argosScreenshot} from '@shipfox/playwright';
 import {createShipfoxTokenPrefixRegexes} from '@shipfox/regex';
@@ -16,30 +13,6 @@ const VISUAL_TEST_PROVISIONER_TOKEN_PREFIX = 'sf_pt_visual';
 const VISUAL_TEST_PROVISIONER_TOKEN = 'sf_pt_visual_regression_token';
 const VISUAL_TEST_CREATED_AT = 'Jan 15, 2026, 12:00 PM';
 const VISUAL_TEST_EXPIRES_AT = 'Jan 16, 2026, 12:00 PM';
-
-interface ReadyWorkspace {
-  userToken: string;
-  workspaceId: string;
-}
-
-async function createReadyWorkspace(params: {
-  auth: AuthHelper;
-  page: Page;
-  projects: ProjectsHelper;
-  workspaces: WorkspacesHelper;
-  name: string;
-}): Promise<ReadyWorkspace> {
-  const user = await params.auth.createUser();
-  const workspace = await params.workspaces.create({
-    userId: user.user.id,
-    name: params.name,
-  });
-  await params.projects.createProject({workspaceId: workspace.id});
-  const session = await params.auth.createSession({user_id: user.user.id});
-  await params.auth.loginAs(params.page, user);
-
-  return {userToken: session.token, workspaceId: workspace.id};
-}
 
 function manualTokensSection(page: Page) {
   return page.locator('section', {hasText: 'Runner registration tokens'});
@@ -101,18 +74,12 @@ async function normalizeProvisionerTokenRowForVisuals(
 
 test('creates a manual runner registration token from settings', async ({
   page,
-  auth,
-  projects,
-  workspaces,
+  createReadyWorkspace,
 }) => {
   test.setTimeout(60_000);
 
   await page.clock.setFixedTime(VISUAL_TEST_NOW);
   const {workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Manual Token Create Workspace',
   });
 
@@ -153,15 +120,9 @@ test('creates a manual runner registration token from settings', async ({
 
 test('revokes a manual runner registration token from settings', async ({
   page,
-  auth,
-  projects,
-  workspaces,
+  createReadyWorkspace,
 }) => {
-  const {userToken, workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
+  const {sessionToken: userToken, workspaceId} = await createReadyWorkspace({
     name: 'Manual Token Revoke Workspace',
   });
   await mintManualRegistrationToken({
@@ -199,18 +160,12 @@ test('revokes a manual runner registration token from settings', async ({
 
 test('creates a provisioner registration token from settings', async ({
   page,
-  auth,
-  projects,
-  workspaces,
+  createReadyWorkspace,
 }) => {
   test.setTimeout(60_000);
 
   await page.clock.setFixedTime(VISUAL_TEST_NOW);
   const {workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
     name: 'Provisioner Token Create Workspace',
   });
 
@@ -253,15 +208,9 @@ test('creates a provisioner registration token from settings', async ({
 
 test('revokes a provisioner registration token from settings', async ({
   page,
-  auth,
-  projects,
-  workspaces,
+  createReadyWorkspace,
 }) => {
-  const {userToken, workspaceId} = await createReadyWorkspace({
-    page,
-    auth,
-    projects,
-    workspaces,
+  const {sessionToken: userToken, workspaceId} = await createReadyWorkspace({
     name: 'Provisioner Token Revoke Workspace',
   });
   await mintProvisionerToken({
