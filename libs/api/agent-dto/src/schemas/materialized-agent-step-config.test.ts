@@ -31,9 +31,21 @@ describe('materializedAgentStepConfigSchema', () => {
     expect(parsed.provider).toBe('local-vllm');
   });
 
+  it('defaults a missing harness for stored materialized configs', () => {
+    const parsed = materializedAgentStepConfigSchema.parse({
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+      prompt: 'Fix the failing tests.',
+    });
+
+    expect(parsed.harness).toBe('pi');
+  });
+
   it('rejects missing fields and strips extra fields', () => {
     const missingField = () =>
       materializedAgentStepConfigSchema.parse({
+        harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
         prompt: 'Fix the failing tests.',

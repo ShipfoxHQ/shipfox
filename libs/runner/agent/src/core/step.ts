@@ -1,4 +1,4 @@
-import type {CustomModelProviderRuntimeConfigDto} from '@shipfox/api-agent-dto';
+import type {CustomModelProviderRuntimeConfigDto, Harness} from '@shipfox/api-agent-dto';
 import type {
   AgentConfigIssueDto,
   StepDto,
@@ -15,7 +15,7 @@ export function executeAgentStep(
     signal?: AbortSignal;
     cwd?: string;
     runtime: {
-      harness: string;
+      harness: Harness;
       provider: string;
       model: string;
       thinking: string;

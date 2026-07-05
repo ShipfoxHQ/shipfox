@@ -235,6 +235,7 @@ describe('api-client auth contexts', () => {
     });
 
     expect(runtimeConfig.credentials.api_key).toBe('sk-runtime');
+    expect(runtimeConfig.harness).toBe('pi');
     expect(calls[0]?.url).toContain('runs/jobs/current/agent-runtime-config');
     expect(calls[0]?.url).toContain(`step_id=${STEP_ID}`);
     expect(calls[0]?.url).toContain('attempt=2');

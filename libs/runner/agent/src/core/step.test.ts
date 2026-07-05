@@ -8,7 +8,7 @@ import type {AgentInvocation} from '#core/run-agent.js';
 import {executeAgentStep} from '#core/step.js';
 
 const RUNTIME = {
-  harness: 'pi',
+  harness: 'pi' as const,
   provider: 'anthropic',
   model: 'claude-opus-4-8',
   thinking: 'high',
