@@ -295,9 +295,9 @@ export async function collectE2eDiagnostics(logDir) {
     copySharedOllamaLog(logDir),
   ]);
 
-  const runnerLogs = 'e2e/platform/workflows/.e2e-run/runners';
+  const runnerLogs = 'e2e/suites/flow/workflows/.e2e-run/runners';
   try {
-    await cp(runnerLogs, join(logDir, 'platform-workflow-runners'), {
+    await cp(runnerLogs, join(logDir, 'flow-workflow-runners'), {
       recursive: true,
       force: true,
     });
@@ -322,12 +322,12 @@ export async function copySharedOllamaLog(logDir, env = process.env, cwd = proce
 }
 
 export async function copyPlaywrightTestResults(logDir) {
-  const packageGroupDirs = ['e2e/api', 'e2e/client', 'e2e/platform'];
+  const suiteLevelDirs = ['e2e/suites/api', 'e2e/suites/client', 'e2e/suites/flow'];
 
-  for (const packageGroupDir of packageGroupDirs) {
+  for (const suiteLevelDir of suiteLevelDirs) {
     let entries;
     try {
-      entries = await readdir(packageGroupDir, {withFileTypes: true});
+      entries = await readdir(suiteLevelDir, {withFileTypes: true});
     } catch (error) {
       if (error?.code === 'ENOENT') continue;
       throw error;
@@ -336,7 +336,7 @@ export async function copyPlaywrightTestResults(logDir) {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
-      const source = join(packageGroupDir, entry.name, 'test-results');
+      const source = join(suiteLevelDir, entry.name, 'test-results');
       if (!(await isDirectory(source))) continue;
 
       await cp(source, join(logDir, 'playwright-test-results', source), {
@@ -394,14 +394,14 @@ function usage() {
   printLine(`Usage: node dev/e2e.mjs run [options] [turbo args]
 
 Options:
-  --filter=<package>      Passed through to turbo, for example --filter=@shipfox/e2e-platform-workflows
+  --filter=<package>      Passed through to turbo, for example --filter=@shipfox/e2e-flow-workflows
   --keep-open             Leave API and client dev servers running after tests
   --log-dir=<path>        Directory for API/client logs and failure diagnostics
   --task=<task>           Turbo task to run (default: test:e2e)
   --timeout-ms=<ms>       Readiness timeout for API and client (default: 60000)
 
 Examples:
-  node dev/e2e.mjs run --filter=@shipfox/e2e-platform-workflows
+  node dev/e2e.mjs run --filter=@shipfox/e2e-flow-workflows
   mise run e2e -- --filter=@shipfox/e2e-client-auth
 `);
 }

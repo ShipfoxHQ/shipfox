@@ -24,9 +24,9 @@ describe('parseArgs', () => {
   });
 
   test('passes turbo filter arguments through', () => {
-    const options = parseArgs(['run', '--filter=@shipfox/e2e-platform-workflows']);
+    const options = parseArgs(['run', '--filter=@shipfox/e2e-flow-workflows']);
 
-    assert.deepEqual(options.turboArgs, ['--filter=@shipfox/e2e-platform-workflows']);
+    assert.deepEqual(options.turboArgs, ['--filter=@shipfox/e2e-flow-workflows']);
   });
 
   test('parses harness options before turbo args', () => {
@@ -188,23 +188,23 @@ describe('copyPlaywrightTestResults', () => {
     const logDir = join(workspaceDir, 'logs');
     try {
       process.chdir(workspaceDir);
-      await mkdir('e2e/api/auth/test-results/auth-flow', {recursive: true});
-      await mkdir('e2e/client/workspaces/test-results/workspace-flow', {recursive: true});
-      await mkdir('e2e/platform/workflows/test-results/scenario', {recursive: true});
-      await mkdir('e2e/helpers/auth/test-results/helper-flow', {recursive: true});
-      await writeFile('e2e/api/auth/test-results/auth-flow/trace.zip', 'api trace');
+      await mkdir('e2e/suites/api/auth/test-results/auth-flow', {recursive: true});
+      await mkdir('e2e/suites/client/workspaces/test-results/workspace-flow', {recursive: true});
+      await mkdir('e2e/suites/flow/workflows/test-results/scenario', {recursive: true});
+      await mkdir('e2e/setup/auth/test-results/helper-flow', {recursive: true});
+      await writeFile('e2e/suites/api/auth/test-results/auth-flow/trace.zip', 'api trace');
       await writeFile(
-        'e2e/client/workspaces/test-results/workspace-flow/trace.zip',
+        'e2e/suites/client/workspaces/test-results/workspace-flow/trace.zip',
         'client trace',
       );
-      await writeFile('e2e/platform/workflows/test-results/scenario/trace.zip', 'platform trace');
-      await writeFile('e2e/helpers/auth/test-results/helper-flow/trace.zip', 'helper trace');
+      await writeFile('e2e/suites/flow/workflows/test-results/scenario/trace.zip', 'flow trace');
+      await writeFile('e2e/setup/auth/test-results/helper-flow/trace.zip', 'helper trace');
 
       await copyPlaywrightTestResults(logDir);
 
       assert.equal(
         await readFile(
-          join(logDir, 'playwright-test-results/e2e/api/auth/test-results/auth-flow/trace.zip'),
+          join(logDir, 'playwright-test-results/e2e/suites/api/auth/test-results/auth-flow/trace.zip'),
           'utf8',
         ),
         'api trace',
@@ -213,7 +213,7 @@ describe('copyPlaywrightTestResults', () => {
         await readFile(
           join(
             logDir,
-            'playwright-test-results/e2e/client/workspaces/test-results/workspace-flow/trace.zip',
+            'playwright-test-results/e2e/suites/client/workspaces/test-results/workspace-flow/trace.zip',
           ),
           'utf8',
         ),
@@ -223,17 +223,17 @@ describe('copyPlaywrightTestResults', () => {
         await readFile(
           join(
             logDir,
-            'playwright-test-results/e2e/platform/workflows/test-results/scenario/trace.zip',
+            'playwright-test-results/e2e/suites/flow/workflows/test-results/scenario/trace.zip',
           ),
           'utf8',
         ),
-        'platform trace',
+        'flow trace',
       );
       await assert.rejects(
         readFile(
           join(
             logDir,
-            'playwright-test-results/e2e/helpers/auth/test-results/helper-flow/trace.zip',
+            'playwright-test-results/e2e/setup/auth/test-results/helper-flow/trace.zip',
           ),
           'utf8',
         ),

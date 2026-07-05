@@ -1,6 +1,6 @@
-import {type AuthFixtures, authHelper} from '@shipfox/e2e-helper-auth';
-import {type ProjectsFixtures, projectsHelper} from '@shipfox/e2e-helper-projects';
-import {type WorkspacesFixtures, workspacesHelper} from '@shipfox/e2e-helper-workspaces';
+import {type AuthFixtures, authHelper} from '@shipfox/e2e-setup-auth';
+import {type ProjectsFixtures, projectsHelper} from '@shipfox/e2e-setup-projects';
+import {type WorkspacesFixtures, workspacesHelper} from '@shipfox/e2e-setup-workspaces';
 import {type ReadyWorkspaceFixtures, readyWorkspaceFixtures} from './ready-workspace.js';
 
 export type AuthWorkspaceFixtures = AuthFixtures & WorkspacesFixtures;

@@ -371,7 +371,7 @@ than driving interactions in `play`.
 
 ### Add a new client-page snapshot
 
-In an `e2e/client/<feature>` spec:
+In an `e2e/suites/client/<feature>` spec:
 
 ```ts
 import {argosScreenshot} from '@shipfox/playwright';
@@ -396,7 +396,7 @@ Conventions:
   titles, and other rendered text should use fixed values so Argos only reports
   meaningful UI drift.
 
-New `e2e/client/*` packages register their own Argos reporter in their
+New `e2e/suites/client/*` packages register their own Argos reporter in their
 `playwright.config.ts` with a `buildName` that matches the package name without
 the `@shipfox/` scope (e.g. `@shipfox/e2e-client-auth` →
 `'e2e-client-auth'`, `@shipfox/e2e-client-projects` →

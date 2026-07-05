@@ -157,16 +157,16 @@ signup's `name`) don't leak into a `{email, password}` draft.
 ### E2E setup
 
 E2E setup must stay HTTP-first. Add module-owned setup routes under
-`/__e2e/<module>` and wrap them in `@shipfox/e2e-helper-*` helpers; do not create
+`/__e2e/<module>` and wrap them in `@shipfox/e2e-setup-*` helpers; do not create
 E2E data through direct database access.
 
 Each E2E package must also declare an explicit workspace dependency on the package
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
 
-### Running the platform workflow E2E suite
+### Running the flow workflow E2E suite
 
-`@shipfox/e2e-platform-workflows` (`e2e/platform/workflows`) is the full-loop suite:
+`@shipfox/e2e-flow-workflows` (`e2e/suites/flow/workflows`) is the full-loop suite:
 each scenario pushes a real `workflow.yml` to a gitea repo and asserts on the public
 run and log APIs after it flows through the org webhook, definition sync, trigger
 dispatch, Temporal, a local source runner, and step execution. Each Playwright test
@@ -177,7 +177,7 @@ without building a runner image.
 The pure `expect.yaml` evaluator has Vitest node tests that need no infrastructure:
 
 ```sh
-turbo test --filter=@shipfox/e2e-platform-workflows
+turbo test --filter=@shipfox/e2e-flow-workflows
 ```
 
 The full loop needs the Docker services, then the repo E2E harness:
@@ -187,17 +187,17 @@ The full loop needs the Docker services, then the repo E2E harness:
 docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
 # 2. Start the API/client dev servers and run the suite.
-mise run e2e -- --filter=@shipfox/e2e-platform-workflows
+mise run e2e -- --filter=@shipfox/e2e-flow-workflows
 ```
 
 The `e2e` mise task reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS provider
 enabled, waits for both to become ready, then runs `turbo test:e2e`. Local runner
 logs are written under
-`e2e/platform/workflows/.e2e-run/runners/` and attached to failed scenario results. A
+`e2e/suites/flow/workflows/.e2e-run/runners/` and attached to failed scenario results. A
 green run deletes its gitea org; a failing run keeps it and attaches the run detail,
 the expectation diff, fetched step logs, and runner log under `test-results/`. See
-`e2e/platform/workflows/README.md` for the full runbook.
+`e2e/suites/flow/workflows/README.md` for the full runbook.
 
 ### Configuration
 
@@ -719,7 +719,7 @@ Argos catches UI drift on every PR via one named build per source package. The
 - `react-ui`: `@shipfox/react-ui` stories captured in **light + dark** by `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin`. Capture is part of `turbo test` for `@shipfox/react-ui`. It is the theming source of truth, so it is the only build that snapshots every story in both themes.
 - `client-workflows`: `@shipfox/client-workflows` stories, captured the same way under `turbo test` for that package. Story-based capture isn't limited to `react-ui`: any client package with stories can register its own `argosVitestPlugin` build named after the package. Feature (`client-*`) builds capture the primary **dark** theme only; keep their `parameters.argos.modes` to `dark` since `react-ui` already proves theme correctness.
 - `client-auth`: `@shipfox/client-auth` Storybook stories, captured the same way under `turbo test` for that package. Today this covers workspace switcher states in dark without full workspace E2E setup.
-- `e2e-client-<module>` (today: `e2e-client-auth`): explicit `argosScreenshot(page, '<surface>/<state>')` calls in the matching `e2e/client/<module>/*` Playwright specs. Each E2E package sets its own `buildName` matching the package name without the `@shipfox/` scope so PR checks stay scoped per surface. Place the call **after** the assertions that prove the page reached the expected state; the helper waits for fonts and layout, not for content you have not asserted on.
+- `e2e-client-<module>` (today: `e2e-client-auth`): explicit `argosScreenshot(page, '<surface>/<state>')` calls in the matching `e2e/suites/client/<module>/*` Playwright specs. Each E2E package sets its own `buildName` matching the package name without the `@shipfox/` scope so PR checks stay scoped per surface. Place the call **after** the assertions that prove the page reached the expected state; the helper waits for fonts and layout, not for content you have not asserted on.
 
 A surface with both Storybook and E2E visual coverage gets two standalone builds
 in the same Argos project, one for the client package and one for the E2E
