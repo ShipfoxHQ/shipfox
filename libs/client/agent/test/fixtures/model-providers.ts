@@ -84,6 +84,7 @@ export function modelProviderConfigsResponse(
 ): ListModelProviderConfigsResponseDto {
   return {
     configs: [modelProviderConfig()],
+    default_harness_id: null,
     default_provider_id: 'anthropic',
     ...overrides,
   };
