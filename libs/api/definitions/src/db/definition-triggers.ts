@@ -10,6 +10,8 @@ export function definitionTriggersFor(document: WorkflowDocument): Record<string
       };
       if (trigger.with !== undefined) dto.with = trigger.with;
       if (trigger.filter !== undefined) dto.filter = trigger.filter;
+      if (trigger.schedule !== undefined) dto.schedule = trigger.schedule;
+      if (trigger.timezone !== undefined) dto.timezone = trigger.timezone;
       return [name, dto];
     }),
   );

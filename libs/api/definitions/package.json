@@ -37,8 +37,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
+    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-projects": "workspace:*",
@@ -58,6 +58,7 @@
     "@temporalio/activity": "^1.16.1",
     "@temporalio/common": "^1.16.1",
     "@temporalio/workflow": "^1.16.1",
+    "cron-parser": "^5.6.1",
     "drizzle-orm": "^0.45.2",
     "js-yaml": "^4.1.0",
     "yaml": "^2.8.3",

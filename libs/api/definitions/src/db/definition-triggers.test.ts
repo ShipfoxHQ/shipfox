@@ -59,6 +59,36 @@ describe('definitionTriggersFor', () => {
     });
   });
 
+  it('projects cron schedule and timezone to the public outbox trigger DTO shape', () => {
+    const document: WorkflowDocument = {
+      name: 'Nightly',
+      triggers: {
+        nightly: {
+          source: 'cron',
+          event: 'tick',
+          schedule: '0 2 * * *',
+          timezone: 'Europe/Paris',
+        },
+      },
+      jobs: {
+        run: {
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const result = definitionTriggersFor(document);
+
+    expect(result).toEqual({
+      nightly: {
+        source: 'cron',
+        event: 'tick',
+        schedule: '0 2 * * *',
+        timezone: 'Europe/Paris',
+      },
+    });
+  });
+
   it('returns an empty object when the document has no triggers', () => {
     const document: WorkflowDocument = {
       name: 'No triggers',

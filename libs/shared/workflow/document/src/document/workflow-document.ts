@@ -42,34 +42,67 @@ const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1),
   with: z.record(z.string(), z.unknown()).optional(),
   filter: z.string().min(1).optional(),
+  schedule: z.string().min(1).optional(),
+  timezone: z.string().min(1).optional(),
 } satisfies z.ZodRawShape;
+const topLevelCronTriggerFields = ['schedule', 'timezone'] as const;
 
-export const workflowDocumentTriggerSchema = z.strictObject({
-  ...workflowDocumentTriggerBaseSchema,
-  event: z.string().min(1),
-});
+export const workflowDocumentTriggerSchema = z
+  .strictObject({
+    ...workflowDocumentTriggerBaseSchema,
+    event: z.string().min(1),
+  })
+  .superRefine((trigger, ctx) => {
+    if (trigger.source === 'cron') return;
 
-const workflowDocumentListeningSchema = z.strictObject({
-  on: z.array(workflowDocumentTriggerSchema).min(1),
-  until: z.array(workflowDocumentTriggerSchema).min(1).optional(),
-  timeout: z.string().min(1).optional(),
-  max_executions: z.number().int().positive().optional(),
-  batch: z
-    .strictObject({
-      debounce: z.string().min(1).optional(),
-      max_size: z.number().int().positive().optional(),
-      max_wait: z.string().min(1).optional(),
-    })
-    .refine(
-      (value) =>
-        value.debounce !== undefined ||
-        value.max_size !== undefined ||
-        value.max_wait !== undefined,
-      {message: 'Expected debounce, max_size, or max_wait'},
-    )
-    .optional(),
-  on_resolve: z.enum(['finish', 'cancel']).optional(),
-});
+    for (const field of topLevelCronTriggerFields) {
+      if (trigger[field] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `\`${field}\` is only allowed on a cron trigger (source: cron).`,
+        });
+      }
+    }
+  });
+
+const workflowDocumentListeningSchema = z
+  .strictObject({
+    on: z.array(workflowDocumentTriggerSchema).min(1),
+    until: z.array(workflowDocumentTriggerSchema).min(1).optional(),
+    timeout: z.string().min(1).optional(),
+    max_executions: z.number().int().positive().optional(),
+    batch: z
+      .strictObject({
+        debounce: z.string().min(1).optional(),
+        max_size: z.number().int().positive().optional(),
+        max_wait: z.string().min(1).optional(),
+      })
+      .refine(
+        (value) =>
+          value.debounce !== undefined ||
+          value.max_size !== undefined ||
+          value.max_wait !== undefined,
+        {message: 'Expected debounce, max_size, or max_wait'},
+      )
+      .optional(),
+    on_resolve: z.enum(['finish', 'cancel']).optional(),
+  })
+  .superRefine((listening, ctx) => {
+    for (const field of ['on', 'until'] as const) {
+      for (const [index, trigger] of (listening[field] ?? []).entries()) {
+        for (const triggerField of topLevelCronTriggerFields) {
+          if (trigger.source === 'cron' && trigger[triggerField] !== undefined) {
+            ctx.addIssue({
+              code: 'custom',
+              path: [field, index, triggerField],
+              message: `\`${triggerField}\` is only supported on top-level cron triggers.`,
+            });
+          }
+        }
+      }
+    }
+  });
 
 const workflowDocumentStepGateSchema = z
   .strictObject({
