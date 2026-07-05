@@ -295,17 +295,17 @@ describe('buildStepListModel', () => {
     ]);
   });
 
-  test('shows restart reason from the typed top-level attempt field', () => {
+  test('shows restart feedback from the typed top-level attempt field', () => {
     const step = makeStep({
       attempts: [
         makeAttempt({attempt: 1}),
-        makeAttempt({attempt: 2, restart_reason: 'gate-opened'}),
+        makeAttempt({attempt: 2, restart_feedback: 'gate-opened'}),
       ],
     });
 
     const result = buildStepListModel({job: makeJob({steps: [step]})});
 
-    expect(result.entries[1]).toMatchObject({restartReason: 'gate-opened'});
+    expect(result.entries[1]).toMatchObject({restartFeedback: 'gate-opened'});
   });
 
   test('exposes typed step error metadata without parsing opaque attempt blobs', () => {

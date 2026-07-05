@@ -432,8 +432,7 @@ jobs:
       status: 'succeeded',
       exit_code: 0,
       gate_result: {kind: 'none'},
-      restart_reason: null,
-      restart_result: null,
+      restart_feedback: null,
     });
     // A never-dispatched step has no attempt history yet.
     expect(step1.current_attempt).toBe(1);
@@ -505,8 +504,7 @@ jobs:
       status: string;
       exit_code: number | null;
       gate_result: unknown;
-      restart_reason: string | null;
-      restart_result: unknown;
+      restart_feedback: string | null;
     }>;
     expect(reviewerAttempts.map((a) => a.attempt)).toEqual([1, 2]); // ordered by attempt
     expect(reviewerAttempts[0]?.status).toBe('failed');
@@ -517,11 +515,7 @@ jobs:
       source: 'step.exit_code == 0',
       exit_code: 1,
     });
-    expect(reviewerAttempts[0]?.restart_reason).toBe('gate condition not met');
-    expect(reviewerAttempts[0]?.restart_result).toEqual({
-      kind: 'restart_enqueued',
-      reason: 'gate condition not met',
-    });
+    expect(reviewerAttempts[0]?.restart_feedback).toBe('gate condition not met');
     expect(reviewerAttempts[1]?.status).toBe('succeeded');
     expect(reviewerAttempts[1]?.exit_code).toBe(0);
     expect(reviewerAttempts[1]?.gate_result).toEqual({
@@ -530,6 +524,6 @@ jobs:
       source: 'step.exit_code == 0',
       exit_code: 0,
     });
-    expect(reviewerAttempts[1]?.restart_result).toBeNull();
+    expect(reviewerAttempts[1]?.restart_feedback).toBeNull();
   });
 });

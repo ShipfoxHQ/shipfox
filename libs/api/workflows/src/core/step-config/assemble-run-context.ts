@@ -111,6 +111,9 @@ export function assembleStepDispatchContext(params: {
   readonly targetStepId: string;
   readonly jobExecution?: JobExecution;
 }): WorkflowEvaluationContext {
+  const stepsByKey = new Map(
+    params.steps.flatMap((step) => (step.key === null ? [] : [[step.key, step] as const])),
+  );
   const terminalAttemptsByStepId = new Map<string, StepAttempt[]>();
   const orderedAttempts = [...params.attempts].sort(
     (left, right) => left.executionOrder - right.executionOrder,
@@ -137,6 +140,15 @@ export function assembleStepDispatchContext(params: {
   }
 
   const targetStep = params.steps.find((step) => step.id === params.targetStepId);
+  const restart =
+    targetStep === undefined || targetStep.currentAttempt <= 1
+      ? undefined
+      : restartProvenance({
+          targetStep,
+          orderedAttempts,
+          stepsByKey,
+          terminalAttemptsByStepId,
+        });
 
   return {
     site: 'step-dispatch',
@@ -159,11 +171,50 @@ export function assembleStepDispatchContext(params: {
             step: {
               attempt: BigInt(targetStep.currentAttempt),
               is_retry: targetStep.currentAttempt > 1,
+              ...(restart === undefined ? {} : {restart}),
             },
           }),
       steps: stepsContext,
     },
   };
+}
+
+function restartProvenance(params: {
+  readonly targetStep: Step;
+  readonly orderedAttempts: readonly StepAttempt[];
+  readonly stepsByKey: ReadonlyMap<string, Step>;
+  readonly terminalAttemptsByStepId: ReadonlyMap<string, readonly StepAttempt[]>;
+}): Record<string, unknown> | undefined {
+  for (const attempt of [...params.orderedAttempts].reverse()) {
+    if (attempt.status !== 'failed' || attempt.restartFeedback === null) continue;
+    const restartFromKey = restartFromStepKey(attempt);
+    if (restartFromKey === undefined) continue;
+
+    const restartFromStep = params.stepsByKey.get(restartFromKey);
+    if (restartFromStep === undefined || restartFromStep.position > params.targetStep.position) {
+      continue;
+    }
+
+    const gatingAttempts = params.terminalAttemptsByStepId.get(attempt.stepId) ?? [];
+    return {
+      from: {
+        ...attemptFields(attempt),
+        attempts: gatingAttempts.map(attemptFields),
+      },
+      feedback: attempt.restartFeedback,
+    };
+  }
+
+  return undefined;
+}
+
+function restartFromStepKey(attempt: StepAttempt): string | undefined {
+  const gate = attempt.config?.gate;
+  if (gate === null || typeof gate !== 'object') return undefined;
+  const onFailure = (gate as Record<string, unknown>).on_failure;
+  if (onFailure === null || typeof onFailure !== 'object') return undefined;
+  const restartFrom = (onFailure as Record<string, unknown>).restart_from;
+  return typeof restartFrom === 'string' ? restartFrom : undefined;
 }
 
 function attemptFields(attempt: StepAttempt): Record<string, unknown> {
@@ -183,14 +234,14 @@ function latestAttemptFields(attempt: StepAttempt): Record<string, unknown> {
 
 export function assembleGateContext(params: {
   readonly status: StepStatus;
-  readonly exitCode: number;
+  readonly exitCode: number | null;
   readonly output?: Record<string, unknown> | null | undefined;
 }): WorkflowEvaluationContext {
   return {
     site: 'step-report',
     values: {
       step: {
-        exit_code: BigInt(params.exitCode),
+        ...(params.exitCode === null ? {} : {exit_code: BigInt(params.exitCode)}),
         status: params.status,
         outputs: params.output ?? {},
       },

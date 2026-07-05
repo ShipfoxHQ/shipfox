@@ -12,7 +12,6 @@ export type {
   StepErrorCategory,
   StepErrorReason,
   StepGateResult,
-  StepRestartResult,
   StepSourceLocation,
   WorkflowRun,
   WorkflowRunAttempt,

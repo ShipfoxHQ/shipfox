@@ -760,8 +760,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "restart_reason": {
-          "name": "restart_reason",
+        "restart_feedback": {
+          "name": "restart_feedback",
           "type": "text",
           "primaryKey": false,
           "notNull": false

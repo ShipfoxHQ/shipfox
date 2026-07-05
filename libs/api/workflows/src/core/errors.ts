@@ -35,7 +35,8 @@ export type InterpolationUnresolvableField =
   | 'agent.provider'
   | 'job.runner'
   | 'job.name'
-  | 'step.name';
+  | 'step.name'
+  | 'step.feedback';
 
 export class InterpolationUnresolvableError extends Error {
   readonly field: InterpolationUnresolvableField;

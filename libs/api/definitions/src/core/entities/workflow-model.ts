@@ -132,6 +132,7 @@ export interface WorkflowModelStepGate {
 export interface WorkflowModelStepFailureAction {
   readonly restartFrom: string;
   readonly feedback?: string;
+  readonly feedbackTemplate?: WorkflowFieldTemplate;
 }
 
 export interface WorkflowModelDependency {

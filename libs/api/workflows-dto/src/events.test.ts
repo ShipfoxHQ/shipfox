@@ -89,7 +89,7 @@ const validStepRestartEnqueued = {
   failedStepId: 'step-1',
   failedStepAttempt: 2,
   restartFromStepId: 'step-0',
-  reason: 'gate failed',
+  feedback: 'gate failed',
 };
 
 const validStepAttemptTerminated = {

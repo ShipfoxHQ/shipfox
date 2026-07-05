@@ -1,5 +1,10 @@
-import {evaluatePlannedPredicateAtSite, type WorkflowExpression} from '@shipfox/expression';
+import {
+  evaluatePlannedPredicateAtSite,
+  type ResolvedField,
+  type WorkflowExpression,
+} from '@shipfox/expression';
 import {assembleGateContext} from '../step-config/assemble-run-context.js';
+import {completeStepField} from '../step-config/fields.js';
 import type {GateOutcome, StepResult} from './decide-step-transition.js';
 
 // The exact `uncheckable` reason recorded when the gate's CEL expression itself
@@ -11,7 +16,7 @@ export const GATE_EVALUATION_ERROR_REASON = 'gate expression evaluation failed';
 // The gate as parsed from a step's materialized `config.gate` (snake_case JSON).
 export interface StepGate {
   success?: WorkflowExpression;
-  onFailure?: {restartFrom: string; feedback?: string};
+  onFailure?: {restartFrom: string; feedback?: string; feedbackTemplate?: ResolvedField};
 }
 
 // Read the gate persisted on a step's config by the materializer. Returns
@@ -30,11 +35,20 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
       : undefined;
 
   const onFailureRaw = raw.on_failure as Record<string, unknown> | undefined;
+  const feedbackTemplateRaw = onFailureRaw?.feedback_template as
+    | Record<string, unknown>
+    | undefined;
+  const feedbackTemplate =
+    Array.isArray(feedbackTemplateRaw?.segments) &&
+    feedbackTemplateRaw.segments.every((segment) => typeof segment === 'object' && segment !== null)
+      ? (feedbackTemplateRaw as unknown as ResolvedField)
+      : undefined;
   const onFailure =
     onFailureRaw && typeof onFailureRaw.restart_from === 'string'
       ? {
           restartFrom: onFailureRaw.restart_from,
           ...(typeof onFailureRaw.feedback === 'string' ? {feedback: onFailureRaw.feedback} : {}),
+          ...(feedbackTemplate === undefined ? {} : {feedbackTemplate}),
         }
       : undefined;
 
@@ -76,6 +90,30 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
     return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON};
   }
   return outcome.value ? {kind: 'passed', source} : {kind: 'failed', source};
+}
+
+export function evaluateGateFeedback(params: {
+  readonly gate: StepGate;
+  readonly result: StepResult;
+  readonly definitionId: string;
+}): string {
+  const feedbackTemplate = params.gate.onFailure?.feedbackTemplate;
+  if (feedbackTemplate === undefined) {
+    return params.gate.onFailure?.feedback ?? 'gate condition not met';
+  }
+
+  const context = assembleGateContext({
+    status: params.result.status,
+    exitCode: params.result.exitCode ?? null,
+    output: params.result.output,
+  });
+  return completeStepField({
+    field: 'step.feedback',
+    errorField: 'step.feedback',
+    template: feedbackTemplate,
+    context,
+    definitionId: params.definitionId,
+  });
 }
 
 // Build the audit payload recorded on the step attempt for a gate evaluation.

@@ -60,7 +60,7 @@ export interface StepAttempt {
   error: Record<string, unknown> | null;
   exitCode: number | null;
   gateResult: Record<string, unknown> | null;
-  restartReason: string | null;
+  restartFeedback: string | null;
   logOutcome: StepAttemptLogOutcome | null;
   startedAt: Date;
   finishedAt: Date | null;

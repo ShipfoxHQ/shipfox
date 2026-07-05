@@ -34,7 +34,6 @@ export {toStep} from './entities/step.js';
 export type {
   StepAttemptDisplayDuration,
   StepGateResult,
-  StepRestartResult,
 } from './entities/step-attempt.js';
 export {StepAttempt, toStepAttempt} from './entities/step-attempt.js';
 export type {

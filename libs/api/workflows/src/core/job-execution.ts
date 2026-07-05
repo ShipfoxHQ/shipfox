@@ -40,7 +40,12 @@ import {
   deriveCompletion,
   isTerminal,
 } from './step-transition/decide-step-transition.js';
-import {evaluateGate, gateResultPayload, readStepGate} from './step-transition/evaluate-gate.js';
+import {
+  evaluateGate,
+  evaluateGateFeedback,
+  gateResultPayload,
+  readStepGate,
+} from './step-transition/evaluate-gate.js';
 import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
@@ -322,6 +327,30 @@ async function recordStepResultInTransaction(
   const gatingAttemptCount = hasRestartPolicy
     ? await countStepAttempts(params.stepId, tx)
     : undefined;
+  const restartFeedback = resolveRestartFeedback({
+    gate,
+    gateOutcome,
+    result,
+    definitionId: jobExecution.jobId,
+  });
+  if (restartFeedback.kind === 'failed') {
+    return applyStepTransition(
+      {
+        kind: 'fail-job',
+        failedStepId: target.id,
+        attempt: reported,
+        failureError: dispatchConfigError(restartFeedback.error),
+      },
+      {
+        jobId: jobExecution.jobId,
+        jobExecutionId,
+        result,
+        logOutcome: params.logOutcome ?? 'drained',
+        gateResult: gateResultPayload(gateOutcome, result.exitCode),
+      },
+      tx,
+    );
+  }
   const decision = decideStepTransition({
     steps,
     target,
@@ -329,6 +358,7 @@ async function recordStepResultInTransaction(
     result,
     gateOutcome,
     ...(gate?.onFailure ? {gateOnFailure: gate.onFailure} : {}),
+    ...(restartFeedback.value === undefined ? {} : {restartFeedback: restartFeedback.value}),
     ...(gatingAttemptCount !== undefined ? {gatingAttemptCount} : {}),
   });
 
@@ -343,6 +373,40 @@ async function recordStepResultInTransaction(
     },
     tx,
   );
+}
+
+function resolveRestartFeedback(params: {
+  gate: ReturnType<typeof readStepGate>;
+  gateOutcome: ReturnType<typeof evaluateGate>;
+  result: {
+    status: 'succeeded' | 'failed';
+    error: Record<string, unknown> | null;
+    output: Record<string, unknown> | null;
+    exitCode: number | null;
+  };
+  definitionId: string;
+}): {kind: 'resolved'; value?: string} | {kind: 'failed'; error: InterpolationUnresolvableError} {
+  if (params.gate?.onFailure === undefined) return {kind: 'resolved'};
+  const gatePassed =
+    params.gateOutcome.kind === 'no-gate'
+      ? params.result.status === 'succeeded'
+      : params.gateOutcome.kind === 'passed';
+  const gateUncheckable = params.gateOutcome.kind === 'uncheckable';
+  if (gatePassed || gateUncheckable) return {kind: 'resolved'};
+
+  try {
+    return {
+      kind: 'resolved',
+      value: evaluateGateFeedback({
+        gate: params.gate,
+        result: params.result,
+        definitionId: params.definitionId,
+      }),
+    };
+  } catch (error) {
+    if (error instanceof InterpolationUnresolvableError) return {kind: 'failed', error};
+    throw error;
+  }
 }
 
 function recordStepProgressionMetrics(metrics: StepProgressionMetrics): void {

@@ -365,7 +365,12 @@ describe('StepList', () => {
               error: {message: 'Gate failed', category: 'user', reason: 'agent_invocation_failed'},
               attempts: [
                 makeAttempt({attempt: 1, status: 'failed', exit_code: 1}),
-                makeAttempt({attempt: 2, status: 'failed', exit_code: 2, restart_reason: 'retry'}),
+                makeAttempt({
+                  attempt: 2,
+                  status: 'failed',
+                  exit_code: 2,
+                  restart_feedback: 'retry',
+                }),
               ],
             }),
           ],

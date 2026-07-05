@@ -2,6 +2,7 @@ import type {WorkflowExpression} from '@shipfox/expression';
 import type {WorkflowDocumentStep} from '@shipfox/workflow-document';
 import type {WorkflowModelStepGate} from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
+import {parseInterpolationField} from './parse-interpolation-field.js';
 import {validatePredicateExpression} from './validate-predicate-expression.js';
 import {issue} from './validation-issue.js';
 
@@ -22,12 +23,23 @@ export function normalizeStepGate(params: {
     stepIndex: params.stepIndex,
     issues: params.issues,
   });
+  const feedbackTemplate =
+    gate.on_failure?.feedback === undefined
+      ? undefined
+      : parseInterpolationField({
+          field: 'step.feedback',
+          source: gate.on_failure.feedback,
+          path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'gate', 'on_failure'],
+          issues: params.issues,
+          fillSite: 'step-report',
+        });
   const onFailure =
     gate.on_failure === undefined
       ? undefined
       : {
           restartFrom: gate.on_failure.restart_from,
           ...(gate.on_failure.feedback === undefined ? {} : {feedback: gate.on_failure.feedback}),
+          ...(feedbackTemplate === undefined ? {} : {feedbackTemplate}),
         };
 
   if (gate.on_failure !== undefined && !params.previousStepKeys.has(gate.on_failure.restart_from)) {

@@ -155,8 +155,7 @@ describe('workflow run model mapping', () => {
       output: {tail: 'stderr'},
       error: {exitCode: 1},
       gate_result: {kind: 'failed', passed: false, source: 'script', exit_code: 1},
-      restart_reason: 'retry',
-      restart_result: {kind: 'restart_enqueued', reason: 'retry'},
+      restart_feedback: 'retry',
       started_at: '2026-05-07T01:01:10.000Z',
       finished_at: '2026-05-07T01:01:20.000Z',
     });
@@ -264,8 +263,7 @@ describe('workflow run model mapping', () => {
       output: {tail: 'stderr'},
       error: {exitCode: 1},
       gateResult: {kind: 'failed', passed: false, source: 'script', exit_code: 1},
-      restartReason: 'retry',
-      restartResult: {kind: 'restart_enqueued', reason: 'retry'},
+      restartFeedback: 'retry',
       startedAt: '2026-05-07T01:01:10.000Z',
       finishedAt: '2026-05-07T01:01:20.000Z',
     });
@@ -462,8 +460,7 @@ describe('workflow run model mapping', () => {
       output: null,
       error: null,
       gate_result: null,
-      restart_reason: null,
-      restart_result: null,
+      restart_feedback: null,
       finished_at: null,
     });
     const step = workflowStepDto({
@@ -496,8 +493,7 @@ describe('workflow run model mapping', () => {
       output: null,
       error: null,
       gateResult: null,
-      restartReason: null,
-      restartResult: null,
+      restartFeedback: null,
       finishedAt: null,
     });
   });

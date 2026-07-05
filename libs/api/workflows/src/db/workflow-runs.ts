@@ -2384,7 +2384,7 @@ export interface FinishStepAttemptParams {
   exitCode?: number | null;
   logOutcome: LogOutcomeDto;
   gateResult?: Record<string, unknown> | null;
-  restartReason?: string | null;
+  restartFeedback?: string | null;
 }
 
 // Finalize the running attempt to a terminal state. The `status='running'` guard
@@ -2400,7 +2400,7 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
       exitCode: params.exitCode ?? null,
       logOutcome: params.logOutcome,
       gateResult: params.gateResult ?? null,
-      restartReason: params.restartReason ?? null,
+      restartFeedback: params.restartFeedback ?? null,
       finishedAt: new Date(),
     })
     .where(
@@ -2521,7 +2521,7 @@ export async function writeStepRestartEnqueuedOutbox(
     failedStepId: string;
     failedStepAttempt: number;
     restartFromStepId: string;
-    reason: string;
+    feedback: string;
   },
 ): Promise<void> {
   const rows = await tx
@@ -2548,7 +2548,7 @@ export async function writeStepRestartEnqueuedOutbox(
       failedStepId: params.failedStepId,
       failedStepAttempt: params.failedStepAttempt,
       restartFromStepId: params.restartFromStepId,
-      reason: params.reason,
+      feedback: params.feedback,
     },
   });
 }

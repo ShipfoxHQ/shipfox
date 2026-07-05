@@ -773,6 +773,10 @@ describe('normalizeWorkflowDocument', () => {
         onFailure: {
           restartFrom: 'producer',
           feedback: reviewFeedback,
+          feedbackTemplate: [
+            {kind: 'literal', value: 'Agent rejected the PR '},
+            expect.objectContaining({kind: 'deferred'}),
+          ],
         },
       },
     });

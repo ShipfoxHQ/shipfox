@@ -146,6 +146,7 @@ function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<st
   const hasSuccess = gate.success !== undefined;
   const hasOnFailure = gate.onFailure !== undefined;
   const hasOnFailureFeedback = gate.onFailure?.feedback !== undefined;
+  const hasOnFailureFeedbackTemplate = gate.onFailure?.feedbackTemplate !== undefined;
 
   return {
     ...(hasSuccess
@@ -162,6 +163,9 @@ function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<st
           on_failure: {
             restart_from: gate.onFailure.restartFrom,
             ...(hasOnFailureFeedback ? {feedback: gate.onFailure.feedback} : {}),
+            ...(hasOnFailureFeedbackTemplate
+              ? {feedback_template: {segments: gate.onFailure.feedbackTemplate}}
+              : {}),
           },
         }
       : {}),

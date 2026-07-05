@@ -5,7 +5,6 @@ import {
   type StepErrorCategoryDto,
   type StepErrorDto,
   type StepGateResultDto,
-  type StepRestartResultDto,
   stepErrorReasonSchema,
 } from '@shipfox/api-workflows-dto';
 import type {Step, StepAttempt} from '#core/entities/step.js';
@@ -98,30 +97,6 @@ function toStepGateResultDto(
   return {kind: 'unknown', data: gateResult};
 }
 
-function toStepRestartResultDto(
-  restartReason: string | null,
-  error: Record<string, unknown> | null,
-): StepRestartResultDto {
-  const maxAttempts = error?.maxAttempts ?? error?.max_attempts;
-  const restartFrom = error?.restartFrom ?? error?.restart_from;
-  if (
-    error?.kind === 'restart_exhausted' &&
-    typeof restartFrom === 'string' &&
-    typeof maxAttempts === 'number' &&
-    Number.isInteger(maxAttempts) &&
-    maxAttempts > 0
-  ) {
-    return {
-      kind: 'restart_exhausted',
-      max_attempts: maxAttempts,
-      restart_from: restartFrom,
-    };
-  }
-
-  if (restartReason === null) return null;
-  return {kind: 'restart_enqueued', reason: restartReason};
-}
-
 export function toStepDto(step: Step): StepDto {
   return {
     id: step.id,
@@ -161,8 +136,7 @@ export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
     output: attempt.output,
     error: attempt.error,
     gate_result: toStepGateResultDto(attempt.gateResult, attempt.status),
-    restart_reason: attempt.restartReason,
-    restart_result: toStepRestartResultDto(attempt.restartReason, attempt.error),
+    restart_feedback: attempt.restartFeedback,
     started_at: attempt.startedAt.toISOString(),
     finished_at: attempt.finishedAt ? attempt.finishedAt.toISOString() : null,
   };

@@ -107,7 +107,7 @@ export async function applyStepTransition(
       return {outcome: {jobFinished: false}, metrics: {}};
     }
     case 'restart-job-from-step': {
-      // Record the failed attempt FIRST (audit, with the restart reason), then
+      // Record the failed attempt FIRST (audit, with the restart feedback), then
       // rewind the projection from restart_from so the prior result is preserved
       // only in the attempt history. All in one transaction with the report.
       await finishStepAttempt(
@@ -120,7 +120,7 @@ export async function applyStepTransition(
           exitCode: ctx.result.exitCode ?? null,
           logOutcome: ctx.logOutcome,
           gateResult: ctx.gateResult ?? null,
-          restartReason: decision.reason,
+          restartFeedback: decision.feedback,
         },
         tx,
       );
@@ -133,7 +133,7 @@ export async function applyStepTransition(
         failedStepId: decision.failedStepId,
         failedStepAttempt: decision.attempt,
         restartFromStepId: decision.restartFromStepId,
-        reason: decision.reason,
+        feedback: decision.feedback,
       });
       // The job stays running; the next pull re-dispatches restart_from. Do not
       // derive completion or emit a completion event.

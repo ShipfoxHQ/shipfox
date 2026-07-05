@@ -132,22 +132,6 @@ export const stepGateResultDtoSchema = z
 
 export type StepGateResultDto = z.infer<typeof stepGateResultDtoSchema>;
 
-export const stepRestartResultDtoSchema = z
-  .discriminatedUnion('kind', [
-    z.object({
-      kind: z.literal('restart_enqueued'),
-      reason: z.string(),
-    }),
-    z.object({
-      kind: z.literal('restart_exhausted'),
-      max_attempts: z.number().int().positive(),
-      restart_from: z.string(),
-    }),
-  ])
-  .nullable();
-
-export type StepRestartResultDto = z.infer<typeof stepRestartResultDtoSchema>;
-
 // One execution attempt of a step (the durable history behind the current
 // projection). Surfaced in run details so a restarted step's attempts are visible.
 export const stepAttemptDtoSchema = z.object({
@@ -166,8 +150,7 @@ export const stepAttemptDtoSchema = z.object({
   // `unknown.data` is the raw jsonb gate payload for legacy or unrecognized
   // rows; nested keys are not snake_case-normalized.
   gate_result: stepGateResultDtoSchema,
-  restart_reason: z.string().nullable(),
-  restart_result: stepRestartResultDtoSchema,
+  restart_feedback: z.string().nullable(),
   started_at: z.string(),
   finished_at: z.string().nullable(),
 });

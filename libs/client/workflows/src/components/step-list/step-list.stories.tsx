@@ -211,7 +211,7 @@ export const Attempts: Story = {
               attempt: 2,
               execution_order: 7,
               status: 'running',
-              restart_reason: 'manual approval',
+              restart_feedback: 'manual approval',
             }),
           ],
         }),

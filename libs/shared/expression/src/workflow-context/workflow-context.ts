@@ -339,7 +339,8 @@ export type WorkflowInterpolationField =
   | 'agent.thinking'
   | 'job.runner'
   | 'job.name'
-  | 'step.name';
+  | 'step.name'
+  | 'step.feedback';
 
 export const workflowFieldFailurePolicies = ['fail', 'degrade', 'fail-closed'] as const;
 export type WorkflowFieldFailurePolicy = (typeof workflowFieldFailurePolicies)[number];
@@ -411,6 +412,12 @@ export const workflowInterpolationFieldPolicies = {
     acceptedHosts: serverOnlyHosts,
     failurePolicy: 'degrade',
     renderSanitize: true,
+  },
+  'step.feedback': {
+    acceptedTrustTiers: anyTrustTier,
+    acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+    renderSanitize: false,
   },
 } as const satisfies Record<WorkflowInterpolationField, WorkflowInterpolationFieldPolicy>;
 
