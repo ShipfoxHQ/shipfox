@@ -1,6 +1,7 @@
 import {argosScreenshot, type Page} from '@shipfox/playwright';
 
 type Locator = ReturnType<Page['locator']>;
+type ElementHandle = NonNullable<Awaited<ReturnType<Locator['elementHandle']>>>;
 
 interface MutableElement {
   textContent: string | null;
@@ -24,14 +25,13 @@ export interface StableScreenshotOptions {
 }
 
 interface ElementSnapshot {
+  handle: ElementHandle;
   text?: string | null;
   value?: string;
   attributes: Record<string, string | null>;
 }
 
 interface LocatorSnapshot {
-  locator: Locator;
-  count: number;
   elements: ElementSnapshot[];
 }
 
@@ -181,26 +181,31 @@ async function applyReplacements(
   for (const replacement of replacements) {
     const count = await replacement.locator.count();
     const locatorSnapshot: LocatorSnapshot = {
-      locator: replacement.locator,
-      count,
       elements: [],
     };
     snapshots.push(locatorSnapshot);
 
     for (let index = 0; index < count; index += 1) {
       const locator = replacement.locator.nth(index);
-      const snapshot = await locator.evaluate(
+      const handle = await locator.elementHandle();
+      if (!handle) {
+        throw new Error(
+          'Cannot apply stable screenshot replacements: locator element disappeared before capture.',
+        );
+      }
+
+      const snapshot = await handle.evaluate(
         (
           element: MutableElement,
           options: {
             textReplacement: string | undefined;
-            attributeNames: string[];
+            attributes: Record<string, string>;
             valueReplacement: string | undefined;
           },
-        ): ElementSnapshot => {
-          const previous: ElementSnapshot = {
+        ): Omit<ElementSnapshot, 'handle'> => {
+          const previous: Omit<ElementSnapshot, 'handle'> = {
             attributes: Object.fromEntries(
-              options.attributeNames.map((name) => [name, element.getAttribute(name)]),
+              Object.keys(options.attributes).map((name) => [name, element.getAttribute(name)]),
             ),
           };
           if (options.textReplacement !== undefined) previous.text = element.textContent;
@@ -214,48 +219,53 @@ async function applyReplacements(
             element.value = options.valueReplacement;
           }
 
+          for (const [name, value] of Object.entries(options.attributes)) {
+            element.setAttribute(name, value);
+          }
+
           return previous;
         },
         {
           textReplacement: replacement.text,
-          attributeNames: Object.keys(replacement.attributes ?? {}),
+          attributes: replacement.attributes ?? {},
           valueReplacement: replacement.value,
         },
       );
-      locatorSnapshot.elements.push(snapshot);
-
-      if (replacement.attributes) {
-        await locator.evaluate((element: MutableElement, attributes: Record<string, string>) => {
-          for (const [name, value] of Object.entries(attributes)) {
-            element.setAttribute(name, value);
-          }
-        }, replacement.attributes);
-      }
+      locatorSnapshot.elements.push({...snapshot, handle});
     }
   }
 }
 
 async function restoreSnapshots(snapshots: LocatorSnapshot[]): Promise<void> {
+  let restoreError: unknown;
+
   for (const snapshot of [...snapshots].reverse()) {
-    const currentCount = await snapshot.locator.count();
-    if (currentCount !== snapshot.count) {
-      throw new Error(
-        `Cannot restore stable screenshot replacements: locator matched ${currentCount} elements after capture, but matched ${snapshot.count} before capture.`,
-      );
-    }
+    for (const elementSnapshot of [...snapshot.elements].reverse()) {
+      try {
+        const previous: Omit<ElementSnapshot, 'handle'> = {
+          attributes: elementSnapshot.attributes,
+        };
+        if (elementSnapshot.text !== undefined) previous.text = elementSnapshot.text;
+        if (elementSnapshot.value !== undefined) previous.value = elementSnapshot.value;
+        await elementSnapshot.handle.evaluate(
+          (element: MutableElement, previous: Omit<ElementSnapshot, 'handle'>) => {
+            if (previous.text !== undefined) element.textContent = previous.text;
+            if (previous.value !== undefined && 'value' in element) element.value = previous.value;
 
-    for (let index = 0; index < snapshot.elements.length; index += 1) {
-      await snapshot.locator
-        .nth(index)
-        .evaluate((element: MutableElement, previous: ElementSnapshot) => {
-          if (previous.text !== undefined) element.textContent = previous.text;
-          if (previous.value !== undefined && 'value' in element) element.value = previous.value;
-
-          for (const [name, value] of Object.entries(previous.attributes)) {
-            if (value === null) element.removeAttribute(name);
-            else element.setAttribute(name, value);
-          }
-        }, snapshot.elements[index] as ElementSnapshot);
+            for (const [name, value] of Object.entries(previous.attributes)) {
+              if (value === null) element.removeAttribute(name);
+              else element.setAttribute(name, value);
+            }
+          },
+          previous,
+        );
+      } catch (error) {
+        restoreError ??= error;
+      } finally {
+        await elementSnapshot.handle.dispose();
+      }
     }
   }
+
+  if (restoreError) throw restoreError;
 }

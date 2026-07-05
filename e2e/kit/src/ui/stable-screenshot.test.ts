@@ -32,27 +32,49 @@ class FakeElement {
   }
 }
 
+class FakeElementHandle {
+  constructor(
+    private readonly element: FakeElement,
+    private readonly shouldFail = false,
+  ) {}
+
+  evaluate<T, A>(callback: (element: FakeElement, arg: A) => T, arg: A): Promise<T> {
+    if (this.shouldFail) {
+      return Promise.reject(new Error('evaluate failed'));
+    }
+    return Promise.resolve(callback(this.element, arg));
+  }
+
+  dispose(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 class FakeLocator {
   constructor(
     private readonly elements: FakeElement[],
     private readonly failingIndexes = new Set<number>(),
+    private readonly predicate: (element: FakeElement) => boolean = () => true,
     private readonly index?: number,
   ) {}
 
   count(): Promise<number> {
-    return Promise.resolve(this.elements.length);
+    return Promise.resolve(this.matchedElements().length);
   }
 
   nth(index: number): FakeLocator {
-    return new FakeLocator(this.elements, this.failingIndexes, index);
+    return new FakeLocator(this.elements, this.failingIndexes, this.predicate, index);
   }
 
-  evaluate<T, A>(callback: (element: FakeElement, arg: A) => T, arg: A): Promise<T> {
+  elementHandle(): Promise<FakeElementHandle | null> {
     const index = this.index ?? 0;
-    if (this.failingIndexes.has(index)) {
-      return Promise.reject(new Error(`evaluate failed for ${index}`));
-    }
-    return Promise.resolve(callback(this.elements[index] as FakeElement, arg));
+    const element = this.matchedElements()[index];
+    if (!element) return Promise.resolve(null);
+    return Promise.resolve(new FakeElementHandle(element, this.failingIndexes.has(index)));
+  }
+
+  private matchedElements(): FakeElement[] {
+    return this.elements.filter(this.predicate);
   }
 }
 
@@ -119,13 +141,13 @@ describe('stableScreenshot', () => {
       {locator: locator as never, text: 'during'},
     ]);
 
-    await expect(result).rejects.toThrow('evaluate failed for 1');
+    await expect(result).rejects.toThrow('evaluate failed');
     expect(argosScreenshot).not.toHaveBeenCalled();
     expect(first.textContent).toBe('first-before');
     expect(second.textContent).toBe('second-before');
   });
 
-  it('throws clearly when locator counts drift before restore', async () => {
+  it('restores captured elements when locator counts drift before restore', async () => {
     const elements = [new FakeElement({text: 'before'})];
     const locator = new FakeLocator(elements);
     argosScreenshot.mockImplementationOnce(() => {
@@ -137,8 +159,24 @@ describe('stableScreenshot', () => {
       {locator: locator as never, text: 'during'},
     ]);
 
-    await expect(result).rejects.toThrow(
-      'Cannot restore stable screenshot replacements: locator matched 2 elements after capture, but matched 1 before capture.',
+    await expect(result).resolves.toBeUndefined();
+    expect(elements[0]?.textContent).toBe('before');
+    expect(elements[1]?.textContent).toBe('new');
+  });
+
+  it('restores text-based locators after replacement changes the matched text', async () => {
+    const element = new FakeElement({text: 'Gitea dynamic-org'});
+    const locator = new FakeLocator(
+      [element],
+      new Set(),
+      (element) => element.textContent === 'Gitea dynamic-org',
     );
+    const {stableScreenshot} = await import('./stable-screenshot.js');
+
+    await stableScreenshot({} as never, 'text-based', [
+      {locator: locator as never, text: 'Gitea visual-test-org'},
+    ]);
+
+    expect(element.textContent).toBe('Gitea dynamic-org');
   });
 });
