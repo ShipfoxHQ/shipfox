@@ -14,6 +14,7 @@
     "#create-project.js": "./src/create-project.ts",
     "#expect.js": "./src/expect.ts",
     "#listener-helpers.js": "./src/listener-helpers.ts",
+    "#listener-jobs.js": "./src/listener-jobs.ts",
     "#polling.js": "./src/polling.ts",
     "#run-scenario.js": "./src/run-scenario.ts",
     "#runner.js": "./src/runner.ts",

@@ -92,10 +92,34 @@ describe('ui page objects', () => {
     switcher.searchInput();
     switcher.workspaceOption('Platform');
     switcher.createWorkspaceOption();
+    switcher.noResults();
 
     expect(pageObject.getByPlaceholder).toHaveBeenCalledWith('Search workspaces...');
     expect(pageObject.getByRole).toHaveBeenCalledWith('option', {name: 'Platform'});
     expect(pageObject.getByRole).toHaveBeenCalledWith('option', {name: 'Create workspace'});
+    expect(pageObject.getByText).toHaveBeenCalledWith('No workspaces found.');
+  });
+
+  it('exposes setup shell navigation affordances', async () => {
+    const pageObject = page();
+    const {SetupShell} = await import('./page-objects.js');
+    const setup = new SetupShell(pageObject as never);
+
+    setup.sourceControlHeading();
+    setup.modelProviderHeading();
+    setup.projectTab();
+    setup.settingsTab();
+    setup.projectSwitcher();
+    setup.workspaceSwitcher();
+
+    expect(pageObject.getByRole).toHaveBeenCalledWith('heading', {name: 'Install source control'});
+    expect(pageObject.getByRole).toHaveBeenCalledWith('heading', {
+      name: 'Configure model provider',
+    });
+    expect(pageObject.getByRole).toHaveBeenCalledWith('tab', {name: 'Projects'});
+    expect(pageObject.getByRole).toHaveBeenCalledWith('tab', {name: 'Settings'});
+    expect(pageObject.getByLabel).toHaveBeenCalledWith('Switch project');
+    expect(pageObject.getByLabel).toHaveBeenCalledWith('Switch workspace');
   });
 
   it.each(
