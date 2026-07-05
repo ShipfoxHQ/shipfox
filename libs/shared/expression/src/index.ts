@@ -30,6 +30,8 @@ export type {
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
 export {
+  type CoerceStepOutputsResult,
+  coerceStepOutputs,
   type JsonSchemaValidationResult,
   jsonSchemaToExpressionType,
   type OutputDeclarations,
@@ -38,6 +40,8 @@ export {
   outputDeclarationsToExpressionFields,
   outputDeclarationToExpressionType,
   outputTypes,
+  type StepOutputCoercionError,
+  type StepOutputCoercionErrorReason,
   validateJsonSchema,
 } from './outputs/index.js';
 export {isBareContextReference} from './plan/bare-reference.js';

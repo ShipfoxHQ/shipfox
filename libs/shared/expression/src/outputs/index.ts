@@ -1,4 +1,6 @@
 export {
+  type CoerceStepOutputsResult,
+  coerceStepOutputs,
   type JsonSchemaValidationResult,
   jsonSchemaToExpressionType,
   type OutputDeclarations,
@@ -7,5 +9,7 @@ export {
   outputDeclarationsToExpressionFields,
   outputDeclarationToExpressionType,
   outputTypes,
+  type StepOutputCoercionError,
+  type StepOutputCoercionErrorReason,
   validateJsonSchema,
 } from './output-declarations.js';

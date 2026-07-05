@@ -77,13 +77,14 @@ function buildStepConfig(
   params: Omit<BuildStepConfigParams, 'context'> & {readonly context: WorkflowEvaluationContext},
 ): BuiltStepConfig {
   const gate = gateConfigForStep(params.step);
+  const outputs = outputsConfigForStep(params.step);
   const runStep = runStepOrNull(params.step);
   const isRunStep = runStep !== null;
 
   if (isRunStep) {
     const run = resolveRunStepConfig({...params, step: runStep});
     return {
-      config: {...run.config, ...gate},
+      config: {...run.config, ...gate, ...outputs},
       configPlan: run.configPlan,
       diagnostics: run.diagnostics,
       trace: run.trace,
@@ -96,7 +97,7 @@ function buildStepConfig(
 
   const agent = resolveAgentStepConfig({...params, step: agentStep});
   return {
-    config: {...agent.config, ...gate},
+    config: {...agent.config, ...gate, ...outputs},
     configPlan: agent.configPlan,
     diagnostics: agent.diagnostics,
     trace: agent.trace,
@@ -124,6 +125,11 @@ function agentStepOrNull(step: WorkflowModelStep): WorkflowModelAgentStep | null
 function gateConfigForStep(step: WorkflowModelStep): Record<string, unknown> {
   const hasGate = step.gate !== undefined;
   return hasGate ? {gate: stepGateConfig(step.gate)} : {};
+}
+
+function outputsConfigForStep(step: WorkflowModelStep): Record<string, unknown> {
+  const hasOutputs = step.outputs !== undefined;
+  return hasOutputs ? {outputs: step.outputs} : {};
 }
 
 function resolveStepName(

@@ -45,6 +45,20 @@ describe('stepErrorDtoSchema', () => {
     });
   });
 
+  it('accepts typed output validation failures', () => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'Output "count" must be a finite number or numeric string.',
+      reason: 'output_invalid',
+      field: 'outputs.count',
+    });
+
+    expect(result).toEqual({
+      message: 'Output "count" must be a finite number or numeric string.',
+      reason: 'output_invalid',
+      field: 'outputs.count',
+    });
+  });
+
   it('rejects unknown agent config issues', () => {
     const result = stepErrorDtoSchema.safeParse({
       message: 'Model provider credentials are not configured',

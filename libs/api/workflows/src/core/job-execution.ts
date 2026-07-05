@@ -1,5 +1,6 @@
 import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
+import {coerceStepOutputs, type StepOutputCoercionError} from '@shipfox/expression';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
@@ -48,9 +49,17 @@ import {
   gateResultPayload,
   readStepGate,
 } from './step-transition/evaluate-gate.js';
+import {readStepOutputs} from './step-transition/read-step-outputs.js';
 import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
+
+type ReportedStepResult = {
+  readonly status: 'succeeded' | 'failed';
+  readonly error: Record<string, unknown> | null;
+  readonly output: Record<string, unknown> | null;
+  readonly exitCode: number | null;
+};
 
 export type NextStep = {kind: 'step'; step: Step} | {kind: 'done'; status: CompletionStatus};
 
@@ -320,16 +329,30 @@ async function recordStepResultInTransaction(
     tx,
   );
 
-  const result = {
+  let result: ReportedStepResult = {
     status: params.status,
     error: params.error ?? null,
     output: params.output ?? null,
     exitCode: params.exitCode ?? null,
   };
+  const outputCoercion = coerceReportedStepOutput(target.config, result);
+  if (outputCoercion.kind === 'coerced') {
+    result = {...result, output: outputCoercion.output};
+  }
+  if (outputCoercion.kind === 'failed') {
+    result = {
+      status: 'failed',
+      error: outputInvalidError(outputCoercion.error),
+      output: null,
+      exitCode: result.exitCode,
+    };
+  }
+
   // Evaluate the gate (if any) at the service boundary — the only place the CEL
   // engine runs — and pass the precomputed outcome into the pure decision.
-  const gate = readStepGate(target.config);
-  const gateOutcome = evaluateGate(gate, result);
+  const shouldEvaluateGate = outputCoercion.kind !== 'failed';
+  const gate = shouldEvaluateGate ? readStepGate(target.config) : undefined;
+  const gateOutcome = shouldEvaluateGate ? evaluateGate(gate, result) : {kind: 'no-gate' as const};
   const hasRestartPolicy = gate?.onFailure?.restartFrom !== undefined;
   // The restart cap is bounded on the gating step's OWN attempts, not its
   // current_attempt (which a rewind inflates for downstream steps).
@@ -365,15 +388,41 @@ async function recordStepResultInTransaction(
   );
 }
 
+type OutputCoercionResult =
+  | {kind: 'not-applicable'}
+  | {kind: 'coerced'; output: Record<string, unknown>}
+  | {kind: 'failed'; error: StepOutputCoercionError};
+
+function coerceReportedStepOutput(
+  config: Record<string, unknown>,
+  result: ReportedStepResult,
+): OutputCoercionResult {
+  if (result.status !== 'succeeded') return {kind: 'not-applicable'};
+
+  const declarations = readStepOutputs(config);
+  if (declarations === undefined) return {kind: 'not-applicable'};
+
+  const coerced = coerceStepOutputs({declarations, output: result.output});
+  if (!coerced.ok) return {kind: 'failed', error: coerced.error};
+  return {kind: 'coerced', output: coerced.output};
+}
+
+function outputInvalidError(error: StepOutputCoercionError): Record<string, unknown> {
+  return {
+    message: error.message,
+    reason: 'output_invalid',
+    field: `outputs.${error.key}`,
+    outputKey: error.key,
+    issue: error.reason,
+    ...(error.expectedType === undefined ? {} : {expectedType: error.expectedType}),
+    ...(error.schemaError === undefined ? {} : {schemaError: error.schemaError}),
+  };
+}
+
 function resolveRestartFeedback(params: {
   decision: StepTransitionDecision;
   gate: ReturnType<typeof readStepGate>;
-  result: {
-    status: 'succeeded' | 'failed';
-    error: Record<string, unknown> | null;
-    output: Record<string, unknown> | null;
-    exitCode: number | null;
-  };
+  result: ReportedStepResult;
   definitionId: string;
 }): StepTransitionDecision {
   if (params.decision.kind !== 'restart-job-from-step') return params.decision;
