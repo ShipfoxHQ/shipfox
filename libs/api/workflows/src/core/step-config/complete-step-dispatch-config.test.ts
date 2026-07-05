@@ -30,7 +30,6 @@ function step(overrides: Partial<Step>): Step {
     config: {},
     configPlan: null,
     authoredConfig: null,
-    output: null,
     error: null,
     position: 1,
     version: 1,

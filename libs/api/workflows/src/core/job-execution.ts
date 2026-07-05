@@ -4,6 +4,7 @@ import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
   dispatchStepWithCompletedConfig,
+  finishStepAttempt,
   getJobExecutionById,
   getLatestJobExecutionByJobId,
   getStepAttemptsByJobExecutionId,
@@ -118,17 +119,36 @@ async function dispatchPendingStepWithConfigPlan({
       {jobExecutionId, stepId: pending.id, config},
       tx,
     );
-    return {kind: 'step', step: marked ?? {...pending, config, configPlan: null}};
+    return {kind: 'step', step: marked ?? {...pending, config}};
   } catch (error) {
     const configError = toDispatchConfigError(error);
     const isConfigError = configError !== null;
     if (!isConfigError) throw error;
 
+    const failureError = dispatchConfigError(configError);
+    await insertRunningStepAttempt(
+      {
+        jobExecutionId,
+        stepId: pending.id,
+        attempt: pending.currentAttempt,
+      },
+      tx,
+    );
+    await finishStepAttempt(
+      {
+        stepId: pending.id,
+        attempt: pending.currentAttempt,
+        status: 'failed',
+        error: failureError,
+        logOutcome: 'abandoned',
+      },
+      tx,
+    );
     const status = await settleJobFailed(tx, {
       jobId: jobExecution.jobId,
       jobExecutionId,
       failedStepId: pending.id,
-      error: dispatchConfigError(configError),
+      error: failureError,
     });
     if (status) recordWorkflowJobExecutionStepsSettled(status);
     return {kind: 'done', status: 'failed'};
@@ -281,6 +301,7 @@ async function recordStepResultInTransaction(
       jobExecutionId,
       stepId: params.stepId,
       attempt: current,
+      config: target.config,
     },
     tx,
   );

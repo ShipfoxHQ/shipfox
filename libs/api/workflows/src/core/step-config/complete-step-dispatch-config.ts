@@ -14,6 +14,7 @@ export function completeStepDispatchConfig(params: {
   if (plan === null) return params.step.config;
 
   const config = {...params.step.config};
+  delete config.secret_bindings;
   completeRunDispatchConfig({
     config,
     plan,

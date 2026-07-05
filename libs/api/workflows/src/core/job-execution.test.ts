@@ -113,13 +113,14 @@ describe('nextStepForJob', () => {
     const producer = steps[0];
     const consumer = steps[1];
     if (!producer || !consumer) throw new Error('Expected arranged steps');
+    const shaPlan = stepOutputField('build', 'sha');
     await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, producer.id));
     await db()
       .update(stepsTable)
       .set({
         key: 'deploy',
         config: {run: 'echo ok'},
-        configPlan: {env: {SHA: stepOutputField('build', 'sha')}},
+        configPlan: {env: {SHA: shaPlan}},
       })
       .where(eq(stepsTable.id, consumer.id));
     await nextStepForJob(jobId);
@@ -131,18 +132,106 @@ describe('nextStepForJob', () => {
     });
 
     const next = await nextStepForJob(jobId);
+    const redelivery = await nextStepForJob(jobId);
 
     expect(next).toEqual({
       kind: 'step',
       step: expect.objectContaining({
         id: consumer.id,
         config: {run: 'echo ok', env: {SHA: 'abc123'}},
-        configPlan: null,
+        configPlan: {env: {SHA: shaPlan}},
       }),
     });
+    expect(redelivery).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: consumer.id,
+        config: {run: 'echo ok', env: {SHA: 'abc123'}},
+        configPlan: {env: {SHA: shaPlan}},
+      }),
+    });
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts.find((attempt) => attempt.stepId === consumer.id)).toMatchObject({
+      status: 'running',
+      config: {run: 'echo ok', env: {SHA: 'abc123'}},
+    });
     const after = await getStepsByJobId(jobId);
-    expect(after.find((step) => step.id === producer.id)?.output).toBeNull();
-    expect(after.find((step) => step.id === consumer.id)?.configPlan).toBeNull();
+    expect(after.find((step) => step.id === consumer.id)?.configPlan).toEqual({
+      env: {SHA: shaPlan},
+    });
+  });
+
+  test('re-materializes dispatch config after a gate rewind', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const producer = steps[0];
+    const consumer = steps[1];
+    if (!producer || !consumer) throw new Error('Expected arranged steps');
+    const shaPlan = stepOutputField('build', 'sha');
+    await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, producer.id));
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'deploy',
+        config: {
+          run: 'deploy',
+          gate: {
+            success_if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+            on_failure: {restart_from: 'build'},
+          },
+        },
+        configPlan: {env: {SHA: shaPlan}},
+      })
+      .where(eq(stepsTable.id, consumer.id));
+
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: producer.id,
+      status: 'succeeded',
+      output: {sha: 'abc123'},
+    });
+    const firstConsumer = await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: consumer.id,
+      status: 'failed',
+      error: {message: 'exit 1'},
+      exitCode: 1,
+    });
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: producer.id,
+      status: 'succeeded',
+      output: {sha: 'def456'},
+    });
+
+    const secondConsumer = await nextStepForJob(jobId);
+
+    expect(firstConsumer).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: consumer.id,
+        currentAttempt: 1,
+        config: expect.objectContaining({env: {SHA: 'abc123'}}),
+      }),
+    });
+    expect(secondConsumer).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: consumer.id,
+        currentAttempt: 2,
+        config: expect.objectContaining({env: {SHA: 'def456'}}),
+        configPlan: {env: {SHA: shaPlan}},
+      }),
+    });
+    const attempts = await getStepAttempts(jobId);
+    expect(
+      attempts.find((attempt) => attempt.stepId === consumer.id && attempt.attempt === 1),
+    ).toMatchObject({config: expect.objectContaining({env: {SHA: 'abc123'}})});
+    expect(
+      attempts.find((attempt) => attempt.stepId === consumer.id && attempt.attempt === 2),
+    ).toMatchObject({config: expect.objectContaining({env: {SHA: 'def456'}})});
   });
 
   test('fails the job when dispatch config cannot resolve a peer output', async () => {
@@ -173,6 +262,17 @@ describe('nextStepForJob', () => {
         field: 'env.SHA',
         source: 'steps.build.outputs.sha',
       },
+    });
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts.find((attempt) => attempt.stepId === consumer.id)).toMatchObject({
+      status: 'failed',
+      config: null,
+      error: {
+        reason: 'config_unresolvable',
+        field: 'env.SHA',
+        source: 'steps.build.outputs.sha',
+      },
+      logOutcome: 'abandoned',
     });
   });
 
@@ -575,7 +675,6 @@ describe('step attempts', () => {
     const [step] = await getStepsByJobId(jobId);
     expect(step?.currentAttempt).toBe(attempt?.attempt);
     expect(step?.status).toBe(attempt?.status);
-    expect(step?.output).toBeNull();
   });
 
   test('persists structured output on the attempt row', async () => {

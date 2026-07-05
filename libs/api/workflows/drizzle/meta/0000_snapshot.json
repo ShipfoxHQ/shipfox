@@ -718,6 +718,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "config": {
+          "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "output": {
           "name": "output",
           "type": "jsonb",
@@ -893,12 +899,6 @@
         },
         "authored_config": {
           "name": "authored_config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "output": {
-          "name": "output",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
