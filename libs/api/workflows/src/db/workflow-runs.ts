@@ -2219,6 +2219,7 @@ export function evaluateJobSuccess(params: {
         route: outcome.route,
         site: 'job-resolution',
         value: outcome.value,
+        degraded: outcome.evaluationFailed,
       }),
       field: 'job.success',
     },

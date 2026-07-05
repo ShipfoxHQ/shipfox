@@ -2627,6 +2627,17 @@ jobs:
       expect(resolvedJob).toMatchObject({
         status: 'failed',
         statusReason: 'unknown',
+        evaluationTrace: [
+          {
+            expression: 'executions.all(e, 1 / 0 == 0)',
+            roots: ['executions'],
+            fillTarget: 'execution-creation',
+            evaluatedAt: 'job-resolution',
+            value: 'false',
+            degraded: true,
+            field: 'job.success',
+          },
+        ],
       });
     });
   });

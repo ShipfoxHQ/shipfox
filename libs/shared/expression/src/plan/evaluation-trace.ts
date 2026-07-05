@@ -41,6 +41,7 @@ export interface PredicateTraceEntryInput {
   readonly route: RoutedExpression;
   readonly site: AvailabilitySite;
   readonly value: boolean;
+  readonly degraded?: boolean;
 }
 
 export function capTraceValue(value: string): {value: string; truncated: boolean} {
@@ -88,6 +89,7 @@ export function predicateTraceEntry(input: PredicateTraceEntryInput): Evaluation
     fillTarget: input.route.fillTarget,
     evaluatedAt: input.site,
     value: String(input.value),
+    ...(input.degraded === true ? {degraded: true} : {}),
   });
 }
 

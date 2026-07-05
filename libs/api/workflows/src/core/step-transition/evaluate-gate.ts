@@ -88,9 +88,6 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
     site: context.site,
     context: context.values,
   });
-  if (outcome.evaluationFailed) {
-    return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON};
-  }
   const trace = capTraceEntries([
     {
       ...predicateTraceEntry({
@@ -98,10 +95,14 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
         route: outcome.route,
         site: context.site,
         value: outcome.value,
+        degraded: outcome.evaluationFailed,
       }),
       field: 'step.success',
     },
   ]);
+  if (outcome.evaluationFailed) {
+    return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON, source, trace};
+  }
   return outcome.value ? {kind: 'passed', source, trace} : {kind: 'failed', source, trace};
 }
 
@@ -155,6 +156,13 @@ export function gateResultPayload(
         ...(outcome.trace === undefined ? {} : {trace: outcome.trace}),
       };
     case 'uncheckable':
-      return {passed: false, uncheckable: true, reason: outcome.reason, exit_code};
+      return {
+        passed: false,
+        uncheckable: true,
+        reason: outcome.reason,
+        exit_code,
+        ...(outcome.source === undefined ? {} : {source: outcome.source}),
+        ...(outcome.trace === undefined ? {} : {trace: outcome.trace}),
+      };
   }
 }

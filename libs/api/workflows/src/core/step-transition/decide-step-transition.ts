@@ -29,7 +29,12 @@ export type GateOutcome =
   | {kind: 'no-gate'}
   | {kind: 'passed'; source: string; trace?: readonly PersistedEvaluationTraceEntry[]}
   | {kind: 'failed'; source: string; trace?: readonly PersistedEvaluationTraceEntry[]}
-  | {kind: 'uncheckable'; reason: string};
+  | {
+      kind: 'uncheckable';
+      reason: string;
+      source?: string;
+      trace?: readonly PersistedEvaluationTraceEntry[];
+    };
 
 export interface DecideStepTransitionInput {
   // Full job projection, position-ordered (as returned by getStepsByJobIdForUpdate).
