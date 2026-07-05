@@ -1,5 +1,10 @@
 import type {AgentThinking, Harness} from '@shipfox/api-agent-dto';
-import type {ResolvedField} from '@shipfox/expression';
+import type {
+  EvaluationTraceEntry,
+  EvaluationTraceLimitEntry,
+  ResolvedField,
+} from '@shipfox/expression';
+import type {InterpolationUnresolvableField} from '../errors.js';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type StepAttemptLogOutcome = 'drained' | 'abandoned';
@@ -13,6 +18,27 @@ export interface StepSourceLocation {
   endLine: number;
 }
 
+/**
+ * Trace entry after a resolver-local expression trace is attached to workflow
+ * storage.
+ *
+ * Step config traces are stored on step attempts with the resolved attempt
+ * config; job-level traces are stored on the job or job-execution row whose
+ * value/status they explain. Keep `field` as the authored field path that
+ * produced the trace, not as a step-only enum.
+ */
+export type PersistedEvaluationTraceEntry =
+  | (EvaluationTraceEntry & {
+      readonly field: string;
+      readonly envKey?: string;
+    })
+  | EvaluationTraceLimitEntry;
+
+export interface StepConfigEvaluationTraceEntry extends EvaluationTraceEntry {
+  readonly field: InterpolationUnresolvableField;
+  readonly envKey?: string;
+}
+
 export interface StepConfigDispatchPlan {
   run?: ResolvedField;
   env?: Readonly<Record<string, ResolvedField>>;
@@ -23,6 +49,7 @@ export interface StepConfigDispatchPlan {
     harness?: Harness;
     thinking?: AgentThinking;
   };
+  trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }
 
 export interface Step {
@@ -57,6 +84,7 @@ export interface StepAttempt {
   executionOrder: number;
   status: StepAttemptStatus;
   config: Record<string, unknown> | null;
+  evaluationTrace: readonly PersistedEvaluationTraceEntry[] | null;
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   exitCode: number | null;

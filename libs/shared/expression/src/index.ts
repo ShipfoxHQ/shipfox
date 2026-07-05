@@ -40,6 +40,17 @@ export {
   type ContextRootKeyAccessReference,
 } from './plan/context-key-access.js';
 export {evaluatePlannedPredicateAtSite} from './plan/evaluate-planned-predicate.js';
+export {
+  capTraceEntries,
+  capTraceValue,
+  EVALUATION_TRACE_MAX_ENTRIES,
+  EVALUATION_TRACE_VALUE_CAP_BYTES,
+  type EvaluationTraceEntry,
+  type EvaluationTraceLimitEntry,
+  type EvaluationTraceRowEntry,
+  evaluationTraceEntry,
+  predicateTraceEntry,
+} from './plan/evaluation-trace.js';
 export {extractExactContextRoots} from './plan/extract-exact-context-roots.js';
 export {
   type FrozenResolvedField,

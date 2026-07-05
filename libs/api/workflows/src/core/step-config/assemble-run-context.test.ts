@@ -658,6 +658,7 @@ function attempt(overrides: Partial<StepAttempt> = {}): StepAttempt {
     executionOrder: 1,
     status: 'succeeded',
     config: null,
+    evaluationTrace: null,
     output: null,
     error: null,
     exitCode: 0,

@@ -7,18 +7,21 @@ import {
 } from '@shipfox/api-secrets-dto';
 import {
   analyzeContextKeyAccess,
+  type EvaluationTraceEntry,
+  evaluationTraceEntry,
   hoistPlannedRunCommand,
   type ResolvedField,
   type ResolvedFieldSegment,
   runnerFillTarget,
   UnsafeRunInterpolationError,
 } from '@shipfox/expression';
-import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {
   resolveStepField,
   type StepConfigField,
   stepConfigInterpolationError,
+  type WorkflowStepEvaluationTraceEntry,
   type WorkflowStepTemplateDiagnostic,
 } from './fields.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
@@ -51,6 +54,7 @@ export interface RunStepConfig {
   readonly config: Record<string, unknown>;
   readonly configPlan: StepConfigDispatchPlan | null;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly trace: readonly WorkflowStepEvaluationTraceEntry[];
   readonly hasTemplates: boolean;
 }
 
@@ -76,6 +80,7 @@ export function resolveRunStepConfig(params: ResolveRunStepConfigParams): RunSte
     config: {run: commandResolution.command, ...envConfig},
     configPlan,
     diagnostics: [...envResolution.diagnostics, ...commandResolution.diagnostics],
+    trace: [...envResolution.trace, ...commandResolution.trace],
     hasTemplates,
   };
 }
@@ -85,6 +90,7 @@ export function completeRunDispatchConfig(params: {
   readonly plan: StepConfigDispatchPlan;
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): void {
   const env = {...readConfigEnv(params.config)};
   const secretBindings: MaterializedSecretBindingDto[] = [];
@@ -95,6 +101,7 @@ export function completeRunDispatchConfig(params: {
       context: params.context,
       definitionId: params.definitionId,
       reservedNames: Object.keys(env),
+      trace: params.trace,
     });
     params.config.run = resolved.command;
     Object.assign(env, resolved.env);
@@ -105,11 +112,13 @@ export function completeRunDispatchConfig(params: {
     for (const [key, field] of Object.entries(params.plan.env)) {
       const completed = completeDispatchField({
         field: 'env.value',
+        traceField: 'env',
         errorField: 'env',
         template: field,
         context: params.context,
         definitionId: params.definitionId,
         envKey: key,
+        trace: params.trace,
       });
       if (completed.kind === 'binding') secretBindings.push(completed.binding);
       else env[key] = completed.value;
@@ -125,6 +134,7 @@ function completeRunCommand(params: {
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly reservedNames: Iterable<string>;
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): {
   readonly command: string;
   readonly env: Readonly<Record<string, string>>;
@@ -140,11 +150,13 @@ function completeRunCommand(params: {
   for (const binding of hoisted.bindings) {
     const completed = completeDispatchField({
       field: 'run',
+      traceField: 'run',
       errorField: 'run',
       template: {segments: [binding.segment]},
       context: params.context,
       definitionId: params.definitionId,
       envKey: binding.name,
+      trace: params.trace,
     });
     if (completed.kind === 'binding') secretBindings.push(completed.binding);
     else env[binding.name] = completed.value;
@@ -159,15 +171,21 @@ type CompletedDispatchField =
 
 function completeDispatchField(params: {
   readonly field: 'run' | 'env.value';
+  readonly traceField: StepConfigField;
   readonly errorField: StepConfigField;
   readonly template: ResolvedField;
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly envKey?: string;
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): CompletedDispatchField {
   const resolved = resolveStepField(params);
+  params.trace.push(...tagTrace(resolved.trace, params.traceField, params.envKey));
   if (resolved.kind === 'frozen') return {kind: 'value', value: resolved.value};
   if (params.envKey !== undefined && containsOnlyRunnerSecretSegments(resolved.field)) {
+    params.trace.push(
+      ...runnerSecretReferenceTrace(resolved.field, params.traceField, params.envKey),
+    );
     return {
       kind: 'binding',
       binding: secretBindingFromField(params.envKey, resolved.field),
@@ -234,6 +252,7 @@ function resolveCommand(params: {
   readonly env: Readonly<Record<string, string>>;
   readonly configPlan: Readonly<Record<string, ResolvedField>>;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly trace: readonly WorkflowStepEvaluationTraceEntry[];
   readonly hasTemplate: boolean;
 } {
   const template = params.step.templates?.command;
@@ -244,6 +263,7 @@ function resolveCommand(params: {
       env: {},
       configPlan: {},
       diagnostics: [],
+      trace: [],
       hasTemplate: false,
     };
   }
@@ -255,6 +275,7 @@ function resolveCommand(params: {
       env: {},
       configPlan: {},
       diagnostics: [],
+      trace: [],
       hasTemplate: true,
     };
   }
@@ -262,6 +283,7 @@ function resolveCommand(params: {
   const env: Record<string, string> = {};
   const configPlan: Record<string, ResolvedField> = {};
   const diagnostics: WorkflowStepTemplateDiagnostic[] = [];
+  const trace: WorkflowStepEvaluationTraceEntry[] = [];
   const hoisted = hoistCommand(template, params.envKeys, params.definitionId);
 
   for (const binding of hoisted.bindings) {
@@ -278,6 +300,7 @@ function resolveCommand(params: {
     diagnostics.push(
       ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'run' as const})),
     );
+    trace.push(...tagTrace(resolved.trace, 'run'));
   }
 
   return {
@@ -285,6 +308,7 @@ function resolveCommand(params: {
     env,
     configPlan,
     diagnostics,
+    trace,
     hasTemplate: true,
   };
 }
@@ -316,11 +340,13 @@ function resolveEnv(
   readonly env: Readonly<Record<string, string>>;
   readonly configPlan: Readonly<Record<string, ResolvedField>>;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly trace: readonly WorkflowStepEvaluationTraceEntry[];
   readonly hasTemplates: boolean;
 } {
   const resolvedEnv: Record<string, string> = {};
   const configPlan: Record<string, ResolvedField> = {};
   const diagnostics: WorkflowStepTemplateDiagnostic[] = [];
+  const trace: WorkflowStepEvaluationTraceEntry[] = [];
   let hasTemplates = false;
 
   for (const [key, entry] of Object.entries(env)) {
@@ -354,9 +380,45 @@ function resolveEnv(
         envKey: key,
       })),
     );
+    trace.push(...tagTrace(resolved.trace, 'env', key));
   }
 
-  return {env: resolvedEnv, configPlan, diagnostics, hasTemplates};
+  return {env: resolvedEnv, configPlan, diagnostics, trace, hasTemplates};
+}
+
+function tagTrace(
+  trace: readonly EvaluationTraceEntry[],
+  field: StepConfigField,
+  envKey?: string,
+): WorkflowStepEvaluationTraceEntry[] {
+  return trace.map((entry) => ({
+    ...entry,
+    field,
+    ...(envKey === undefined ? {} : {envKey}),
+  }));
+}
+
+function runnerSecretReferenceTrace(
+  field: ResolvedField,
+  stepField: StepConfigField,
+  envKey: string,
+): WorkflowStepEvaluationTraceEntry[] {
+  return field.segments.flatMap((segment) => {
+    if (segment.kind === 'literal') return [];
+    return [
+      {
+        ...evaluationTraceEntry({
+          expression: segment.expression.source,
+          roots: segment.roots,
+          fillTarget: runnerFillTarget,
+          evaluatedAt: 'step-dispatch',
+          reference: true,
+        }),
+        field: stepField,
+        envKey,
+      },
+    ];
+  });
 }
 
 function winningEnv(params: {

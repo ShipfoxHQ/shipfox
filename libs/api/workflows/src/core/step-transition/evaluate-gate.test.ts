@@ -25,6 +25,33 @@ function feedbackTemplate(source: string) {
   return plan.plan.field;
 }
 
+function gateTrace(source: string, value: boolean) {
+  return [
+    {
+      expression: source,
+      roots: ['step'],
+      fillTarget: 'step-report',
+      evaluatedAt: 'step-report',
+      value: String(value),
+      field: 'step.success',
+    },
+  ];
+}
+
+function degradedGateTrace(source: string, roots: readonly string[]) {
+  return [
+    {
+      expression: source,
+      roots,
+      fillTarget: 'ingest' as const,
+      evaluatedAt: 'step-report' as const,
+      value: 'false',
+      degraded: true,
+      field: 'step.success' as const,
+    },
+  ];
+}
+
 describe('readStepGate', () => {
   test('returns undefined when the config has no gate', () => {
     expect(readStepGate({run: 'echo hi'})).toBeUndefined();
@@ -69,6 +96,7 @@ describe('evaluateGate', () => {
     expect(evaluateGate(gate, {status: 'succeeded', exitCode: 0})).toEqual({
       kind: 'passed',
       source: 'step.exit_code == 0',
+      trace: gateTrace('step.exit_code == 0', true),
     });
   });
 
@@ -77,6 +105,7 @@ describe('evaluateGate', () => {
     expect(evaluateGate(gate, {status: 'failed', exitCode: 1})).toEqual({
       kind: 'failed',
       source: 'step.exit_code == 0',
+      trace: gateTrace('step.exit_code == 0', false),
     });
   });
 
@@ -93,6 +122,7 @@ describe('evaluateGate', () => {
     expect(result).toEqual({
       kind: 'passed',
       source: 'step.exit_code % 2 == 0',
+      trace: gateTrace('step.exit_code % 2 == 0', true),
     });
   });
 
@@ -104,6 +134,7 @@ describe('evaluateGate', () => {
     expect(result).toEqual({
       kind: 'failed',
       source: 'step.exit_code % 2 == 0',
+      trace: gateTrace('step.exit_code % 2 == 0', false),
     });
   });
 
@@ -130,10 +161,12 @@ describe('evaluateGate', () => {
     expect(passed).toEqual({
       kind: 'passed',
       source: 'step.outputs.pass == true',
+      trace: gateTrace('step.outputs.pass == true', true),
     });
     expect(failed).toEqual({
       kind: 'failed',
       source: 'step.outputs.pass == true',
+      trace: gateTrace('step.outputs.pass == true', false),
     });
   });
 
@@ -142,7 +175,22 @@ describe('evaluateGate', () => {
 
     const result = evaluateGate(gate, {status: 'succeeded', exitCode: 0, output: {}});
 
-    expect(result).toMatchObject({kind: 'uncheckable'});
+    expect(result).toEqual({
+      kind: 'uncheckable',
+      reason: 'gate expression evaluation failed',
+      source: 'step.outputs.pass == true',
+      trace: [
+        {
+          expression: 'step.outputs.pass == true',
+          roots: ['step'],
+          fillTarget: 'step-report',
+          evaluatedAt: 'step-report',
+          value: 'false',
+          degraded: true,
+          field: 'step.success',
+        },
+      ],
+    });
   });
 
   test('has-guarded missing step output keys evaluate as a checkable failure', () => {
@@ -151,7 +199,7 @@ describe('evaluateGate', () => {
 
     const result = evaluateGate(gate, {status: 'succeeded', exitCode: 0, output: {}});
 
-    expect(result).toEqual({kind: 'failed', source});
+    expect(result).toEqual({kind: 'failed', source, trace: gateTrace(source, false)});
   });
 
   test('a missing exit code is uncheckable (never evaluated)', () => {
@@ -163,8 +211,11 @@ describe('evaluateGate', () => {
 
   test('an evaluation error is uncheckable, not a gate failure', () => {
     const gate = readStepGate(gateConfig('missing_var == 0'));
-    expect(evaluateGate(gate, {status: 'succeeded', exitCode: 0})).toMatchObject({
+    expect(evaluateGate(gate, {status: 'succeeded', exitCode: 0})).toEqual({
       kind: 'uncheckable',
+      reason: 'gate expression evaluation failed',
+      source: 'missing_var == 0',
+      trace: degradedGateTrace('missing_var == 0', ['missing_var']),
     });
   });
 });
@@ -240,6 +291,27 @@ describe('gateResultPayload', () => {
       uncheckable: true,
       reason: 'no exit code',
       exit_code: null,
+    });
+  });
+
+  test('uncheckable preserves an evaluation trace when the predicate ran', () => {
+    expect(
+      gateResultPayload(
+        {
+          kind: 'uncheckable',
+          reason: 'gate expression evaluation failed',
+          source: 'missing_var == 0',
+          trace: degradedGateTrace('missing_var == 0', ['missing_var']),
+        },
+        0,
+      ),
+    ).toEqual({
+      passed: false,
+      uncheckable: true,
+      reason: 'gate expression evaluation failed',
+      source: 'missing_var == 0',
+      exit_code: 0,
+      trace: degradedGateTrace('missing_var == 0', ['missing_var']),
     });
   });
 });

@@ -193,6 +193,7 @@ export async function drainListenerEventsIntoExecution(
 
     const fallbackName = `${target.job.key} #${params.expectedSequence}`;
     let executionName = fallbackName;
+    let executionNameTrace: ReturnType<typeof resolveJobExecutionName>['trace'] = [];
     let status: JobExecutionStatus = 'pending';
     let materializedSteps: ReturnType<typeof materializeJobExecutionSteps> = [];
     let runner: readonly string[] = [];
@@ -215,12 +216,14 @@ export async function drainListenerEventsIntoExecution(
         triggerEvents,
         priorExecutions: target.priorExecutions,
       });
-      executionName = resolveJobExecutionName({
+      const resolvedExecutionName = resolveJobExecutionName({
         definitionId: target.run.definitionId,
         job: modelJob,
         fallbackName,
         context: nameContext.values,
       });
+      executionName = resolvedExecutionName.value;
+      executionNameTrace = resolvedExecutionName.trace;
       const stepContext = listenerExecutionContext({
         run: toWorkflowRun(target.run),
         jobId: params.jobId,
@@ -257,6 +260,7 @@ export async function drainListenerEventsIntoExecution(
         status,
         statusReason: status === 'failed' ? 'unknown' : null,
         triggerEvents,
+        evaluationTrace: executionNameTrace.length === 0 ? null : executionNameTrace,
         ...(status === 'failed' ? {finishedAt: sql`now()`} : {}),
       })
       .returning();
@@ -282,6 +286,7 @@ export async function drainListenerEventsIntoExecution(
           status: step.status,
           type: step.type,
           config: step.config,
+          configPlan: step.configPlan ?? null,
           authoredConfig: step.authoredConfig,
           position: step.position,
         })),
@@ -371,7 +376,7 @@ export async function resolveJobListener(params: {
       .from(jobExecutions)
       .where(eq(jobExecutions.jobId, params.jobId))
       .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
-    const {status, statusReason} = evaluateJobSuccess({
+    const {status, statusReason, trace} = evaluateJobSuccess({
       success: jobRow.success,
       executions: executionRows.map(toJobExecution),
     });
@@ -380,6 +385,7 @@ export async function resolveJobListener(params: {
       status,
       expectedVersion: jobRow.version,
       statusReason,
+      evaluationTrace: trace,
     });
     const job = updated?.job ?? toJob(jobRow);
     const resolvedStatus: 'succeeded' | 'failed' =

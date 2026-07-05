@@ -1,4 +1,5 @@
 import type {JobStatus, JobStatusReason} from './job.js';
+import type {PersistedEvaluationTraceEntry} from './step.js';
 
 export type JobExecutionStatus = Exclude<JobStatus, 'skipped'>;
 
@@ -20,6 +21,7 @@ export interface JobExecution {
   statusReason: JobStatusReason | null;
   triggerEvents: WorkflowExecutionEvent[];
   outputs: Record<string, unknown> | null;
+  evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;

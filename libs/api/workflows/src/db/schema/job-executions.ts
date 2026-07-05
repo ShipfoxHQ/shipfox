@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {toJobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
+import type {PersistedEvaluationTraceEntry} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {jobStatusReasonEnum, jobs} from './jobs.js';
 
@@ -37,6 +38,7 @@ export const jobExecutions = pgTable(
     statusReason: jobStatusReasonEnum('status_reason'),
     triggerEvents: jsonb('trigger_events').notNull().default([]).$type<WorkflowExecutionEvent[]>(),
     outputs: jsonb('outputs').$type<Record<string, unknown> | null>(),
+    evaluationTrace: jsonb('evaluation_trace').$type<readonly PersistedEvaluationTraceEntry[]>(),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -71,6 +73,7 @@ export function toJobExecution(row: JobExecutionDb): JobExecution {
     statusReason: toJobStatusReason(row.statusReason),
     triggerEvents: row.triggerEvents,
     outputs: row.outputs,
+    evaluationTrace: row.evaluationTrace ?? null,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -10,6 +10,7 @@ import {
   resolveContextRootAvailability,
   type WorkflowInterpolationFailurePolicy,
 } from '../workflow-context/workflow-context.js';
+import {type EvaluationTraceEntry, evaluationTraceEntry} from './evaluation-trace.js';
 import {shouldFillAtSite} from './fill.js';
 import type {
   ResolvedField,
@@ -28,6 +29,7 @@ export interface WorkflowTemplateDiagnostic {
 export interface FrozenResolvedField {
   readonly value: string;
   readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
+  readonly trace: readonly EvaluationTraceEntry[];
 }
 
 export type SiteResolvedField =
@@ -35,11 +37,13 @@ export type SiteResolvedField =
       readonly kind: 'frozen';
       readonly value: string;
       readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
+      readonly trace: readonly EvaluationTraceEntry[];
     }
   | {
       readonly kind: 'residual';
       readonly field: ResolvedField;
       readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
+      readonly trace: readonly EvaluationTraceEntry[];
     };
 
 /**
@@ -59,6 +63,7 @@ export function freezeResolvedFieldAtSite(params: {
 }): FrozenResolvedField {
   let value = '';
   const diagnostics: WorkflowTemplateDiagnostic[] = [];
+  const trace: EvaluationTraceEntry[] = [];
 
   for (const segment of params.field.segments) {
     if (segment.kind === 'literal') {
@@ -72,9 +77,11 @@ export function freezeResolvedFieldAtSite(params: {
     }
 
     try {
-      value += coerceWorkflowValueToString(
+      const literal = coerceWorkflowValueToString(
         evaluateWorkflowExpression(segment.expression, params.context),
       );
+      value += literal;
+      trace.push(fillTraceEntry(segment, params.site, literal));
     } catch (error) {
       if (error instanceof WorkflowExpressionEvaluationError && error.reason === 'missing-path') {
         if (missingPathRequiresFailure(segment, params.failurePolicy, params.site)) {
@@ -85,6 +92,7 @@ export function freezeResolvedFieldAtSite(params: {
         }
 
         diagnostics.push(missingPathDiagnostic(segment));
+        trace.push(fillTraceEntry(segment, params.site, '', true));
         continue;
       }
 
@@ -95,7 +103,7 @@ export function freezeResolvedFieldAtSite(params: {
     }
   }
 
-  return {value, diagnostics};
+  return {value, diagnostics, trace};
 }
 
 export function resolveFieldAtSite(params: {
@@ -106,6 +114,7 @@ export function resolveFieldAtSite(params: {
 }): SiteResolvedField {
   let value = '';
   const diagnostics: WorkflowTemplateDiagnostic[] = [];
+  const trace: EvaluationTraceEntry[] = [];
   const segments: ResolvedFieldSegment[] = [];
   let hasResidual = false;
 
@@ -128,6 +137,7 @@ export function resolveFieldAtSite(params: {
       );
       value += literal;
       segments.push({kind: 'literal', value: literal});
+      trace.push(fillTraceEntry(segment, params.site, literal));
     } catch (error) {
       if (error instanceof WorkflowExpressionEvaluationError && error.reason === 'missing-path') {
         if (missingPathRequiresFailure(segment, params.failurePolicy, params.site)) {
@@ -139,6 +149,7 @@ export function resolveFieldAtSite(params: {
 
         diagnostics.push(missingPathDiagnostic(segment));
         segments.push({kind: 'literal', value: ''});
+        trace.push(fillTraceEntry(segment, params.site, '', true));
         continue;
       }
 
@@ -149,8 +160,24 @@ export function resolveFieldAtSite(params: {
     }
   }
 
-  if (hasResidual) return {kind: 'residual', field: {segments}, diagnostics};
-  return {kind: 'frozen', value, diagnostics};
+  if (hasResidual) return {kind: 'residual', field: {segments}, diagnostics, trace};
+  return {kind: 'frozen', value, diagnostics, trace};
+}
+
+function fillTraceEntry(
+  segment: ResolvedFieldDeferredSegment,
+  site: AvailabilitySite,
+  value: string,
+  degraded = false,
+): EvaluationTraceEntry {
+  return evaluationTraceEntry({
+    expression: segment.expression.source,
+    roots: segment.roots,
+    fillTarget: segment.fillTarget,
+    evaluatedAt: site,
+    value,
+    ...(degraded ? {degraded: true} : {}),
+  });
 }
 
 function missingPathDiagnostic(segment: ResolvedFieldDeferredSegment): WorkflowTemplateDiagnostic {

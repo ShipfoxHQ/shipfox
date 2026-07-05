@@ -256,6 +256,7 @@ describe('workflow run queries', () => {
         sequence: 1,
         name: 'build #1',
         runner: ['ubuntu-latest'],
+        evaluationTrace: null,
       });
 
       // Every job gets a synthetic "Set up job" step at position 0; user steps follow.
@@ -535,7 +536,24 @@ describe('workflow run queries', () => {
 
       const [attemptSummary] = await listRunAttempts({workflowRunId: run.id, projectId});
       const attempt = await getWorkflowRunAttemptById(attemptSummary?.id as string);
+      const [runJob] = await getJobsByWorkflowRunId(run.id);
+      if (!runJob) throw new Error('Expected workflow job');
+      const [jobExecution] = await getJobExecutionsByJobId(runJob.id);
+
       expect(attempt?.model).toEqual(model);
+      expect(jobExecution).toMatchObject({
+        name: 'Build refs/heads/main',
+        evaluationTrace: [
+          {
+            expression: 'event.ref',
+            roots: ['event'],
+            fillTarget: 'run-creation',
+            evaluatedAt: 'execution-creation',
+            value: 'refs/heads/main',
+            field: 'job.name',
+          },
+        ],
+      });
     });
 
     test('returns the persisted model in run detail', async () => {
@@ -2335,8 +2353,19 @@ jobs:
       const empty = evaluateJobSuccess({success: null, executions: []});
       const cancelled = evaluateJobSuccess({success: null, executions: [execution('cancelled')]});
 
-      expect(empty).toEqual({status: 'succeeded', statusReason: null});
-      expect(cancelled).toEqual({status: 'succeeded', statusReason: null});
+      expect(empty).toMatchObject({status: 'succeeded', statusReason: null});
+      expect(cancelled).toMatchObject({status: 'succeeded', statusReason: null});
+      expect(empty.trace).toEqual([
+        {
+          expression: "!executions.exists(e, e.status == 'failed')",
+          roots: ['executions'],
+          fillTarget: 'execution-creation',
+          evaluatedAt: 'job-resolution',
+          value: 'true',
+          field: 'job.success',
+        },
+      ]);
+      expect(cancelled.trace).toEqual(empty.trace);
     });
 
     test('fails closed when a job has no executions', async () => {
@@ -2598,6 +2627,17 @@ jobs:
       expect(resolvedJob).toMatchObject({
         status: 'failed',
         statusReason: 'unknown',
+        evaluationTrace: [
+          {
+            expression: 'executions.all(e, 1 / 0 == 0)',
+            roots: ['executions'],
+            fillTarget: 'execution-creation',
+            evaluatedAt: 'job-resolution',
+            value: 'false',
+            degraded: true,
+            field: 'job.success',
+          },
+        ],
       });
     });
   });

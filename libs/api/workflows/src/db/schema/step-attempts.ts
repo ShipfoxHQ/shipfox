@@ -10,7 +10,12 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type {StepAttempt, StepAttemptLogOutcome, StepAttemptStatus} from '#core/entities/step.js';
+import type {
+  PersistedEvaluationTraceEntry,
+  StepAttempt,
+  StepAttemptLogOutcome,
+  StepAttemptStatus,
+} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {stepStatusEnum, steps} from './steps.js';
 
@@ -32,6 +37,7 @@ export const stepAttempts = pgTable(
     // it is never 'pending'.
     status: stepStatusEnum('status').notNull(),
     config: jsonb('config').$type<Record<string, unknown>>(),
+    evaluationTrace: jsonb('evaluation_trace').$type<readonly PersistedEvaluationTraceEntry[]>(),
     output: jsonb('output').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
     exitCode: integer('exit_code'),
@@ -74,6 +80,7 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
     executionOrder: row.executionOrder,
     status: row.status as StepAttemptStatus,
     config: (row.config as Record<string, unknown>) ?? null,
+    evaluationTrace: row.evaluationTrace ?? null,
     output: (row.output as Record<string, unknown>) ?? null,
     error: (row.error as Record<string, unknown>) ?? null,
     exitCode: row.exitCode ?? null,

@@ -1,4 +1,5 @@
 import {
+  type EvaluationTraceEntry,
   freezeResolvedFieldAtSite,
   getWorkflowInterpolationFieldFailurePolicy,
   type ResolvedField,
@@ -15,6 +16,11 @@ import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 export type StepConfigField = InterpolationUnresolvableField;
 
 export interface WorkflowStepTemplateDiagnostic extends WorkflowTemplateDiagnostic {
+  readonly field: StepConfigField;
+  readonly envKey?: string;
+}
+
+export interface WorkflowStepEvaluationTraceEntry extends EvaluationTraceEntry {
   readonly field: StepConfigField;
   readonly envKey?: string;
 }
@@ -47,6 +53,7 @@ export function resolveStepField(params: ResolveStepFieldParams): SiteResolvedFi
 export function freezeStepField(params: ResolveStepFieldParams): {
   readonly value: string;
   readonly diagnostics: SiteResolvedField['diagnostics'];
+  readonly trace: SiteResolvedField['trace'];
 } {
   try {
     return freezeResolvedFieldAtSite({
@@ -64,8 +71,15 @@ export function freezeStepField(params: ResolveStepFieldParams): {
 }
 
 export function completeStepField(params: ResolveStepFieldParams): string {
+  return completeStepFieldWithTrace(params).value;
+}
+
+export function completeStepFieldWithTrace(params: ResolveStepFieldParams): {
+  readonly value: string;
+  readonly trace: SiteResolvedField['trace'];
+} {
   const resolved = resolveStepField(params);
-  if (resolved.kind === 'frozen') return resolved.value;
+  if (resolved.kind === 'frozen') return {value: resolved.value, trace: resolved.trace};
 
   const source = resolved.field.segments.find((segment) => segment.kind === 'deferred')?.expression
     .source;

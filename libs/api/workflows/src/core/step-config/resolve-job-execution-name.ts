@@ -1,10 +1,12 @@
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
+  capTraceEntries,
   getWorkflowInterpolationFieldFailurePolicy,
   resolveFieldAtSite,
   type WorkflowExpressionEvaluationContext,
   WorkflowTemplateResolutionError,
 } from '@shipfox/expression';
+import type {PersistedEvaluationTraceEntry} from '#core/entities/step.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 
 interface WorkflowModelJobName {
@@ -18,8 +20,11 @@ export interface ResolveJobExecutionNameParams {
   readonly context: WorkflowExpressionEvaluationContext;
 }
 
-export function resolveJobExecutionName(params: ResolveJobExecutionNameParams): string {
-  if (params.job.name === undefined) return params.fallbackName;
+export function resolveJobExecutionName(params: ResolveJobExecutionNameParams): {
+  readonly value: string;
+  readonly trace: readonly PersistedEvaluationTraceEntry[];
+} {
+  if (params.job.name === undefined) return {value: params.fallbackName, trace: []};
 
   try {
     const resolved = resolveFieldAtSite({
@@ -28,9 +33,11 @@ export function resolveJobExecutionName(params: ResolveJobExecutionNameParams): 
       context: params.context,
       failurePolicy: getWorkflowInterpolationFieldFailurePolicy('job.name'),
     });
-    return resolved.kind === 'frozen' && resolved.value !== ''
-      ? resolved.value
-      : params.fallbackName;
+    return {
+      value:
+        resolved.kind === 'frozen' && resolved.value !== '' ? resolved.value : params.fallbackName,
+      trace: capTraceEntries(resolved.trace.map((entry) => ({...entry, field: 'job.name'}))),
+    };
   } catch (error) {
     if (error instanceof WorkflowTemplateResolutionError) {
       throw new InterpolationUnresolvableError(params.definitionId, {

@@ -6,12 +6,13 @@ import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-
 import type {AgentThinking} from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
-import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {AgentConfigUnresolvableError} from '#core/errors.js';
 import {
-  completeStepField,
+  completeStepFieldWithTrace,
   literalField,
   resolveStepField,
+  type WorkflowStepEvaluationTraceEntry,
   type WorkflowStepTemplateDiagnostic,
 } from './fields.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
@@ -26,6 +27,7 @@ type FieldResolution =
 
 interface AgentFieldResolutions {
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+  readonly trace: WorkflowStepEvaluationTraceEntry[];
   readonly prompt: FieldResolution;
   readonly model: FieldResolution | undefined;
   readonly provider: FieldResolution | undefined;
@@ -44,6 +46,7 @@ export interface AgentStepConfig {
   readonly config: Record<string, unknown>;
   readonly configPlan: StepConfigDispatchPlan | null;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly trace: readonly WorkflowStepEvaluationTraceEntry[];
   readonly hasTemplates: boolean;
 }
 
@@ -66,6 +69,7 @@ export function completeAgentConfig(params: {
   readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly definitionId: string;
+  readonly trace: PersistedEvaluationTraceEntry[];
 }): void {
   const agent = params.plan.agent;
   if (agent === undefined) return;
@@ -73,32 +77,26 @@ export function completeAgentConfig(params: {
   const prompt =
     agent.prompt === undefined
       ? readConfigString(params.config, 'prompt')
-      : completeStepField({
+      : completeAgentField({
           field: 'agent.prompt',
-          errorField: 'agent.prompt',
           template: agent.prompt,
-          context: params.context,
-          definitionId: params.definitionId,
+          params,
         });
   const model =
     agent.model === undefined
       ? readConfigString(params.config, 'model')
-      : completeStepField({
+      : completeAgentField({
           field: 'agent.model',
-          errorField: 'agent.model',
           template: agent.model,
-          context: params.context,
-          definitionId: params.definitionId,
+          params,
         });
   const provider =
     agent.provider === undefined
       ? readConfigString(params.config, 'provider')
-      : completeStepField({
+      : completeAgentField({
           field: 'agent.provider',
-          errorField: 'agent.provider',
           template: agent.provider,
-          context: params.context,
-          definitionId: params.definitionId,
+          params,
         });
 
   const defaults = completeAgentDefaults({
@@ -114,6 +112,26 @@ export function completeAgentConfig(params: {
   params.config.model = defaults.model;
   params.config.thinking = defaults.thinking;
   params.config.prompt = prompt;
+}
+
+function completeAgentField(args: {
+  readonly field: 'agent.prompt' | 'agent.model' | 'agent.provider';
+  readonly template: ResolvedField;
+  readonly params: {
+    readonly context: WorkflowEvaluationContext;
+    readonly definitionId: string;
+    readonly trace: PersistedEvaluationTraceEntry[];
+  };
+}): string {
+  const resolved = completeStepFieldWithTrace({
+    field: args.field,
+    errorField: args.field,
+    template: args.template,
+    context: args.params.context,
+    definitionId: args.params.definitionId,
+  });
+  args.params.trace.push(...resolved.trace.map((entry) => ({...entry, field: args.field})));
+  return resolved.value;
 }
 
 export function completeAgentDefaults(params: {
@@ -141,6 +159,7 @@ export function completeAgentDefaults(params: {
 
 function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldResolutions {
   const diagnostics: WorkflowStepTemplateDiagnostic[] = [];
+  const trace: WorkflowStepEvaluationTraceEntry[] = [];
   const prompt = resolveAgentField({
     field: 'agent.prompt',
     value: params.step.prompt,
@@ -148,6 +167,7 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
     context: params.context,
     mode: params.mode,
     diagnostics,
+    trace,
     definitionId: params.definitionId,
   });
   const model = resolveOptionalAgentField({
@@ -157,6 +177,7 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
     context: params.context,
     mode: params.mode,
     diagnostics,
+    trace,
     definitionId: params.definitionId,
   });
   const provider = resolveOptionalAgentField({
@@ -166,6 +187,7 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
     context: params.context,
     mode: params.mode,
     diagnostics,
+    trace,
     definitionId: params.definitionId,
   });
   const hasTemplates =
@@ -173,7 +195,7 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
     params.step.templates?.model !== undefined ||
     params.step.templates?.provider !== undefined;
 
-  return {diagnostics, prompt, model, provider, hasTemplates};
+  return {diagnostics, trace, prompt, model, provider, hasTemplates};
 }
 
 function authoredAgentStepConfig(
@@ -190,6 +212,7 @@ function authoredAgentStepConfig(
     },
     configPlan: null,
     diagnostics: fields.diagnostics,
+    trace: fields.trace,
     hasTemplates: fields.hasTemplates,
   };
 }
@@ -210,6 +233,7 @@ function deferredAgentStepConfig(
       },
     },
     diagnostics: fields.diagnostics,
+    trace: fields.trace,
     hasTemplates: fields.hasTemplates,
   };
 }
@@ -245,6 +269,7 @@ function agentStepConfigWithDefaults(
         },
       },
       diagnostics: fields.diagnostics,
+      trace: fields.trace,
       hasTemplates: fields.hasTemplates,
     };
   }
@@ -260,6 +285,7 @@ function agentStepConfigWithDefaults(
     },
     configPlan: null,
     diagnostics: fields.diagnostics,
+    trace: fields.trace,
     hasTemplates: fields.hasTemplates,
   };
 }
@@ -281,6 +307,7 @@ function resolveAgentField(params: {
   readonly context: WorkflowEvaluationContext;
   readonly mode: StepConfigMode;
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+  readonly trace: WorkflowStepEvaluationTraceEntry[];
   readonly definitionId: string;
 }): FieldResolution {
   const hasTemplate = params.template !== undefined;
@@ -299,6 +326,7 @@ function resolveAgentField(params: {
   params.diagnostics.push(
     ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: params.field})),
   );
+  params.trace.push(...resolved.trace.map((entry) => ({...entry, field: params.field})));
   return fieldResolution(resolved);
 }
 
@@ -309,6 +337,7 @@ function resolveOptionalAgentField(params: {
   readonly context: WorkflowEvaluationContext;
   readonly mode: StepConfigMode;
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+  readonly trace: WorkflowStepEvaluationTraceEntry[];
   readonly definitionId: string;
 }): FieldResolution | undefined {
   const hasValue = params.value !== undefined;

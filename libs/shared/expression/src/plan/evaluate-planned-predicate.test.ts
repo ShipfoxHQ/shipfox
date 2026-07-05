@@ -20,8 +20,16 @@ describe('evaluatePlannedPredicateAtSite', () => {
       context: {step: {exit_code: 1}},
     });
 
-    expect(passed).toEqual({value: true, evaluationFailed: false});
-    expect(failed).toEqual({value: false, evaluationFailed: false});
+    expect(passed).toEqual({
+      value: true,
+      evaluationFailed: false,
+      route: {roots: ['step'], runnerRoots: [], fillTarget: 'step-report'},
+    });
+    expect(failed).toEqual({
+      value: false,
+      evaluationFailed: false,
+      route: {roots: ['step'], runnerRoots: [], fillTarget: 'step-report'},
+    });
   });
 
   it('fails closed when available predicate evaluation throws', () => {
@@ -32,7 +40,11 @@ describe('evaluatePlannedPredicateAtSite', () => {
       context: {step: {}},
     });
 
-    expect(result).toEqual({value: false, evaluationFailed: true});
+    expect(result).toEqual({
+      value: false,
+      evaluationFailed: true,
+      route: {roots: ['step'], runnerRoots: [], fillTarget: 'step-report'},
+    });
   });
 
   it('fails closed when the predicate needs a later server fill site', () => {
@@ -43,7 +55,11 @@ describe('evaluatePlannedPredicateAtSite', () => {
       context: {executions: []},
     });
 
-    expect(result).toEqual({value: false, evaluationFailed: true});
+    expect(result).toEqual({
+      value: false,
+      evaluationFailed: true,
+      route: {roots: ['executions'], runnerRoots: [], fillTarget: 'execution-creation'},
+    });
   });
 
   it('fails closed for runner-fill predicates', () => {
@@ -54,6 +70,10 @@ describe('evaluatePlannedPredicateAtSite', () => {
       context: {runner: {os: 'linux'}},
     });
 
-    expect(result).toEqual({value: false, evaluationFailed: true});
+    expect(result).toEqual({
+      value: false,
+      evaluationFailed: true,
+      route: {roots: ['runner'], runnerRoots: ['runner'], fillTarget: 'runner-fill'},
+    });
   });
 });

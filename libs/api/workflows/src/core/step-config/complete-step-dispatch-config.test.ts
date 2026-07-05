@@ -70,14 +70,14 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const config = completeStepDispatchConfig({
+    const result = completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
       definitionId: 'def-1',
     });
 
-    expect(config).toEqual({
+    expect(result.config).toEqual({
       secret_bindings: [
         {
           target: 'TOKEN',
@@ -92,6 +92,26 @@ describe('completeStepDispatchConfig', () => {
         },
       ],
     });
+    expect(result.trace).toEqual([
+      {
+        expression: 'secrets.local.TOKEN',
+        roots: ['secrets'],
+        fillTarget: 'runner-fill',
+        evaluatedAt: 'step-dispatch',
+        reference: true,
+        field: 'env',
+        envKey: 'TOKEN',
+      },
+      {
+        expression: 'secrets.API_KEY',
+        roots: ['secrets'],
+        fillTarget: 'runner-fill',
+        evaluatedAt: 'step-dispatch',
+        reference: true,
+        field: 'env',
+        envKey: 'SHORT',
+      },
+    ]);
   });
 
   it('rejects secret env bindings with malformed target names', () => {
@@ -125,14 +145,27 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const config = completeStepDispatchConfig({
+    const result = completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
       definitionId: 'def-1',
     });
 
-    expect(config).toEqual({run: 'echo "$SHA"', env: {SHA: 'abc123'}});
+    expect(result).toEqual({
+      config: {run: 'echo "$SHA"', env: {SHA: 'abc123'}},
+      trace: [
+        {
+          expression: 'steps.build.outputs.sha',
+          roots: ['steps'],
+          fillTarget: 'step-dispatch',
+          evaluatedAt: 'step-dispatch',
+          value: 'abc123',
+          field: 'env',
+          envKey: 'SHA',
+        },
+      ],
+    });
   });
 
   it('completes deferred agent config with the resolved harness', () => {
@@ -147,19 +180,31 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const config = completeStepDispatchConfig({
+    const result = completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
       definitionId: 'def-1',
     });
 
-    expect(config).toEqual({
-      harness: 'claude',
-      provider: 'openai',
-      model: 'gpt-5.5',
-      thinking: 'off',
-      prompt: 'Review abc123',
+    expect(result).toEqual({
+      config: {
+        harness: 'claude',
+        provider: 'openai',
+        model: 'gpt-5.5',
+        thinking: 'off',
+        prompt: 'Review abc123',
+      },
+      trace: [
+        {
+          expression: 'steps.build.outputs.sha',
+          roots: ['steps'],
+          fillTarget: 'step-dispatch',
+          evaluatedAt: 'step-dispatch',
+          value: 'abc123',
+          field: 'agent.prompt',
+        },
+      ],
     });
   });
 

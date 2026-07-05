@@ -67,6 +67,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "evaluation_trace": {
+          "name": "evaluation_trace",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -403,6 +409,12 @@
         "success": {
           "name": "success",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evaluation_trace": {
+          "name": "evaluation_trace",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -744,6 +756,12 @@
         },
         "config": {
           "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evaluation_trace": {
+          "name": "evaluation_trace",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
