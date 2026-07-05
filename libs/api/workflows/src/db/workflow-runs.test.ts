@@ -720,6 +720,7 @@ describe('workflow run queries', () => {
         projectId: run.projectId,
         definitionId: run.definitionId,
       });
+      expect(matchingRow?.orderingKey).toBe(run.id);
       expect(matchingRow?.dispatchedAt).toBeNull();
     });
 

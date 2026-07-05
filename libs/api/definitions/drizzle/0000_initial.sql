@@ -36,6 +36,7 @@ CREATE TABLE "definitions_sync_states" (
 CREATE TABLE "definitions_outbox" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"event_type" text NOT NULL,
+	"ordering_key" text,
 	"payload" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"dispatched_at" timestamp with time zone,

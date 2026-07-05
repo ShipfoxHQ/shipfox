@@ -2,7 +2,7 @@ import {continueAsNew, proxyActivities, sleep} from '@temporalio/workflow';
 import type {createActivities} from '../activities/index.js';
 
 const {drainAndDispatch} = proxyActivities<ReturnType<typeof createActivities>>({
-  startToCloseTimeout: '30s',
+  startToCloseTimeout: '60s',
 });
 
 const {pruneOutboxRetention} = proxyActivities<ReturnType<typeof createActivities>>({
@@ -10,11 +10,13 @@ const {pruneOutboxRetention} = proxyActivities<ReturnType<typeof createActivitie
 });
 
 export async function outboxDispatcherWorkflow(): Promise<void> {
-  await drainAndDispatch();
-  await sleep('1s');
+  const hasMore = await drainAndDispatch();
+  if (!hasMore) await sleep(POLL_INTERVAL);
   await continueAsNew<typeof outboxDispatcherWorkflow>();
 }
 
 export async function outboxRetentionWorkflow(): Promise<void> {
   await pruneOutboxRetention();
 }
+
+const POLL_INTERVAL = '250ms';

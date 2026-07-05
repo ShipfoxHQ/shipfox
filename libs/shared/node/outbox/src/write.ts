@@ -1,7 +1,7 @@
 import type {OutboxTable} from './schema.js';
 import type {EventMapLike, EventType} from './types.js';
 
-type OutboxRow = {eventType: string; payload: unknown};
+type OutboxRow = {eventType: string; orderingKey: string | null; payload: unknown};
 
 interface DrizzleInsertable {
   insert: (table: OutboxTable) => {
@@ -13,7 +13,7 @@ interface DrizzleInsertable {
 }
 
 type OutboxEvent<TMap extends EventMapLike> = {
-  [K in EventType<TMap>]: {type: K; payload: TMap[K]};
+  [K in EventType<TMap>]: {type: K; orderingKey?: string | undefined; payload: TMap[K]};
 }[EventType<TMap>];
 
 export async function writeOutboxEvent<TMap extends EventMapLike>(
@@ -35,7 +35,13 @@ export async function writeOutboxEvents<TMap extends EventMapLike>(
   await tx.insert(outboxTable).values(
     events.map((event) => ({
       eventType: event.type,
+      orderingKey: normalizeKey(event.orderingKey),
       payload: event.payload,
     })),
   );
+}
+
+function normalizeKey(key: string | undefined): string | null {
+  const trimmed = key?.trim();
+  return trimmed ? trimmed : null;
 }
