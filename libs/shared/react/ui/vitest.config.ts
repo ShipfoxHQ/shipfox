@@ -57,6 +57,8 @@ export default defineConfig(
               provider: playwright(),
               instances: [{browser: 'chromium'}],
             },
+            maxWorkers: 2,
+            sequence: {groupOrder: 1},
           },
         },
       ],
