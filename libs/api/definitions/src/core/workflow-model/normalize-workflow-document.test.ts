@@ -1658,7 +1658,7 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'missing-cron-schedule',
         message: 'A cron trigger requires a schedule.',
-        path: ['triggers', 'nightly', 'schedule'],
+        path: ['triggers', 'nightly', 'config', 'schedule'],
       },
     ]);
   });
@@ -1690,7 +1690,7 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'invalid-cron-schedule',
         message: 'Cron trigger schedule must be a valid 5-field cron expression.',
-        path: ['triggers', 'nightly', 'schedule'],
+        path: ['triggers', 'nightly', 'config', 'schedule'],
         details: {schedule},
       },
     ]);
@@ -1722,7 +1722,7 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'invalid-cron-timezone',
         message: 'Cron trigger timezone must be a valid IANA time zone.',
-        path: ['triggers', 'nightly', 'timezone'],
+        path: ['triggers', 'nightly', 'config', 'timezone'],
         details: {timezone: 'Not/A/Zone'},
       },
     ]);

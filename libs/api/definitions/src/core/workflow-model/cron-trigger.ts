@@ -34,7 +34,7 @@ export function validateCronTrigger(params: {
       issue({
         code: 'missing-cron-schedule',
         message: 'A cron trigger requires a schedule.',
-        path: ['triggers', sourceKey, 'schedule'],
+        path: ['triggers', sourceKey, 'config', 'schedule'],
       }),
     );
   } else if (!isValidCronExpression(config.schedule)) {
@@ -42,7 +42,7 @@ export function validateCronTrigger(params: {
       issue({
         code: 'invalid-cron-schedule',
         message: 'Cron trigger schedule must be a valid 5-field cron expression.',
-        path: ['triggers', sourceKey, 'schedule'],
+        path: ['triggers', sourceKey, 'config', 'schedule'],
         details: {schedule: config.schedule},
       }),
     );
@@ -53,7 +53,7 @@ export function validateCronTrigger(params: {
       issue({
         code: 'invalid-cron-timezone',
         message: 'Cron trigger timezone must be a valid IANA time zone.',
-        path: ['triggers', sourceKey, 'timezone'],
+        path: ['triggers', sourceKey, 'config', 'timezone'],
         details: {timezone: config.timezone},
       }),
     );
