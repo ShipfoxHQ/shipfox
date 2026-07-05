@@ -32,6 +32,12 @@ function definitionFields(name = 'Test Workflow'): WorkflowDefinitionPayload {
     runner: 'ubuntu-latest',
     jobs: {build: {steps: [{run: 'echo hello'}]}},
   };
+  return definitionFieldsForDocument(document);
+}
+
+function definitionFieldsForDocument(
+  document: WorkflowDefinitionPayload['document'],
+): WorkflowDefinitionPayload {
   return {document, model: normalizeWorkflowDocument(document)};
 }
 
@@ -624,6 +630,45 @@ describe('definition queries', () => {
         triggers: {},
       });
       expect(outboxRows[0]?.dispatchedAt).toBeNull();
+    });
+
+    test('writes normalized trigger config to the resolved outbox event', async () => {
+      const fields = definitionFieldsForDocument({
+        name: 'Nightly',
+        runner: 'ubuntu-latest',
+        triggers: {
+          nightly: {
+            source: 'cron',
+            event: 'tick',
+            config: {schedule: '0 2 * * *'},
+          },
+        },
+        jobs: {build: {steps: [{run: 'echo hello'}]}},
+      });
+      const definition = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: '.shipfox/workflows/nightly.yml',
+        name: 'Nightly',
+        ...fields,
+      });
+
+      const outboxRows = await listOutboxRowsForProject(projectId);
+
+      expect(outboxRows).toHaveLength(1);
+      expect(outboxRows[0]?.payload).toMatchObject({
+        definitionId: definition.id,
+        triggers: {
+          nightly: {
+            source: 'cron',
+            event: 'tick',
+            config: {
+              schedule: '0 2 * * *',
+              timezone: 'UTC',
+            },
+          },
+        },
+      });
     });
 
     test('writes one outbox event per upsert call', async () => {

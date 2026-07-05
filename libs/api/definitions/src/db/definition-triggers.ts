@@ -1,18 +1,17 @@
 import type {TriggerDto} from '@shipfox/api-definitions-dto';
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {WorkflowModel} from '#core/entities/workflow-model.js';
 
-export function definitionTriggersFor(document: WorkflowDocument): Record<string, TriggerDto> {
+export function definitionTriggersFor(model: WorkflowModel): Record<string, TriggerDto> {
   return Object.fromEntries(
-    Object.entries(document.triggers ?? {}).map(([name, trigger]) => {
+    model.triggers.map((trigger) => {
       const dto: TriggerDto = {
         source: trigger.source,
         event: trigger.event,
       };
-      if (trigger.with !== undefined) dto.with = trigger.with;
+      if (trigger.inputs !== undefined) dto.with = trigger.inputs;
       if (trigger.filter !== undefined) dto.filter = trigger.filter;
-      if (trigger.schedule !== undefined) dto.schedule = trigger.schedule;
-      if (trigger.timezone !== undefined) dto.timezone = trigger.timezone;
-      return [name, dto];
+      if (trigger.config !== undefined) dto.config = trigger.config;
+      return [trigger.key, dto];
     }),
   );
 }

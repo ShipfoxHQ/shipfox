@@ -132,7 +132,7 @@ export async function upsertDefinition(
         projectId: row.projectId,
         workspaceId: params.workspaceId,
         configPath: row.configPath,
-        triggers: definitionTriggersFor(row.definition.document),
+        triggers: definitionTriggersFor(row.definition.model),
       },
     });
 
@@ -326,7 +326,7 @@ export async function applyVcsDefinitionsBatch(
             projectId: row.projectId,
             workspaceId: params.workspaceId,
             configPath: row.configPath,
-            triggers: definitionTriggersFor(row.definition.document),
+            triggers: definitionTriggersFor(row.definition.model),
           },
         });
         appliedCount += 1;

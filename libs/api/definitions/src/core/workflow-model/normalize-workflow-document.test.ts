@@ -1545,7 +1545,7 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
+          config: {schedule: '0 2 * * *'},
         },
       },
       jobs: {
@@ -1563,8 +1563,10 @@ describe('normalizeWorkflowDocument', () => {
         key: 'nightly',
         source: 'cron',
         event: 'tick',
-        schedule: '0 2 * * *',
-        timezone: 'UTC',
+        config: {
+          schedule: '0 2 * * *',
+          timezone: 'UTC',
+        },
       },
     ]);
   });
@@ -1576,8 +1578,10 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
-          timezone: 'Europe/Paris',
+          config: {
+            schedule: '0 2 * * *',
+            timezone: 'Europe/Paris',
+          },
         },
       },
       jobs: {
@@ -1595,8 +1599,10 @@ describe('normalizeWorkflowDocument', () => {
         key: 'nightly',
         source: 'cron',
         event: 'tick',
-        schedule: '0 2 * * *',
-        timezone: 'Europe/Paris',
+        config: {
+          schedule: '0 2 * * *',
+          timezone: 'Europe/Paris',
+        },
       },
     ]);
   });
@@ -1608,7 +1614,7 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'push',
-          schedule: '0 2 * * *',
+          config: {schedule: '0 2 * * *'},
         },
       },
       jobs: {
@@ -1668,7 +1674,7 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule,
+          config: {schedule},
         },
       },
       jobs: {
@@ -1697,8 +1703,10 @@ describe('normalizeWorkflowDocument', () => {
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
-          timezone: 'Not/A/Zone',
+          config: {
+            schedule: '0 2 * * *',
+            timezone: 'Not/A/Zone',
+          },
         },
       },
       jobs: {
@@ -1727,12 +1735,12 @@ describe('normalizeWorkflowDocument', () => {
         hourly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 * * * *',
+          config: {schedule: '0 * * * *'},
         },
         nightly: {
           source: 'cron',
           event: 'tick',
-          schedule: '0 2 * * *',
+          config: {schedule: '0 2 * * *'},
         },
       },
       jobs: {
