@@ -1,11 +1,10 @@
-import {setTimeout as sleep} from 'node:timers/promises';
 import type {
   WorkflowRunDetailResponseDto,
   WorkflowRunDto,
   WorkflowRunListResponseDto,
   WorkflowRunStatusDto,
 } from '@shipfox/api-workflows-dto';
-import {type ApiFetch, createApiClient} from '@shipfox/e2e-core';
+import {type ApiFetch, createApiClient, pollUntil} from '@shipfox/e2e-core';
 
 const DEFAULT_LIST_TIMEOUT_MS = 60_000;
 const DEFAULT_TERMINAL_TIMEOUT_MS = 180_000;
@@ -37,22 +36,6 @@ export interface WaitForRunByDeliveryIdOptions extends PollingOptions {
 
 export interface WaitForRunTerminalOptions extends PollingOptions {
   runId: string;
-}
-
-function nextDelay(currentDelayMs: number, options: PollingOptions): number {
-  const factor = options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR;
-  const maxDelayMs = options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
-  return Math.min(Math.ceil(currentDelayMs * factor), maxDelayMs);
-}
-
-async function waitForNextPoll(params: {
-  delayMs: number;
-  deadline: number;
-  signal?: AbortSignal | undefined;
-}): Promise<void> {
-  const remainingMs = params.deadline - Date.now();
-  if (remainingMs <= 0) return;
-  await sleep(Math.min(params.delayMs, remainingMs), undefined, {signal: params.signal});
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -128,32 +111,33 @@ async function waitForRunMatching(
     token: options.token,
   });
   const timeoutMs = options.timeoutMs ?? DEFAULT_LIST_TIMEOUT_MS;
-  const deadline = Date.now() + timeoutMs;
-  let delayMs = options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
   let lastResponse: WorkflowRunListResponseDto | null = null;
 
-  while (Date.now() <= deadline) {
-    options.signal?.throwIfAborted();
-    const params = new URLSearchParams({project_id: options.projectId, limit: '100'});
-    lastResponse = await client.requestJson<WorkflowRunListResponseDto>(
-      'get',
-      `/workflows/runs?${params}`,
-      {signal: options.signal},
-    );
+  return await pollUntil<WorkflowRunDto>(
+    {
+      timeoutMs,
+      intervalMs: options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS,
+      maxIntervalMs: options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS,
+      backoffFactor: options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR,
+      ...(options.signal ? {signal: options.signal} : {}),
+      describe: () =>
+        `${options.timeoutMessage}: ${formatRunListObserved(
+          lastResponse,
+          options.expected,
+          options.runField,
+        )}`,
+    },
+    async () => {
+      options.signal?.throwIfAborted();
+      const params = new URLSearchParams({project_id: options.projectId, limit: '100'});
+      lastResponse = await client.requestJson<WorkflowRunListResponseDto>(
+        'get',
+        `/workflows/runs?${params}`,
+        {signal: options.signal},
+      );
 
-    const run = lastResponse.runs.find(options.match);
-    if (run) return run;
-
-    await waitForNextPoll({deadline, delayMs, signal: options.signal});
-    delayMs = nextDelay(delayMs, options);
-  }
-
-  throw new Error(
-    `${options.timeoutMessage}: ${formatRunListObserved(
-      lastResponse,
-      options.expected,
-      options.runField,
-    )}`,
+      return lastResponse.runs.find(options.match) ?? null;
+    },
   );
 }
 
@@ -190,28 +174,30 @@ export async function waitForRunTerminal(
     token: options.token,
   });
   const timeoutMs = options.timeoutMs ?? DEFAULT_TERMINAL_TIMEOUT_MS;
-  const deadline = Date.now() + timeoutMs;
-  let delayMs = options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
   let lastResponse: WorkflowRunDetailResponseDto | null = null;
 
-  while (Date.now() <= deadline) {
-    options.signal?.throwIfAborted();
-    lastResponse = await client.requestJson<WorkflowRunDetailResponseDto>(
-      'get',
-      `/workflows/runs/${encodeURIComponent(options.runId)}`,
-      {signal: options.signal},
-    );
-    if (TERMINAL_STATUSES.has(lastResponse.status)) return lastResponse;
-
-    await waitForNextPoll({deadline, delayMs, signal: options.signal});
-    delayMs = nextDelay(delayMs, options);
-  }
-
-  throw new Error(
-    `Timed out waiting for workflow run terminal status: ${formatRunDetailObserved(
-      lastResponse,
-      options.runId,
-    )}`,
+  return await pollUntil<WorkflowRunDetailResponseDto>(
+    {
+      timeoutMs,
+      intervalMs: options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS,
+      maxIntervalMs: options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS,
+      backoffFactor: options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR,
+      ...(options.signal ? {signal: options.signal} : {}),
+      describe: () =>
+        `Timed out waiting for workflow run terminal status: ${formatRunDetailObserved(
+          lastResponse,
+          options.runId,
+        )}`,
+    },
+    async () => {
+      options.signal?.throwIfAborted();
+      lastResponse = await client.requestJson<WorkflowRunDetailResponseDto>(
+        'get',
+        `/workflows/runs/${encodeURIComponent(options.runId)}`,
+        {signal: options.signal},
+      );
+      return TERMINAL_STATUSES.has(lastResponse.status) ? lastResponse : null;
+    },
   );
 }
 

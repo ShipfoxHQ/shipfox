@@ -5,7 +5,7 @@ import type {
   ModelProviderApi,
   ModelProviderRef,
 } from '@shipfox/api-agent-dto';
-import {requestJson} from '@shipfox/e2e-core';
+import {createApiClient} from '@shipfox/e2e-core';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'smollm2:135m-instruct-q2_K';
@@ -99,26 +99,23 @@ export async function createOllamaCustomProvider(
     model: ollama.model,
     providerId,
   });
+  const client = createApiClient({token: params.sessionToken});
 
-  return await requestJson<CustomModelProviderConfigDto>(
+  return await client.requestJson<CustomModelProviderConfigDto>(
     'post',
     `/workspaces/${params.workspaceId}/agent/custom-model-providers`,
-    {
-      headers: {authorization: `Bearer ${params.sessionToken}`},
-      json: body,
-    },
+    {json: body},
   );
 }
 
 export async function listModelProviderConfigs(
   params: ListModelProviderConfigsParams,
 ): Promise<ListModelProviderConfigsResponseDto> {
-  return await requestJson<ListModelProviderConfigsResponseDto>(
+  const client = createApiClient({token: params.sessionToken});
+
+  return await client.requestJson<ListModelProviderConfigsResponseDto>(
     'get',
     `/workspaces/${params.workspaceId}/agent/model-providers`,
-    {
-      headers: {authorization: `Bearer ${params.sessionToken}`},
-    },
   );
 }
 

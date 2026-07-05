@@ -171,6 +171,6 @@ describe('waitForDefinition', () => {
       token: 'user-token',
     });
 
-    await expect(result).rejects.toMatchObject({name: 'AbortError'});
+    await expect(result).rejects.toThrow('Stopped waiting for Timed out waiting for definition');
   });
 });
