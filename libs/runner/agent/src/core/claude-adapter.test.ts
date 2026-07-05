@@ -135,6 +135,20 @@ describe('claudeHarnessAdapter', () => {
     ]);
   });
 
+  it('keeps session forwarding best-effort when onSessionEntry throws', async () => {
+    queryMock.mockReturnValue(makeQuery([assistantMessage, successMessage]));
+
+    const result = await claudeHarnessAdapter.run(
+      invocation({
+        onSessionEntry: () => {
+          throw new Error('log sink closed');
+        },
+      }),
+    );
+
+    expect(result).toEqual({summary: 'done'});
+  });
+
   it.each([
     [{type: 'result', subtype: 'success', is_error: true, result: 'out of credits'}],
     [{type: 'result', subtype: 'error_max_turns', is_error: true, errors: ['turn limit']}],

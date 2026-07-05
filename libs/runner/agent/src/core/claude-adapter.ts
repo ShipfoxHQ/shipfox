@@ -88,7 +88,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     }
 
     for await (const message of claudeQuery) {
-      onSessionEntry?.(JSON.stringify(message));
+      forwardSessionEntry(onSessionEntry, message);
       if (message.type !== 'result') continue;
       return claudeResult(message);
     }
@@ -105,6 +105,17 @@ async function createClaudeConfigDir(cwd: string): Promise<string> {
   const logsDir = join(cwd, 'logs');
   await mkdir(logsDir, {recursive: true});
   return mkdtemp(join(logsDir, 'claude-config-'));
+}
+
+function forwardSessionEntry(
+  onSessionEntry: ((line: string) => void) | undefined,
+  message: unknown,
+): void {
+  try {
+    onSessionEntry?.(JSON.stringify(message));
+  } catch {
+    // Session capture is best-effort; a log sink failure must not fail the agent turn.
+  }
 }
 
 function claudeEnvironment(
