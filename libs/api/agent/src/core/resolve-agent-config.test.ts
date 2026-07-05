@@ -93,6 +93,7 @@ describe('resolveAgentConfig', () => {
       );
 
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'local-vllm',
       model: 'llama-3.1',
       thinking: 'medium',
@@ -111,10 +112,19 @@ describe('resolveAgentConfig', () => {
     );
 
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
-      thinking: 'high',
+      thinking: 'xhigh',
     });
+  });
+
+  test('resolves harness from explicit step, then default', () => {
+    const explicit = resolveAgentConfig({harness: 'claude'});
+    const fallback = resolveAgentConfig({});
+
+    expect(explicit.harness).toBe('claude');
+    expect(fallback.harness).toBe('pi');
   });
 
   test('resolves thinking from explicit step, workspace, instance match, then default', () => {
@@ -136,7 +146,7 @@ describe('resolveAgentConfig', () => {
     expect(explicit.thinking).toBe('low');
     expect(workspace.thinking).toBe('medium');
     expect(instance.thinking).toBe('medium');
-    expect(fallback.thinking).toBe('high');
+    expect(fallback.thinking).toBe('xhigh');
   });
 
   test('throws for unsupported providers and unavailable models', () => {
@@ -184,9 +194,10 @@ describe('resolveAgentConfig', () => {
     const resolved = catalogDefaultAgentResolver({provider: 'openai'});
 
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
-      thinking: 'high',
+      thinking: 'xhigh',
     });
   });
 });
@@ -215,6 +226,7 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
 
     expect(settings?.defaultProviderId).toBe('openai');
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
@@ -227,9 +239,10 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     const resolved = resolver({});
 
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
-      thinking: 'high',
+      thinking: 'xhigh',
     });
   });
 
@@ -247,6 +260,7 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     const resolved = resolver({provider: 'openai'});
 
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
@@ -267,6 +281,7 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     const resolved = resolver({provider: 'openai'});
 
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
@@ -292,6 +307,7 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
     const resolved = resolver({});
 
     expect(resolved).toEqual({
+      harness: 'pi',
       provider: 'local-vllm',
       model: 'llama-3.1',
       thinking: 'low',

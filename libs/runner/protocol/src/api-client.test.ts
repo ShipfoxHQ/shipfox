@@ -220,6 +220,7 @@ describe('api-client auth contexts', () => {
   it('requestAgentRuntimeConfig sends the lease token and parses credentials', async () => {
     stubFetch(() =>
       jsonResponse({
+        harness: 'pi',
         provider_id: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
@@ -234,6 +235,7 @@ describe('api-client auth contexts', () => {
     });
 
     expect(runtimeConfig.credentials.api_key).toBe('sk-runtime');
+    expect(runtimeConfig.harness).toBe('pi');
     expect(calls[0]?.url).toContain('runs/jobs/current/agent-runtime-config');
     expect(calls[0]?.url).toContain(`step_id=${STEP_ID}`);
     expect(calls[0]?.url).toContain('attempt=2');
@@ -304,6 +306,7 @@ describe('api-client auth contexts', () => {
       new Response(null, {status: 429}),
       new Response(null, {status: 500}),
       jsonResponse({
+        harness: 'pi',
         provider_id: 'openai',
         model: 'gpt-5.1',
         thinking: 'medium',

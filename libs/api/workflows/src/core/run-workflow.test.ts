@@ -7,6 +7,7 @@ import {runWorkflow} from './run-workflow.js';
 const mockCreateWorkspaceAgentDefaultsResolver = vi.hoisted(() => vi.fn());
 const mockWorkspaceAgentDefaultsResolver = vi.hoisted(() =>
   vi.fn().mockReturnValue({
+    harness: 'pi',
     provider: 'openai',
     model: 'gpt-5.5-pro',
     thinking: 'medium',
@@ -24,9 +25,10 @@ vi.mock('@shipfox/api-definitions', () => ({
 vi.mock('@shipfox/api-agent/core/resolve-agent-config', () => {
   return {
     catalogDefaultAgentResolver: vi.fn().mockReturnValue({
+      harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
-      thinking: 'high',
+      thinking: 'xhigh',
     }),
   };
 });
@@ -134,6 +136,7 @@ describe('runWorkflow', () => {
     expect(run.id).toBeDefined();
     expect(mockCreateWorkspaceAgentDefaultsResolver).toHaveBeenCalledWith(workspaceId);
     expect(mockWorkspaceAgentDefaultsResolver).toHaveBeenCalledWith({
+      harness: undefined,
       provider: undefined,
       model: undefined,
       thinking: undefined,

@@ -191,6 +191,7 @@ describe('runJobSteps', () => {
     createSessionLogStreamMock.mockReset();
     executeAgentStepMock.mockReset();
     requestAgentRuntimeConfigMock.mockResolvedValue({
+      harness: 'pi',
       provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -888,6 +889,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       cwd: '/work',
       runtime: {
+        harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
@@ -945,6 +947,7 @@ describe('runJobSteps', () => {
       },
     });
     requestAgentRuntimeConfigMock.mockResolvedValueOnce({
+      harness: 'pi',
       provider_id: 'openai',
       model: 'gpt-5.1',
       thinking: 'medium',
@@ -963,6 +966,7 @@ describe('runJobSteps', () => {
       agent,
       expect.objectContaining({
         runtime: {
+          harness: 'pi',
           provider: 'openai',
           model: 'gpt-5.1',
           thinking: 'medium',
@@ -984,6 +988,7 @@ describe('runJobSteps', () => {
       requires_api_key: true,
     };
     requestAgentRuntimeConfigMock.mockResolvedValueOnce({
+      harness: 'pi',
       provider_id: 'workspace-models',
       model: 'custom-gpt',
       thinking: 'medium',
@@ -1006,6 +1011,7 @@ describe('runJobSteps', () => {
       agent,
       expect.objectContaining({
         runtime: {
+          harness: 'pi',
           provider: 'workspace-models',
           model: 'custom-gpt',
           thinking: 'medium',
@@ -1077,6 +1083,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       cwd: '/work',
       runtime: {
+        harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',

@@ -989,9 +989,10 @@ describe('workflow run queries', () => {
       expect(agentStep).toMatchObject({
         type: 'agent',
         config: {
+          harness: 'pi',
           model: 'claude-opus-4-8',
           provider: 'anthropic',
-          thinking: 'high',
+          thinking: 'xhigh',
           prompt: 'Fix the failing tests.',
         },
       });
@@ -999,6 +1000,7 @@ describe('workflow run queries', () => {
 
     test('stores agent step config resolved by the injected resolver', async () => {
       const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        harness: 'pi',
         provider: 'openai',
         model: 'gpt-5.5-pro',
         thinking: 'medium',
@@ -1026,11 +1028,13 @@ describe('workflow run queries', () => {
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
       const agentStep = jobSteps.find((step) => step.type === 'agent');
       expect(resolveAgentDefaults).toHaveBeenCalledWith({
+        harness: undefined,
         provider: undefined,
         model: undefined,
         thinking: undefined,
       });
       expect(agentStep?.config).toEqual({
+        harness: 'pi',
         model: 'gpt-5.5-pro',
         provider: 'openai',
         thinking: 'medium',
@@ -1334,6 +1338,7 @@ jobs:
         },
       });
       const firstResolver = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        harness: 'pi',
         provider: 'openai',
         model: 'gpt-5.5-pro',
         thinking: 'medium',
@@ -1563,6 +1568,7 @@ jobs:
 
     test('reruns preserve the original resolved agent step config', async () => {
       const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        harness: 'pi',
         provider: 'openai',
         model: 'gpt-5.5-pro',
         thinking: 'medium',
@@ -1603,6 +1609,7 @@ jobs:
       const agentStep = rerunSteps.find((step) => step.type === 'agent');
       expect(resolveAgentDefaults).toHaveBeenCalledTimes(1);
       expect(agentStep?.config).toEqual({
+        harness: 'pi',
         model: 'gpt-5.5-pro',
         provider: 'openai',
         thinking: 'medium',

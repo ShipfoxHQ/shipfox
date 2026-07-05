@@ -52,6 +52,7 @@ const context: WorkflowEvaluationContext = {
 };
 
 const resolveAgentDefaults: AgentDefaultsResolver = (params) => ({
+  harness: params.harness ?? 'pi',
   provider: params.provider ?? 'openai',
   model: params.model ?? 'gpt-5.5',
   thinking: params.thinking ?? 'off',
@@ -132,6 +133,34 @@ describe('completeStepDispatchConfig', () => {
     });
 
     expect(config).toEqual({run: 'echo "$SHA"', env: {SHA: 'abc123'}});
+  });
+
+  it('completes deferred agent config with the resolved harness', () => {
+    const pending = step({
+      type: 'agent',
+      config: {},
+      configPlan: {
+        agent: {
+          harness: 'claude',
+          prompt: plannedField(`Review ${template('steps.build.outputs.sha')}`),
+        },
+      },
+    });
+
+    const config = completeStepDispatchConfig({
+      step: pending,
+      context,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(config).toEqual({
+      harness: 'claude',
+      provider: 'openai',
+      model: 'gpt-5.5',
+      thinking: 'off',
+      prompt: 'Review abc123',
+    });
   });
 
   it('throws when a server-side segment still survives dispatch', () => {

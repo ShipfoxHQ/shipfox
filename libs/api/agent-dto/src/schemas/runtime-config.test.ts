@@ -3,6 +3,7 @@ import {agentRuntimeCredentialsResponseSchema} from './runtime-config.js';
 describe('agentRuntimeCredentialsResponseSchema', () => {
   it('parses runtime credentials for a supported provider', () => {
     const parsed = agentRuntimeCredentialsResponseSchema.parse({
+      harness: 'pi',
       provider_id: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
@@ -14,6 +15,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
 
   it('parses runtime credentials with a custom model provider descriptor', () => {
     const parsed = agentRuntimeCredentialsResponseSchema.parse({
+      harness: 'pi',
       provider_id: 'local-vllm',
       model: 'llama-3.1',
       thinking: 'high',
@@ -35,6 +37,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
   it('rejects a custom model provider descriptor without key intent', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
+        harness: 'pi',
         provider_id: 'local-vllm',
         model: 'llama-3.1',
         thinking: 'high',
@@ -54,6 +57,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
   it('rejects custom model provider runtime credentials without a custom model provider descriptor', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
+        harness: 'pi',
         provider_id: 'local-vllm',
         model: 'llama-3.1',
         thinking: 'high',
@@ -66,6 +70,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
   it('rejects a response without a model', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
+        harness: 'pi',
         provider_id: 'anthropic',
         thinking: 'high',
         credentials: {api_key: 'secret'},
@@ -77,6 +82,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
   it('rejects a response without thinking', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
+        harness: 'pi',
         provider_id: 'anthropic',
         model: 'claude-opus-4-8',
         credentials: {api_key: 'secret'},
@@ -88,6 +94,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
   it('rejects runtime credentials for an invalid provider ref', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
+        harness: 'pi',
         provider_id: 'bad_provider',
         model: 'gpt-5.5-pro',
         thinking: 'high',
@@ -100,6 +107,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
   it('rejects runtime credentials with an empty key', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
+        harness: 'pi',
         provider_id: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',
@@ -112,6 +120,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
   it('rejects runtime credentials with an empty value', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({
+        harness: 'pi',
         provider_id: 'anthropic',
         model: 'claude-opus-4-8',
         thinking: 'high',

@@ -589,6 +589,7 @@ describe('workflowDocumentSchema', () => {
   it.each([
     ['prompt-only agent step', {prompt: 'Fix the failing tests.'}],
     ['inline agent step', {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'}],
+    ['agent step with harness', {harness: 'claude', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     ['agent step with thinking', {model: 'claude-opus-4-8', prompt: 'Fix it.', thinking: 'low'}],
     ['agent step with provider', {model: 'gpt-5.5-pro', prompt: 'Fix it.', provider: 'openai'}],
     ['agent step with provider only', {provider: 'openai', prompt: 'Fix it.'}],
@@ -614,7 +615,9 @@ describe('workflowDocumentSchema', () => {
     ['neither run nor agent', {name: 'noop'}],
     ['reserved agent keyword', {agent: 'producer', model: 'claude-opus-4-8', prompt: 'Fix.'}],
     ['thinking on a run step', {run: 'npm test', thinking: 'high'}],
+    ['harness on a run step', {run: 'npm test', harness: 'pi'}],
     ['provider on a run step', {run: 'npm test', provider: 'openai'}],
+    ['unknown harness value', {model: 'claude-opus-4-8', prompt: 'Fix.', harness: 'codex'}],
     ['unknown thinking value', {model: 'claude-opus-4-8', prompt: 'Fix.', thinking: 'ultra'}],
     ['empty model string', {model: '', prompt: 'Fix.'}],
     ['empty provider string', {model: 'gpt-5.5-pro', prompt: 'Fix.', provider: ''}],

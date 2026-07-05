@@ -201,6 +201,6 @@ describe('model provider catalog', () => {
   it('re-exports the instance-wide thinking contract', () => {
     const parsed = agentThinkingSchema.parse(DEFAULT_AGENT_THINKING);
 
-    expect(parsed).toBe('high');
+    expect(parsed).toBe('xhigh');
   });
 });

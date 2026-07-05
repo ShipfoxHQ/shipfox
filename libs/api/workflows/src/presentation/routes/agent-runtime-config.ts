@@ -16,7 +16,7 @@ export const agentRuntimeConfigRoute = defineRoute({
   method: 'GET',
   path: '/agent-runtime-config',
   description:
-    "Returns the resolved provider, model, thinking effort, and decrypted provider credential bundle for the runner's currently leased running agent step. The job is identified by the lease token and the step is bound to that job before credentials are returned.",
+    "Returns the resolved harness, provider, model, thinking effort, and decrypted provider credential bundle for the runner's currently leased running agent step. The job is identified by the lease token and the step is bound to that job before credentials are returned.",
   schema: {
     querystring: agentRuntimeConfigQuerySchema,
     response: {
@@ -69,6 +69,7 @@ export const agentRuntimeConfigRoute = defineRoute({
 
     const runtimeConfig = await resolveRuntimeCredentials({
       workspaceId,
+      harness: agentConfig.harness,
       provider: agentConfig.provider,
       model: agentConfig.model,
       thinking: agentConfig.thinking,

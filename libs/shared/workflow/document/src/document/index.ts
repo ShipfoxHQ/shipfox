@@ -2,7 +2,10 @@ export {
   type AgentThinking,
   agentThinkingSchema,
   DEFAULT_AGENT_THINKING,
+  DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
+  type Harness,
+  harnessSchema,
 } from './step-enums.js';
 export {
   triggerSourceConfigSchemas,

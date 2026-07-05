@@ -3,20 +3,24 @@ import {
   type AgentThinking,
   type CustomAgentModelDto,
   DEFAULT_AGENT_THINKING,
+  DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,
   getModelProviderEntry,
+  type Harness,
   type ModelProviderRef,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {InvalidAgentModelError, UnsupportedModelProviderError} from './errors.js';
 
 export interface ContextualAgentConfig {
+  readonly harness?: Harness | undefined;
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
   readonly thinking?: AgentThinking | undefined;
 }
 
 export interface ResolvedAgentConfig {
+  readonly harness: Harness;
   readonly provider: ModelProviderRef;
   readonly model: string;
   readonly thinking: AgentThinking;
@@ -43,6 +47,7 @@ export function resolveAgentConfig(
   step: ContextualAgentConfig,
   ctx: AgentConfigResolutionContext = {},
 ): ResolvedAgentConfig {
+  const harness = step.harness ?? DEFAULT_HARNESS;
   const provider = resolveProvider(step, ctx);
   const workspaceProviderConfig = ctx.workspaceProviderConfigs?.get(provider);
   const model =
@@ -58,7 +63,7 @@ export function resolveAgentConfig(
     DEFAULT_AGENT_THINKING;
 
   validateModel(provider, model, workspaceProviderConfig);
-  return {provider, model, thinking};
+  return {harness, provider, model, thinking};
 }
 
 export const catalogDefaultAgentResolver: AgentDefaultsResolver = (step) =>
