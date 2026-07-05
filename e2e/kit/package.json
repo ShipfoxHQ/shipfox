@@ -42,6 +42,16 @@
         "types": "./dist/setup/global-setup.d.ts",
         "default": "./dist/setup/global-setup.js"
       }
+    },
+    "./api-global-setup": {
+      "development": {
+        "types": "./src/setup/api-global-setup.ts",
+        "default": "./src/setup/api-global-setup.ts"
+      },
+      "default": {
+        "types": "./dist/setup/api-global-setup.d.ts",
+        "default": "./dist/setup/api-global-setup.js"
+      }
     }
   },
   "scripts": {
