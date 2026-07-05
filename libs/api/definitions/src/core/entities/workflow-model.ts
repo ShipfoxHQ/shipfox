@@ -3,6 +3,7 @@ import type {AgentThinking, Harness} from '@shipfox/workflow-document';
 
 export type WorkflowFieldTemplate = readonly ResolvedFieldSegment[];
 export type WorkflowEnvTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
+export type WorkflowOutputTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
 
 export interface WorkflowModel {
   readonly kind: 'workflow';
@@ -34,6 +35,7 @@ export interface WorkflowModelJob {
   readonly runnerTemplates?: readonly WorkflowFieldTemplate[];
   readonly checkout: WorkflowModelJobCheckout;
   readonly success?: string;
+  readonly outputs?: WorkflowOutputTemplates;
   readonly executionTimeoutMs?: number;
   readonly listening?: WorkflowModelJobListening;
   readonly name?: WorkflowFieldTemplate;

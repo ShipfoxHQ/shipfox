@@ -7,6 +7,7 @@ export function normalizeJobSuccess(params: {
   source: string | undefined;
   sourceName: string;
   issues: WorkflowModelValidationIssue[];
+  allowedJobReferences: ReadonlySet<string>;
 }): string | undefined {
   if (params.source === undefined) return undefined;
 
@@ -18,6 +19,7 @@ export function normalizeJobSuccess(params: {
     invalidCode: 'invalid-job-success',
     invalidMessage: 'Job success must be a valid CEL boolean expression.',
     issues: params.issues,
+    allowedJobReferences: params.allowedJobReferences,
   });
   return expression?.source;
 }

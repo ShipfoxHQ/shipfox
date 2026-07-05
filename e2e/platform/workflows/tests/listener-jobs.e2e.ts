@@ -12,7 +12,6 @@ import {logText} from '#expect.js';
 import {
   batchedListenerExecutionMatches,
   findListenerExecutionByDeliveryId,
-  findListenerExecutionBySequence,
   sendWebhookDeliveryUntilObserved,
   waitForListenerExecution,
   waitForListenerResolution,
@@ -219,11 +218,9 @@ async function stepLogText(params: {
   sequence: number;
   stepKey: string;
 }): Promise<string> {
-  const execution = findListenerExecutionBySequence({
-    runDetail: params.runDetail,
-    jobKey: params.jobKey,
-    sequence: params.sequence,
-  });
+  const execution = params.runDetail.jobs
+    .find((job) => job.key === params.jobKey)
+    ?.job_executions.find((candidate) => candidate.sequence === params.sequence);
   const step = execution?.steps.find((candidate) => candidate.key === params.stepKey);
   if (!step) throw new Error(`Step ${params.jobKey}.${params.sequence}.${params.stepKey} missing`);
   const logs = await fetchStepLogs({
@@ -297,18 +294,27 @@ jobs:
         - source: __RESOLVE_WEBHOOK_SOURCE__
           event: received
     steps:
-      - key: show-event
+      - key: show_event
         env:
           MESSAGE: '\${{ execution.events[0].data.body.message }}'
           DELIVERY_ID: '\${{ execution.events[0].delivery_id }}'
         run: |
           echo "listener_message=$MESSAGE"
           echo "listener_delivery=$DELIVERY_ID"
+          echo "message=$MESSAGE" >> "$SHIPFOX_OUTPUT"
+    outputs:
+      message: '\${{ steps.show_event.outputs.message }}'
   deploy:
     needs: listen
     steps:
       - key: after-listener
-        run: echo "deploy_after_listener"
+        env:
+          LAST_MESSAGE: '\${{ jobs.listen.outputs.message }}'
+          MESSAGE_COUNT: '\${{ jobs.listen.executions.map(e, e.outputs.message).size() }}'
+        run: |
+          echo "deploy_after_listener"
+          echo "listener_last=$LAST_MESSAGE"
+          echo "listener_count=$MESSAGE_COUNT"
 `;
 
 const maxExecutionsWorkflow = `
@@ -442,14 +448,23 @@ test.describe('listener jobs', () => {
         token: testCase.token,
         jobKey: LISTENER_JOB,
         sequence: firstExecution.sequence,
-        stepKey: 'show-event',
+        stepKey: 'show_event',
       });
       const secondLogs = await stepLogText({
         runDetail: terminal,
         token: testCase.token,
         jobKey: LISTENER_JOB,
         sequence: secondExecution.sequence,
-        stepKey: 'show-event',
+        stepKey: 'show_event',
+      });
+      const deployExecution = deploy?.job_executions.at(-1);
+      if (!deployExecution) throw new Error('Expected deploy execution');
+      const deployLogs = await stepLogText({
+        runDetail: terminal,
+        token: testCase.token,
+        jobKey: 'deploy',
+        sequence: deployExecution.sequence,
+        stepKey: 'after-listener',
       });
       expect(resolved.jobs.find((job) => job.key === LISTENER_JOB)?.resolution_reason).toBe(
         'until',
@@ -463,6 +478,8 @@ test.describe('listener jobs', () => {
       expect(firstLogs).toContain(`listener_delivery=${firstFire.deliveryId}`);
       expect(secondLogs).toContain('listener_message=hello-again');
       expect(secondLogs).toContain(`listener_delivery=${secondFire.deliveryId}`);
+      expect(deployLogs).toContain('listener_last=hello-again');
+      expect(deployLogs).toContain('listener_count=2');
       expect(resolveDeliveryId).toContain('resolve');
     } catch (error) {
       await cleanupListenerCase(testCase, runId);

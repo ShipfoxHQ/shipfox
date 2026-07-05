@@ -1,0 +1,20 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      image:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["built image"]
+  deploy:
+    status: succeeded
+    steps:
+      deploy:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["deploying image sha-123"]

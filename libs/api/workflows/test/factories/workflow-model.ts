@@ -40,6 +40,7 @@ interface TestWorkflowJob {
   readonly runnerTemplates?: readonly string[] | undefined;
   readonly checkout?: WorkflowModel['jobs'][number]['checkout'] | undefined;
   readonly success?: string | undefined;
+  readonly outputs?: Readonly<Record<string, string>> | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
   readonly steps: readonly TestWorkflowStep[];
 }
@@ -73,6 +74,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
           }),
       checkout: job.checkout ?? DEFAULT_JOB_CHECKOUT,
       ...(job.success === undefined ? {} : {success: job.success}),
+      ...(job.outputs === undefined ? {} : {outputs: outputTemplates(job.outputs)}),
       ...(job.name === undefined
         ? {}
         : {
@@ -96,6 +98,15 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       job.dependencies.map((dependency) => ({from: dependency, to: job.id})),
     ),
   };
+}
+
+function outputTemplates(outputs: Readonly<Record<string, string>>) {
+  return Object.fromEntries(
+    Object.entries(outputs).map(([key, source]) => [
+      key,
+      fieldTemplate('job.outputs', source) ?? [{kind: 'literal' as const, value: source}],
+    ]),
+  );
 }
 
 function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number): ModelStep {

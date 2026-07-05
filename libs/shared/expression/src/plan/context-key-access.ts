@@ -35,10 +35,25 @@ export interface ContextKeyAccessAnalysis {
   readonly violations: readonly ContextKeyAccessViolation[];
 }
 
+export interface ContextRootKeyAccessReference {
+  readonly root: string;
+  readonly key: string;
+}
+
+export interface ContextRootKeyAccessAnalysis {
+  readonly references: readonly ContextRootKeyAccessReference[];
+  readonly violations: readonly ContextKeyAccessViolation[];
+}
+
 interface AccessChain {
   readonly root: string;
   readonly segments: readonly string[];
   readonly computed: boolean;
+}
+
+interface ContextAccessVisitor {
+  readonly shouldRecord: (chain: AccessChain) => boolean;
+  readonly record: (chain: AccessChain, source: string) => void;
 }
 
 export function analyzeContextKeyAccess(
@@ -48,32 +63,52 @@ export function analyzeContextKeyAccess(
   const references: ContextKeyAccessReference[] = [];
   const violations: ContextKeyAccessViolation[] = [];
 
-  collectContextKeyAccesses(parseCel(source).ast, source, references, violations, new Set());
+  collectContextAccesses(parseCel(source).ast, source, new Set(), {
+    shouldRecord: (chain) => workflowContextRootRequiresLiteralKey(chain.root),
+    record: (chain, expressionSource) =>
+      recordLiteralKeyRootAccess(chain, expressionSource, references, violations),
+  });
 
   return {references, violations};
 }
 
-function collectContextKeyAccesses(
+export function analyzeContextRootKeyAccess(
+  expression: WorkflowExpression | string,
+  roots: readonly string[],
+): ContextRootKeyAccessAnalysis {
+  const source = typeof expression === 'string' ? expression : expression.source;
+  const references: ContextRootKeyAccessReference[] = [];
+  const violations: ContextKeyAccessViolation[] = [];
+  const selectedRoots = new Set(roots);
+
+  collectContextAccesses(parseCel(source).ast, source, new Set(), {
+    shouldRecord: (chain) => selectedRoots.has(chain.root),
+    record: (chain, expressionSource) =>
+      recordContextRootKeyAccess(chain, expressionSource, references, violations),
+  });
+
+  return {references, violations};
+}
+
+function collectContextAccesses(
   node: ASTNode,
   source: string,
-  references: ContextKeyAccessReference[],
-  violations: ContextKeyAccessViolation[],
   scopedIdentifiers: ReadonlySet<string>,
+  visitor: ContextAccessVisitor,
 ): void {
   if (binaryOperators.has(node.op as BinaryOperator) || node.op === '||' || node.op === '&&') {
-    collectBinaryContextKeyAccesses(
+    collectBinaryContextAccesses(
       node.args as [ASTNode, ASTNode],
       source,
-      references,
-      violations,
       scopedIdentifiers,
+      visitor,
     );
     return;
   }
 
   const chain = accessChain(node, scopedIdentifiers);
-  if (chain && workflowContextRootRequiresLiteralKey(chain.root)) {
-    recordLiteralKeyRootAccess(chain, source, references, violations);
+  if (chain && visitor.shouldRecord(chain)) {
+    visitor.record(chain, source);
     return;
   }
 
@@ -83,68 +118,61 @@ function collectContextKeyAccesses(
       return;
     case '.':
     case '.?':
-      collectContextKeyAccesses(node.args[0], source, references, violations, scopedIdentifiers);
+      collectContextAccesses(node.args[0], source, scopedIdentifiers, visitor);
       return;
     case '[]':
     case '[?]':
-      collectBinaryContextKeyAccesses(node.args, source, references, violations, scopedIdentifiers);
+      collectBinaryContextAccesses(node.args, source, scopedIdentifiers, visitor);
       return;
     case 'call':
       for (const argument of node.args[1]) {
-        collectContextKeyAccesses(argument, source, references, violations, scopedIdentifiers);
+        collectContextAccesses(argument, source, scopedIdentifiers, visitor);
       }
       return;
     case 'rcall': {
       const [method, receiver, args] = node.args as [string, ASTNode, ASTNode[]];
-      collectContextKeyAccesses(receiver, source, references, violations, scopedIdentifiers);
+      collectContextAccesses(receiver, source, scopedIdentifiers, visitor);
       const binding = bindComprehensionAlias(method, args, scopedIdentifiers);
       for (const argument of args.slice(binding.skipArgs)) {
-        collectContextKeyAccesses(
-          argument,
-          source,
-          references,
-          violations,
-          binding.scopedIdentifiers,
-        );
+        collectContextAccesses(argument, source, binding.scopedIdentifiers, visitor);
       }
       return;
     }
     case 'list':
       for (const element of node.args) {
-        collectContextKeyAccesses(element, source, references, violations, scopedIdentifiers);
+        collectContextAccesses(element, source, scopedIdentifiers, visitor);
       }
       return;
     case 'map':
       for (const [key, value] of node.args) {
         if (key.op !== 'id') {
-          collectContextKeyAccesses(key, source, references, violations, scopedIdentifiers);
+          collectContextAccesses(key, source, scopedIdentifiers, visitor);
         }
-        collectContextKeyAccesses(value, source, references, violations, scopedIdentifiers);
+        collectContextAccesses(value, source, scopedIdentifiers, visitor);
       }
       return;
     case '?:':
-      collectContextKeyAccesses(node.args[0], source, references, violations, scopedIdentifiers);
-      collectContextKeyAccesses(node.args[1], source, references, violations, scopedIdentifiers);
-      collectContextKeyAccesses(node.args[2], source, references, violations, scopedIdentifiers);
+      collectContextAccesses(node.args[0], source, scopedIdentifiers, visitor);
+      collectContextAccesses(node.args[1], source, scopedIdentifiers, visitor);
+      collectContextAccesses(node.args[2], source, scopedIdentifiers, visitor);
       return;
     case '!_':
     case '-_':
-      collectContextKeyAccesses(node.args, source, references, violations, scopedIdentifiers);
+      collectContextAccesses(node.args, source, scopedIdentifiers, visitor);
       return;
   }
 
   throw new Error(`Unsupported CEL AST operator: ${(node as {op: string}).op}`);
 }
 
-function collectBinaryContextKeyAccesses(
+function collectBinaryContextAccesses(
   [left, right]: [ASTNode, ASTNode],
   source: string,
-  references: ContextKeyAccessReference[],
-  violations: ContextKeyAccessViolation[],
   scopedIdentifiers: ReadonlySet<string>,
+  visitor: ContextAccessVisitor,
 ): void {
-  collectContextKeyAccesses(left, source, references, violations, scopedIdentifiers);
-  collectContextKeyAccesses(right, source, references, violations, scopedIdentifiers);
+  collectContextAccesses(left, source, scopedIdentifiers, visitor);
+  collectContextAccesses(right, source, scopedIdentifiers, visitor);
 }
 
 function recordLiteralKeyRootAccess(
@@ -183,6 +211,21 @@ function recordLiteralKeyRootAccess(
   }
 
   violations.push({root: chain.root, source});
+}
+
+function recordContextRootKeyAccess(
+  chain: AccessChain,
+  source: string,
+  references: ContextRootKeyAccessReference[],
+  violations: ContextKeyAccessViolation[],
+): void {
+  const [key] = chain.segments;
+  if (chain.computed || key === undefined) {
+    violations.push({root: chain.root, source});
+    return;
+  }
+
+  references.push({root: chain.root, key});
 }
 
 function accessChain(

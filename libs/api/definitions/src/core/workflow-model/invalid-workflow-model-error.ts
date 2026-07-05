@@ -21,6 +21,7 @@ export type WorkflowModelValidationIssueCode =
   | 'job-dependency-cycle'
   | 'listening-job-missing-resolution-source'
   | 'listening-timeout-exceeds-run-timeout'
+  | 'missing-job-needs-edge'
   | 'missing-cron-schedule'
   | 'missing-runner-label'
   | 'multiple-manual-triggers'

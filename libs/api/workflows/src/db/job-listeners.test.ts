@@ -2,6 +2,7 @@ import {WORKFLOWS_JOB_ACTIVATED} from '@shipfox/api-workflows-dto';
 import {and, asc, eq, isNull} from 'drizzle-orm';
 import type {JobStatus} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
+import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
 import {deliverEventToListener} from '#db/job-listener-events.js';
 import {
@@ -16,7 +17,7 @@ import {jobs} from '#db/schema/jobs.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
 import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
 import {jobFactory, workflowModel, workflowRunFactory} from '#test/index.js';
-import {getJobsByWorkflowRunId} from './workflow-runs.js';
+import {getJobsByWorkflowRunId, updateJobExecutionStatus} from './workflow-runs.js';
 
 interface ListeningJobOptions {
   status?: JobStatus;
@@ -336,6 +337,46 @@ describe('drainListenerEventsIntoExecution', () => {
     const result = await drainListenerEventsIntoExecution({jobId: job.id, expectedSequence: 1});
 
     expect(result).toEqual({kind: 'resolve-requested'});
+  });
+
+  it('resolves outputs for listener executions', async () => {
+    const job = await createListeningJobFromModel({
+      jobs: {
+        listen: {
+          steps: [{key: 'show_event', run: 'echo listener'}],
+          outputs: {message: template('steps.show_event.outputs.message')},
+        },
+      },
+    });
+    await bufferEvent(job.id);
+    const drained = await drainListenerEventsIntoExecution({jobId: job.id, expectedSequence: 1});
+    if (drained.kind !== 'execution') throw new Error('Expected listener execution');
+    const setupStep = await nextStepForJob(job.id);
+    if (setupStep.kind !== 'step') throw new Error('Expected setup step');
+    await recordStepResult({
+      jobExecutionId: drained.jobExecutionId,
+      stepId: setupStep.step.id,
+      status: 'succeeded',
+    });
+    const runStep = await nextStepForJob(job.id);
+    if (runStep.kind !== 'step') throw new Error('Expected run step');
+    await recordStepResult({
+      jobExecutionId: drained.jobExecutionId,
+      stepId: runStep.step.id,
+      status: 'succeeded',
+      output: {message: 'hello'},
+    });
+    await updateJobExecutionStatus({
+      jobExecutionId: drained.jobExecutionId,
+      expectedVersion: drained.executionVersion,
+      status: 'succeeded',
+    });
+
+    const result = await resolveJobListener({jobId: job.id, reason: 'until'});
+
+    const stored = await readJob(job.id);
+    expect(result).toEqual({status: 'succeeded', jobVersion: stored?.version});
+    expect(stored?.outputs).toEqual({message: 'hello'});
   });
 
   it('reports empty when nothing is buffered', async () => {

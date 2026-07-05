@@ -20,6 +20,7 @@ import type {
   WorkflowModelValidationIssueCode,
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
+import {validateDirectJobReferences} from './validate-job-references.js';
 import {issue} from './validation-issue.js';
 
 export function validatePredicateExpression(params: {
@@ -30,6 +31,7 @@ export function validatePredicateExpression(params: {
   invalidCode: WorkflowModelValidationIssueCode;
   invalidMessage: string;
   issues: WorkflowModelValidationIssue[];
+  allowedJobReferences?: ReadonlySet<string>;
 }): WorkflowExpression | undefined {
   const syntaxExpression = createSyntaxExpression(params);
   if (syntaxExpression === undefined) return undefined;
@@ -68,6 +70,21 @@ export function validatePredicateExpression(params: {
     params.issues.push(
       unavailablePredicateContextIssue({...params, contextRoots, unavailableRoots}),
     );
+    return undefined;
+  }
+
+  const invalidJobReferenceIssue =
+    params.allowedJobReferences === undefined
+      ? undefined
+      : validateDirectJobReferences({
+          source: params.source,
+          expression: syntaxExpression,
+          field: params.field,
+          path: params.path,
+          allowedJobReferences: params.allowedJobReferences,
+        });
+  if (invalidJobReferenceIssue !== undefined) {
+    params.issues.push(invalidJobReferenceIssue);
     return undefined;
   }
 

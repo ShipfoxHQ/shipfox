@@ -18,6 +18,7 @@ export interface MaterializedWorkflowJob {
   readonly checkout: WorkflowModelJob['checkout'];
   readonly listening?: WorkflowModelJob['listening'];
   readonly name?: WorkflowModelJob['name'];
+  readonly outputs?: WorkflowModelJob['outputs'];
   readonly dependencies: readonly string[];
   readonly runner: readonly string[];
   readonly position: number;
@@ -50,6 +51,7 @@ export function materializeWorkflowModel(
     checkout: job.checkout,
     ...(job.listening === undefined ? {} : {listening: job.listening}),
     ...(job.name === undefined ? {} : {name: job.name}),
+    ...(job.outputs === undefined ? {} : {outputs: job.outputs}),
     dependencies: dependencySourceNames(job, jobsById),
     runner: job.runner,
     position,
@@ -86,6 +88,28 @@ export function materializeJobRunner(params: {
     throw new InvalidJobRunnerLabelsError(labels);
   }
   return labels;
+}
+
+export function materializeJobOutputs(params: {
+  readonly job: WorkflowModelJob;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+}): Record<string, string> | null {
+  const outputs = params.job.outputs;
+  if (outputs === undefined) return null;
+
+  return Object.fromEntries(
+    Object.entries(outputs).map(([key, template]) => [
+      key,
+      completeStepField({
+        field: 'job.outputs',
+        errorField: 'job.outputs',
+        template: {segments: template},
+        context: params.context,
+        definitionId: params.definitionId,
+      }),
+    ]),
+  );
 }
 
 export function modelHasAgentStep(model: WorkflowModel): boolean {

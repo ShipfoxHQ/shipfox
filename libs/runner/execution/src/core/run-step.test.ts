@@ -82,6 +82,21 @@ describe('executeRunStep', () => {
     expect(result.exit_code).toBe(0);
   });
 
+  it('captures outputs from the output file', async () => {
+    const step = buildStep({
+      config: {
+        run: 'echo "image_sha=sha-123" >> "$SHIPFOX_OUTPUT"\necho "tag=release=latest" >> "$SHIPFOX_OUTPUT"',
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.outputs).toEqual({
+      image_sha: 'sha-123',
+      tag: 'release=latest',
+    });
+  });
+
   it('passes step env to the spawned process with precedence over inherited env', async () => {
     const previous = process.env.SHIPFOX_ENV_TEST_EXISTING;
     process.env.SHIPFOX_ENV_TEST_EXISTING = 'inherited';

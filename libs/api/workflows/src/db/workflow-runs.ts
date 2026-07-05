@@ -68,10 +68,14 @@ import {
 import {
   assembleCreationContext,
   assembleExecutionCreationContext,
+  assembleExecutionResolutionContext,
   assembleExecutionsContext,
+  assembleJobsContext,
+  type JobContextInput,
 } from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
 import {
+  materializeJobOutputs,
   materializeJobRunner,
   materializeWorkflowModel,
 } from '#core/step-config/materialize-workflow-model.js';
@@ -396,6 +400,7 @@ function referencedVariables(
 
   for (const job of jobs) {
     collectFieldVariableReferences(job.name, references, {field: 'job.name'});
+    collectTemplateVariableReferences(job.outputs, references, {field: 'job.outputs'});
     collectTemplateVariableReferences(job.templates?.env, references);
 
     for (const step of job.steps) {
@@ -419,9 +424,16 @@ function referencedVariables(
 function collectTemplateVariableReferences(
   templates: Readonly<Record<string, readonly ResolvedFieldSegment[]>> | undefined,
   references: ReferencedVariable[],
+  source?: {
+    readonly field: InterpolationUnresolvableError['field'];
+  },
 ): void {
   for (const [envKey, template] of Object.entries(templates ?? {})) {
-    collectFieldVariableReferences(template, references, {field: 'env', envKey});
+    collectFieldVariableReferences(
+      template,
+      references,
+      source === undefined ? {field: 'env', envKey} : source,
+    );
   }
 }
 
@@ -614,6 +626,7 @@ export async function createRerunWorkflowRun(
                   resolutionReason: null,
                   listeningOn: job.listeningOn ? [...job.listeningOn] : null,
                   listeningUntil: job.listeningUntil ? [...job.listeningUntil] : null,
+                  outputs: job.outputs ? {...job.outputs} : null,
                   dependencies: [...job.dependencies],
                   runner: job.runner ? [...job.runner] : null,
                   position: job.position,
@@ -660,6 +673,8 @@ export async function createRerunWorkflowRun(
               runner: runner ? [...runner] : null,
               status: carriedOver ? ('succeeded' as const) : ('pending' as const),
               statusReason: null,
+              outputs:
+                carriedOver && sourceExecution?.outputs ? {...sourceExecution.outputs} : null,
               ...(carriedOver ? {finishedAt: sql`now()`} : {}),
             },
           ];
@@ -1068,6 +1083,39 @@ export async function getJobExecutionById(id: string, tx?: Tx): Promise<JobExecu
     .limit(1);
   const row = rows[0];
   return row ? toJobExecution(row) : undefined;
+}
+
+export async function getDirectDependencyJobContexts(
+  jobId: string,
+  tx?: Tx,
+): Promise<JobContextInput[]> {
+  const targetRows = await (tx ?? db()).select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+  const target = targetRows[0];
+  if (!target || target.dependencies.length === 0) return [];
+
+  const rows = await (tx ?? db())
+    .select({job: jobs, execution: jobExecutions})
+    .from(jobs)
+    .leftJoin(jobExecutions, eq(jobExecutions.jobId, jobs.id))
+    .where(
+      and(
+        eq(jobs.workflowRunAttemptId, target.workflowRunAttemptId),
+        inArray(jobs.key, target.dependencies),
+      ),
+    )
+    .orderBy(asc(jobs.position), asc(jobs.id), asc(jobExecutions.sequence), asc(jobExecutions.id));
+
+  const contextsByJobId = new Map<string, JobContextInput & {executions: JobExecution[]}>();
+  for (const row of rows) {
+    let context = contextsByJobId.get(row.job.id);
+    if (!context) {
+      context = {job: toJob(row.job), executions: []};
+      contextsByJobId.set(row.job.id, context);
+    }
+    if (row.execution) context.executions.push(toJobExecution(row.execution));
+  }
+
+  return [...contextsByJobId.values()];
 }
 
 export async function getWorkflowRunDetail(
@@ -1706,19 +1754,114 @@ export interface UpdateJobExecutionStatusAtVersionParams {
   markTimedOut?: boolean;
 }
 
+async function resolveJobExecutionOutputs(
+  tx: Tx,
+  params: {
+    jobExecutionId: string;
+    status: JobExecutionStatus;
+    statusReason: JobStatusReason | null;
+  },
+): Promise<Record<string, unknown> | null> {
+  const [target] = await tx
+    .select({execution: jobExecutions, job: jobs, attempt: workflowRunAttempts, run: workflowRuns})
+    .from(jobExecutions)
+    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .where(eq(jobExecutions.id, params.jobExecutionId))
+    .limit(1);
+  if (!target) throw new JobNotFoundError(params.jobExecutionId);
+  const model = target.attempt.model;
+  if (!model) return null;
+  const modelJob = model.jobs.find((job) => job.key === target.job.key);
+  if (!modelJob || modelJob.outputs === undefined) return null;
+
+  const executionRows = await tx
+    .select()
+    .from(jobExecutions)
+    .where(eq(jobExecutions.jobId, target.job.id))
+    .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
+  const executions = executionRows.map((row) =>
+    row.id === target.execution.id
+      ? toJobExecution({...row, status: params.status, statusReason: params.statusReason})
+      : toJobExecution(row),
+  );
+  const jobExecution = executions.find((execution) => execution.id === target.execution.id);
+  if (!jobExecution) throw new JobNotFoundError(params.jobExecutionId);
+
+  const stepRows = await tx
+    .select()
+    .from(steps)
+    .where(eq(steps.jobExecutionId, params.jobExecutionId))
+    .orderBy(asc(steps.position), asc(steps.id));
+  const attemptRows = await tx
+    .select()
+    .from(stepAttempts)
+    .where(eq(stepAttempts.jobExecutionId, params.jobExecutionId))
+    .orderBy(asc(stepAttempts.executionOrder), asc(stepAttempts.id));
+  const dependencyJobs = await getDirectDependencyJobContexts(target.job.id, tx);
+
+  const context = assembleExecutionResolutionContext({
+    run: toWorkflowRun(target.run),
+    triggerPayload: target.run.triggerPayload,
+    inputs: target.run.inputs,
+    vars: await loadReferencedVariables({
+      model,
+      jobs: [modelJob],
+      workspaceId: target.run.workspaceId,
+      projectId: target.run.projectId,
+      definitionId: target.run.definitionId,
+    }),
+    job: toJob(target.job),
+    jobExecution,
+    executions,
+    steps: stepRows.map(toStep),
+    attempts: attemptRows.map(toStepAttempt),
+    jobs: dependencyJobs,
+  });
+
+  return materializeJobOutputs({
+    job: modelJob,
+    context,
+    definitionId: target.run.definitionId,
+  });
+}
+
 async function updateJobExecutionStatusAtVersion(
   tx: Tx,
   params: UpdateJobExecutionStatusAtVersionParams,
 ): Promise<{execution: JobExecution; changed: boolean} | null> {
+  let status = params.status;
+  let statusReason = params.statusReason ?? null;
+  let outputs: Record<string, unknown> | null | undefined;
+  if (TERMINAL_EXECUTION_STATUSES.includes(status)) {
+    outputs = null;
+  }
+  if (status === 'succeeded') {
+    try {
+      outputs = await resolveJobExecutionOutputs(tx, {
+        jobExecutionId: params.jobExecutionId,
+        status,
+        statusReason,
+      });
+    } catch (error) {
+      if (!(error instanceof InterpolationUnresolvableError)) throw error;
+      status = 'failed';
+      statusReason = 'unknown';
+      outputs = null;
+    }
+  }
+
   const rows = await tx
     .update(jobExecutions)
     .set({
-      status: params.status,
-      statusReason: params.statusReason ?? null,
+      status,
+      statusReason,
+      ...(outputs === undefined ? {} : {outputs}),
       version: sql`${jobExecutions.version} + 1`,
       updatedAt: new Date(),
       ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
-      ...(TERMINAL_EXECUTION_STATUSES.includes(params.status) ? {finishedAt: sql`now()`} : {}),
+      ...(TERMINAL_EXECUTION_STATUSES.includes(status) ? {finishedAt: sql`now()`} : {}),
     })
     .where(
       and(
@@ -1782,11 +1925,15 @@ export async function updateJobStatusAtVersion(
   tx: Tx,
   params: UpdateJobStatusAtVersionParams,
 ): Promise<{job: Job; changed: boolean} | null> {
+  const outputs = isJobTerminal(params.status)
+    ? await reduceJobOutputs(tx, {jobId: params.jobId, status: params.status})
+    : undefined;
   const rows = await tx
     .update(jobs)
     .set({
       status: params.status,
       statusReason: params.statusReason ?? null,
+      ...(outputs === undefined ? {} : {outputs}),
       version: sql`${jobs.version} + 1`,
       updatedAt: new Date(),
     })
@@ -1833,6 +1980,22 @@ export async function updateJobStatusAtVersion(
   }
 
   return {job, changed: true};
+}
+
+async function reduceJobOutputs(
+  tx: Tx,
+  params: {jobId: string; status: JobStatus},
+): Promise<Record<string, unknown> | null> {
+  if (params.status !== 'succeeded') return null;
+
+  const [row] = await tx
+    .select({outputs: jobExecutions.outputs})
+    .from(jobExecutions)
+    .where(and(eq(jobExecutions.jobId, params.jobId), eq(jobExecutions.status, 'succeeded')))
+    .orderBy(desc(jobExecutions.sequence), desc(jobExecutions.id))
+    .limit(1);
+
+  return row?.outputs ? {...row.outputs} : null;
 }
 
 export interface UpdateJobStatusParams {
@@ -2022,12 +2185,16 @@ export interface EvaluateJobSuccessResult {
 export function evaluateJobSuccess(params: {
   success: string | null;
   executions: readonly JobExecution[];
+  jobs?: readonly JobContextInput[];
 }): EvaluateJobSuccessResult {
   const expression = createWorkflowExpression({
     source: params.success ?? DEFAULT_JOB_SUCCESS,
     check: {mode: 'syntax'},
   });
-  const context = assembleExecutionsContext(params.executions);
+  const context = {
+    ...assembleExecutionsContext(params.executions),
+    ...(params.jobs === undefined ? {} : assembleJobsContext(params.jobs)),
+  };
   // Fail closed so a runtime-only predicate error cannot abort job resolution.
   let passed: boolean;
   let predicateEvaluationFailed = false;
@@ -2071,6 +2238,7 @@ export async function resolveJobStatusFromJobExecutions(params: {
     const {status, statusReason} = evaluateJobSuccess({
       success: jobRow.success,
       executions: jobExecutionRows.map(toJobExecution),
+      jobs: await getDirectDependencyJobContexts(params.jobId, tx),
     });
 
     const updated = await updateJobStatusAtVersion(tx, {

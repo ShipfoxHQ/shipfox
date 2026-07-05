@@ -61,6 +61,12 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
+        "outputs": {
+          "name": "outputs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -466,6 +472,12 @@
         },
         "listening_until": {
           "name": "listening_until",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outputs": {
+          "name": "outputs",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
