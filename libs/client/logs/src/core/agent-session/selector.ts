@@ -1,4 +1,14 @@
-import type {LogRecord} from '@shipfox/api-logs-dto';
+import type {
+  LogRecord,
+  SessionViewLifecycleRow,
+  SessionViewMessageRow,
+  SessionViewRawRow,
+  SessionViewRow,
+  SessionViewRowMeta,
+  SessionViewThinkingRow,
+  SessionViewToolCallRow,
+  SessionViewToolResultRow,
+} from '@shipfox/api-logs-dto';
 import {
   type AgentMessage,
   asContentBlocks,
@@ -14,67 +24,14 @@ const CAMEL_CASE_BOUNDARY = /([a-z])([A-Z])/g;
 
 export type AgentSessionLogRecord = Extract<LogRecord, {type: 'agent_session'}>;
 
-export type AgentSessionRow =
-  | AgentMessageRow
-  | AgentThinkingRow
-  | AgentToolCallRow
-  | AgentToolResultRow
-  | AgentLifecycleRow
-  | AgentFallbackRow;
-
-export interface AgentSessionRowBase {
-  timestamp: number;
-}
-
-export interface AgentRowMeta {
-  label: string;
-  value: string;
-  inline?: boolean;
-}
-
-export interface AgentMessageRow extends AgentSessionRowBase {
-  kind: 'message';
-  role: string;
-  label: string;
-  meta: readonly AgentRowMeta[];
-  text: string;
-  terminalFailure: boolean;
-}
-
-export interface AgentThinkingRow extends AgentSessionRowBase {
-  kind: 'thinking';
-  text: string;
-}
-
-export interface AgentToolCallRow extends AgentSessionRowBase {
-  kind: 'tool-call';
-  id: string | null;
-  name: string;
-  input: string;
-}
-
-export interface AgentToolResultRow extends AgentSessionRowBase {
-  kind: 'tool-result';
-  toolCallId: string | null;
-  toolName: string;
-  output: string;
-  isError: boolean;
-}
-
-export interface AgentLifecycleRow extends AgentSessionRowBase {
-  kind: 'lifecycle';
-  label: string;
-  detail: string | null;
-  meta: readonly AgentRowMeta[];
-  tone: 'default' | 'warning' | 'error';
-  terminalFailure: boolean;
-}
-
-export interface AgentFallbackRow extends AgentSessionRowBase {
-  kind: 'fallback';
-  label: string;
-  raw: string;
-}
+export type AgentSessionRow = SessionViewRow;
+export type AgentRowMeta = SessionViewRowMeta;
+export type AgentMessageRow = SessionViewMessageRow;
+export type AgentThinkingRow = SessionViewThinkingRow;
+export type AgentToolCallRow = SessionViewToolCallRow;
+export type AgentToolResultRow = SessionViewToolResultRow;
+export type AgentLifecycleRow = SessionViewLifecycleRow;
+export type AgentRawRow = SessionViewRawRow;
 
 const rowCache = new WeakMap<AgentSessionLogRecord, readonly AgentSessionRow[]>();
 
@@ -92,7 +49,7 @@ function expandSessionRecordUncached(record: AgentSessionLogRecord): readonly Ag
   if (!parsed.ok) {
     return [
       {
-        kind: 'fallback',
+        kind: 'raw',
         timestamp: record.ts,
         label: parsed.reason === 'invalid-json' ? 'Malformed session entry' : 'Unsupported entry',
         raw: record.data,
@@ -165,7 +122,7 @@ function expandSessionRecordUncached(record: AgentSessionLogRecord): readonly Ag
     default:
       return [
         {
-          kind: 'fallback',
+          kind: 'raw',
           timestamp: record.ts,
           label: `Unknown session entry: ${entry.type}`,
           raw: record.data,
@@ -181,7 +138,7 @@ function expandMessageEntry(
 ): readonly AgentSessionRow[] {
   const parsedEntry = sessionMessageEntrySchema.safeParse(entry);
   if (!parsedEntry.success) {
-    return [{kind: 'fallback', timestamp, label: 'Unsupported message entry', raw}];
+    return [{kind: 'raw', timestamp, label: 'Unsupported message entry', raw}];
   }
 
   const message = parsedEntry.data.message;

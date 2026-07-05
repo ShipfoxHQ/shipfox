@@ -11,20 +11,20 @@ const meta = (label: string, value: string, inline?: boolean) =>
   inline == null ? {label, value} : {label, value, inline};
 
 describe('expandSessionRecord', () => {
-  test('returns a fallback row for malformed JSON', () => {
+  test('returns a raw row for malformed JSON', () => {
     const rows = expandSessionRecord(record('{not json'));
 
     expect(rows).toEqual([
-      {kind: 'fallback', timestamp: 1, label: 'Malformed session entry', raw: '{not json'},
+      {kind: 'raw', timestamp: 1, label: 'Malformed session entry', raw: '{not json'},
     ]);
   });
 
-  test('returns a fallback row for an unknown entry type', () => {
+  test('returns a raw row for an unknown entry type', () => {
     const rows = expandSessionRecord(record({type: 'future_entry', payload: {x: 1}}));
 
     expect(rows).toEqual([
       {
-        kind: 'fallback',
+        kind: 'raw',
         timestamp: 1,
         label: 'Unknown session entry: future_entry',
         raw: '{"type":"future_entry","payload":{"x":1}}',
@@ -455,11 +455,11 @@ describe('expandSessionRecord', () => {
     ]);
   });
 
-  test('returns an unsupported fallback when the entry has no type', () => {
+  test('returns an unsupported raw row when the entry has no type', () => {
     const rows = expandSessionRecord(record({payload: {x: 1}}));
 
     expect(rows).toEqual([
-      {kind: 'fallback', timestamp: 1, label: 'Unsupported entry', raw: '{"payload":{"x":1}}'},
+      {kind: 'raw', timestamp: 1, label: 'Unsupported entry', raw: '{"payload":{"x":1}}'},
     ]);
   });
 });

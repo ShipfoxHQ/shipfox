@@ -188,7 +188,7 @@ function AgentSessionRowView({
           </LogContent>
         </LogRow>
       );
-    case 'fallback':
+    case 'raw':
       return (
         <LogDisclosure indent={indent}>
           <LogDisclosureTrigger
