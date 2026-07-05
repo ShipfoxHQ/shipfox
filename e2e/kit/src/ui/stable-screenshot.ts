@@ -194,44 +194,51 @@ async function applyReplacements(
         );
       }
 
-      const snapshot = await handle.evaluate(
-        (
-          element: MutableElement,
-          options: {
-            textReplacement: string | undefined;
-            attributes: Record<string, string>;
-            valueReplacement: string | undefined;
+      let shouldDisposeHandle = true;
+      try {
+        const snapshot = await handle.evaluate(
+          (
+            element: MutableElement,
+            options: {
+              textReplacement: string | undefined;
+              attributes: Record<string, string>;
+              valueReplacement: string | undefined;
+            },
+          ): Omit<ElementSnapshot, 'handle'> => {
+            const previous: Omit<ElementSnapshot, 'handle'> = {
+              attributes: Object.fromEntries(
+                Object.keys(options.attributes).map((name) => [name, element.getAttribute(name)]),
+              ),
+            };
+            if (options.textReplacement !== undefined) previous.text = element.textContent;
+            if (options.valueReplacement !== undefined && 'value' in element) {
+              const currentValue = element.value;
+              if (currentValue !== undefined) previous.value = currentValue;
+            }
+
+            if (options.textReplacement !== undefined)
+              element.textContent = options.textReplacement;
+            if (options.valueReplacement !== undefined && 'value' in element) {
+              element.value = options.valueReplacement;
+            }
+
+            for (const [name, value] of Object.entries(options.attributes)) {
+              element.setAttribute(name, value);
+            }
+
+            return previous;
           },
-        ): Omit<ElementSnapshot, 'handle'> => {
-          const previous: Omit<ElementSnapshot, 'handle'> = {
-            attributes: Object.fromEntries(
-              Object.keys(options.attributes).map((name) => [name, element.getAttribute(name)]),
-            ),
-          };
-          if (options.textReplacement !== undefined) previous.text = element.textContent;
-          if (options.valueReplacement !== undefined && 'value' in element) {
-            const currentValue = element.value;
-            if (currentValue !== undefined) previous.value = currentValue;
-          }
-
-          if (options.textReplacement !== undefined) element.textContent = options.textReplacement;
-          if (options.valueReplacement !== undefined && 'value' in element) {
-            element.value = options.valueReplacement;
-          }
-
-          for (const [name, value] of Object.entries(options.attributes)) {
-            element.setAttribute(name, value);
-          }
-
-          return previous;
-        },
-        {
-          textReplacement: replacement.text,
-          attributes: replacement.attributes ?? {},
-          valueReplacement: replacement.value,
-        },
-      );
-      locatorSnapshot.elements.push({...snapshot, handle});
+          {
+            textReplacement: replacement.text,
+            attributes: replacement.attributes ?? {},
+            valueReplacement: replacement.value,
+          },
+        );
+        locatorSnapshot.elements.push({...snapshot, handle});
+        shouldDisposeHandle = false;
+      } finally {
+        if (shouldDisposeHandle) await handle.dispose();
+      }
     }
   }
 }

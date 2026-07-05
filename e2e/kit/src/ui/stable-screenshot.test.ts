@@ -33,6 +33,8 @@ class FakeElement {
 }
 
 class FakeElementHandle {
+  disposed = false;
+
   constructor(
     private readonly element: FakeElement,
     private readonly shouldFail = false,
@@ -46,6 +48,7 @@ class FakeElementHandle {
   }
 
   dispose(): Promise<void> {
+    this.disposed = true;
     return Promise.resolve();
   }
 }
@@ -55,6 +58,7 @@ class FakeLocator {
     private readonly elements: FakeElement[],
     private readonly failingIndexes = new Set<number>(),
     private readonly predicate: (element: FakeElement) => boolean = () => true,
+    readonly handles: FakeElementHandle[] = [],
     private readonly index?: number,
   ) {}
 
@@ -63,14 +67,16 @@ class FakeLocator {
   }
 
   nth(index: number): FakeLocator {
-    return new FakeLocator(this.elements, this.failingIndexes, this.predicate, index);
+    return new FakeLocator(this.elements, this.failingIndexes, this.predicate, this.handles, index);
   }
 
   elementHandle(): Promise<FakeElementHandle | null> {
     const index = this.index ?? 0;
     const element = this.matchedElements()[index];
     if (!element) return Promise.resolve(null);
-    return Promise.resolve(new FakeElementHandle(element, this.failingIndexes.has(index)));
+    const handle = new FakeElementHandle(element, this.failingIndexes.has(index));
+    this.handles.push(handle);
+    return Promise.resolve(handle);
   }
 
   private matchedElements(): FakeElement[] {
@@ -145,6 +151,8 @@ describe('stableScreenshot', () => {
     expect(argosScreenshot).not.toHaveBeenCalled();
     expect(first.textContent).toBe('first-before');
     expect(second.textContent).toBe('second-before');
+    expect(locator.handles).toHaveLength(2);
+    expect(locator.handles.every((handle) => handle.disposed)).toBe(true);
   });
 
   it('restores captured elements when locator counts drift before restore', async () => {

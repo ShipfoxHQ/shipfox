@@ -918,10 +918,6 @@ importers:
         version: link:../../../tools/typescript
 
   e2e/screens/auth:
-    dependencies:
-      '@shipfox/e2e-kit':
-        specifier: workspace:*
-        version: link:../../kit
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

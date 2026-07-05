@@ -32,9 +32,6 @@
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
-  "dependencies": {
-    "@shipfox/e2e-kit": "workspace:*"
-  },
   "peerDependencies": {
     "@shipfox/playwright": "workspace:*"
   },
