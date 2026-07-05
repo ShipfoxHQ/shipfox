@@ -74,6 +74,12 @@ describe('parseStepOutput', () => {
     expect(result).toEqual({notes: 'not EOF yet'});
   });
 
+  it('treats heredoc delimiter whitespace literally', () => {
+    const parse = () => parseStepOutput('notes<< EOF\nline one\nEOF\n');
+
+    expect(parse).toThrow(StepOutputError);
+  });
+
   it('parses heredoc markers inside single-line values literally', () => {
     const result = parseStepOutput('payload=value-with-<<-marker\n');
 
