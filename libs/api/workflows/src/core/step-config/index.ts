@@ -18,6 +18,7 @@ export {
 export {
   type MaterializedWorkflowJob,
   type MaterializeWorkflowModelParams,
+  materializeJobRunner,
   materializeWorkflowModel,
   modelHasAgentStep,
 } from './materialize-workflow-model.js';

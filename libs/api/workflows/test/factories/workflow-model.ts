@@ -37,6 +37,7 @@ interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
   readonly name?: string | undefined;
   readonly runner?: string | readonly string[] | undefined;
+  readonly runnerTemplates?: readonly string[] | undefined;
   readonly checkout?: WorkflowModel['jobs'][number]['checkout'] | undefined;
   readonly success?: string | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
@@ -63,6 +64,13 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       key,
       mode: 'one_shot' as const,
       runner: normalizeStringArray(job.runner ?? input.runner ?? DEFAULT_RUNNER_LABELS),
+      ...(job.runnerTemplates === undefined
+        ? {}
+        : {
+            runnerTemplates: job.runnerTemplates.map((template) =>
+              requiredFieldTemplate('job.runner', template),
+            ),
+          }),
       checkout: job.checkout ?? DEFAULT_JOB_CHECKOUT,
       ...(job.success === undefined ? {} : {success: job.success}),
       ...(job.name === undefined
@@ -206,6 +214,17 @@ function fieldTemplate(
     );
   }
   return plan.plan.field.segments;
+}
+
+function requiredFieldTemplate(
+  field: WorkflowInterpolationField,
+  source: string,
+): readonly ResolvedFieldSegment[] {
+  const template = fieldTemplate(field, source);
+  if (template === undefined) {
+    throw new Error(`Expected test workflow template for ${field}: ${source}`);
+  }
+  return template;
 }
 
 function stableId(sourceName: string): string {

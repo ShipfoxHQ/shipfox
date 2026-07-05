@@ -1,5 +1,5 @@
 import {WORKFLOWS_JOB_ACTIVATED} from '@shipfox/api-workflows-dto';
-import {and, eq} from 'drizzle-orm';
+import {and, asc, eq, isNull} from 'drizzle-orm';
 import type {JobStatus} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
 import {db} from '#db/db.js';
@@ -14,7 +14,9 @@ import {jobExecutions} from '#db/schema/job-executions.js';
 import {jobListenerEvents} from '#db/schema/job-listener-events.js';
 import {jobs} from '#db/schema/jobs.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
-import {jobFactory} from '#test/index.js';
+import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
+import {jobFactory, workflowModel, workflowRunFactory} from '#test/index.js';
+import {getJobsByWorkflowRunId} from './workflow-runs.js';
 
 interface ListeningJobOptions {
   status?: JobStatus;
@@ -35,6 +37,30 @@ async function createListeningJob(options: ListeningJobOptions = {}) {
   // A real listener starts with no firings; the factory seeds a one_shot execution.
   await db().delete(jobExecutions).where(eq(jobExecutions.jobId, job.id));
   return job;
+}
+
+async function createListeningJobFromModel(model: Parameters<typeof workflowModel>[0]) {
+  const materializationModel = workflowModel(model);
+  const modelJob = materializationModel.jobs[0];
+  if (!modelJob) throw new Error('createListeningJobFromModel: model has no jobs');
+  const run = await workflowRunFactory.create();
+  const [job] = await getJobsByWorkflowRunId(run.id);
+  if (!job) throw new Error('createListeningJobFromModel: run created no jobs');
+  await db()
+    .update(workflowRunAttempts)
+    .set({model: materializationModel})
+    .where(eq(workflowRunAttempts.id, job.workflowRunAttemptId));
+  await db()
+    .update(jobs)
+    .set({
+      key: modelJob.key,
+      mode: 'listening',
+      status: 'running',
+      listenerStatus: 'listening',
+    })
+    .where(eq(jobs.id, job.id));
+  await db().delete(jobExecutions).where(eq(jobExecutions.jobId, job.id));
+  return {...job, key: modelJob.key, mode: 'listening' as const};
 }
 
 async function insertExecution(jobId: string, sequence: number, status: JobExecutionStatus) {
@@ -72,6 +98,10 @@ function readJob(jobId: string) {
     .where(eq(jobs.id, jobId))
     .limit(1)
     .then((rows) => rows[0]);
+}
+
+function template(source: string): string {
+  return `\${{ ${source} }}`;
 }
 
 describe('activateJobListener', () => {
@@ -242,6 +272,46 @@ describe('drainListenerEventsIntoExecution', () => {
     expect(unconsumedEvents.filter((event) => event.consumedByExecutionId === null)).toHaveLength(
       1,
     );
+  });
+
+  it('materializes runner labels separately for each listener firing', async () => {
+    const job = await createListeningJobFromModel({
+      jobs: {
+        review: {
+          runner: ['linux'],
+          runnerTemplates: [template('execution.events[0].data.runner')],
+          steps: [{run: 'echo review'}],
+        },
+      },
+    });
+    await bufferEvent(job.id, 'fire', crypto.randomUUID(), new Date('2026-01-01T00:00:00.000Z'));
+    await db()
+      .update(jobListenerEvents)
+      .set({payload: {runner: 'GPU'}})
+      .where(eq(jobListenerEvents.jobId, job.id));
+
+    const first = await drainListenerEventsIntoExecution({jobId: job.id, expectedSequence: 1});
+    await bufferEvent(job.id, 'fire', crypto.randomUUID(), new Date('2026-01-01T00:01:00.000Z'));
+    await db()
+      .update(jobListenerEvents)
+      .set({payload: {runner: 'ARM'}})
+      .where(
+        and(eq(jobListenerEvents.jobId, job.id), isNull(jobListenerEvents.consumedByExecutionId)),
+      );
+
+    const second = await drainListenerEventsIntoExecution({jobId: job.id, expectedSequence: 2});
+
+    const executions = await db()
+      .select()
+      .from(jobExecutions)
+      .where(eq(jobExecutions.jobId, job.id))
+      .orderBy(asc(jobExecutions.sequence));
+    expect(first).toMatchObject({kind: 'execution', requiredLabels: ['gpu', 'linux']});
+    expect(second).toMatchObject({kind: 'execution', requiredLabels: ['arm', 'linux']});
+    expect(executions.map((execution) => execution.runner)).toEqual([
+      ['gpu', 'linux'],
+      ['arm', 'linux'],
+    ]);
   });
 
   it('peeks the unconsumed listener buffer from DB state', async () => {

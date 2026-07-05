@@ -7,10 +7,15 @@ import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
 import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
-import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
+import {
+  AgentConfigUnresolvableError,
+  InterpolationUnresolvableError,
+  InvalidJobRunnerLabelsError,
+} from '#core/errors.js';
 import {
   assembleExecutionCreationContext,
   materializeJobExecutionSteps,
+  materializeJobRunner,
   resolveJobExecutionName,
 } from '#core/step-config/index.js';
 import {
@@ -124,6 +129,7 @@ export type DrainListenerEventsResult =
       jobExecutionId: string;
       executionVersion: number;
       sequence: number;
+      requiredLabels: string[];
       status: JobExecutionStatus;
     }
   | {kind: 'resolve-requested'}
@@ -190,6 +196,7 @@ export async function drainListenerEventsIntoExecution(
     let executionName = fallbackName;
     let status: JobExecutionStatus = 'pending';
     let materializedSteps: ReturnType<typeof materializeJobExecutionSteps> = [];
+    let runner: readonly string[] = [];
     try {
       const model = target.attempt.model;
       if (!model) throw new PermanentListenerMaterializationError('Run attempt has no model');
@@ -224,6 +231,11 @@ export async function drainListenerEventsIntoExecution(
         triggerEvents,
         priorExecutions: target.priorExecutions,
       });
+      runner = materializeJobRunner({
+        job: modelJob,
+        context: stepContext,
+        definitionId: target.run.definitionId,
+      });
       materializedSteps = materializeJobExecutionSteps({
         model,
         job: modelJob,
@@ -242,6 +254,7 @@ export async function drainListenerEventsIntoExecution(
         jobId: params.jobId,
         sequence: params.expectedSequence,
         name: executionName,
+        runner: runner.length === 0 ? null : [...runner],
         status,
         statusReason: status === 'failed' ? 'unknown' : null,
         triggerEvents,
@@ -286,6 +299,7 @@ export async function drainListenerEventsIntoExecution(
         jobExecutionId: execution.id,
         executionVersion: execution.version,
         sequence: execution.sequence,
+        requiredLabels: execution.runner ?? [],
         status: execution.status,
       },
       batchSize: bufferedEvents.length,
@@ -444,6 +458,7 @@ async function findExistingExecution(
     jobExecutionId: existing.id,
     executionVersion: existing.version,
     sequence: existing.sequence,
+    requiredLabels: existing.runner ?? [],
     status: existing.status,
   };
 }
@@ -500,6 +515,7 @@ function isPermanentListenerMaterializationError(error: unknown): boolean {
   return (
     error instanceof PermanentListenerMaterializationError ||
     error instanceof InterpolationUnresolvableError ||
+    error instanceof InvalidJobRunnerLabelsError ||
     error instanceof AgentConfigUnresolvableError
   );
 }

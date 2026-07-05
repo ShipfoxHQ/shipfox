@@ -255,6 +255,7 @@ describe('workflow run queries', () => {
         jobId: runJobs[0]?.id,
         sequence: 1,
         name: 'build #1',
+        runner: ['ubuntu-latest'],
       });
 
       // Every job gets a synthetic "Set up job" step at position 0; user steps follow.
@@ -268,6 +269,36 @@ describe('workflow run queries', () => {
         config: {},
       });
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
+    });
+
+    test('materializes a templated runner on the one-shot job execution', async () => {
+      const model = buildModel({
+        jobs: {
+          build: {
+            runner: ['linux'],
+            runnerTemplates: [template('inputs.runner')],
+            steps: [{run: 'echo hello'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        inputs: {runner: 'GPU'},
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      const executions = await getJobExecutionsByJobId(job?.id as string);
+      expect(executions[0]?.runner).toEqual(['gpu', 'linux']);
     });
 
     test('persists the resolved one-shot job execution name', async () => {
@@ -2158,6 +2189,7 @@ jobs:
         jobId: crypto.randomUUID(),
         sequence: 1,
         name: 'build',
+        runner: null,
         status,
         statusReason: status === 'failed' ? 'step_failed' : null,
         triggerEvents: [],

@@ -450,6 +450,7 @@ describe('workflow context registry', () => {
       expect(getWorkflowInterpolationFieldFailurePolicy('agent.model')).toBe('fail');
       expect(getWorkflowInterpolationFieldFailurePolicy('agent.provider')).toBe('fail');
       expect(getWorkflowInterpolationFieldFailurePolicy('agent.thinking')).toBe('fail');
+      expect(getWorkflowInterpolationFieldFailurePolicy('job.runner')).toBe('fail');
       expect(getWorkflowInterpolationFieldFailurePolicy('job.name')).toBe('degrade');
       expect(getWorkflowInterpolationFieldFailurePolicy('step.name')).toBe('degrade');
       expect(
@@ -541,6 +542,7 @@ describe('workflow interpolation field policies', () => {
       'agent.model',
       'agent.provider',
       'agent.thinking',
+      'job.runner',
       'job.name',
       'step.name',
     ]);
@@ -554,6 +556,7 @@ describe('workflow interpolation field policies', () => {
     ['agent.model', ['trusted']],
     ['agent.provider', ['trusted']],
     ['agent.thinking', ['trusted']],
+    ['job.runner', ['trusted', 'untrusted']],
     ['job.name', ['trusted', 'untrusted']],
     ['step.name', ['trusted', 'untrusted']],
   ] satisfies readonly [
@@ -570,6 +573,7 @@ describe('workflow interpolation field policies', () => {
     ['agent.model', ['server']],
     ['agent.provider', ['server']],
     ['agent.thinking', ['server']],
+    ['job.runner', ['server']],
     ['job.name', ['server']],
     ['step.name', ['server']],
   ] satisfies readonly [
@@ -589,7 +593,13 @@ describe('workflow interpolation field policies', () => {
   });
 
   it('accepts every context in any-trust fields', () => {
-    for (const field of ['env.value', 'agent.prompt', 'job.name', 'step.name'] as const) {
+    for (const field of [
+      'env.value',
+      'agent.prompt',
+      'job.runner',
+      'job.name',
+      'step.name',
+    ] as const) {
       for (const context of workflowContextNames) {
         expect(workflowInterpolationFieldAcceptsContext(field, context)).toBe(true);
       }
@@ -602,6 +612,7 @@ describe('workflow interpolation field policies', () => {
     expect(workflowInterpolationFieldAcceptsHost('agent.prompt', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('agent.model', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('agent.provider', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('job.runner', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('job.name', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('step.name', 'runner')).toBe(false);
   });

@@ -100,7 +100,7 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
           batchMaxSize: job.batchMaxSize,
           batchMaxWaitMs: job.batchMaxWaitMs,
           dependencies: job.dependencies,
-          runner: job.runner ?? [],
+          runner: jobExecution?.runner ?? job.runner ?? [],
           version: job.version,
         },
       ];

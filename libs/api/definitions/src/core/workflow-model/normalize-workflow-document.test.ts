@@ -1832,6 +1832,7 @@ describe('normalizeWorkflowDocument', () => {
         env: {RUN_ID: interpolation('run.id'), PORT: 3000},
         jobs: {
           build: {
+            runner: ['linux', interpolation('execution.events[0].data.runner')],
             env: {JOB_NAME: interpolation('job.key')},
             steps: [
               {
@@ -1860,6 +1861,21 @@ describe('normalizeWorkflowDocument', () => {
         },
       ]);
       expect(model.templates?.env).not.toHaveProperty('PORT');
+      expect(model.jobs[0]?.runner).toEqual(['linux']);
+      expect(model.jobs[0]?.runnerTemplates).toEqual([
+        [
+          {
+            kind: 'deferred',
+            expression: {
+              language: 'cel',
+              source: 'execution.events[0].data.runner',
+              check: 'typed',
+            },
+            roots: ['execution'],
+            fillTarget: 'execution-creation',
+          },
+        ],
+      ]);
       expect(model.jobs[0]?.templates?.env?.JOB_NAME).toEqual([
         {
           kind: 'deferred',

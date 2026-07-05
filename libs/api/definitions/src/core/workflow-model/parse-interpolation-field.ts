@@ -39,6 +39,7 @@ export type StoredInterpolationField =
   | 'agent.model'
   | 'agent.provider'
   | 'job.name'
+  | 'job.runner'
   | 'step.name';
 
 export function parseInterpolationField(params: {

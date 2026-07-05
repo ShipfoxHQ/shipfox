@@ -287,6 +287,7 @@ export type WorkflowInterpolationField =
   | 'agent.model'
   | 'agent.provider'
   | 'agent.thinking'
+  | 'job.runner'
   | 'job.name'
   | 'step.name';
 
@@ -339,6 +340,12 @@ export const workflowInterpolationFieldPolicies = {
   },
   'agent.thinking': {
     acceptedTrustTiers: trustedOnlyTrustTiers,
+    acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+    renderSanitize: false,
+  },
+  'job.runner': {
+    acceptedTrustTiers: anyTrustTier,
     acceptedHosts: serverOnlyHosts,
     failurePolicy: 'fail',
     renderSanitize: false,

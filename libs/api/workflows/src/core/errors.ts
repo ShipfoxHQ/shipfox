@@ -33,6 +33,7 @@ export type InterpolationUnresolvableField =
   | 'agent.prompt'
   | 'agent.model'
   | 'agent.provider'
+  | 'job.runner'
   | 'job.name'
   | 'step.name';
 
@@ -96,6 +97,13 @@ export class JobLeaseNotActiveError extends Error {
   constructor(readonly jobExecutionId: string) {
     super(`Job lease is no longer active: ${jobExecutionId}`);
     this.name = 'JobLeaseNotActiveError';
+  }
+}
+
+export class InvalidJobRunnerLabelsError extends Error {
+  constructor(readonly labels: readonly string[]) {
+    super(`Job runner labels are invalid: ${labels.join(', ')}`);
+    this.name = 'InvalidJobRunnerLabelsError';
   }
 }
 

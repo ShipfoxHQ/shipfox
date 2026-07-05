@@ -15,6 +15,7 @@ export interface JobExecution {
   jobId: string;
   sequence: number;
   name: string;
+  runner: string[] | null;
   status: JobExecutionStatus;
   statusReason: JobStatusReason | null;
   triggerEvents: WorkflowExecutionEvent[];

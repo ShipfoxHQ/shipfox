@@ -123,7 +123,8 @@ function normalizeJob(params: {
     id,
     key: params.sourceName,
     mode: listening === undefined ? 'one_shot' : 'listening',
-    runner,
+    runner: runner.labels,
+    ...(runner.templates.length === 0 ? {} : {runnerTemplates: runner.templates}),
     checkout,
     ...(success === undefined ? {} : {success}),
     ...(executionTimeoutMs === undefined ? {} : {executionTimeoutMs}),
@@ -398,10 +399,45 @@ function normalizeRunner(params: {
   sourceName: string;
   issues: WorkflowModelValidationIssue[];
   defaultRunnerLabels: readonly string[];
-}): readonly string[] {
+}): {labels: readonly string[]; templates: readonly WorkflowFieldTemplate[]} {
   const rawRunner = params.job.runner ?? params.document.runner;
-  const runnerLabels =
-    rawRunner === undefined ? params.defaultRunnerLabels : canonicalizeLabels(rawRunner);
+  if (rawRunner === undefined) {
+    const runnerLabels = params.defaultRunnerLabels;
+    validateRunnerLabels({...params, runnerLabels, allowEmpty: false});
+    return {labels: runnerLabels, templates: []};
+  }
+
+  const runnerValues = typeof rawRunner === 'string' ? [rawRunner] : rawRunner;
+  const literalLabels: string[] = [];
+  const templates: WorkflowFieldTemplate[] = [];
+  for (const [index, value] of runnerValues.entries()) {
+    const template = parseInterpolationField({
+      field: 'job.runner',
+      source: value,
+      path: ['jobs', params.sourceName, 'runner', index],
+      issues: params.issues,
+      fillSite: 'execution-creation',
+    });
+    if (template === undefined) {
+      literalLabels.push(value);
+    } else {
+      templates.push(template);
+    }
+  }
+
+  const runnerLabels = canonicalizeLabels(literalLabels);
+  validateRunnerLabels({...params, runnerLabels, allowEmpty: templates.length > 0});
+
+  return {labels: runnerLabels, templates};
+}
+
+function validateRunnerLabels(params: {
+  sourceName: string;
+  issues: WorkflowModelValidationIssue[];
+  runnerLabels: readonly string[];
+  allowEmpty: boolean;
+}): void {
+  const runnerLabels = params.runnerLabels;
   const invalid = findInvalidLabels(runnerLabels);
 
   if (invalid.length > 0) {
@@ -415,7 +451,7 @@ function normalizeRunner(params: {
     );
   }
 
-  if (runnerLabels.length === 0) {
+  if (runnerLabels.length === 0 && !params.allowEmpty) {
     params.issues.push(
       issue({
         code: 'missing-runner-label',
@@ -434,8 +470,6 @@ function normalizeRunner(params: {
       }),
     );
   }
-
-  return runnerLabels;
 }
 
 type WorkflowModelStepBaseFields = Pick<

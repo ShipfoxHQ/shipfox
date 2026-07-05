@@ -32,6 +32,7 @@ export interface WorkflowModelJob {
   readonly key: string;
   readonly mode: WorkflowModelJobMode;
   readonly runner: readonly string[];
+  readonly runnerTemplates?: readonly WorkflowFieldTemplate[];
   readonly checkout: WorkflowModelJobCheckout;
   readonly success?: string;
   readonly executionTimeoutMs?: number;

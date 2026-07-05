@@ -391,6 +391,7 @@ function jobExecution(overrides: Partial<JobExecution> = {}): JobExecution {
     jobId: 'job-1',
     sequence: 2,
     name: 'Deploy',
+    runner: null,
     status: 'running',
     statusReason: null,
     triggerEvents: [
