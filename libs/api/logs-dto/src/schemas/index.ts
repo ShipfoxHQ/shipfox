@@ -13,14 +13,14 @@ export {
   readLogsResponseSchema,
 } from './read.js';
 export {
-  type AppendableLogRecord,
-  appendableLogRecordSchema,
   type LogRecord,
   logRecordSchema,
   MAX_RECORD_DATA_BYTES,
   MAX_RECORD_NAME_BYTES,
-  parseAppendableLogRecordLine,
   parseLogRecordLine,
+  parseRawLogRecordLine,
+  type RawLogRecord,
+  rawLogRecordSchema,
 } from './record.js';
 export {
   SESSION_VIEW_VERSION,

@@ -1870,6 +1870,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1068.0
         version: 3.1071.0
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../agent-dto
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context

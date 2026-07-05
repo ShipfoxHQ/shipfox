@@ -17,7 +17,6 @@ const output = (data: string, ts = 1): LogRecord => ({
 });
 
 const line = (record: LogRecord): string => `${JSON.stringify(record)}\n`;
-
 const inline = (params: {
   ndjson: string;
   nextCursor?: number;
@@ -38,6 +37,7 @@ const presigned = (
 ): Extract<ReadLogsResponseDto, {mode: 'presigned'}> => ({
   mode: 'presigned',
   url: params.url ?? 'https://storage.example.test/logs/object?sig=1',
+  state: params.state ?? 'closed',
   expires_at: params.expires_at ?? '2026-06-23T10:00:00.000Z',
   total_bytes: params.total_bytes ?? 128,
   truncated: params.truncated ?? false,

@@ -23,7 +23,7 @@ export const readLogsQuerySchema = z.object({
 export type ReadLogsQueryDto = z.infer<typeof readLogsQuerySchema>;
 
 /**
- * Inline shape: raw NDJSON bytes from `cursor`, parsed client-side with
+ * Inline shape: stored NDJSON bytes from `cursor`, parsed client-side with
  * `parseLogRecordLine`. Served while the stream is open or closed but not yet compacted.
  * The bytes carry every record of every type for the `(step, attempt)`; the client
  * filters by record type for display.
@@ -32,7 +32,7 @@ const readLogsInlineSchema = z.object({
   mode: z.literal('inline'),
   ndjson: z
     .string()
-    .describe('Raw NDJSON: every record for this (step, attempt) from cursor, in stream order.'),
+    .describe('Stored NDJSON: every record for this (step, attempt) from cursor, in stream order.'),
   next_cursor: z
     .number()
     .int()
@@ -59,6 +59,9 @@ const readLogsInlineSchema = z.object({
 const readLogsPresignedSchema = z.object({
   mode: z.literal('presigned'),
   url: z.string().url().describe('Presigned GET URL for the compacted NDJSON object.'),
+  state: z
+    .literal('closed')
+    .describe('Compacted streams are closed before they are served by URL.'),
   expires_at: z
     .string()
     .datetime({offset: true})
@@ -67,7 +70,7 @@ const readLogsPresignedSchema = z.object({
     .number()
     .int()
     .min(0)
-    .describe('Total committed log bytes for the attempt (uncompressed).'),
+    .describe('Committed append byte position for the attempt. This is the runner CAS axis.'),
   truncated: z
     .boolean()
     .describe('True when the stream was force-closed because the runner stopped reporting.'),

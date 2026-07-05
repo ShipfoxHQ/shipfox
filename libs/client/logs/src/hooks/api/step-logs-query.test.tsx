@@ -17,7 +17,6 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 
 const outputLine = (data: string, ts = 1): string =>
   `${JSON.stringify({v: 1, ts, type: 'output', stream: 'stdout', data})}\n`;
-
 const inlineBody = ({
   ndjson,
   nextCursor,
@@ -40,6 +39,7 @@ const inlineBody = ({
 const presignedBody = () => ({
   mode: 'presigned',
   url: 'https://storage.example.test/logs/object?sig=1',
+  state: 'closed',
   expires_at: '2026-06-23T10:00:00.000Z',
   total_bytes: 128,
   truncated: false,

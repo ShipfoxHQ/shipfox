@@ -1,4 +1,5 @@
-import {appendLogs} from '#core/append-logs.js';
+import {type LogRecord, parseLogRecordLine} from '@shipfox/api-logs-dto';
+import {appendLogs, setStepLookupForTesting} from '#core/append-logs.js';
 import {LeaseStreamMismatchError, MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
 import {jobAccountingFactory} from '#test/factories/job-accounting.js';
 import {
@@ -11,6 +12,8 @@ import {
   sessionLine,
 } from '#test/fixtures/ndjson.js';
 import {findAccounting, findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
+
+const mockSteps = new Map<string, {config: Record<string, unknown>}>();
 
 interface Ctx {
   jobId: string;
@@ -30,7 +33,35 @@ function newCtx(): Ctx {
   };
 }
 
+async function allowLargeLogBudget(ctx: Ctx): Promise<void> {
+  await jobAccountingFactory.create({
+    jobId: ctx.jobId,
+    workspaceId: ctx.workspaceId,
+    startedAt: new Date(Date.now() - 5 * 60_000),
+  });
+}
+
+function recordsFromChunks(chunks: Awaited<ReturnType<typeof listChunks>>): LogRecord[] {
+  return chunks.flatMap((chunk) =>
+    chunk.data.toString('utf8').split('\n').filter(Boolean).map(parseLogRecordLine),
+  );
+}
+
 describe('appendLogs', () => {
+  let restoreStepLookup: () => void;
+
+  beforeAll(() => {
+    restoreStepLookup = setStepLookupForTesting((stepId) => Promise.resolve(mockSteps.get(stepId)));
+  });
+
+  afterAll(() => {
+    restoreStepLookup();
+  });
+
+  beforeEach(() => {
+    mockSteps.clear();
+  });
+
   describe('offset-CAS', () => {
     it('extends committed_length and stores one runner chunk on an in-order append', async () => {
       const ctx = newCtx();
@@ -101,9 +132,9 @@ describe('appendLogs', () => {
   });
 
   describe('agent_session', () => {
-    it('stores a session line verbatim as one runner chunk and leaves the stream open', async () => {
+    it('stores a normalized session line as one runner chunk and leaves the stream open', async () => {
       const ctx = newCtx();
-      // Small enough to stay under the tiny test budget (100 bytes) so capped stays false.
+      await allowLargeLogBudget(ctx);
       const body = ndjsonBody(sessionLine('{"type":"x"}'));
 
       const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
@@ -114,7 +145,119 @@ describe('appendLogs', () => {
       const chunks = await listChunks(stream?.id as string);
       expect(chunks).toHaveLength(1);
       expect(chunks[0]?.origin).toBe('runner');
-      expect(chunks[0]?.data).toEqual(body);
+      expect(recordsFromChunks(chunks)).toEqual([
+        {
+          v: 1,
+          ts: 1,
+          type: 'agent_session',
+          row: {
+            kind: 'raw',
+            timestamp: 1,
+            label: 'Unknown session entry: x',
+            raw: '{"type":"x"}',
+          },
+        },
+      ]);
+    });
+
+    it('stores parsed pi session rows in append order', async () => {
+      const ctx = newCtx();
+      await allowLargeLogBudget(ctx);
+      const first = sessionLine(
+        JSON.stringify({type: 'session', id: 'session-1', cwd: '/workspace'}),
+      );
+      const second = sessionLine(
+        JSON.stringify({type: 'message', message: {role: 'assistant', content: 'Done.'}}),
+      );
+      const body = ndjsonBody(first, second);
+
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      const stream = await findStream({...ctx, attempt: 1});
+      const rows = recordsFromChunks(await listChunks(stream?.id as string)).map((record) => {
+        expect(record.type).toBe('agent_session');
+        return record.type === 'agent_session' ? record.row : null;
+      });
+      expect(rows).toEqual([
+        {
+          kind: 'lifecycle',
+          timestamp: 1,
+          label: 'Session started',
+          detail: 'session-1 · /workspace',
+          meta: [],
+          tone: 'default',
+          terminalFailure: false,
+        },
+        {
+          kind: 'message',
+          timestamp: 1,
+          role: 'assistant',
+          label: 'assistant',
+          meta: [],
+          text: 'Done.',
+          terminalFailure: false,
+        },
+      ]);
+    });
+
+    it('selects the Claude parser from the step harness', async () => {
+      const ctx = newCtx();
+      await allowLargeLogBudget(ctx);
+      mockSteps.set(ctx.stepId, {config: {harness: 'claude'}});
+      const body = ndjsonBody(
+        sessionLine(
+          JSON.stringify({
+            type: 'assistant',
+            message: {
+              role: 'assistant',
+              content: [{type: 'tool_use', id: 'tool-1', name: 'Read', input: {path: 'a.ts'}}],
+            },
+          }),
+        ),
+      );
+
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      const stream = await findStream({...ctx, attempt: 1});
+      const rows = recordsFromChunks(await listChunks(stream?.id as string)).map((record) => {
+        expect(record.type).toBe('agent_session');
+        return record.type === 'agent_session' ? record.row : null;
+      });
+      expect(rows).toEqual([
+        {
+          kind: 'tool-call',
+          timestamp: 1,
+          id: 'tool-1',
+          name: 'Read',
+          input: '{\n  "path": "a.ts"\n}',
+        },
+      ]);
+    });
+
+    it('does not duplicate parsed rows on a retried append', async () => {
+      const ctx = newCtx();
+      await allowLargeLogBudget(ctx);
+      const body = ndjsonBody(sessionLine(JSON.stringify({type: 'session', id: 'session-1'})));
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      const stream = await findStream({...ctx, attempt: 1});
+      expect(recordsFromChunks(await listChunks(stream?.id as string))).toHaveLength(1);
+    });
+
+    it('does not store normalized session records when a capped append is dropped', async () => {
+      const ctx = newCtx();
+      const first = outputOfBytes(150);
+      await appendLogs({...ctx, attempt: 1, offset: 0, body: first});
+      const straggler = ndjsonBody(sessionLine(JSON.stringify({type: 'session', id: 'dropped'})));
+
+      await appendLogs({...ctx, attempt: 1, offset: first.length, body: straggler});
+
+      const stream = await findStream({...ctx, attempt: 1});
+      expect(recordsFromChunks(await listChunks(stream?.id as string))).not.toContainEqual(
+        expect.objectContaining({type: 'agent_session'}),
+      );
     });
 
     it('rejects a session line over LOG_MAX_SESSION_LINE_BYTES before any stream is created', async () => {
@@ -131,7 +274,7 @@ describe('appendLogs', () => {
   });
 
   describe('budget accounting', () => {
-    it('charges the raw stored bytes, envelope and control records included', async () => {
+    it('charges stored bytes, envelope and control records included', async () => {
       const ctx = newCtx();
       const body = ndjsonBody(outputLine('abc'), groupStartLine('g1', 'Build'));
 

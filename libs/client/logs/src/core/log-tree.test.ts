@@ -41,11 +41,19 @@ const gap = (droppedBytes = 0, ts = 0): LogRecord => ({
 });
 const capped = (ts = 0): LogRecord => ({v: 1, ts, type: 'capped'});
 const runnerLost = (ts = 0): LogRecord => ({v: 1, ts, type: 'runner_lost'});
-const agentSession = (data = 'entry', ts = 0): LogRecord => ({
+const agentSession = (
+  row: Extract<LogRecord, {type: 'agent_session'}>['row'] = {
+    kind: 'raw',
+    timestamp: 0,
+    label: 'entry',
+    raw: 'entry',
+  },
+  ts = 0,
+): LogRecord => ({
   v: 1,
   ts,
   type: 'agent_session',
-  data,
+  row: {...row, timestamp: ts},
 });
 
 const asGroup = (node: LogNode | undefined): GroupLogNode => {
@@ -75,7 +83,7 @@ describe('buildLogTree', () => {
   });
 
   test('anchors originTs on the first agent_session record', () => {
-    const tree = buildLogTree([agentSession('entry', 5), out('a', 'stdout', 9)]);
+    const tree = buildLogTree([agentSession(undefined, 5), out('a', 'stdout', 9)]);
 
     expect(tree.originTs).toBe(5);
   });
@@ -251,7 +259,7 @@ describe('buildLogTree', () => {
   });
 
   test('emits agent_session nodes without consuming a line number', () => {
-    const records = [out('a'), agentSession('{"role":"assistant"}'), out('b')];
+    const records = [out('a'), agentSession(), out('b')];
 
     const tree = buildLogTree(records);
 
@@ -261,20 +269,18 @@ describe('buildLogTree', () => {
 
   test('keeps stdout between a tool call and tool result in stream order', () => {
     const toolCall = agentSession(
-      JSON.stringify({
-        type: 'message',
-        message: {
-          role: 'assistant',
-          content: [{type: 'toolCall', id: 'call-1', name: 'edit_file', arguments: {}}],
-        },
-      }),
+      {kind: 'tool-call', timestamp: 1, id: 'call-1', name: 'edit_file', input: '{}'},
       1,
     );
     const toolResult = agentSession(
-      JSON.stringify({
-        type: 'message',
-        message: {toolCallId: 'call-1', toolName: 'edit_file', content: 'done'},
-      }),
+      {
+        kind: 'tool-result',
+        timestamp: 3,
+        toolCallId: 'call-1',
+        toolName: 'edit_file',
+        output: 'done',
+        isError: false,
+      },
       3,
     );
 

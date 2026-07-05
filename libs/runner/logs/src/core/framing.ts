@@ -1,8 +1,8 @@
 import {Buffer} from 'node:buffer';
 import {
-  type AppendableLogRecord,
   MAX_RECORD_DATA_BYTES,
   MAX_RECORD_NAME_BYTES,
+  type RawLogRecord,
 } from '@shipfox/api-logs-dto';
 
 export type OutputSource = 'stdout' | 'stderr';
@@ -13,7 +13,7 @@ export const PIPES: readonly OutputSource[] = ['stdout', 'stderr'];
 // component that frames records, so the constructors live here at the framing layer. The
 // envelope is `{v, ts}` (no `src`); the pipe rides on `stream` for output, and group/end/gap
 // are flat `type` records. Group ids are assigned by the caller's nesting stack.
-function outputRecord(args: {ts: number; stream: OutputSource; data: string}): AppendableLogRecord {
+function outputRecord(args: {ts: number; stream: OutputSource; data: string}): RawLogRecord {
   return {v: 1, ts: args.ts, type: 'output', stream: args.stream, data: args.data};
 }
 
@@ -22,7 +22,7 @@ function groupStartRecord(args: {
   groupId: string;
   parentGroupId: string | null;
   name: string;
-}): AppendableLogRecord {
+}): RawLogRecord {
   return {
     v: 1,
     ts: args.ts,
@@ -33,19 +33,19 @@ function groupStartRecord(args: {
   };
 }
 
-function groupEndRecord(args: {ts: number; groupId: string}): AppendableLogRecord {
+function groupEndRecord(args: {ts: number; groupId: string}): RawLogRecord {
   return {v: 1, ts: args.ts, type: 'group_end', group_id: args.groupId};
 }
 
-function gapRecord(args: {ts: number; droppedBytes: number}): AppendableLogRecord {
+function gapRecord(args: {ts: number; droppedBytes: number}): RawLogRecord {
   return {v: 1, ts: args.ts, type: 'gap', dropped_bytes: args.droppedBytes};
 }
 
-function endRecord(args: {ts: number; totalBytes: number}): AppendableLogRecord {
+function endRecord(args: {ts: number; totalBytes: number}): RawLogRecord {
   return {v: 1, ts: args.ts, type: 'end', total_bytes: args.totalBytes};
 }
 
-function agentSessionRecord(args: {ts: number; data: string}): AppendableLogRecord {
+function agentSessionRecord(args: {ts: number; data: string}): RawLogRecord {
   return {v: 1, ts: args.ts, type: 'agent_session', data: args.data};
 }
 
@@ -58,7 +58,7 @@ export interface FramedOutput {
 
 const EMPTY_FRAME: FramedOutput = {bytes: Buffer.alloc(0), payloadBytes: 0};
 
-function encodeRecord(record: AppendableLogRecord): Buffer {
+function encodeRecord(record: RawLogRecord): Buffer {
   return Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
 }
 

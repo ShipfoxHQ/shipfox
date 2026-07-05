@@ -58,6 +58,7 @@ export {
   getLatestAttempt,
   getStepAttempts,
   getStepAttemptsByJobIds,
+  getStepById,
   getStepByIdForJobExecution,
   getStepsByJobExecutionId,
   getStepsByJobExecutionIdForUpdate,

@@ -1,39 +1,48 @@
 import {Buffer} from 'node:buffer';
 import {
-  type AppendableLogRecord,
-  appendableLogRecordSchema,
   type LogRecord,
   logRecordSchema,
   MAX_RECORD_DATA_BYTES,
   MAX_RECORD_GROUP_ID_BYTES,
   MAX_RECORD_NAME_BYTES,
-  parseAppendableLogRecordLine,
   parseLogRecordLine,
+  parseRawLogRecordLine,
+  type RawLogRecord,
+  rawLogRecordSchema,
 } from './record.js';
 
 const ts = 1765531200123;
+const sessionRow = {
+  kind: 'message',
+  timestamp: ts,
+  role: 'assistant',
+  label: 'assistant',
+  meta: [],
+  text: 'hello',
+  terminalFailure: false,
+} as const;
 
-/** Every record `type` and whether a lease-scoped runner may append it. */
-const recordsByType: Array<{record: LogRecord; appendable: boolean}> = [
-  {record: {v: 1, ts, type: 'output', stream: 'stdout', data: 'hello\n'}, appendable: true},
+/** Every record `type` and whether it is valid on the raw write path. */
+const recordsByType: Array<{record: LogRecord; raw: boolean}> = [
+  {record: {v: 1, ts, type: 'output', stream: 'stdout', data: 'hello\n'}, raw: true},
   {
     record: {v: 1, ts, type: 'group_start', group_id: 'g1', parent_group_id: null, name: 'Install'},
-    appendable: true,
+    raw: true,
   },
-  {record: {v: 1, ts, type: 'group_end', group_id: 'g1'}, appendable: true},
-  {record: {v: 1, ts, type: 'end', total_bytes: 1048576}, appendable: true},
-  {record: {v: 1, ts, type: 'gap', dropped_bytes: 4096}, appendable: true},
+  {record: {v: 1, ts, type: 'group_end', group_id: 'g1'}, raw: true},
+  {record: {v: 1, ts, type: 'end', total_bytes: 1048576}, raw: true},
+  {record: {v: 1, ts, type: 'gap', dropped_bytes: 4096}, raw: true},
   {
     record: {
       v: 1,
       ts,
       type: 'agent_session',
-      data: '{"type":"message","id":"a","parentId":null,"timestamp":"t"}',
+      row: sessionRow,
     },
-    appendable: true,
+    raw: false,
   },
-  {record: {v: 1, ts, type: 'capped'}, appendable: false},
-  {record: {v: 1, ts, type: 'runner_lost'}, appendable: false},
+  {record: {v: 1, ts, type: 'capped'}, raw: false},
+  {record: {v: 1, ts, type: 'runner_lost'}, raw: false},
 ];
 
 describe('logRecordSchema (read union)', () => {
@@ -89,18 +98,14 @@ describe('logRecordSchema (read union)', () => {
     ).toThrow();
   });
 
-  it('accepts an agent_session record whose data far exceeds the output byte cap', () => {
-    const data = 'x'.repeat(MAX_RECORD_DATA_BYTES * 4);
+  it('parses a normalized agent_session record', () => {
+    const parsed = logRecordSchema.parse({v: 1, ts, type: 'agent_session', row: sessionRow});
 
-    const parsed = logRecordSchema.parse({v: 1, ts, type: 'agent_session', data});
-
-    expect(Buffer.byteLength((parsed as {data: string}).data, 'utf8')).toBe(
-      MAX_RECORD_DATA_BYTES * 4,
-    );
+    expect(parsed).toEqual({v: 1, ts, type: 'agent_session', row: sessionRow});
   });
 
-  it('rejects an empty agent_session record', () => {
-    expect(() => logRecordSchema.parse({v: 1, ts, type: 'agent_session', data: ''})).toThrow();
+  it('rejects a raw agent_session record on the read path', () => {
+    expect(() => logRecordSchema.parse({v: 1, ts, type: 'agent_session', data: '{}'})).toThrow();
   });
 
   it('accepts a null parent_group_id at the top level', () => {
@@ -208,23 +213,35 @@ describe('logRecordSchema (read union)', () => {
   });
 });
 
-describe('appendableLogRecordSchema (write path)', () => {
-  it.each(
-    recordsByType.filter((r) => r.appendable),
-  )('accepts the appendable $record.type record', ({record}) => {
-    const parsed = appendableLogRecordSchema.parse(record);
+describe('rawLogRecordSchema (write path)', () => {
+  it.each(recordsByType.filter((r) => r.raw))('accepts the raw $record.type record', ({record}) => {
+    const parsed = rawLogRecordSchema.parse(record);
 
     expect(parsed).toEqual(record);
   });
 
   it.each(
-    recordsByType.filter((r) => !r.appendable),
-  )('rejects the server-only $record.type record even though the read union accepts it', ({
+    recordsByType.filter((r) => !r.raw),
+  )('rejects the read-only $record.type record even though the read union accepts it', ({
     record,
   }) => {
     expect(() => logRecordSchema.parse(record)).not.toThrow();
 
-    expect(() => appendableLogRecordSchema.parse(record)).toThrow();
+    expect(() => rawLogRecordSchema.parse(record)).toThrow();
+  });
+
+  it('accepts a raw agent_session record whose data far exceeds the output byte cap', () => {
+    const data = 'x'.repeat(MAX_RECORD_DATA_BYTES * 4);
+
+    const parsed = rawLogRecordSchema.parse({v: 1, ts, type: 'agent_session', data});
+
+    expect(Buffer.byteLength((parsed as {data: string}).data, 'utf8')).toBe(
+      MAX_RECORD_DATA_BYTES * 4,
+    );
+  });
+
+  it('rejects an empty raw agent_session record', () => {
+    expect(() => rawLogRecordSchema.parse({v: 1, ts, type: 'agent_session', data: ''})).toThrow();
   });
 });
 
@@ -242,9 +259,9 @@ describe('parseLogRecordLine', () => {
   });
 });
 
-describe('parseAppendableLogRecordLine', () => {
-  it('parses an appendable JSON line', () => {
-    const parsed: AppendableLogRecord = parseAppendableLogRecordLine(
+describe('parseRawLogRecordLine', () => {
+  it('parses a raw JSON line', () => {
+    const parsed: RawLogRecord = parseRawLogRecordLine(
       '{"v":1,"ts":1,"type":"output","stream":"stdout","data":"hi"}',
     );
 
@@ -252,7 +269,7 @@ describe('parseAppendableLogRecordLine', () => {
   });
 
   it('rejects a forged server-only tombstone', () => {
-    expect(() => parseAppendableLogRecordLine('{"v":1,"ts":1,"type":"capped"}')).toThrow();
-    expect(() => parseAppendableLogRecordLine('{"v":1,"ts":1,"type":"runner_lost"}')).toThrow();
+    expect(() => parseRawLogRecordLine('{"v":1,"ts":1,"type":"capped"}')).toThrow();
+    expect(() => parseRawLogRecordLine('{"v":1,"ts":1,"type":"runner_lost"}')).toThrow();
   });
 });
