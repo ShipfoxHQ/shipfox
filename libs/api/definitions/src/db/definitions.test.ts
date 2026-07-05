@@ -54,6 +54,8 @@ async function insertOutboxRow(params: {
   projectId: string;
   marker: string;
   orderingKey?: string | null;
+  createdAt?: Date;
+  nextDispatchAt?: Date;
   dispatchedAt?: Date | null;
   deadLetteredAt?: Date | null;
 }) {
@@ -65,6 +67,8 @@ async function insertOutboxRow(params: {
       eventType: DEFINITION_RESOLVED,
       orderingKey: params.orderingKey ?? null,
       payload: {projectId: params.projectId, marker: params.marker},
+      createdAt: params.createdAt,
+      nextDispatchAt: params.nextDispatchAt,
       dispatchedAt: params.dispatchedAt ?? null,
       deadLetteredAt: params.deadLetteredAt ?? null,
     });
@@ -678,8 +682,12 @@ describe('definition queries', () => {
       });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
       resetPublishers();
+      await db()
+        .update(definitionsOutbox)
+        .set({dispatchedAt: sql`COALESCE(${definitionsOutbox.dispatchedAt}, now())`})
+        .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
     });
 
     test('drainAll returns undispatched outbox events', async () => {
@@ -707,6 +715,43 @@ describe('definition queries', () => {
 
       expect(projectEvents).toHaveLength(1);
       expect(projectEvents[0]?.orderingKey).toBe('run-1');
+    });
+
+    test('drainAll blocks later same-key rows while an earlier row waits for retry', async () => {
+      const base = new Date(Date.now() - 60_000);
+      const retry = await insertOutboxRow({
+        projectId,
+        marker: 'retry',
+        orderingKey: 'run-1',
+        createdAt: base,
+        nextDispatchAt: new Date(Date.now() + 60 * 60_000),
+      });
+      await insertOutboxRow({
+        projectId,
+        marker: 'later-same-key',
+        orderingKey: 'run-1',
+        createdAt: new Date(base.getTime() + 1_000),
+      });
+      await insertOutboxRow({
+        projectId,
+        marker: 'other-key',
+        orderingKey: 'run-2',
+        createdAt: new Date(base.getTime() + 2_000),
+      });
+
+      try {
+        const projectEvents = eventsForProject((await drainAll()).events, projectId);
+
+        expect(projectEvents.map((event) => event.id)).not.toContain(retry);
+        expect(projectEvents.map((event) => event.event.payload)).toEqual([
+          {projectId, marker: 'other-key'},
+        ]);
+      } finally {
+        await db()
+          .update(definitionsOutbox)
+          .set({dispatchedAt: sql`now()`})
+          .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+      }
     });
 
     test('drainAll reports hasMore when a source returns a full batch', async () => {

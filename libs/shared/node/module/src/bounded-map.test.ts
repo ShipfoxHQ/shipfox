@@ -54,4 +54,23 @@ describe('boundedMap', () => {
     await expect(result).rejects.toThrow('boom');
     expect(seen).toEqual([1, 2]);
   });
+
+  it('waits for in-flight work to settle before rejecting when stopOnError is true', async () => {
+    const settled: number[] = [];
+
+    const result = boundedMap(
+      [1, 2, 3],
+      2,
+      async (value) => {
+        if (value === 1) throw new Error('boom');
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        settled.push(value);
+        return value;
+      },
+      {stopOnError: true},
+    );
+
+    await expect(result).rejects.toThrow('boom');
+    expect(settled).toEqual([2]);
+  });
 });

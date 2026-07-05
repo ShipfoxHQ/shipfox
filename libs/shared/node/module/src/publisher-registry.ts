@@ -96,9 +96,18 @@ export async function drainAll(): Promise<DrainAllResult> {
           isNull(source.table.dispatchedAt),
           isNull(source.table.deadLetteredAt),
           lte(source.table.nextDispatchAt, sql`now()`),
+          sql`NOT EXISTS (
+            SELECT 1
+            FROM ${sql.raw(quoteIdentifier(getTableName(source.table)))} AS earlier
+            WHERE earlier.dispatched_at IS NULL
+              AND earlier.dead_lettered_at IS NULL
+              AND COALESCE(earlier.ordering_key, ${source.name}) = COALESCE(${source.table.orderingKey}, ${source.name})
+              AND (earlier.created_at, earlier.id) < (${source.table.createdAt}, ${source.table.id})
+              AND earlier.next_dispatch_at > now()
+          )`,
         ),
       )
-      .orderBy(asc(source.table.nextDispatchAt), asc(source.table.createdAt))
+      .orderBy(asc(source.table.createdAt), asc(source.table.id))
       .limit(BATCH_SIZE);
     if (rows.length === BATCH_SIZE) hasMore = true;
 

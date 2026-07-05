@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   markDispatched: vi.fn(),
   recordDispatchFailure: vi.fn(),
   errorLog: vi.fn(),
+  warnLog: vi.fn(),
   eventDispatchedAdd: vi.fn(),
   dispatchFailureAdd: vi.fn(),
   drainBatchRecord: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
   },
   logger: () => ({
     error: mocks.errorLog,
+    warn: mocks.warnLog,
   }),
 }));
 
@@ -74,6 +76,7 @@ describe('drainAndDispatch', () => {
     mocks.markDispatched.mockReset();
     mocks.recordDispatchFailure.mockReset();
     mocks.errorLog.mockReset();
+    mocks.warnLog.mockReset();
     mocks.eventDispatchedAdd.mockReset();
     mocks.dispatchFailureAdd.mockReset();
     mocks.drainBatchRecord.mockReset();
@@ -153,6 +156,35 @@ describe('drainAndDispatch', () => {
       reason: 'handler',
     });
     expect(mocks.markDispatched).not.toHaveBeenCalled();
+  });
+
+  it('returns hasMore after group-level persistence failures', async () => {
+    const success = event('success', new Date('2026-01-01T00:00:00.000Z'));
+    const other = event('other', new Date('2026-01-01T00:00:00.000Z'));
+    mocks.drainAll.mockResolvedValueOnce(
+      drain(
+        [
+          {id: success.id, source: 'workflows', orderingKey: 'run-1', event: success},
+          {id: other.id, source: 'integrations', orderingKey: 'integrations', event: other},
+        ],
+        true,
+      ),
+    );
+    mocks.getSubscribers.mockReturnValue([vi.fn().mockResolvedValue(undefined)]);
+    mocks.markDispatched.mockImplementation(async (source: string) => {
+      await Promise.resolve();
+      if (source === 'workflows') throw new Error('db unavailable');
+    });
+
+    const hasMore = await drainAndDispatch();
+
+    expect(hasMore).toBe(true);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', ['success']);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', ['other']);
+    expect(mocks.warnLog).toHaveBeenCalledWith(
+      {err: expect.any(AggregateError)},
+      'Outbox dispatch groups completed with errors',
+    );
   });
 
   it('rejects a malformed schema-covered payload without capturing raw payload data', async () => {

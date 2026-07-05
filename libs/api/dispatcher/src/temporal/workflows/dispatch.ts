@@ -10,8 +10,11 @@ const {pruneOutboxRetention} = proxyActivities<ReturnType<typeof createActivitie
 });
 
 export async function outboxDispatcherWorkflow(): Promise<void> {
-  const hasMore = await drainAndDispatch();
-  if (!hasMore) await sleep(POLL_INTERVAL);
+  let hasMore = false;
+  do {
+    hasMore = await drainAndDispatch();
+  } while (hasMore);
+  await sleep(POLL_INTERVAL);
   await continueAsNew<typeof outboxDispatcherWorkflow>();
 }
 

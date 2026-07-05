@@ -16,6 +16,7 @@ export async function boundedMap<T, U>(
   let next = 0;
   let aborted = false;
   const errors: unknown[] = [];
+  const stopOnError = options.stopOnError ?? true;
 
   async function worker(): Promise<void> {
     while (!aborted && next < items.length) {
@@ -26,9 +27,8 @@ export async function boundedMap<T, U>(
         results[index] = await mapper(items[index] as T, index);
       } catch (error) {
         errors.push(error);
-        if (options.stopOnError ?? true) {
+        if (stopOnError) {
           aborted = true;
-          throw error;
         }
       }
     }
@@ -36,7 +36,11 @@ export async function boundedMap<T, U>(
 
   await Promise.all(Array.from({length: Math.min(limit, items.length)}, () => worker()));
 
-  if (errors.length > 0 && !(options.stopOnError ?? true)) {
+  if (errors.length > 0 && stopOnError) {
+    throw errors[0];
+  }
+
+  if (errors.length > 0) {
     throw new AggregateError(errors, 'One or more boundedMap tasks failed');
   }
 

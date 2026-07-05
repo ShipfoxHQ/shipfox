@@ -21,28 +21,32 @@ export async function drainAndDispatch(): Promise<boolean> {
 
   const groups = groupRows(rows);
 
-  await boundedMap(
-    groups,
-    DISPATCH_CONCURRENCY,
-    async (group) => {
-      const dispatchedIds: string[] = [];
+  try {
+    await boundedMap(
+      groups,
+      DISPATCH_CONCURRENCY,
+      async (group) => {
+        const dispatchedIds: string[] = [];
 
-      for (const row of group.rows) {
-        const succeeded = await dispatchRow(row);
-        if (!succeeded) break;
-        dispatchedIds.push(row.id);
-      }
+        for (const row of group.rows) {
+          const succeeded = await dispatchRow(row);
+          if (!succeeded) break;
+          dispatchedIds.push(row.id);
+        }
 
-      if (dispatchedIds.length > 0) {
-        await markDispatched(group.source, dispatchedIds);
-        eventDispatchedCount.add(dispatchedIds.length, {
-          module: group.source,
-          outcome: 'succeeded',
-        });
-      }
-    },
-    {stopOnError: false},
-  );
+        if (dispatchedIds.length > 0) {
+          await markDispatched(group.source, dispatchedIds);
+          eventDispatchedCount.add(dispatchedIds.length, {
+            module: group.source,
+            outcome: 'succeeded',
+          });
+        }
+      },
+      {stopOnError: false},
+    );
+  } catch (error) {
+    logger().warn({err: error}, 'Outbox dispatch groups completed with errors');
+  }
 
   return hasMore;
 }
