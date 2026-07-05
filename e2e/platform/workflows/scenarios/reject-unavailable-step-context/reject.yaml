@@ -1,4 +1,0 @@
-error_code: invalid-definition
-message_includes:
-  - Workflow run interpolation references context "step" that is not available at step dispatch
-  - '"step" becomes available at step reporting'

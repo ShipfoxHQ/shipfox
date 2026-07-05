@@ -8,6 +8,7 @@ export const workflowContextNames = [
   'job',
   'executions',
   'execution',
+  'jobs',
   'steps',
   'step',
   'vars',
@@ -49,7 +50,6 @@ export type ReservedRootDefinition =
   | {readonly host: 'runner'};
 
 export const workflowContextReservedRoots = {
-  jobs: {host: 'server', availability: 'job-resolution'},
   matrix: {host: 'server', availability: 'job-activation'},
   runner: {host: 'runner'},
 } as const satisfies Record<string, ReservedRootDefinition>;
@@ -154,6 +154,7 @@ const executionType = {
       kind: 'list',
       element: executionEventType,
     },
+    outputs: {kind: 'map'},
   },
 } as const;
 
@@ -168,10 +169,51 @@ const executionTypeEnvironment = {
   execution: executionType,
 } as const satisfies ExpressionTypeEnvironment;
 
+const stepGateType = {
+  kind: 'object',
+  fields: {
+    passed: 'bool',
+    source: 'string',
+    reason: 'string',
+    exit_code: 'int',
+  },
+} as const;
+
+const stepAttemptType = {
+  kind: 'object',
+  fields: {
+    status: 'string',
+    exit_code: 'int',
+    outputs: {kind: 'map'},
+    response: 'string',
+    gate: stepGateType,
+  },
+} as const;
+
+const stepEntityType = {
+  kind: 'object',
+  fields: {
+    ...stepAttemptType.fields,
+    attempts: {
+      kind: 'list',
+      element: stepAttemptType,
+    },
+  },
+} as const;
+
 const stepTypeEnvironment = {
   step: {
     kind: 'object',
     fields: {
+      attempt: 'int',
+      is_retry: 'bool',
+      restart: {
+        kind: 'object',
+        fields: {
+          from: stepEntityType,
+          feedback: 'string',
+        },
+      },
       exit_code: 'int',
       status: 'string',
       outputs: {kind: 'map'},
@@ -243,6 +285,14 @@ export const workflowContextDefinitions = {
     typeEnvironment: executionTypeEnvironment,
     untrustedPaths: ['events'],
   },
+  jobs: {
+    availability: 'job-activation',
+    trustTier: 'trusted',
+    sensitivity: 'persistable',
+    host: 'server',
+    shape: 'open',
+    checkMode: 'syntax',
+  },
   steps: {
     availability: 'step-dispatch',
     trustTier: 'trusted',
@@ -252,7 +302,7 @@ export const workflowContextDefinitions = {
     checkMode: 'syntax',
   },
   step: {
-    availability: 'step-report',
+    availability: 'step-dispatch',
     trustTier: 'trusted',
     sensitivity: 'persistable',
     host: 'server',

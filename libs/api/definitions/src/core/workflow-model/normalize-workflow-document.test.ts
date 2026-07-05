@@ -840,31 +840,27 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
-  it('rejects contexts unavailable at the gate predicate site', () => {
+  it('accepts jobs root references at the gate predicate site', () => {
     const document: WorkflowDocument = {
-      name: 'future-context gate',
+      name: 'jobs-context gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success: 'jobs.deploy.status == "succeeded"'}}],
+          steps: [{run: 'npm run build'}],
         },
-        deploy: {needs: ['build'], steps: [{run: 'npm run deploy'}]},
+        deploy: {
+          needs: ['build'],
+          steps: [{run: 'npm run deploy', gate: {success: 'jobs.build.status == "succeeded"'}}],
+        },
       },
     };
 
-    const error = expectInvalid(document);
+    const model = normalizeWorkflowDocument(document);
 
-    expect(error.issues).toEqual([
-      expect.objectContaining({
-        code: 'context-unavailable-at-predicate-site',
-        path: ['jobs', 'build', 'steps', 0, 'gate', 'success'],
-        details: expect.objectContaining({
-          field: 'step.success',
-          source: 'jobs.deploy.status == "succeeded"',
-          unavailableRoots: ['jobs'],
-          site: 'step-report',
-        }),
-      }),
-    ]);
+    expect(model.jobs[1]?.steps[0]?.gate?.success).toEqual({
+      language: 'cel',
+      source: 'jobs.build.status == "succeeded"',
+      check: 'syntax',
+    });
   });
 
   it('accepts execution fields and event data in job success expressions', () => {
@@ -2231,9 +2227,9 @@ describe('normalizeWorkflowDocument', () => {
       expect(model.jobs[0]?.mode).toBe('listening');
     });
 
-    it('rejects step context before step reporting', () => {
+    it('allows step self-root at step dispatch', () => {
       const document: WorkflowDocument = {
-        name: 'early step context',
+        name: 'dispatch step context',
         jobs: {
           build: {
             listening: listening(),
@@ -2242,22 +2238,22 @@ describe('normalizeWorkflowDocument', () => {
         },
       };
 
-      const error = expectInvalid(document);
+      const model = normalizeWorkflowDocument(document);
 
-      expect(error.issues).toEqual([
-        expect.objectContaining({
-          code: 'context-unavailable-at-fill-site',
-          path: ['jobs', 'build', 'steps', 0, 'run'],
-          message: expect.stringContaining(
-            'context "step" that is not available at step dispatch. "step" becomes available at step reporting.',
-          ),
-          details: expect.objectContaining({
-            contextRoots: ['step'],
-            unavailableRoots: ['step'],
-            fillSite: 'step-dispatch',
-          }),
-        }),
-      ]);
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        templates: {
+          command: [
+            {kind: 'literal', value: 'echo '},
+            {
+              kind: 'deferred',
+              expression: {language: 'cel', source: 'step.status', check: 'typed'},
+              roots: ['step'],
+              fillTarget: 'step-dispatch',
+            },
+          ],
+        },
+      });
     });
 
     it('does not apply availability checks to job names', () => {
@@ -2332,32 +2328,31 @@ describe('normalizeWorkflowDocument', () => {
       expect(model.jobs[0]?.steps).toHaveLength(1);
     });
 
-    it('reports multiple unavailable roots in one message', () => {
+    it('allows multi-root step fields when all roots including step are available by dispatch', () => {
       const document: WorkflowDocument = {
-        name: 'multiple unavailable roots',
+        name: 'mixed step availability',
         jobs: {
           build: {
-            steps: [{run: `echo ${interpolation('execution.index + step.status')}`}],
+            steps: [{run: `echo ${interpolation('string(execution.index) + step.status')}`}],
           },
         },
       };
 
-      const error = expectInvalid(document);
+      const model = normalizeWorkflowDocument(document);
 
-      expect(error.issues).toEqual([
-        expect.objectContaining({
-          code: 'context-unavailable-at-fill-site',
-          path: ['jobs', 'build', 'steps', 0, 'run'],
-          message: expect.stringContaining(
-            'context "step" that is not available at step dispatch.',
-          ),
-          details: expect.objectContaining({
-            contextRoots: expect.arrayContaining(['execution', 'step']),
-            unavailableRoots: ['step'],
-            fillSite: 'step-dispatch',
-          }),
-        }),
-      ]);
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        templates: {
+          command: [
+            {kind: 'literal', value: 'echo '},
+            {
+              kind: 'deferred',
+              roots: ['execution', 'step'],
+              fillTarget: 'step-dispatch',
+            },
+          ],
+        },
+      });
     });
 
     it('keeps one-shot fields valid when they reference run-scoped contexts', () => {

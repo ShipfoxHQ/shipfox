@@ -16,7 +16,7 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
   by an expression for downstream context and trust checks.
 - **Typed errors**: Reports bad text and run failures with stable error classes.
 - **`workflowContextDefinitions`**: Names the workflow contexts (`run`,
-  `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `step`) and
+  `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `jobs`, `step`) and
   gives each a shape, trust tier, availability site, sensitivity, and host.
   Known-shape contexts ship a typed environment; open ones use `syntax`.
 - **`workflowInterpolationFieldPolicies`**: Says which trust tier each
