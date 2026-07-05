@@ -1,4 +1,4 @@
-import type {AvailabilitySite} from '@shipfox/expression';
+import type {AvailabilitySite, ExpressionTypeEnvironment} from '@shipfox/expression';
 import type {WorkflowEnvTemplates, WorkflowFieldTemplate} from '../entities/workflow-model.js';
 import type {
   WorkflowModelValidationIssue,
@@ -12,6 +12,7 @@ export function normalizeEnv(params: {
   issues: WorkflowModelValidationIssue[];
   fillSite?: AvailabilitySite;
   allowedJobReferences?: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): {env?: Readonly<Record<string, string>>; templates?: {env: WorkflowEnvTemplates}} {
   const env = params.env;
   if (env === undefined || Object.keys(env).length === 0) return {};
@@ -35,6 +36,7 @@ export function normalizeEnv(params: {
       ...(params.allowedJobReferences === undefined
         ? {}
         : {allowedJobReferences: params.allowedJobReferences}),
+      ...(params.typeOverlay === undefined ? {} : {typeOverlay: params.typeOverlay}),
     });
     if (template !== undefined) templates[key] = template;
   }

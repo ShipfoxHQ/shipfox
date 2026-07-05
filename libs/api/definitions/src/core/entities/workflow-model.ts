@@ -1,4 +1,9 @@
-import type {ResolvedFieldSegment, WorkflowExpression} from '@shipfox/expression';
+import type {
+  ExpressionType,
+  OutputDeclarations,
+  ResolvedFieldSegment,
+  WorkflowExpression,
+} from '@shipfox/expression';
 import type {AgentThinking, Harness} from '@shipfox/workflow-document';
 
 export type WorkflowFieldTemplate = readonly ResolvedFieldSegment[];
@@ -36,6 +41,7 @@ export interface WorkflowModelJob {
   readonly checkout: WorkflowModelJobCheckout;
   readonly success?: string;
   readonly outputs?: WorkflowOutputTemplates;
+  readonly outputTypes?: Readonly<Record<string, ExpressionType>>;
   readonly executionTimeoutMs?: number;
   readonly listening?: WorkflowModelJobListening;
   readonly name?: WorkflowFieldTemplate;
@@ -82,6 +88,7 @@ interface WorkflowModelStepBase {
   readonly id: string;
   readonly key?: string;
   readonly name?: string;
+  readonly outputs?: OutputDeclarations;
   readonly gate?: WorkflowModelStepGate;
   readonly sourceLocation?: WorkflowSourceLocation;
 }

@@ -52,6 +52,7 @@ export function parseInterpolationField(params: {
   issues: WorkflowModelValidationIssue[];
   fillSite?: AvailabilitySite;
   allowedJobReferences?: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowFieldTemplate | undefined {
   const segments = parseTemplate(params);
   if (segments === undefined) return undefined;
@@ -113,6 +114,7 @@ function validateExpressionSegment(params: {
   segment: WorkflowTemplateExprSegment;
   fillSite?: AvailabilitySite;
   allowedJobReferences?: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowTemplateExprSegment | undefined {
   const contextRoots = uniqueStrings(params.segment.contextRoots);
   const knownRoots = contextRoots.filter(isWorkflowContextName);
@@ -214,7 +216,10 @@ function validateExpressionSegment(params: {
     }
   }
 
-  if (knownRoots.length === 0 || knownRoots.some((root) => hasSyntaxOnlyCheckMode(root))) {
+  if (
+    params.typeOverlay === undefined &&
+    (knownRoots.length === 0 || knownRoots.some((root) => hasSyntaxOnlyCheckMode(root)))
+  ) {
     return params.segment;
   }
 
@@ -225,7 +230,9 @@ function validateExpressionSegment(params: {
         source: params.segment.expression.source,
         check: {
           mode: 'typed',
-          typeEnvironment: mergeTypeEnvironments(knownRoots),
+          // `undefined` preserves the legacy syntax-only path above. `{}` means
+          // callers intentionally requested typed checking with the standard roots.
+          typeEnvironment: mergeTypeEnvironments(knownRoots, params.typeOverlay),
         },
       }),
     };
@@ -263,6 +270,11 @@ function findUntrustedPathRoots(
     const paths = getWorkflowContextUntrustedPaths(root);
     if (paths === undefined || paths.length === 0) continue;
     untrustedPathsByRoot.set(root, paths);
+  }
+  if (knownRoots.includes('steps')) {
+    untrustedPathsByRoot.set('steps', [
+      ...new Set([...(untrustedPathsByRoot.get('steps') ?? []), 'outputs']),
+    ]);
   }
   if (untrustedPathsByRoot.size === 0) return [];
 
@@ -484,12 +496,24 @@ function hasSyntaxOnlyCheckMode(root: WorkflowContextName): boolean {
   return getWorkflowContextDefinition(root).checkMode === 'syntax';
 }
 
-function mergeTypeEnvironments(roots: readonly WorkflowContextName[]): ExpressionTypeEnvironment {
+function mergeTypeEnvironments(
+  roots: readonly WorkflowContextName[],
+  typeOverlay?: ExpressionTypeEnvironment,
+): ExpressionTypeEnvironment {
   const typeEnvironment: Record<string, ExpressionTypeEnvironment[string]> = {};
 
   for (const root of roots) {
+    const overlayType = typeOverlay?.[root];
+    if (overlayType !== undefined) {
+      typeEnvironment[root] = overlayType;
+      continue;
+    }
+
     const contextTypeEnvironment = getWorkflowContextTypeEnvironment(root);
-    if (contextTypeEnvironment === undefined) continue;
+    if (contextTypeEnvironment === undefined) {
+      if (typeOverlay !== undefined) typeEnvironment[root] = {kind: 'map'};
+      continue;
+    }
 
     Object.assign(typeEnvironment, contextTypeEnvironment);
   }

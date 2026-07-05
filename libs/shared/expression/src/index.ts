@@ -29,6 +29,17 @@ export type {
   WorkflowExpressionCheck,
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
+export {
+  type JsonSchemaValidationResult,
+  jsonSchemaToExpressionType,
+  type OutputDeclarations,
+  type OutputType,
+  type OutputTypeDeclaration,
+  outputDeclarationsToExpressionFields,
+  outputDeclarationToExpressionType,
+  outputTypes,
+  validateJsonSchema,
+} from './outputs/index.js';
 export {isBareContextReference} from './plan/bare-reference.js';
 export {
   analyzeContextKeyAccess,
@@ -108,6 +119,7 @@ export type {
 export {
   type AvailabilitySite,
   availabilitySites,
+  buildTypedRootsEnvironment,
   type FillTarget,
   getWorkflowContextAvailability,
   getWorkflowContextDefinition,
@@ -137,7 +149,9 @@ export {
   type WorkflowInterpolationFailurePolicy,
   type WorkflowInterpolationField,
   type WorkflowInterpolationFieldPolicy,
+  type WorkflowJobTypeOverlay,
   type WorkflowPredicateField,
+  type WorkflowStepTypeOverlay,
   workflowContextAvailabilityReference,
   workflowContextDefinitions,
   workflowContextHosts,

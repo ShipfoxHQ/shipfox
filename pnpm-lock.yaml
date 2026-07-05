@@ -4694,6 +4694,12 @@ importers:
       '@marcbachmann/cel-js':
         specifier: 7.6.1
         version: 7.6.1
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../workflow/document
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

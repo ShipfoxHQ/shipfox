@@ -4,6 +4,7 @@ export interface WorkflowExpression {
   language: 'cel';
   source: ValidCelExpression;
   check: WorkflowExpressionCheck;
+  resultType?: ExpressionType;
 }
 
 export type WorkflowExpressionCheck = 'syntax' | 'typed';

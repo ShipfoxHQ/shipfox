@@ -21,6 +21,7 @@ describe('createWorkflowExpression', () => {
       language: 'cel',
       source: 'event.conclusion == "success"',
       check: 'typed',
+      resultType: 'bool',
     });
   });
 
@@ -163,6 +164,7 @@ describe('createWorkflowExpression', () => {
       language: 'cel',
       source,
       check: 'typed',
+      resultType: 'bool',
     });
   });
 
@@ -206,6 +208,7 @@ describe('createWorkflowExpression', () => {
       language: 'cel',
       source: 'event.pull_request.title == "ready"',
       check: 'typed',
+      resultType: 'bool',
     });
   });
 
@@ -244,8 +247,33 @@ describe('createWorkflowExpression', () => {
       language: 'cel',
       source: 'step.outputs.pass == true',
       check: 'typed',
+      resultType: 'bool',
     });
     expect(act).toThrow(InvalidWorkflowExpressionError);
+  });
+
+  it('treats dynamic open-map expression results as a scalar fallback', () => {
+    const expression = createWorkflowExpression({
+      source: 'step.outputs.pass',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          step: {
+            kind: 'object',
+            fields: {
+              outputs: {kind: 'map'},
+            },
+          },
+        },
+      },
+    });
+
+    expect(expression).toEqual({
+      language: 'cel',
+      source: 'step.outputs.pass',
+      check: 'typed',
+      resultType: 'string',
+    });
   });
 
   it('rejects parse errors before type checking', () => {
@@ -304,7 +332,7 @@ describe('createWorkflowExpression', () => {
     expect(expression.check).toBe('typed');
   });
 
-  it('does not expose vendor ASTs or checked metadata', () => {
+  it('does not expose vendor ASTs', () => {
     const expression = createWorkflowExpression({
       source: 'event.conclusion == "success"',
       check: {
@@ -315,7 +343,8 @@ describe('createWorkflowExpression', () => {
       },
     });
 
-    expect(Object.keys(expression)).toEqual(['language', 'source', 'check']);
+    expect(Object.keys(expression)).toEqual(['language', 'source', 'check', 'resultType']);
+    expect(expression.resultType).toBe('bool');
   });
 
   it('requires typed environments to be attached to typed checks', () => {

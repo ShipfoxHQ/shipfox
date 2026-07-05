@@ -830,6 +830,7 @@ describe('normalizeWorkflowDocument', () => {
           language: 'cel',
           source: 'step.exit_code == 0',
           check: 'typed',
+          resultType: 'bool',
         },
         onFailure: {
           restartFrom: 'producer',
@@ -859,6 +860,7 @@ describe('normalizeWorkflowDocument', () => {
       language: 'cel',
       source: 'step.exit_code == 0',
       check: 'typed',
+      resultType: 'bool',
     });
   });
 
@@ -878,6 +880,7 @@ describe('normalizeWorkflowDocument', () => {
       language: 'cel',
       source: 'step.status == "succeeded"',
       check: 'typed',
+      resultType: 'bool',
     });
   });
 
@@ -895,6 +898,7 @@ describe('normalizeWorkflowDocument', () => {
       language: 'cel',
       source: 'run.id != ""',
       check: 'typed',
+      resultType: 'bool',
     });
   });
 
@@ -1006,6 +1010,407 @@ describe('normalizeWorkflowDocument', () => {
       ],
       registry: [{kind: 'literal', value: 'registry.example.com'}],
     });
+  });
+
+  it('normalizes typed step output declarations', () => {
+    const schema = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['digest'],
+      properties: {digest: {type: 'string'}},
+    };
+    const document: WorkflowDocument = {
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'build',
+              run: 'npm run build',
+              outputs: {
+                count: {type: 'number'},
+                metadata: {type: 'json', schema},
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      outputs: {
+        count: {type: 'number'},
+        metadata: {type: 'json', schema},
+      },
+    });
+  });
+
+  it('reports invalid JSON schemas on typed step outputs', () => {
+    const document: WorkflowDocument = {
+      name: 'bad output schema',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'build',
+              run: 'npm run build',
+              outputs: {
+                metadata: {type: 'json', schema: {type: 'wat'}},
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-output-schema',
+        path: ['jobs', 'build', 'steps', 0, 'outputs', 'metadata', 'schema'],
+      }),
+    ]);
+  });
+
+  it('type-checks declared step outputs in later step config', () => {
+    const document: WorkflowDocument = {
+      name: 'typed step output config',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'collect',
+              run: 'npm run collect',
+              outputs: {
+                count: {type: 'number'},
+                ready: {type: 'boolean'},
+              },
+            },
+            {
+              prompt: `Review ${interpolation('steps.collect.outputs.count > 5')}`,
+            },
+            {
+              run: 'echo ok',
+              env: {READY: interpolation('steps.collect.outputs.ready')},
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[1]).toMatchObject({
+      kind: 'agent',
+      templates: {
+        prompt: [
+          {kind: 'literal', value: 'Review '},
+          {
+            kind: 'deferred',
+            expression: {
+              source: 'steps.collect.outputs.count > 5',
+              check: 'typed',
+              resultType: 'bool',
+            },
+            roots: ['steps'],
+          },
+        ],
+      },
+    });
+    expect(model.jobs[0]?.steps[2]).toMatchObject({
+      kind: 'run',
+      templates: {
+        env: {
+          READY: [
+            {
+              kind: 'deferred',
+              expression: {
+                source: 'steps.collect.outputs.ready',
+                check: 'typed',
+                resultType: 'bool',
+              },
+              roots: ['steps'],
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it('rejects undeclared typed step output keys', () => {
+    const document: WorkflowDocument = {
+      name: 'bad typed output key',
+      jobs: {
+        build: {
+          steps: [
+            {key: 'collect', run: 'npm run collect', outputs: {count: {type: 'number'}}},
+            {run: 'echo ok', env: {COUNT: interpolation('steps.collect.outputs.missing')}},
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-interpolation-expression',
+        path: ['jobs', 'build', 'steps', 1, 'env', 'COUNT'],
+      }),
+    ]);
+  });
+
+  it('rejects typed step output references to unknown steps', () => {
+    const document: WorkflowDocument = {
+      name: 'bad typed step key',
+      jobs: {
+        build: {
+          steps: [
+            {key: 'collect', run: 'npm run collect', outputs: {count: {type: 'number'}}},
+            {run: 'echo ok', env: {COUNT: interpolation('steps.other.outputs.count')}},
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-interpolation-expression',
+        path: ['jobs', 'build', 'steps', 1, 'env', 'COUNT'],
+      }),
+    ]);
+  });
+
+  it('rejects typed step output references to later steps', () => {
+    const document: WorkflowDocument = {
+      name: 'later typed step output',
+      jobs: {
+        build: {
+          steps: [
+            {run: 'echo ok', env: {COUNT: interpolation('steps.collect.outputs.count')}},
+            {key: 'collect', run: 'npm run collect', outputs: {count: {type: 'number'}}},
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-interpolation-expression',
+        path: ['jobs', 'build', 'steps', 0, 'env', 'COUNT'],
+      }),
+    ]);
+  });
+
+  it('allows typed step self outputs in gate success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'typed self gate',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'collect',
+              run: 'npm run collect',
+              outputs: {count: {type: 'number'}},
+              gate: {success: 'step.outputs.count > 5'},
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]?.gate?.success).toEqual({
+      language: 'cel',
+      source: 'step.outputs.count > 5',
+      check: 'typed',
+      resultType: 'bool',
+    });
+  });
+
+  it('rejects untrusted step outputs in trusted-only run fields', () => {
+    const document: WorkflowDocument = {
+      name: 'untrusted step output',
+      jobs: {
+        build: {
+          steps: [
+            {key: 'collect', run: 'npm run collect', outputs: {value: {type: 'string'}}},
+            {run: `echo ${interpolation('steps.collect.outputs.value')}`},
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'untrusted-context-in-field',
+        path: ['jobs', 'build', 'steps', 1, 'run'],
+        details: expect.objectContaining({field: 'run', rejectedRoots: ['steps']}),
+      }),
+    ]);
+  });
+
+  it('infers typed job output scalars for downstream job overlays', () => {
+    const document: WorkflowDocument = {
+      name: 'typed job outputs',
+      jobs: {
+        build: {
+          steps: [{key: 'collect', run: 'npm run collect', outputs: {count: {type: 'number'}}}],
+          outputs: {
+            count: interpolation('steps.collect.outputs.count'),
+          },
+        },
+        deploy: {
+          needs: 'build',
+          success: 'jobs.build.outputs.count > 5',
+          steps: [{prompt: `Deploy ${interpolation('jobs.build.outputs.count')}`}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.outputTypes).toEqual({count: 'double'});
+    expect(model.jobs[1]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      templates: {
+        prompt: [
+          {kind: 'literal', value: 'Deploy '},
+          {
+            kind: 'deferred',
+            expression: {
+              source: 'jobs.build.outputs.count',
+              check: 'typed',
+              resultType: 'double',
+            },
+            roots: ['jobs'],
+          },
+        ],
+      },
+    });
+  });
+
+  it('rejects downstream references to undeclared typed job outputs', () => {
+    const document: WorkflowDocument = {
+      name: 'bad typed job output',
+      jobs: {
+        build: {
+          steps: [{key: 'collect', run: 'npm run collect', outputs: {count: {type: 'number'}}}],
+          outputs: {
+            count: interpolation('steps.collect.outputs.count'),
+          },
+        },
+        deploy: {
+          needs: 'build',
+          steps: [
+            {
+              prompt: interpolation('jobs.build.outputs.missing'),
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-interpolation-expression',
+        path: ['jobs', 'deploy', 'steps', 0, 'prompt'],
+      }),
+    ]);
+  });
+
+  it('keeps untyped direct-needs outputs open when another upstream job is typed', () => {
+    const document: WorkflowDocument = {
+      name: 'mixed upstream output typing',
+      jobs: {
+        build: {
+          steps: [{key: 'collect', run: 'npm run collect', outputs: {count: {type: 'number'}}}],
+          outputs: {
+            count: interpolation('steps.collect.outputs.count'),
+          },
+        },
+        lint: {
+          steps: [{run: 'npm run lint'}],
+          outputs: {
+            summary: interpolation('steps.step_1.outputs.summary'),
+          },
+        },
+        deploy: {
+          needs: ['build', 'lint'],
+          steps: [
+            {
+              prompt: interpolation('jobs.lint.outputs.summary'),
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[2]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      templates: {
+        prompt: [
+          {
+            kind: 'deferred',
+            expression: {source: 'jobs.lint.outputs.summary', check: 'typed'},
+            roots: ['jobs'],
+          },
+        ],
+      },
+    });
+  });
+
+  it('reports non-scalar typed job output mappings', () => {
+    const document: WorkflowDocument = {
+      name: 'bad job output type',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'collect',
+              run: 'npm run collect',
+              outputs: {
+                metadata: {
+                  type: 'json',
+                  schema: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['digest'],
+                    properties: {digest: {type: 'string'}},
+                  },
+                },
+              },
+            },
+          ],
+          outputs: {
+            metadata: interpolation('steps.collect.outputs.metadata'),
+          },
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-output',
+        path: ['jobs', 'build', 'outputs', 'metadata'],
+      }),
+    ]);
   });
 
   it('rejects job output references without a direct needs edge', () => {
@@ -1366,6 +1771,7 @@ describe('normalizeWorkflowDocument', () => {
       language: 'cel',
       source: 'step.outputs.pass == true',
       check: 'typed',
+      resultType: 'bool',
     });
   });
 
@@ -2026,6 +2432,30 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('reports dependency-ordered normalization issues in document order', () => {
+    const document: WorkflowDocument = {
+      name: 'ordered issues',
+      jobs: {
+        deploy: {
+          needs: 'build',
+          runner: 'bad label',
+          steps: [{run: 'npm run deploy'}],
+        },
+        build: {
+          runner: 'also bad',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues.map((issue) => issue.path)).toEqual([
+      ['jobs', 'deploy', 'runner'],
+      ['jobs', 'build', 'runner'],
+    ]);
+  });
+
   describe('definition-time interpolation', () => {
     const interpolation = (source: string) => '$'.concat('{{ ', source, ' }}');
     const listening = () => ({
@@ -2062,7 +2492,7 @@ describe('normalizeWorkflowDocument', () => {
       expect(model.templates?.env?.RUN_ID).toEqual([
         {
           kind: 'deferred',
-          expression: {language: 'cel', source: 'run.id', check: 'typed'},
+          expression: {language: 'cel', source: 'run.id', check: 'typed', resultType: 'string'},
           roots: ['run'],
           fillTarget: 'run-creation',
         },
@@ -2077,6 +2507,7 @@ describe('normalizeWorkflowDocument', () => {
               language: 'cel',
               source: 'execution.events[0].data.runner',
               check: 'typed',
+              resultType: 'string',
             },
             roots: ['execution'],
             fillTarget: 'execution-creation',
@@ -2086,7 +2517,7 @@ describe('normalizeWorkflowDocument', () => {
       expect(model.jobs[0]?.templates?.env?.JOB_NAME).toEqual([
         {
           kind: 'deferred',
-          expression: {language: 'cel', source: 'job.key', check: 'typed'},
+          expression: {language: 'cel', source: 'job.key', check: 'typed', resultType: 'string'},
           roots: ['job'],
           fillTarget: 'run-creation',
         },

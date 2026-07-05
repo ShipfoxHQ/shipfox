@@ -3,7 +3,14 @@ import {
   getHarnessDescriptor,
   getModelProviderEntry,
 } from '@shipfox/api-agent-dto';
-import type {AvailabilitySite} from '@shipfox/expression';
+import {
+  type AvailabilitySite,
+  buildTypedRootsEnvironment,
+  type ExpressionType,
+  type ExpressionTypeEnvironment,
+  type WorkflowJobTypeOverlay,
+  type WorkflowStepTypeOverlay,
+} from '@shipfox/expression';
 import {
   canonicalizeLabels,
   findInvalidLabels,
@@ -33,6 +40,7 @@ import {normalizeJobListening} from './normalize-job-listening.js';
 import {normalizeJobSuccess} from './normalize-job-success.js';
 import {normalizeNeeds} from './normalize-needs.js';
 import {normalizeStepGate} from './normalize-step-gate.js';
+import {normalizeStepOutputs} from './normalize-step-outputs.js';
 import {parseDurationMs} from './parse-duration-ms.js';
 import {parseInterpolationField} from './parse-interpolation-field.js';
 import {stableId} from './stable-id.js';
@@ -45,18 +53,78 @@ export function normalizeJobs(
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
   defaultRunnerLabels: readonly string[],
 ): readonly WorkflowModelJob[] {
-  return Object.entries(document.jobs).flatMap(([sourceName, job]) => {
-    const model = normalizeJob({
-      document,
-      sourceName,
-      job,
-      jobIdBySourceName,
-      issues,
-      stepSourceLocations,
-      defaultRunnerLabels,
-    });
+  const entries = Object.entries(document.jobs);
+  const pending = new Set(entries.map(([sourceName]) => sourceName));
+  const modelsBySourceName = new Map<string, WorkflowModelJob>();
+  const jobOutputTypesBySourceName = new Map<string, Readonly<Record<string, ExpressionType>>>();
+  const issuesBySourceName = new Map<string, WorkflowModelValidationIssue[]>();
+
+  while (pending.size > 0) {
+    let progressed = false;
+
+    for (const [sourceName, job] of entries) {
+      if (!pending.has(sourceName)) continue;
+
+      const dependencySourceNames = normalizeNeeds(job.needs).filter((dependency) =>
+        jobIdBySourceName.has(dependency),
+      );
+      if (dependencySourceNames.some((dependency) => pending.has(dependency))) continue;
+
+      const model = normalizeJob({
+        document,
+        sourceName,
+        job,
+        jobIdBySourceName,
+        issues: issuesForSourceName(issuesBySourceName, sourceName),
+        stepSourceLocations,
+        defaultRunnerLabels,
+        jobOutputTypesBySourceName,
+      });
+      if (model !== undefined) modelsBySourceName.set(sourceName, model);
+      pending.delete(sourceName);
+      progressed = true;
+    }
+
+    if (progressed) continue;
+
+    for (const sourceName of pending) {
+      const job = document.jobs[sourceName];
+      if (job === undefined) continue;
+      const model = normalizeJob({
+        document,
+        sourceName,
+        job,
+        jobIdBySourceName,
+        issues: issuesForSourceName(issuesBySourceName, sourceName),
+        stepSourceLocations,
+        defaultRunnerLabels,
+        jobOutputTypesBySourceName,
+      });
+      if (model !== undefined) modelsBySourceName.set(sourceName, model);
+    }
+    break;
+  }
+
+  for (const [sourceName] of entries) {
+    issues.push(...(issuesBySourceName.get(sourceName) ?? []));
+  }
+
+  return entries.flatMap(([sourceName]) => {
+    const model = modelsBySourceName.get(sourceName);
     return model === undefined ? [] : [model];
   });
+}
+
+function issuesForSourceName(
+  issuesBySourceName: Map<string, WorkflowModelValidationIssue[]>,
+  sourceName: string,
+): WorkflowModelValidationIssue[] {
+  const existing = issuesBySourceName.get(sourceName);
+  if (existing !== undefined) return existing;
+
+  const issues: WorkflowModelValidationIssue[] = [];
+  issuesBySourceName.set(sourceName, issues);
+  return issues;
 }
 
 function normalizeJob(params: {
@@ -67,6 +135,7 @@ function normalizeJob(params: {
   issues: WorkflowModelValidationIssue[];
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
   defaultRunnerLabels: readonly string[];
+  jobOutputTypesBySourceName: Map<string, Readonly<Record<string, ExpressionType>>>;
 }): WorkflowModelJob | undefined {
   const id = params.jobIdBySourceName.get(params.sourceName);
   if (id === undefined) return undefined;
@@ -81,8 +150,17 @@ function normalizeJob(params: {
     job: params.job,
     jobIdBySourceName: params.jobIdBySourceName,
   });
+  const upstreamJobs = upstreamJobTypeOverlays({
+    allowedJobReferences,
+    jobOutputTypesBySourceName: params.jobOutputTypesBySourceName,
+  });
+  const upstreamJobsTypeOverlay =
+    upstreamJobs.length === 0 ? undefined : buildTypedRootsEnvironment({jobs: upstreamJobs});
   // Step config can reference peer step outputs, which are completed at dispatch.
   const stepFillSite: AvailabilitySite = 'step-dispatch';
+  const stepTypeOverlay = params.job.steps.some((step) => step.outputs !== undefined)
+    ? {}
+    : undefined;
   const steps = normalizeJobSteps({
     sourceName: params.sourceName,
     jobId: id,
@@ -91,6 +169,8 @@ function normalizeJob(params: {
     stepSourceLocations: params.stepSourceLocations,
     fillSite: stepFillSite,
     allowedJobReferences,
+    typeOverlay: stepTypeOverlay,
+    upstreamJobs,
   });
   const runner = normalizeRunner({
     document: params.document,
@@ -105,19 +185,26 @@ function normalizeJob(params: {
     path: ['jobs', params.sourceName, 'env'],
     issues: params.issues,
     allowedJobReferences,
+    typeOverlay: upstreamJobsTypeOverlay,
   });
   const success = normalizeJobSuccess({
     source: params.job.success,
     sourceName: params.sourceName,
     issues: params.issues,
     allowedJobReferences,
+    typeOverlay: upstreamJobsTypeOverlay,
   });
   const outputs = normalizeJobOutputs({
     sourceName: params.sourceName,
     outputs: params.job.outputs,
     issues: params.issues,
     allowedJobReferences,
+    steps: params.job.steps,
+    upstreamJobs,
   });
+  if (outputs?.types !== undefined) {
+    params.jobOutputTypesBySourceName.set(params.sourceName, outputs.types);
+  }
   const executionTimeoutMs = parseDurationMs({
     source: params.job.execution_timeout,
     path: ['jobs', params.sourceName, 'execution_timeout'],
@@ -137,6 +224,7 @@ function normalizeJob(params: {
           path: ['jobs', params.sourceName, 'name'],
           issues: params.issues,
           allowedJobReferences,
+          typeOverlay: upstreamJobsTypeOverlay,
         }) ?? [{kind: 'literal' as const, value: params.job.name}]);
 
   return {
@@ -147,7 +235,8 @@ function normalizeJob(params: {
     ...(runner.templates.length === 0 ? {} : {runnerTemplates: runner.templates}),
     checkout,
     ...(success === undefined ? {} : {success}),
-    ...(outputs === undefined ? {} : {outputs}),
+    ...(outputs === undefined ? {} : {outputs: outputs.templates}),
+    ...(outputs?.types === undefined ? {} : {outputTypes: outputs.types}),
     ...(executionTimeoutMs === undefined ? {} : {executionTimeoutMs}),
     ...(listening === undefined ? {} : {listening}),
     ...(name === undefined ? {} : {name}),
@@ -183,30 +272,124 @@ function directNeedSourceNames(params: {
   );
 }
 
+function previousStepOverlays(
+  steps: readonly WorkflowDocumentStep[],
+  index: number,
+): readonly WorkflowStepTypeOverlay[] {
+  return steps.slice(0, index).flatMap((step) => {
+    if (step.key === undefined) return [];
+    return [{key: step.key, ...(step.outputs === undefined ? {} : {outputs: step.outputs})}];
+  });
+}
+
+function allStepOverlays(
+  steps: readonly WorkflowDocumentStep[],
+): readonly WorkflowStepTypeOverlay[] {
+  return previousStepOverlays(steps, steps.length);
+}
+
+function upstreamJobTypeOverlays(params: {
+  allowedJobReferences: ReadonlySet<string>;
+  jobOutputTypesBySourceName: ReadonlyMap<string, Readonly<Record<string, ExpressionType>>>;
+}): readonly WorkflowJobTypeOverlay[] {
+  const overlays = [...params.allowedJobReferences].map((sourceName) => {
+    const outputs = params.jobOutputTypesBySourceName.get(sourceName);
+    return {key: sourceName, ...(outputs === undefined ? {} : {outputs})};
+  });
+  return overlays.some((overlay) => overlay.outputs !== undefined) ? overlays : [];
+}
+
 function normalizeJobOutputs(params: {
   sourceName: string;
   outputs: WorkflowDocumentJob['outputs'];
   issues: WorkflowModelValidationIssue[];
   allowedJobReferences: ReadonlySet<string>;
-}): WorkflowOutputTemplates | undefined {
+  steps: readonly WorkflowDocumentStep[];
+  upstreamJobs: readonly WorkflowJobTypeOverlay[];
+}):
+  | {templates: WorkflowOutputTemplates; types: Readonly<Record<string, ExpressionType>>}
+  | undefined {
   if (params.outputs === undefined) return undefined;
 
   const templates: Record<string, WorkflowFieldTemplate> = Object.create(null) as Record<
     string,
     WorkflowFieldTemplate
   >;
+  const types: Record<string, ExpressionType> = Object.create(null) as Record<
+    string,
+    ExpressionType
+  >;
+  const hasStepOutputDeclarations = params.steps.some((step) => step.outputs !== undefined);
+  const typeOverlay =
+    hasStepOutputDeclarations || params.upstreamJobs.length > 0
+      ? buildTypedRootsEnvironment({
+          ...(hasStepOutputDeclarations ? {steps: allStepOverlays(params.steps)} : {}),
+          ...(params.upstreamJobs.length === 0 ? {} : {jobs: params.upstreamJobs}),
+        })
+      : undefined;
+
   for (const [key, source] of Object.entries(params.outputs)) {
-    templates[key] = parseInterpolationField({
+    const template = parseInterpolationField({
       field: 'job.outputs',
       source,
       path: ['jobs', params.sourceName, 'outputs', key],
       issues: params.issues,
       fillSite: 'execution-resolution',
       allowedJobReferences: params.allowedJobReferences,
+      typeOverlay,
     }) ?? [{kind: 'literal' as const, value: source}];
+    templates[key] = template;
+    types[key] = inferJobOutputType({
+      sourceName: params.sourceName,
+      key,
+      source,
+      template,
+      issues: params.issues,
+    });
   }
 
-  return templates;
+  return {templates, types};
+}
+
+function inferJobOutputType(params: {
+  sourceName: string;
+  key: string;
+  source: string;
+  template: WorkflowFieldTemplate;
+  issues: WorkflowModelValidationIssue[];
+}): ExpressionType {
+  if (params.template.length !== 1) return 'string';
+
+  const [segment] = params.template;
+  if (segment?.kind !== 'deferred') return 'string';
+
+  const resultType = segment.expression.resultType;
+  if (resultType === undefined) return 'string';
+  if (isScalarExpressionType(resultType)) return resultType;
+
+  params.issues.push(
+    issue({
+      code: 'invalid-job-output',
+      message: `Job output "${params.key}" must resolve to a scalar value.`,
+      path: ['jobs', params.sourceName, 'outputs', params.key],
+      details: {
+        output: params.key,
+        source: params.source,
+      },
+    }),
+  );
+  return 'string';
+}
+
+function isScalarExpressionType(type: ExpressionType): boolean {
+  return (
+    type === 'string' ||
+    type === 'int' ||
+    type === 'double' ||
+    type === 'bool' ||
+    type === 'null' ||
+    type === 'timestamp'
+  );
 }
 
 function normalizeJobSteps(params: {
@@ -217,6 +400,8 @@ function normalizeJobSteps(params: {
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
   fillSite: AvailabilitySite;
   allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
+  upstreamJobs: readonly WorkflowJobTypeOverlay[];
 }): readonly WorkflowModelStep[] {
   const usedStepIds = new Map<string, number>();
 
@@ -232,6 +417,8 @@ function normalizeJobSteps(params: {
       stepSourceLocations: params.stepSourceLocations,
       fillSite: params.fillSite,
       allowedJobReferences: params.allowedJobReferences,
+      typeOverlay: params.typeOverlay,
+      upstreamJobs: params.upstreamJobs,
     }),
   );
 }
@@ -247,6 +434,8 @@ function normalizeStep(params: {
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
   fillSite: AvailabilitySite;
   allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
+  upstreamJobs: readonly WorkflowJobTypeOverlay[];
 }): WorkflowModelStep {
   const stepKey = params.step.key;
   const stepId =
@@ -268,6 +457,28 @@ function normalizeStep(params: {
     params.usedStepIds.set(stepId, params.index);
   }
 
+  const outputs = normalizeStepOutputs({
+    step: params.step,
+    sourceName: params.sourceName,
+    stepIndex: params.index,
+    issues: params.issues,
+  });
+  const currentStepOverlay =
+    stepKey === undefined
+      ? undefined
+      : ({
+          key: stepKey,
+          ...(outputs === undefined ? {} : {outputs}),
+        } satisfies WorkflowStepTypeOverlay);
+  const shouldBuildTypeOverlay = params.typeOverlay !== undefined || params.upstreamJobs.length > 0;
+  const typeOverlay = !shouldBuildTypeOverlay
+    ? undefined
+    : buildTypedRootsEnvironment({
+        steps: previousStepOverlays(params.allSteps, params.index),
+        ...(currentStepOverlay === undefined ? {} : {currentStep: currentStepOverlay}),
+        ...(params.upstreamJobs.length === 0 ? {} : {jobs: params.upstreamJobs}),
+      });
+
   const gate = normalizeStepGate({
     step: params.step,
     sourceName: params.sourceName,
@@ -280,6 +491,7 @@ function normalizeStep(params: {
     ),
     issues: params.issues,
     allowedJobReferences: params.allowedJobReferences,
+    typeOverlay,
   });
   const sourceLocation = params.stepSourceLocations?.get(params.sourceName)?.get(params.index);
   const name =
@@ -292,11 +504,13 @@ function normalizeStep(params: {
           issues: params.issues,
           fillSite: params.fillSite,
           allowedJobReferences: params.allowedJobReferences,
+          typeOverlay,
         });
   const stepBase = {
     id: stepId,
     ...(stepKey === undefined ? {} : {key: stepKey}),
     ...(params.step.name === undefined ? {} : {name: params.step.name}),
+    ...(outputs === undefined ? {} : {outputs}),
     ...(sourceLocation === undefined ? {} : {sourceLocation}),
     ...(gate === undefined ? {} : {gate}),
   };
@@ -311,6 +525,7 @@ function normalizeStep(params: {
       issues: params.issues,
       fillSite: params.fillSite,
       allowedJobReferences: params.allowedJobReferences,
+      typeOverlay,
     });
   }
 
@@ -324,6 +539,7 @@ function normalizeStep(params: {
       issues: params.issues,
       fillSite: params.fillSite,
       allowedJobReferences: params.allowedJobReferences,
+      typeOverlay,
     });
   }
 
@@ -341,6 +557,7 @@ function normalizeRunStep(params: {
   issues: WorkflowModelValidationIssue[];
   fillSite: AvailabilitySite;
   allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowModelRunStep {
   if (params.step.run === undefined) {
     throw new Error('Run step normalization requires a run command');
@@ -353,6 +570,7 @@ function normalizeRunStep(params: {
     issues: params.issues,
     fillSite: params.fillSite,
     allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
   });
   const stepEnv = normalizeEnv({
     env: params.step.env,
@@ -360,6 +578,7 @@ function normalizeRunStep(params: {
     issues: params.issues,
     fillSite: params.fillSite,
     allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
   });
   const templates = optionalRunStepTemplates({
     command: commandTemplate,
@@ -385,6 +604,7 @@ function normalizeAgentStep(params: {
   issues: WorkflowModelValidationIssue[];
   fillSite: AvailabilitySite;
   allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowModelAgentStep {
   if (params.step.prompt === undefined) {
     throw new Error('Agent step normalization requires a prompt');
@@ -397,6 +617,7 @@ function normalizeAgentStep(params: {
     issues: params.issues,
     fillSite: params.fillSite,
     allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
   });
   const modelTemplate =
     params.step.model === undefined
@@ -408,6 +629,7 @@ function normalizeAgentStep(params: {
           issues: params.issues,
           fillSite: params.fillSite,
           allowedJobReferences: params.allowedJobReferences,
+          typeOverlay: params.typeOverlay,
         });
   const providerTemplate =
     params.step.provider === undefined
@@ -419,6 +641,7 @@ function normalizeAgentStep(params: {
           issues: params.issues,
           fillSite: params.fillSite,
           allowedJobReferences: params.allowedJobReferences,
+          typeOverlay: params.typeOverlay,
         });
   validateAgentStep({
     step: params.step,
@@ -605,7 +828,7 @@ function validateRunnerLabels(params: {
 
 type WorkflowModelStepBaseFields = Pick<
   WorkflowModelStep,
-  'id' | 'key' | 'name' | 'sourceLocation' | 'gate'
+  'id' | 'key' | 'name' | 'outputs' | 'sourceLocation' | 'gate'
 >;
 
 function optionalRunStepTemplates(params: {

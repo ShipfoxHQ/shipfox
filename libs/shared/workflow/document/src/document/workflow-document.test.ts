@@ -1,6 +1,9 @@
 import {
   WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES,
   WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES,
+  WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH,
+  WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES,
+  WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES,
   workflowDocumentSchema,
 } from './workflow-document.js';
 
@@ -44,6 +47,224 @@ describe('workflowDocumentSchema', () => {
     const result = workflowDocumentSchema.safeParse(workflowDocument);
 
     expect(result.success).toBe(true);
+  });
+
+  it('accepts and desugars step output declarations', () => {
+    const workflowDocument = {
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'build',
+              run: 'npm run build',
+              outputs: {
+                sha: 'string',
+                count: 'number',
+                ready: {type: 'boolean'},
+                meta: {
+                  type: 'json',
+                  schema: {
+                    type: 'object',
+                    properties: {registry: {type: 'string'}},
+                    required: ['registry'],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.parse(workflowDocument);
+
+    expect(result.jobs.build?.steps[0]?.outputs).toEqual({
+      sha: {type: 'string'},
+      count: {type: 'number'},
+      ready: {type: 'boolean'},
+      meta: {
+        type: 'json',
+        schema: {
+          type: 'object',
+          properties: {registry: {type: 'string'}},
+          required: ['registry'],
+          additionalProperties: false,
+        },
+      },
+    });
+  });
+
+  it('accepts boolean JSON Schemas in step output declarations', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', outputs: {payload: {type: 'json', schema: true}}}],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects typed output keys that are not CEL identifiers', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', outputs: {'image-sha': 'string'}}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.outputs.image-sha',
+        );
+    expect(issue?.message).toBe('Output keys must be CEL identifiers.');
+  });
+
+  it('rejects unknown step output types', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', outputs: {sha: 'integer'}}],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects schemas on non-json step outputs', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', outputs: {sha: {type: 'string', schema: {}}}}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.outputs.sha.schema',
+        );
+    expect(issue?.message).toBe('`schema` is only supported for json outputs.');
+  });
+
+  it.each([
+    ['string', 'not a schema'],
+    ['number', 1],
+    ['null', null],
+    ['array', [{type: 'string'}]],
+  ])('rejects %s step output JSON Schemas', (_label, schema) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', outputs: {payload: {type: 'json', schema}}}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.outputs.payload.schema',
+        );
+    expect(issue?.message).toBe('Schema must be a valid JSON Schema document.');
+  });
+
+  it('rejects too many step output declarations', () => {
+    const outputs = Object.fromEntries(
+      Array.from({length: WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES + 1}, (_, index) => [
+        `output_${index}`,
+        'string',
+      ]),
+    );
+
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', outputs}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.outputs',
+        );
+    expect(issue?.message).toBe(
+      `Step outputs cannot define more than ${WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES} entries.`,
+    );
+  });
+
+  it('rejects step output JSON Schemas that exceed the byte cap', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [
+            {
+              run: 'npm run build',
+              outputs: {
+                payload: {
+                  type: 'json',
+                  schema: {
+                    description: 'x'.repeat(
+                      WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES,
+                    ),
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.outputs.payload.schema',
+        );
+    expect(issue?.message).toBe(
+      `Output JSON Schema cannot serialize to more than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES} bytes.`,
+    );
+  });
+
+  it('rejects step output JSON Schemas that exceed the depth cap', () => {
+    let schema: unknown = {type: 'string'};
+    for (let index = 0; index < WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH + 1; index += 1) {
+      schema = {items: schema};
+    }
+
+    const result = workflowDocumentSchema.safeParse({
+      name: 'typed outputs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', outputs: {payload: {type: 'json', schema}}}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.outputs.payload.schema',
+        );
+    expect(issue?.message).toBe(
+      `Output JSON Schema cannot be nested deeper than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH} levels.`,
+    );
   });
 
   it.each([

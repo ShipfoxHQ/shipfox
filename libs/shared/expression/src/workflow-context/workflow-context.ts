@@ -1,4 +1,8 @@
-import type {ExpressionTypeEnvironment} from '../expression/workflow-expression.js';
+import type {ExpressionType, ExpressionTypeEnvironment} from '../expression/workflow-expression.js';
+import {
+  type OutputDeclarations,
+  outputDeclarationsToExpressionFields,
+} from '../outputs/output-declarations.js';
 
 export const workflowContextNames = [
   'run',
@@ -220,6 +224,30 @@ const stepTypeEnvironment = {
     },
   },
 } as const satisfies ExpressionTypeEnvironment;
+
+type ObjectExpressionType = Extract<ExpressionType, {kind: 'object'}>;
+
+export interface WorkflowStepTypeOverlay {
+  readonly key: string;
+  readonly outputs?: OutputDeclarations;
+}
+
+export interface WorkflowJobTypeOverlay {
+  readonly key: string;
+  readonly outputs?: Readonly<Record<string, ExpressionType>>;
+}
+
+export function buildTypedRootsEnvironment(params: {
+  readonly steps?: readonly WorkflowStepTypeOverlay[];
+  readonly currentStep?: WorkflowStepTypeOverlay;
+  readonly jobs?: readonly WorkflowJobTypeOverlay[];
+}): ExpressionTypeEnvironment {
+  return {
+    ...(params.steps === undefined ? {} : {steps: stepsRootType(params.steps)}),
+    ...(params.currentStep === undefined ? {} : {step: selfStepType(params.currentStep)}),
+    ...(params.jobs === undefined ? {} : {jobs: jobsRootType(params.jobs)}),
+  };
+}
 
 export const workflowContextDefinitions = {
   run: {
@@ -604,6 +632,88 @@ function noServerAvailabilityReferenceEntry(
   >;
 
   return {root, reserved, availableAt};
+}
+
+function stepsRootType(steps: readonly WorkflowStepTypeOverlay[]): ExpressionType {
+  return {
+    kind: 'object',
+    fields: Object.fromEntries(steps.map((step) => [step.key, stepEntityTypeForStep(step)])),
+  };
+}
+
+function stepEntityTypeForStep(step: WorkflowStepTypeOverlay): ExpressionType {
+  const attemptType = stepAttemptTypeForOutputs(outputsTypeForStep(step));
+  return {
+    kind: 'object',
+    fields: {
+      ...attemptType.fields,
+      attempts: {
+        kind: 'list',
+        element: attemptType,
+      },
+    },
+  };
+}
+
+function selfStepType(step: WorkflowStepTypeOverlay): ExpressionType {
+  return {
+    kind: 'object',
+    fields: {
+      ...stepTypeEnvironment.step.fields,
+      outputs: outputsTypeForStep(step),
+    },
+  };
+}
+
+function stepAttemptTypeForOutputs(outputs: ExpressionType): ObjectExpressionType {
+  return {
+    kind: 'object',
+    fields: {
+      ...stepAttemptType.fields,
+      outputs,
+    },
+  };
+}
+
+function outputsTypeForStep(step: WorkflowStepTypeOverlay): ExpressionType {
+  if (step.outputs === undefined) return {kind: 'map'};
+  return {kind: 'object', fields: outputDeclarationsToExpressionFields(step.outputs)};
+}
+
+function jobsRootType(jobs: readonly WorkflowJobTypeOverlay[]): ExpressionType {
+  return {
+    kind: 'object',
+    fields: Object.fromEntries(jobs.map((job) => [job.key, jobEntityType(job)])),
+  };
+}
+
+function jobEntityType(job: WorkflowJobTypeOverlay): ExpressionType {
+  const outputs =
+    job.outputs === undefined
+      ? ({kind: 'map'} as const satisfies ExpressionType)
+      : ({kind: 'object', fields: job.outputs} as const satisfies ExpressionType);
+  const execution = executionTypeWithOutputs(outputs);
+  return {
+    kind: 'object',
+    fields: {
+      status: 'string',
+      outputs,
+      executions: {
+        kind: 'list',
+        element: execution,
+      },
+    },
+  };
+}
+
+function executionTypeWithOutputs(outputs: ExpressionType): ExpressionType {
+  return {
+    kind: 'object',
+    fields: {
+      ...executionType.fields,
+      outputs,
+    },
+  };
 }
 
 function isWorkflowContextName(root: string): root is WorkflowContextName {

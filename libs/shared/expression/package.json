@@ -35,7 +35,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@marcbachmann/cel-js": "7.6.1"
+    "@marcbachmann/cel-js": "7.6.1",
+    "@shipfox/workflow-document": "workspace:*",
+    "ajv": "8.20.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
