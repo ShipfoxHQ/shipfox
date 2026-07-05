@@ -54,6 +54,7 @@ export {
   type DeliverEventToListenerResult,
   db,
   deliverEventToListener,
+  getStepById,
   getStepByIdForJobExecution,
   migrationsPath,
   workflowsOutbox,

@@ -483,6 +483,14 @@ export async function getStepByIdForJobExecution(params: {
   return toStep(row);
 }
 
+export async function getStepById(stepId: string): Promise<Step | undefined> {
+  const rows = await db().select().from(steps).where(eq(steps.id, stepId)).limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toStep(row);
+}
+
 export async function lockActiveJobExecutionLeaseForUpdate(
   params: {jobId: string; jobExecutionId: string; runnerSessionId: string},
   tx: Tx,

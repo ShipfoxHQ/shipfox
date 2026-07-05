@@ -1,7 +1,7 @@
 import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {type LogRecord, logRecordSchema} from '@shipfox/api-logs-dto';
+import {type RawLogRecord, rawLogRecordSchema} from '@shipfox/api-logs-dto';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {createSessionLogStream} from '#core/session-log-stream.js';
 
@@ -29,12 +29,12 @@ describe('createSessionLogStream', () => {
     await rm(dir, {recursive: true, force: true});
   });
 
-  async function readRecords(attempt: number): Promise<LogRecord[]> {
+  async function readRecords(attempt: number): Promise<RawLogRecord[]> {
     const text = await readFile(join(dir, 'logs', `${STEP_ID}-${attempt}.ndjson`), 'utf8');
     return text
       .split('\n')
       .filter((line) => line.length > 0)
-      .map((line) => logRecordSchema.parse(JSON.parse(line)));
+      .map((line) => rawLogRecordSchema.parse(JSON.parse(line)));
   }
 
   function open(

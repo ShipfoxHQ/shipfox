@@ -38,6 +38,7 @@ describe('readLogsResponseSchema', () => {
     const parsed = readLogsResponseSchema.parse({
       mode: 'presigned',
       url: 'https://storage.example/logs/object?sig=abc',
+      state: 'closed',
       expires_at: new Date().toISOString(),
       total_bytes: 1024,
       truncated: true,
@@ -57,6 +58,7 @@ describe('readLogsResponseSchema', () => {
       readLogsResponseSchema.parse({
         mode: 'presigned',
         url: 'not a url',
+        state: 'closed',
         expires_at: new Date().toISOString(),
         total_bytes: 1,
         truncated: false,

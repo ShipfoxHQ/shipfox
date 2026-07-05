@@ -35,6 +35,7 @@ function presigned(params: {truncated?: boolean; url?: string} = {}): ReadLogsRe
   return {
     mode: 'presigned',
     url: params.url ?? 'https://storage.example.test/logs/object?sig=1',
+    state: 'closed',
     expires_at: '2026-07-02T08:00:00.000Z',
     total_bytes: 128,
     truncated: params.truncated ?? false,

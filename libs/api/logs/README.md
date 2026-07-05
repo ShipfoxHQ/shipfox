@@ -28,7 +28,8 @@ This adds:
 - log database migrations from `libs/api/logs/drizzle`
 - the append route under `/runs/jobs/current/steps/:stepId/logs` (lease-authed)
 - the read route under `/steps/:stepId/attempts/:attempt/logs` (session-authed): inline NDJSON
-  while the stream is hot, a presigned object URL once it is compacted
+  while the stream is hot, a presigned object URL once it is compacted, plus the canonical
+  `SessionView` parsed from stored agent-session rows
 - the `logs.stream.closed` publisher and two close subscribers: the step-attempt-terminated
   subscriber that closes each attempt's stream when the runner did not end it in-band, and the
   job-terminated subscriber that force-closes any of a job's still-open streams
@@ -53,7 +54,7 @@ output; control records are flat by `type`:
 {v: 1, ts, type: 'group_end',     group_id}
 {v: 1, ts, type: 'end',           total_bytes}
 {v: 1, ts, type: 'gap',           dropped_bytes}
-{v: 1, ts, type: 'agent_session', data}                               // one verbatim entry, <= LOG_MAX_SESSION_LINE_BYTES
+{v: 1, ts, type: 'agent_session', row}                                // normalized SessionView row
 {v: 1, ts, type: 'capped'}        // server-only
 {v: 1, ts, type: 'runner_lost'}   // server-only
 ```
@@ -64,9 +65,9 @@ Two layers stop a runner from writing what it should not:
 
 1. **Lease scope** — the lease binds writes to the job's own `(step, attempt)`, so cross-job
    injection is structurally impossible.
-2. **Distinct ingest and read unions** — every line is validated against the **appendable**
+2. **Distinct raw/write and stored/read unions** — every line is validated against the **raw**
    record union. The server-only `capped`/`runner_lost` tombstones are members of the read union
-   only, not the appendable union, so a forged tombstone append is rejected (400). A forged
+   only, not the raw write union, so a forged tombstone append is rejected (400). A forged
    tombstone that is otherwise a valid record is logged as a narrowed audit warning (no payload,
    no token).
 
@@ -86,8 +87,9 @@ the live tail and the full history. It is workspace-scoped through the stream ro
 leaks.
 
 - **Hot (open, or closed but not yet compacted)** — inline NDJSON read from the Postgres chunks,
-  walked by chunk `seq` so server control tombstones interleave with runner bytes exactly as
-  compaction concatenates them, making the inline bytes byte-identical to the decompressed object.
+  walked by chunk `seq` so server control tombstones interleave with normalized runner records
+  exactly as compaction concatenates them, making the inline bytes byte-identical to the
+  decompressed object.
   Pages are bounded by `LOG_READ_INLINE_MAX_BYTES`; the client follows `has_more`/`next_cursor` to
   drain the backlog, then tails from the last cursor.
 - **Cold (compacted, `object_key` set)** — a presigned GET URL (`LOG_READ_URL_TTL_SECONDS`) so the
@@ -96,9 +98,21 @@ leaks.
 ## Agent-session capture
 
 An agent step forwards each agent session entry as one `agent_session` record on this **same**
-stream, distinguished by its `type`; a reader filters by `type` and `JSON.parse`s each record's
-`data` (one verbatim session entry line) to reconstruct the session. There is no separate stream
-and no stream `kind` — one stream per `(job, step, attempt)`, read without knowing any kind.
+append request, distinguished by its `type`. That append-side record carries the raw entry in
+`data`; it is a write contract only. On ingestion, the API parses each accepted entry into one or
+more canonical `SessionView` rows and writes those rows back as normal `agent_session` log records
+in the same chunk stream (`{v, ts, type: 'agent_session', row}`). The parser is selected from the
+step's `config.harness` (`pi` by default).
+
+The transformed records use the same offset-CAS append protocol, chunk table, compaction object,
+and `/logs` read endpoint as output records. Retries, gaps, closed-stream drops, and post-cap drops
+therefore behave exactly like any other log append: if the chunk is not stored, no normalized
+session records appear. A malformed or unsupported harness entry degrades to one `raw` row instead
+of failing ingestion or read.
+
+The `/logs` read endpoint returns one stream of log records. `state` and `truncated` come from the
+stream row so clients know when polling can stop. The endpoint never parses session entries on
+read; it serves the normalized records stored by ingestion.
 
 The runner forwards entries opaquely and never splits one across records, so a record always
 carries a whole entry. Per-entry size is bounded by `LOG_MAX_SESSION_LINE_BYTES` (a larger line is

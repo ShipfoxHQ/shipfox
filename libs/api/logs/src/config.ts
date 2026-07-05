@@ -32,7 +32,7 @@ export const config = createConfig({
     default: true,
   }),
   LOG_BUDGET_BASE_BYTES: num({
-    desc: 'Base of the per-job log accrual budget, in stored bytes (raw NDJSON the server keeps, framing included). A job may always store this much before the time-based rate is added. Sized to hold a few inline agent_session entries (such as base64 images) before the shared per-job cap trips. Defaults to 32 MiB.',
+    desc: 'Base of the per-job log accrual budget, in stored bytes (normalized NDJSON the server keeps, framing included). A job may always store this much before the time-based rate is added. Sized to hold a few inline agent_session entries (such as base64 images) before the shared per-job cap trips. Defaults to 32 MiB.',
     default: 33_554_432,
   }),
   LOG_BUDGET_RATE_BYTES_PER_MINUTE: num({

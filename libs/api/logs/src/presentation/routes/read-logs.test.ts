@@ -413,6 +413,7 @@ describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
     const body = (await authedGet(stream, 0)).json();
 
     expect(body.mode).toBe('presigned');
+    expect(body.state).toBe('closed');
     expect(typeof body.url).toBe('string');
     expect(body.total_bytes).toBe(stream.committedLength);
     const ttlMs = config.LOG_READ_URL_TTL_SECONDS * 1000;
@@ -427,6 +428,56 @@ describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
     expect(content).toBe(ndjson);
 
     await deleteObject(objectKey);
+  });
+
+  it('serves stream metadata on the logs endpoint for an existing stream', async () => {
+    const stream = await arrangeStream({
+      workspaceId: crypto.randomUUID(),
+      chunks: [],
+    });
+
+    const res = await authedGet(stream, 0);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      mode: 'inline',
+      state: 'open',
+      truncated: false,
+    });
+  });
+
+  it('serves normalized session records as log NDJSON with terminal stream state', async () => {
+    const row = {
+      kind: 'message',
+      timestamp: 1,
+      role: 'assistant',
+      label: 'assistant',
+      meta: [],
+      text: 'Done.',
+      terminalFailure: false,
+    } as const;
+    const stream = await arrangeStream({
+      workspaceId: crypto.randomUUID(),
+      state: 'closed',
+      truncated: true,
+      chunks: [ndjsonBody(recordLine({type: 'agent_session', row}))],
+    });
+
+    const res = await authedGet(stream, 0);
+    const body = res.json();
+
+    expect(res.statusCode).toBe(200);
+    expect(body).toMatchObject({
+      mode: 'inline',
+      state: 'closed',
+      truncated: true,
+    });
+    expect(parseLogRecordLine(body.ndjson.trim())).toEqual({
+      v: 1,
+      ts: 1,
+      type: 'agent_session',
+      row,
+    });
   });
 });
 

@@ -6,6 +6,7 @@ export function toReadLogsDto(result: LogReadResult): ReadLogsResponseDto {
     return {
       mode: 'presigned',
       url: result.url,
+      state: result.state,
       expires_at: result.expiresAt.toISOString(),
       total_bytes: result.totalBytes,
       truncated: result.truncated,

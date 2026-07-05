@@ -1,10 +1,12 @@
 import {Buffer} from 'node:buffer';
+import {DEFAULT_HARNESS, type Harness, harnessSchema} from '@shipfox/api-agent-dto';
 import {
-  type AppendableLogRecord,
   type LogRecord,
-  parseAppendableLogRecordLine,
   parseLogRecordLine,
+  parseRawLogRecordLine,
+  type RawLogRecord,
 } from '@shipfox/api-logs-dto';
+import {getStepById} from '@shipfox/api-workflows';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {accrueStoredBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
@@ -25,6 +27,20 @@ import {
 import {allowedBudget} from './budget.js';
 import {closeStream, controlTombstone} from './close-stream.js';
 import {MalformedLogChunkError, OffsetGapError} from './errors.js';
+import {parseSessionRecord} from './session/parse-session.js';
+import type {AgentSessionRecord} from './session/session-record.js';
+
+type StepLookup = (stepId: string) => Promise<{config: Record<string, unknown>} | undefined>;
+
+let stepLookup: StepLookup = getStepById;
+
+export function setStepLookupForTesting(lookup: StepLookup): () => void {
+  const previous = stepLookup;
+  stepLookup = lookup;
+  return () => {
+    stepLookup = previous;
+  };
+}
 
 export interface AppendLogsParams {
   jobId: string;
@@ -44,23 +60,24 @@ export interface AppendLogsResult {
 
 interface ParsedBody {
   declaredTotalBytes?: number;
-  recordCounts: Partial<Record<AppendableLogRecord['type'], number>>;
+  records: RawLogRecord[];
+  hasAgentSessionRecord: boolean;
 }
 
 /**
  * Pure pre-transaction parse. Requires whole, newline-terminated lines so
  * `committed_length` always lands on a line boundary (one body = one chunk = whole
  * lines; no line ever spans two chunks). Runs before any lock is taken, so a
- * malformed or large body never holds a row. The budget charges the raw stored byte
- * length, not a decoded sum, so no per-record byte counting happens here.
+ * malformed or large body never holds a row. The offset CAS uses the raw append byte length; the
+ * budget charges the normalized body built from these parsed records.
  *
- * Each line is validated against the appendable record union (a forged server-only
+ * Each line is validated against the raw record union (a forged server-only
  * `capped`/`runner_lost` fails here); the declared total is pulled from an `end`
  * record. A line that is a valid server-only record under the read union surfaces
  * its type via `forgedType` for the narrowed audit warn.
  */
 function parseAppendBody(body: Buffer): ParsedBody {
-  if (body.length === 0) return {recordCounts: {}};
+  if (body.length === 0) return {records: [], hasAgentSessionRecord: false};
 
   const text = body.toString('utf8');
   if (!text.endsWith('\n')) {
@@ -70,18 +87,19 @@ function parseAppendBody(body: Buffer): ParsedBody {
   lines.pop();
 
   let declaredTotalBytes: number | undefined;
-  const recordCounts: Partial<Record<AppendableLogRecord['type'], number>> = {};
+  const records: RawLogRecord[] = [];
+  let hasAgentSessionRecord = false;
   for (const line of lines) {
-    let record: ReturnType<typeof parseAppendableLogRecordLine>;
+    let record: ReturnType<typeof parseRawLogRecordLine>;
     try {
-      record = parseAppendableLogRecordLine(line);
+      record = parseRawLogRecordLine(line);
     } catch {
       throw new MalformedLogChunkError(
         'append body contains an invalid NDJSON record',
         detectForgedType(line),
       );
     }
-    recordCounts[record.type] = (recordCounts[record.type] ?? 0) + 1;
+    records.push(record);
     if (record.type === 'end') {
       declaredTotalBytes = record.total_bytes;
     }
@@ -96,13 +114,18 @@ function parseAppendBody(body: Buffer): ParsedBody {
         `agent_session line exceeds ${config.LOG_MAX_SESSION_LINE_BYTES} bytes`,
       );
     }
+    if (record.type === 'agent_session') {
+      hasAgentSessionRecord = true;
+    }
   }
 
-  return declaredTotalBytes === undefined ? {recordCounts} : {declaredTotalBytes, recordCounts};
+  return declaredTotalBytes === undefined
+    ? {records, hasAgentSessionRecord}
+    : {declaredTotalBytes, records, hasAgentSessionRecord};
 }
 
 /**
- * A line that fails the appendable union but is a valid record under the read union
+ * A line that fails the raw write union but is a valid record under the read union
  * can only be a server-only `capped`/`runner_lost` tombstone — i.e. a forgery
  * attempt. Returns its type for the audit warn, or undefined for plain garbage.
  */
@@ -112,6 +135,12 @@ function detectForgedType(line: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+async function getSessionHarness(stepId: string): Promise<Harness> {
+  const step = await stepLookup(stepId);
+  const parsed = harnessSchema.safeParse(step?.config.harness);
+  return parsed.success ? parsed.data : DEFAULT_HARNESS;
 }
 
 /**
@@ -133,7 +162,7 @@ async function readHeartbeat(tx: Transaction, params: AppendLogsParams): Promise
 interface StoreChunkParams {
   params: AppendLogsParams;
   streamId: string;
-  byteLen: number;
+  body: Buffer;
   committedLength: number;
   declaredTotalBytes: number | undefined;
 }
@@ -155,10 +184,11 @@ interface StoreChunkResult extends AppendLogsResult {
  */
 async function storeChunk(
   tx: Transaction,
-  {params, streamId, byteLen, committedLength, declaredTotalBytes}: StoreChunkParams,
+  {params, streamId, body, committedLength, declaredTotalBytes}: StoreChunkParams,
 ): Promise<StoreChunkResult> {
   await ensureJobAccounting(tx, {jobId: params.jobId, workspaceId: params.workspaceId});
-  const accrued = await accrueStoredBytes(tx, {jobId: params.jobId, delta: byteLen});
+  const storedByteLen = body.length;
+  const accrued = await accrueStoredBytes(tx, {jobId: params.jobId, delta: storedByteLen});
 
   // Already capped: accept-and-drop. committed_length has advanced so the runner
   // drains its spool cleanly instead of retry-looping; nothing is stored.
@@ -167,8 +197,8 @@ async function storeChunk(
   await insertChunk(tx, {
     streamId,
     streamOffset: params.offset,
-    byteLen,
-    data: params.body,
+    byteLen: storedByteLen,
+    data: body,
     origin: 'runner',
   });
   if (declaredTotalBytes !== undefined) {
@@ -206,6 +236,37 @@ async function storeChunk(
   };
 }
 
+function buildStoredBody(
+  records: readonly RawLogRecord[],
+  harness: Harness,
+): {body: Buffer; recordCounts: Partial<Record<LogRecord['type'], number>>} {
+  const storedRecords: LogRecord[] = [];
+  for (const record of records) {
+    if (record.type !== 'agent_session') {
+      storedRecords.push(record);
+      continue;
+    }
+
+    for (const row of parseSessionRecord(agentSessionRecord(record), harness)) {
+      storedRecords.push({v: 1, ts: row.timestamp, type: 'agent_session', row});
+    }
+  }
+
+  const body = Buffer.from(storedRecords.map((record) => `${JSON.stringify(record)}\n`).join(''));
+  const recordCounts: Partial<Record<LogRecord['type'], number>> = {};
+  for (const record of storedRecords) {
+    recordCounts[record.type] = (recordCounts[record.type] ?? 0) + 1;
+  }
+
+  return {body, recordCounts};
+}
+
+function agentSessionRecord(
+  record: Extract<RawLogRecord, {type: 'agent_session'}>,
+): AgentSessionRecord {
+  return {data: record.data, ts: record.ts};
+}
+
 /**
  * Concurrency is serialized through Postgres row locks taken implicitly by the
  * conditional UPDATEs, not an explicit `SELECT ... FOR UPDATE`. Appends for one
@@ -231,7 +292,11 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
     throw error;
   }
   const {declaredTotalBytes} = parsed;
-  const byteLen = params.body.length;
+  const sessionHarness = parsed.hasAgentSessionRecord
+    ? await getSessionHarness(params.stepId)
+    : DEFAULT_HARNESS;
+  const stored = buildStoredBody(parsed.records, sessionHarness);
+  const commitByteLen = params.body.length;
   const metrics = {
     recordCounts: {} as Partial<Record<LogRecordMetricKind, number>>,
     streamClosedReason: undefined as 'declared' | undefined,
@@ -239,7 +304,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
   };
 
   const result = await db().transaction(async (tx) => {
-    if (byteLen === 0) return readHeartbeat(tx, params);
+    if (commitByteLen === 0) return readHeartbeat(tx, params);
 
     const {created, stream} = await getOrCreateAttemptStreamWithStatus(tx, {
       jobId: params.jobId,
@@ -261,22 +326,26 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
     const cas = await casExtendCommittedLength(tx, {
       streamId: stream.id,
       offset: params.offset,
-      byteLen,
+      byteLen: commitByteLen,
     });
     if (cas.outcome === 'gap') throw new OffsetGapError(cas.committedLength);
     if (cas.outcome === 'retry') {
       return {committedLength: cas.committedLength, capped: await isJobCapped(tx, params.jobId)};
     }
 
-    const {recordCounts, stored, ...result} = await storeChunk(tx, {
+    const {
+      recordCounts,
+      stored: chunkStored,
+      ...result
+    } = await storeChunk(tx, {
       params,
       streamId: stream.id,
-      byteLen,
+      body: stored.body,
       committedLength: cas.committedLength,
       declaredTotalBytes,
     });
-    if (stored) {
-      addRecordCounts(metrics.recordCounts, parsed.recordCounts);
+    if (chunkStored) {
+      addRecordCounts(metrics.recordCounts, stored.recordCounts);
     }
     addRecordCounts(metrics.recordCounts, recordCounts);
 
@@ -286,7 +355,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
     // Only when the chunk was actually stored: an end body dropped because the job was
     // already capped persists nothing, so the stream is not whole and stays open for the
     // timeout sweep to close it as truncated.
-    if (declaredTotalBytes !== undefined && stored) {
+    if (declaredTotalBytes !== undefined && chunkStored) {
       const closed = await closeStream(tx, {streamId: stream.id, reason: 'declared'});
       if (closed) metrics.streamClosedReason = 'declared';
     }

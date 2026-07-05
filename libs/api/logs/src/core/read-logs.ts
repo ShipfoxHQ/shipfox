@@ -16,6 +16,7 @@ export interface InlineLogRead {
 export interface PresignedLogRead {
   mode: 'presigned';
   url: string;
+  state: 'closed';
   expiresAt: Date;
   totalBytes: number;
   truncated: boolean;
@@ -28,6 +29,7 @@ async function presignedRead(stream: AttemptStream, objectKey: string): Promise<
   return {
     mode: 'presigned',
     url,
+    state: 'closed',
     expiresAt,
     totalBytes: stream.committedLength,
     truncated: stream.truncated,

@@ -1,25 +1,28 @@
 import {z} from 'zod';
+import {sessionViewRowSchema} from './session-view.js';
 
 /**
  * NDJSON log record contract — one JSON object per line, runner-framed.
  *
- * `offset` / `committed_length` are byte positions in the raw NDJSON spool stream
+ * `offset` / `committed_length` are byte positions in the raw append NDJSON spool stream
  * (envelope included) — the offset-CAS axis the runner tracks. The per-job accrual
- * budget charges those same raw stored bytes, so framing and control records count
- * against it too. The per-record byte caps below bound each record so a single
+ * budget charges the normalized NDJSON bytes the server stores, so framing and control records
+ * count against it too. The per-record byte caps below bound each record so a single
  * entry's overhead is known and a runner cannot grow storage without moving the
  * budget: `data` is non-empty and <= MAX_RECORD_DATA_BYTES, the group `name` is
  * <= MAX_RECORD_NAME_BYTES, the group ids are <= MAX_RECORD_GROUP_ID_BYTES, and every
  * other field is fixed-shape.
  *
  * The envelope is `{v, ts}`, and every record is discriminated by a single flat
- * `type`. The ingest (appendable) and read unions are distinct types: the server-only
+ * `type`. The raw/write and stored/read unions are distinct types: the server-only
  * `capped` / `runner_lost` tombstones are members of the read union only, so a forged
  * tombstone cannot pass append validation.
  *
- * The `agent_session` record carries one verbatim agent session entry line in `data`,
- * forwarded opaquely by the runner. Its per-line size is bounded by the server's
- * configurable `LOG_MAX_SESSION_LINE_BYTES` in the write path, not by this schema.
+ * The append-side `agent_session` record carries one verbatim agent session entry line
+ * in `data`, forwarded opaquely by the runner. On successful ingest, the API normalizes
+ * that raw entry into one or more read-side `agent_session` records whose `row` is the
+ * canonical session view row. The raw and normalized records travel through the same log
+ * append/read pipe; only their contract at each boundary differs.
  */
 
 /** Largest decoded `data` payload per record. Longer lines are split by the runner. */
@@ -93,39 +96,45 @@ const logGap = z.object({
 // intentionally uncapped here: the per-line byte limit is the server's configurable
 // LOG_MAX_SESSION_LINE_BYTES (a Zod schema cannot read runtime config, and a static cap
 // would collide with the body-limit invariant), enforced in the append write path.
-const logAgentSession = z.object({
+const rawAgentSession = z.object({
   ...envelope,
   type: z.literal('agent_session'),
   data: z.string().min(1, {message: 'agent_session data must not be empty'}),
 });
 
-// Server-only tombstones: NOT members of the appendable union.
+const agentSession = z.object({
+  ...envelope,
+  type: z.literal('agent_session'),
+  row: sessionViewRowSchema,
+});
+
+// Server-only tombstones: NOT members of the raw write union.
 const logCapped = z.object({...envelope, type: z.literal('capped')});
 const logRunnerLost = z.object({...envelope, type: z.literal('runner_lost')});
 
 /** Records a lease-scoped runner may append. The write path validates against this. */
-export const appendableLogRecordSchema = z.discriminatedUnion('type', [
+export const rawLogRecordSchema = z.discriminatedUnion('type', [
   logOutput,
   logGroupStart,
   logGroupEnd,
   logEnd,
   logGap,
-  logAgentSession,
+  rawAgentSession,
 ]);
 
-/** Full read union: appendable records plus the server-only tombstones. */
+/** Stored/read records: regular records, normalized agent sessions, and tombstones. */
 export const logRecordSchema = z.discriminatedUnion('type', [
   logOutput,
   logGroupStart,
   logGroupEnd,
   logEnd,
   logGap,
-  logAgentSession,
+  agentSession,
   logCapped,
   logRunnerLost,
 ]);
 
-export type AppendableLogRecord = z.infer<typeof appendableLogRecordSchema>;
+export type RawLogRecord = z.infer<typeof rawLogRecordSchema>;
 export type LogRecord = z.infer<typeof logRecordSchema>;
 
 export function parseLogRecordLine(line: string): LogRecord {
@@ -133,10 +142,10 @@ export function parseLogRecordLine(line: string): LogRecord {
 }
 
 /**
- * Parses one NDJSON line against the appendable union (the write path). A forged
+ * Parses one NDJSON line against the raw write union. A forged
  * server-only `capped` / `runner_lost` record fails here even though it is valid
  * under the read union — this is the write-path forgery guard.
  */
-export function parseAppendableLogRecordLine(line: string): AppendableLogRecord {
-  return appendableLogRecordSchema.parse(JSON.parse(line));
+export function parseRawLogRecordLine(line: string): RawLogRecord {
+  return rawLogRecordSchema.parse(JSON.parse(line));
 }

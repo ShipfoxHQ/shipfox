@@ -1,21 +1,21 @@
 import {
-  type LogRecord,
-  logRecordSchema,
   MAX_RECORD_DATA_BYTES,
   MAX_RECORD_NAME_BYTES,
+  type RawLogRecord,
+  rawLogRecordSchema,
 } from '@shipfox/api-logs-dto';
 import {StreamFramer, splitByUtf8Bytes} from '#core/framing.js';
 
-function parseRecords(bytes: Buffer): LogRecord[] {
+function parseRecords(bytes: Buffer): RawLogRecord[] {
   const text = bytes.toString('utf8');
   if (text.length === 0) return [];
   return text
     .split('\n')
     .filter((line) => line.length > 0)
-    .map((line) => logRecordSchema.parse(JSON.parse(line)));
+    .map((line) => rawLogRecordSchema.parse(JSON.parse(line)));
 }
 
-function outputData(records: LogRecord[]): string {
+function outputData(records: RawLogRecord[]): string {
   return records
     .filter((r) => r.type === 'output')
     .map((r) => (r.type === 'output' ? r.data : ''))

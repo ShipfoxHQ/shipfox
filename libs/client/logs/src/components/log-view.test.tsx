@@ -12,11 +12,13 @@ const output = (data: string): LogRecord => ({
   stream: 'stdout',
   data,
 });
-const agentSession = (data: unknown, offsetMs = 0): LogRecord => ({
+type AgentSessionRow = Extract<LogRecord, {type: 'agent_session'}>['row'];
+
+const agentSession = (row: AgentSessionRow, offsetMs = 0): LogRecord => ({
   v: 1,
   ts: ts + offsetMs,
   type: 'agent_session',
-  data: typeof data === 'string' ? data : JSON.stringify(data),
+  row,
 });
 
 describe('LogView', () => {
@@ -88,14 +90,18 @@ describe('LogView', () => {
       <LogView
         records={[
           agentSession({
-            type: 'message',
-            message: {
-              role: 'assistant',
-              content: [
-                {type: 'text', text: 'I will inspect the failure.'},
-                {type: 'thinking', text: 'The stack trace points at validation.'},
-              ],
-            },
+            kind: 'message',
+            timestamp: ts,
+            role: 'assistant',
+            label: 'assistant',
+            meta: [],
+            text: 'I will inspect the failure.',
+            terminalFailure: false,
+          }),
+          agentSession({
+            kind: 'thinking',
+            timestamp: ts,
+            text: 'The stack trace points at validation.',
           }),
         ]}
       />,
@@ -115,25 +121,21 @@ describe('LogView', () => {
       <LogView
         records={[
           agentSession({
-            type: 'message',
-            message: {
-              role: 'assistant',
-              content: [{type: 'toolCall', id: 'call-1', name: 'edit_file', arguments: {}}],
-            },
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'call-1',
+            name: 'edit_file',
+            input: '{}',
           }),
           output('stdout between call and result\n'),
-          agentSession(
-            {
-              type: 'message',
-              message: {
-                toolCallId: 'call-1',
-                toolName: 'edit_file',
-                content: [{type: 'text', text: 'patched'}],
-                isError: false,
-              },
-            },
-            1,
-          ),
+          agentSession({
+            kind: 'tool-result',
+            timestamp: ts + 1,
+            toolCallId: 'call-1',
+            toolName: 'edit_file',
+            output: 'patched',
+            isError: false,
+          }),
         ]}
       />,
     );
@@ -149,11 +151,11 @@ describe('LogView', () => {
       <LogView
         records={[
           agentSession({
-            type: 'message',
-            message: {
-              role: 'assistant',
-              content: [{type: 'toolCall', id: 'call-1', name: 'edit_file', arguments: {}}],
-            },
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'call-1',
+            name: 'edit_file',
+            input: '{}',
           }),
         ]}
       />,
@@ -164,7 +166,18 @@ describe('LogView', () => {
   });
 
   test('renders unknown session entries without crashing', () => {
-    render(<LogView records={[agentSession({type: 'future_entry', payload: {value: true}})]} />);
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'raw',
+            timestamp: ts,
+            label: 'Unknown session entry: future_entry',
+            raw: '{"type":"future_entry","payload":{"value":true}}',
+          }),
+        ]}
+      />,
+    );
 
     expect(screen.getByText('Unknown session entry: future_entry')).toBeDefined();
   });
@@ -174,11 +187,13 @@ describe('LogView', () => {
       <LogView
         records={[
           agentSession({
-            type: 'message',
-            message: {
-              role: 'assistant',
-              content: [{type: 'text', text: 'x'.repeat(1500)}],
-            },
+            kind: 'message',
+            timestamp: ts,
+            role: 'assistant',
+            label: 'assistant',
+            meta: [],
+            text: 'x'.repeat(1500),
+            terminalFailure: false,
           }),
         ]}
       />,
@@ -221,12 +236,13 @@ describe('LogView', () => {
         records={[
           output('setup\n'),
           agentSession({
-            type: 'message',
-            message: {
-              role: 'assistant',
-              content: [{type: 'text', text: 'I cannot continue.'}],
-              stopReason: 'error',
-            },
+            kind: 'message',
+            timestamp: ts,
+            role: 'assistant',
+            label: 'assistant',
+            meta: [],
+            text: 'I cannot continue.',
+            terminalFailure: true,
           }),
         ]}
       />,

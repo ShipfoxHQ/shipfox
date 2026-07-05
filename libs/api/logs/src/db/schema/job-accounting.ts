@@ -4,9 +4,9 @@ import {pgTable} from './common.js';
 
 /**
  * Accrual-budget state per job run, keyed by the job id carried in the lease.
- * `stored_bytes_used` counts the raw NDJSON bytes the server has stored for the
- * job (envelope and control records included), so the budget bounds exactly what
- * lands in Postgres. `started_at` is the budget clock origin (first append).
+ * `stored_bytes_used` counts the normalized NDJSON bytes the server has stored for the job
+ * (envelope and control records included), so the budget bounds exactly what lands in Postgres.
+ * `started_at` is the budget clock origin (first append).
  * `capped_at`, once set, makes every later append a no-op drop.
  *
  * Per-row `stored_bytes_used` is bounded by the per-job budget, so `mode:

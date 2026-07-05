@@ -61,9 +61,9 @@ const CHUNK_PAGE_SCAN_CAP = 4096;
 
 /**
  * A byte-bounded page of a stream's chunk bytes in `seq` order, for the inline read path.
- * Walking by `seq` (not the runner byte offset) is what makes server-injected control
- * tombstones interleave with runner bytes exactly as compaction concatenates them, so the
- * inline NDJSON is byte-identical to the compacted object.
+ * Walking by `seq` (not the runner byte offset) is what makes server-injected control tombstones
+ * interleave with normalized runner records exactly as compaction concatenates them, so the inline
+ * NDJSON is byte-identical to the compacted object.
  *
  * Returns at most ~`maxBytes`, but always at least one whole chunk so the cursor advances
  * even when a single chunk exceeds `maxBytes`. The cheap `(seq, byte_len)` scan picks the

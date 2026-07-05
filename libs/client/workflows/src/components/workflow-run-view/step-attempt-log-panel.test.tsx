@@ -266,14 +266,15 @@ describe('StepAttemptLogPanel', () => {
               v: 1,
               ts: 1,
               type: 'agent_session',
-              data: JSON.stringify({
-                type: 'message',
-                message: {
-                  role: 'assistant',
-                  content: [{type: 'text', text: 'I cannot continue.'}],
-                  stopReason: 'error',
-                },
-              }),
+              row: {
+                kind: 'message',
+                timestamp: 1,
+                role: 'assistant',
+                label: 'assistant',
+                meta: [],
+                text: 'I cannot continue.',
+                terminalFailure: true,
+              },
             }),
             1,
           ),

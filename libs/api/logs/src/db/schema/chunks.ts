@@ -9,16 +9,16 @@ import {bytea, pgTable} from './common.js';
  * Two byte axes meet here and MUST stay distinct:
  *
  *   Runner spool (CAS axis)          Stored chunk stream (read axis, by seq)
- *   offset 0 ┌────────────┐  ───►  seq 1 │ chunk A   │ origin=runner  (counts to committed_length)
- *      100   ├─ chunk A ──┤  ───►  seq 2 │ chunk B   │ origin=runner  (counts to committed_length)
- *      250   ├─ chunk B ──┤  ───►  seq 3 │ {capped}  │ origin=control ← server-injected; does NOT
- *            └────────────┘                              advance committed_length
+ *   offset 0 ┌────────────┐  ───►  seq 1 │ normalized chunk A │ origin=runner
+ *      100   ├─ chunk A ──┤  ───►  seq 2 │ normalized chunk B │ origin=runner
+ *      250   ├─ chunk B ──┤  ───►  seq 3 │ {capped}           │ origin=control ← server-injected;
+ *            └────────────┘                                      does NOT advance committed_length
  *
- * `origin` is `runner` for bytes from the runner's spool and `control` for a
- * server-injected tombstone. `stream_offset` is the runner-axis position of a
- * runner chunk; for a server `control` chunk it is informational. `seq`
- * (insertion order) is the read axis the reader walks, so server records
- * interleave correctly with runner bytes.
+ * `origin` is `runner` for bytes accepted from a runner append after ingest normalization, and
+ * `control` for a server-injected tombstone. `stream_offset` is the runner-axis position of a
+ * runner chunk; for a server `control` chunk it is informational. `seq` (insertion order) is the
+ * read axis the reader walks, so server records interleave correctly with normalized runner
+ * records.
  */
 export const logChunks = pgTable(
   'chunks',

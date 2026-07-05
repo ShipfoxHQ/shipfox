@@ -1,4 +1,4 @@
-import type {LogRecord} from '@shipfox/api-logs-dto';
+import type {LogRecord, SessionViewRow} from '@shipfox/api-logs-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
@@ -17,8 +17,133 @@ const session = (data: unknown, offset: number): LogRecord => ({
   v: 1,
   ts: at(offset),
   type: 'agent_session',
-  data: typeof data === 'string' ? data : JSON.stringify(data),
+  row: storySessionRow(data, at(offset)),
 });
+
+function storySessionRow(data: unknown, timestamp: number): SessionViewRow {
+  if (typeof data === 'string') {
+    return {kind: 'raw', timestamp, label: 'Malformed session entry', raw: data};
+  }
+  if (!data || typeof data !== 'object') {
+    return {kind: 'raw', timestamp, label: 'Unsupported entry', raw: JSON.stringify(data)};
+  }
+
+  const entry = data as Record<string, unknown>;
+  if (typeof entry.kind === 'string') return {...(entry as SessionViewRow), timestamp};
+  if (entry.type === 'session') {
+    return {
+      kind: 'lifecycle',
+      timestamp,
+      label: 'Session started',
+      detail: String(entry.id ?? 'session'),
+      meta: [],
+      tone: 'default',
+      terminalFailure: false,
+    };
+  }
+  if (entry.type === 'model_change') {
+    return {
+      kind: 'lifecycle',
+      timestamp,
+      label: 'Model changed',
+      detail: String(entry.model ?? entry.modelId ?? 'model'),
+      meta: [],
+      tone: 'default',
+      terminalFailure: false,
+    };
+  }
+  if (entry.type === 'message') return storyMessageRow(entry.message, timestamp);
+  if (
+    entry.type === 'branch_summary' ||
+    entry.type === 'custom' ||
+    entry.type === 'custom_message'
+  ) {
+    return {
+      kind: 'message',
+      timestamp,
+      role: 'system',
+      label: String(entry.type).replaceAll('_', ' '),
+      meta: [],
+      text: String(entry.summary ?? entry.content ?? JSON.stringify(entry)),
+      terminalFailure: false,
+    };
+  }
+
+  return {
+    kind: 'raw',
+    timestamp,
+    label: entry.type ? `Unknown session entry: ${String(entry.type)}` : 'Unsupported entry',
+    raw: JSON.stringify(entry),
+  };
+}
+
+function storyMessageRow(message: unknown, timestamp: number): SessionViewRow {
+  if (!message || typeof message !== 'object') {
+    return {
+      kind: 'raw',
+      timestamp,
+      label: 'Unsupported message entry',
+      raw: JSON.stringify(message),
+    };
+  }
+
+  const msg = message as Record<string, unknown>;
+  if (typeof msg.toolCallId === 'string') {
+    return {
+      kind: 'tool-result',
+      timestamp,
+      toolCallId: msg.toolCallId,
+      toolName: String(msg.toolName ?? 'tool'),
+      output: storyContentText(msg.content),
+      isError: msg.isError === true,
+    };
+  }
+
+  const content = Array.isArray(msg.content) ? (msg.content as Record<string, unknown>[]) : [];
+  const text = storyTextBlock(content);
+  const thinking = content.find((block) => block.type === 'thinking');
+  if (!text && thinking) {
+    return {kind: 'thinking', timestamp, text: String(thinking.text ?? thinking.thinking ?? '')};
+  }
+  const toolCall = content.find((block) => block.type === 'toolCall' || block.type === 'tool_call');
+  if (!text && toolCall) {
+    return {
+      kind: 'tool-call',
+      timestamp,
+      id: typeof toolCall.id === 'string' ? toolCall.id : null,
+      name: String(toolCall.name ?? 'tool'),
+      input: JSON.stringify(toolCall.arguments ?? {}, null, 2),
+    };
+  }
+
+  return {
+    kind: 'message',
+    timestamp,
+    role: String(msg.role ?? 'assistant'),
+    label: String(msg.role ?? 'assistant').replaceAll('-', ' '),
+    meta: [],
+    text: text || storyContentText(msg.content ?? msg.summary ?? msg.output ?? ''),
+    terminalFailure: msg.stopReason === 'error' || msg.stopReason === 'aborted',
+  };
+}
+
+function storyTextBlock(content: readonly Record<string, unknown>[]): string {
+  return String(content.find((block) => block.type === 'text')?.text ?? '');
+}
+
+function storyContentText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block) =>
+        block && typeof block === 'object'
+          ? String((block as Record<string, unknown>).text ?? JSON.stringify(block))
+          : String(block),
+      )
+      .join('\n');
+  }
+  return JSON.stringify(content);
+}
 const groupStart = (
   groupId: string,
   name: string,
@@ -329,7 +454,7 @@ const allAgentSessionTypeRecords: LogRecord[] = [
     17,
   ),
   session({type: 'future_entry', payload: {feature: 'new-session-event'}}, 18),
-  {v: 1, ts: at(19), type: 'agent_session', data: '{not-json'},
+  session('{not-json', 19),
   {v: 1, ts: at(20), type: 'end', total_bytes: 12_288},
 ];
 
