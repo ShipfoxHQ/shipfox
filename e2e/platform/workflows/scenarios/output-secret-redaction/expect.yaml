@@ -1,0 +1,22 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      produce:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["producer-done"]
+          exclude: ["runtime-secret-output-e2e"]
+      consume:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["token-output=***", "output-redaction-ok"]
+          exclude: ["runtime-secret-output-e2e"]
+runner_log:
+  exclude:
+    - "runtime-secret-output-e2e"

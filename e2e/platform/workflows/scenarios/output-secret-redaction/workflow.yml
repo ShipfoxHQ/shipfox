@@ -1,0 +1,27 @@
+name: Output secret redaction
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: produce
+        env:
+          TOKEN: '${{ secrets.RUNTIME_TOKEN }}'
+        run: |
+          echo "token=$TOKEN" >> "$SHIPFOX_OUTPUT"
+          echo "producer-done"
+      - key: consume
+        env:
+          TOKEN_OUTPUT: ${{ steps.produce.outputs.token }}
+        run: |
+          if [ "$TOKEN_OUTPUT" != "***" ]; then
+            echo "output redaction mismatch"
+            exit 1
+          fi
+
+          echo "token-output=$TOKEN_OUTPUT"
+          echo "output-redaction-ok"
