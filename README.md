@@ -84,7 +84,7 @@ Shipfox is a pnpm + Turborepo monorepo.
 | [`apps/provisioner-docker`](apps/provisioner-docker) | Starts ephemeral, single-job runners on demand |
 | [`libs/`](libs) | Feature logic by tier: `api`, `client`, `runner`, `provisioner`, `shared` |
 | [`e2e/`](e2e) | End-to-end suites, including the full workflow run loop |
-| [`docs/`](docs) | Product documentation (Mintlify) |
+| [`docs/`](docs) | Product documentation |
 
 Public HTTP contracts are shared through sibling `*-dto` packages so the backend,
 client, and E2E helpers speak the same schema.
