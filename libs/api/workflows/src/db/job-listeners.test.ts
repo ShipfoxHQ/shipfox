@@ -266,6 +266,22 @@ describe('activateJobListener', () => {
     });
   });
 
+  it('omits filter snapshots for reserved roots without concrete activation data', async () => {
+    const job = await createInactiveListeningJobWithMatchers({
+      on: [{source: 'github', event: 'pull_request', filter: 'matrix.os == "linux"'}],
+    });
+
+    await activateJobListener({jobId: job.id, expectedVersion: job.version});
+
+    const payload = await activatedPayload(job.id);
+    expectListeningPayload(payload);
+    expect(payload.on[0]).toEqual({
+      source: 'github',
+      event: 'pull_request',
+      filter: 'matrix.os == "linux"',
+    });
+  });
+
   it('snapshots only referenced activation roots for listener filters', async () => {
     const job = await createListenerWithDependencies({
       on: [

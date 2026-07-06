@@ -69,7 +69,7 @@ type JobActivatedListenerMatcher = Extract<
   {mode: 'listening'}
 >['on'][number];
 
-type SnapshotRoot = 'run' | 'trigger' | 'inputs' | 'job' | 'jobs' | 'matrix';
+type SnapshotRoot = 'run' | 'trigger' | 'inputs' | 'job' | 'jobs';
 
 interface MatcherSnapshotPlan {
   readonly matcher: JobListeningTrigger;
@@ -216,12 +216,7 @@ function planMatcherFilterSnapshot(
 
 function isSnapshotRoot(root: string): root is SnapshotRoot {
   return (
-    root === 'run' ||
-    root === 'trigger' ||
-    root === 'inputs' ||
-    root === 'job' ||
-    root === 'jobs' ||
-    root === 'matrix'
+    root === 'run' || root === 'trigger' || root === 'inputs' || root === 'job' || root === 'jobs'
   );
 }
 
