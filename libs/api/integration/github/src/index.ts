@@ -6,6 +6,7 @@ import type {
 } from '@shipfox/api-integration-core-dto';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
+import {GithubAgentToolsProvider} from '#core/agent-tools.js';
 import {GithubSourceControlProvider} from '#core/source-control.js';
 import {closeDb, db} from '#db/db.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';
@@ -17,6 +18,17 @@ import {
 import {createGithubWebhookRoutes} from '#presentation/routes/webhooks.js';
 
 export type {GithubApiClient} from '#api/client.js';
+export {
+  type GithubAgentToolCatalogEntry,
+  type GithubAgentToolCategory,
+  type GithubAgentToolId,
+  type GithubAgentToolPermission,
+  type GithubAgentToolPermissionAccess,
+  type GithubAgentToolRequiredPermission,
+  type GithubAgentToolRequiredScope,
+  GithubAgentToolsProvider,
+  githubAgentToolCatalog,
+} from '#core/agent-tools.js';
 export {GithubIntegrationProviderError} from '#core/errors.js';
 export type {ConnectGithubInstallationInput} from '#core/install.js';
 export {handleGithubCallback} from '#core/install.js';
@@ -52,6 +64,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     displayName: 'GitHub',
     adapters: {
       source_control: new GithubSourceControlProvider(github),
+      agent_tools: new GithubAgentToolsProvider(),
     },
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);
