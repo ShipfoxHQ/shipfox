@@ -6,7 +6,7 @@ import type {
   ModelProviderApi,
   ModelProviderRef,
 } from '@shipfox/api-agent-dto';
-import {createApiClient} from '@shipfox/e2e-core';
+import {createApiClient, requestJson} from '@shipfox/e2e-core';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'smollm2:135m-instruct-q2_K';
@@ -50,6 +50,13 @@ export type OpenAiCompatibleCustomProviderModelMetadata = Omit<CustomAgentModelD
 export interface ListModelProviderConfigsParams {
   workspaceId: string;
   sessionToken: string;
+}
+
+export interface CreateAnthropicModelProviderConfigParams {
+  workspaceId: string;
+  apiKey?: string | undefined;
+  defaultModel?: string | undefined;
+  setAsDefault?: boolean | undefined;
 }
 
 export function ollamaConfig(env: NodeJS.ProcessEnv = process.env): OllamaConfig {
@@ -140,8 +147,23 @@ export async function listModelProviderConfigs(
   );
 }
 
+export async function createAnthropicModelProviderConfig(
+  params: CreateAnthropicModelProviderConfigParams,
+): Promise<void> {
+  await requestJson('post', '/__e2e/agent/model-provider', {
+    json: {
+      workspace_id: params.workspaceId,
+      provider_id: 'anthropic',
+      api_key: params.apiKey ?? 'sk-e2e-anthropic-placeholder',
+      ...(params.defaultModel !== undefined ? {default_model: params.defaultModel} : {}),
+      ...(params.setAsDefault !== undefined ? {set_as_default: params.setAsDefault} : {}),
+    },
+  });
+}
+
 export function createAgentHelper() {
   return {
+    createAnthropicModelProviderConfig,
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,
     listModelProviderConfigs,

@@ -10,6 +10,7 @@ import {
   tool,
 } from '@anthropic-ai/claude-agent-sdk';
 import {z} from 'zod';
+import {config} from '#config.js';
 import {assertRunnerEgressAllowed} from '#core/egress.js';
 import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
@@ -21,8 +22,20 @@ import {
 } from '#core/output-collector.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
+const OLLAMA_ANTHROPIC_AUTH_TOKEN = 'ollama';
 
 export const claudeHarnessAdapter: HarnessAdapter = {run: runClaudeAgent};
+
+interface ClaudeAnthropicOverride {
+  readonly baseUrl: string;
+  readonly model: string | undefined;
+  readonly smallFastModel: string | undefined;
+}
+
+interface ClaudeAuth {
+  readonly apiKey: string;
+  readonly authToken: string | undefined;
+}
 
 async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessResult> {
   const {
@@ -53,16 +66,22 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     );
   }
 
-  const apiKey = credentials.api_key;
-  if (apiKey === undefined || apiKey === '') {
+  const override = claudeAnthropicOverride();
+  const auth = claudeAuth(credentials, override);
+  const targetUrl = override?.baseUrl ?? ANTHROPIC_API_URL;
+  const targetLabel =
+    override === undefined ? 'Claude Anthropic API endpoint' : 'Claude Anthropic base URL override';
+  const hasDeclaredOutputs =
+    invocation.outputs !== undefined && Object.keys(invocation.outputs).length > 0;
+  if (override !== undefined && hasDeclaredOutputs) {
     throw new AgentConfigError(
-      'No credentials configured for provider "anthropic". ' +
-        'Verify the provider is configured for this workspace.',
-      'provider_not_configured',
+      'Claude Anthropic base URL override does not support declared step outputs.',
+      'provider_unsupported',
     );
   }
+  const useOutputTools = override === undefined;
 
-  await assertRunnerEgressAllowed(ANTHROPIC_API_URL, 'Claude Anthropic API endpoint');
+  await assertRunnerEgressAllowed(targetUrl, targetLabel);
 
   let configDir: string | undefined;
   let claudeQuery: Query | undefined;
@@ -81,7 +100,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     claudeQuery = query({
       prompt: messages,
       options: {
-        model,
+        model: override?.model ?? model,
         cwd,
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
@@ -89,16 +108,21 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         thinking: {type: 'adaptive'},
         effort: thinking as EffortLevel,
         abortController: controller,
-        env: claudeEnvironment(apiKey, configDir, gitConfigGlobal),
-        mcpServers: {
-          shipfox_outputs: createSdkMcpServer({
-            name: 'shipfox_outputs',
-            version: '1.0.0',
-            instructions: collector.guidanceText(),
-            tools: [setOutputTool(collector)],
-            alwaysLoad: true,
-          }),
-        },
+        ...(override !== undefined ? {tools: []} : {}),
+        env: claudeEnvironment(auth, configDir, gitConfigGlobal, override),
+        ...(useOutputTools
+          ? {
+              mcpServers: {
+                shipfox_outputs: createSdkMcpServer({
+                  name: 'shipfox_outputs',
+                  version: '1.0.0',
+                  instructions: collector.guidanceText(),
+                  tools: [setOutputTool(collector)],
+                  alwaysLoad: true,
+                }),
+              },
+            }
+          : {}),
         persistSession: false,
         includePartialMessages: false,
       },
@@ -114,7 +138,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     try {
       await runOutputTurnLoop({
         signal,
-        prompt: withOutputGuidance(prompt, collector.guidanceText()),
+        prompt: useOutputTools ? withOutputGuidance(prompt, collector.guidanceText()) : prompt,
         missingRequired: () => collector.missingRequired(),
         runTurn: async (message) => {
           messages?.push(userMessage(message));
@@ -249,17 +273,58 @@ function forwardSessionEntry(
 }
 
 function claudeEnvironment(
-  apiKey: string,
+  auth: ClaudeAuth,
   configDir: string,
   gitConfigGlobal: string | undefined,
+  override: ClaudeAnthropicOverride | undefined,
 ): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    ANTHROPIC_API_KEY: apiKey,
+    ANTHROPIC_API_KEY: auth.apiKey,
+    ...(auth.authToken !== undefined ? {ANTHROPIC_AUTH_TOKEN: auth.authToken} : {}),
+    ...(override !== undefined
+      ? {
+          ANTHROPIC_BASE_URL: override.baseUrl,
+          ...(override.model !== undefined ? {ANTHROPIC_MODEL: override.model} : {}),
+          ...(override.smallFastModel !== undefined
+            ? {ANTHROPIC_SMALL_FAST_MODEL: override.smallFastModel}
+            : {}),
+        }
+      : {}),
     CLAUDE_CONFIG_DIR: configDir,
     CLAUDE_AGENT_SDK_CLIENT_APP: '@shipfox/runner-agent',
     ...(gitConfigGlobal ? {GIT_CONFIG_GLOBAL: gitConfigGlobal} : {}),
   };
+}
+
+function claudeAnthropicOverride(): ClaudeAnthropicOverride | undefined {
+  if (config.AGENT_CLAUDE_ANTHROPIC_BASE_URL === undefined) return undefined;
+
+  return {
+    baseUrl: config.AGENT_CLAUDE_ANTHROPIC_BASE_URL,
+    model: config.AGENT_CLAUDE_ANTHROPIC_MODEL,
+    smallFastModel: config.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL,
+  };
+}
+
+function claudeAuth(
+  credentials: Record<string, string>,
+  override: ClaudeAnthropicOverride | undefined,
+): ClaudeAuth {
+  if (override !== undefined) {
+    return {apiKey: '', authToken: OLLAMA_ANTHROPIC_AUTH_TOKEN};
+  }
+
+  const apiKey = credentials.api_key;
+  if (apiKey === undefined || apiKey === '') {
+    throw new AgentConfigError(
+      'No credentials configured for provider "anthropic". ' +
+        'Verify the provider is configured for this workspace.',
+      'provider_not_configured',
+    );
+  }
+
+  return {apiKey, authToken: undefined};
 }
 
 function claudeResult(message: SDKResultMessage): HarnessResult {

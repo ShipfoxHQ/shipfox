@@ -20,6 +20,7 @@ export async function startSuiteLocalRunner(params: {
   userToken: string;
   name: string;
   runnerLabel: string;
+  extraEnv?: Record<string, string> | undefined;
 }): Promise<{runner: LocalRunnerHandle; logFile: string}> {
   const registrationToken = await mintManualRegistrationToken({
     workspaceId: params.workspaceId,
@@ -38,6 +39,7 @@ export async function startSuiteLocalRunner(params: {
       labels: [params.runnerLabel],
       logFile,
       workspaceRoot: join(runDir, 'runner-workspaces', params.runnerLabel),
+      extraEnv: params.extraEnv,
     }),
     logFile,
   };

@@ -21,6 +21,8 @@ export interface StartLocalRunnerParams {
   pollIntervalMs?: number | undefined;
   pollMaxIntervalMs?: number | undefined;
   pollMaxDurationMs?: number | undefined;
+  /** Extra environment variables for one runner process. */
+  extraEnv?: Record<string, string> | undefined;
   /** Overrides the resolved `@shipfox/runner` source entry (run via tsx). */
   entryPath?: string | undefined;
 }
@@ -77,6 +79,7 @@ function buildRunnerEnv(params: StartLocalRunnerParams): Record<string, string> 
     ...(params.workspaceRoot !== undefined
       ? {SHIPFOX_RUNNER_WORKSPACE_ROOT: params.workspaceRoot}
       : {}),
+    ...(params.extraEnv ?? {}),
   };
 }
 

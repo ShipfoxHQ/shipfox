@@ -22,11 +22,22 @@ const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
 
   return {assertEgressAllowedMock: vi.fn(), EgressDeniedErrorMock: EgressDeniedError};
 });
+const {configMock} = vi.hoisted(() => ({
+  configMock: {
+    AGENT_CLAUDE_ANTHROPIC_BASE_URL: undefined as string | undefined,
+    AGENT_CLAUDE_ANTHROPIC_MODEL: undefined as string | undefined,
+    AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL: undefined as string | undefined,
+  },
+}));
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   createSdkMcpServer: createSdkMcpServerMock,
   query: queryMock,
   tool: toolMock,
+}));
+vi.mock('#config.js', () => ({
+  config: configMock,
+  runnerEgressPolicy: () => ({allowPrivateNetworks: true, hostDenylist: []}),
 }));
 vi.mock('@shipfox/node-egress-guard', () => ({
   assertEgressAllowed: assertEgressAllowedMock,
@@ -97,9 +108,22 @@ function makeThrowingQuery(error: Error) {
 function lastQueryOptions(): {
   env: NodeJS.ProcessEnv;
   abortController: AbortController;
+  mcpServers?: unknown;
+  model?: string;
+  tools?: string[];
 } {
   const call = queryMock.mock.calls[0] as
-    | [{options: {env: NodeJS.ProcessEnv; abortController: AbortController}}]
+    | [
+        {
+          options: {
+            env: NodeJS.ProcessEnv;
+            abortController: AbortController;
+            mcpServers?: unknown;
+            model?: string;
+            tools?: string[];
+          };
+        },
+      ]
     | undefined;
   if (call === undefined) throw new Error('Expected Claude SDK query to be called.');
   return call[0].options;
@@ -127,6 +151,9 @@ describe('claudeHarnessAdapter', () => {
     createSdkMcpServerMock.mockClear();
     assertEgressAllowedMock.mockReset();
     assertEgressAllowedMock.mockResolvedValue(undefined);
+    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = undefined;
+    configMock.AGENT_CLAUDE_ANTHROPIC_MODEL = undefined;
+    configMock.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL = undefined;
   });
 
   afterEach(() => {
@@ -231,6 +258,69 @@ describe('claudeHarnessAdapter', () => {
     await expect(result).rejects.toThrow(
       new AgentConfigError(
         'Claude Anthropic API endpoint blocked by egress policy: host-denied (api.anthropic.com).',
+      ),
+    );
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the Anthropic base URL override without requiring an API key', async () => {
+    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://127.0.0.1:11434';
+    configMock.AGENT_CLAUDE_ANTHROPIC_MODEL = 'smollm2:135m-instruct-q2_K';
+    configMock.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL = 'smollm2:135m-instruct-q2_K';
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+
+    await claudeHarnessAdapter.run(invocation({credentials: {}}));
+
+    expect(assertEgressAllowedMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:11434',
+      expect.objectContaining({allowPrivateNetworks: true}),
+    );
+    expect(createSdkMcpServerMock).not.toHaveBeenCalled();
+    expect(queryMock).toHaveBeenCalledWith({
+      prompt: expect.any(Object),
+      options: expect.objectContaining({
+        model: 'smollm2:135m-instruct-q2_K',
+        tools: [],
+        env: expect.objectContaining({
+          ANTHROPIC_API_KEY: '',
+          ANTHROPIC_AUTH_TOKEN: 'ollama',
+          ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+          ANTHROPIC_MODEL: 'smollm2:135m-instruct-q2_K',
+          ANTHROPIC_SMALL_FAST_MODEL: 'smollm2:135m-instruct-q2_K',
+        }),
+      }),
+    });
+    expect(lastQueryOptions().mcpServers).toBeUndefined();
+  });
+
+  it('rejects declared outputs when the Anthropic base URL override is active', async () => {
+    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://127.0.0.1:11434';
+
+    const result = claudeHarnessAdapter.run(
+      invocation({credentials: {}, outputs: {summary: {type: 'string'}}}),
+    );
+
+    await expect(result).rejects.toThrow(
+      new AgentConfigError(
+        'Claude Anthropic base URL override does not support declared step outputs.',
+        'provider_unsupported',
+      ),
+    );
+    expect(assertEgressAllowedMock).not.toHaveBeenCalled();
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it('maps Anthropic override egress denial to AgentConfigError', async () => {
+    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://blocked.example.test';
+    assertEgressAllowedMock.mockRejectedValue(
+      new EgressDeniedErrorMock('host-denied', 'blocked.example.test'),
+    );
+
+    const result = claudeHarnessAdapter.run(invocation({credentials: {}}));
+
+    await expect(result).rejects.toThrow(
+      new AgentConfigError(
+        'Claude Anthropic base URL override blocked by egress policy: host-denied (blocked.example.test).',
       ),
     );
     expect(queryMock).not.toHaveBeenCalled();
