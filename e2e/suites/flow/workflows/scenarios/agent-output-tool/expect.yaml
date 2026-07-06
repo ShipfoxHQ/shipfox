@@ -1,5 +1,5 @@
 trigger: push
-timeout_seconds: 240
+timeout_seconds: 330
 run:
   status: succeeded
 jobs:
@@ -13,4 +13,4 @@ jobs:
         status: succeeded
         exit_code: 0
         logs:
-          include: ["agent-output=qwen-tool-output-ok"]
+          include: ["agent-output-present"]

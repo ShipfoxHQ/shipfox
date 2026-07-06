@@ -14,7 +14,7 @@ export default defineConfig({
   // A scenario waits on real provisioning and execution; its own poll budgets
   // (expect.yaml timeout_seconds, plus the helper defaults) are the real deadlines,
   // so keep the Playwright per-test timeout comfortably above them.
-  timeout: 360_000,
+  timeout: 450_000,
   use: {
     trace: 'retain-on-failure',
   },

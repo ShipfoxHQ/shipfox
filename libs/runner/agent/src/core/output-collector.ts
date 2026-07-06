@@ -101,7 +101,15 @@ export async function runOutputTurnLoop(params: {
   let nextPrompt = params.prompt;
   for (let attempt = 0; attempt <= MAX_OUTPUT_REPROMPTS; attempt += 1) {
     if (params.signal.aborted) throw new Error('Agent step aborted');
-    await params.runTurn(nextPrompt);
+    try {
+      await params.runTurn(nextPrompt);
+    } catch (error) {
+      const missing = params.missingRequired();
+      if (attempt > 0 && missing.length > 0 && isPromptContinuationError(error)) {
+        throw new RequiredOutputsMissingError(missing);
+      }
+      throw error;
+    }
     if (params.signal.aborted) throw new Error('Agent step aborted');
     const missing = params.missingRequired();
     if (missing.length === 0) return;
@@ -112,6 +120,10 @@ export async function runOutputTurnLoop(params: {
       `The previous turn ended without setting required workflow outputs: ${missing.join(', ')}. ` +
       'Call set_output for each missing key, then provide your final response.';
   }
+}
+
+function isPromptContinuationError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Cannot continue from message role:');
 }
 
 export function outputGuidanceText(declarations: OutputDeclarations | undefined): string {

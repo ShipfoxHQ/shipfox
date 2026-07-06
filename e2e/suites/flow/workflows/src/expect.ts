@@ -213,7 +213,14 @@ function latestGateResult(step: WorkflowRunStepDetailDto): StepGateResultDto | n
   return attempt?.gate_result ?? null;
 }
 
-function stringField(value: Record<string, unknown>, field: string): string | null {
+function latestStepError(step: WorkflowRunStepDetailDto): object | null {
+  if (step.error !== null) return step.error;
+  const current = step.attempts.find((attempt) => attempt.attempt === step.current_attempt);
+  const attempt = current ?? step.attempts.at(-1);
+  return attempt?.error ?? null;
+}
+
+function stringField(value: object, field: string): string | null {
   const fieldValue = (value as Record<string, unknown>)[field];
   return typeof fieldValue === 'string' ? fieldValue : null;
 }
@@ -222,6 +229,17 @@ function intOrNullField(value: Record<string, unknown>, field: string): number |
   const fieldValue = value[field];
   if (fieldValue === null) return null;
   return typeof fieldValue === 'number' && Number.isInteger(fieldValue) ? fieldValue : undefined;
+}
+
+function formatStepError(error: object): string {
+  const reason = stringField(error, 'reason') ?? 'unknown';
+  const message = stringField(error, 'message') ?? 'Unknown step error';
+  const parts = [`${reason}: ${message}`];
+  const field = stringField(error, 'field');
+  if (field !== null) parts.push(`field=${field}`);
+  const source = stringField(error, 'source');
+  if (source !== null) parts.push(`source=${source}`);
+  return parts.join(' ');
 }
 
 /**
@@ -299,27 +317,30 @@ export function evaluateExpectations(
         }
       }
 
+      const stepError = latestStepError(step);
+
       if (stepExpectation.error) {
-        if (step.error === null) {
+        if (stepError === null) {
           mismatches.push({
             path: `${stepPath}.error`,
             expected: 'present',
             actual: 'null',
           });
         } else {
+          const reason = stringField(stepError, 'reason');
           if (
             stepExpectation.error.reason !== undefined &&
-            step.error.reason !== stepExpectation.error.reason
+            reason !== stepExpectation.error.reason
           ) {
             mismatches.push({
               path: `${stepPath}.error.reason`,
               expected: stepExpectation.error.reason,
-              actual: step.error.reason ?? 'null',
+              actual: reason ?? 'null',
             });
           }
 
           if (stepExpectation.error.field !== undefined) {
-            const field = stringField(step.error, 'field');
+            const field = stringField(stepError, 'field');
             if (field !== stepExpectation.error.field) {
               mismatches.push({
                 path: `${stepPath}.error.field`,
@@ -330,7 +351,7 @@ export function evaluateExpectations(
           }
 
           if (stepExpectation.error.source !== undefined) {
-            const source = stringField(step.error, 'source');
+            const source = stringField(stepError, 'source');
             if (source === null || !source.includes(stepExpectation.error.source)) {
               mismatches.push({
                 path: `${stepPath}.error.source`,
@@ -340,6 +361,12 @@ export function evaluateExpectations(
             }
           }
         }
+      } else if (stepError !== null && stepExpectation.status !== 'failed') {
+        mismatches.push({
+          path: `${stepPath}.error`,
+          expected: 'null',
+          actual: formatStepError(stepError),
+        });
       }
 
       if (stepExpectation.gate_result) {

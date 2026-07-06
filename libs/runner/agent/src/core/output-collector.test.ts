@@ -142,6 +142,24 @@ describe('runOutputTurnLoop', () => {
     );
   });
 
+  it('reports missing outputs when the provider rejects a correction turn', async () => {
+    const runTurn = vi
+      .fn<Parameters<typeof runOutputTurnLoop>[0]['runTurn']>()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Cannot continue from message role: assistant'));
+    const controller = new AbortController();
+
+    const result = runOutputTurnLoop({
+      signal: controller.signal,
+      prompt: 'Set the answer output.',
+      runTurn,
+      missingRequired: () => ['answer'],
+    });
+
+    await expect(result).rejects.toThrow('Agent step finished without required outputs: answer');
+    expect(runTurn).toHaveBeenCalledTimes(2);
+  });
+
   it('stops before the next turn when aborted mid-loop', async () => {
     const controller = new AbortController();
     const runTurn = vi.fn<Parameters<typeof runOutputTurnLoop>[0]['runTurn']>();

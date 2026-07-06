@@ -239,6 +239,130 @@ describe('evaluateExpectations', () => {
     ]);
   });
 
+  test('reports unexpected step errors with the status mismatch', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          status: 'failed',
+          job_executions: [
+            makeJobExecution({
+              status: 'failed',
+              steps: [
+                makeStep({
+                  status: 'failed',
+                  error: {
+                    message: 'Agent step finished without required outputs: message',
+                    reason: 'agent_invocation_failed',
+                    category: 'user',
+                  },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {build: {steps: {greet: {status: 'succeeded'}}}},
+      }),
+    );
+
+    expect(result.mismatches).toEqual([
+      {path: 'jobs.build.steps.greet.status', expected: 'succeeded', actual: 'failed'},
+      {
+        path: 'jobs.build.steps.greet.error',
+        expected: 'null',
+        actual: 'agent_invocation_failed: Agent step finished without required outputs: message',
+      },
+    ]);
+  });
+
+  test('reports unexpected attempt errors with the status mismatch', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          status: 'failed',
+          job_executions: [
+            makeJobExecution({
+              status: 'failed',
+              steps: [
+                makeStep({
+                  status: 'failed',
+                  attempts: [
+                    makeAttempt({
+                      status: 'failed',
+                      error: {
+                        message: 'Agent step aborted',
+                        reason: 'agent_invocation_failed',
+                        category: 'user',
+                      },
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {build: {steps: {greet: {status: 'succeeded'}}}},
+      }),
+    );
+
+    expect(result.mismatches).toEqual([
+      {path: 'jobs.build.steps.greet.status', expected: 'succeeded', actual: 'failed'},
+      {
+        path: 'jobs.build.steps.greet.error',
+        expected: 'null',
+        actual: 'agent_invocation_failed: Agent step aborted',
+      },
+    ]);
+  });
+
+  test('accepts step errors when a failed step is expected', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          status: 'failed',
+          job_executions: [
+            makeJobExecution({
+              status: 'failed',
+              steps: [
+                makeStep({
+                  status: 'failed',
+                  error: {
+                    message: 'Command exited with code 1',
+                    reason: 'agent_invocation_failed',
+                    category: 'user',
+                  },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {build: {steps: {greet: {status: 'failed'}}}},
+      }),
+    );
+
+    expect(result.mismatches).toEqual([]);
+  });
+
   test('matches job status reasons and step error details', () => {
     const detail = makeDetail({
       jobs: [

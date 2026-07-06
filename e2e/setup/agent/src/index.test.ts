@@ -100,6 +100,9 @@ describe('agent e2e helper', () => {
       sessionToken,
       providerId: 'local-ollama-e2e',
       displayName: 'Local Ollama E2E',
+      modelMetadata: {
+        max_output_tokens: 2048,
+      },
     });
 
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/tags');
@@ -114,7 +117,11 @@ describe('agent e2e helper', () => {
           api: 'openai-completions',
           base_url: 'http://127.0.0.1:11434/v1',
           models: [
-            {id: 'smollm2:135m-instruct-q2_K', label: 'smollm2:135m-instruct-q2_K'},
+            {
+              id: 'smollm2:135m-instruct-q2_K',
+              label: 'smollm2:135m-instruct-q2_K',
+              max_output_tokens: 2048,
+            },
           ],
           default_model: 'smollm2:135m-instruct-q2_K',
         },
