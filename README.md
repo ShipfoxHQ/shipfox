@@ -57,8 +57,9 @@ then a `gate` reruns the tests and sends the agent back until they pass.
   and more through integrations. Missing one? Point it at the generic webhook
   integration and trigger on its events too. Connect several of the same provider
   and target each independently.
-- **Bounded retry loops.** A gate's `success_if` plus `restart_from` loops back to
-  an earlier step until a real check passes, automatically bounded, no scripting.
+- **Automatic retry loops.** Guard a step with a check (a *gate*): when it fails,
+  the workflow loops back to an earlier step and tries again, up to a safe limit.
+  That is how an agent keeps going until the tests pass, with no scripting.
 - **Long-running, event-driven agents.** A listening job stays alive across a run
   and runs an agent on each new batch of events (PR review comments, new issues)
   until a resolution condition is met. Asynchronous agent loops, not one-shot runs.
