@@ -77,69 +77,15 @@ then a `gate` reruns the tests and sends the agent back until they pass.
 | **Listening job** | A [job that waits on events](docs/concepts/listening-jobs.mdx) and runs again per batch inside the same run, until a resolution condition. Drives event-driven, asynchronous workflows. |
 | **Runner** | A process you register on your own compute; matched to jobs by label. |
 
-## Repository layout
-
-Shipfox is a pnpm + Turborepo monorepo.
-
-| Path | Role |
-|---|---|
-| [`apps/api`](apps/api) | Control plane: definitions, triggers, dispatch, runs, logs, auth |
-| [`apps/client`](apps/client) | Operator dashboard: run detail, job graph, live log and agent-session tails |
-| [`apps/runner`](apps/runner) | Polls the API for jobs and executes their steps on the runner host |
-| [`apps/provisioner-docker`](apps/provisioner-docker) | Starts ephemeral, single-job runners on demand |
-| [`libs/`](libs) | Feature logic by tier: `api`, `client`, `runner`, `provisioner`, `shared` |
-| [`e2e/`](e2e) | End-to-end suites, including the full workflow run loop |
-| [`docs/`](docs) | Product documentation |
-
-Public HTTP contracts are shared through sibling `*-dto` packages so the backend,
-client, and E2E helpers speak the same schema.
-
 ## Getting started
 
-To run the full stack on your machine (API, dashboard, PostgreSQL, Temporal,
-object storage, and a local Git host), then connect a project, register a runner,
-and fire your first run, follow the
-[**Local Evaluation guide**](docs/installation/local.mdx)
-([shipfox.io/docs/installation/local](https://www.shipfox.io/docs/installation/local)).
-It walks through the whole loop end to end.
+Try Shipfox on your machine with the
+[Local Evaluation guide](https://www.shipfox.io/docs/installation/local): it runs
+the full stack locally, then walks you through connecting a project, registering a
+runner, and firing your first run. To run Shipfox for your team, see the
+[installation docs](https://www.shipfox.io/docs/installation).
 
-Prerequisites: [mise](https://mise.jdx.dev/) (manages Node, pnpm, Turbo, Ollama)
-and [Docker](https://docs.docker.com/get-docker/).
-
-```sh
-# Install the pinned toolchain
-mise install
-
-# Start local service dependencies (PostgreSQL, Temporal, object storage, test VCS)
-docker compose up -d
-
-# Install workspace dependencies and build everything
-pnpm install
-turbo build
-
-# Run a dev app with hot reload
-pnpm --filter=@shipfox/api dev
-```
-
-Common tasks:
-
-```sh
-turbo check      # lint + format + import sorting
-turbo type       # type-check
-turbo test       # unit + integration tests (real Postgres, minimal mocks)
-```
-
-Scope any Turbo task to one package with `--filter`, e.g.
-`turbo test --filter=@shipfox/api...`. See [CONTRIBUTING.md](CONTRIBUTING.md) for
-the full setup, tooling, and workflow.
-
-## Deploying Shipfox
-
-Standing up Shipfox has two parts: a **control plane** (the stateless API and
-dashboard, backed by PostgreSQL, Temporal, and S3-compatible object storage) and
-one or more **runners** on compute you own. The runner ships as a Docker image and
-is configured through environment variables. See the installation docs for the
-local evaluation and self-hosting paths.
+Working on Shipfox itself? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation
 
