@@ -859,6 +859,10 @@ describe('workflowDocumentSchema', () => {
     ['agent step with thinking', {model: 'claude-opus-4-8', prompt: 'Fix it.', thinking: 'low'}],
     ['agent step with provider', {model: 'gpt-5.5-pro', prompt: 'Fix it.', provider: 'openai'}],
     ['agent step with provider only', {provider: 'openai', prompt: 'Fix it.'}],
+    [
+      'agent step with tools',
+      {harness: 'pi', prompt: 'Fetch docs.', tools: ['read', 'fetch_content']},
+    ],
     ['agent step with name', {name: 'fix', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     [
       'agent step with gate',
@@ -883,6 +887,10 @@ describe('workflowDocumentSchema', () => {
     ['thinking on a run step', {run: 'npm test', thinking: 'high'}],
     ['harness on a run step', {run: 'npm test', harness: 'pi'}],
     ['provider on a run step', {run: 'npm test', provider: 'openai'}],
+    ['tools on a run step', {run: 'npm test', tools: ['read']}],
+    ['tools without prompt', {tools: ['read']}],
+    ['empty tools array', {prompt: 'Fix.', tools: []}],
+    ['empty tool name', {prompt: 'Fix.', tools: ['']}],
     ['unknown harness value', {model: 'claude-opus-4-8', prompt: 'Fix.', harness: 'codex'}],
     ['unknown thinking value', {model: 'claude-opus-4-8', prompt: 'Fix.', thinking: 'ultra'}],
     ['empty model string', {model: '', prompt: 'Fix.'}],
@@ -916,5 +924,17 @@ describe('workflowDocumentSchema', () => {
       ? undefined
       : result.error.issues.find((issue) => issue.path.includes('prompt'));
     expect(promptIssue?.message).toContain('prompt');
+  });
+
+  it('reports a run-step tools message on the tools path', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'agent build',
+      jobs: {fix: {steps: [{run: 'npm test', tools: ['read']}]}},
+    });
+
+    const toolsIssue = result.success
+      ? undefined
+      : result.error.issues.find((issue) => issue.path.includes('tools'));
+    expect(toolsIssue?.message).toBe('"tools" is not valid on a run step.');
   });
 });

@@ -1,3 +1,4 @@
+import type {HarnessToolDeploymentConfig} from '@shipfox/api-agent-dto';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import type {WorkflowModel, WorkflowStepSourceLocationMap} from '../entities/workflow-model.js';
@@ -15,6 +16,7 @@ export function normalizeWorkflowDocument(
   document: WorkflowDocument,
   options: {
     defaultRunnerLabels?: readonly string[] | undefined;
+    harnessToolDeploymentConfig?: HarnessToolDeploymentConfig | undefined;
     stepSourceLocations?: WorkflowStepSourceLocationMap | undefined;
   } = {},
 ): WorkflowModel {
@@ -28,6 +30,7 @@ export function normalizeWorkflowDocument(
     issues,
     options.stepSourceLocations,
     defaultRunnerLabels,
+    options.harnessToolDeploymentConfig,
   );
   const dependencies = normalizeDependencies(document.jobs, jobIdBySourceName, issues);
   const workflowEnv = normalizeEnv({env: document.env, path: ['env'], issues});

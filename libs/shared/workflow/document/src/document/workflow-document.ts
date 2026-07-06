@@ -238,6 +238,7 @@ export const workflowDocumentStepSchema = z
     harness: harnessSchema.optional(),
     thinking: agentThinkingSchema.optional(),
     provider: z.string().min(1).optional(),
+    tools: z.array(z.string().min(1)).min(1).optional(),
     agent: z.unknown().optional(),
     gate: workflowDocumentStepGateSchema.optional(),
     env: workflowDocumentEnvSchema.optional(),
@@ -254,7 +255,7 @@ export const workflowDocumentStepSchema = z
     }
 
     if (step.run !== undefined) {
-      for (const key of ['model', 'prompt', 'harness', 'thinking', 'provider'] as const) {
+      for (const key of ['model', 'prompt', 'harness', 'thinking', 'provider', 'tools'] as const) {
         if (step[key] !== undefined) {
           ctx.addIssue({
             code: 'custom',
@@ -271,7 +272,8 @@ export const workflowDocumentStepSchema = z
       step.prompt !== undefined ||
       step.harness !== undefined ||
       step.thinking !== undefined ||
-      step.provider !== undefined;
+      step.provider !== undefined ||
+      step.tools !== undefined;
 
     if (!isAgent) {
       ctx.addIssue({

@@ -115,4 +115,38 @@ jobs:
       expect(result.definition.model.jobs[0]?.runner).toEqual(['ubuntu-latest']);
     }
   });
+
+  test('disabled Pi search tools return precise definition validation paths', () => {
+    const yaml = `
+name: Pi tools
+runner: ubuntu-latest
+jobs:
+  inspect:
+    steps:
+      - harness: pi
+        prompt: Fetch without search.
+        tools: [fetch_content, web_search, get_search_content]
+`;
+
+    const result = validateDefinition(yaml, {
+      harnessToolDeploymentConfig: {
+        pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: false},
+        claude: {enabledToolPackages: []},
+      },
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: 'jobs.inspect.steps.0.tools.1',
+          message: expect.stringContaining('web_search'),
+        }),
+        expect.objectContaining({
+          path: 'jobs.inspect.steps.0.tools.2',
+          message: expect.stringContaining('get_search_content'),
+        }),
+      ]);
+    }
+  });
 });

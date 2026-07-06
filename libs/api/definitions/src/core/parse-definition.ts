@@ -1,10 +1,14 @@
+import type {HarnessToolDeploymentConfig} from '@shipfox/api-agent-dto';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError} from './errors.js';
 import {validateDefinition} from './validate-definition.js';
 
 export function parseDefinition(
   yamlString: string,
-  options?: {defaultRunnerLabels?: readonly string[]},
+  options?: {
+    defaultRunnerLabels?: readonly string[];
+    harnessToolDeploymentConfig?: HarnessToolDeploymentConfig;
+  },
 ): WorkflowDefinitionPayload {
   const result = validateDefinition(yamlString, options);
 

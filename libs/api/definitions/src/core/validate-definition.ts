@@ -1,5 +1,6 @@
+import type {HarnessToolDeploymentConfig} from '@shipfox/api-agent-dto';
 import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
-import {definitionDefaultRunnerLabels} from '../config.js';
+import {definitionDefaultRunnerLabels, definitionHarnessToolDeploymentConfig} from '../config.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {InvalidWorkflowModelError, normalizeWorkflowDocument} from './workflow-model/index.js';
 import {InvalidWorkflowYamlError, parseWorkflowYamlWithLocations} from './workflow-yaml/index.js';
@@ -12,12 +13,17 @@ export type ValidationResult =
 
 export function validateDefinition(
   yamlContent: string,
-  options: {defaultRunnerLabels?: readonly string[]} = {},
+  options: {
+    defaultRunnerLabels?: readonly string[];
+    harnessToolDeploymentConfig?: HarnessToolDeploymentConfig;
+  } = {},
 ): ValidationResult {
   try {
     const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yamlContent);
     const model = normalizeWorkflowDocument(document, {
       defaultRunnerLabels: options.defaultRunnerLabels ?? definitionDefaultRunnerLabels,
+      harnessToolDeploymentConfig:
+        options.harnessToolDeploymentConfig ?? definitionHarnessToolDeploymentConfig,
       stepSourceLocations,
     });
     return {valid: true, definition: {document, model}};

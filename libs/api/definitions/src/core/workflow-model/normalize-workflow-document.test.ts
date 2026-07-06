@@ -95,7 +95,13 @@ describe('normalizeWorkflowDocument', () => {
         fix: {
           steps: [
             {key: 'plan', prompt: 'Plan the fix.'},
-            {key: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
+            {
+              key: 'implement',
+              harness: 'claude',
+              model: 'claude-opus-4-8',
+              prompt: 'Fix the failing tests.',
+              tools: ['Read', 'Grep'],
+            },
             {
               key: 'review',
               harness: 'claude',
@@ -122,8 +128,10 @@ describe('normalizeWorkflowDocument', () => {
       id: 'fix-implement',
       key: 'implement',
       kind: 'agent',
+      harness: 'claude',
       model: 'claude-opus-4-8',
       prompt: 'Fix the failing tests.',
+      tools: ['Read', 'Grep'],
     });
     expect(model.jobs[0]?.steps[2]).toMatchObject({
       id: 'fix-review',
@@ -177,6 +185,134 @@ describe('normalizeWorkflowDocument', () => {
         path: ['jobs', 'fix', 'steps', 0, 'provider'],
         details: {harness: 'claude', provider: 'openai', supportedProviders: ['anthropic']},
       },
+    ]);
+  });
+
+  it('reports explicit harness/tool incompatibility with a precise tool path', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{harness: 'pi', prompt: 'Search it.', tools: ['read', 'WebSearch']}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {
+      harnessToolDeploymentConfig: {
+        pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: true},
+        claude: {enabledToolPackages: []},
+      },
+    });
+
+    expect(error.issues).toEqual([
+      {
+        code: 'harness-tool-incompatible',
+        message:
+          'Harness "pi" does not support tool: WebSearch. Supported tools: read, bash, edit, write, grep, find, ls, web_search, fetch_content, get_search_content.',
+        path: ['jobs', 'fix', 'steps', 0, 'tools', 1],
+        details: {
+          harness: 'pi',
+          tool: 'WebSearch',
+          supportedTools: [
+            'read',
+            'bash',
+            'edit',
+            'write',
+            'grep',
+            'find',
+            'ls',
+            'web_search',
+            'fetch_content',
+            'get_search_content',
+          ],
+        },
+      },
+    ]);
+  });
+
+  it('accepts Claude WebSearch as a harness-native tool name', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{harness: 'claude', prompt: 'Search it.', tools: ['Read', 'WebSearch']}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      harness: 'claude',
+      tools: ['Read', 'WebSearch'],
+    });
+  });
+
+  it('rejects tools without an explicit harness', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{prompt: 'Search it.', tools: ['Read']}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'missing-harness-for-tools',
+        message:
+          'Agent step tools require an explicit harness because tool names are harness-specific.',
+        path: ['jobs', 'fix', 'steps', 0, 'tools'],
+        details: {tools: ['Read']},
+      },
+    ]);
+  });
+
+  it('rejects Pi search tools when deployment search is disabled but keeps fetch_content', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              prompt: 'Fetch without search.',
+              tools: ['fetch_content', 'web_search', 'get_search_content'],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {
+      harnessToolDeploymentConfig: {
+        pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: false},
+        claude: {enabledToolPackages: []},
+      },
+    });
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'harness-tool-incompatible',
+        path: ['jobs', 'fix', 'steps', 0, 'tools', 1],
+        details: expect.objectContaining({
+          tool: 'web_search',
+          supportedTools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'fetch_content'],
+        }),
+      }),
+      expect.objectContaining({
+        code: 'harness-tool-incompatible',
+        path: ['jobs', 'fix', 'steps', 0, 'tools', 2],
+        details: expect.objectContaining({
+          tool: 'get_search_content',
+          supportedTools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'fetch_content'],
+        }),
+      }),
     ]);
   });
 
