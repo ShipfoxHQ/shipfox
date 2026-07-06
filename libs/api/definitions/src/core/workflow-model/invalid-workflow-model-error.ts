@@ -13,6 +13,7 @@ export type WorkflowModelValidationIssueCode =
   | 'invalid-cron-schedule'
   | 'invalid-cron-timezone'
   | 'invalid-provider'
+  | 'invalid-trigger-filter'
   | 'invalid-interpolation-expression'
   | 'invalid-interpolation-template'
   | 'invalid-duration'
