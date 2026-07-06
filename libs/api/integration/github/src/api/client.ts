@@ -414,7 +414,7 @@ async function mapGithubOAuthError<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-async function mapGithubError<T>(
+export async function mapGithubError<T>(
   operation: () => Promise<T>,
   notFoundReason: 'repository-not-found' | 'file-not-found' = 'repository-not-found',
 ): Promise<T> {
