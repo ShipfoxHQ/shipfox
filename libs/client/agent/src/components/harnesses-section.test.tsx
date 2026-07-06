@@ -75,9 +75,9 @@ describe('WorkspaceHarnessesSection', () => {
 
     const claudeRow = (await screen.findByText('Claude')).closest('li');
     if (claudeRow === null) throw new Error('Expected Claude row');
-    expect(within(claudeRow).getByText('Configure Anthropic to enable Claude.')).toHaveClass(
-      'sr-only',
-    );
+    expect(
+      within(claudeRow).getByText('Configure a compatible model provider to use this harness.'),
+    ).toHaveClass('sr-only');
 
     await openHarnessActions(user, 'Claude');
 

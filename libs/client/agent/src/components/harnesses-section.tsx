@@ -81,7 +81,7 @@ function HarnessRow({
 }) {
   const setDefaultHarness = useSetDefaultHarnessMutation();
   const [defaultError, setDefaultError] = useState<string | undefined>();
-  const unavailableCopy = harnessUnavailableCopy(harness, isDefault);
+  const unavailableCopy = harnessUnavailableCopy(isDefault);
 
   async function handleSetDefault() {
     setDefaultError(undefined);
@@ -172,11 +172,8 @@ function HarnessRow({
   );
 }
 
-function harnessUnavailableCopy(harness: HarnessDescriptor, isDefault: boolean): string {
-  const base =
-    harness.id === 'claude'
-      ? 'Configure Anthropic to enable Claude.'
-      : 'No workspace provider configured. Agent steps use the instance default.';
+function harnessUnavailableCopy(isDefault: boolean): string {
+  const base = 'Configure a compatible model provider to use this harness.';
   if (!isDefault) return base;
   return `${base} The stored default harness cannot currently run in this workspace.`;
 }
