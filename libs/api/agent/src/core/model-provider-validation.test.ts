@@ -1,4 +1,4 @@
-import type {AssistantMessage, Context, ProviderStreamOptions} from '@earendil-works/pi-ai';
+import type {AssistantMessage, Context, ProviderStreamOptions} from '@earendil-works/pi-ai/compat';
 import {InvalidAgentModelError} from './errors.js';
 import {
   probeCustomModelProviderCredentials,
@@ -11,7 +11,7 @@ const piAi = vi.hoisted(() => ({
   getModels: vi.fn(),
 }));
 
-vi.mock('@earendil-works/pi-ai', () => piAi);
+vi.mock('@earendil-works/pi-ai/compat', () => piAi);
 
 describe('probeModelProviderCredentials', () => {
   beforeEach(() => {

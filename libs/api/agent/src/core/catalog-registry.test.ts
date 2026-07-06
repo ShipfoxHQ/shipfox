@@ -1,4 +1,4 @@
-import {getModels, getProviders, type KnownProvider} from '@earendil-works/pi-ai';
+import {getModels, getProviders, type KnownProvider} from '@earendil-works/pi-ai/compat';
 import {
   getModelProviderEntry,
   MODEL_PROVIDER_CATALOG_SEED,

@@ -1,4 +1,4 @@
-import {getModels, type KnownProvider} from '@earendil-works/pi-ai';
+import {getModels, type KnownProvider} from '@earendil-works/pi-ai/compat';
 import {type AgentModelOptionDto, PI_HARNESS} from '@shipfox/api-agent-dto';
 import {probeModelProviderCredentials} from '../model-provider-validation.js';
 import type {HarnessProviderCatalog} from './registry.js';
