@@ -22,10 +22,17 @@ export {
 } from './errors.js';
 export {
   getHarnessDescriptor,
+  getHarnessToolDescriptor,
   type HarnessDescriptor,
+  type HarnessToolDeploymentConfig,
+  type HarnessToolDescriptor,
+  type HarnessToolPackageName,
   harnessSupportsProvider,
+  harnessSupportsTool,
+  listEnabledHarnessTools,
   listHarnessDescriptors,
   listHarnessProviderModels,
+  listHarnessTools,
   probeHarnessProviderCredentials,
 } from './harness/index.js';
 export {buildModelProviderCatalog} from './model-provider-catalog.js';

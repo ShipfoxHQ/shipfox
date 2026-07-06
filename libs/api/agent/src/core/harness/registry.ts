@@ -2,12 +2,19 @@ import type {
   AgentModelOptionDto,
   Harness,
   HarnessDescriptor,
+  HarnessToolDeploymentConfig,
+  HarnessToolDescriptor,
+  HarnessToolPackageName,
   SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {
   getHarnessDescriptor,
+  getHarnessToolDescriptor,
   harnessSupportsProvider,
+  harnessSupportsTool,
+  listEnabledHarnessTools,
   listHarnessDescriptors,
+  listHarnessTools,
   SUPPORTED_MODEL_PROVIDER_IDS,
 } from '@shipfox/api-agent-dto';
 import {UnsupportedHarnessProviderError} from '../errors.js';
@@ -17,9 +24,16 @@ import {piHarnessCatalog} from './pi.js';
 
 export {
   getHarnessDescriptor,
+  getHarnessToolDescriptor,
   type HarnessDescriptor,
+  type HarnessToolDeploymentConfig,
+  type HarnessToolDescriptor,
+  type HarnessToolPackageName,
   harnessSupportsProvider,
+  harnessSupportsTool,
+  listEnabledHarnessTools,
   listHarnessDescriptors,
+  listHarnessTools,
 };
 
 export interface HarnessProviderCatalog {

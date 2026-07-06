@@ -68,4 +68,39 @@ describe('agent config', () => {
       'metadata.google.internal,10.0.0.0/8',
     );
   });
+
+  it('defaults pi optional tool packages to disabled and web search to enabled', async () => {
+    vi.resetModules();
+
+    const module = await import('./config.js');
+
+    expect(module.config.AGENT_PI_ENABLED_TOOL_PACKAGES).toBe('');
+    expect(module.config.AGENT_PI_WEB_SEARCH_ENABLED).toBe(true);
+    expect(module.harnessToolDeploymentConfig).toEqual({
+      pi: {enabledToolPackages: [], webSearchEnabled: true},
+      claude: {enabledToolPackages: []},
+    });
+  });
+
+  it('parses enabled pi optional tool packages and web search overrides', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_PI_ENABLED_TOOL_PACKAGES', 'pi-web-access, pi-web-access');
+    vi.stubEnv('AGENT_PI_WEB_SEARCH_ENABLED', 'false');
+
+    const module = await import('./config.js');
+
+    expect(module.harnessToolDeploymentConfig).toEqual({
+      pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: false},
+      claude: {enabledToolPackages: []},
+    });
+  });
+
+  it('throws when pi optional tool packages include an unsupported package', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_PI_ENABLED_TOOL_PACKAGES', 'pi-web-access, unknown-package');
+
+    const importConfig = import('./config.js');
+
+    await expect(importConfig).rejects.toThrow('AGENT_PI_ENABLED_TOOL_PACKAGES');
+  });
 });

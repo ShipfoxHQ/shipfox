@@ -1,12 +1,16 @@
 import {
   agentThinkingSchema,
   getModelProviderEntry,
+  HARNESS_TOOL_PACKAGE_NAMES,
+  type HarnessToolDeploymentConfig,
+  type HarnessToolPackageName,
   SUPPORTED_MODEL_PROVIDER_IDS,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {bool, createConfig, num, str} from '@shipfox/config';
 
 const AGENT_THINKING_CHOICES = agentThinkingSchema.options;
+const harnessToolPackageNames = new Set<string>(HARNESS_TOOL_PACKAGE_NAMES);
 
 export const config = createConfig({
   AGENT_DEFAULT_PROVIDER: str({
@@ -39,9 +43,47 @@ export const config = createConfig({
     desc: 'Comma-separated hosts and IP ranges that custom model providers may not call. Accepts exact hosts, suffix patterns such as .internal.example or *.internal.example, IP literals, and CIDR blocks such as 10.0.0.0/8.',
     default: '',
   }),
+  AGENT_PI_ENABLED_TOOL_PACKAGES: str({
+    desc: 'Comma-separated optional Pi tool packages enabled for this deployment. Leave it empty to enable only Pi built-in tools. Accepted values: pi-web-access.',
+    default: '',
+  }),
+  AGENT_PI_WEB_SEARCH_ENABLED: bool({
+    desc: 'Enables Pi web search tools when pi-web-access is enabled. Set it to false to disable web_search and get_search_content while keeping fetch_content available.',
+    default: true,
+  }),
 });
 
 assertInstanceDefaultModelProviderApiKeyConfig();
+
+export const harnessToolDeploymentConfig: HarnessToolDeploymentConfig = {
+  pi: {
+    enabledToolPackages: parsePiEnabledToolPackages(config.AGENT_PI_ENABLED_TOOL_PACKAGES),
+    webSearchEnabled: config.AGENT_PI_WEB_SEARCH_ENABLED,
+  },
+  claude: {
+    enabledToolPackages: [],
+  },
+};
+
+export function parsePiEnabledToolPackages(value: string): HarnessToolPackageName[] {
+  const packageNames = value
+    .split(',')
+    .map((packageName) => packageName.trim())
+    .filter((packageName) => packageName.length > 0);
+
+  const invalidPackageNames = packageNames.filter(
+    (packageName) => !harnessToolPackageNames.has(packageName),
+  );
+  if (invalidPackageNames.length > 0) {
+    throw new Error(
+      `AGENT_PI_ENABLED_TOOL_PACKAGES contains unsupported package(s): ${invalidPackageNames.join(
+        ', ',
+      )}. Accepted values: ${HARNESS_TOOL_PACKAGE_NAMES.join(', ')}.`,
+    );
+  }
+
+  return [...new Set(packageNames)] as HarnessToolPackageName[];
+}
 
 function assertInstanceDefaultModelProviderApiKeyConfig(): void {
   if (!config.AGENT_DEFAULT_PROVIDER_API_KEY) return;

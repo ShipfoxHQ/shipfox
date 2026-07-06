@@ -53,6 +53,10 @@ describe('harness registry', () => {
       thinkingLevels: piAgentThinkingSchema.options,
       defaultThinking: 'xhigh',
       defaultProviderId: 'anthropic',
+      tools: expect.arrayContaining([
+        expect.objectContaining({name: 'read'}),
+        expect.objectContaining({name: 'web_search'}),
+      ]),
     });
     expect(getHarnessDescriptor('claude')).toEqual({
       id: 'claude',
@@ -62,6 +66,10 @@ describe('harness registry', () => {
       thinkingLevels: claudeAgentThinkingSchema.options,
       defaultThinking: 'xhigh',
       defaultProviderId: 'anthropic',
+      tools: expect.arrayContaining([
+        expect.objectContaining({name: 'Read'}),
+        expect.objectContaining({name: 'WebSearch'}),
+      ]),
     });
     expect(listHarnessDescriptors().map((descriptor) => descriptor.id)).toEqual(['pi', 'claude']);
   });
