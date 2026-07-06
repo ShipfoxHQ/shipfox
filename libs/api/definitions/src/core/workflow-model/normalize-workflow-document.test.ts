@@ -232,6 +232,43 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  it('normalizes job and step if predicates', () => {
+    const document: WorkflowDocument = {
+      name: 'conditional controls',
+      jobs: {
+        build: {
+          steps: [
+            {key: 'compile', run: 'npm run build'},
+            {
+              if: interpolation('steps.compile.status == "succeeded" && !execution.failed'),
+              run: 'npm test',
+            },
+          ],
+        },
+        notify: {
+          needs: 'build',
+          if: interpolation('needs.exists(n, n.key == "build" && n.status == "failed")'),
+          steps: [{prompt: 'Notify the team.'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[1]?.if).toEqual({
+      language: 'cel',
+      source: 'steps.compile.status == "succeeded" && !execution.failed',
+      check: 'typed',
+      resultType: 'bool',
+    });
+    expect(model.jobs[1]?.if).toEqual({
+      language: 'cel',
+      source: 'needs.exists(n, n.key == "build" && n.status == "failed")',
+      check: 'typed',
+      resultType: 'bool',
+    });
+  });
+
   it('defaults omitted job checkout to read permissions and persisted credentials', () => {
     const document: WorkflowDocument = {
       name: 'default checkout',
@@ -1634,6 +1671,219 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs[0]?.success).toBe(
       'executions.all(e, e.name != "") && executions.all(e, e.events.all(ev, ev.data.ok == true))',
     );
+  });
+
+  it('rejects unwrapped if predicates', () => {
+    const document: WorkflowDocument = {
+      name: 'unwrapped condition',
+      jobs: {
+        build: {
+          if: 'true',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-if',
+        path: ['jobs', 'build', 'if'],
+        details: expect.objectContaining({
+          field: 'job.if',
+          source: 'true',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects non-boolean if predicates', () => {
+    const document: WorkflowDocument = {
+      name: 'non boolean condition',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+        deploy: {
+          needs: 'build',
+          if: interpolation('jobs.build.status'),
+          steps: [{run: 'npm run deploy'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-if',
+        path: ['jobs', 'deploy', 'if'],
+        details: expect.objectContaining({
+          field: 'job.if',
+          source: 'jobs.build.status',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects runner and secrets roots in if predicates', () => {
+    const document: WorkflowDocument = {
+      name: 'server-only conditions',
+      jobs: {
+        build: {
+          if: interpolation('secrets.local.TOKEN != ""'),
+          steps: [{if: interpolation('runner.os == "linux"'), run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'runner-context-in-server-predicate',
+          path: ['jobs', 'build', 'if'],
+          details: expect.objectContaining({field: 'job.if', runnerRoots: ['secrets']}),
+        }),
+        expect.objectContaining({
+          code: 'runner-context-in-server-predicate',
+          path: ['jobs', 'build', 'steps', 0, 'if'],
+          details: expect.objectContaining({field: 'step.if', runnerRoots: ['runner']}),
+        }),
+      ]),
+    );
+  });
+
+  it('rejects vars roots in if predicates', () => {
+    const document: WorkflowDocument = {
+      name: 'vars condition',
+      jobs: {
+        build: {
+          if: interpolation('vars.REQUIRED == "true"'),
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'vars-context-in-server-predicate',
+        path: ['jobs', 'build', 'if'],
+        details: expect.objectContaining({
+          field: 'job.if',
+          rejectedRoots: ['vars'],
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects if job references without a direct needs edge', () => {
+    const document: WorkflowDocument = {
+      name: 'missing condition edge',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+        deploy: {
+          if: interpolation('jobs.build.status == "succeeded"'),
+          steps: [{run: 'npm run deploy'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'missing-job-needs-edge',
+        path: ['jobs', 'deploy', 'if'],
+        details: expect.objectContaining({
+          field: 'job.if',
+          job: 'build',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects needs aggregation when the job has no direct needs', () => {
+    const document: WorkflowDocument = {
+      name: 'missing needs',
+      jobs: {
+        notify: {
+          if: interpolation('needs.exists(n, n.status == "failed")'),
+          steps: [{run: 'npm run notify'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-if',
+        path: ['jobs', 'notify', 'if'],
+        details: expect.objectContaining({
+          field: 'job.if',
+          rejectedRoots: ['needs'],
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects step if references to later steps', () => {
+    const document: WorkflowDocument = {
+      name: 'forward condition',
+      jobs: {
+        build: {
+          steps: [
+            {if: interpolation('steps.deploy.status == "succeeded"'), run: 'npm test'},
+            {key: 'deploy', run: 'npm run deploy'},
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-step-if',
+        path: ['jobs', 'build', 'steps', 0, 'if'],
+        details: expect.objectContaining({
+          field: 'step.if',
+          source: 'steps.deploy.status == "succeeded"',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects execution.failed before step dispatch', () => {
+    const document: WorkflowDocument = {
+      name: 'early execution failed',
+      jobs: {
+        build: {
+          if: interpolation('execution.failed'),
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'context-unavailable-at-predicate-site',
+        path: ['jobs', 'build', 'if'],
+        details: expect.objectContaining({
+          field: 'job.if',
+          unavailableRoots: ['execution.failed'],
+        }),
+      }),
+    ]);
   });
 
   it('reports invalid job success expressions', () => {

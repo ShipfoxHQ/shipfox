@@ -30,6 +30,25 @@ describe('workflowDocumentSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts job and step if predicates as document fields', () => {
+    const workflowDocument = {
+      name: 'conditional build',
+      jobs: {
+        build: {
+          if: interpolation('true'),
+          steps: [
+            {if: interpolation('event.action == "opened"'), run: 'npm run build'},
+            {if: interpolation('step.is_retry'), prompt: 'Review the retry.'},
+          ],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+  });
+
   it('accepts job output mappings', () => {
     const workflowDocument = {
       name: 'job outputs',

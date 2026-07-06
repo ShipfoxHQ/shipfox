@@ -13,6 +13,7 @@ export const workflowContextNames = [
   'executions',
   'execution',
   'jobs',
+  'needs',
   'steps',
   'step',
   'vars',
@@ -152,6 +153,7 @@ const executionType = {
     index: 'int',
     name: 'string',
     status: 'string',
+    failed: 'bool',
     started_at: 'timestamp',
     finished_at: 'timestamp',
     events: {
@@ -241,11 +243,13 @@ export function buildTypedRootsEnvironment(params: {
   readonly steps?: readonly WorkflowStepTypeOverlay[];
   readonly currentStep?: WorkflowStepTypeOverlay;
   readonly jobs?: readonly WorkflowJobTypeOverlay[];
+  readonly needs?: readonly WorkflowJobTypeOverlay[];
 }): ExpressionTypeEnvironment {
   return {
     ...(params.steps === undefined ? {} : {steps: stepsRootType(params.steps)}),
     ...(params.currentStep === undefined ? {} : {step: selfStepType(params.currentStep)}),
     ...(params.jobs === undefined ? {} : {jobs: jobsRootType(params.jobs)}),
+    ...(params.needs === undefined ? {} : {needs: needsRootType()}),
   };
 }
 
@@ -320,6 +324,15 @@ export const workflowContextDefinitions = {
     host: 'server',
     shape: 'open',
     checkMode: 'syntax',
+  },
+  needs: {
+    availability: 'job-activation',
+    trustTier: 'untrusted',
+    sensitivity: 'persistable',
+    host: 'server',
+    shape: 'known',
+    checkMode: 'typed',
+    typeEnvironment: {needs: {kind: 'list', element: jobEntityType({key: '$need'})}},
   },
   steps: {
     availability: 'step-dispatch',
@@ -468,11 +481,23 @@ export const workflowPredicateFields = [
   'trigger.filter',
   'listener.on',
   'listener.until',
+  'job.if',
+  'step.if',
 ] as const;
 export type WorkflowPredicateField = (typeof workflowPredicateFields)[number];
 
 export const workflowPredicateFieldFailurePolicy =
   'fail-closed' as const satisfies WorkflowFieldFailurePolicy;
+
+const workflowPredicateFieldMinimumFillTargets = {
+  'step.success': 'step-report',
+  'job.success': 'job-resolution',
+  'trigger.filter': 'ingest',
+  'listener.on': 'job-activation',
+  'listener.until': 'job-activation',
+  'job.if': 'job-activation',
+  'step.if': 'step-dispatch',
+} as const satisfies Record<WorkflowPredicateField, AvailabilitySite>;
 
 export function getWorkflowContextDefinition(name: WorkflowContextName): WorkflowContextDefinition {
   return workflowContextDefinitions[name];
@@ -588,6 +613,12 @@ export function getWorkflowInterpolationFieldMinimumFillTarget(
   return 'minimumFillTarget' in policy ? policy.minimumFillTarget : undefined;
 }
 
+export function getWorkflowPredicateFieldMinimumFillTarget(
+  field: WorkflowPredicateField,
+): AvailabilitySite {
+  return workflowPredicateFieldMinimumFillTargets[field];
+}
+
 export interface WorkflowContextAvailabilityReferenceEntry {
   readonly root: WorkflowContextName | WorkflowContextReservedRoot;
   readonly availability?: AvailabilitySite;
@@ -693,15 +724,35 @@ function jobsRootType(jobs: readonly WorkflowJobTypeOverlay[]): ExpressionType {
   };
 }
 
+function needsRootType(): ExpressionType {
+  return {
+    kind: 'list',
+    element: jobEntityTypeForNeeds(),
+  };
+}
+
+function jobEntityTypeForNeeds(): ExpressionType {
+  return {
+    kind: 'object',
+    fields: {
+      key: 'string',
+      status: 'string',
+      outputs: {kind: 'map'},
+      executions: {
+        kind: 'list',
+        element: executionTypeWithOutputs({kind: 'map'}),
+      },
+    },
+  };
+}
+
 function jobEntityType(job: WorkflowJobTypeOverlay): ExpressionType {
-  const outputs =
-    job.outputs === undefined
-      ? ({kind: 'map'} as const satisfies ExpressionType)
-      : ({kind: 'object', fields: job.outputs} as const satisfies ExpressionType);
+  const outputs = jobOutputsType(job);
   const execution = executionTypeWithOutputs(outputs);
   return {
     kind: 'object',
     fields: {
+      key: 'string',
       status: 'string',
       outputs,
       executions: {
@@ -710,6 +761,12 @@ function jobEntityType(job: WorkflowJobTypeOverlay): ExpressionType {
       },
     },
   };
+}
+
+function jobOutputsType(job: WorkflowJobTypeOverlay): ExpressionType {
+  return job.outputs === undefined
+    ? ({kind: 'map'} as const satisfies ExpressionType)
+    : ({kind: 'object', fields: job.outputs} as const satisfies ExpressionType);
 }
 
 function executionTypeWithOutputs(outputs: ExpressionType): ExpressionType {

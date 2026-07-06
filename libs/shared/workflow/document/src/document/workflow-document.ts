@@ -230,6 +230,7 @@ export const workflowDocumentCheckoutSchema = z.strictObject({
 export const workflowDocumentStepSchema = z
   .strictObject({
     key: z.string().min(1).optional(),
+    if: z.string().min(1).optional(),
     name: z.string().min(1).optional(),
     run: z.string().min(1).optional(),
     model: z.string().min(1).optional(),
@@ -298,6 +299,7 @@ export const workflowDocumentStepSchema = z
 
 export const workflowDocumentJobSchema = z.strictObject({
   needs: stringOrStringArraySchema.optional(),
+  if: z.string().min(1).optional(),
   runner: stringOrStringArraySchema.optional(),
   success: z.string().min(1).optional(),
   outputs: nonEmptyRecordSchema(z.string().min(1)).optional(),

@@ -9,6 +9,7 @@ import type {
   FillTarget,
   WorkflowPredicateField,
 } from '../workflow-context/workflow-context.js';
+import {getWorkflowPredicateFieldMinimumFillTarget} from '../workflow-context/workflow-context.js';
 import {shouldFillAtSite} from './fill.js';
 import {type RoutedExpression, routeExpression} from './route-expression.js';
 
@@ -35,9 +36,13 @@ function routePredicateExpression(
   field: WorkflowPredicateField,
 ): RoutedExpression {
   const route = routeExpression(expression);
-  if (field !== 'step.success' || !route.roots.includes('step')) return route;
-
-  return {...route, fillTarget: laterFillTarget(route.fillTarget, 'step-report')};
+  return {
+    ...route,
+    fillTarget: laterFillTarget(
+      route.fillTarget,
+      getWorkflowPredicateFieldMinimumFillTarget(field),
+    ),
+  };
 }
 
 function laterFillTarget(left: FillTarget, right: AvailabilitySite): FillTarget {

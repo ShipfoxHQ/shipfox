@@ -39,6 +39,7 @@ export interface WorkflowModelJob {
   readonly runner: readonly string[];
   readonly runnerTemplates?: readonly WorkflowFieldTemplate[];
   readonly checkout: WorkflowModelJobCheckout;
+  readonly if?: WorkflowExpression;
   readonly success?: string;
   readonly outputs?: WorkflowOutputTemplates;
   readonly outputTypes?: Readonly<Record<string, ExpressionType>>;
@@ -87,6 +88,7 @@ export type WorkflowModelStep = WorkflowModelRunStep | WorkflowModelAgentStep;
 interface WorkflowModelStepBase {
   readonly id: string;
   readonly key?: string;
+  readonly if?: WorkflowExpression;
   readonly name?: string;
   readonly outputs?: OutputDeclarations;
   readonly gate?: WorkflowModelStepGate;
