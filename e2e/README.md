@@ -216,6 +216,34 @@ turbo check type build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 Each E2E package has its own `depcruise` task, so these rules run in the same
 Turbo and CI gate as the rest of the repo.
 
+## Visual Regression
+
+Client E2E suites can add Argos page snapshots at user-visible checkpoints.
+Prefer `stableScreenshot` from `@shipfox/e2e-kit/ui` when the page contains
+dynamic text, generated IDs, volatile attributes, or toasts that need
+normalization. It wraps `argosScreenshot` and restores the DOM after capture.
+
+Capture after assertions prove the page reached the expected state:
+
+```ts
+await expect(page.getByRole('heading', {name: 'No projects yet'})).toBeVisible();
+await stableScreenshot(page, 'projects/empty-state');
+```
+
+`stableScreenshot` and `argosScreenshot` wait for fonts and stable layout, but
+they cannot wait for content the test has not asserted. Keep visible generated
+data deterministic or normalize it before capture so Argos reports UI drift, not
+random IDs or names.
+
+Name snapshots `<surface>/<state>`, such as `auth/login` or
+`projects/empty-state`. Add a snapshot to the existing test that already drives
+the page to that state; do not write screenshot-only specs.
+
+Each E2E client package sets its Argos `buildName` through
+`defineClientE2eConfig`. The value must match the package name without the
+`@shipfox/` scope, such as `@shipfox/e2e-client-auth` ->
+`e2e-client-auth`, so each surface gets its own PR check and baseline.
+
 ## Running And Debugging
 
 Run a suite through the repo E2E harness when it needs the API/client dev servers:
@@ -274,5 +302,6 @@ For PRs that add or change E2E coverage, check:
 - Data setup goes through `/__e2e/<module>` via `@shipfox/e2e-setup-*`; only true external/process boundaries use `drivers/*`.
 - Browser specs use screen or kit UI methods instead of raw product locators.
 - Specs follow the granularity rule: one test per behavior, one file per surface or journey, present-tense names, and setup outside the spec body.
+- Visual snapshots come after assertions, use the package-name `buildName`, and live in behavior specs rather than screenshot-only specs.
 - Package dependencies declare the verified surface and use DTO packages instead of server API implementation packages.
 - `depcruise` remains green when layer or dependency boundaries change.
