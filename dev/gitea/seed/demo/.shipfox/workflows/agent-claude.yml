@@ -13,5 +13,5 @@ jobs:
     steps:
       - harness: claude
         provider: anthropic
-        model: claude-opus-4-8
+        model: claude-haiku-4-5
         prompt: Say hello from Claude
