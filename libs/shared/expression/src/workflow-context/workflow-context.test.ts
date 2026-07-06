@@ -94,6 +94,7 @@ describe('workflow context registry', () => {
       checkMode: 'typed',
     });
     expect(workflowContextDefinitions.trigger).toMatchObject({
+      availability: 'ingest',
       shape: 'known',
       checkMode: 'typed',
     });
@@ -131,6 +132,7 @@ describe('workflow context registry', () => {
       checkMode: 'syntax',
     });
     expect(workflowContextDefinitions.event).toMatchObject({
+      availability: 'ingest',
       shape: 'open',
       checkMode: 'syntax',
     });
@@ -332,7 +334,7 @@ describe('workflow context registry', () => {
   });
 
   it('returns the roots available at each availability site', () => {
-    expect(rootsAvailableAt('ingest')).toEqual([]);
+    expect(rootsAvailableAt('ingest')).toEqual(['trigger', 'event']);
     expect(rootsAvailableAt('run-creation')).toEqual([
       'run',
       'trigger',
@@ -579,7 +581,13 @@ describe('workflow context registry', () => {
     });
 
     it('declares predicate fields as fail-closed', () => {
-      expect(workflowPredicateFields).toEqual(['step.success', 'job.success']);
+      expect(workflowPredicateFields).toEqual([
+        'step.success',
+        'job.success',
+        'trigger.filter',
+        'listener.on',
+        'listener.until',
+      ]);
       expect(workflowPredicateFieldFailurePolicy).toBe('fail-closed');
     });
   });

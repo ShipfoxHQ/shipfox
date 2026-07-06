@@ -7,6 +7,7 @@ import {
   getWorkflowContextDefinition,
   getWorkflowContextTypeEnvironment,
   InvalidWorkflowExpressionError,
+  predicateSourceIsBooleanShaped,
   resolveContextRootAvailability,
   resolveContextRootHost,
   validateServerEvaluable,
@@ -90,6 +91,20 @@ export function validatePredicateExpression(params: {
   }
 
   if (params.typeOverlay === undefined && knownRoots.some((root) => hasSyntaxOnlyCheckMode(root))) {
+    if (
+      isWorkflowFilterPredicateField(params.field) &&
+      !predicateSourceIsBooleanShaped(syntaxExpression.source)
+    ) {
+      params.issues.push(
+        invalidPredicateIssue({
+          ...params,
+          contextRoots,
+          reason: 'Predicate source must be boolean-shaped.',
+        }),
+      );
+      return undefined;
+    }
+
     return syntaxExpression;
   }
 
@@ -264,6 +279,7 @@ function unavailableRootAvailabilityMessage(root: string): string {
 }
 
 function hasSyntaxOnlyCheckMode(root: string): boolean {
+  if (!isWorkflowContextName(root)) return resolveContextRootHost(root) === 'server';
   return isWorkflowContextName(root) && getWorkflowContextDefinition(root).checkMode === 'syntax';
 }
 
@@ -301,8 +317,29 @@ function isWorkflowContextName(root: string): root is WorkflowContextName {
   return (workflowContextNames as readonly string[]).includes(root);
 }
 
+function isWorkflowFilterPredicateField(field: WorkflowPredicateField): boolean {
+  return field === 'trigger.filter' || field === 'listener.on' || field === 'listener.until';
+}
+
 function fieldLabel(field: WorkflowPredicateField): string {
-  return field === 'step.success' ? 'Step gate success' : 'Job success';
+  switch (field) {
+    case 'step.success':
+      return 'Step gate success';
+    case 'job.success':
+      return 'Job success';
+    case 'trigger.filter':
+      return 'Trigger filter';
+    case 'listener.on':
+      return 'Listener on filter';
+    case 'listener.until':
+      return 'Listener until filter';
+    default:
+      return assertNever(field);
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled workflow predicate field: ${value}`);
 }
 
 function contextNoun(roots: readonly string[]): 'context' | 'contexts' {

@@ -85,6 +85,7 @@ export {
   type PlanViolation,
   planInterpolationField,
 } from './plan/plan-field.js';
+export {predicateSourceIsBooleanShaped} from './plan/predicate-shape.js';
 export type {
   ResolvedField,
   ResolvedFieldDeferredSegment,

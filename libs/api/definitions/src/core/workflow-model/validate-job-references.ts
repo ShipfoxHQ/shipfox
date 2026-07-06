@@ -80,6 +80,12 @@ function fieldLabel(field: WorkflowInterpolationField | WorkflowPredicateField):
       return 'Step feedback';
     case 'job.success':
       return 'Job success';
+    case 'trigger.filter':
+      return 'Trigger filter';
+    case 'listener.on':
+      return 'Listener on filter';
+    case 'listener.until':
+      return 'Listener until filter';
     default:
       return assertNever(field);
   }

@@ -84,7 +84,7 @@ describe('planInterpolationField', () => {
           segments: [
             {kind: 'deferred', roots: ['run'], fillTarget: 'run-creation'},
             {kind: 'literal', value: '-'},
-            {kind: 'deferred', roots: ['trigger'], fillTarget: 'run-creation'},
+            {kind: 'deferred', roots: ['trigger'], fillTarget: 'ingest'},
           ],
         },
       },
