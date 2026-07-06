@@ -71,9 +71,15 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
   const targetUrl = override?.baseUrl ?? ANTHROPIC_API_URL;
   const targetLabel =
     override === undefined ? 'Claude Anthropic API endpoint' : 'Claude Anthropic base URL override';
-  const useOutputTools =
-    override === undefined ||
-    (invocation.outputs !== undefined && Object.keys(invocation.outputs).length > 0);
+  const hasDeclaredOutputs =
+    invocation.outputs !== undefined && Object.keys(invocation.outputs).length > 0;
+  if (override !== undefined && hasDeclaredOutputs) {
+    throw new AgentConfigError(
+      'Claude Anthropic base URL override does not support declared step outputs.',
+      'provider_unsupported',
+    );
+  }
+  const useOutputTools = override === undefined;
 
   await assertRunnerEgressAllowed(targetUrl, targetLabel);
 
@@ -292,16 +298,12 @@ function claudeEnvironment(
 }
 
 function claudeAnthropicOverride(): ClaudeAnthropicOverride | undefined {
-  if (config.AGENT_CLAUDE_ANTHROPIC_BASE_URL === '') return undefined;
+  if (config.AGENT_CLAUDE_ANTHROPIC_BASE_URL === undefined) return undefined;
 
   return {
     baseUrl: config.AGENT_CLAUDE_ANTHROPIC_BASE_URL,
-    model:
-      config.AGENT_CLAUDE_ANTHROPIC_MODEL === '' ? undefined : config.AGENT_CLAUDE_ANTHROPIC_MODEL,
-    smallFastModel:
-      config.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL === ''
-        ? undefined
-        : config.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL,
+    model: config.AGENT_CLAUDE_ANTHROPIC_MODEL,
+    smallFastModel: config.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL,
   };
 }
 

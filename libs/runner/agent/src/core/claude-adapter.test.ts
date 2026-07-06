@@ -24,9 +24,9 @@ const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
 });
 const {configMock} = vi.hoisted(() => ({
   configMock: {
-    AGENT_CLAUDE_ANTHROPIC_BASE_URL: '',
-    AGENT_CLAUDE_ANTHROPIC_MODEL: '',
-    AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL: '',
+    AGENT_CLAUDE_ANTHROPIC_BASE_URL: undefined as string | undefined,
+    AGENT_CLAUDE_ANTHROPIC_MODEL: undefined as string | undefined,
+    AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL: undefined as string | undefined,
   },
 }));
 
@@ -151,9 +151,9 @@ describe('claudeHarnessAdapter', () => {
     createSdkMcpServerMock.mockClear();
     assertEgressAllowedMock.mockReset();
     assertEgressAllowedMock.mockResolvedValue(undefined);
-    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = '';
-    configMock.AGENT_CLAUDE_ANTHROPIC_MODEL = '';
-    configMock.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL = '';
+    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = undefined;
+    configMock.AGENT_CLAUDE_ANTHROPIC_MODEL = undefined;
+    configMock.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL = undefined;
   });
 
   afterEach(() => {
@@ -291,6 +291,23 @@ describe('claudeHarnessAdapter', () => {
       }),
     });
     expect(lastQueryOptions().mcpServers).toBeUndefined();
+  });
+
+  it('rejects declared outputs when the Anthropic base URL override is active', async () => {
+    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://127.0.0.1:11434';
+
+    const result = claudeHarnessAdapter.run(
+      invocation({credentials: {}, outputs: {summary: {type: 'string'}}}),
+    );
+
+    await expect(result).rejects.toThrow(
+      new AgentConfigError(
+        'Claude Anthropic base URL override does not support declared step outputs.',
+        'provider_unsupported',
+      ),
+    );
+    expect(assertEgressAllowedMock).not.toHaveBeenCalled();
+    expect(queryMock).not.toHaveBeenCalled();
   });
 
   it('maps Anthropic override egress denial to AgentConfigError', async () => {

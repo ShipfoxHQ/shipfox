@@ -78,7 +78,7 @@ test('runs a Claude harness step against local Ollama', async ({suite}, testInfo
     const terminal = await waitForRunTerminalOrFailedRunner({
       runId,
       token,
-      timeoutMs: 180_000,
+      timeoutMs: 300_000,
       runner: localRunner.runner,
     });
 
