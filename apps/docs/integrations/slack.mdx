@@ -1,0 +1,38 @@
+---
+title: "Slack Integration (Coming Soon)"
+sidebarTitle: "Slack (soon)"
+description: "Trigger Shipfox workflows from Slack events and report agent results back to your channels. Coming soon."
+---
+
+<Note>
+  **Coming soon.** The Slack integration is not available yet. This page
+  describes where it is headed.
+</Note>
+
+The Slack integration will connect a Slack workspace to Shipfox so conversations
+and workflows can meet: Slack events triggering workflow runs, and runs reporting
+their results — an agent's summary, a failed check, a finished triage — back into
+your channels.
+
+Like every integration, it will follow the same model as [GitHub](/integrations/github)
+and [Sentry](/integrations/sentry): connect once, get a **connection slug**
+(e.g. `slack_acme`), and reference it as a trigger `source` with the events the
+integration emits.
+
+## Until it ships
+
+Slack can already reach Shipfox through a [custom webhook](/integrations/webhooks):
+create a webhook connection and point a Slack outgoing webhook or automation at its
+ingest URL, then trigger on `received`. For the other direction, a `run`
+step can post to a Slack incoming webhook today (`curl` to your Slack webhook URL).
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Custom webhook" icon="webhook" href="/integrations/webhooks">
+    The working interim path for Slack events today.
+  </Card>
+  <Card title="Integrations overview" icon="plug" href="/integrations/overview">
+    Connections, slugs, and every available integration.
+  </Card>
+</CardGroup>
