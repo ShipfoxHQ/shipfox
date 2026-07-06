@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
+  buildChatCompletionChunks,
   createFakeOpenAiProviderServer,
   type FakeOpenAiProviderServer,
   type FakeOpenAiScript,
@@ -7,6 +8,25 @@ import {
 
 const adminToken = 'test-admin-token';
 const sseDataPrefixRe = /^data: /u;
+
+describe('buildChatCompletionChunks', () => {
+  it('rejects completions without choices', () => {
+    expect(() =>
+      buildChatCompletionChunks({
+        id: 'chatcmpl-empty',
+        object: 'chat.completion',
+        created: 1783344000,
+        model: 'deterministic-output-agent',
+        choices: [],
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 0,
+          total_tokens: 1,
+        },
+      }),
+    ).toThrow('Chat completion chatcmpl-empty has no choices.');
+  });
+});
 
 describe('fake OpenAI provider server', () => {
   let server: FakeOpenAiProviderServer;

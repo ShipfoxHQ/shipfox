@@ -161,7 +161,9 @@ export function buildChatCompletionChunks(
     model: completion.model,
   };
   const choice = completion.choices[0];
-  if (choice === undefined) return [];
+  if (choice === undefined) {
+    throw new Error(`Chat completion ${completion.id} has no choices.`);
+  }
 
   if ('tool_calls' in choice.message) {
     const toolCalls = choice.message.tool_calls.map((toolCall) => ({

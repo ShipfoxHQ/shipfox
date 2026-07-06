@@ -165,7 +165,9 @@ function isStreamRequest(body: unknown): boolean {
 }
 
 function isChatCompletion(body: unknown): body is Parameters<typeof buildChatCompletionChunks>[0] {
-  return Boolean(body && typeof body === 'object' && 'choices' in body);
+  return Boolean(
+    body && typeof body === 'object' && (body as {object?: unknown}).object === 'chat.completion',
+  );
 }
 
 function validateScriptRegistration(script: FakeOpenAiScript): void {
