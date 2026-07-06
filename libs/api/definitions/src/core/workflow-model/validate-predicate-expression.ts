@@ -1,5 +1,6 @@
 import {
   type AvailabilitySite,
+  analyzeContextRootKeyAccess,
   availabilitySites,
   createWorkflowExpression,
   type ExpressionTypeEnvironment,
@@ -79,12 +80,19 @@ export function validatePredicateExpression(params: {
 
   const route = routeExpression(syntaxExpression);
   if (route.fillTarget !== 'runner-fill' && !isSiteAtOrAfter(params.site, route.fillTarget)) {
+    const unavailableRoots = unavailableRouteReferences(syntaxExpression);
     params.issues.push(
-      unavailablePredicateContextIssue({
-        ...params,
-        contextRoots,
-        unavailableRoots: unavailableRouteReferences(syntaxExpression),
-      }),
+      unavailableRoots.length > 0
+        ? unavailablePredicateContextIssue({
+            ...params,
+            contextRoots,
+            unavailableRoots,
+          })
+        : routeUnavailablePredicateContextIssue({
+            ...params,
+            contextRoots,
+            fillTarget: route.fillTarget,
+          }),
     );
     return undefined;
   }
@@ -282,6 +290,30 @@ function unavailablePredicateContextIssue(params: {
   });
 }
 
+function routeUnavailablePredicateContextIssue(params: {
+  field: WorkflowPredicateField;
+  source: string;
+  site: AvailabilitySite;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  contextRoots: readonly string[];
+  fillTarget: AvailabilitySite;
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'context-unavailable-at-predicate-site',
+    message: `${fieldLabel(params.field)} requires context filled at ${describeAvailabilitySite(
+      params.fillTarget,
+    )}, but it is evaluated at ${describeAvailabilitySite(params.site)}.`,
+    path: params.path,
+    details: {
+      field: params.field,
+      source: params.source,
+      contextRoots: params.contextRoots,
+      fillTarget: params.fillTarget,
+      site: params.site,
+    },
+  });
+}
+
 function isRootAvailableAt(root: string, site: AvailabilitySite): boolean {
   const availability = resolveContextRootAvailability(root);
   if (availability === undefined) return false;
@@ -300,7 +332,10 @@ function unavailableRootAvailabilityMessage(root: string): string {
 }
 
 function unavailableRouteReferences(expression: WorkflowExpression): readonly string[] {
-  return expression.source.includes('execution.failed') ? ['execution.failed'] : ['context'];
+  const access = analyzeContextRootKeyAccess(expression, ['execution']);
+  return access.references.some((reference) => reference.key === 'failed')
+    ? ['execution.failed']
+    : [];
 }
 
 function hasSyntaxOnlyCheckMode(root: string): boolean {

@@ -16,6 +16,8 @@ import {validatePredicateExpression} from './validate-predicate-expression.js';
 import {issue} from './validation-issue.js';
 import {workflowFieldLabel} from './workflow-field-label.js';
 
+const ifExpressionSyntax = `\${{ }}`;
+
 export function normalizeIfCondition(params: {
   readonly field: Extract<WorkflowPredicateField, 'job.if' | 'step.if'>;
   readonly source: string | undefined;
@@ -97,7 +99,7 @@ function parseSingleExpression(params: {
   params.issues.push(
     invalidIfIssue({
       ...params,
-      reason: `${workflowFieldLabel(params.field)} must be exactly one $${'{{ }}'} expression.`,
+      reason: `${workflowFieldLabel(params.field)} must be exactly one ${ifExpressionSyntax} expression.`,
     }),
   );
   return undefined;

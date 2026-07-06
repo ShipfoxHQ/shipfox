@@ -2563,6 +2563,7 @@ describe('normalizeWorkflowDocument', () => {
       'event.ref',
       'invalid-trigger-filter',
       {
+        field: 'trigger.filter',
         source: 'event.ref',
         contextRoots: ['event'],
         reason: 'Predicate source must be boolean-shaped.',
