@@ -1,3 +1,4 @@
+import type {WorkflowExpression} from '@shipfox/expression';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
@@ -12,7 +13,12 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type {Step, StepConfigDispatchPlan} from '#core/entities/step.js';
+import {
+  STEP_STATUS_REASONS,
+  type Step,
+  type StepConfigDispatchPlan,
+  toStepStatusReason,
+} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {jobExecutions} from './job-executions.js';
 
@@ -22,7 +28,10 @@ export const stepStatusEnum = pgEnum('workflows_step_status', [
   'succeeded',
   'failed',
   'cancelled',
+  'skipped',
 ]);
+
+export const stepStatusReasonEnum = pgEnum('workflows_step_status_reason', STEP_STATUS_REASONS);
 
 export const steps = pgTable(
   'steps',
@@ -33,8 +42,10 @@ export const steps = pgTable(
     name: text('name').notNull(),
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
     status: stepStatusEnum('status').notNull().default('pending'),
+    statusReason: stepStatusReasonEnum('status_reason'),
     type: text('type').notNull(),
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
+    condition: jsonb('condition').$type<WorkflowExpression>(),
     configPlan: jsonb('config_plan').$type<StepConfigDispatchPlan>(),
     authoredConfig: jsonb('authored_config').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
@@ -69,8 +80,10 @@ export function toStep(row: StepDb): Step {
     name: row.name,
     sourceLocation: row.sourceLocation ?? null,
     status: row.status,
+    statusReason: toStepStatusReason(row.statusReason),
     type: row.type,
     config: row.config as Record<string, unknown>,
+    condition: (row.condition as WorkflowExpression) ?? null,
     configPlan: row.configPlan ?? null,
     authoredConfig: (row.authoredConfig as Record<string, unknown>) ?? null,
     error: (row.error as Record<string, unknown>) ?? null,

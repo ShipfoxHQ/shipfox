@@ -25,6 +25,7 @@ import {db} from './db.js';
 import {jobExecutions} from './schema/job-executions.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
+import {stepAttempts as stepAttemptsTable} from './schema/step-attempts.js';
 import {steps as stepsTable} from './schema/steps.js';
 import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {workflowRuns} from './schema/workflow-runs.js';
@@ -3314,12 +3315,46 @@ jobs:
         .update(stepsTable)
         .set({status: 'succeeded'})
         .where(eq(stepsTable.id, seeded[0]?.id as string));
+      await db()
+        .update(stepsTable)
+        .set({status: 'skipped', statusReason: 'condition_rejected'})
+        .where(eq(stepsTable.id, seeded[1]?.id as string));
 
       await bulkUpdateJobStepStatuses({jobId, status: 'failed'});
 
       const final = await getStepsByJobId(jobId);
       expect(final[0]?.status).toBe('succeeded');
-      expect(final[1]?.status).toBe('failed');
+      expect(final[1]?.status).toBe('skipped');
+      expect(final[1]?.statusReason).toBe('condition_rejected');
+    });
+
+    test('step attempts cannot be skipped', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({jobs: {build: {steps: [{run: 'a'}]}}}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const jobId = runJobs[0]?.id ?? '';
+      const [step] = await getStepsByJobId(jobId);
+      if (!step) throw new Error('Expected arranged step');
+
+      await expect(
+        db().insert(stepAttemptsTable).values({
+          stepId: step.id,
+          jobExecutionId: step.jobExecutionId,
+          attempt: 1,
+          executionOrder: 1,
+          status: 'skipped',
+        }),
+      ).rejects.toThrow();
     });
 
     test('terminal sweeps finalize running attempts as abandoned and emit attempt events', async () => {

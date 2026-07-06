@@ -7,7 +7,8 @@ CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'running', 'succe
 CREATE TYPE "public"."workflows_job_status_reason" AS ENUM('dependency_not_completed', 'condition_false', 'user_cancelled', 'run_cancelled', 'timed_out', 'runner_lost', 'step_failed', 'unknown');--> statement-breakpoint
 CREATE TYPE "public"."workflows_listener_status" AS ENUM('inactive', 'listening', 'resolved');--> statement-breakpoint
 CREATE TYPE "public"."workflows_resolution_reason" AS ENUM('until', 'timeout', 'max_executions', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled', 'skipped');--> statement-breakpoint
+CREATE TYPE "public"."workflows_step_status_reason" AS ENUM('default_gate_rejected', 'condition_rejected', 'condition_errored');--> statement-breakpoint
 CREATE TYPE "public"."workflows_rerun_mode" AS ENUM('all', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TABLE "workflows_job_executions" (
@@ -114,7 +115,7 @@ CREATE TABLE "workflows_step_attempts" (
 	CONSTRAINT "workflows_step_attempts_job_execution_id_execution_order_uq" UNIQUE("job_execution_id","execution_order"),
 	CONSTRAINT "workflows_step_attempts_attempt_positive_ck" CHECK ("workflows_step_attempts"."attempt" > 0),
 	CONSTRAINT "workflows_step_attempts_execution_order_positive_ck" CHECK ("workflows_step_attempts"."execution_order" > 0),
-	CONSTRAINT "workflows_step_attempts_status_not_pending_ck" CHECK ("workflows_step_attempts"."status" <> 'pending'),
+	CONSTRAINT "workflows_step_attempts_status_dispatched_ck" CHECK ("workflows_step_attempts"."status" NOT IN ('pending', 'skipped')),
 	CONSTRAINT "workflows_step_attempts_log_outcome_ck" CHECK ("workflows_step_attempts"."log_outcome" IS NULL OR "workflows_step_attempts"."log_outcome" IN ('drained', 'abandoned'))
 );
 --> statement-breakpoint
@@ -125,8 +126,10 @@ CREATE TABLE "workflows_steps" (
 	"name" text NOT NULL,
 	"source_location" jsonb,
 	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
+	"status_reason" "workflows_step_status_reason",
 	"type" text NOT NULL,
 	"config" jsonb NOT NULL,
+	"condition" jsonb,
 	"config_plan" jsonb,
 	"authored_config" jsonb,
 	"error" jsonb,

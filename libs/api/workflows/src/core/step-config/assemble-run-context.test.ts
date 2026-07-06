@@ -249,6 +249,7 @@ describe('assembleStepDispatchContext', () => {
           index: 2,
           name: 'Deploy',
           status: 'running',
+          failed: false,
           started_at: date,
           finished_at: null,
           events: [
@@ -508,6 +509,19 @@ describe('assembleStepDispatchContext', () => {
     expect(stepsContext.conditional).not.toHaveProperty('exit_code');
     expect(stepsContext.conditional).not.toHaveProperty('gate');
   });
+
+  it('sets execution.failed when an earlier step failed', () => {
+    const targetStep = step({id: 'step-2', key: 'cleanup'});
+
+    const context = assembleStepDispatchContext({
+      steps: [step({id: 'step-1', key: 'build', status: 'failed'}), targetStep],
+      attempts: [attempt({stepId: 'step-1', status: 'failed', exitCode: 1})],
+      targetStepId: targetStep.id,
+      jobExecution: jobExecution(),
+    });
+
+    expect(context.values.execution).toMatchObject({failed: true});
+  });
 });
 
 describe('assembleGateContext', () => {
@@ -653,8 +667,10 @@ function step(overrides: Partial<Step> = {}): Step {
     name: 'Build',
     sourceLocation: null,
     status: 'pending',
+    statusReason: null,
     type: 'run',
     config: {},
+    condition: null,
     configPlan: null,
     authoredConfig: null,
     error: null,

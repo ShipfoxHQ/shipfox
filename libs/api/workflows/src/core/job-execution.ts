@@ -1,6 +1,10 @@
 import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
-import {coerceStepOutputs, type StepOutputCoercionError} from '@shipfox/expression';
+import {
+  coerceStepOutputs,
+  evaluatePlannedPredicateAtSite,
+  type StepOutputCoercionError,
+} from '@shipfox/expression';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
@@ -14,13 +18,15 @@ import {
   insertRunningStepAttempt,
   lockActiveJobExecutionLeaseForUpdate,
   markStepRunning,
+  markStepSkipped,
   settleJobFailed,
 } from '#db/workflow-runs.js';
 import {
   recordWorkflowJobExecutionStepsSettled,
   recordWorkflowStepRestartEnqueued,
 } from '#metrics/instance.js';
-import type {Step} from './entities/step.js';
+import type {JobExecution} from './entities/job-execution.js';
+import type {Step, StepStatusReason} from './entities/step.js';
 import {
   AgentConfigUnresolvableError,
   InterpolationUnresolvableError,
@@ -32,6 +38,7 @@ import {
 } from './errors.js';
 import {assembleStepDispatchContext} from './step-config/assemble-run-context.js';
 import {completeStepDispatchConfig} from './step-config/complete-step-dispatch-config.js';
+import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
 import {
   applyStepTransition,
   type StepProgressionMetrics,
@@ -68,10 +75,13 @@ type DispatchConfigError = InterpolationUnresolvableError | AgentConfigUnresolva
 
 interface PendingStepDispatchParams {
   readonly jobExecutionId: string;
-  readonly steps: Step[];
   readonly pending: Step;
+  readonly jobExecution: JobExecution;
+  readonly context: WorkflowEvaluationContext;
   readonly tx: Tx;
 }
+
+type StepConditionOutcome = {kind: 'run'} | {kind: 'skip'; statusReason: StepStatusReason};
 
 async function nextStepForJobExecutionInTransaction(
   jobExecutionId: string,
@@ -90,11 +100,49 @@ async function nextStepForJobExecutionInTransaction(
   const hasRunningStep = running !== undefined;
   if (hasRunningStep) return {kind: 'step', step: running};
 
-  const pending = steps.find((step) => step.status === 'pending');
-  const hasPendingStep = pending !== undefined;
-  if (hasPendingStep) return dispatchPendingStep({jobExecutionId, steps, pending, tx});
+  let currentSteps = steps;
+  const firstPending = currentSteps.find((step) => step.status === 'pending');
+  const hasPendingStep = firstPending !== undefined;
+  if (!hasPendingStep) return {kind: 'done', status: deriveCompletion(currentSteps)};
 
-  return {kind: 'done', status: deriveCompletion(steps)};
+  const jobExecution = await getJobExecutionById(jobExecutionId, tx);
+  if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
+
+  const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
+  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
+
+  while (true) {
+    const pending = currentSteps.find((step) => step.status === 'pending');
+    if (pending === undefined) return {kind: 'done', status: deriveCompletion(currentSteps)};
+
+    const context = assembleStepDispatchContext({
+      steps: currentSteps,
+      attempts,
+      targetStepId: pending.id,
+      jobExecution,
+      jobs,
+    });
+    const condition = evaluateStepCondition({step: pending, context});
+    if (condition.kind === 'run') {
+      return dispatchPendingStep({jobExecutionId, pending, jobExecution, context, tx});
+    }
+
+    const skipped = await markStepSkipped(
+      {
+        jobExecutionId,
+        stepId: pending.id,
+        statusReason: condition.statusReason,
+      },
+      tx,
+    );
+    const skippedStep = skipped ?? {
+      ...pending,
+      status: 'skipped' as const,
+      statusReason: condition.statusReason,
+      error: null,
+    };
+    currentSteps = currentSteps.map((step) => (step.id === pending.id ? skippedStep : step));
+  }
 }
 
 async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<NextStep> {
@@ -110,23 +158,11 @@ async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<N
 
 async function dispatchPendingStepWithConfigPlan({
   jobExecutionId,
-  steps,
   pending,
+  jobExecution,
+  context,
   tx,
 }: PendingStepDispatchParams): Promise<NextStep> {
-  const jobExecution = await getJobExecutionById(jobExecutionId, tx);
-  if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
-
-  const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
-  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
-  const context = assembleStepDispatchContext({
-    steps,
-    attempts,
-    targetStepId: pending.id,
-    jobExecution,
-    jobs,
-  });
-
   try {
     const completed = completeStepDispatchConfig({
       step: pending,
@@ -177,6 +213,28 @@ async function dispatchPendingStepWithConfigPlan({
     if (status) recordWorkflowJobExecutionStepsSettled(status);
     return {kind: 'done', status: 'failed'};
   }
+}
+
+function evaluateStepCondition(params: {
+  readonly step: Step;
+  readonly context: WorkflowEvaluationContext;
+}): StepConditionOutcome {
+  const condition = params.step.condition;
+  if (condition === null) {
+    const execution = params.context.values.execution as {failed?: unknown} | undefined;
+    return execution?.failed === true
+      ? {kind: 'skip', statusReason: 'default_gate_rejected'}
+      : {kind: 'run'};
+  }
+
+  const outcome = evaluatePlannedPredicateAtSite({
+    expression: condition,
+    field: 'step.if',
+    site: params.context.site,
+    context: params.context.values,
+  });
+  if (outcome.evaluationFailed) return {kind: 'skip', statusReason: 'condition_errored'};
+  return outcome.value ? {kind: 'run'} : {kind: 'skip', statusReason: 'condition_rejected'};
 }
 
 function toDispatchConfigError(error: unknown): DispatchConfigError | null {
