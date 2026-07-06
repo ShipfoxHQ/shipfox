@@ -1,6 +1,6 @@
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import type {AddressInfo} from 'node:net';
-import {buildOpenAiError} from './openai.js';
+import {buildOpenAiError, buildOpenAiModelList} from './openai.js';
 import {type FakeOpenAiScript, FakeOpenAiScriptRegistry} from './scripts.js';
 
 export interface FakeOpenAiProviderServer {
@@ -20,6 +20,7 @@ const maxBodyBytes = 1024 * 1024;
 const resetPathRe = /^\/scripts\/([^/]+)\/reset$/u;
 const requestsPathRe = /^\/scripts\/([^/]+)\/requests$/u;
 const completionsPathRe = /^\/scripts\/([^/]+)\/v1\/chat\/completions$/u;
+const modelsPathRe = /^\/scripts\/([^/]+)\/v1\/models$/u;
 
 export async function createFakeOpenAiProviderServer(
   params: CreateFakeOpenAiProviderServerParams = {},
@@ -117,6 +118,13 @@ async function routeRequest(params: {
       const body = await readJson(params.request);
       const result = params.registry.advance(scriptId, {body, method, path: pathname});
       writeJson(params.response, result.status, result.body);
+      return;
+    }
+
+    const modelsMatch = modelsPathRe.exec(pathname);
+    if (modelsMatch && method === 'GET') {
+      const script = params.registry.script(decodeURIComponent(modelsMatch[1] ?? ''));
+      writeJson(params.response, 200, buildOpenAiModelList(script.model));
       return;
     }
 

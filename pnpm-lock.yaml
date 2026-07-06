@@ -812,6 +812,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-driver-agent-provider':
+        specifier: workspace:*
+        version: link:../../../drivers/agent-provider
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit

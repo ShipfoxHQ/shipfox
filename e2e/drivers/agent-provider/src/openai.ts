@@ -50,6 +50,18 @@ export interface OpenAiErrorBody {
   };
 }
 
+export interface OpenAiModelList {
+  object: 'list';
+  data: OpenAiModel[];
+}
+
+export interface OpenAiModel {
+  id: string;
+  object: 'model';
+  created: number;
+  owned_by: string;
+}
+
 export function buildChatCompletion(params: {
   model: string;
   response: Exclude<FakeOpenAiResponse, {kind: 'error'}>;
@@ -99,4 +111,18 @@ export function buildChatCompletion(params: {
 
 export function buildOpenAiError(type: string, message: string): OpenAiErrorBody {
   return {error: {message, type}};
+}
+
+export function buildOpenAiModelList(model: string): OpenAiModelList {
+  return {
+    object: 'list',
+    data: [
+      {
+        id: model,
+        object: 'model',
+        created: fakeCreatedAt,
+        owned_by: 'shipfox-e2e',
+      },
+    ],
+  };
 }
