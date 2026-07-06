@@ -1,6 +1,6 @@
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import type {AddressInfo} from 'node:net';
-import {buildOpenAiError, buildOpenAiModelList} from './openai.js';
+import {buildChatCompletionChunks, buildOpenAiError, buildOpenAiModelList} from './openai.js';
 import {type FakeOpenAiScript, FakeOpenAiScriptRegistry} from './scripts.js';
 
 export interface FakeOpenAiProviderServer {
@@ -117,6 +117,10 @@ async function routeRequest(params: {
       const scriptId = decodeURIComponent(completionsMatch[1] ?? '');
       const body = await readJson(params.request);
       const result = params.registry.advance(scriptId, {body, method, path: pathname});
+      if (result.status === 200 && isStreamRequest(body) && isChatCompletion(result.body)) {
+        writeEventStream(params.response, buildChatCompletionChunks(result.body));
+        return;
+      }
       writeJson(params.response, result.status, result.body);
       return;
     }
@@ -156,6 +160,14 @@ function writeUnauthorized(response: ServerResponse): void {
   writeJson(response, 401, buildOpenAiError('unauthorized', 'Missing or invalid admin token'));
 }
 
+function isStreamRequest(body: unknown): boolean {
+  return Boolean(body && typeof body === 'object' && (body as {stream?: unknown}).stream === true);
+}
+
+function isChatCompletion(body: unknown): body is Parameters<typeof buildChatCompletionChunks>[0] {
+  return Boolean(body && typeof body === 'object' && 'choices' in body);
+}
+
 function validateScriptRegistration(script: FakeOpenAiScript): void {
   if (!script || typeof script !== 'object') throw new Error('Script body must be an object.');
   if (!isNonEmptyString(script.id)) throw new Error('Script id must be a non-empty string.');
@@ -186,6 +198,16 @@ function writeJson(response: ServerResponse, status: number, body: unknown): voi
   response.statusCode = status;
   response.setHeader('content-type', 'application/json');
   response.end(JSON.stringify(body));
+}
+
+function writeEventStream(response: ServerResponse, chunks: unknown[]): void {
+  response.statusCode = 200;
+  response.setHeader('content-type', 'text/event-stream; charset=utf-8');
+  response.setHeader('cache-control', 'no-cache');
+  for (const chunk of chunks) {
+    response.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  }
+  response.end('data: [DONE]\n\n');
 }
 
 async function listen(server: Server): Promise<AddressInfo> {

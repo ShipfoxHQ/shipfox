@@ -14,6 +14,9 @@ export interface SuiteContext {
   connectionId: string;
   // Push workflow YAML must use this as `source`; dispatch matches webhook sources exactly.
   connectionSlug: string;
+  agentProviderId: string;
+  agentModel: string;
+  fakeProviderRunId: string;
 }
 
 const runDir = fileURLToPath(new URL('../.e2e-run/', import.meta.url));

@@ -6,6 +6,7 @@ import {
 } from './index.js';
 
 const adminToken = 'test-admin-token';
+const sseDataPrefixRe = /^data: /u;
 
 describe('fake OpenAI provider server', () => {
   let server: FakeOpenAiProviderServer;
@@ -136,6 +137,63 @@ describe('fake OpenAI provider server', () => {
         },
       ],
     });
+  });
+
+  it('returns OpenAI chat completion chunks for streaming requests', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'streaming',
+        responses: [
+          {
+            kind: 'tool_call',
+            toolName: 'set_output',
+            arguments: {key: 'message', value: 'qwen-tool-output-ok'},
+            content: '',
+          },
+        ],
+      }),
+    );
+
+    const result = await chatCompletion(server, 'streaming', {
+      ...openAiRequest(),
+      stream: true,
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.headers.get('content-type')).toBe('text/event-stream; charset=utf-8');
+    expect(sseData(await result.text())).toEqual([
+      expect.objectContaining({
+        id: 'chatcmpl-fake-streaming-0',
+        object: 'chat.completion.chunk',
+        model: 'deterministic-output-agent',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_fake_1',
+                  type: 'function',
+                  function: {
+                    name: 'set_output',
+                    arguments: '{"key":"message","value":"qwen-tool-output-ok"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+      expect.objectContaining({
+        choices: [{index: 0, delta: {}, finish_reason: 'tool_calls'}],
+      }),
+      '[DONE]',
+    ]);
   });
 
   it('lists the registered model through the OpenAI-compatible models endpoint', async () => {
@@ -315,4 +373,12 @@ function openAiRequest(params: {roles?: string[] | undefined} = {}) {
       },
     ],
   };
+}
+
+function sseData(text: string): unknown[] {
+  return text
+    .trim()
+    .split('\n\n')
+    .map((chunk) => chunk.replace(sseDataPrefixRe, ''))
+    .map((data) => (data === '[DONE]' ? data : JSON.parse(data)));
 }

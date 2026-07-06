@@ -43,6 +43,48 @@ export type OpenAiChatCompletionChoice =
       finish_reason: 'stop';
     };
 
+export interface OpenAiChatCompletionChunk {
+  id: string;
+  object: 'chat.completion.chunk';
+  created: number;
+  model: string;
+  choices: OpenAiChatCompletionChunkChoice[];
+}
+
+export type OpenAiChatCompletionChunkChoice =
+  | {
+      index: 0;
+      delta: {
+        role: 'assistant';
+        content: string;
+        tool_calls: [
+          {
+            index: 0;
+            id: string;
+            type: 'function';
+            function: {
+              name: string;
+              arguments: string;
+            };
+          },
+        ];
+      };
+      finish_reason: null;
+    }
+  | {
+      index: 0;
+      delta: {
+        role: 'assistant';
+        content: string;
+      };
+      finish_reason: null;
+    }
+  | {
+      index: 0;
+      delta: Record<string, never>;
+      finish_reason: 'tool_calls' | 'stop';
+    };
+
 export interface OpenAiErrorBody {
   error: {
     message: string;
@@ -107,6 +149,77 @@ export function buildChatCompletion(params: {
       total_tokens: 2,
     },
   };
+}
+
+export function buildChatCompletionChunks(
+  completion: OpenAiChatCompletion,
+): OpenAiChatCompletionChunk[] {
+  const base = {
+    id: completion.id,
+    object: 'chat.completion.chunk' as const,
+    created: completion.created,
+    model: completion.model,
+  };
+  const choice = completion.choices[0];
+  if (choice === undefined) return [];
+
+  if ('tool_calls' in choice.message) {
+    const toolCalls = choice.message.tool_calls.map((toolCall) => ({
+      index: 0 as const,
+      ...toolCall,
+    })) as [
+      {
+        index: 0;
+        id: string;
+        type: 'function';
+        function: {
+          name: string;
+          arguments: string;
+        };
+      },
+    ];
+
+    return [
+      {
+        ...base,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              role: 'assistant',
+              content: choice.message.content,
+              tool_calls: toolCalls,
+            },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        ...base,
+        choices: [{index: 0, delta: {}, finish_reason: 'tool_calls'}],
+      },
+    ];
+  }
+
+  return [
+    {
+      ...base,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            role: 'assistant',
+            content: choice.message.content,
+          },
+          finish_reason: null,
+        },
+      ],
+    },
+    {
+      ...base,
+      choices: [{index: 0, delta: {}, finish_reason: 'stop'}],
+    },
+  ];
 }
 
 export function buildOpenAiError(type: string, message: string): OpenAiErrorBody {

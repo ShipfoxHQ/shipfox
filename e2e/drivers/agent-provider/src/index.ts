@@ -1,8 +1,11 @@
 export {
   buildChatCompletion,
+  buildChatCompletionChunks,
   buildOpenAiError,
   type OpenAiChatCompletion,
   type OpenAiChatCompletionChoice,
+  type OpenAiChatCompletionChunk,
+  type OpenAiChatCompletionChunkChoice,
   type OpenAiErrorBody,
 } from './openai.js';
 export {
