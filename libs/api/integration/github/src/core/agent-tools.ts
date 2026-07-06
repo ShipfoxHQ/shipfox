@@ -300,10 +300,13 @@ export const githubAgentToolCatalog = [
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.issuesRead,
-    inputSchema: objectSchema({
-      owner: stringSchema('The account owner of the repository or organization'),
-      repo: stringSchema('The name of the repository'),
-    }),
+    inputSchema: objectSchema(
+      {
+        owner: stringSchema('The account owner of the repository or organization'),
+        repo: stringSchema('The name of the repository'),
+      },
+      ['owner'],
+    ),
     outputSchema: objectSchema({issue_types: arraySchema(openObjectSchema('Issue type'))}, [
       'issue_types',
     ]),
@@ -383,7 +386,14 @@ export const githubAgentToolCatalog = [
           'Emoji reaction to add. Required unless body is provided',
         ),
       },
-      ['issue_number'],
+      [],
+      {
+        anyOf: [
+          {required: ['issue_number', 'body']},
+          {required: ['issue_number', 'reaction']},
+          {required: ['comment_id', 'reaction']},
+        ],
+      },
     ),
     outputSchema: openObjectSchema('Created issue comment or reaction'),
   }),
@@ -547,7 +557,6 @@ export const githubAgentToolCatalog = [
         title: stringSchema('New title'),
         body: stringSchema('New description'),
         state: enumSchema(['open', 'closed'], 'New state'),
-        draft: booleanSchema('Mark pull request as draft or ready for review'),
         base: stringSchema('New base branch name'),
         maintainer_can_modify: booleanSchema('Allow maintainer edits'),
         reviewers: arraySchema(stringSchema('GitHub username or ORG/team-slug reviewer')),
@@ -579,6 +588,7 @@ export const githubAgentToolCatalog = [
         ),
       },
       ['comment_id'],
+      {anyOf: [{required: ['pull_number', 'body']}, {required: ['reaction']}]},
     ),
     outputSchema: openObjectSchema('Pull request comment reply or reaction result'),
   }),
@@ -716,6 +726,15 @@ export const githubAgentToolCatalog = [
         ),
       },
       ['method'],
+      {
+        oneOf: [
+          methodRequiredSchema('run_workflow', ['workflow_id', 'ref']),
+          methodRequiredSchema('rerun_workflow_run', ['run_id']),
+          methodRequiredSchema('rerun_failed_jobs', ['run_id']),
+          methodRequiredSchema('cancel_workflow_run', ['run_id']),
+          methodRequiredSchema('delete_workflow_run_logs', ['run_id']),
+        ],
+      },
     ),
     outputSchema: openObjectSchema('Actions run trigger result'),
   }),
@@ -749,11 +768,12 @@ export class GithubAgentToolsProvider
     return githubAgentToolCatalog;
   }
 
-  async openSession(): Promise<never> {
-    await Promise.resolve();
-    throw new GithubIntegrationProviderError(
-      'provider-unavailable',
-      'GitHub agent tool execution is not implemented yet',
+  openSession(): Promise<never> {
+    return Promise.reject(
+      new GithubIntegrationProviderError(
+        'provider-unavailable',
+        'GitHub agent tool execution is not implemented yet',
+      ),
     );
   }
 }
@@ -818,19 +838,35 @@ function unionRequiredScopes(
 function repositoryInputSchema(
   properties: Record<string, AgentToolJsonSchema> = {},
   required: string[] = [],
+  extraSchema: Partial<AgentToolJsonSchema> = {},
 ): AgentToolJsonSchema {
-  return objectSchema({...repositoryProperties, ...properties}, ['owner', 'repo', ...required]);
+  return objectSchema(
+    {...repositoryProperties, ...properties},
+    ['owner', 'repo', ...required],
+    extraSchema,
+  );
 }
 
 function objectSchema(
   properties: Record<string, AgentToolJsonSchema>,
   required: string[] = [],
+  extraSchema: Partial<AgentToolJsonSchema> = {},
 ): AgentToolJsonSchema {
   return {
     type: 'object',
     additionalProperties: false,
     properties,
     ...(required.length > 0 ? {required} : {}),
+    ...extraSchema,
+  };
+}
+
+function methodRequiredSchema(methodId: string, required: string[]): AgentToolJsonSchema {
+  return {
+    properties: {
+      method: {const: methodId},
+    },
+    required,
   };
 }
 

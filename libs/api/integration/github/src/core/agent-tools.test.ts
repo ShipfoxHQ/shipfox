@@ -248,6 +248,33 @@ describe('github agent tool catalog', () => {
     expect(ids.every((id) => !id.includes('.') && !id.includes('__'))).toBe(true);
   });
 
+  it('keeps reviewed input constraints aligned with GitHub operations', () => {
+    const listIssueTypesSchema = inputSchemaFor('list_issue_types');
+    const addIssueCommentSchema = inputSchemaFor('add_issue_comment');
+    const updatePullRequestSchema = inputSchemaFor('update_pull_request');
+    const addReplySchema = inputSchemaFor('add_reply_to_pull_request_comment');
+    const actionsRunTriggerSchema = inputSchemaFor('actions_run_trigger');
+
+    expect(listIssueTypesSchema.required).toEqual(['owner']);
+    expect(updatePullRequestSchema.properties).not.toHaveProperty('draft');
+    expect(addIssueCommentSchema.anyOf).toEqual([
+      {required: ['issue_number', 'body']},
+      {required: ['issue_number', 'reaction']},
+      {required: ['comment_id', 'reaction']},
+    ]);
+    expect(addReplySchema.anyOf).toEqual([
+      {required: ['pull_number', 'body']},
+      {required: ['reaction']},
+    ]);
+    expect(actionsRunTriggerSchema.oneOf).toEqual([
+      {properties: {method: {const: 'run_workflow'}}, required: ['workflow_id', 'ref']},
+      {properties: {method: {const: 'rerun_workflow_run'}}, required: ['run_id']},
+      {properties: {method: {const: 'rerun_failed_jobs'}}, required: ['run_id']},
+      {properties: {method: {const: 'cancel_workflow_run'}}, required: ['run_id']},
+      {properties: {method: {const: 'delete_workflow_run_logs'}}, required: ['run_id']},
+    ]);
+  });
+
   it('exposes the catalog through the provider adapter', () => {
     const provider = createProvider();
     const catalog = provider.adapters.agent_tools?.catalog();
@@ -290,5 +317,14 @@ function githubClient(): GithubApiClient {
     listRepositoryFiles: vi.fn(() => Promise.reject(new Error('not used'))),
     fetchRepositoryFile: vi.fn(() => Promise.reject(new Error('not used'))),
     createInstallationAccessToken: vi.fn(() => Promise.reject(new Error('not used'))),
+  };
+}
+
+function inputSchemaFor(id: (typeof githubAgentToolCatalog)[number]['id']) {
+  return githubAgentToolCatalog.find((entry) => entry.id === id)?.inputSchema as {
+    properties?: Record<string, unknown> | undefined;
+    required?: string[] | undefined;
+    anyOf?: unknown[] | undefined;
+    oneOf?: unknown[] | undefined;
   };
 }
