@@ -109,7 +109,7 @@ export class SetupShell {
   }
 
   modelProviderHeading(): AppLocator {
-    return this.page.getByRole('heading', {name: 'Configure model provider'});
+    return this.page.getByRole('heading', {name: 'Choose agent harness'});
   }
 
   projectTab(): AppLocator {

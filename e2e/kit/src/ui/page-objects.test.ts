@@ -114,7 +114,7 @@ describe('ui page objects', () => {
 
     expect(pageObject.getByRole).toHaveBeenCalledWith('heading', {name: 'Install source control'});
     expect(pageObject.getByRole).toHaveBeenCalledWith('heading', {
-      name: 'Configure model provider',
+      name: 'Choose agent harness',
     });
     expect(pageObject.getByRole).toHaveBeenCalledWith('tab', {name: 'Projects'});
     expect(pageObject.getByRole).toHaveBeenCalledWith('tab', {name: 'Settings'});

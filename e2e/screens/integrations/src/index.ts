@@ -60,7 +60,7 @@ export class SourceControlSetupScreen {
   }
 
   modelProviderHeading(): Locator {
-    return this.page.getByRole('heading', {name: 'Configure model provider'});
+    return this.page.getByRole('heading', {name: 'Choose agent harness'});
   }
 
   providerLink(workspaceId: string, provider: string): Locator {
