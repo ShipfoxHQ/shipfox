@@ -130,7 +130,7 @@
   },
   "overrides": [
     {
-      "includes": ["docs/**"],
+      "includes": ["apps/docs/docs.json", "apps/docs/**/*.mdx"],
       "assist": {
         "enabled": false
       },

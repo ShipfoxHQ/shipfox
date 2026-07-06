@@ -153,18 +153,19 @@ Available in most packages via `pnpm <script>`:
 
 ## Documentation
 
-The user docs are [Mintlify](https://mintlify.com/) `.mdx` files under `docs/`
-(served at `www.shipfox.io/docs`). Render them locally from the repo root:
+The user docs are the [Mintlify](https://mintlify.com/) documentation app
+`@shipfox/docs` under `apps/docs/` (served at `www.shipfox.io/docs`):
 
-| Script            | Description                                          |
-| ----------------- | ---------------------------------------------------- |
-| `pnpm docs:dev`   | Serve the docs with live reload at `localhost:3000`  |
-| `pnpm docs:check` | Report broken internal links                         |
+| Command                                   | Description                                         |
+| ----------------------------------------- | --------------------------------------------------- |
+| `pnpm --filter=@shipfox/docs dev`         | Serve the docs with live reload at `localhost:3000` |
+| `pnpm --filter=@shipfox/docs broken-links`| Report broken internal links                        |
 
-Both run the Mintlify CLI through `npx` (the first run downloads it). `docs/` is
-intentionally **not** a pnpm/turbo workspace package, so it stays out of
-`turbo build`/`test`/`check`; the CLI reads `docs/docs.json` directly. See
-[docs/README.md](docs/README.md) for details.
+The scripts run the Mintlify CLI through `npx` (the first run downloads it) rather
+than a workspace dependency: Mintlify pulls React 18 and this repo is React 19 with
+`strictPeerDependencies`, so it can't install as a normal dependency. The package
+defines no `build`/`check`/`type`/`test` scripts, so `turbo` skips it for those. See
+[apps/docs/README.md](apps/docs/README.md) for details.
 
 ## Publishing & Changesets
 
