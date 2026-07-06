@@ -373,7 +373,14 @@ describe('dispatchIntegrationEvent', () => {
     const event = await receivedEvent(eventRef);
     if (!event) throw new Error('received event not found');
     expect(event.outcome).toBe('routed');
-    expect(event.matchedCount).toBe(0);
+    expect(event.matchedCount).toBe(1);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({
+      subscriptionKind: 'listener',
+      jobId,
+      decision: 'triggered',
+    });
   });
 
   test('treats listener replay conflicts as routed idempotent success', async () => {
@@ -397,7 +404,7 @@ describe('dispatchIntegrationEvent', () => {
       .where(eq(triggersReceivedEvents.eventRef, eventRef));
     expect(events).toHaveLength(1);
     expect(events[0]?.outcome).toBe('routed');
-    expect(events[0]?.matchedCount).toBe(0);
+    expect(events[0]?.matchedCount).toBe(1);
   });
 
   test('does not route listener-only stale subscriptions skipped by workflows', async () => {
@@ -418,6 +425,7 @@ describe('dispatchIntegrationEvent', () => {
     if (!event) throw new Error('received event not found');
     expect(event.outcome).toBe('discarded');
     expect(event.matchedCount).toBe(0);
+    expect(await decisionsForEvent(event.id)).toHaveLength(0);
   });
 
   test('routes both definition and listener fan-outs for the same event', async () => {
@@ -442,6 +450,103 @@ describe('dispatchIntegrationEvent', () => {
     expect(deliverEventToListener).toHaveBeenCalledWith(
       expect.objectContaining({jobId: jobListenerSubscription.jobId}),
     );
+    const [event] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.workspaceId, workspaceId));
+    if (!event) throw new Error('received event not found');
+    expect(event.matchedCount).toBe(2);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(2);
+    expect(decisions.map((decision) => decision.subscriptionKind).sort()).toEqual([
+      'listener',
+      'trigger',
+    ]);
+  });
+
+  test('does not deliver listener-only events whose filter does not match', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {
+        filter: 'event.ref == "refs/heads/main"',
+      },
+    });
+
+    await dispatch({workspaceId, eventRef, payload: {ref: 'refs/heads/feature'}});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(deliverEventToListener).not.toHaveBeenCalled();
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('discarded');
+    expect(event.matchedCount).toBe(0);
+    expect(await decisionsForEvent(event.id)).toHaveLength(0);
+  });
+
+  test('records a listener filter-error decision when listener filter evaluation fails', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const subscription = await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {
+        filter: 'jobs.build.outputs.pr_number == 42',
+        filter_snapshot: {},
+      },
+    });
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(deliverEventToListener).not.toHaveBeenCalled();
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.matchedCount).toBe(1);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({
+      subscriptionKind: 'listener',
+      subscriptionId: subscription.id,
+      workflowRunId: subscription.workflowRunId,
+      jobId: subscription.jobId,
+      matcherKind: 'on',
+      matcherOrdinal: subscription.matcherOrdinal,
+      decision: 'filter-error',
+      reason: 'Listener filter evaluation failed',
+    });
+  });
+
+  test('records a listener dispatch-error decision when listener delivery throws', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const subscription = await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+    });
+    deliverEventToListener.mockRejectedValue(new Error('workflow db down'));
+
+    await expect(dispatch({workspaceId, eventRef})).rejects.toThrow('workflow db down');
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('failed');
+    expect(event.matchedCount).toBe(1);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({
+      subscriptionKind: 'listener',
+      subscriptionId: subscription.id,
+      decision: 'dispatch-error',
+      reason: 'workflow db down',
+    });
   });
 });
 

@@ -90,7 +90,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "triggers_decisions_subscription_kind_ck": {
+          "name": "triggers_decisions_subscription_kind_ck",
+          "value": "\"triggers_decisions\".\"subscription_kind\" IN ('trigger', 'listener')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.triggers_decisions": {
@@ -110,6 +115,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "subscription_kind": {
+          "name": "subscription_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "subscription_id": {
           "name": "subscription_id",
           "type": "uuid",
@@ -126,13 +137,38 @@
           "name": "workflow_definition_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "project_id": {
           "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "workflow_run_id": {
+          "name": "workflow_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "matcher_kind": {
+          "name": "matcher_kind",
+          "type": "triggers_job_listener_matcher_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "matcher_ordinal": {
+          "name": "matcher_ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "decision": {
           "name": "decision",
@@ -172,6 +208,12 @@
           "columns": [
             {
               "expression": "received_event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "subscription_kind",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

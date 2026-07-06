@@ -28,6 +28,7 @@ async function insertDecision(receivedEventId: string): Promise<string> {
   await db().insert(triggersDecisions).values({
     id,
     receivedEventId,
+    subscriptionKind: 'trigger',
     subscriptionId: randomUUID(),
     subscriptionName: 'Deploy production',
     workflowDefinitionId: randomUUID(),

@@ -5,8 +5,11 @@ export {
   fireManualTriggerResponseSchema,
 } from './fire-manual.js';
 export {
+  type ListenerMatcherKindDto,
+  listenerMatcherKindSchema,
   type TriggerDecisionDto,
   type TriggerDecisionOutcomeDto,
+  type TriggerDecisionSubscriptionKindDto,
   type TriggerEventDetailResponseDto,
   type TriggerEventDto,
   type TriggerEventFacetItemDto,
@@ -19,6 +22,7 @@ export {
   type TriggerEventOutcomeDto,
   triggerDecisionDtoSchema,
   triggerDecisionOutcomeSchema,
+  triggerDecisionSubscriptionKindSchema,
   triggerEventDetailResponseSchema,
   triggerEventDtoSchema,
   triggerEventFacetItemSchema,

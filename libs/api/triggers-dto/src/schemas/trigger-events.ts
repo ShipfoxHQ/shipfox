@@ -15,6 +15,14 @@ export type TriggerEventOutcomeDto = z.infer<typeof triggerEventOutcomeSchema>;
 export const triggerDecisionOutcomeSchema = z.enum(['triggered', 'filter-error', 'dispatch-error']);
 export type TriggerDecisionOutcomeDto = z.infer<typeof triggerDecisionOutcomeSchema>;
 
+export const triggerDecisionSubscriptionKindSchema = z.enum(['trigger', 'listener']);
+export type TriggerDecisionSubscriptionKindDto = z.infer<
+  typeof triggerDecisionSubscriptionKindSchema
+>;
+
+export const listenerMatcherKindSchema = z.enum(['on', 'until']);
+export type ListenerMatcherKindDto = z.infer<typeof listenerMatcherKindSchema>;
+
 /**
  * List rows omit payload because webhook bodies can be large/untrusted.
  * The full payload lives only on the detail response.
@@ -46,10 +54,15 @@ export type TriggerEventDto = z.infer<typeof triggerEventDtoSchema>;
 export const triggerDecisionDtoSchema = z.object({
   id: z.string().uuid(),
   received_event_id: z.string().uuid(),
+  subscription_kind: triggerDecisionSubscriptionKindSchema,
   subscription_id: z.string().uuid(),
   subscription_name: z.string(),
-  workflow_definition_id: z.string().uuid(),
-  project_id: z.string().uuid(),
+  workflow_definition_id: z.string().uuid().nullable(),
+  project_id: z.string().uuid().nullable(),
+  workflow_run_id: z.string().uuid().nullable(),
+  job_id: z.string().uuid().nullable(),
+  matcher_kind: listenerMatcherKindSchema.nullable(),
+  matcher_ordinal: z.number().int().nonnegative().nullable(),
   decision: triggerDecisionOutcomeSchema,
   run_id: z.string().uuid().nullable(),
   run_name: z.string().nullable(),

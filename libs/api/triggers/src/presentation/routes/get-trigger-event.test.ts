@@ -81,6 +81,7 @@ describe('GET /trigger-events/:id', () => {
     });
     const legacyDecision = {
       receivedEventId: event.id,
+      subscriptionKind: 'trigger',
       subscriptionId: crypto.randomUUID(),
       subscriptionName: 'Deploy production',
       workflowDefinitionId: crypto.randomUUID(),
@@ -98,6 +99,52 @@ describe('GET /trigger-events/:id', () => {
     expect(res.json().decisions).toMatchObject([
       {decision: 'dispatch-error', reason: 'legacy failure'},
     ]);
+  });
+
+  test('returns mixed trigger and listener decisions', async () => {
+    const event = await receivedEventFactory.create({
+      workspaceId,
+      outcome: 'routed',
+      matchedCount: 2,
+    });
+    await decisionFactory.create({
+      receivedEventId: event.id,
+      subscriptionKind: 'trigger',
+      decision: 'triggered',
+      subscriptionName: 'Deploy production',
+    });
+    const listener = await decisionFactory.create({
+      receivedEventId: event.id,
+      subscriptionKind: 'listener',
+      subscriptionName: 'listener until[0] github/pull_request.closed',
+      workflowDefinitionId: null,
+      projectId: null,
+      workflowRunId: crypto.randomUUID(),
+      jobId: crypto.randomUUID(),
+      matcherKind: 'until',
+      matcherOrdinal: 0,
+      decision: 'triggered',
+      runId: null,
+      runName: null,
+    });
+
+    const res = await app.inject({method: 'GET', url: `/trigger-events/${event.id}`});
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().decisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subscription_kind: 'listener',
+          subscription_id: listener.subscriptionId,
+          workflow_definition_id: null,
+          project_id: null,
+          workflow_run_id: listener.workflowRunId,
+          job_id: listener.jobId,
+          matcher_kind: 'until',
+          matcher_ordinal: 0,
+        }),
+      ]),
+    );
   });
 
   test('returns an empty decisions list for a discarded event', async () => {

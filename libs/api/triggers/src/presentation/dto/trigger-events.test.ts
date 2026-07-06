@@ -74,10 +74,15 @@ describe('trigger-events mappers', () => {
     const decision: TriggerDecision = {
       id: '33333333-3333-3333-3333-333333333333',
       receivedEventId: '11111111-1111-1111-1111-111111111111',
+      subscriptionKind: 'trigger',
       subscriptionId: '44444444-4444-4444-4444-444444444444',
       subscriptionName: 'Deploy production',
       workflowDefinitionId: '55555555-5555-5555-5555-555555555555',
       projectId: '66666666-6666-6666-6666-666666666666',
+      workflowRunId: null,
+      jobId: null,
+      matcherKind: null,
+      matcherOrdinal: null,
       decision: 'dispatch-error',
       runId: null,
       runName: null,
@@ -88,15 +93,52 @@ describe('trigger-events mappers', () => {
     expect(toTriggerDecisionDto(decision)).toEqual({
       id: decision.id,
       received_event_id: decision.receivedEventId,
+      subscription_kind: 'trigger',
       subscription_id: decision.subscriptionId,
       subscription_name: 'Deploy production',
       workflow_definition_id: decision.workflowDefinitionId,
       project_id: decision.projectId,
+      workflow_run_id: null,
+      job_id: null,
+      matcher_kind: null,
+      matcher_ordinal: null,
       decision: 'dispatch-error',
       run_id: null,
       run_name: null,
       reason: 'boom',
       created_at: '2026-05-07T00:00:02.000Z',
+    });
+  });
+
+  test('toTriggerDecisionDto maps listener identity fields', () => {
+    const decision: TriggerDecision = {
+      id: '33333333-3333-3333-3333-333333333333',
+      receivedEventId: '11111111-1111-1111-1111-111111111111',
+      subscriptionKind: 'listener',
+      subscriptionId: '44444444-4444-4444-4444-444444444444',
+      subscriptionName: 'listener until[0] github/pull_request.closed',
+      workflowDefinitionId: null,
+      projectId: null,
+      workflowRunId: '55555555-5555-5555-5555-555555555555',
+      jobId: '66666666-6666-6666-6666-666666666666',
+      matcherKind: 'until',
+      matcherOrdinal: 0,
+      decision: 'triggered',
+      runId: null,
+      runName: null,
+      reason: null,
+      createdAt: new Date('2026-05-07T00:00:02.000Z'),
+    };
+
+    expect(toTriggerDecisionDto(decision)).toMatchObject({
+      subscription_kind: 'listener',
+      workflow_definition_id: null,
+      project_id: null,
+      workflow_run_id: decision.workflowRunId,
+      job_id: decision.jobId,
+      matcher_kind: 'until',
+      matcher_ordinal: 0,
+      decision: 'triggered',
     });
   });
 });
