@@ -21,9 +21,7 @@ const STEP_STATUS_REASON_SET = new Set<StepStatusReason>(STEP_STATUS_REASONS);
 
 export function toStepStatusReason(value: string | null): StepStatusReason | null {
   if (value === null) return null;
-  return STEP_STATUS_REASON_SET.has(value as StepStatusReason)
-    ? (value as StepStatusReason)
-    : 'condition_errored';
+  return STEP_STATUS_REASON_SET.has(value as StepStatusReason) ? (value as StepStatusReason) : null;
 }
 
 export type StepAttemptLogOutcome = 'drained' | 'abandoned';

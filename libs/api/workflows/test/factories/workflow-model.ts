@@ -14,6 +14,7 @@ interface TestWorkflowStepBase {
   readonly key?: string | undefined;
   readonly name?: string | undefined;
   readonly sourceLocation?: WorkflowModel['jobs'][number]['steps'][number]['sourceLocation'];
+  readonly if?: ModelStep['if'] | undefined;
   readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
 }
 
@@ -137,6 +138,7 @@ function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
     ...(step.key === undefined ? {} : {key: step.key}),
     ...(step.name === undefined ? {} : {name: step.name}),
     ...(step.sourceLocation === undefined ? {} : {sourceLocation: step.sourceLocation}),
+    ...(step.if === undefined ? {} : {if: step.if}),
     ...(step.gate === undefined ? {} : {gate: step.gate}),
   };
 }

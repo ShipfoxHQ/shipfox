@@ -2,6 +2,7 @@ import {
   WORKFLOWS_JOB_ACTIVATED,
   type WorkflowsJobActivatedEventDto,
 } from '@shipfox/api-workflows-dto';
+import {createWorkflowExpression} from '@shipfox/expression';
 import {and, asc, eq, isNull} from 'drizzle-orm';
 import type {JobListeningTrigger, JobStatus} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
@@ -18,6 +19,7 @@ import {jobExecutions} from '#db/schema/job-executions.js';
 import {jobListenerEvents} from '#db/schema/job-listener-events.js';
 import {jobs} from '#db/schema/jobs.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
+import {steps} from '#db/schema/steps.js';
 import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
 import {jobFactory, workflowModel, workflowRunFactory} from '#test/index.js';
 import {getJobsByWorkflowRunId, updateJobExecutionStatus} from './workflow-runs.js';
@@ -198,6 +200,10 @@ async function createListenerWithDependencies(params: {
 
 function template(source: string): string {
   return `\${{ ${source} }}`;
+}
+
+function conditionExpression(source: string) {
+  return createWorkflowExpression({source, check: {mode: 'syntax'}});
 }
 
 describe('activateJobListener', () => {
@@ -528,6 +534,33 @@ describe('drainListenerEventsIntoExecution', () => {
       ['gpu', 'linux'],
       ['arm', 'linux'],
     ]);
+  });
+
+  it('persists step conditions for listener firings', async () => {
+    const condition = conditionExpression('false');
+    const job = await createListeningJobFromModel({
+      jobs: {
+        review: {
+          steps: [{if: condition, run: 'echo review'}],
+        },
+      },
+    });
+    await bufferEvent(job.id);
+
+    await drainListenerEventsIntoExecution({jobId: job.id, expectedSequence: 1});
+
+    const [execution] = await db()
+      .select()
+      .from(jobExecutions)
+      .where(and(eq(jobExecutions.jobId, job.id), eq(jobExecutions.sequence, 1)));
+    if (!execution) throw new Error('Expected listener execution');
+    const materialized = await db()
+      .select()
+      .from(steps)
+      .where(eq(steps.jobExecutionId, execution.id))
+      .orderBy(asc(steps.position));
+    expect(materialized[1]?.condition).toEqual(condition);
+    expect(materialized[1]?.config).toEqual({run: 'echo review'});
   });
 
   it('peeks the unconsumed listener buffer from DB state', async () => {

@@ -312,7 +312,7 @@ describe('nextStepForJob', () => {
     expect(result).toEqual({kind: 'done', status: 'failed'});
   });
 
-  test('all cancelled, none failed → {done, failed}', async () => {
+  test('all cancelled, none failed → {done, succeeded}', async () => {
     const {jobId} = await arrangeJobWithSteps(2);
     await bulkUpdateJobStepStatuses({jobId, status: 'cancelled'});
 
