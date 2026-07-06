@@ -59,8 +59,14 @@ then a `gate` reruns the tests and sends the agent back until they pass.
   and target each independently.
 - **Bounded retry loops.** A gate's `success_if` plus `restart_from` loops back to
   an earlier step until a real check passes, automatically bounded, no scripting.
+- **Long-running, event-driven agents.** A listening job stays alive across a run
+  and runs an agent on each new batch of events (PR review comments, new issues)
+  until a resolution condition is met. Asynchronous agent loops, not one-shot runs.
 - **See the agent think.** Agent steps stream structured events (messages,
   thinking, tool calls, token usage, and cost), not just raw text.
+- **Pick the agent, not just the model.** Run an agent step on the `pi` harness
+  (any of 30+ providers) or the `claude` harness (the Claude Agent SDK on your
+  Anthropic key), chosen per step.
 - **Your own runners, your own keys.** Runners poll outbound, so nothing connects
   into your network. Model traffic leaves from your runners across 30+ providers.
 
@@ -72,7 +78,7 @@ then a `gate` reruns the tests and sends the agent back until they pass.
 | **Trigger** | What starts a run: an event from a connected integration, or an on-demand fire. |
 | **Integration** | A connection to an external tool (GitHub, Sentry, Slack, Linear, ...) whose events start runs. Use the [generic webhook](docs/integrations/webhooks.mdx) to connect anything not built in. |
 | **Job** | A group of steps on one runner. Jobs form a DAG via `needs` and are isolated, so each re-clones the repo. |
-| **Step** | A `run` shell command or an agent (`model` + `prompt`). Runs in order within a job. |
+| **Step** | A `run` shell command or an agent (`model` + `prompt`, on the `pi` or `claude` harness). Runs in order within a job. |
 | **Gate** | A [`success_if` expression](docs/reference/expressions.mdx) on a step, such as `exit_code == 0`, plus `on_failure.restart_from` to build bounded retry loops. |
 | **Listening job** | A [job that waits on events](docs/concepts/listening-jobs.mdx) and runs again per batch inside the same run, until a resolution condition. Drives event-driven, asynchronous workflows. |
 | **Runner** | A process you register on your own compute; matched to jobs by label. |
