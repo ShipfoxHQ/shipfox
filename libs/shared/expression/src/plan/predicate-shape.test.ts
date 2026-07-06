@@ -14,6 +14,8 @@ describe('predicateSourceIsBooleanShaped', () => {
     'event.labels.exists(label, label == "bug")',
     'event.labels.all(label, label != "")',
     'event.labels.exists_one(label, label == "bug")',
+    'has(event.ref)',
+    'has(jobs.build.outputs.pr_number)',
     'event.ref.matches("^refs/heads/")',
     'event.ref.startsWith("refs/")',
     'event.ref.endsWith("/main")',

@@ -7,6 +7,7 @@ const booleanReturningCalls = new Set([
   'endsWith',
   'exists',
   'exists_one',
+  'has',
   'matches',
   'startsWith',
 ]);

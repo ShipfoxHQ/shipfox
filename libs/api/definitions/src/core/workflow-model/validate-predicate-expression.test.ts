@@ -34,6 +34,7 @@ describe('validatePredicateExpression', () => {
   it.each([
     ['event.ref == "refs/heads/main"', 'syntax'],
     ['trigger.event == "push"', 'typed'],
+    ['has(event.ref)', 'syntax'],
   ] as const)('accepts trigger filters at ingest: %s', (source, check) => {
     const result = validate({field: 'trigger.filter', source, site: 'ingest'});
 
@@ -99,6 +100,7 @@ describe('validatePredicateExpression', () => {
     ['listener.until', 'execution.status == "waiting"', undefined],
     ['listener.on', 'matrix.os == "linux"', undefined],
     ['listener.until', 'jobs.build.outputs.pr_number == event.issue.number', new Set(['build'])],
+    ['listener.until', 'has(jobs.build.outputs.pr_number)', new Set(['build'])],
   ] as const)('accepts listener filters at job activation: %s %s', (field, source, allowedJobs) => {
     const result = validate({
       field,
