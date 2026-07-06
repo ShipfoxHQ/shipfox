@@ -69,13 +69,25 @@ describe('agent config', () => {
     );
   });
 
-  it('defaults pi optional tool packages to disabled and web search to enabled', async () => {
+  it('defaults pi web access to enabled', async () => {
     vi.resetModules();
 
     const module = await import('./config.js');
 
-    expect(module.config.AGENT_PI_ENABLED_TOOL_PACKAGES).toBe('');
+    expect(module.config.AGENT_PI_ENABLED_TOOL_PACKAGES).toBe('pi-web-access');
     expect(module.config.AGENT_PI_WEB_SEARCH_ENABLED).toBe(true);
+    expect(module.harnessToolDeploymentConfig).toEqual({
+      pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: true},
+      claude: {enabledToolPackages: []},
+    });
+  });
+
+  it('allows deployments to disable pi optional tool packages', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_PI_ENABLED_TOOL_PACKAGES', '');
+
+    const module = await import('./config.js');
+
     expect(module.harnessToolDeploymentConfig).toEqual({
       pi: {enabledToolPackages: [], webSearchEnabled: true},
       claude: {enabledToolPackages: []},

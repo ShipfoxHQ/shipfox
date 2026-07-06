@@ -44,8 +44,8 @@ export const config = createConfig({
     default: '',
   }),
   AGENT_PI_ENABLED_TOOL_PACKAGES: str({
-    desc: 'Comma-separated optional Pi tool packages enabled for this deployment. Leave it empty to enable only Pi built-in tools. Accepted values: pi-web-access.',
-    default: '',
+    desc: 'Comma-separated optional Pi tool packages enabled for this deployment. Defaults to pi-web-access so Pi web access is available. Set it to an empty value to enable only Pi built-in tools. Accepted values: pi-web-access.',
+    default: 'pi-web-access',
   }),
   AGENT_PI_WEB_SEARCH_ENABLED: bool({
     desc: 'Enables Pi web search tools when pi-web-access is enabled. Set it to false to disable web_search and get_search_content while keeping fetch_content available.',
