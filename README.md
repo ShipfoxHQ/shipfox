@@ -39,9 +39,9 @@ jobs:
           Reproduce it in this repository, find the root cause, and fix it.
       - run: npm test               # verify the fix
         gate:
-          success_if: exit_code == 0
           on_failure:
             restart_from: fix        # send the agent back until the tests pass
+            feedback: Unit tests are failing
 ```
 
 If you've written GitHub Actions, you already know how to read this file, and
@@ -80,7 +80,7 @@ then a `gate` reruns the tests and sends the agent back until they pass.
 | **Integration** | A connection to an external tool (GitHub, Sentry, Slack, Linear, ...) whose events start runs. Use the [generic webhook](docs/integrations/webhooks.mdx) to connect anything not built in. |
 | **Job** | A group of steps on one runner. Jobs form a DAG via `needs` and are isolated, so each re-clones the repo. |
 | **Step** | A `run` shell command or an agent (`model` + `prompt`, on the `pi` or `claude` harness). Runs in order within a job. |
-| **Gate** | A [`success_if` expression](docs/reference/expressions.mdx) on a step, such as `exit_code == 0`, plus `on_failure.restart_from` to build bounded retry loops. |
+| **Gate** | A check on a step ([`success`](docs/reference/expressions.mdx), default `exit_code == 0`) plus an `on_failure` action (`restart_from` an earlier step, with optional `feedback` to the agent) to build bounded retry loops. |
 | **Listening job** | A [job that waits on events](docs/concepts/listening-jobs.mdx) and runs again per batch inside the same run, until a resolution condition. Drives event-driven, asynchronous workflows. |
 | **Runner** | A process you register on your own compute; matched to jobs by label. |
 
