@@ -97,6 +97,10 @@ export class FakeOpenAiScriptRegistry {
     return [...this.#scriptState(scriptId).requests];
   }
 
+  script(scriptId: string): FakeOpenAiScript {
+    return this.#scriptState(scriptId).script;
+  }
+
   advance(
     scriptId: string,
     request: {body: unknown; method: string; path: string},

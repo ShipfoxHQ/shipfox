@@ -1,16 +1,33 @@
-import {type AgentHelper, ollamaConfig} from '@shipfox/e2e-setup-agent';
+import {
+  type FakeOpenAiProviderHandle,
+  type FakeOpenAiScriptHandle,
+  message,
+  startFakeOpenAiProvider,
+} from '@shipfox/e2e-driver-agent-provider';
+import type {AgentHelper} from '@shipfox/e2e-setup-agent';
 import {expect, test} from './test.js';
 
-const OLLAMA = ollamaConfig();
-const OLLAMA_MODEL_ID = OLLAMA.model;
-const CREATE_PROVIDER_ID = 'local-ollama-create';
-const CREATE_PROVIDER_NAME = 'Local Ollama Create';
-const EDIT_PROVIDER_ID = 'local-ollama-edit';
-const EDIT_PROVIDER_NAME = 'Local Ollama Edit';
-const EDITED_PROVIDER_NAME = 'Local Ollama Edited';
-const DELETE_PROVIDER_ID = 'local-ollama-delete';
-const DELETE_PROVIDER_NAME = 'Local Ollama Delete';
+const FAKE_MODEL_ID = 'deterministic-settings-agent';
+const CREATE_PROVIDER_ID = 'fake-openai-create';
+const CREATE_PROVIDER_NAME = 'Fake OpenAI Create';
+const EDIT_PROVIDER_ID = 'fake-openai-edit';
+const EDIT_PROVIDER_NAME = 'Fake OpenAI Edit';
+const EDITED_PROVIDER_NAME = 'Fake OpenAI Edited';
+const DELETE_PROVIDER_ID = 'fake-openai-delete';
+const DELETE_PROVIDER_NAME = 'Fake OpenAI Delete';
 const PROVIDER_SAVE_TIMEOUT_MS = 75_000;
+
+let fakeProvider: FakeOpenAiProviderHandle | undefined;
+
+test.beforeAll(async () => {
+  fakeProvider = await startFakeOpenAiProvider({
+    runId: `client-agent-custom-model-provider-settings-${process.pid}-${crypto.randomUUID()}`,
+  });
+});
+
+test.afterAll(async () => {
+  await fakeProvider?.stop();
+});
 
 async function expectProviderInApi(params: {
   agent: AgentHelper;
@@ -33,7 +50,7 @@ async function expectProviderInApi(params: {
   );
 }
 
-test('creates a custom model provider backed by local Ollama', async ({
+test('creates a custom model provider backed by a fake OpenAI-compatible provider', async ({
   page,
   agent,
   customModelProviders,
@@ -42,6 +59,7 @@ test('creates a custom model provider backed by local Ollama', async ({
   const {workspaceId, sessionToken} = await createReadyWorkspace({
     name: 'Agent Provider Create Workspace',
   });
+  const script = await createFakeProviderScript('create', 1);
 
   await customModelProviders.goto(workspaceId);
   const dialog = await customModelProviders.openCreateDialog();
@@ -49,7 +67,7 @@ test('creates a custom model provider backed by local Ollama', async ({
   await customModelProviders.fillProviderIdentity(dialog, {
     displayName: CREATE_PROVIDER_NAME,
     providerId: CREATE_PROVIDER_ID,
-    baseUrl: OLLAMA.openAiBaseUrl,
+    baseUrl: script.providerBaseUrl,
   });
   const discoveryResponse = page.waitForResponse(
     (response) =>
@@ -60,14 +78,14 @@ test('creates a custom model provider backed by local Ollama', async ({
   expect((await discoveryResponse).ok()).toBe(true);
 
   const defaultModelField = customModelProviders.defaultModelField(dialog);
-  const discoveredModelOption = customModelProviders.discoveredModelOption(dialog, OLLAMA_MODEL_ID);
+  const discoveredModelOption = customModelProviders.discoveredModelOption(dialog, FAKE_MODEL_ID);
   if ((await discoveredModelOption.count()) === 0) {
-    await customModelProviders.firstModelIdField(dialog).fill(OLLAMA_MODEL_ID);
-    await customModelProviders.firstModelLabelField(dialog).fill(OLLAMA_MODEL_ID);
+    await customModelProviders.firstModelIdField(dialog).fill(FAKE_MODEL_ID);
+    await customModelProviders.firstModelLabelField(dialog).fill(FAKE_MODEL_ID);
   }
-  await expect(defaultModelField).toContainText(OLLAMA_MODEL_ID);
+  await expect(defaultModelField).toContainText(FAKE_MODEL_ID);
 
-  await defaultModelField.selectOption(OLLAMA_MODEL_ID);
+  await defaultModelField.selectOption(FAKE_MODEL_ID);
   const saveResponse = page.waitForResponse(
     (response) =>
       response.url().includes('/agent/custom-model-providers') &&
@@ -89,7 +107,7 @@ test('creates a custom model provider backed by local Ollama', async ({
   });
 });
 
-test('edits an existing custom model provider and validates with local Ollama', async ({
+test('edits an existing custom model provider and validates the provider endpoint', async ({
   page,
   agent,
   customModelProviders,
@@ -98,7 +116,10 @@ test('edits an existing custom model provider and validates with local Ollama', 
   const {workspaceId, sessionToken} = await createReadyWorkspace({
     name: 'Agent Provider Edit Workspace',
   });
-  await agent.createOllamaCustomProvider({
+  const script = await createFakeProviderScript('edit', 2);
+  await agent.createOpenAiCompatibleCustomProvider({
+    baseUrl: script.providerBaseUrl,
+    model: FAKE_MODEL_ID,
     workspaceId,
     sessionToken,
     providerId: EDIT_PROVIDER_ID,
@@ -141,7 +162,10 @@ test('deletes an existing custom model provider', async ({
   const {workspaceId, sessionToken} = await createReadyWorkspace({
     name: 'Agent Provider Delete Workspace',
   });
-  await agent.createOllamaCustomProvider({
+  const script = await createFakeProviderScript('delete', 1);
+  await agent.createOpenAiCompatibleCustomProvider({
+    baseUrl: script.providerBaseUrl,
+    model: FAKE_MODEL_ID,
     workspaceId,
     sessionToken,
     providerId: DELETE_PROVIDER_ID,
@@ -159,3 +183,16 @@ test('deletes an existing custom model provider', async ({
   const configs = await agent.listModelProviderConfigs({workspaceId, sessionToken});
   expect(configs.configs.map((config) => config.provider_id)).not.toContain(DELETE_PROVIDER_ID);
 });
+
+async function createFakeProviderScript(
+  suffix: string,
+  validationResponses: number,
+): Promise<FakeOpenAiScriptHandle> {
+  if (!fakeProvider) throw new Error('Fake OpenAI provider did not start.');
+
+  return await fakeProvider.createScript({
+    id: `${suffix}-${crypto.randomUUID()}`,
+    model: FAKE_MODEL_ID,
+    responses: Array.from({length: validationResponses}, () => message('OK')),
+  });
+}

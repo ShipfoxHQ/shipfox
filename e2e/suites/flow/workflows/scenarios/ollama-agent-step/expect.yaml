@@ -1,0 +1,11 @@
+trigger: push
+timeout_seconds: 180
+run:
+  status: succeeded
+jobs:
+  fix:
+    status: succeeded
+    steps:
+      ask-ollama:
+        status: succeeded
+        exit_code: 0

@@ -168,6 +168,23 @@ describe('agent e2e helper', () => {
     expect(helper.createOpenAiCompatibleCustomProvider).toBe(createOpenAiCompatibleCustomProvider);
   });
 
+  it('deletes a model provider config through the product route', async () => {
+    requestJson.mockResolvedValueOnce(undefined);
+    const {deleteModelProviderConfig} = await import('./index.js');
+
+    await deleteModelProviderConfig({
+      workspaceId,
+      sessionToken,
+      providerId: 'local-ollama-e2e',
+    });
+
+    expect(createApiClient).toHaveBeenCalledWith({token: sessionToken});
+    expect(requestJson).toHaveBeenCalledWith(
+      'delete',
+      `/workspaces/${workspaceId}/agent/model-providers/local-ollama-e2e`,
+    );
+  });
+
   it('lists model provider configs through the product route', async () => {
     requestJson.mockResolvedValueOnce({configs: [], default_provider_id: null});
     const {listModelProviderConfigs} = await import('./index.js');

@@ -138,6 +138,25 @@ describe('fake OpenAI provider server', () => {
     });
   });
 
+  it('lists the registered model through the OpenAI-compatible models endpoint', async () => {
+    await postScript(server, fakeScript({id: 'models', model: 'deterministic-settings-agent'}));
+
+    const result = await fetch(`${server.baseUrl}/scripts/models/v1/models`);
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual({
+      object: 'list',
+      data: [
+        {
+          id: 'deterministic-settings-agent',
+          object: 'model',
+          created: 1783344000,
+          owned_by: 'shipfox-e2e',
+        },
+      ],
+    });
+  });
+
   it('returns a deterministic 409 when a script is exhausted', async () => {
     await postScript(
       server,

@@ -59,6 +59,12 @@ export interface CreateAnthropicModelProviderConfigParams {
   setAsDefault?: boolean | undefined;
 }
 
+export interface DeleteModelProviderConfigParams {
+  workspaceId: string;
+  sessionToken: string;
+  providerId: ModelProviderRef;
+}
+
 export function ollamaConfig(env: NodeJS.ProcessEnv = process.env): OllamaConfig {
   const baseUrl = normalizeBaseUrl(
     env.OLLAMA_BASE_URL || env.SHIPFOX_OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL,
@@ -161,11 +167,23 @@ export async function createAnthropicModelProviderConfig(
   });
 }
 
+export async function deleteModelProviderConfig(
+  params: DeleteModelProviderConfigParams,
+): Promise<void> {
+  const client = createApiClient({token: params.sessionToken});
+
+  await client.requestJson(
+    'delete',
+    `/workspaces/${params.workspaceId}/agent/model-providers/${params.providerId}`,
+  );
+}
+
 export function createAgentHelper() {
   return {
     createAnthropicModelProviderConfig,
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,
+    deleteModelProviderConfig,
     listModelProviderConfigs,
     requireOllamaModel,
   };

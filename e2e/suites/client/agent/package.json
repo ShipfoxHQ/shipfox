@@ -25,6 +25,7 @@
     "@shipfox/client-workspace-settings": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-driver-agent-provider": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
     "@shipfox/e2e-screens-agent": "workspace:*",
     "@shipfox/e2e-setup-agent": "workspace:*",
