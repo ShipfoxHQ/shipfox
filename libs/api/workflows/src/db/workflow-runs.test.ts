@@ -547,7 +547,7 @@ describe('workflow run queries', () => {
           {
             expression: 'event.ref',
             roots: ['event'],
-            fillTarget: 'run-creation',
+            fillTarget: 'ingest',
             evaluatedAt: 'execution-creation',
             value: 'refs/heads/main',
             field: 'job.name',

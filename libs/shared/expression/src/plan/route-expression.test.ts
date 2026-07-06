@@ -9,6 +9,8 @@ import {routeExpression} from './route-expression.js';
 describe('routeExpression', () => {
   it.each([
     ['1 + 1', [], [], 'ingest'],
+    ['trigger.event', ['trigger'], [], 'ingest'],
+    ['event.ref', ['event'], [], 'ingest'],
     ['run.id', ['run'], [], 'run-creation'],
     ['run.id + execution.name', ['execution', 'run'], [], 'execution-creation'],
     ['jobs.build.outputs.sha', ['jobs'], [], 'job-activation'],

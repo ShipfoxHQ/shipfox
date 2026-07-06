@@ -260,7 +260,7 @@ export const workflowContextDefinitions = {
     typeEnvironment: runTypeEnvironment,
   },
   trigger: {
-    availability: 'run-creation',
+    availability: 'ingest',
     trustTier: 'trusted',
     sensitivity: 'persistable',
     host: 'server',
@@ -269,7 +269,7 @@ export const workflowContextDefinitions = {
     typeEnvironment: triggerTypeEnvironment,
   },
   event: {
-    availability: 'run-creation',
+    availability: 'ingest',
     trustTier: 'untrusted',
     sensitivity: 'persistable',
     host: 'server',
@@ -462,7 +462,13 @@ export const workflowInterpolationFields = Object.keys(
   workflowInterpolationFieldPolicies,
 ) as readonly WorkflowInterpolationField[];
 
-export const workflowPredicateFields = ['step.success', 'job.success'] as const;
+export const workflowPredicateFields = [
+  'step.success',
+  'job.success',
+  'trigger.filter',
+  'listener.on',
+  'listener.until',
+] as const;
 export type WorkflowPredicateField = (typeof workflowPredicateFields)[number];
 
 export const workflowPredicateFieldFailurePolicy =
