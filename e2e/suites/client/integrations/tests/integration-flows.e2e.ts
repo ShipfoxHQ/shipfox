@@ -40,7 +40,7 @@ test('connecting Gitea from source-control setup opens model-provider setup', as
   await expect(page).not.toHaveURL(GITEA_INSTALL_URL_RE);
   await expect(page).not.toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
   await expect(page).toHaveURL(modelProviderUrlRe(workspace.id));
-  await expect(sourceControlSetup.modelProviderHeading()).toBeVisible();
+  await expect(sourceControlSetup.agentHarnessHeading()).toBeVisible();
   await expect(sourceControlSetup.projectTab()).toHaveCount(0);
   await expect(sourceControlSetup.settingsTab()).toHaveCount(0);
   await expect(sourceControlSetup.projectSwitcher()).toHaveCount(0);

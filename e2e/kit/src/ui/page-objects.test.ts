@@ -106,7 +106,7 @@ describe('ui page objects', () => {
     const setup = new SetupShell(pageObject as never);
 
     setup.sourceControlHeading();
-    setup.modelProviderHeading();
+    setup.agentHarnessHeading();
     setup.projectTab();
     setup.settingsTab();
     setup.projectSwitcher();

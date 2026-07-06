@@ -108,7 +108,7 @@ export class SetupShell {
     return this.page.getByRole('heading', {name: 'Install source control'});
   }
 
-  modelProviderHeading(): AppLocator {
+  agentHarnessHeading(): AppLocator {
     return this.page.getByRole('heading', {name: 'Choose agent harness'});
   }
 

@@ -48,6 +48,7 @@ describe('harness registry', () => {
     expect(getHarnessDescriptor('pi')).toEqual({
       id: 'pi',
       label: 'pi',
+      description: 'Works with 30+ model providers',
       supportedProviderIds: expect.arrayContaining(['anthropic', 'openai']),
       thinkingLevels: piAgentThinkingSchema.options,
       defaultThinking: 'xhigh',
@@ -56,6 +57,7 @@ describe('harness registry', () => {
     expect(getHarnessDescriptor('claude')).toEqual({
       id: 'claude',
       label: 'Claude',
+      description: 'Runs on your Anthropic API key',
       supportedProviderIds: ['anthropic'],
       thinkingLevels: claudeAgentThinkingSchema.options,
       defaultThinking: 'xhigh',

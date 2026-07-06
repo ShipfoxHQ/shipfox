@@ -232,9 +232,7 @@ function HarnessCard({harness, onChoose}: {harness: HarnessDescriptor; onChoose:
               {harness.label}
             </Text>
             <Text size="sm" className="text-foreground-neutral-muted">
-              {harness.id === 'claude'
-                ? 'Runs on your Anthropic API key'
-                : 'Works with 30+ model providers'}
+              {harness.description}
             </Text>
           </div>
           <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">

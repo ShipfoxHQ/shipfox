@@ -114,7 +114,9 @@ describe('ModelProviderOnboardingPage', () => {
 
     expect(screen.getByRole('heading', {name: 'Choose agent harness'})).toBeVisible();
     expect(screen.getByRole('button', {name: 'Choose pi'})).toBeVisible();
+    expect(screen.getByText('Works with 30+ model providers')).toBeVisible();
     expect(screen.getByRole('button', {name: 'Choose Claude'})).toBeVisible();
+    expect(screen.getByText('Runs on your Anthropic API key')).toBeVisible();
 
     await user.click(screen.getByRole('button', {name: 'Choose Claude'}));
 

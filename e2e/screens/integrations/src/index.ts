@@ -59,7 +59,7 @@ export class SourceControlSetupScreen {
     return this.page.getByRole('heading', {name: 'Install source control'});
   }
 
-  modelProviderHeading(): Locator {
+  agentHarnessHeading(): Locator {
     return this.page.getByRole('heading', {name: 'Choose agent harness'});
   }
 

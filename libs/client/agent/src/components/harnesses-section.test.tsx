@@ -30,6 +30,14 @@ function renderHarnesses(element: ReactElement) {
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return {promise, resolve};
+}
+
 async function openHarnessActions(user: ReturnType<typeof userEvent.setup>, label: string) {
   await user.click(screen.getByRole('button', {name: `Open ${label} harness actions`}));
 }
@@ -85,11 +93,12 @@ describe('WorkspaceHarnessesSection', () => {
   test('sets the default harness and shows a success toast', async () => {
     const user = userEvent.setup();
     let requestBody: unknown;
+    const updateResponse = deferred<Response>();
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
       if (request.method === 'PUT') {
         requestBody = await request.clone().json();
-        return jsonResponse({default_harness_id: 'claude'});
+        return await updateResponse.promise;
       }
       return jsonResponse(modelProviderConfigsResponse());
     });
@@ -102,6 +111,8 @@ describe('WorkspaceHarnessesSection', () => {
     await user.click(screen.getByRole('menuitem', {name: 'Set as default'}));
 
     await waitFor(() => expect(requestBody).toEqual({harness_id: 'claude'}));
+    expect(screen.getByRole('button', {name: 'Open Claude harness actions'})).toBeDisabled();
+    updateResponse.resolve(jsonResponse({default_harness_id: 'claude'}));
     expect(await screen.findByText('Claude is now the default harness')).toBeVisible();
   });
 

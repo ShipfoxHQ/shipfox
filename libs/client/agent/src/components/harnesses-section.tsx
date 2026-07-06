@@ -1,5 +1,6 @@
 import {
   DEFAULT_HARNESS,
+  type Harness,
   type HarnessDescriptor,
   listHarnessDescriptors,
 } from '@shipfox/api-agent-dto';
@@ -18,7 +19,7 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import {
   useModelProviderConfigsQuery,
   useSetDefaultHarnessMutation,
@@ -31,8 +32,38 @@ const SURFACE_CLASS =
 
 export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) {
   const configsQuery = useModelProviderConfigsQuery(workspaceId);
+  const setDefaultHarness = useSetDefaultHarnessMutation();
+  const defaultRequestInFlightRef = useRef(false);
+  const [pendingDefaultHarnessId, setPendingDefaultHarnessId] = useState<Harness | null>(null);
+  const [defaultError, setDefaultError] = useState<
+    {harnessId: Harness; message: string} | undefined
+  >();
   const configs = configsQuery.data?.configs ?? [];
   const defaultHarnessId = configsQuery.data?.default_harness_id ?? DEFAULT_HARNESS;
+
+  async function handleSetDefault(harness: HarnessDescriptor) {
+    if (defaultRequestInFlightRef.current) return;
+
+    defaultRequestInFlightRef.current = true;
+    setPendingDefaultHarnessId(harness.id);
+    setDefaultError(undefined);
+    try {
+      await setDefaultHarness.mutateAsync({
+        workspaceId,
+        body: {harness_id: harness.id},
+      });
+      toast.success(`${harness.label} is now the default harness`);
+    } catch (error) {
+      const mapped = modelProviderConfigErrorToFormError(error);
+      setDefaultError({
+        harnessId: harness.id,
+        message: mapped.message || 'Could not save default harness. Try again.',
+      });
+    } finally {
+      defaultRequestInFlightRef.current = false;
+      setPendingDefaultHarnessId(null);
+    }
+  }
 
   return (
     <section className="flex flex-col gap-16" aria-label="Harnesses">
@@ -56,10 +87,14 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
           {listHarnessDescriptors().map((harness) => (
             <HarnessRow
               key={harness.id}
-              workspaceId={workspaceId}
               harness={harness}
               isDefault={harness.id === defaultHarnessId}
               isAvailable={isHarnessAvailable(harness, configs)}
+              isSettingDefault={pendingDefaultHarnessId !== null}
+              defaultError={
+                defaultError?.harnessId === harness.id ? defaultError.message : undefined
+              }
+              onSetDefault={handleSetDefault}
             />
           ))}
         </ul>
@@ -69,33 +104,21 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
 }
 
 function HarnessRow({
-  workspaceId,
   harness,
   isDefault,
   isAvailable,
+  isSettingDefault,
+  defaultError,
+  onSetDefault,
 }: {
-  workspaceId: string;
   harness: HarnessDescriptor;
   isDefault: boolean;
   isAvailable: boolean;
+  isSettingDefault: boolean;
+  defaultError: string | undefined;
+  onSetDefault: (harness: HarnessDescriptor) => void;
 }) {
-  const setDefaultHarness = useSetDefaultHarnessMutation();
-  const [defaultError, setDefaultError] = useState<string | undefined>();
   const unavailableCopy = harnessUnavailableCopy(isDefault);
-
-  async function handleSetDefault() {
-    setDefaultError(undefined);
-    try {
-      await setDefaultHarness.mutateAsync({
-        workspaceId,
-        body: {harness_id: harness.id},
-      });
-      toast.success(`${harness.label} is now the default harness`);
-    } catch (error) {
-      const mapped = modelProviderConfigErrorToFormError(error);
-      setDefaultError(mapped.message || 'Could not save default harness. Try again.');
-    }
-  }
 
   return (
     <li className="flex flex-col gap-10 px-16 py-12 transition-colors hover:bg-background-components-hover">
@@ -146,15 +169,16 @@ function HarnessRow({
                 size="sm"
                 variant="transparent"
                 icon="more2Line"
+                disabled={isSettingDefault}
                 aria-label={`Open ${harness.label} harness actions`}
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 icon="starLine"
-                disabled={setDefaultHarness.isPending || !isAvailable}
+                disabled={isSettingDefault || !isAvailable}
                 onSelect={() => {
-                  void handleSetDefault();
+                  onSetDefault(harness);
                 }}
               >
                 Set as default

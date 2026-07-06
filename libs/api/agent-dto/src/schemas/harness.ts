@@ -4,6 +4,7 @@ import {type ModelProviderRef, SUPPORTED_MODEL_PROVIDER_IDS} from './model-provi
 export interface HarnessDescriptor {
   readonly id: Harness;
   readonly label: string;
+  readonly description: string;
   readonly supportedProviderIds: readonly string[];
   readonly thinkingLevels: readonly AgentThinking[];
   readonly defaultThinking: AgentThinking;
@@ -13,6 +14,7 @@ export interface HarnessDescriptor {
 export const PI_HARNESS: HarnessDescriptor = {
   id: 'pi',
   label: 'pi',
+  description: 'Works with 30+ model providers',
   supportedProviderIds: SUPPORTED_MODEL_PROVIDER_IDS,
   thinkingLevels: agentThinkingByHarness.pi.options,
   defaultThinking: 'xhigh',
@@ -22,6 +24,7 @@ export const PI_HARNESS: HarnessDescriptor = {
 export const CLAUDE_HARNESS: HarnessDescriptor = {
   id: 'claude',
   label: 'Claude',
+  description: 'Runs on your Anthropic API key',
   supportedProviderIds: ['anthropic'],
   thinkingLevels: agentThinkingByHarness.claude.options,
   defaultThinking: 'xhigh',
