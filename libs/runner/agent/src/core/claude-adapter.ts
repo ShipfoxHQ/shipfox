@@ -115,7 +115,6 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         response = (await readClaudeResult({queryIterator, onSessionEntry})).response;
       },
     });
-    messages.close();
     const outputs = collector.snapshot();
     return {
       ...(response === undefined ? {} : {response}),

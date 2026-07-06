@@ -2,7 +2,7 @@ import {
   MAX_OUTPUT_TOTAL_BYTES,
   MAX_OUTPUT_VALUE_BYTES,
 } from '@shipfox/runner-execution/step-output';
-import {OutputCollector} from '#core/output-collector.js';
+import {MAX_OUTPUT_REPROMPTS, OutputCollector, runOutputTurnLoop} from '#core/output-collector.js';
 
 describe('OutputCollector', () => {
   it('accepts declared scalar outputs as string values', () => {
@@ -119,5 +119,44 @@ describe('OutputCollector', () => {
     expect(collector.missingRequired()).toEqual(['meta']);
     expect(collector.guidanceText()).toContain('For json outputs, pass value as JSON text.');
     expect(collector.guidanceText()).toContain('- meta: json as JSON text');
+  });
+});
+
+describe('runOutputTurnLoop', () => {
+  it('fails after exhausting required-output reprompts', async () => {
+    const runTurn = vi.fn<Parameters<typeof runOutputTurnLoop>[0]['runTurn']>();
+    const controller = new AbortController();
+
+    const result = runOutputTurnLoop({
+      signal: controller.signal,
+      prompt: 'Set the answer output.',
+      runTurn,
+      missingRequired: () => ['answer'],
+    });
+
+    await expect(result).rejects.toThrow('Agent step finished without required outputs: answer');
+    expect(runTurn).toHaveBeenCalledTimes(MAX_OUTPUT_REPROMPTS + 1);
+    expect(runTurn).toHaveBeenLastCalledWith(
+      'The previous turn ended without setting required workflow outputs: answer. ' +
+        'Call set_output for each missing key, then provide your final response.',
+    );
+  });
+
+  it('stops before the next turn when aborted mid-loop', async () => {
+    const controller = new AbortController();
+    const runTurn = vi.fn<Parameters<typeof runOutputTurnLoop>[0]['runTurn']>();
+
+    const result = runOutputTurnLoop({
+      signal: controller.signal,
+      prompt: 'Set the answer output.',
+      runTurn,
+      missingRequired: () => {
+        controller.abort();
+        return ['answer'];
+      },
+    });
+
+    await expect(result).rejects.toThrow('Agent step aborted');
+    expect(runTurn).toHaveBeenCalledOnce();
   });
 });
