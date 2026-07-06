@@ -22,54 +22,23 @@ to finish, on compute you own. A software factory that assembles itself in your
 repo.
 
 ```yaml
-name: Fix Sentry issues & answer PR reviews
+name: Test and review
 runner: ubuntu-latest
-
-triggers:
-  on_issue:
-    source: sentry_acme         # a new Sentry issue starts the run
-    event: issue.created
-
 jobs:
-  fix:                            # opens the PR
+  ci:
     steps:
-      - model: claude-opus-4-8
-        prompt: >
-          Sentry reported "${{ event.title }}" (${{ event.webUrl }}).
-          Find the cause, fix it, and push a fix branch.
-      - key: create-pr             # stdout is just the PR URL
-        run: basename "$(gh pr create --fill)"   # → the PR number
-
-  review:
-    needs: fix
-    name: Review batch ${{ execution.index }}
-    listening:                     # event-driven job
-      on:
-        - source: github_acme
-          event: issue_comment.created
-          filter: event.issue.number == fix.output.pr_number
-      until:                       # resolves the listener
-        - source: github_acme
-          event: pull_request       # fires on merge / close
-      timeout: 30d
-      max_executions: 10
-      batch:
-        debounce: 5s              # collapse rapid comments
-        max_size: 10
-        max_wait: 1h
-    steps:
-      - model: claude-opus-4-8
-        prompt: |
-          Address every comment in this review batch:
-          ${{ execution.events.map(e, e.data.body) }}  # an array of issue comments
-          Push fixes and reply on the thread.
+      - run: npm test              # a shell step
+      - model: claude-opus-4-8     # an agent step, same job
+        prompt: Review the latest diff and flag any regressions.
 ```
 
 If you've written GitHub Actions, you already know how to read this file, and
-that's deliberate. What's different is what a step can do and the control flow
-around it: a Sentry issue starts the run, an agent finds the cause and opens a PR,
-then a **listening job** wakes on each batch of review comments and runs an agent
-to answer them, until the PR merges.
+that's deliberate. What's different is what a step can be: `run` executes a shell
+command, and an agent step hands the same job to a model that reads your code and
+acts. Events can go further and drive a workflow while it is still running, so a
+job can react to what arrives instead of running once. See
+[listening jobs](docs/concepts/listening-jobs.mdx) for event-driven, asynchronous
+workflows.
 
 ## Highlights
 
