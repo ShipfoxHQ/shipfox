@@ -35,6 +35,9 @@ export interface HarnessDescriptor {
   readonly tools: readonly HarnessToolDescriptor[];
 }
 
+export const DEFAULT_PI_ENABLED_TOOL_PACKAGES = 'pi-web-access';
+export const DEFAULT_PI_WEB_SEARCH_ENABLED = true;
+
 export const PI_HARNESS: HarnessDescriptor = {
   id: 'pi',
   label: 'pi',
@@ -123,6 +126,46 @@ export function harnessSupportsTool(
   if (tool === undefined) return false;
 
   return isHarnessToolEnabled(id, tool, deploymentConfig);
+}
+
+export function buildHarnessToolDeploymentConfig(params: {
+  readonly piEnabledToolPackages?: string | undefined;
+  readonly piWebSearchEnabled?: boolean | undefined;
+}): HarnessToolDeploymentConfig {
+  return {
+    pi: {
+      enabledToolPackages: parsePiEnabledToolPackages(
+        params.piEnabledToolPackages ?? DEFAULT_PI_ENABLED_TOOL_PACKAGES,
+      ),
+      webSearchEnabled: params.piWebSearchEnabled ?? DEFAULT_PI_WEB_SEARCH_ENABLED,
+    },
+    claude: {
+      enabledToolPackages: [],
+    },
+  };
+}
+
+export const DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG = buildHarnessToolDeploymentConfig({});
+
+export function parsePiEnabledToolPackages(value: string): HarnessToolPackageName[] {
+  const packageNames = value
+    .split(',')
+    .map((packageName) => packageName.trim())
+    .filter((packageName) => packageName.length > 0);
+
+  const validPackageNames = new Set<string>(PI_HARNESS_TOOL_PACKAGE_NAMES);
+  const invalidPackageNames = packageNames.filter(
+    (packageName) => !validPackageNames.has(packageName),
+  );
+  if (invalidPackageNames.length > 0) {
+    throw new Error(
+      `AGENT_PI_ENABLED_TOOL_PACKAGES contains unsupported package(s): ${invalidPackageNames.join(
+        ', ',
+      )}. Accepted values: ${PI_HARNESS_TOOL_PACKAGE_NAMES.join(', ')}.`,
+    );
+  }
+
+  return [...new Set(packageNames)] as HarnessToolPackageName[];
 }
 
 function isHarnessToolEnabled(

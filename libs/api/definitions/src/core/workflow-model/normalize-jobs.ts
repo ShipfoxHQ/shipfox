@@ -55,7 +55,7 @@ export function normalizeJobs(
   issues: WorkflowModelValidationIssue[],
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
   defaultRunnerLabels: readonly string[],
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig = {},
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig,
 ): readonly WorkflowModelJob[] {
   const entries = Object.entries(document.jobs);
   const pending = new Set(entries.map(([sourceName]) => sourceName));

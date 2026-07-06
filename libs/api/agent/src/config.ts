@@ -1,16 +1,13 @@
 import {
   agentThinkingSchema,
+  buildHarnessToolDeploymentConfig,
   getModelProviderEntry,
-  type HarnessToolDeploymentConfig,
-  type HarnessToolPackageName,
-  PI_HARNESS_TOOL_PACKAGE_NAMES,
   SUPPORTED_MODEL_PROVIDER_IDS,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {bool, createConfig, num, str} from '@shipfox/config';
 
 const AGENT_THINKING_CHOICES = agentThinkingSchema.options;
-const piHarnessToolPackageNames = new Set<string>(PI_HARNESS_TOOL_PACKAGE_NAMES);
 
 export const config = createConfig({
   AGENT_DEFAULT_PROVIDER: str({
@@ -55,35 +52,10 @@ export const config = createConfig({
 
 assertInstanceDefaultModelProviderApiKeyConfig();
 
-export const harnessToolDeploymentConfig: HarnessToolDeploymentConfig = {
-  pi: {
-    enabledToolPackages: parsePiEnabledToolPackages(config.AGENT_PI_ENABLED_TOOL_PACKAGES),
-    webSearchEnabled: config.AGENT_PI_WEB_SEARCH_ENABLED,
-  },
-  claude: {
-    enabledToolPackages: [],
-  },
-};
-
-export function parsePiEnabledToolPackages(value: string): HarnessToolPackageName[] {
-  const packageNames = value
-    .split(',')
-    .map((packageName) => packageName.trim())
-    .filter((packageName) => packageName.length > 0);
-
-  const invalidPackageNames = packageNames.filter(
-    (packageName) => !piHarnessToolPackageNames.has(packageName),
-  );
-  if (invalidPackageNames.length > 0) {
-    throw new Error(
-      `AGENT_PI_ENABLED_TOOL_PACKAGES contains unsupported package(s): ${invalidPackageNames.join(
-        ', ',
-      )}. Accepted values: ${PI_HARNESS_TOOL_PACKAGE_NAMES.join(', ')}.`,
-    );
-  }
-
-  return [...new Set(packageNames)] as HarnessToolPackageName[];
-}
+export const harnessToolDeploymentConfig = buildHarnessToolDeploymentConfig({
+  piEnabledToolPackages: config.AGENT_PI_ENABLED_TOOL_PACKAGES,
+  piWebSearchEnabled: config.AGENT_PI_WEB_SEARCH_ENABLED,
+});
 
 function assertInstanceDefaultModelProviderApiKeyConfig(): void {
   if (!config.AGENT_DEFAULT_PROVIDER_API_KEY) return;
