@@ -1,6 +1,12 @@
 import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
 
 type RuntimeProgressJob = RuntimeDagNode & {status?: string | undefined};
+const RUNTIME_COMPLETION_STATUSES = new Set<string>([
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+]);
 
 export interface RuntimeRunProgress {
   completed: Map<string, RuntimeCompletionStatus>;
@@ -18,7 +24,7 @@ export function createRuntimeRunProgress(jobs: readonly RuntimeProgressJob[]): R
 
   for (const job of jobs) {
     jobVersions.set(job.id, job.version);
-    if (job.status === 'succeeded') completed.set(job.key, 'succeeded');
+    if (isRuntimeCompletionStatus(job.status)) completed.set(job.key, job.status);
   }
 
   return {completed, jobVersions};
@@ -34,7 +40,7 @@ export function recordSkippedRuntimeJob(
   newVersion: number,
 ): void {
   progress.jobVersions.set(job.id, newVersion);
-  progress.completed.set(job.key, 'failed');
+  progress.completed.set(job.key, 'skipped');
 }
 
 export function recordRuntimeJobResult(
@@ -55,4 +61,8 @@ export function nonCompletedRuntimeJobIds(
 
 export function shouldContinueStartedRun(status: string | undefined): boolean {
   return status === undefined || status === 'pending' || status === 'running';
+}
+
+function isRuntimeCompletionStatus(status: string | undefined): status is RuntimeCompletionStatus {
+  return status !== undefined && RUNTIME_COMPLETION_STATUSES.has(status);
 }

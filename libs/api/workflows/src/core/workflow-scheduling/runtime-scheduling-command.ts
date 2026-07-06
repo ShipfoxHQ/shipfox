@@ -1,4 +1,4 @@
-import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
+import type {RuntimeDagNode} from './runtime-dag.js';
 
 export type RuntimeSchedulingCommand<Node extends RuntimeDagNode = RuntimeDagNode> =
   | {
@@ -6,10 +6,15 @@ export type RuntimeSchedulingCommand<Node extends RuntimeDagNode = RuntimeDagNod
       readonly job: Node;
     }
   | {
+      readonly kind: 'evaluate-job-activation';
+      readonly jobs: readonly Node[];
+    }
+  | {
       readonly kind: 'skip-job';
       readonly job: Node;
+      readonly statusReason: 'default_gate_rejected';
     }
   | {
       readonly kind: 'complete-run';
-      readonly status: RuntimeCompletionStatus;
+      readonly status: 'succeeded' | 'failed';
     };

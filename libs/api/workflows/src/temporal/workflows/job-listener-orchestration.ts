@@ -453,7 +453,7 @@ async function runListenerExecution(params: {
 
   try {
     const result = await child;
-    await recordListenerFiringOutcomeActivity({outcome: result.status});
+    await recordListenerFiringOutcomeActivity({outcome: listenerFiringOutcome(result.status)});
   } catch (error) {
     log.warn('listener execution child failed; recording failed firing and continuing', {
       jobId: params.input.jobId,
@@ -466,6 +466,13 @@ async function runListenerExecution(params: {
     });
     await recordListenerFiringOutcomeActivity({outcome: 'failed'});
   }
+}
+
+function listenerFiringOutcome(
+  status: RuntimeCompletionStatus,
+): 'succeeded' | 'failed' | 'cancelled' {
+  if (status === 'succeeded' || status === 'failed' || status === 'cancelled') return status;
+  throw new Error(`Listener execution cannot finish with status: ${status}`);
 }
 
 async function waitForListenerWakeup(

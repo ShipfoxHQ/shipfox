@@ -24,4 +24,18 @@ describe('job DTO schema', () => {
 
     expect(result).toMatchObject(baseJob);
   });
+
+  it.each([
+    'default_gate_rejected',
+    'condition_rejected',
+    'condition_errored',
+  ] as const)('accepts job skip reason "%s"', (statusReason) => {
+    const result = jobDtoSchema.parse({
+      ...baseJob,
+      status: 'skipped',
+      status_reason: statusReason,
+    });
+
+    expect(result.status_reason).toBe(statusReason);
+  });
 });

@@ -12,19 +12,29 @@ export function scheduleRuntimeDag<Job extends RuntimeDagNode>(
 ): readonly RuntimeSchedulingCommand<Job>[] {
   const completed = new Map(input.completed);
   const commands: RuntimeSchedulingCommand<Job>[] = [];
+  const running = input.running ?? new Set();
 
-  for (const job of findBlockedJobs(input.jobs, completed)) {
-    commands.push({kind: 'skip-job', job});
-    completed.set(job.key, 'failed');
+  let skipped: readonly Job[];
+  do {
+    skipped = findDefaultSkippedJobs(input.jobs, completed, running);
+    for (const job of skipped) {
+      commands.push({kind: 'skip-job', job, statusReason: 'default_gate_rejected'});
+      completed.set(job.key, 'skipped');
+    }
+  } while (skipped.length > 0);
+
+  const activationCandidates = findActivationCandidates(input.jobs, completed, running);
+  if (activationCandidates.length > 0) {
+    commands.push({kind: 'evaluate-job-activation', jobs: activationCandidates});
   }
 
-  const ready = findReadyJobs(input.jobs, completed, input.running ?? new Set());
+  const ready = findReadyJobs(input.jobs, completed, running);
   if (ready.length > 0) {
     commands.push(...ready.map((job): RuntimeSchedulingCommand<Job> => ({kind: 'start-job', job})));
     return commands;
   }
+  if (activationCandidates.length > 0) return commands;
 
-  const running = input.running ?? new Set();
   if (input.jobs.some((job) => running.has(job.key) && !completed.has(job.key))) {
     return commands;
   }
@@ -33,9 +43,16 @@ export function scheduleRuntimeDag<Job extends RuntimeDagNode>(
 
   if (remaining.length > 0) {
     commands.push(
-      ...remaining.map((job): RuntimeSchedulingCommand<Job> => ({kind: 'skip-job', job})),
+      ...remaining.map(
+        (job): RuntimeSchedulingCommand<Job> => ({
+          kind: 'skip-job',
+          job,
+          statusReason: 'default_gate_rejected',
+        }),
+      ),
     );
-    commands.push({kind: 'complete-run', status: 'failed'});
+    for (const job of remaining) completed.set(job.key, 'skipped');
+    commands.push({kind: 'complete-run', status: hasFailure(completed) ? 'failed' : 'succeeded'});
     return commands;
   }
 
@@ -55,21 +72,44 @@ function findReadyJobs<Job extends RuntimeDagNode>(
     (job) =>
       !completed.has(job.key) &&
       !running.has(job.key) &&
+      !hasActivationCondition(job) &&
       job.dependencies.every((dependency) => completed.get(dependency) === 'succeeded'),
   );
 }
 
-function findBlockedJobs<Job extends RuntimeDagNode>(
+function findDefaultSkippedJobs<Job extends RuntimeDagNode>(
   jobs: readonly Job[],
   completed: ReadonlyMap<string, RuntimeCompletionStatus>,
+  running: ReadonlySet<string>,
 ): readonly Job[] {
   return jobs.filter(
     (job) =>
       !completed.has(job.key) &&
-      job.dependencies.some((dependency) => completed.get(dependency) === 'failed'),
+      !running.has(job.key) &&
+      !hasActivationCondition(job) &&
+      job.dependencies.every((dependency) => completed.has(dependency)) &&
+      job.dependencies.some((dependency) => completed.get(dependency) !== 'succeeded'),
+  );
+}
+
+function findActivationCandidates<Job extends RuntimeDagNode>(
+  jobs: readonly Job[],
+  completed: ReadonlyMap<string, RuntimeCompletionStatus>,
+  running: ReadonlySet<string>,
+): readonly Job[] {
+  return jobs.filter(
+    (job) =>
+      !completed.has(job.key) &&
+      !running.has(job.key) &&
+      hasActivationCondition(job) &&
+      job.dependencies.every((dependency) => completed.has(dependency)),
   );
 }
 
 function hasFailure(completed: ReadonlyMap<string, RuntimeCompletionStatus>): boolean {
   return Array.from(completed.values()).some((status) => status === 'failed');
+}
+
+function hasActivationCondition(job: RuntimeDagNode): boolean {
+  return job.hasActivationCondition === true;
 }

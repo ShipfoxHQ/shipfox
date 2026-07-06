@@ -44,7 +44,15 @@ export function jobExecutionStartOutcome(
 export function runtimeStatusForTerminalJobExecutionStatus(
   status: string,
 ): RuntimeCompletionStatus {
-  return status === 'succeeded' ? 'succeeded' : 'failed';
+  if (
+    status === 'succeeded' ||
+    status === 'failed' ||
+    status === 'cancelled' ||
+    status === 'skipped'
+  ) {
+    return status;
+  }
+  return 'failed';
 }
 
 export function resolveJobExecutionOutcomeSignal(

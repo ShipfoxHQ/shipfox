@@ -18,6 +18,9 @@ export interface JobCheckout {
 export const JOB_STATUS_REASONS = [
   'dependency_not_completed',
   'condition_false',
+  'default_gate_rejected',
+  'condition_rejected',
+  'condition_errored',
   'user_cancelled',
   'run_cancelled',
   'timed_out',

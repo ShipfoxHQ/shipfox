@@ -25,10 +25,15 @@ import {RUN_CANCEL_SIGNAL} from '../constants.js';
 import {jobExecutionOrchestration} from './job-execution-orchestration.js';
 import {jobListenerOrchestration} from './job-listener-orchestration.js';
 
-const {loadRunAttemptDag, setRunAttemptStatus, setJobStatus, cancelRunnerJobsActivity} =
-  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
-    startToCloseTimeout: '30s',
-  });
+const {
+  loadRunAttemptDag,
+  evaluateJobActivationsActivity,
+  setRunAttemptStatus,
+  setJobStatus,
+  cancelRunnerJobsActivity,
+} = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+  startToCloseTimeout: '30s',
+});
 
 const {failRunAsTimedOutActivity} = proxyActivities<
   ReturnType<typeof createOrchestrationActivities>
@@ -83,16 +88,45 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
       running: new Set(inFlight.keys()),
     });
     const completeRun = commands.find((command) => command.kind === 'complete-run');
+    const startJobs = new Map<string, DagJob>();
 
     for (const command of commands) {
       if (command.kind !== 'skip-job') continue;
-      await skipJob(command.job, progress);
+      await skipJob(command.job, progress, command.statusReason);
+    }
+
+    for (const command of commands) {
+      if (command.kind !== 'evaluate-job-activation') continue;
+      const activationJobsById = new Map(command.jobs.map((job) => [job.id, job]));
+      const decisions = await evaluateJobActivationsActivity({
+        runAttemptId: input.runAttemptId,
+        jobs: command.jobs.map((job) => ({
+          jobId: job.id,
+          expectedVersion: runtimeJobVersion(job, progress),
+        })),
+      });
+      for (const decision of decisions) {
+        const job = activationJobsById.get(decision.jobId);
+        if (!job) continue;
+        if (decision.kind === 'start-job') {
+          startJobs.set(job.key, job);
+          continue;
+        }
+        recordRuntimeJobResult(job, progress, {
+          status: decision.status,
+          jobVersion: decision.jobVersion,
+        });
+      }
     }
 
     for (const command of commands) {
       if (command.kind !== 'start-job') continue;
-      if (!inFlight.has(command.job.key)) {
-        inFlight.set(command.job.key, launchJob(command.job, dag, progress));
+      startJobs.set(command.job.key, command.job);
+    }
+
+    for (const job of startJobs.values()) {
+      if (!inFlight.has(job.key)) {
+        inFlight.set(job.key, launchJob(job, dag, progress));
       }
     }
 
@@ -104,6 +138,8 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
       });
       return;
     }
+
+    if (startJobs.size === 0 && inFlight.size === 0) continue;
 
     const settled = await waitForNextSettlement(inFlight, () => cancelRequested, runDeadline);
     if (settled.kind === 'cancelled') {
@@ -120,13 +156,17 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
   }
 }
 
-async function skipJob(job: DagJob, progress: RuntimeRunProgress): Promise<void> {
+async function skipJob(
+  job: DagJob,
+  progress: RuntimeRunProgress,
+  statusReason: 'default_gate_rejected',
+): Promise<void> {
   const version = runtimeJobVersion(job, progress);
   const {newVersion} = await setJobStatus({
     jobId: job.id,
     status: 'skipped',
     version,
-    statusReason: 'dependency_not_completed',
+    statusReason,
   });
   recordSkippedRuntimeJob(job, progress, newVersion);
 }

@@ -78,6 +78,7 @@ import {
   assembleExecutionCreationContext,
   assembleExecutionResolutionContext,
   assembleExecutionsContext,
+  assembleJobActivationContext,
   assembleJobsContext,
   type JobContextInput,
 } from '#core/step-config/assemble-run-context.js';
@@ -1137,6 +1138,187 @@ export async function getDirectDependencyJobContexts(
   }
 
   return [...contextsByJobId.values()];
+}
+
+export interface EvaluateJobActivationsParams {
+  runAttemptId: string;
+  jobs: readonly {
+    jobId: string;
+    expectedVersion: number;
+  }[];
+}
+
+export type JobActivationDecision =
+  | {
+      kind: 'start-job';
+      jobId: string;
+    }
+  | {
+      kind: 'terminal-job';
+      jobId: string;
+      status: RuntimeCompletionStatus;
+      jobVersion: number;
+    };
+
+type InternalJobActivationDecision = JobActivationDecision & {changed?: boolean};
+
+export async function evaluateJobActivations(
+  params: EvaluateJobActivationsParams,
+): Promise<JobActivationDecision[]> {
+  if (params.jobs.length === 0) return [];
+
+  const result = await db().transaction(async (tx) => {
+    const expectedVersions = new Map(
+      params.jobs.map((job) => [job.jobId, job.expectedVersion] as const),
+    );
+    const jobIds = params.jobs.map((job) => job.jobId);
+    const targets = await tx
+      .select({job: jobs, attempt: workflowRunAttempts, run: workflowRuns})
+      .from(jobs)
+      .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+      .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+      .where(and(eq(jobs.workflowRunAttemptId, params.runAttemptId), inArray(jobs.id, jobIds)))
+      .for('update');
+
+    if (targets.length !== jobIds.length) {
+      const found = new Set(targets.map((target) => target.job.id));
+      const missing = jobIds.filter((jobId) => !found.has(jobId));
+      throw new Error(`Cannot evaluate missing activation jobs: ${missing.join(', ')}`);
+    }
+
+    const contextsByJobKey = await directDependencyContextsByJobKey(
+      tx,
+      params.runAttemptId,
+      targets.map((target) => toJob(target.job)),
+    );
+    const targetsByJobId = new Map(targets.map((target) => [target.job.id, target]));
+    const decisions: InternalJobActivationDecision[] = [];
+
+    for (const input of params.jobs) {
+      const target = targetsByJobId.get(input.jobId);
+      if (!target) throw new Error(`Cannot evaluate missing activation job: ${input.jobId}`);
+      const job = toJob(target.job);
+      if (isJobTerminal(job.status)) {
+        decisions.push({
+          kind: 'terminal-job',
+          jobId: job.id,
+          status: runtimeCompletionStatusForJob(job.status),
+          jobVersion: job.version,
+        });
+        continue;
+      }
+
+      const modelJob = target.attempt.model?.jobs.find((item) => item.key === target.job.key);
+      if (modelJob?.if === undefined) {
+        decisions.push({kind: 'start-job', jobId: job.id});
+        continue;
+      }
+
+      const context = assembleJobActivationContext({
+        run: toWorkflowRun(target.run),
+        triggerPayload: target.run.triggerPayload,
+        inputs: target.run.inputs,
+        jobs: job.dependencies.flatMap((key) => {
+          const dependency = contextsByJobKey.get(key);
+          return dependency === undefined ? [] : [dependency];
+        }),
+      });
+      const outcome = evaluatePlannedPredicateAtSite({
+        expression: modelJob.if,
+        field: 'job.if',
+        site: context.site,
+        context: context.values,
+      });
+      if (outcome.value) {
+        decisions.push({kind: 'start-job', jobId: job.id});
+        continue;
+      }
+
+      const statusReason = outcome.evaluationFailed ? 'condition_errored' : 'condition_rejected';
+      const expectedVersion = expectedVersions.get(job.id);
+      if (expectedVersion === undefined) {
+        throw new Error(`Missing expected version for activation job ${job.id}`);
+      }
+      const updated = await updateJobStatusAtVersion(tx, {
+        jobId: job.id,
+        status: 'skipped',
+        expectedVersion,
+        statusReason,
+      });
+      if (updated) {
+        decisions.push({
+          kind: 'terminal-job',
+          jobId: job.id,
+          status: 'skipped',
+          jobVersion: updated.job.version,
+          changed: updated.changed,
+        });
+        continue;
+      }
+
+      const [existing] = await tx.select().from(jobs).where(eq(jobs.id, job.id)).limit(1);
+      if (existing && isJobTerminal(existing.status)) {
+        decisions.push({
+          kind: 'terminal-job',
+          jobId: job.id,
+          status: runtimeCompletionStatusForJob(existing.status),
+          jobVersion: existing.version,
+        });
+        continue;
+      }
+      throw new Error(`Optimistic lock failure evaluating activation for job ${job.id}`);
+    }
+
+    return decisions;
+  });
+
+  for (const decision of result) {
+    if (decision.kind === 'terminal-job' && decision.changed) {
+      recordWorkflowJobStatusChanged(decision.status);
+    }
+  }
+
+  return result.map(({changed: _changed, ...decision}) => decision);
+}
+
+async function directDependencyContextsByJobKey(
+  tx: Tx,
+  runAttemptId: string,
+  targetJobs: readonly Job[],
+): Promise<ReadonlyMap<string, JobContextInput>> {
+  const dependencyKeys = new Set(targetJobs.flatMap((job) => job.dependencies));
+  if (dependencyKeys.size === 0) return new Map();
+
+  const rows = await tx
+    .select({job: jobs, execution: jobExecutions})
+    .from(jobs)
+    .leftJoin(jobExecutions, eq(jobExecutions.jobId, jobs.id))
+    .where(and(eq(jobs.workflowRunAttemptId, runAttemptId), inArray(jobs.key, [...dependencyKeys])))
+    .orderBy(asc(jobs.position), asc(jobs.id), asc(jobExecutions.sequence), asc(jobExecutions.id));
+
+  const contextsByJobKey = new Map<string, JobContextInput & {executions: JobExecution[]}>();
+  for (const row of rows) {
+    let context = contextsByJobKey.get(row.job.key);
+    if (!context) {
+      context = {job: toJob(row.job), executions: []};
+      contextsByJobKey.set(row.job.key, context);
+    }
+    if (row.execution) context.executions.push(toJobExecution(row.execution));
+  }
+
+  return contextsByJobKey;
+}
+
+function runtimeCompletionStatusForJob(status: JobStatus): RuntimeCompletionStatus {
+  if (
+    status === 'succeeded' ||
+    status === 'failed' ||
+    status === 'cancelled' ||
+    status === 'skipped'
+  ) {
+    return status;
+  }
+  throw new Error(`Job status is not terminal: ${status}`);
 }
 
 export async function getWorkflowRunDetail(

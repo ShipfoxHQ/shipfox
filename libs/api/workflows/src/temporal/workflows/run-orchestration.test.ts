@@ -141,12 +141,12 @@ describe('runOrchestration', () => {
     expect(jobStatuses).toContainEqual({
       id: 'j2',
       status: 'skipped',
-      statusReason: 'dependency_not_completed',
+      statusReason: 'default_gate_rejected',
     });
     expect(jobStatuses).toContainEqual({
       id: 'j3',
       status: 'skipped',
-      statusReason: 'dependency_not_completed',
+      statusReason: 'default_gate_rejected',
     });
   });
 
@@ -172,13 +172,131 @@ describe('runOrchestration', () => {
     expect(jobStatuses).toContainEqual({
       id: 'j2',
       status: 'skipped',
-      statusReason: 'dependency_not_completed',
+      statusReason: 'default_gate_rejected',
     });
     expect(jobStatuses).toContainEqual({
       id: 'j3',
       status: 'skipped',
-      statusReason: 'dependency_not_completed',
+      statusReason: 'default_gate_rejected',
     });
+  });
+
+  test('explicit-if failure handler runs after a failed dependency', async () => {
+    const jobs = [
+      dagJob('j1', 'build'),
+      dagJob('j2', 'notify', ['build'], {hasActivationCondition: true}),
+    ];
+    setCfg({dag: makeDag(jobs, 'r-job-if-failed'), jobResults: new Map([['j1', 'failed']])});
+
+    await executeRun();
+
+    expect(callsNamed('evaluateJobActivationsActivity')).toEqual([
+      {
+        name: 'evaluateJobActivationsActivity',
+        params: {
+          runAttemptId: `${workflowRunId}-attempt-1`,
+          jobs: [{jobId: 'j2', expectedVersion: 1}],
+        },
+      },
+    ]);
+    expect(callsNamed('enqueueJobExecutionForRunner').map((call) => call.params)).toEqual([
+      expect.objectContaining({jobId: 'j1'}),
+      expect.objectContaining({jobId: 'j2'}),
+    ]);
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual(['running', 'failed']);
+  });
+
+  test('explicit-if job skips when activation evaluation rejects it', async () => {
+    const jobs = [
+      dagJob('j1', 'build'),
+      dagJob('j2', 'notify', ['build'], {hasActivationCondition: true}),
+    ];
+    setCfg({
+      dag: makeDag(jobs, 'r-job-if-rejected'),
+      jobResults: new Map(),
+      activationDecisions: new Map([
+        ['j2', {kind: 'terminal-job', jobId: 'j2', status: 'skipped', jobVersion: 7}],
+      ]),
+    });
+
+    await executeRun();
+
+    expect(callsNamed('enqueueJobExecutionForRunner').map((call) => call.params)).toEqual([
+      expect.objectContaining({jobId: 'j1'}),
+    ]);
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual([
+      'running',
+      'succeeded',
+    ]);
+  });
+
+  test('fan-in explicit-if job activates after every need is terminal', async () => {
+    const jobs = [
+      dagJob('j1', 'build'),
+      dagJob('j2', 'lint'),
+      dagJob('j3', 'notify', ['build', 'lint'], {hasActivationCondition: true}),
+    ];
+    setCfg({dag: makeDag(jobs, 'r-job-if-fanin'), jobResults: new Map([['j1', 'failed']])});
+
+    await executeRun();
+
+    expect(callsNamed('evaluateJobActivationsActivity')).toEqual([
+      {
+        name: 'evaluateJobActivationsActivity',
+        params: {
+          runAttemptId: `${workflowRunId}-attempt-1`,
+          jobs: [{jobId: 'j3', expectedVersion: 1}],
+        },
+      },
+    ]);
+    const enqueuedJobs = callsNamed('enqueueJobExecutionForRunner').map((call) => call.params);
+    expect(enqueuedJobs).toHaveLength(3);
+    expect(enqueuedJobs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({jobId: 'j1'}),
+        expect.objectContaining({jobId: 'j2'}),
+        expect.objectContaining({jobId: 'j3'}),
+      ]),
+    );
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual(['running', 'failed']);
+  });
+
+  test('all-skipped run completes succeeded', async () => {
+    const jobs = [dagJob('j1', 'notify', [], {hasActivationCondition: true})];
+    setCfg({
+      dag: makeDag(jobs, 'r-all-skipped'),
+      jobResults: new Map(),
+      activationDecisions: new Map([
+        ['j1', {kind: 'terminal-job', jobId: 'j1', status: 'skipped', jobVersion: 4}],
+      ]),
+    });
+
+    await executeRun();
+
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual([
+      'running',
+      'succeeded',
+    ]);
+  });
+
+  test('explicit-if listening job skips before listener registration', async () => {
+    const jobs = [dagJob('j1', 'listen', [], {mode: 'listening', hasActivationCondition: true})];
+    setCfg({
+      dag: makeDag(jobs, 'r-listen-skipped'),
+      jobResults: new Map(),
+      activationDecisions: new Map([
+        ['j1', {kind: 'terminal-job', jobId: 'j1', status: 'skipped', jobVersion: 4}],
+      ]),
+    });
+
+    await executeRun();
+
+    expect(callsNamed('activateJobListenerActivity')).toHaveLength(0);
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual([
+      'running',
+      'succeeded',
+    ]);
   });
 
   test('version tracking flows through correctly', async () => {
@@ -274,7 +392,7 @@ describe('runOrchestration', () => {
     expect(jobStatuses).toContainEqual({
       id: 'j4',
       status: 'skipped',
-      statusReason: 'dependency_not_completed',
+      statusReason: 'default_gate_rejected',
     });
   });
 

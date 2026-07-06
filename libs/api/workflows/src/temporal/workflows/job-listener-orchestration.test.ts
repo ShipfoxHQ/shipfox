@@ -116,7 +116,7 @@ describe('jobListenerOrchestration', () => {
   describe('activation', () => {
     test.each([
       {jobStatus: 'succeeded', expected: 'succeeded'},
-      {jobStatus: 'cancelled', expected: 'failed'},
+      {jobStatus: 'cancelled', expected: 'cancelled'},
       {jobStatus: 'failed', expected: 'failed'},
     ] as const)('already-terminal ($jobStatus) job returns $expected without draining', async ({
       jobStatus,
