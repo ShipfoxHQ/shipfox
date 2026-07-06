@@ -78,45 +78,49 @@ describe('appEnv', () => {
 describe('resolveComposeFile', () => {
   test('prefers the workspace compose file', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'shipfox-worktree-services-'));
-    const workspaceDir = join(tempDir, 'workspace');
-    const rootDir = join(tempDir, 'root');
-    const workspaceComposeFile = join(workspaceDir, 'compose.yml');
+    try {
+      const workspaceDir = join(tempDir, 'workspace');
+      const rootDir = join(tempDir, 'root');
+      const workspaceComposeFile = join(workspaceDir, 'compose.yml');
 
-    mkdirSync(workspaceDir);
-    mkdirSync(rootDir);
-    writeFileSync(workspaceComposeFile, '');
-    writeFileSync(join(rootDir, 'compose.yml'), '');
+      mkdirSync(workspaceDir);
+      mkdirSync(rootDir);
+      writeFileSync(workspaceComposeFile, '');
+      writeFileSync(join(rootDir, 'compose.yml'), '');
 
-    const composeFile = resolveComposeFile({
-      workspacePath: workspaceDir,
-      rootPath: rootDir,
-      allowRootFallback: true,
-    });
+      const composeFile = resolveComposeFile({
+        workspacePath: workspaceDir,
+        rootPath: rootDir,
+        allowRootFallback: true,
+      });
 
-    assert.equal(composeFile, workspaceComposeFile);
-
-    rmSync(tempDir, {recursive: true, force: true});
+      assert.equal(composeFile, workspaceComposeFile);
+    } finally {
+      rmSync(tempDir, {recursive: true, force: true});
+    }
   });
 
   test('falls back to the root compose file for archive cleanup', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'shipfox-worktree-services-'));
-    const workspaceDir = join(tempDir, 'workspace');
-    const rootDir = join(tempDir, 'root');
-    const rootComposeFile = join(rootDir, 'compose.yml');
+    try {
+      const workspaceDir = join(tempDir, 'workspace');
+      const rootDir = join(tempDir, 'root');
+      const rootComposeFile = join(rootDir, 'compose.yml');
 
-    mkdirSync(workspaceDir);
-    mkdirSync(rootDir);
-    writeFileSync(rootComposeFile, '');
+      mkdirSync(workspaceDir);
+      mkdirSync(rootDir);
+      writeFileSync(rootComposeFile, '');
 
-    const composeFile = resolveComposeFile({
-      workspacePath: workspaceDir,
-      rootPath: rootDir,
-      allowRootFallback: true,
-    });
+      const composeFile = resolveComposeFile({
+        workspacePath: workspaceDir,
+        rootPath: rootDir,
+        allowRootFallback: true,
+      });
 
-    assert.equal(composeFile, rootComposeFile);
-
-    rmSync(tempDir, {recursive: true, force: true});
+      assert.equal(composeFile, rootComposeFile);
+    } finally {
+      rmSync(tempDir, {recursive: true, force: true});
+    }
   });
 });
 
