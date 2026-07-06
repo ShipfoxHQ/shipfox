@@ -65,7 +65,7 @@ describe('decideStepTransition', () => {
     expect(decision).toEqual({kind: 'complete-job', stepId: 's0', attempt: 1});
   });
 
-  test('a failed step fails the job and cancels from its position', () => {
+  test('a failed step marks the job as failed', () => {
     const target = step({id: 's1', position: 1, status: 'running'});
     const steps = [
       step({id: 's0', position: 0, status: 'succeeded'}),

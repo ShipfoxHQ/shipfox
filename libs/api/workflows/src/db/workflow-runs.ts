@@ -2541,8 +2541,8 @@ export async function bulkUpdateStepStatuses(
   // stranded (it would otherwise read as phantom in-flight work to gate/restart
   // logic). The just-failed step on the normal report path is already terminal,
   // so this only catches the bulk timeout/cancel sweeps.
-  // Only ever called with a terminal sweep status (cancelled on the failed-sibling
-  // path, failed on timeout).
+  // Only ever called with a terminal sweep status: cancelled on run cancellation,
+  // failed on timeout.
   if (params.status === 'failed' || params.status === 'cancelled') {
     const finalizedAttempts = await tx
       .update(stepAttempts)
@@ -2738,7 +2738,6 @@ export async function settleJobFailed(
     },
     tx,
   );
-  await cancelRemainingSteps({jobExecutionId: params.jobExecutionId}, tx);
 
   const after = await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
   if (!after.every((step) => isTerminal(step.status))) return null;
@@ -3030,8 +3029,6 @@ export interface CancelRemainingStepsParams {
   jobExecutionId: string;
 }
 
-// The just-failed step is already terminal, so the shared guarded sweep leaves
-// it alone and only the still-pending siblings are cancelled.
 export async function cancelRemainingSteps(
   params: CancelRemainingStepsParams,
   tx: Tx,

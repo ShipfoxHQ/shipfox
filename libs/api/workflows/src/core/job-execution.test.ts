@@ -399,7 +399,7 @@ describe('nextStepForJob', () => {
     const after = await getStepsByJobId(jobId);
     expect(after).toMatchObject([{status: 'skipped', statusReason: 'condition_rejected'}]);
     expect(await getStepAttempts(jobId)).toHaveLength(0);
-    expect(await jobStepsSettledEvents(jobId)).toHaveLength(0);
+    expect(await jobStepsSettledEvents(jobId)).toMatchObject([{status: 'succeeded'}]);
   });
 
   test('the implicit default gate skips when execution.failed is true', async () => {
@@ -468,7 +468,7 @@ describe('recordStepResult', () => {
     expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
   });
 
-  test('failed step → step failed, remaining cancelled, {jobFinished:true, failed}', async () => {
+  test('failed step → step failed, remaining pending, {jobFinished:false}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
     await nextStepForJob(jobId);
 
@@ -479,12 +479,82 @@ describe('recordStepResult', () => {
       error: {message: 'boom'},
     });
 
-    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    expect(outcome).toEqual({jobFinished: false});
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.status).toBe('failed');
     expect(after[0]?.error).toEqual({message: 'boom'});
-    expect(after[1]?.status).toBe('cancelled');
-    expect(after[2]?.status).toBe('cancelled');
+    expect(after[1]?.status).toBe('pending');
+    expect(after[2]?.status).toBe('pending');
+  });
+
+  test('after a failure, default-gated pending steps skip and finish the failed job', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(3);
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'failed',
+      error: {message: 'boom'},
+    });
+
+    const done = await nextStepForJob(jobId);
+
+    expect(done).toEqual({kind: 'done', status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.map((step) => step.status)).toEqual(['failed', 'skipped', 'skipped']);
+    expect(after[1]?.statusReason).toBe('default_gate_rejected');
+    expect(after[2]?.statusReason).toBe('default_gate_rejected');
+    expect(await jobStepsSettledEvents(jobId)).toMatchObject([{status: 'failed'}]);
+  });
+
+  test('after a failure, if:true cleanup still runs before the job resolves failed', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(3);
+    const cleanup = steps[1];
+    if (!cleanup) throw new Error('Expected cleanup step');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('true')})
+      .where(eq(stepsTable.id, cleanup.id));
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'failed',
+      error: {message: 'boom'},
+    });
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: cleanup.id})});
+    await recordStepResult({jobId, stepId: cleanup.id, status: 'succeeded'});
+    const done = await nextStepForJob(jobId);
+    expect(done).toEqual({kind: 'done', status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.map((step) => step.status)).toEqual(['failed', 'succeeded', 'skipped']);
+    expect(after[2]?.statusReason).toBe('default_gate_rejected');
+  });
+
+  test('if:execution.failed runs only after an earlier step failed', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const upload = steps[1];
+    if (!upload) throw new Error('Expected upload step');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('execution.failed')})
+      .where(eq(stepsTable.id, upload.id));
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'failed',
+      error: {message: 'boom'},
+    });
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: upload.id})});
+    await recordStepResult({jobId, stepId: upload.id, status: 'succeeded'});
+    expect(await nextStepForJob(jobId)).toEqual({kind: 'done', status: 'failed'});
   });
 
   test('never downgrades an already-terminal row', async () => {
@@ -543,7 +613,7 @@ describe('recordStepResult', () => {
     expect(after[1]?.status).toBe('pending');
   });
 
-  test('duplicate failed report is a no-op and job stays fully terminal', async () => {
+  test('duplicate failed report is a no-op and later steps remain dispatchable', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
     await nextStepForJob(jobId);
     await recordStepResult({jobId, stepId: steps[0]?.id as string, status: 'failed'});
@@ -554,12 +624,12 @@ describe('recordStepResult', () => {
       status: 'failed',
     });
 
-    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    expect(outcome).toEqual({jobFinished: false});
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.status).toBe('failed');
-    expect(after[1]?.status).toBe('cancelled');
-    expect(after[2]?.status).toBe('cancelled');
-    expect(await jobStepsSettledEvents(jobId)).toHaveLength(1);
+    expect(after[1]?.status).toBe('pending');
+    expect(after[2]?.status).toBe('pending');
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(0);
   });
 
   test('coerces declared output before persisting and filling later step config', async () => {
@@ -743,6 +813,22 @@ describe('recordStepResult job-completion event', () => {
   });
 
   test('a failed final step enqueues one completion event with status failed', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'failed',
+      error: {message: 'boom'},
+    });
+
+    const events = await jobStepsSettledEvents(jobId);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.status).toBe('failed');
+  });
+
+  test('a failed non-final step enqueues completion only after remaining steps skip', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     await nextStepForJob(jobId);
 
@@ -752,6 +838,10 @@ describe('recordStepResult job-completion event', () => {
       status: 'failed',
       error: {message: 'boom'},
     });
+
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(0);
+
+    await nextStepForJob(jobId);
 
     const events = await jobStepsSettledEvents(jobId);
     expect(events).toHaveLength(1);

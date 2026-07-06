@@ -267,7 +267,7 @@ jobs:
     ).toEqual([null, {start_line: 5, end_line: 6}, {start_line: 7, end_line: 10}]);
   });
 
-  test('exposes per-step error and cancelled status after a failed per-step report', async () => {
+  test('exposes per-step error and skipped status after a failed per-step report', async () => {
     const projectId = crypto.randomUUID();
     const definitionId = crypto.randomUUID();
 
@@ -291,7 +291,8 @@ jobs:
     const jobId = runJobs[0]?.id ?? '';
     const steps = await getStepsByJobId(jobId);
 
-    // Drive the per-step path: step 1 succeeds, step 2 fails (cancelling step 3).
+    // Drive the per-step path: step 1 succeeds, step 2 fails, step 3 is skipped
+    // by the default gate on the follow-up pull.
     await nextStepForJob(jobId);
     await recordStepResult({
       jobId,
@@ -307,6 +308,7 @@ jobs:
       error: {message: 'Command exited with code 1', exitCode: 1},
       exitCode: 1,
     });
+    await nextStepForJob(jobId);
 
     const res = await app.inject({
       method: 'GET',
@@ -329,7 +331,7 @@ jobs:
       exit_code: 1,
       category: 'user',
     });
-    expect(responseSteps[2]?.status).toBe('cancelled');
+    expect(responseSteps[2]?.status).toBe('skipped');
     expect(responseSteps[2]?.error).toBeNull();
   });
 

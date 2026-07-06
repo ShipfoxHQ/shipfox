@@ -144,9 +144,8 @@ export async function applyStepTransition(
     }
   }
 
-  // Re-derive completion from the post-apply projection so the outcome is robust
-  // to the cancel sweep above; emit the steps-settled signal exactly once, here on
-  // the applied path.
+  // Re-derive completion from the post-apply projection and emit the
+  // steps-settled signal exactly once, here on the applied path.
   const after = await getStepsByJobExecutionIdForUpdate(ctx.jobExecutionId, tx);
   if (after.every((step) => isTerminal(step.status))) {
     const status = deriveCompletion(after);
