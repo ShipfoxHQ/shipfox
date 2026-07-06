@@ -216,7 +216,10 @@ function jobExecutionStatusForRuntimeStatus(
   status: RuntimeCompletionStatus,
 ): 'succeeded' | 'failed' | 'cancelled' {
   if (status === 'succeeded' || status === 'failed' || status === 'cancelled') return status;
-  throw new Error(`Job execution cannot be marked ${status}`);
+  throw ApplicationFailure.nonRetryable(
+    `Job execution cannot be marked ${status}`,
+    'InvalidJobExecutionStatusError',
+  );
 }
 
 async function resolveLeaseExpiredJobExecution({
