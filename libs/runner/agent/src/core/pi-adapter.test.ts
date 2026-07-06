@@ -160,7 +160,21 @@ describe('piHarnessAdapter', () => {
       expect.objectContaining({cwd: '/work', thinkingLevel: 'high', model}),
     );
     expect(promptMock).toHaveBeenCalledWith(expect.stringContaining('Fix it.'));
-    expect(result).toEqual({});
+    expect(result).toEqual({response: ''});
+  });
+
+  it('preserves the final assistant response when required outputs stay missing', async () => {
+    const model = {provider: 'anthropic', id: 'claude-opus-4-8'};
+    findMock.mockReturnValue(model);
+    getLastAssistantTextMock.mockReturnValue('final text without output');
+
+    const result = piHarnessAdapter.run(invocation({outputs: {summary: {type: 'string'}}}));
+
+    await expect(result).rejects.toMatchObject({
+      message: 'Agent step finished without required outputs: summary',
+      response: 'final text without output',
+    });
+    expect(promptMock).toHaveBeenCalledTimes(3);
   });
 
   it('returns the final assistant response and collected outputs after a correction turn', async () => {

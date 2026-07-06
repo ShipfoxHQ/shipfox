@@ -548,8 +548,13 @@ function maskAgentResult(result: StepResult, secretVariants: string[]): StepResu
     result.error === null || result.error === undefined
       ? result.error
       : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
-  const {response: _response, ...rest} = result;
-  return {...rest, error};
+  return {
+    ...result,
+    ...(result.response === undefined
+      ? {}
+      : {response: redactSecrets(result.response, secretVariants)}),
+    error,
+  };
 }
 
 function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepResult {
@@ -663,7 +668,7 @@ export async function reportStepResult(params: {
     // null on success, the error shape on failure — matches reportStepBodySchema's refine.
     error: result.error,
     exitCode: result.exit_code,
-    ...(result.response ? {response: result.response} : {}),
+    ...(result.response === undefined ? {} : {response: result.response}),
     ...(result.outputs ? {outputs: result.outputs} : {}),
     logOutcome,
     signal,

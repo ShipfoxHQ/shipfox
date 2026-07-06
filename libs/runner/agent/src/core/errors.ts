@@ -16,3 +16,13 @@ export class AgentConfigError extends Error {
     this.name = 'AgentConfigError';
   }
 }
+
+export class AgentInvocationError extends Error {
+  constructor(
+    message: string,
+    public readonly response: string | undefined,
+  ) {
+    super(message);
+    this.name = 'AgentInvocationError';
+  }
+}

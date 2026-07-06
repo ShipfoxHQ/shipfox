@@ -18,9 +18,14 @@ import {
 } from '@shipfox/api-agent-dto';
 import {Type} from 'typebox';
 import {assertRunnerEgressAllowed} from '#core/egress.js';
-import {AgentConfigError} from '#core/errors.js';
+import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
-import {OutputCollector, runOutputTurnLoop, withOutputGuidance} from '#core/output-collector.js';
+import {
+  OutputCollector,
+  RequiredOutputsMissingError,
+  runOutputTurnLoop,
+  withOutputGuidance,
+} from '#core/output-collector.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 
 const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-keyless-custom-provider-placeholder';
@@ -123,18 +128,26 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
   }
   try {
+    let response = '';
     await runOutputTurnLoop({
       signal,
       prompt: withOutputGuidance(prompt, collector.guidanceText()),
-      runTurn: (message) => session.prompt(message),
+      runTurn: async (message) => {
+        await session.prompt(message);
+        response = session.getLastAssistantText() ?? '';
+      },
       missingRequired: () => collector.missingRequired(),
     });
-    const response = session.getLastAssistantText();
     const outputs = collector.snapshot();
     return {
-      ...(response === undefined ? {} : {response}),
+      response,
       ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
     };
+  } catch (error) {
+    if (error instanceof RequiredOutputsMissingError) {
+      throw new AgentInvocationError(error.message, session.getLastAssistantText() ?? '');
+    }
+    throw error;
   } finally {
     // A final synchronous read forwards every entry written before the caller closes the log
     // stream, so all session records precede its end marker.

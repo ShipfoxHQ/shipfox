@@ -7,7 +7,7 @@ import type {
 } from '@shipfox/api-workflows-dto';
 import type {OutputDeclarations} from '@shipfox/expression';
 import type {StepResult} from '@shipfox/runner-execution';
-import {AgentConfigError} from '#core/errors.js';
+import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessAdapter} from '#core/harness.js';
 import {piHarnessAdapter} from '#core/pi-adapter.js';
 
@@ -108,7 +108,7 @@ async function runSelectedHarness(params: {
     );
     return {
       success: true,
-      ...(response === undefined ? {} : {response}),
+      response: response ?? '',
       ...(collectedOutputs === undefined ? {} : {outputs: collectedOutputs}),
       error: null,
       exit_code: 0,
@@ -120,6 +120,7 @@ async function runSelectedHarness(params: {
       error instanceof Error ? error.message : String(error),
       reason,
       error instanceof AgentConfigError ? error.agentConfigIssue : undefined,
+      error instanceof AgentInvocationError ? error.response : undefined,
     );
   }
 }
@@ -174,13 +175,19 @@ function agentFailure(
   message: string,
   reason: StepErrorReasonDto = 'agent_invocation_failed',
   agentConfigIssue?: AgentConfigIssueDto,
+  response?: string,
 ): StepResult {
   const error: StepErrorDto = {
     message,
     reason,
     ...(agentConfigIssue === undefined ? {} : {agent_config_issue: agentConfigIssue}),
   };
-  return {success: false, error, exit_code: null};
+  return {
+    success: false,
+    ...(response === undefined ? {} : {response}),
+    error,
+    exit_code: null,
+  };
 }
 
 function outputDeclarationsFromConfig(value: unknown): OutputDeclarations | undefined {

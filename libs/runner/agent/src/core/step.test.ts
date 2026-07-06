@@ -7,7 +7,7 @@ vi.mock('#core/pi-adapter.js', () => ({piHarnessAdapter: {run: runAgentMock}}));
 vi.mock('#core/claude-adapter.js', () => ({claudeHarnessAdapter: {run: runClaudeMock}}));
 
 import type {StepDto} from '@shipfox/api-workflows-dto';
-import {AgentConfigError} from '#core/errors.js';
+import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessInvocation} from '#core/harness.js';
 import {executeAgentStep} from '#core/step.js';
 
@@ -96,7 +96,13 @@ describe('executeAgentStep', () => {
 
     const result = await executeAgentStep(step, {runtime: RUNTIME});
 
-    expect(result).toEqual({success: true, outputs: {summary: 'done'}, error: null, exit_code: 0});
+    expect(result).toEqual({
+      success: true,
+      response: '',
+      outputs: {summary: 'done'},
+      error: null,
+      exit_code: 0,
+    });
     expect(runAgentMock).toHaveBeenCalledWith(
       expect.objectContaining({outputs: {summary: {type: 'string'}}}),
     );
@@ -194,6 +200,24 @@ describe('executeAgentStep', () => {
       message: 'Unknown provider "foo" for agent step.',
       reason: 'agent_config_invalid',
       agent_config_issue: 'provider_unsupported',
+    });
+  });
+
+  it('preserves response from invocation failures that can report it', async () => {
+    runAgentMock.mockRejectedValue(
+      new AgentInvocationError('Agent step finished without required outputs: summary', 'partial'),
+    );
+
+    const result = await executeAgentStep(buildAgentStep(), {runtime: RUNTIME});
+
+    expect(result).toEqual({
+      success: false,
+      response: 'partial',
+      error: {
+        message: 'Agent step finished without required outputs: summary',
+        reason: 'agent_invocation_failed',
+      },
+      exit_code: null,
     });
   });
 

@@ -72,7 +72,9 @@ vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 
-const {executeStep, pullNextStep, runJobSteps} = await import('#core/step-loop.js');
+const {executeStep, pullNextStep, reportStepResult, runJobSteps} = await import(
+  '#core/step-loop.js'
+);
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
@@ -277,6 +279,33 @@ describe('runJobSteps', () => {
       error: null,
       exitCode: 0,
       outputs: {image_sha: 'sha-123'},
+      logOutcome: 'drained',
+      signal: ac.signal,
+    });
+  });
+
+  it('reports empty response strings instead of omitting them', async () => {
+    const run = buildRunStep();
+    const ac = new AbortController();
+
+    await reportStepResult({
+      leaseClient,
+      step: run,
+      attempt: 1,
+      result: {success: true, response: '', error: null, exit_code: 0},
+      logOutcome: 'drained',
+      jobId: JOB_ID,
+      stepLabel: 'build',
+      signal: ac.signal,
+    });
+
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      status: 'succeeded',
+      error: null,
+      exitCode: 0,
+      response: '',
       logOutcome: 'drained',
       signal: ac.signal,
     });
@@ -1250,7 +1279,7 @@ describe('runJobSteps', () => {
     );
   });
 
-  it('redacts runtime credential values from agent failures and omits response', async () => {
+  it('redacts runtime credential values from agent failures and responses', async () => {
     const agent = buildAgentStep();
     const hexCredential = Buffer.from('sk-runtime-secret').toString('hex');
     executeAgentStepMock.mockResolvedValue({
@@ -1281,6 +1310,7 @@ describe('runJobSteps', () => {
 
     expect(execution.result).toEqual({
       success: false,
+      response: 'provider echoed ***',
       error: {
         message: 'provider rejected *** and ***',
         reason: 'agent_invocation_failed',

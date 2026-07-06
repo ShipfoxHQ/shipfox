@@ -11,9 +11,14 @@ import {
 } from '@anthropic-ai/claude-agent-sdk';
 import {z} from 'zod';
 import {assertRunnerEgressAllowed} from '#core/egress.js';
-import {AgentConfigError} from '#core/errors.js';
+import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
-import {OutputCollector, runOutputTurnLoop, withOutputGuidance} from '#core/output-collector.js';
+import {
+  OutputCollector,
+  RequiredOutputsMissingError,
+  runOutputTurnLoop,
+  withOutputGuidance,
+} from '#core/output-collector.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 
@@ -104,20 +109,27 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
       throw new Error('Agent step aborted before the Claude session started');
     }
 
-    let response: string | undefined;
+    let response = '';
     const queryIterator = claudeQuery[Symbol.asyncIterator]();
-    await runOutputTurnLoop({
-      signal,
-      prompt: withOutputGuidance(prompt, collector.guidanceText()),
-      missingRequired: () => collector.missingRequired(),
-      runTurn: async (message) => {
-        messages?.push(userMessage(message));
-        response = (await readClaudeResult({queryIterator, onSessionEntry})).response;
-      },
-    });
+    try {
+      await runOutputTurnLoop({
+        signal,
+        prompt: withOutputGuidance(prompt, collector.guidanceText()),
+        missingRequired: () => collector.missingRequired(),
+        runTurn: async (message) => {
+          messages?.push(userMessage(message));
+          response = (await readClaudeResult({queryIterator, onSessionEntry})).response ?? '';
+        },
+      });
+    } catch (error) {
+      if (error instanceof RequiredOutputsMissingError) {
+        throw new AgentInvocationError(error.message, response);
+      }
+      throw error;
+    }
     const outputs = collector.snapshot();
     return {
-      ...(response === undefined ? {} : {response}),
+      response,
       ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
     };
   } finally {

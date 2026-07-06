@@ -14,6 +14,13 @@ export type SetOutputResult = {readonly ok: true} | {readonly ok: false; readonl
 
 export const MAX_OUTPUT_REPROMPTS = 2;
 
+export class RequiredOutputsMissingError extends Error {
+  constructor(public readonly missing: readonly string[]) {
+    super(`Agent step finished without required outputs: ${missing.join(', ')}`);
+    this.name = 'RequiredOutputsMissingError';
+  }
+}
+
 export class OutputCollector {
   readonly #declarations: OutputDeclarations | undefined;
   readonly #outputs: Record<string, string> = {};
@@ -99,7 +106,7 @@ export async function runOutputTurnLoop(params: {
     const missing = params.missingRequired();
     if (missing.length === 0) return;
     if (attempt === MAX_OUTPUT_REPROMPTS) {
-      throw new Error(`Agent step finished without required outputs: ${missing.join(', ')}`);
+      throw new RequiredOutputsMissingError(missing);
     }
     nextPrompt =
       `The previous turn ended without setting required workflow outputs: ${missing.join(', ')}. ` +
