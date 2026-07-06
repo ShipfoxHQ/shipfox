@@ -248,7 +248,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(res.json()).toEqual({kind: 'done', status: 'succeeded'});
   });
 
-  test('reports {done, failed} after a failed step cancelled the rest', async () => {
+  test('reports {done, failed} after a failed step skips the default-gated rest', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const token = await mintActiveLeaseToken({jobId});
     await app.inject({method: 'POST', url: URL, headers: {authorization: `Bearer ${token}`}});

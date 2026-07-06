@@ -120,8 +120,8 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(res.json()).toEqual({ok: true, cancel: false});
   });
 
-  test('a failed report cancels the remaining steps → {ok, cancel:true}', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(3);
+  test('a failed final report finishes the job → {ok, cancel:true}', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
     const token = await mintActiveLeaseToken({jobId});
     await nextStepForJob(jobId);
 
@@ -134,10 +134,26 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ok: true, cancel: true});
+  });
+
+  test('a failed report leaves remaining steps dispatchable → {ok, cancel:false}', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(3);
+    const token = await mintActiveLeaseToken({jobId});
+    await nextStepForJob(jobId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: reportUrl(steps[0]?.id as string),
+      headers: {authorization: `Bearer ${token}`},
+      payload: reportPayload({status: 'failed', error: {message: 'boom'}}),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ok: true, cancel: false});
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.status).toBe('failed');
-    expect(after[1]?.status).toBe('cancelled');
-    expect(after[2]?.status).toBe('cancelled');
+    expect(after[1]?.status).toBe('pending');
+    expect(after[2]?.status).toBe('pending');
   });
 
   test('persists the wire error snake_case fields as camelCase on the step row', async () => {
@@ -242,7 +258,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(after[1]?.status).toBe('pending');
   });
 
-  test('a late succeeded report on a dead job never downgrades and says cancel', async () => {
+  test('a late succeeded report after failure completion never downgrades and says cancel', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const token = await mintActiveLeaseToken({jobId});
     await nextStepForJob(jobId);
@@ -252,6 +268,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       headers: {authorization: `Bearer ${token}`},
       payload: reportPayload({status: 'failed', error: {message: 'boom'}}),
     });
+    await nextStepForJob(jobId);
 
     const res = await app.inject({
       method: 'POST',
@@ -264,7 +281,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(res.json()).toEqual({ok: true, cancel: true});
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.status).toBe('failed');
-    expect(after[1]?.status).toBe('cancelled');
+    expect(after[1]?.status).toBe('skipped');
   });
 
   test('rejects a result for a pending (never-dispatched) step with 409', async () => {

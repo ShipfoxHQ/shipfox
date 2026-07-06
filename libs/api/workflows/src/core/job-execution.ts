@@ -20,6 +20,7 @@ import {
   markStepRunning,
   markStepSkipped,
   settleJobFailed,
+  writeJobStepsSettledOutbox,
 } from '#db/workflow-runs.js';
 import {
   recordWorkflowJobExecutionStepsSettled,
@@ -111,9 +112,21 @@ async function nextStepForJobExecutionInTransaction(
   const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
   const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
 
+  let skippedAny = false;
   while (true) {
     const pending = currentSteps.find((step) => step.status === 'pending');
-    if (pending === undefined) return {kind: 'done', status: deriveCompletion(currentSteps)};
+    if (pending === undefined) {
+      const status = deriveCompletion(currentSteps);
+      if (skippedAny) {
+        await writeJobStepsSettledOutbox(tx, {
+          jobId: jobExecution.jobId,
+          jobExecutionId,
+          status,
+        });
+        recordWorkflowJobExecutionStepsSettled(status);
+      }
+      return {kind: 'done', status};
+    }
 
     const context = assembleStepDispatchContext({
       steps: currentSteps,
@@ -142,6 +155,7 @@ async function nextStepForJobExecutionInTransaction(
       error: null,
     };
     currentSteps = currentSteps.map((step) => (step.id === pending.id ? skippedStep : step));
+    skippedAny = true;
   }
 }
 
@@ -211,7 +225,9 @@ async function dispatchPendingStepWithConfigPlan({
       error: failureError,
     });
     if (status) recordWorkflowJobExecutionStepsSettled(status);
-    return {kind: 'done', status: 'failed'};
+    return status === null
+      ? nextStepForJobExecutionInTransaction(jobExecutionId, tx)
+      : {kind: 'done', status};
   }
 }
 
