@@ -1,12 +1,14 @@
 import {
   CancellationScope,
   condition,
+  continueAsNew,
   defineSignal,
   executeChild,
   log,
   ParentClosePolicy,
   proxyActivities,
   setHandler,
+  workflowInfo,
 } from '@temporalio/workflow';
 import type {ResolutionReason} from '#core/entities/job.js';
 import {runtimeStatusForTerminalJobExecutionStatus} from '#core/job-execution-orchestration.js';
@@ -45,6 +47,7 @@ export interface JobListenerOrchestrationInput {
   batchDebounceMs?: number | null | undefined;
   batchMaxSize?: number | null | undefined;
   batchMaxWaitMs?: number | null | undefined;
+  continuation?: ListenerContinuationState | undefined;
 }
 
 export interface JobListenerOrchestrationResult {
@@ -54,6 +57,14 @@ export interface JobListenerOrchestrationResult {
 
 type ResolutionLatch = Exclude<ResolutionReason, 'cancelled'> | undefined;
 type BatchFiringDecision = 'fire' | 'resolve' | 'deadline';
+
+export interface ListenerContinuationState {
+  nextSequence: number;
+  latchedReason?: ResolutionLatch;
+  listenerDeadline?: number | undefined;
+}
+
+export const LISTENER_CONTINUE_AS_NEW_FIRING_LIMIT = 500;
 
 interface ListenerBatchConfig {
   debounceMs?: number | undefined;
@@ -81,7 +92,7 @@ export async function jobListenerOrchestration(
   input: JobListenerOrchestrationInput,
 ): Promise<JobListenerOrchestrationResult> {
   let eventsAvailable = false;
-  let latchedReason: ResolutionLatch;
+  let latchedReason = input.continuation?.latchedReason;
 
   setHandler(listenerEventsAvailableSignal, () => {
     eventsAvailable = true;
@@ -90,31 +101,48 @@ export async function jobListenerOrchestration(
     latchedReason = 'until';
   });
 
-  const listenerDeadline =
-    input.listeningTimeoutMs === undefined || input.listeningTimeoutMs === null
-      ? undefined
-      : Date.now() + input.listeningTimeoutMs;
+  const listenerDeadline = input.continuation?.listenerDeadline ?? initialListenerDeadline(input);
 
-  const activated = await activateJobListenerActivity({
-    jobId: input.jobId,
-    expectedVersion: input.jobVersion,
-  });
-  if (activated.status === 'terminal') {
-    return {
-      status: runtimeStatusForTerminalJobExecutionStatus(activated.jobStatus),
-      jobVersion: activated.jobVersion,
-    };
+  let nextSequence: number;
+  if (input.continuation) {
+    nextSequence = input.continuation.nextSequence;
+  } else {
+    const activated = await activateJobListenerActivity({
+      jobId: input.jobId,
+      expectedVersion: input.jobVersion,
+    });
+    if (activated.status === 'terminal') {
+      return {
+        status: runtimeStatusForTerminalJobExecutionStatus(activated.jobStatus),
+        jobVersion: activated.jobVersion,
+      };
+    }
+    nextSequence = activated.executionCount + 1;
   }
 
-  let nextSequence = activated.executionCount + 1;
+  let firingsInCurrentRun = 0;
   const maxExecutions = input.maxExecutions ?? undefined;
   const batchConfig = listenerBatchConfig(input);
   while (true) {
     if (deadlineReached(listenerDeadline)) latchedReason ??= 'timeout';
+    await continueListenerAsNewIfNeeded({
+      input,
+      nextSequence,
+      latchedReason,
+      listenerDeadline,
+      firingsInCurrentRun,
+    });
     if (latchedReason !== undefined) break;
     if (maxExecutions !== undefined) {
       if (nextSequence > maxExecutions) {
         latchedReason = 'max_executions';
+        await continueListenerAsNewIfNeeded({
+          input,
+          nextSequence,
+          latchedReason,
+          listenerDeadline,
+          firingsInCurrentRun,
+        });
         break;
       }
     }
@@ -164,6 +192,7 @@ export async function jobListenerOrchestration(
     if (drained.status === 'failed') {
       await recordListenerFiringOutcomeActivity({outcome: 'failed'});
       nextSequence = drained.sequence + 1;
+      firingsInCurrentRun += 1;
       if (maxExecutions !== undefined && drained.sequence >= maxExecutions) {
         latchedReason = 'max_executions';
       }
@@ -187,6 +216,7 @@ export async function jobListenerOrchestration(
 
     if (deadlineReached(listenerDeadline)) latchedReason ??= 'timeout';
     nextSequence = drained.sequence + 1;
+    firingsInCurrentRun += 1;
     if (maxExecutions !== undefined && drained.sequence >= maxExecutions) {
       latchedReason = 'max_executions';
     }
@@ -195,6 +225,54 @@ export async function jobListenerOrchestration(
   const reason = latchedReason ?? 'timeout';
   const resolved = await resolveJobListenerActivity({jobId: input.jobId, reason});
   return {status: resolved.status, jobVersion: resolved.jobVersion};
+}
+
+function initialListenerDeadline(input: JobListenerOrchestrationInput): number | undefined {
+  return input.listeningTimeoutMs === undefined || input.listeningTimeoutMs === null
+    ? undefined
+    : Date.now() + input.listeningTimeoutMs;
+}
+
+async function continueListenerAsNewIfNeeded(params: {
+  input: JobListenerOrchestrationInput;
+  nextSequence: number;
+  latchedReason: ResolutionLatch;
+  listenerDeadline: number | undefined;
+  firingsInCurrentRun: number;
+}): Promise<void> {
+  if (
+    !shouldContinueListenerAsNew({
+      firingsInCurrentRun: params.firingsInCurrentRun,
+      continueAsNewSuggested: workflowInfo().continueAsNewSuggested,
+    })
+  ) {
+    return;
+  }
+
+  await continueAsNew<typeof jobListenerOrchestration>(
+    listenerContinuationInput(params.input, {
+      nextSequence: params.nextSequence,
+      latchedReason: params.latchedReason,
+      listenerDeadline: params.listenerDeadline,
+    }),
+  );
+}
+
+export function shouldContinueListenerAsNew(params: {
+  firingsInCurrentRun: number;
+  continueAsNewSuggested: boolean;
+}): boolean {
+  return (
+    params.continueAsNewSuggested ||
+    params.firingsInCurrentRun >= LISTENER_CONTINUE_AS_NEW_FIRING_LIMIT
+  );
+}
+
+export function listenerContinuationInput(
+  input: JobListenerOrchestrationInput,
+  continuation: ListenerContinuationState,
+): JobListenerOrchestrationInput {
+  return {...input, continuation};
 }
 
 function listenerBatchConfig(
