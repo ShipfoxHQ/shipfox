@@ -9,6 +9,7 @@ import type {
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
 import {issue} from './validation-issue.js';
+import {workflowFieldLabel} from './workflow-field-label.js';
 
 export function validateDirectJobReferences(params: {
   source: string;
@@ -22,7 +23,7 @@ export function validateDirectJobReferences(params: {
   if (computed !== undefined) {
     return issue({
       code: 'computed-context-key',
-      message: `${fieldLabel(params.field)} must reference jobs with a literal dot key.`,
+      message: `${workflowFieldLabel(params.field)} must reference jobs with a literal dot key.`,
       path: params.path,
       details: {
         field: params.field,
@@ -40,7 +41,7 @@ export function validateDirectJobReferences(params: {
 
   return issue({
     code: 'missing-job-needs-edge',
-    message: `${fieldLabel(params.field)} references job "${missing.key}" without a direct needs edge.`,
+    message: `${workflowFieldLabel(params.field)} references job "${missing.key}" without a direct needs edge.`,
     path: params.path,
     details: {
       field: params.field,
@@ -50,47 +51,4 @@ export function validateDirectJobReferences(params: {
       allowedJobs: [...params.allowedJobReferences],
     },
   });
-}
-
-function fieldLabel(field: WorkflowInterpolationField | WorkflowPredicateField): string {
-  switch (field) {
-    case 'run':
-      return 'Run command interpolation';
-    case 'env.value':
-      return 'Env value interpolation';
-    case 'agent.prompt':
-      return 'Agent prompt interpolation';
-    case 'agent.model':
-      return 'Agent model interpolation';
-    case 'agent.provider':
-      return 'Agent provider interpolation';
-    case 'agent.thinking':
-      return 'Agent thinking interpolation';
-    case 'job.runner':
-      return 'Job runner interpolation';
-    case 'job.outputs':
-      return 'Job outputs mapping';
-    case 'job.name':
-      return 'Job name interpolation';
-    case 'step.name':
-      return 'Step name interpolation';
-    case 'step.success':
-      return 'Step gate success';
-    case 'step.feedback':
-      return 'Step feedback';
-    case 'job.success':
-      return 'Job success';
-    case 'trigger.filter':
-      return 'Trigger filter';
-    case 'listener.on':
-      return 'Listener on filter';
-    case 'listener.until':
-      return 'Listener until filter';
-    default:
-      return assertNever(field);
-  }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled workflow field: ${value}`);
 }

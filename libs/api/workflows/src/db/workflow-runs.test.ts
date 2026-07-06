@@ -2359,7 +2359,7 @@ jobs:
         {
           expression: "!executions.exists(e, e.status == 'failed')",
           roots: ['executions'],
-          fillTarget: 'execution-creation',
+          fillTarget: 'job-resolution',
           evaluatedAt: 'job-resolution',
           value: 'true',
           field: 'job.success',
@@ -2631,7 +2631,7 @@ jobs:
           {
             expression: 'executions.all(e, 1 / 0 == 0)',
             roots: ['executions'],
-            fillTarget: 'execution-creation',
+            fillTarget: 'job-resolution',
             evaluatedAt: 'job-resolution',
             value: 'false',
             degraded: true,

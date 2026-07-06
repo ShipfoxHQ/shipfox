@@ -1,5 +1,6 @@
 import {
   type AvailabilitySite,
+  analyzeContextRootKeyAccess,
   availabilitySites,
   createWorkflowExpression,
   type ExpressionTypeEnvironment,
@@ -10,6 +11,7 @@ import {
   predicateSourceIsBooleanShaped,
   resolveContextRootAvailability,
   resolveContextRootHost,
+  routeExpression,
   validateServerEvaluable,
   type WorkflowContextName,
   type WorkflowExpression,
@@ -23,6 +25,7 @@ import type {
 } from './invalid-workflow-model-error.js';
 import {validateDirectJobReferences} from './validate-job-references.js';
 import {issue} from './validation-issue.js';
+import {workflowFieldLabel} from './workflow-field-label.js';
 
 export function validatePredicateExpression(params: {
   field: WorkflowPredicateField;
@@ -71,6 +74,25 @@ export function validatePredicateExpression(params: {
   if (unavailableRoots.length > 0) {
     params.issues.push(
       unavailablePredicateContextIssue({...params, contextRoots, unavailableRoots}),
+    );
+    return undefined;
+  }
+
+  const route = routeExpression(syntaxExpression);
+  if (route.fillTarget !== 'runner-fill' && !isSiteAtOrAfter(params.site, route.fillTarget)) {
+    const unavailableRoots = unavailableRouteReferences(syntaxExpression);
+    params.issues.push(
+      unavailableRoots.length > 0
+        ? unavailablePredicateContextIssue({
+            ...params,
+            contextRoots,
+            unavailableRoots,
+          })
+        : routeUnavailablePredicateContextIssue({
+            ...params,
+            contextRoots,
+            fillTarget: route.fillTarget,
+          }),
     );
     return undefined;
   }
@@ -268,6 +290,30 @@ function unavailablePredicateContextIssue(params: {
   });
 }
 
+function routeUnavailablePredicateContextIssue(params: {
+  field: WorkflowPredicateField;
+  source: string;
+  site: AvailabilitySite;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  contextRoots: readonly string[];
+  fillTarget: AvailabilitySite;
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'context-unavailable-at-predicate-site',
+    message: `${fieldLabel(params.field)} requires context filled at ${describeAvailabilitySite(
+      params.fillTarget,
+    )}, but it is evaluated at ${describeAvailabilitySite(params.site)}.`,
+    path: params.path,
+    details: {
+      field: params.field,
+      source: params.source,
+      contextRoots: params.contextRoots,
+      fillTarget: params.fillTarget,
+      site: params.site,
+    },
+  });
+}
+
 function isRootAvailableAt(root: string, site: AvailabilitySite): boolean {
   const availability = resolveContextRootAvailability(root);
   if (availability === undefined) return false;
@@ -276,9 +322,20 @@ function isRootAvailableAt(root: string, site: AvailabilitySite): boolean {
 }
 
 function unavailableRootAvailabilityMessage(root: string): string {
+  if (root === 'execution.failed') {
+    return '"execution.failed" becomes available at step dispatch.';
+  }
+
   const availability = resolveContextRootAvailability(root);
   if (availability === undefined) return `"${root}" is not available at any server site.`;
   return `"${root}" becomes available at ${describeAvailabilitySite(availability)}.`;
+}
+
+function unavailableRouteReferences(expression: WorkflowExpression): readonly string[] {
+  const access = analyzeContextRootKeyAccess(expression, ['execution']);
+  return access.references.some((reference) => reference.key === 'failed')
+    ? ['execution.failed']
+    : [];
 }
 
 function hasSyntaxOnlyCheckMode(root: string): boolean {
@@ -325,24 +382,7 @@ function isWorkflowFilterPredicateField(field: WorkflowPredicateField): boolean 
 }
 
 function fieldLabel(field: WorkflowPredicateField): string {
-  switch (field) {
-    case 'step.success':
-      return 'Step gate success';
-    case 'job.success':
-      return 'Job success';
-    case 'trigger.filter':
-      return 'Trigger filter';
-    case 'listener.on':
-      return 'Listener on filter';
-    case 'listener.until':
-      return 'Listener until filter';
-    default:
-      return assertNever(field);
-  }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled workflow predicate field: ${value}`);
+  return workflowFieldLabel(field);
 }
 
 function contextNoun(roots: readonly string[]): 'context' | 'contexts' {
@@ -355,6 +395,10 @@ function availabilityVerb(roots: readonly string[]): 'is' | 'are' {
 
 function describeAvailabilitySite(site: AvailabilitySite): string {
   return availabilitySiteLabels[site];
+}
+
+function isSiteAtOrAfter(site: AvailabilitySite, fillTarget: AvailabilitySite): boolean {
+  return availabilitySites.indexOf(site) >= availabilitySites.indexOf(fillTarget);
 }
 
 function formatList(values: readonly string[]): string {

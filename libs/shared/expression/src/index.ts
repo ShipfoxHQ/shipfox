@@ -92,6 +92,7 @@ export type {
   ResolvedFieldLiteralSegment,
   ResolvedFieldSegment,
 } from './plan/resolved-field.js';
+export {type RoutedExpression, routeExpression} from './plan/route-expression.js';
 export {
   type ServerEvaluabilityResult,
   type ServerEvaluabilityViolation,
@@ -133,6 +134,7 @@ export {
   getWorkflowContextTypeEnvironment,
   getWorkflowContextUntrustedPaths,
   getWorkflowInterpolationFieldFailurePolicy,
+  getWorkflowPredicateFieldMinimumFillTarget,
   type OpenWorkflowContextDefinition,
   type ReservedRootDefinition,
   type RunnerWorkflowContextDefinition,

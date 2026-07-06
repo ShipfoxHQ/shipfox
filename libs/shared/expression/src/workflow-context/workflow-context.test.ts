@@ -7,6 +7,7 @@ import {
   type FillTarget,
   getWorkflowContextTypeEnvironment,
   getWorkflowInterpolationFieldFailurePolicy,
+  getWorkflowPredicateFieldMinimumFillTarget,
   resolveContextRootAvailability,
   resolveContextRootHost,
   rootsAvailableAt,
@@ -43,6 +44,7 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
       'jobs',
+      'needs',
       'steps',
       'step',
       'vars',
@@ -56,6 +58,7 @@ describe('workflow context registry', () => {
       runner: {host: 'runner'},
     });
     expect(workflowContextNames).toContain('jobs');
+    expect(workflowContextNames).toContain('needs');
     expect(workflowContextNames).toContain('step');
     expect(workflowContextNames).toContain('steps');
     expect(workflowContextNames).not.toContain('matrix');
@@ -85,7 +88,7 @@ describe('workflow context registry', () => {
       'vars',
       'secrets',
     ]);
-    expect(contextsByTrust.untrusted).toEqual(['event', 'inputs', 'jobs']);
+    expect(contextsByTrust.untrusted).toEqual(['event', 'inputs', 'jobs', 'needs']);
   });
 
   it('marks known-shape contexts as typed and open contexts as syntax-only', () => {
@@ -117,6 +120,12 @@ describe('workflow context registry', () => {
       trustTier: 'untrusted',
       shape: 'open',
       checkMode: 'syntax',
+    });
+    expect(workflowContextDefinitions.needs).toMatchObject({
+      availability: 'job-activation',
+      trustTier: 'untrusted',
+      shape: 'known',
+      checkMode: 'typed',
     });
     expect(workflowContextDefinitions.step).toMatchObject({
       availability: 'step-dispatch',
@@ -214,6 +223,7 @@ describe('workflow context registry', () => {
     expect(getWorkflowContextTypeEnvironment('execution')).toMatchObject({
       execution: {
         fields: {
+          failed: 'bool',
           outputs: {kind: 'map'},
         },
       },
@@ -223,6 +233,19 @@ describe('workflow context registry', () => {
         element: {
           fields: {
             outputs: {kind: 'map'},
+          },
+        },
+      },
+    });
+    expect(getWorkflowContextTypeEnvironment('needs')).toMatchObject({
+      needs: {
+        kind: 'list',
+        element: {
+          fields: {
+            key: 'string',
+            status: 'string',
+            outputs: {kind: 'map'},
+            executions: {kind: 'list'},
           },
         },
       },
@@ -333,6 +356,19 @@ describe('workflow context registry', () => {
     ).not.toThrow();
   });
 
+  it('builds typed needs overlays for dependency aggregation', () => {
+    const typeEnvironment = buildTypedRootsEnvironment({
+      needs: [{key: 'build'}, {key: 'test'}],
+    });
+
+    expect(() =>
+      createWorkflowExpression({
+        source: 'needs.exists(n, n.key == "build" && n.status == "failed")',
+        check: {mode: 'typed', typeEnvironment, expectedResultType: 'bool'},
+      }),
+    ).not.toThrow();
+  });
+
   it('returns the roots available at each availability site', () => {
     expect(rootsAvailableAt('ingest')).toEqual(['trigger', 'event']);
     expect(rootsAvailableAt('run-creation')).toEqual([
@@ -362,6 +398,7 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
       'jobs',
+      'needs',
       'vars',
     ]);
     expect(rootsAvailableAt('step-dispatch')).toEqual([
@@ -373,6 +410,7 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
       'jobs',
+      'needs',
       'steps',
       'step',
       'vars',
@@ -386,6 +424,7 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
       'jobs',
+      'needs',
       'steps',
       'step',
       'vars',
@@ -399,6 +438,7 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
       'jobs',
+      'needs',
       'steps',
       'step',
       'vars',
@@ -412,6 +452,7 @@ describe('workflow context registry', () => {
       'executions',
       'execution',
       'jobs',
+      'needs',
       'steps',
       'step',
       'vars',
@@ -587,8 +628,15 @@ describe('workflow context registry', () => {
         'trigger.filter',
         'listener.on',
         'listener.until',
+        'job.if',
+        'step.if',
       ]);
       expect(workflowPredicateFieldFailurePolicy).toBe('fail-closed');
+      expect(getWorkflowPredicateFieldMinimumFillTarget('trigger.filter')).toBe('ingest');
+      expect(getWorkflowPredicateFieldMinimumFillTarget('listener.on')).toBe('job-activation');
+      expect(getWorkflowPredicateFieldMinimumFillTarget('listener.until')).toBe('job-activation');
+      expect(getWorkflowPredicateFieldMinimumFillTarget('job.if')).toBe('job-activation');
+      expect(getWorkflowPredicateFieldMinimumFillTarget('step.if')).toBe('step-dispatch');
     });
   });
 

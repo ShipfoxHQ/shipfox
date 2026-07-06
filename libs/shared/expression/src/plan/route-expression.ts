@@ -6,6 +6,7 @@ import {
   resolveContextRootHost,
   runnerFillTarget,
 } from '../workflow-context/workflow-context.js';
+import {analyzeContextRootKeyAccess} from './context-key-access.js';
 import {extractExactContextRoots} from './extract-exact-context-roots.js';
 
 export interface RoutedExpression {
@@ -26,8 +27,27 @@ export function routeExpression(expression: WorkflowExpression): RoutedExpressio
   return {
     roots,
     runnerRoots,
-    fillTarget: maxAvailabilitySite(knownRoots),
+    fillTarget: expressionMinimumFillTarget(expression, maxAvailabilitySite(knownRoots)),
   };
+}
+
+function expressionMinimumFillTarget(
+  expression: WorkflowExpression,
+  fillTarget: FillTarget,
+): FillTarget {
+  if (fillTarget === runnerFillTarget) return fillTarget;
+  if (!referencesExecutionFailed(expression)) return fillTarget;
+  return laterFillTarget(fillTarget, 'step-dispatch');
+}
+
+function referencesExecutionFailed(expression: WorkflowExpression): boolean {
+  const access = analyzeContextRootKeyAccess(expression, ['execution']);
+  return access.references.some((reference) => reference.key === 'failed');
+}
+
+function laterFillTarget(left: FillTarget, right: FillTarget): FillTarget {
+  if (left === runnerFillTarget || right === runnerFillTarget) return runnerFillTarget;
+  return availabilitySites.indexOf(left) >= availabilitySites.indexOf(right) ? left : right;
 }
 
 function maxAvailabilitySite(roots: readonly string[]): FillTarget {

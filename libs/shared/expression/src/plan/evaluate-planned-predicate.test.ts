@@ -58,7 +58,33 @@ describe('evaluatePlannedPredicateAtSite', () => {
     expect(result).toEqual({
       value: false,
       evaluationFailed: true,
-      route: {roots: ['executions'], runnerRoots: [], fillTarget: 'execution-creation'},
+      route: {roots: ['executions'], runnerRoots: [], fillTarget: 'job-resolution'},
+    });
+  });
+
+  it('uses predicate field minimum fill targets for rootless if predicates', () => {
+    const jobIf = evaluatePlannedPredicateAtSite({
+      expression: expression('true'),
+      field: 'job.if',
+      site: 'run-creation',
+      context: {},
+    });
+    const stepIf = evaluatePlannedPredicateAtSite({
+      expression: expression('true'),
+      field: 'step.if',
+      site: 'job-activation',
+      context: {},
+    });
+
+    expect(jobIf).toEqual({
+      value: false,
+      evaluationFailed: true,
+      route: {roots: [], runnerRoots: [], fillTarget: 'job-activation'},
+    });
+    expect(stepIf).toEqual({
+      value: false,
+      evaluationFailed: true,
+      route: {roots: [], runnerRoots: [], fillTarget: 'step-dispatch'},
     });
   });
 

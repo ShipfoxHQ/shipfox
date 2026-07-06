@@ -43,7 +43,7 @@ function degradedGateTrace(source: string, roots: readonly string[]) {
     {
       expression: source,
       roots,
-      fillTarget: 'ingest' as const,
+      fillTarget: 'step-report' as const,
       evaluatedAt: 'step-report' as const,
       value: 'false',
       degraded: true,
