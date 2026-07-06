@@ -1,0 +1,45 @@
+---
+title: "Installing Shipfox"
+sidebarTitle: "Overview"
+description: "How to run Shipfox: evaluate locally, self-host on your own infrastructure, or use managed cloud. An overview of the components and the setup paths."
+---
+
+Shipfox has two parts to stand up: a **control plane** — the API and dashboard, backed
+by PostgreSQL, Temporal, and S3-compatible object storage — and one or more **runners**
+that execute jobs on compute you own. This section is for whoever operates that
+infrastructure, typically a platform, DevEx, or SRE team.
+
+<Info>
+  Configuring projects and authoring workflows needs none of this. If Shipfox is
+  already running for your team, head to [Quick Start](/getting-started).
+</Info>
+
+## Components
+
+| Component | What it is |
+|---|---|
+| API + dashboard | Stateless control-plane processes you deploy as containers |
+| PostgreSQL | Primary datastore for Shipfox state |
+| Temporal | Workflow orchestration engine used internally |
+| Object storage | S3-compatible storage for step-log artifacts |
+| Runners | Processes on your compute that execute jobs — see Runners |
+
+## Choose a path
+
+<CardGroup cols={2}>
+  <Card title="Local evaluation" icon="laptop" href="/installation/local">
+    Run the whole stack on your machine with Docker Compose to try Shipfox out.
+  </Card>
+  <Card title="Self-hosting" icon="server" href="/installation/self-hosting">
+    Deploy the control plane and runners on your own infrastructure.
+  </Card>
+  <Card title="AWS" icon="aws" href="/installation/aws">
+    A reference deployment on AWS. Coming soon.
+  </Card>
+  <Card title="Kubernetes" icon="dharmachakra" href="/installation/kubernetes">
+    Deploy on a Kubernetes cluster. Coming soon.
+  </Card>
+  <Card title="Managed cloud" icon="cloud" href="/installation/cloud">
+    Shipfox runs the control plane; you only configure and connect runners. Coming soon.
+  </Card>
+</CardGroup>

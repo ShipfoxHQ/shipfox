@@ -1,0 +1,78 @@
+---
+title: "Self-Hosting Shipfox"
+sidebarTitle: "Self-Hosting"
+description: "Deploy the Shipfox control plane and runners on your own infrastructure: PostgreSQL, Temporal, S3-compatible object storage, and runner registration."
+---
+
+For a production self-hosted deployment you run the Shipfox control plane on your own
+compute and connect it to managed dependencies. This page covers the external
+services to provision and how to register runners. For a reference deployment on a
+specific platform, see [AWS](/installation/aws) or [Kubernetes](/installation/kubernetes)
+(both coming soon).
+
+## What you run, and what talks to what
+
+{/* Source: images/diagrams/deployment-topology.mmd — regenerate with:
+    npx -y @mermaid-js/mermaid-cli -b white -i images/diagrams/deployment-topology.mmd -s 3 -o images/diagrams/deployment-topology.png */}
+<Frame caption="Deployment topology — click to enlarge.">
+  <img src="/images/diagrams/deployment-topology.png" alt="Deployment topology: event sources send webhooks into the Shipfox API; the control plane containers connect to PostgreSQL, Temporal, and S3-compatible object storage; runners and an optional provisioner on your compute connect outbound only, clone the repository, and call model providers with your API keys" />
+</Frame>
+
+Two directions matter: **runners only connect outward** — you never open an inbound
+port into your compute — and **agent traffic to model providers leaves from your
+runners**, with your API keys, not from the control plane.
+
+## External services
+
+Provision and connect the following:
+
+| Service | Recommended options |
+|---|---|
+| PostgreSQL | Any managed PostgreSQL 15+ instance (RDS, Cloud SQL, Supabase, self-managed) |
+| Temporal | Self-hosted Temporal cluster or Temporal Cloud |
+| Object storage | Any S3-compatible service (AWS S3, GCS with interop, MinIO, Cloudflare R2) |
+
+The Shipfox API and dashboard are stateless processes that can be deployed as
+containers on any compute platform (Kubernetes, ECS, Fly.io, bare VMs). The runner is
+a separate process you deploy on the compute where jobs should execute — it does not
+need to be co-located with the API.
+
+## Runner registration
+
+A runner is a lightweight process you start on any machine — a VM, a bare-metal
+server, or a container. Runners poll Shipfox for jobs that match their labels and
+execute them locally, streaming logs back to the API in real time.
+
+To register a new runner:
+
+1. In the Shipfox dashboard, create a **registration token** in the runner settings.
+2. Copy the generated token — it is shown only once.
+3. Start the runner on your target machine. The runner ships as a Docker image and is configured entirely through environment variables — the API URL, the registration token, and the labels this runner advertises:
+
+```bash
+docker run --rm \
+  -e SHIPFOX_API_URL=<YOUR_SHIPFOX_API_URL> \
+  -e SHIPFOX_RUNNER_REGISTRATION_TOKEN=<YOUR_REGISTRATION_TOKEN> \
+  -e SHIPFOX_RUNNER_LABELS=<LABEL_1>,<LABEL_2> \
+  <shipfox-runner-image>
+```
+
+`SHIPFOX_RUNNER_LABELS` is a comma-separated list (e.g. `linux,x64,self-hosted`). A job
+is dispatched to a runner only when the runner has **all** the labels listed in the
+workflow's `runner:` field. Make sure your runner's labels match exactly what your
+workflows declare — a mismatch is the most common cause of runs sticking in `pending`.
+
+By default a runner exits after an idle window. For a long-lived runner that keeps
+polling, set `SHIPFOX_POLL_MAX_DURATION_MS=0` in its environment.
+
+<Tip>
+  To scale runners automatically instead of starting each one by hand, run a
+  runner provisioner — it starts ephemeral,
+  single-job runners on demand and lets them exit when idle.
+</Tip>
+
+## Managed hosting
+
+Prefer not to operate the control plane yourself? With [managed cloud](/installation/cloud),
+Shipfox runs the API, database, and orchestration, and you only deploy and connect
+runners. Reach out to the Shipfox team for access.

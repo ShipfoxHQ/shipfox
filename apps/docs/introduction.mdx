@@ -62,16 +62,16 @@ The same flow as one picture — note that the runner **polls outbound** (nothin
 ## Core concepts
 
 <CardGroup cols={2}>
-  <Card title="Workflows" icon="code-branch">
+  <Card title="Workflows" icon="code-branch" href="/concepts/workflows">
     The YAML files that define your automation — name, triggers, jobs, steps, and environment variables.
   </Card>
-  <Card title="Jobs, Steps & Agents" icon="layer-group">
+  <Card title="Jobs, Steps & Agents" icon="layer-group" href="/concepts/jobs-steps">
     How work is structured and executed inside a workflow, including shell steps, agent steps, and gate conditions.
   </Card>
-  <Card title="Triggers" icon="bolt">
+  <Card title="Triggers" icon="bolt" href="/concepts/triggers">
     What starts a run — GitHub pushes, Sentry issues, webhooks from any system, manual fires — with more integrations on the way.
   </Card>
-  <Card title="Runners" icon="server">
+  <Card title="Runners" icon="server" href="/concepts/runners">
     The processes you register on your own compute that execute jobs. Runners poll Shipfox and are matched to jobs by label.
   </Card>
 </CardGroup>
@@ -101,16 +101,16 @@ Features listed as roadmap are not yet available and should not be relied upon i
 ## What you can build
 
 <CardGroup cols={2}>
-  <Card title="Checks on every push" icon="circle-check">
+  <Card title="Checks on every push" icon="circle-check" href="/guides/checks-on-push">
     Run tests, lint, and get an AI review on every commit — automatically, in one workflow that lives with your code.
   </Card>
-  <Card title="Agent-powered fixes" icon="wand-magic-sparkles">
+  <Card title="Agent-powered fixes" icon="wand-magic-sparkles" href="/guides/agent-steps">
     Let an agent read your codebase and propose or apply a fix directly from a Sentry issue or a failing test.
   </Card>
-  <Card title="Gate and retry loops" icon="rotate">
+  <Card title="Gate and retry loops" icon="rotate" href="/guides/gate-and-retry">
     Retry a step until tests pass using `gate` with `success_if` and `on_failure.restart_from` — no custom scripting needed.
   </Card>
-  <Card title="Agents that answer reviews" icon="satellite-dish">
+  <Card title="Agents that answer reviews" icon="satellite-dish" href="/concepts/listening-jobs">
     Coming soon: a job that listens for PR review comments and runs an agent per batch until the PR merges.
   </Card>
 </CardGroup>

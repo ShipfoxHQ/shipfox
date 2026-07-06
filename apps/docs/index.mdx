@@ -21,7 +21,7 @@ Workflows live in `.shipfox/workflows/` as YAML files, versioned and reviewed al
 Three things set Shipfox apart, and they compound:
 
 - **Agents are first-class steps.** Any step can be an AI agent — pick a `model`, write a `prompt`, choose a `thinking` depth. No plugin, no action, no glue.
-- **Agents iterate until the work is correct.** Pair an agent with a gate: the agent makes a change, a `run` step verifies it, and `restart_from` loops back to the agent until the check passes — bounded automatically.
+- **Agents iterate until the work is correct.** Pair an agent with a [gate](/concepts/gates): the agent makes a change, a `run` step verifies it, and `restart_from` loops back to the agent until the check passes — bounded automatically.
 - **You see the agent think.** Agent steps stream structured events — messages, thinking, tool calls, token usage, and cost — not just raw text.
 
 ```yaml
@@ -41,28 +41,28 @@ jobs:
 ## Key features
 
 <CardGroup cols={2}>
-  <Card title="YAML Workflows in Your Repo" icon="code-branch">
+  <Card title="YAML Workflows in Your Repo" icon="code-branch" href="/concepts/workflows">
     Workflows live under `.shipfox/workflows/`, versioned and reviewed like any code.
   </Card>
-  <Card title="AI Agent Steps" icon="robot">
+  <Card title="AI Agent Steps" icon="robot" href="/concepts/jobs-steps">
     Any step can run an AI agent: pick a model, write a prompt, and Shipfox does the rest.
   </Card>
-  <Card title="Gates & Retry Loops" icon="rotate">
+  <Card title="Gates & Retry Loops" icon="rotate" href="/concepts/gates">
     Gate a step on its exit code and `restart_from` an earlier step — bounded loops, no scripting.
   </Card>
-  <Card title="Live & Agent Logs" icon="terminal">
+  <Card title="Live & Agent Logs" icon="terminal" href="/concepts/logging">
     Tail every step live; agent steps show messages, thinking, and tool calls as structured events.
   </Card>
-  <Card title="Your Own Runners" icon="server">
+  <Card title="Your Own Runners" icon="server" href="/concepts/runners">
     Jobs execute on runners you register and control — no vendor lock-in on compute.
   </Card>
-  <Card title="Autoscaling Provisioners" icon="layer-group">
+  <Card title="Autoscaling Provisioners" icon="layer-group" href="/concepts/runner-provisioners">
     A provisioner starts ephemeral, single-job runners on demand and lets them exit when idle.
   </Card>
-  <Card title="Smart Triggers" icon="bolt">
+  <Card title="Smart Triggers" icon="bolt" href="/integrations/overview">
     GitHub pushes, Sentry issues, webhooks from any system, or on-demand fire — with more integrations on the way.
   </Card>
-  <Card title="30+ Model Providers" icon="sparkles">
+  <Card title="30+ Model Providers" icon="sparkles" href="/reference/model-providers">
     Anthropic, OpenAI, DeepSeek, xAI, Google, Mistral, and more.
   </Card>
 </CardGroup>

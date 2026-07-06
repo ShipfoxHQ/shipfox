@@ -6,3 +6,41 @@
 
 - [Introduction](/introduction): What Shipfox is, how it works, and what you can build with agentic workflows.
 - [Quick Start](/getting-started): Connect a project, add a workflow YAML, register a runner, and fire your first run.
+- [Workflows](/concepts/workflows): The YAML workflow file format, top-level fields, env variables, and file location conventions.
+- [Jobs & Steps](/concepts/jobs-steps): How jobs group steps, job isolation, run steps, agent steps, and the gate block.
+- [Gates](/concepts/gates): How gates decide step success and restart a job from an earlier step to build bounded retry loops — valid on run and agent steps.
+- [Logging](/concepts/logging): Live and persisted step logs plus structured agent-session events; masking, retention, and truncation.
+- [Triggers](/concepts/triggers): What starts a run: manual, GitHub push, Sentry issue, and the filter field.
+- [Runners](/concepts/runners): How to register and configure runners that execute your workflow jobs.
+- [Runner Provisioners](/concepts/runner-provisioners): Autoscale ephemeral, single-job runners on demand instead of hand-starting a fleet.
+- [Listening Jobs](/concepts/listening-jobs): Coming soon — jobs that react to a stream of events inside a single run until a terminating condition.
+- [Integrations](/integrations/overview): Connect GitHub, Sentry, and custom webhooks so their events trigger workflows; each connection has a slug used as the trigger source.
+- [GitHub](/integrations/github): Connect a repository with the GitHub App and trigger workflows on pushes and other repository events.
+- [Sentry](/integrations/sentry): Trigger workflows on Sentry issue events — created, resolved, assigned, archived, regressed.
+- [Custom webhook](/integrations/webhooks): Point any system at a webhook connection URL to trigger workflows on the received event.
+- [Linear](/integrations/linear): Coming soon — trigger workflows from Linear issue events.
+- [Slack](/integrations/slack): Coming soon — trigger workflows from Slack events and report results back to channels.
+- [Agent Steps](/guides/agent-steps): Run AI models inline with agent steps — set model, thinking, and provider, or mix agent and shell steps in one job.
+- [Gate & Retry](/guides/gate-and-retry): Use gate blocks with CEL to evaluate step success and retry from an earlier keyed step on failure.
+- [Triage Sentry Issues](/guides/triage-sentry-issues): Fire a workflow on a new Sentry issue and hand it to an agent that investigates the repo and reports the cause.
+- [Checks on Push](/guides/checks-on-push): Run tests, lint, and an AI review automatically on every push to a GitHub repository.
+- [Multi-Job Pipeline](/guides/multi-job-pipeline): Sequence or parallelize jobs with needs; each job re-clones the repo (no shared filesystem) — fan-out/fan-in patterns.
+- [Model Providers](/guides/model-providers): Add API keys for Anthropic, OpenAI, DeepSeek, and 30+ providers; set a default and reference models by ID.
+- [AI Overview](/ai/overview): How Shipfox supports coding agents — AI-ingestible docs, every page available as Markdown for agents to browse and cite.
+- [Authoring Prompt](/ai/authoring-prompt): A compact workflow-schema cheat sheet to paste into any coding agent for valid workflow YAML.
+- [Skills Package](/ai/skills-package): Install the Shipfox skills package to give Claude Code, Cursor, Codex, and 18+ agents the full schema, rules, and examples.
+- [Workflow Schema](/reference/workflow-schema): Complete YAML schema reference — top-level and job fields, step kinds, gate blocks, env, checkout, and validation rules.
+- [Trigger Sources](/reference/trigger-sources): Every trigger source and its events — manual, GitHub, Sentry, custom webhooks; integration source is the connection slug.
+- [Step Types](/reference/step-types): The two step types — run steps (shell) and agent steps (AI models) — fields, constraints, and the gate block.
+- [Expressions (CEL)](/reference/expressions): CEL in gates and job success, and ${{ }} interpolation in run commands, env, and prompts from run/trigger context.
+- [Model Providers](/reference/model-providers): The agent provider catalog — every provider, its ID and default model, and how config and model resolution work.
+- [REST API](/reference/rest-api): The HTTP API — base URL, bearer-token auth, endpoints for projects, definitions, runs, runners, providers, integrations, and the error shape.
+- [Glossary](/reference/glossary): Definitions for every Shipfox term — workspace, project, workflow, run, job, step, trigger, runner, gate, CEL, filter, key.
+- [Installation](/installation): How to run Shipfox — evaluate locally, self-host, or use managed cloud; components and setup paths.
+- [Local Evaluation](/installation/local): Run the full stack on your machine with Docker Compose — API, dashboard, PostgreSQL, Temporal, Gitea, object storage.
+- [Self-Hosting](/installation/self-hosting): Deploy the control plane and runners on your own infrastructure — PostgreSQL, Temporal, S3-compatible storage, runner registration.
+- [AWS](/installation/aws): Coming soon — a reference Shipfox deployment on AWS (RDS, S3, container compute).
+- [Kubernetes](/installation/kubernetes): Coming soon — deploy the control plane and runners on a Kubernetes cluster.
+- [Managed Cloud](/installation/cloud): Coming soon — Shipfox runs the control plane; you configure your workspace and connect runners.
+- [Troubleshooting](/troubleshooting): Fix common issues — pending runs, runner connection problems, workflow validation errors, agent step failures, trigger setup.
+- [FAQ](/faq): Common questions about workflow YAML, runners, agent steps, providers, self-hosting, triggers, and roadmap features.

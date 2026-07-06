@@ -20,6 +20,72 @@
           {
             "group": "Get Started",
             "pages": ["introduction", "getting-started"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/workflows",
+              "concepts/jobs-steps",
+              "concepts/gates",
+              "concepts/logging",
+              "concepts/triggers",
+              "concepts/runners",
+              "concepts/runner-provisioners",
+              "concepts/listening-jobs"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/github",
+              "integrations/sentry",
+              "integrations/webhooks",
+              "integrations/linear",
+              "integrations/slack"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/agent-steps",
+              "guides/gate-and-retry",
+              "guides/triage-sentry-issues",
+              "guides/checks-on-push",
+              "guides/multi-job-pipeline",
+              "guides/model-providers"
+            ]
+          },
+          {
+            "group": "AI Assistance",
+            "pages": ["ai/overview", "ai/authoring-prompt", "ai/skills-package"]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/workflow-schema",
+              "reference/trigger-sources",
+              "reference/step-types",
+              "reference/expressions",
+              "reference/model-providers",
+              "reference/rest-api",
+              "reference/glossary"
+            ]
+          },
+          {
+            "group": "Installation",
+            "pages": [
+              "installation",
+              "installation/local",
+              "installation/self-hosting",
+              "installation/aws",
+              "installation/kubernetes",
+              "installation/cloud"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": ["troubleshooting", "faq"]
           }
         ]
       }

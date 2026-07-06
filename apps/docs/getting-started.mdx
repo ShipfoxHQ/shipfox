@@ -106,7 +106,7 @@ This repository is a small demo service... To run its tests, ...
 
 The agent had your repository checked out — it read real files to answer. Open the step in the dashboard to see the full **agent session**: every message, thinking block, and tool call, plus token usage and cost. Output varies between runs; the step still succeeds or fails based on whether the call completes.
 
-To make the agent *act on your code* — fix failing tests, review a diff — give it a repo-aware prompt and pair it with a gate so it retries until a check passes. Agent steps use your workspace's configured model provider, so configure one before running them.
+To make the agent *act on your code* — fix failing tests, review a diff — give it a repo-aware prompt and pair it with a [gate](/concepts/gates) so it retries until a check passes. Agent steps use your workspace's configured [model provider](/reference/model-providers), so configure one before running them.
 
 ## Let your agent write workflows
 
