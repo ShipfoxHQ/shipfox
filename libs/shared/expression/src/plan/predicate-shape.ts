@@ -1,6 +1,6 @@
-import {type ASTNode, type BinaryOperator, parse as parseCel} from '@marcbachmann/cel-js';
+import {type ASTNode, parse as parseCel} from '@marcbachmann/cel-js';
 
-const comparisonOperators = new Set<BinaryOperator>(['!=', '==', 'in', '<', '<=', '>', '>=']);
+const comparisonOperators = new Set<string>(['!=', '==', 'in', '<', '<=', '>', '>=']);
 const booleanReturningCalls = new Set([
   'all',
   'contains',
@@ -20,7 +20,7 @@ export function predicateSourceIsBooleanShaped(source: string): boolean {
 }
 
 function nodeIsBooleanShaped(node: ASTNode): boolean {
-  if (comparisonOperators.has(node.op as BinaryOperator)) return true;
+  if (comparisonOperators.has(node.op)) return true;
   if (node.op === '&&' || node.op === '||' || node.op === '!_') return true;
 
   switch (node.op) {
