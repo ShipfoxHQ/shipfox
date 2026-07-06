@@ -1,3 +1,4 @@
+import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {and, asc, eq, inArray, lt, notExists, or, sql} from 'drizzle-orm';
 import type {RunnerSession} from '#core/entities/runner-session.js';
 import {db} from './db.js';
@@ -9,6 +10,7 @@ export interface CreateRunnerSessionParams {
   scope: 'workspace';
   registrationTokenId: string;
   labels: string[];
+  toolCapabilities?: RunnerToolCapabilitiesDto | null;
 }
 
 export async function createRunnerSession(
@@ -22,6 +24,8 @@ export async function createRunnerSession(
       registrationTokenId: params.registrationTokenId,
       registrationTokenKind: 'manual',
       labels: params.labels,
+      toolCapabilities: params.toolCapabilities ?? null,
+      toolCapabilitiesReportedAt: params.toolCapabilities ? sql`now()` : null,
       maxClaims: null,
       claimsUsed: 0,
     })

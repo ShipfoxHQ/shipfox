@@ -19,7 +19,9 @@ export {
   createProvisionerTokenResponseSchema,
   type DemandStatDto,
   demandStatSchema,
+  type HeartbeatBodyDto,
   type HeartbeatResponseDto,
+  heartbeatBodySchema,
   heartbeatResponseSchema,
   type ListActiveProvisionersResponseDto,
   type ListManualRegistrationTokensResponseDto,
@@ -73,6 +75,8 @@ export {
   type RevokeManualRegistrationTokenResponseDto,
   type RevokeProvisionerTokenResponseDto,
   RUNNER_SESSION_EXHAUSTED_CODE,
+  type RunnerHarnessToolCapabilitiesDto,
+  type RunnerToolCapabilitiesDto,
   reconcileDesiredIntentSchema,
   reconciledBoundJobSchema,
   reconciledProvisionedRunnerSchema,
@@ -85,6 +89,8 @@ export {
   reservationGrantSchema,
   revokeManualRegistrationTokenResponseSchema,
   revokeProvisionerTokenResponseSchema,
+  runnerHarnessToolCapabilitiesSchema,
+  runnerToolCapabilitiesSchema,
 } from '#schemas/index.js';
 export {
   RUNNER_JOB_CLAIMED,

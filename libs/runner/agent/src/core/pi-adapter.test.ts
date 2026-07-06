@@ -1,5 +1,6 @@
 const {
   createAgentSessionMock,
+  createAgentSessionServicesMock,
   findMock,
   getAllMock,
   hasConfiguredAuthMock,
@@ -10,6 +11,7 @@ const {
   getLastAssistantTextMock,
 } = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
+  createAgentSessionServicesMock: vi.fn(),
   findMock: vi.fn(),
   getAllMock: vi.fn(),
   hasConfiguredAuthMock: vi.fn(),
@@ -38,7 +40,8 @@ const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
 });
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
-  createAgentSession: createAgentSessionMock,
+  createAgentSessionFromServices: createAgentSessionMock,
+  createAgentSessionServices: createAgentSessionServicesMock,
   defineTool: defineToolMock,
   AuthStorage: {create: authStorageCreateMock, inMemory: authStorageInMemoryMock},
   ModelRegistry: {
@@ -112,6 +115,7 @@ describe('piHarnessAdapter', () => {
     priorGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
     delete process.env.GIT_CONFIG_GLOBAL;
     createAgentSessionMock.mockReset();
+    createAgentSessionServicesMock.mockReset();
     findMock.mockReset();
     getAllMock.mockReset();
     hasConfiguredAuthMock.mockReset();
@@ -131,6 +135,7 @@ describe('piHarnessAdapter', () => {
     hasConfiguredAuthMock.mockReturnValue(true);
     promptMock.mockResolvedValue(undefined);
     getLastAssistantTextMock.mockReturnValue(undefined);
+    createAgentSessionServicesMock.mockResolvedValue({cwd: '/work'});
     createAgentSessionMock.mockResolvedValue({
       session: {
         prompt: promptMock,
@@ -156,11 +161,32 @@ describe('piHarnessAdapter', () => {
     const result = await piHarnessAdapter.run(invocation({provider: 'openai', model: 'gpt-5.1'}));
 
     expect(findMock).toHaveBeenCalledWith('openai', 'gpt-5.1');
+    expect(createAgentSessionServicesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: '/work',
+        resourceLoaderOptions: {additionalExtensionPaths: ['pi-web-access']},
+      }),
+    );
     expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({cwd: '/work', thinkingLevel: 'high', model}),
+      expect.objectContaining({services: {cwd: '/work'}, thinkingLevel: 'high', model}),
     );
     expect(promptMock).toHaveBeenCalledWith(expect.stringContaining('Fix it.'));
     expect(result).toEqual({response: ''});
+  });
+
+  it('loads pi-web-access through the Pi resource loader and keeps the output tool', async () => {
+    await piHarnessAdapter.run(invocation());
+
+    expect(createAgentSessionServicesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceLoaderOptions: {additionalExtensionPaths: ['pi-web-access']},
+      }),
+    );
+    expect(createAgentSessionMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        customTools: [expect.objectContaining({name: 'set_output'})],
+      }),
+    );
   });
 
   it('preserves the final assistant response when required outputs stay missing', async () => {

@@ -4,6 +4,7 @@ import {
   verifyRunnerSessionToken,
 } from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
+import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
@@ -28,6 +29,13 @@ const fakeUserAuth: AuthMethod = {
 const fakeProvisionerAuth: AuthMethod = {
   name: AUTH_PROVISIONER_TOKEN,
   authenticate: () => Promise.resolve(),
+};
+
+const fullCapabilities: RunnerToolCapabilitiesDto = {
+  harnesses: {
+    pi: {tools: ['read', 'bash', 'web_search']},
+    claude: {tools: ['Read', 'Bash', 'WebSearch']},
+  },
 };
 
 describe('POST /runners/register', () => {
@@ -92,6 +100,25 @@ describe('POST /runners/register', () => {
     expect(rows[0]?.registrationTokenKind).toBe('manual');
     expect(rows[0]?.provisionerId).toBeNull();
     expect(rows[0]?.provisionedRunnerId).toBeNull();
+    expect(rows[0]?.toolCapabilities).toBeNull();
+    expect(rows[0]?.toolCapabilitiesReportedAt).toBeNull();
+  });
+
+  it('persists a full capability report for a manual runner session', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {labels: ['linux'], capabilities: fullCapabilities},
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [session] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, res.json().session_id));
+    expect(session?.toolCapabilities).toEqual(fullCapabilities);
+    expect(session?.toolCapabilitiesReportedAt).toBeInstanceOf(Date);
   });
 
   it('exchanges an ephemeral registration token for a one-claim runner session', async () => {
@@ -105,7 +132,7 @@ describe('POST /runners/register', () => {
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${ephemeralRawToken}`},
-      payload: {labels: ['Linux', 'x64']},
+      payload: {labels: ['Linux', 'x64'], capabilities: {harnesses: {pi: {tools: ['read']}}}},
     });
 
     expect(res.statusCode).toBe(200);
@@ -125,6 +152,8 @@ describe('POST /runners/register', () => {
     expect(session?.provisionedRunnerId).toBe(token.provisionedRunnerId);
     expect(session?.maxClaims).toBe(1);
     expect(session?.claimsUsed).toBe(0);
+    expect(session?.toolCapabilities).toEqual({harnesses: {pi: {tools: ['read']}}});
+    expect(session?.toolCapabilitiesReportedAt).toBeInstanceOf(Date);
 
     const [consumed] = await db()
       .select()
@@ -132,6 +161,22 @@ describe('POST /runners/register', () => {
       .where(eq(ephemeralRegistrationTokens.id, token.id));
     expect(consumed?.consumedAt).toBeInstanceOf(Date);
     expect(consumed?.consumedSessionId).toBe(body.session_id);
+  });
+
+  it('rejects malformed capability reports without creating a runner session', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {labels: ['linux'], capabilities: {harnesses: {pi: {tools: ['read', 'read']}}}},
+    });
+
+    expect(res.statusCode).toBe(400);
+    const rows = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.workspaceId, workspaceId));
+    expect(rows).toHaveLength(0);
   });
 
   it('creates independent sessions from the same registration token', async () => {

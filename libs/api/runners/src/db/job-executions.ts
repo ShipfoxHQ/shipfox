@@ -3,6 +3,7 @@ import {
   RUNNER_JOB_LEASE_EXPIRED,
   RUNNER_JOB_QUEUED,
   type RunnersEventMap,
+  type RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
@@ -536,8 +537,11 @@ export async function isJobLeaseActive(params: {
 export async function recordHeartbeat(params: {
   jobExecutionId: string;
   runnerSessionId: string;
+  toolCapabilities?: RunnerToolCapabilitiesDto | null;
 }): Promise<{
   cancellationRequested: boolean;
+  previousToolCapabilities: RunnerToolCapabilitiesDto | null;
+  currentToolCapabilities: RunnerToolCapabilitiesDto | null;
   runningJobExecution: {
     workflowRunId: string;
     workflowRunAttemptId: string;
@@ -548,33 +552,63 @@ export async function recordHeartbeat(params: {
     runnerSessionId: string;
   };
 }> {
-  const updated = await db()
-    .update(runningJobExecutions)
-    .set({
-      firstHeartbeatAt: sql`COALESCE(${runningJobExecutions.firstHeartbeatAt}, now())`,
-      lastHeartbeatAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(runningJobExecutions.jobExecutionId, params.jobExecutionId),
-        eq(runningJobExecutions.runnerSessionId, params.runnerSessionId),
-      ),
-    )
-    .returning({
-      cancellationRequestedAt: runningJobExecutions.cancellationRequestedAt,
-      workflowRunId: runningJobExecutions.workflowRunId,
-      workflowRunAttemptId: runningJobExecutions.workflowRunAttemptId,
-      jobId: runningJobExecutions.jobId,
-      jobExecutionId: runningJobExecutions.jobExecutionId,
-      projectId: runningJobExecutions.projectId,
-      workspaceId: runningJobExecutions.workspaceId,
-      runnerSessionId: runningJobExecutions.runnerSessionId,
-    });
+  const result = await db().transaction(async (tx) => {
+    const updated = await tx
+      .update(runningJobExecutions)
+      .set({
+        firstHeartbeatAt: sql`COALESCE(${runningJobExecutions.firstHeartbeatAt}, now())`,
+        lastHeartbeatAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(runningJobExecutions.jobExecutionId, params.jobExecutionId),
+          eq(runningJobExecutions.runnerSessionId, params.runnerSessionId),
+        ),
+      )
+      .returning({
+        cancellationRequestedAt: runningJobExecutions.cancellationRequestedAt,
+        workflowRunId: runningJobExecutions.workflowRunId,
+        workflowRunAttemptId: runningJobExecutions.workflowRunAttemptId,
+        jobId: runningJobExecutions.jobId,
+        jobExecutionId: runningJobExecutions.jobExecutionId,
+        projectId: runningJobExecutions.projectId,
+        workspaceId: runningJobExecutions.workspaceId,
+        runnerSessionId: runningJobExecutions.runnerSessionId,
+      });
 
-  const row = updated[0];
+    const row = updated[0];
+    if (!row) throw new RunningJobExecutionNotFoundError(params.jobExecutionId);
+
+    const [previous] = await tx
+      .select({toolCapabilities: runnerSessions.toolCapabilities})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, params.runnerSessionId))
+      .limit(1)
+      .for('update');
+
+    const [session] = await tx
+      .update(runnerSessions)
+      .set({
+        toolCapabilities: params.toolCapabilities ?? null,
+        toolCapabilitiesReportedAt: params.toolCapabilities ? sql`now()` : null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(runnerSessions.id, params.runnerSessionId))
+      .returning({toolCapabilities: runnerSessions.toolCapabilities});
+
+    return {
+      row,
+      previousToolCapabilities: previous?.toolCapabilities ?? null,
+      currentToolCapabilities: session?.toolCapabilities ?? null,
+    };
+  });
+
+  const row = result.row;
   if (!row) throw new RunningJobExecutionNotFoundError(params.jobExecutionId);
   return {
     cancellationRequested: row.cancellationRequestedAt !== null,
+    previousToolCapabilities: result.previousToolCapabilities,
+    currentToolCapabilities: result.currentToolCapabilities,
     runningJobExecution: {
       workflowRunId: row.workflowRunId,
       workflowRunAttemptId: row.workflowRunAttemptId,

@@ -62,6 +62,7 @@ export const registerRoute = defineRoute({
             }
           : runner,
       labels: request.body.labels,
+      toolCapabilities: request.body.capabilities ?? null,
     });
 
     return {

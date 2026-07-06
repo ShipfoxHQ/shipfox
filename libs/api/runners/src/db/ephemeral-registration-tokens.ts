@@ -1,3 +1,4 @@
+import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {and, asc, eq, gt, inArray, isNull, lt, sql} from 'drizzle-orm';
 import type {EphemeralRegistrationToken} from '#core/entities/ephemeral-registration-token.js';
 import {
@@ -256,6 +257,7 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
   ephemeralTokenId: string;
   workspaceId: string;
   labels: string[];
+  toolCapabilities?: RunnerToolCapabilitiesDto | null;
   maxClaims: number;
 }) {
   return await db().transaction(async (tx) => {
@@ -315,6 +317,8 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
         provisionerId: consumed[0].provisionerId,
         provisionedRunnerId: consumed[0].provisionedRunnerId,
         labels: params.labels,
+        toolCapabilities: params.toolCapabilities ?? null,
+        toolCapabilitiesReportedAt: params.toolCapabilities ? sql`now()` : null,
         maxClaims: params.maxClaims,
         claimsUsed: 0,
       })

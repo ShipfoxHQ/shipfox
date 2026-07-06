@@ -3,7 +3,12 @@ export {
   claimedJobResponseSchema,
   RUNNER_SESSION_EXHAUSTED_CODE,
 } from './claim-job.js';
-export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
+export {
+  type HeartbeatBodyDto,
+  type HeartbeatResponseDto,
+  heartbeatBodySchema,
+  heartbeatResponseSchema,
+} from './heartbeat.js';
 export {
   type ActiveProvisionerDto,
   activeProvisionerDtoSchema,
@@ -102,3 +107,9 @@ export {
   reportProvisionedRunnersBodySchema,
   reportProvisionedRunnersResponseSchema,
 } from './report-provisioned-runners.js';
+export {
+  type RunnerHarnessToolCapabilitiesDto,
+  type RunnerToolCapabilitiesDto,
+  runnerHarnessToolCapabilitiesSchema,
+  runnerToolCapabilitiesSchema,
+} from './tool-capabilities.js';

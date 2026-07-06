@@ -6,6 +6,7 @@ import {
   createGracefulShutdownController,
   interruptibleSleep,
 } from '@shipfox/node-resilient-loop';
+import {runnerToolCapabilities} from '@shipfox/runner-agent';
 import {
   createLeaseClient,
   HTTPError,
@@ -73,7 +74,7 @@ export async function startRunner(): Promise<void> {
   while (running) {
     try {
       if (!runnerSession) {
-        runnerSession = await registerRunnerSession();
+        runnerSession = await registerRunnerSession({capabilities: runnerToolCapabilities()});
         logger().info({runnerSessionId: runnerSession.session_id}, 'Runner session registered');
       }
 
@@ -191,6 +192,7 @@ export async function runJob(
   const heartbeatLoop = startHeartbeatLoop(job.job_id, () => currentLeaseToken, ac, {
     intervalMs: config.SHIPFOX_HEARTBEAT_INTERVAL_MS,
     maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
+    getToolCapabilities: runnerToolCapabilities,
     onLeaseTokenRenewed: rememberLeaseToken,
   });
 

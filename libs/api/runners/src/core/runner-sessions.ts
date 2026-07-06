@@ -1,4 +1,5 @@
 import {issueRunnerSessionToken} from '@shipfox/api-auth';
+import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
 import {createRunnerSession} from '#db/runner-sessions.js';
@@ -30,6 +31,7 @@ export type RunnerRegistrationCredential =
 export async function registerRunnerSession(params: {
   credential: RunnerRegistrationCredential;
   labels: string[];
+  toolCapabilities?: RunnerToolCapabilitiesDto | null;
 }): Promise<RegisterRunnerSessionResult> {
   const labels = [...canonicalizeLabels(params.labels)];
   if (labels.length === 0) throw new EmptyRunnerLabelsError();
@@ -43,11 +45,13 @@ export async function registerRunnerSession(params: {
           scope: 'workspace',
           registrationTokenId: params.credential.registrationTokenId,
           labels,
+          toolCapabilities: params.toolCapabilities ?? null,
         })
       : await createRunnerSessionConsumingEphemeralToken({
           ephemeralTokenId: params.credential.ephemeralTokenId,
           workspaceId: params.credential.workspaceId,
           labels,
+          toolCapabilities: params.toolCapabilities ?? null,
           maxClaims: 1,
         });
   const sessionToken = await issueRunnerSessionToken({

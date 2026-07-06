@@ -6,6 +6,7 @@ import {
   verifyJobLeaseToken,
 } from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
+import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
@@ -13,6 +14,7 @@ import type {FastifyInstance} from 'fastify';
 import {claimJobExecution} from '#core/job-executions.js';
 import {db} from '#db/db.js';
 import {requestJobExecutionCancellation} from '#db/job-executions.js';
+import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
@@ -26,6 +28,19 @@ const fakeUserAuth: AuthMethod = {
 const fakeProvisionerAuth: AuthMethod = {
   name: AUTH_PROVISIONER_TOKEN,
   authenticate: () => Promise.resolve(),
+};
+
+const fullCapabilities: RunnerToolCapabilitiesDto = {
+  harnesses: {
+    pi: {tools: ['read', 'bash', 'web_search']},
+    claude: {tools: ['Read', 'Bash', 'WebSearch']},
+  },
+};
+
+const partialCapabilities: RunnerToolCapabilitiesDto = {
+  harnesses: {
+    pi: {tools: ['read']},
+  },
 };
 
 describe('POST /runners/jobs/:jobId/heartbeat', () => {
@@ -119,6 +134,91 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       .from(runningJobExecutions)
       .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
     expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
+  });
+
+  it('refreshes job heartbeat and runner capability report', async () => {
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${jobId}/heartbeat`,
+      headers: {authorization: `Bearer ${leaseToken}`},
+      payload: {capabilities: fullCapabilities},
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [running] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
+    const [session] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
+    expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
+    expect(session?.toolCapabilities).toEqual(fullCapabilities);
+    expect(session?.toolCapabilitiesReportedAt).toBeInstanceOf(Date);
+  });
+
+  it('clears the stored capability report when heartbeat omits capabilities', async () => {
+    const {jobId, leaseToken} = await claimAvailableJob();
+    await db()
+      .update(runnerSessions)
+      .set({
+        toolCapabilities: partialCapabilities,
+        toolCapabilitiesReportedAt: new Date('2026-01-01T00:00:00.000Z'),
+      })
+      .where(eq(runnerSessions.id, runnerSessionId));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${jobId}/heartbeat`,
+      headers: {authorization: `Bearer ${leaseToken}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [session] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
+    expect(session?.toolCapabilities).toBeNull();
+    expect(session?.toolCapabilitiesReportedAt).toBeNull();
+  });
+
+  it('rejects malformed capability reports without liveness or capability side effects', async () => {
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
+    await db()
+      .update(runnerSessions)
+      .set({
+        toolCapabilities: partialCapabilities,
+        toolCapabilitiesReportedAt: new Date('2026-01-01T00:00:00.000Z'),
+      })
+      .where(eq(runnerSessions.id, runnerSessionId));
+    const [beforeRunning] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${jobId}/heartbeat`,
+      headers: {authorization: `Bearer ${leaseToken}`},
+      payload: {capabilities: {harnesses: {pi: {tools: ['read', 'read']}}}},
+    });
+
+    expect(res.statusCode).toBe(400);
+    const [afterRunning] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
+    const [session] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
+    expect(afterRunning?.firstHeartbeatAt).toEqual(beforeRunning?.firstHeartbeatAt);
+    expect(afterRunning?.lastHeartbeatAt).toEqual(beforeRunning?.lastHeartbeatAt);
+    expect(session?.toolCapabilities).toEqual(partialCapabilities);
+    expect(session?.toolCapabilitiesReportedAt).toEqual(new Date('2026-01-01T00:00:00.000Z'));
   });
 
   it('returns 200 + cancel:true after requestJobExecutionCancellation', async () => {

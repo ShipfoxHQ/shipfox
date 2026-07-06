@@ -123,6 +123,8 @@ CREATE TABLE "runners_runner_sessions" (
 	"provisioner_id" uuid,
 	"provisioned_runner_id" text,
 	"labels" text[] NOT NULL,
+	"tool_capabilities" jsonb,
+	"tool_capabilities_reported_at" timestamp with time zone,
 	"max_claims" integer,
 	"claims_used" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
