@@ -68,7 +68,7 @@ then a `gate` reruns the tests and sends the agent back until they pass.
 | **Trigger** | What starts a run: an event from a connected source, or an on-demand fire. |
 | **Job** | A group of steps on one runner. Jobs form a DAG via `needs` and are isolated, so each re-clones the repo. |
 | **Step** | A `run` shell command or an agent (`model` + `prompt`). Runs in order within a job. |
-| **Gate** | A CEL `success_if` on a step plus `on_failure.restart_from` to build bounded retry loops. |
+| **Gate** | A [`success_if` expression](docs/reference/expressions.mdx) on a step, such as `exit_code == 0`, plus `on_failure.restart_from` to build bounded retry loops. |
 | **Listening job** | A [job that waits on events](docs/concepts/listening-jobs.mdx) and runs again per batch inside the same run, until a resolution condition. Drives event-driven, asynchronous workflows. |
 | **Runner** | A process you register on your own compute; matched to jobs by label. |
 
@@ -144,7 +144,7 @@ Full documentation lives in [`docs/`](docs) and is published at
 - **Getting started:** connect a project, add a workflow, register a runner, fire a run
 - **Concepts:** workflows, jobs & steps, gates, triggers, runners, logging
 - **Guides:** agent steps, gate & retry loops, multi-job pipelines, triaging Sentry issues
-- **Reference:** workflow schema, step types, expressions (CEL), model providers, REST API
+- **Reference:** workflow schema, step types, expressions, model providers, REST API
 - **Installation:** local evaluation and self-hosting
 
 ## Community
