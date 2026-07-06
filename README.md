@@ -14,26 +14,12 @@
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome" />
 </p>
 
-**Shipfox is a continuous shipping platform for workflows that reason and react.**
+**Build your software factory.**
 
-Most automation is trigger-based: an event fires a fixed job graph, and the run
-plays out on rails. Shipfox is built on two shifts that go further.
-
-**Workflows reason.** A step isn't limited to a shell command. Any step can be an
-agent (a model with your repository checked out) that reads code, runs tools, and
-makes changes. Agents are first-class: they share one lifecycle with shell steps,
-so an agent can be **gated and retried until a real check passes**. It edits, your
-tests run, and the workflow loops back until they're green.
-
-**Workflows react.** An event is not only an entry point; it is a first-class
-control-flow signal. Beyond starting a run, events can advance a workflow while it
-is still running, so a run becomes a stateful process that reacts to what arrives
-rather than a one-shot graph. A [listening job](docs/concepts/listening-jobs.mdx)
-wakes on each batch of events and runs again inside the same run, until a
-resolution condition is met.
-
-Everything runs on **runners you own**, and every step, including the agent's full
-reasoning, streams live to the dashboard.
+Shipfox is a continuous shipping platform for workflows that reason and react:
+every step is a shell command or an AI agent, and events drive the run from start
+to finish, on compute you own. A software factory that assembles itself in your
+repo.
 
 ```yaml
 name: Fix Sentry issues & answer PR reviews
