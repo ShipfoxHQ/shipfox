@@ -11,10 +11,13 @@ peerDependencyRules:
     react-dom: '19'
 allowBuilds:
   '@google/genai': true
+  '@scarf/scarf': false
   '@swc/core': true
   cpu-features: true
   esbuild: true
+  keytar: false
   protobufjs: true
+  puppeteer: false
   sharp: true
   ssh2: true
 
