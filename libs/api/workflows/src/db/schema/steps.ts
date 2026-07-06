@@ -14,6 +14,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import {
+  type PersistedEvaluationTraceEntry,
   STEP_STATUS_REASONS,
   type Step,
   type StepConfigDispatchPlan,
@@ -43,6 +44,7 @@ export const steps = pgTable(
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
     status: stepStatusEnum('status').notNull().default('pending'),
     statusReason: stepStatusReasonEnum('status_reason'),
+    evaluationTrace: jsonb('evaluation_trace').$type<readonly PersistedEvaluationTraceEntry[]>(),
     type: text('type').notNull(),
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
     condition: jsonb('condition').$type<WorkflowExpression>(),
@@ -81,6 +83,7 @@ export function toStep(row: StepDb): Step {
     sourceLocation: row.sourceLocation ?? null,
     status: row.status,
     statusReason: toStepStatusReason(row.statusReason),
+    evaluationTrace: row.evaluationTrace ?? null,
     type: row.type,
     config: row.config as Record<string, unknown>,
     condition: (row.condition as WorkflowExpression) ?? null,

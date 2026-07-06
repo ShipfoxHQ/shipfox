@@ -1,7 +1,8 @@
 import {cancelRunnerJobs, enqueueJobExecution, releaseJobExecution} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
+import {defaultJobConditionTrace} from '#core/condition-trace.js';
 import type {JobStatus, JobStatusReason, ResolutionReason} from '#core/entities/job.js';
-import type {StepStatus} from '#core/entities/step.js';
+import type {PersistedEvaluationTraceEntry, StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
 import type {
@@ -137,14 +138,27 @@ export async function setJobStatus(params: {
   status: JobStatus;
   version: number;
   statusReason?: JobStatusReason | null | undefined;
+  evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null | undefined;
 }): Promise<{newVersion: number; status: JobStatus}> {
   const updated = await updateJobStatus({
     jobId: params.jobId,
     status: params.status,
     expectedVersion: params.version,
     statusReason: params.statusReason,
+    evaluationTrace: jobStatusEvaluationTrace(params),
   });
   return {newVersion: updated.version, status: updated.status};
+}
+
+function jobStatusEvaluationTrace(params: {
+  status: JobStatus;
+  statusReason?: JobStatusReason | null | undefined;
+  evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null | undefined;
+}): readonly PersistedEvaluationTraceEntry[] | null | undefined {
+  if (params.evaluationTrace !== undefined) return params.evaluationTrace;
+  return params.status === 'skipped' && params.statusReason === 'default_gate_rejected'
+    ? defaultJobConditionTrace()
+    : undefined;
 }
 
 export async function setJobExecutionStatus(params: {

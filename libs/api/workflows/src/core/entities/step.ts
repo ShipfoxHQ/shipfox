@@ -77,6 +77,7 @@ export interface Step {
   sourceLocation: StepSourceLocation | null;
   status: StepStatus;
   statusReason: StepStatusReason | null;
+  evaluationTrace: readonly PersistedEvaluationTraceEntry[] | null;
   type: string;
   config: Record<string, unknown>;
   condition: WorkflowExpression | null;

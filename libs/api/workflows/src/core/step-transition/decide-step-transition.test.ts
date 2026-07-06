@@ -9,6 +9,7 @@ function step(overrides: Partial<Step> & {id: string; position: number}): Step {
     sourceLocation: null,
     status: 'pending',
     statusReason: null,
+    evaluationTrace: null,
     type: 'run',
     config: {},
     condition: null,

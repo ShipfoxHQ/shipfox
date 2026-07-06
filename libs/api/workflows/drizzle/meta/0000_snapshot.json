@@ -934,6 +934,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "evaluation_trace": {
+          "name": "evaluation_trace",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "type": {
           "name": "type",
           "type": "text",

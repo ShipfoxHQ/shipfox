@@ -127,6 +127,7 @@ CREATE TABLE "workflows_steps" (
 	"source_location" jsonb,
 	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
 	"status_reason" "workflows_step_status_reason",
+	"evaluation_trace" jsonb,
 	"type" text NOT NULL,
 	"config" jsonb NOT NULL,
 	"condition" jsonb,

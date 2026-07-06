@@ -43,6 +43,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm';
+import {explicitConditionTrace} from '#core/condition-trace.js';
 import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {
@@ -1235,6 +1236,14 @@ export async function evaluateJobActivations(
       }
 
       const statusReason = outcome.evaluationFailed ? 'condition_errored' : 'condition_rejected';
+      const evaluationTrace = explicitConditionTrace({
+        expression: modelJob.if,
+        field: 'job.if',
+        route: outcome.route,
+        site: context.site,
+        value: outcome.value,
+        degraded: outcome.evaluationFailed,
+      });
       const expectedVersion = expectedVersions.get(job.id);
       if (expectedVersion === undefined) {
         throw new Error(`Missing expected version for activation job ${job.id}`);
@@ -1244,6 +1253,7 @@ export async function evaluateJobActivations(
         status: 'skipped',
         expectedVersion,
         statusReason,
+        evaluationTrace,
       });
       if (updated) {
         decisions.push({
@@ -2208,6 +2218,7 @@ export interface UpdateJobStatusParams {
   status: JobStatus;
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
+  evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null | undefined;
 }
 
 export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Job> {
@@ -2218,6 +2229,7 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
       status: params.status,
       expectedVersion: params.expectedVersion,
       statusReason,
+      evaluationTrace: params.evaluationTrace,
     });
     if (updated) return updated;
 
@@ -2623,7 +2635,12 @@ export interface MarkStepRunningParams {
 export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Promise<Step | null> {
   const rows = await tx
     .update(steps)
-    .set({status: 'running', statusReason: null, updatedAt: new Date()})
+    .set({
+      status: 'running',
+      statusReason: null,
+      evaluationTrace: null,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(steps.id, params.stepId),
@@ -2666,6 +2683,7 @@ export async function dispatchStepWithCompletedConfig(
     .set({
       status: 'running',
       statusReason: null,
+      evaluationTrace: null,
       config: params.config,
       updatedAt: new Date(),
     })
@@ -2697,6 +2715,7 @@ export interface MarkStepSkippedParams {
   jobExecutionId: string;
   stepId: string;
   statusReason: StepStatusReason;
+  evaluationTrace: readonly PersistedEvaluationTraceEntry[];
 }
 
 export async function markStepSkipped(params: MarkStepSkippedParams, tx: Tx): Promise<Step | null> {
@@ -2705,6 +2724,7 @@ export async function markStepSkipped(params: MarkStepSkippedParams, tx: Tx): Pr
     .set({
       status: 'skipped',
       statusReason: params.statusReason,
+      evaluationTrace: params.evaluationTrace,
       error: null,
       updatedAt: new Date(),
     })
