@@ -7,7 +7,7 @@ import {
 } from '@shipfox/expression';
 import {assembleGateContext} from '../step-config/assemble-run-context.js';
 import {completeStepField} from '../step-config/fields.js';
-import type {GateOutcome, StepResult} from './decide-step-transition.js';
+import type {GateOutcome, StepReport} from './decide-step-transition.js';
 
 // The exact `uncheckable` reason recorded when the gate's CEL expression itself
 // throws (as opposed to a missing exit code). The DTO mapper keys on this string to
@@ -69,7 +69,7 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
  * unless evaluation gets a budget outside the lock. The materializer only
  * persists CEL expressions, and this evaluator only needs the validated source.
  */
-export function evaluateGate(gate: StepGate | undefined, result: StepResult): GateOutcome {
+export function evaluateGate(gate: StepGate | undefined, result: StepReport): GateOutcome {
   if (!gate?.success) return {kind: 'no-gate'};
   const source = gate.success.source;
 
@@ -108,7 +108,7 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
 
 export function evaluateGateFeedback(params: {
   readonly gate: StepGate;
-  readonly result: StepResult;
+  readonly result: StepReport;
   readonly definitionId: string;
 }): string {
   const feedbackTemplate = params.gate.onFailure?.feedbackTemplate;

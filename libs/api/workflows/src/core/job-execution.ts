@@ -58,6 +58,7 @@ type ReportedStepResult = {
   readonly status: 'succeeded' | 'failed';
   readonly error: Record<string, unknown> | null;
   readonly output: Record<string, unknown> | null;
+  readonly response: string | null;
   readonly exitCode: number | null;
 };
 
@@ -240,6 +241,7 @@ export interface RecordStepResultParams {
   // Structured runner output feeds gate predicates and audit/history on the
   // attempt row; the current step projection keeps only status/error.
   output?: Record<string, unknown> | null;
+  response?: string | null;
   exitCode?: number | null;
   // The attempt the runner was dispatched. Omitted = "the step's current
   // attempt" (back-compat for callers that don't track attempts yet).
@@ -333,6 +335,7 @@ async function recordStepResultInTransaction(
     status: params.status,
     error: params.error ?? null,
     output: params.output ?? null,
+    response: params.response ?? null,
     exitCode: params.exitCode ?? null,
   };
   const outputCoercion = coerceReportedStepOutput(target.config, result);
@@ -344,6 +347,7 @@ async function recordStepResultInTransaction(
       status: 'failed',
       error: outputInvalidError(outputCoercion.error),
       output: null,
+      response: result.response,
       exitCode: result.exitCode,
     };
   }

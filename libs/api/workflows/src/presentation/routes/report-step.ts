@@ -50,6 +50,7 @@ export const reportStepRoute = defineRoute({
       status: request.body.status,
       error: fromStepErrorDto(request.body.error),
       output: request.body.output ?? null,
+      response: request.body.response ?? null,
       exitCode: request.body.exit_code ?? request.body.error?.exit_code ?? null,
       logOutcome: request.body.log_outcome,
       ...(request.body.attempt !== undefined ? {attempt: request.body.attempt} : {}),

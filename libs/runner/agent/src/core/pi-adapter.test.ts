@@ -4,16 +4,20 @@ const {
   getAllMock,
   hasConfiguredAuthMock,
   registerProviderMock,
+  defineToolMock,
   promptMock,
   abortMock,
+  getLastAssistantTextMock,
 } = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
   findMock: vi.fn(),
   getAllMock: vi.fn(),
   hasConfiguredAuthMock: vi.fn(),
   registerProviderMock: vi.fn(),
+  defineToolMock: vi.fn((tool) => tool),
   promptMock: vi.fn(),
   abortMock: vi.fn(),
+  getLastAssistantTextMock: vi.fn(),
 }));
 const {authStorageCreateMock, authStorageInMemoryMock} = vi.hoisted(() => ({
   authStorageCreateMock: vi.fn(),
@@ -35,6 +39,7 @@ const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSession: createAgentSessionMock,
+  defineTool: defineToolMock,
   AuthStorage: {create: authStorageCreateMock, inMemory: authStorageInMemoryMock},
   ModelRegistry: {
     create: () => ({
@@ -111,8 +116,10 @@ describe('piHarnessAdapter', () => {
     getAllMock.mockReset();
     hasConfiguredAuthMock.mockReset();
     registerProviderMock.mockReset();
+    defineToolMock.mockClear();
     promptMock.mockReset();
     abortMock.mockReset();
+    getLastAssistantTextMock.mockReset();
     assertEgressAllowedMock.mockReset();
     authStorageCreateMock.mockReset();
     authStorageInMemoryMock.mockReset();
@@ -123,8 +130,14 @@ describe('piHarnessAdapter', () => {
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
     hasConfiguredAuthMock.mockReturnValue(true);
     promptMock.mockResolvedValue(undefined);
+    getLastAssistantTextMock.mockReturnValue(undefined);
     createAgentSessionMock.mockResolvedValue({
-      session: {prompt: promptMock, abort: abortMock, messages: []},
+      session: {
+        prompt: promptMock,
+        abort: abortMock,
+        getLastAssistantText: getLastAssistantTextMock,
+        messages: [],
+      },
     });
   });
 
@@ -146,8 +159,49 @@ describe('piHarnessAdapter', () => {
     expect(createAgentSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({cwd: '/work', thinkingLevel: 'high', model}),
     );
-    expect(promptMock).toHaveBeenCalledWith('Fix it.');
-    expect(result).toEqual({});
+    expect(promptMock).toHaveBeenCalledWith(expect.stringContaining('Fix it.'));
+    expect(result).toEqual({response: ''});
+  });
+
+  it('preserves the final assistant response when required outputs stay missing', async () => {
+    const model = {provider: 'anthropic', id: 'claude-opus-4-8'};
+    findMock.mockReturnValue(model);
+    getLastAssistantTextMock.mockReturnValue('final text without output');
+
+    const result = piHarnessAdapter.run(invocation({outputs: {summary: {type: 'string'}}}));
+
+    await expect(result).rejects.toMatchObject({
+      message: 'Agent step finished without required outputs: summary',
+      response: 'final text without output',
+    });
+    expect(promptMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns the final assistant response and collected outputs after a correction turn', async () => {
+    let customTools: Array<{
+      execute: (toolCallId: string, params: {key: string; value: string}) => Promise<unknown>;
+    }> = [];
+    createAgentSessionMock.mockImplementation((options) => {
+      customTools = options.customTools;
+      return Promise.resolve({
+        session: {
+          prompt: promptMock,
+          abort: abortMock,
+          getLastAssistantText: getLastAssistantTextMock,
+          messages: [],
+        },
+      });
+    });
+    promptMock.mockResolvedValueOnce(undefined).mockImplementationOnce(async () => {
+      await customTools[0]?.execute('tool-1', {key: 'summary', value: 'done'});
+    });
+    getLastAssistantTextMock.mockReturnValue('final reply');
+
+    const result = await piHarnessAdapter.run(invocation({outputs: {summary: {type: 'string'}}}));
+
+    expect(promptMock).toHaveBeenCalledTimes(2);
+    expect(promptMock).toHaveBeenLastCalledWith(expect.stringContaining('summary'));
+    expect(result).toEqual({response: 'final reply', outputs: {summary: 'done'}});
   });
 
   it('injects runtime credentials into in-memory pi auth storage without persisting them', async () => {
@@ -566,7 +620,13 @@ describe('piHarnessAdapter', () => {
       return Promise.resolve();
     });
     createAgentSessionMock.mockResolvedValue({
-      session: {prompt: promptMock, abort: abortMock, messages: [], sessionFile},
+      session: {
+        prompt: promptMock,
+        abort: abortMock,
+        getLastAssistantText: getLastAssistantTextMock,
+        messages: [],
+        sessionFile,
+      },
     });
     const entries: string[] = [];
 
@@ -639,7 +699,7 @@ describe('piHarnessAdapter', () => {
 
     expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
     resolvePrompt();
-    await promise;
+    await expect(promise).rejects.toThrow('Agent step aborted');
   });
 
   it('throws an AgentConfigError naming the provider when it is unknown', async () => {
@@ -724,7 +784,7 @@ describe('piHarnessAdapter', () => {
 
     expect(abortMock).toHaveBeenCalledTimes(1);
     resolvePrompt();
-    await promise;
+    await expect(promise).rejects.toThrow('Agent step aborted');
   });
 
   it('aborts the session and skips the prompt when the signal fires during session creation', async () => {
@@ -740,7 +800,14 @@ describe('piHarnessAdapter', () => {
     const promise = piHarnessAdapter.run(invocation({signal: ac.signal}));
     await vi.waitFor(() => expect(createAgentSessionMock).toHaveBeenCalled());
     ac.abort();
-    resolveCreate({session: {prompt: promptMock, abort: abortMock, messages: []}});
+    resolveCreate({
+      session: {
+        prompt: promptMock,
+        abort: abortMock,
+        getLastAssistantText: getLastAssistantTextMock,
+        messages: [],
+      },
+    });
 
     await expect(promise).rejects.toThrow('aborted');
     expect(abortMock).toHaveBeenCalledTimes(1);

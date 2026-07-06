@@ -72,7 +72,9 @@ vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 
-const {executeStep, pullNextStep, runJobSteps} = await import('#core/step-loop.js');
+const {executeStep, pullNextStep, reportStepResult, runJobSteps} = await import(
+  '#core/step-loop.js'
+);
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
@@ -277,6 +279,33 @@ describe('runJobSteps', () => {
       error: null,
       exitCode: 0,
       outputs: {image_sha: 'sha-123'},
+      logOutcome: 'drained',
+      signal: ac.signal,
+    });
+  });
+
+  it('reports empty response strings instead of omitting them', async () => {
+    const run = buildRunStep();
+    const ac = new AbortController();
+
+    await reportStepResult({
+      leaseClient,
+      step: run,
+      attempt: 1,
+      result: {success: true, response: '', error: null, exit_code: 0},
+      logOutcome: 'drained',
+      jobId: JOB_ID,
+      stepLabel: 'build',
+      signal: ac.signal,
+    });
+
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      status: 'succeeded',
+      error: null,
+      exitCode: 0,
+      response: '',
       logOutcome: 'drained',
       signal: ac.signal,
     });
@@ -1007,7 +1036,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(agent, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
     await runLoop({signal: ac.signal});
@@ -1052,7 +1081,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(agent, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
     await runLoop({signal: ac.signal});
@@ -1084,7 +1113,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(agent, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
     await runLoop({signal: ac.signal});
@@ -1129,7 +1158,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(agent, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
     await runLoop({signal: ac.signal});
@@ -1169,7 +1198,7 @@ describe('runJobSteps', () => {
     executeAgentStepMock.mockImplementation(
       (_step: StepDto, opts: {onSessionEntry?: (line: string) => void}) => {
         opts.onSessionEntry?.('{"type":"message","id":"a"}');
-        return Promise.resolve({success: true, output: '', error: null, exit_code: 0});
+        return Promise.resolve({success: true, error: null, exit_code: 0});
       },
     );
     const ac = new AbortController();
@@ -1201,7 +1230,7 @@ describe('runJobSteps', () => {
     createSessionLogStreamMock.mockImplementationOnce(() => {
       throw new Error('logs dir is a file');
     });
-    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
     await runLoop({signal: ac.signal});
@@ -1234,7 +1263,6 @@ describe('runJobSteps', () => {
       ac.abort();
       return Promise.resolve({
         success: false,
-        output: '',
         error: {message: 'Agent step aborted', reason: 'agent_invocation_failed' as const},
         exit_code: null,
       });
@@ -1251,12 +1279,12 @@ describe('runJobSteps', () => {
     );
   });
 
-  it('redacts runtime credential values from agent failures and blanks output before reporting', async () => {
+  it('redacts runtime credential values from agent failures and responses', async () => {
     const agent = buildAgentStep();
     const hexCredential = Buffer.from('sk-runtime-secret').toString('hex');
     executeAgentStepMock.mockResolvedValue({
       success: false,
-      output: 'provider echoed sk-runtime-secret',
+      response: 'provider echoed sk-runtime-secret',
       error: {
         message: `provider rejected sk-runtime-secret and ${hexCredential}`,
         reason: 'agent_invocation_failed' as const,
@@ -1282,12 +1310,47 @@ describe('runJobSteps', () => {
 
     expect(execution.result).toEqual({
       success: false,
-      output: '',
+      response: 'provider echoed ***',
       error: {
         message: 'provider rejected *** and ***',
         reason: 'agent_invocation_failed',
       },
       exit_code: null,
+    });
+  });
+
+  it('redacts runtime credential values from successful agent response and outputs', async () => {
+    const agent = buildAgentStep();
+    executeAgentStepMock.mockResolvedValue({
+      success: true,
+      response: 'provider echoed sk-runtime-secret',
+      outputs: {summary: 'used sk-runtime-secret'},
+      error: null,
+      exit_code: 0,
+    });
+    const ac = new AbortController();
+
+    const execution = await executeStep({
+      step: agent,
+      attempt: 1,
+      cwd: '/work',
+      logsDir: LOGS_DIR,
+      jobContext: JOB_CONTEXT,
+      leaseClient,
+      secrets: [],
+      signal: ac.signal,
+      workspacePrepared: true,
+      gitConfigPath: GIT_CONFIG_PATH,
+      jobId: JOB_ID,
+      stepLabel: 'implement',
+    });
+
+    expect(execution.result).toEqual({
+      success: true,
+      response: 'provider echoed ***',
+      outputs: {summary: 'used ***'},
+      error: null,
+      exit_code: 0,
     });
   });
 

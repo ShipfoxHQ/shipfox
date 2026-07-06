@@ -38,6 +38,7 @@ export {
   rerunWorkflowRunBodySchema,
   resolutionReasonSchema,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
+  STEP_RESPONSE_MAX_LENGTH,
   type StepAttemptDto,
   type StepDto,
   type StepErrorCategoryDto,

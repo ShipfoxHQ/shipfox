@@ -3,7 +3,7 @@
 // from test/env.ts (setupFiles), loaded before config is imported.
 
 import {RUNNER_SESSION_EXHAUSTED_CODE} from '@shipfox/api-runners-dto';
-import {STEP_ERROR_MESSAGE_MAX_LENGTH} from '@shipfox/api-workflows-dto';
+import {STEP_ERROR_MESSAGE_MAX_LENGTH, STEP_RESPONSE_MAX_LENGTH} from '@shipfox/api-workflows-dto';
 import {
   AgentRuntimeConfigRequestError,
   appendStepLogs,
@@ -426,6 +426,23 @@ describe('api-client auth contexts', () => {
     });
 
     expect(JSON.parse(calls[0]?.body ?? '{}')).not.toHaveProperty('output');
+  });
+
+  it('reportStep includes capped response when present', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-response');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'succeeded',
+      exitCode: 0,
+      response: 'x'.repeat(STEP_RESPONSE_MAX_LENGTH + 1),
+      logOutcome: 'drained',
+    });
+
+    const body = JSON.parse(calls[0]?.body ?? '{}') as {response?: string};
+    expect(body.response).toBe('x'.repeat(STEP_RESPONSE_MAX_LENGTH));
   });
 
   it('reportStep truncates long error messages before validation and send', async () => {

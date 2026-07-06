@@ -5,8 +5,9 @@ import type {
   StepErrorDto,
   StepErrorReasonDto,
 } from '@shipfox/api-workflows-dto';
+import type {OutputDeclarations} from '@shipfox/expression';
 import type {StepResult} from '@shipfox/runner-execution';
-import {AgentConfigError} from '#core/errors.js';
+import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessAdapter} from '#core/harness.js';
 import {piHarnessAdapter} from '#core/pi-adapter.js';
 
@@ -46,6 +47,7 @@ export function executeAgentStep(
     cwd: options.cwd ?? process.cwd(),
     harness: options.runtime.harness,
     model: options.runtime.model,
+    outputs: outputDeclarationsFromConfig(step.config.outputs),
     prompt,
     thinking: options.runtime.thinking,
     provider: options.runtime.provider,
@@ -61,6 +63,7 @@ async function runSelectedHarness(params: {
   cwd: string;
   harness: Harness;
   model: string;
+  outputs: OutputDeclarations | undefined;
   prompt: string;
   thinking: string;
   provider: string;
@@ -74,6 +77,7 @@ async function runSelectedHarness(params: {
     cwd,
     harness,
     model,
+    outputs,
     prompt,
     thinking,
     provider,
@@ -86,13 +90,14 @@ async function runSelectedHarness(params: {
 
   try {
     const adapter = await selectHarnessAdapter(harness);
-    const {summary} = await raceAbort(
+    const {response, outputs: collectedOutputs} = await raceAbort(
       adapter.run({
         cwd,
         model,
         provider,
         thinking,
         prompt,
+        outputs,
         credentials,
         customProvider,
         signal,
@@ -101,7 +106,13 @@ async function runSelectedHarness(params: {
       }),
       signal,
     );
-    return {success: true, output: summary ?? '', error: null, exit_code: 0};
+    return {
+      success: true,
+      response: response ?? '',
+      ...(collectedOutputs === undefined ? {} : {outputs: collectedOutputs}),
+      error: null,
+      exit_code: 0,
+    };
   } catch (error) {
     const reason: StepErrorReasonDto =
       error instanceof AgentConfigError ? 'agent_config_invalid' : 'agent_invocation_failed';
@@ -109,6 +120,7 @@ async function runSelectedHarness(params: {
       error instanceof Error ? error.message : String(error),
       reason,
       error instanceof AgentConfigError ? error.agentConfigIssue : undefined,
+      error instanceof AgentInvocationError ? error.response : undefined,
     );
   }
 }
@@ -163,11 +175,24 @@ function agentFailure(
   message: string,
   reason: StepErrorReasonDto = 'agent_invocation_failed',
   agentConfigIssue?: AgentConfigIssueDto,
+  response?: string,
 ): StepResult {
   const error: StepErrorDto = {
     message,
     reason,
     ...(agentConfigIssue === undefined ? {} : {agent_config_issue: agentConfigIssue}),
   };
-  return {success: false, output: '', error, exit_code: null};
+  return {
+    success: false,
+    ...(response === undefined ? {} : {response}),
+    error,
+    exit_code: null,
+  };
+}
+
+function outputDeclarationsFromConfig(value: unknown): OutputDeclarations | undefined {
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as OutputDeclarations;
 }

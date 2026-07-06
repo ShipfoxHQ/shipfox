@@ -4,6 +4,7 @@ import {
   AuthStorage,
   type CreateAgentSessionOptions,
   createAgentSession,
+  defineTool,
   ModelRegistry,
   SessionManager,
 } from '@earendil-works/pi-coding-agent';
@@ -15,9 +16,16 @@ import {
   DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
   DEFAULT_CUSTOM_MODEL_REASONING,
 } from '@shipfox/api-agent-dto';
+import {Type} from 'typebox';
 import {assertRunnerEgressAllowed} from '#core/egress.js';
-import {AgentConfigError} from '#core/errors.js';
+import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
+import {
+  OutputCollector,
+  RequiredOutputsMissingError,
+  runOutputTurnLoop,
+  withOutputGuidance,
+} from '#core/output-collector.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 
 const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-keyless-custom-provider-placeholder';
@@ -35,8 +43,8 @@ export const piHarnessAdapter: HarnessAdapter = {run: runPiAgent};
  * throws on a pi/provider failure or abort, so the caller maps a resolved call to a
  * succeeded step and a thrown call to a failed step.
  *
- * The returned `summary` is the agent's final assistant message, kept runner-local for
- * observability and never sent to the API, so it is optional.
+ * The returned `response` is the agent's final assistant message, capped and reported
+ * separately from structured outputs.
  */
 async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult> {
   const {
@@ -51,6 +59,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     signal,
     onSessionEntry,
   } = invocation;
+  const collector = new OutputCollector(invocation.outputs);
 
   // A listener added to an already-aborted signal never fires, so an abort that lands
   // before this point (or during the awaits below) would leave pi running and burning
@@ -86,6 +95,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     thinkingLevel: thinking as PiThinkingLevel,
     authStorage,
     modelRegistry,
+    customTools: [setOutputTool(collector)],
     // Keep the session JSONL inside the job workspace so it forwards from a deterministic path
     // and is cleaned up with the workspace; pi's default lives under ~/.pi, outside it.
     sessionManager: SessionManager.create(cwd, join(cwd, 'logs', 'agent-sessions')),
@@ -118,8 +128,26 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
   }
   try {
-    await session.prompt(prompt);
-    return {};
+    let response = '';
+    await runOutputTurnLoop({
+      signal,
+      prompt: withOutputGuidance(prompt, collector.guidanceText()),
+      runTurn: async (message) => {
+        await session.prompt(message);
+        response = session.getLastAssistantText() ?? '';
+      },
+      missingRequired: () => collector.missingRequired(),
+    });
+    const outputs = collector.snapshot();
+    return {
+      response,
+      ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
+    };
+  } catch (error) {
+    if (error instanceof RequiredOutputsMissingError) {
+      throw new AgentInvocationError(error.message, session.getLastAssistantText() ?? '');
+    }
+    throw error;
   } finally {
     // A final synchronous read forwards every entry written before the caller closes the log
     // stream, so all session records precede its end marker.
@@ -129,6 +157,36 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     signal.removeEventListener('abort', stopForwarder);
     signal.removeEventListener('abort', restoreGitConfigGlobal);
   }
+}
+
+function setOutputTool(collector: OutputCollector) {
+  return defineTool({
+    name: 'set_output',
+    label: 'Set output',
+    description: 'Set one structured output value for this workflow step.',
+    promptSnippet: 'set_output records a workflow step output.',
+    promptGuidelines: [
+      'Use set_output once for each required workflow output before your final response.',
+      'Pass all values as strings. For json outputs, pass valid JSON text.',
+    ],
+    parameters: Type.Object({
+      key: Type.String(),
+      value: Type.String(),
+    }),
+    async execute(_toolCallId, params) {
+      await Promise.resolve();
+      const result = collector.trySet(params.key, params.value);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: result.ok ? `Output "${params.key}" set.` : result.feedback,
+          },
+        ],
+        details: result,
+      };
+    },
+  });
 }
 
 async function registerCustomProvider(

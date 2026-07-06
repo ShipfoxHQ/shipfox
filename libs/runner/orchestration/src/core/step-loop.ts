@@ -365,7 +365,7 @@ export async function executeStep(params: {
           : {}),
       });
       return {
-        result: maskAgentFailure(result, runtimeSecretVariants),
+        result: maskAgentResult(result, runtimeSecretVariants),
         stream,
         logOutcome: sessionStream ? undefined : 'abandoned',
         preparedWorkspace: false,
@@ -531,25 +531,37 @@ function stepSecretsFailure(error: unknown): StepResult {
   };
 }
 
-function maskAgentFailure(result: StepResult, secretVariants: string[]): StepResult {
-  if (result.success) return result;
+function maskAgentResult(result: StepResult, secretVariants: string[]): StepResult {
+  if (result.success) {
+    return {
+      ...result,
+      ...(result.response === undefined
+        ? {}
+        : {response: redactSecrets(result.response, secretVariants)}),
+      ...(result.outputs === undefined
+        ? {}
+        : {outputs: redactOutputValues(result.outputs, secretVariants)}),
+    };
+  }
+
   const error =
     result.error === null || result.error === undefined
       ? result.error
       : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
-  return {...result, output: '', error};
+  return {
+    ...result,
+    ...(result.response === undefined
+      ? {}
+      : {response: redactSecrets(result.response, secretVariants)}),
+    error,
+  };
 }
 
 function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepResult {
   const outputs =
     result.outputs === undefined
       ? result.outputs
-      : Object.fromEntries(
-          Object.entries(result.outputs).map(([key, value]) => [
-            key,
-            redactSecrets(value, secretVariants),
-          ]),
-        );
+      : redactOutputValues(result.outputs, secretVariants);
   const error =
     result.success || result.error === null || result.error === undefined
       ? result.error
@@ -559,6 +571,15 @@ function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepR
     ...(outputs === undefined ? {} : {outputs}),
     error,
   };
+}
+
+function redactOutputValues(
+  outputs: Record<string, string>,
+  secretVariants: string[],
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(outputs).map(([key, value]) => [key, redactSecrets(value, secretVariants)]),
+  );
 }
 
 function agentRuntimeConfigFailure(error: unknown): StepResult {
@@ -647,6 +668,7 @@ export async function reportStepResult(params: {
     // null on success, the error shape on failure — matches reportStepBodySchema's refine.
     error: result.error,
     exitCode: result.exit_code,
+    ...(result.response === undefined ? {} : {response: result.response}),
     ...(result.outputs ? {outputs: result.outputs} : {}),
     logOutcome,
     signal,

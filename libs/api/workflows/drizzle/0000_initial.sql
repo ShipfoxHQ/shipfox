@@ -101,6 +101,7 @@ CREATE TABLE "workflows_step_attempts" (
 	"config" jsonb,
 	"evaluation_trace" jsonb,
 	"output" jsonb,
+	"response" text,
 	"error" jsonb,
 	"exit_code" integer,
 	"log_outcome" text,

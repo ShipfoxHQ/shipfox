@@ -467,6 +467,23 @@ describe('assembleStepDispatchContext', () => {
     expect(buildAttempt).not.toHaveProperty('response');
   });
 
+  it('exposes agent response on the latest attempt and attempt history', () => {
+    const targetStep = step({id: 'step-2', key: 'deploy'});
+    const steps = [step({id: 'step-1', key: 'review', status: 'succeeded'}), targetStep];
+
+    const context = assembleStepDispatchContext({
+      steps,
+      attempts: [attempt({stepId: 'step-1', response: 'Looks good.'})],
+      targetStepId: targetStep.id,
+    });
+
+    const stepsContext = context.values.steps as Record<string, Record<string, unknown>>;
+    const review = stepsContext.review as Record<string, unknown>;
+    const reviewAttempt = (review.attempts as Record<string, unknown>[])[0];
+    expect(review.response).toBe('Looks good.');
+    expect(reviewAttempt?.response).toBe('Looks good.');
+  });
+
   it('exposes projection status when a step has no terminal attempt', () => {
     const skipped = step({
       id: 'step-1',
@@ -660,6 +677,7 @@ function attempt(overrides: Partial<StepAttempt> = {}): StepAttempt {
     config: null,
     evaluationTrace: null,
     output: null,
+    response: null,
     error: null,
     exitCode: 0,
     gateResult: null,

@@ -43,9 +43,12 @@
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
+    "@shipfox/expression": "workspace:*",
     "@shipfox/node-egress-guard": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/runner-execution": "workspace:*"
+    "@shipfox/runner-execution": "workspace:*",
+    "typebox": "1.1.38",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
