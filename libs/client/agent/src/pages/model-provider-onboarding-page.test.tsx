@@ -1,7 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui/toast';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {ReactElement} from 'react';
 import {isModelProviderOnboardingDismissed} from '#state/model-provider-onboarding.js';
@@ -42,7 +42,7 @@ describe('ModelProviderOnboardingPage', () => {
     window.localStorage.clear();
   });
 
-  test('skips setup, records the dismissed flag, and does not save a provider', async () => {
+  test('skips setup, records the dismissed flag, and does not save a provider or harness', async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();
     const onConfigured = vi.fn();
@@ -65,7 +65,7 @@ describe('ModelProviderOnboardingPage', () => {
     expect(fetchImpl.mock.calls.some(([input]) => (input as Request).method === 'PUT')).toBe(false);
   });
 
-  test('places skip before the provider choices', async () => {
+  test('places skip before the harness choices', () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
       fetchImpl: vi.fn().mockResolvedValue(jsonResponse(modelProviderCatalogResponse())),
@@ -80,14 +80,55 @@ describe('ModelProviderOnboardingPage', () => {
     );
 
     const skip = screen.getByRole('button', {name: 'Skip for now'});
-    const provider = await screen.findByRole('button', {
-      name: `Configure ${modelProviderEntry().label}`,
-    });
+    const harness = screen.getByRole('button', {name: 'Choose pi'});
 
-    expect(skip.compareDocumentPosition(provider)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(skip.compareDocumentPosition(harness)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  test('filters supported providers and clears a no-match search', async () => {
+  test('shows harnesses first, filters providers by harness, and supports going back', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn().mockResolvedValue(
+        jsonResponse(
+          modelProviderCatalogResponse([
+            modelProviderEntry(),
+            modelProviderEntry({
+              id: 'openai',
+              label: 'OpenAI',
+              default_model: 'gpt-5.5-pro',
+              models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
+            }),
+          ]),
+        ),
+      ),
+    });
+
+    renderOnboarding(
+      <ModelProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={vi.fn()}
+        onConfigured={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', {name: 'Choose agent harness'})).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Choose pi'})).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Choose Claude'})).toBeVisible();
+
+    await user.click(screen.getByRole('button', {name: 'Choose Claude'}));
+
+    expect(await screen.findByRole('button', {name: 'Configure Anthropic'})).toBeVisible();
+    expect(screen.queryByRole('button', {name: 'Configure OpenAI'})).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', {name: 'Back'}));
+    await user.click(screen.getByRole('button', {name: 'Choose pi'}));
+
+    expect(await screen.findByRole('button', {name: 'Configure Anthropic'})).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Configure OpenAI'})).toBeVisible();
+  });
+
+  test('filters supported providers and clears a no-match search after choosing pi', async () => {
     const user = userEvent.setup();
     configureApiClient({
       baseUrl: 'https://api.example.test',
@@ -103,6 +144,7 @@ describe('ModelProviderOnboardingPage', () => {
         onConfigured={vi.fn()}
       />,
     );
+    await user.click(screen.getByRole('button', {name: 'Choose pi'}));
     const search = await screen.findByRole('searchbox', {name: 'Search providers'});
 
     await user.type(search, 'provider 6');
@@ -146,10 +188,10 @@ describe('ModelProviderOnboardingPage', () => {
     }
   });
 
-  test('saves the selected model provider as default in one upsert request', async () => {
+  test('saves a pi provider as default and skips the default harness request', async () => {
     const user = userEvent.setup();
     const onConfigured = vi.fn();
-    let requestBody: unknown;
+    const requestBodies: unknown[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
       if (requestPath(input).endsWith('/agent/model-provider-catalog')) {
@@ -165,13 +207,8 @@ describe('ModelProviderOnboardingPage', () => {
         );
       }
       if (request.method === 'PUT') {
-        requestBody = await request.clone().json();
-        return jsonResponse(
-          modelProviderConfig({
-            provider_id: 'openai',
-            default_model: null,
-          }),
-        );
+        requestBodies.push(await request.clone().json());
+        return jsonResponse(modelProviderConfig({provider_id: 'openai', default_model: null}));
       }
       return jsonResponse({}, {status: 404});
     });
@@ -185,24 +222,126 @@ describe('ModelProviderOnboardingPage', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', {name: 'Choose pi'}));
     await user.click(await screen.findByRole('button', {name: 'Configure OpenAI'}));
     await user.type(await screen.findByLabelText('API key'), 'sk-proj-secret');
     await user.click(screen.getByRole('button', {name: 'Test & save'}));
 
     await waitFor(() =>
-      expect(requestBody).toEqual({
-        default_model: null,
-        credentials: {api_key: 'sk-proj-secret'},
-        set_as_default: true,
-      }),
+      expect(requestBodies).toEqual([
+        {
+          default_model: null,
+          credentials: {api_key: 'sk-proj-secret'},
+          set_as_default: true,
+        },
+      ]),
     );
     expect(onConfigured).toHaveBeenCalledTimes(1);
     expect(
-      screen.queryByRole('dialog', {name: 'Use OpenAI in a workflow'}),
-    ).not.toBeInTheDocument();
+      fetchImpl.mock.calls.some(([input]) => requestPath(input).endsWith('/agent/default-harness')),
+    ).toBe(false);
   });
 
-  test('keeps skip available when the catalog fails to load', async () => {
+  test('saves the chosen Claude harness after the provider is persisted', async () => {
+    const user = userEvent.setup();
+    const onConfigured = vi.fn();
+    const requests: Array<{path: string; body: unknown}> = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      const path = requestPath(input);
+      if (path.endsWith('/agent/model-provider-catalog')) {
+        return jsonResponse(modelProviderCatalogResponse());
+      }
+      if (request.method === 'PUT') {
+        const body = await request.clone().json();
+        requests.push({path, body});
+        if (path.endsWith('/agent/default-harness')) {
+          return jsonResponse({default_harness_id: 'claude'});
+        }
+        return jsonResponse(modelProviderConfig());
+      }
+      return jsonResponse({}, {status: 404});
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderOnboarding(
+      <ModelProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={vi.fn()}
+        onConfigured={onConfigured}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', {name: 'Choose Claude'}));
+    await user.click(await screen.findByRole('button', {name: 'Configure Anthropic'}));
+    await user.type(await screen.findByLabelText('API key'), 'sk-ant-secret');
+    await user.click(screen.getByRole('button', {name: 'Test & save'}));
+
+    await waitFor(() => expect(onConfigured).toHaveBeenCalledTimes(1));
+    expect(requests).toEqual([
+      {
+        path: `/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-providers/anthropic`,
+        body: {
+          default_model: null,
+          credentials: {api_key: 'sk-ant-secret'},
+          set_as_default: true,
+        },
+      },
+      {
+        path: `/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-harness`,
+        body: {harness_id: 'claude'},
+      },
+    ]);
+  });
+
+  test('keeps the user on the page when saving the default harness fails', async () => {
+    const user = userEvent.setup();
+    const onConfigured = vi.fn();
+    let harnessAttempts = 0;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      const path = requestPath(input);
+      if (path.endsWith('/agent/model-provider-catalog')) {
+        return Promise.resolve(jsonResponse(modelProviderCatalogResponse()));
+      }
+      if (request.method === 'PUT' && path.endsWith('/agent/default-harness')) {
+        harnessAttempts += 1;
+        if (harnessAttempts === 1) {
+          return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+        }
+        return Promise.resolve(jsonResponse({default_harness_id: 'claude'}));
+      }
+      if (request.method === 'PUT') {
+        return Promise.resolve(jsonResponse(modelProviderConfig()));
+      }
+      return Promise.resolve(jsonResponse({}, {status: 404}));
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderOnboarding(
+      <ModelProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={vi.fn()}
+        onConfigured={onConfigured}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', {name: 'Choose Claude'}));
+    await user.click(await screen.findByRole('button', {name: 'Configure Anthropic'}));
+    await user.type(await screen.findByLabelText('API key'), 'sk-ant-secret');
+    await user.click(screen.getByRole('button', {name: 'Test & save'}));
+
+    await waitFor(() => expect(harnessAttempts).toBe(1));
+    expect(await screen.findByText('Could not save default harness')).toBeVisible();
+    expect(screen.getByRole('dialog', {name: 'Configure Anthropic'})).toBeVisible();
+    expect(onConfigured).not.toHaveBeenCalled();
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', {name: 'Test & save'}));
+
+    await waitFor(() => expect(onConfigured).toHaveBeenCalledTimes(1));
+  });
+
+  test('keeps skip available when the catalog fails to load after selecting a harness', async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();
     configureApiClient({
@@ -218,6 +357,7 @@ describe('ModelProviderOnboardingPage', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', {name: 'Choose pi'}));
     expect(await screen.findByText("Couldn't load model provider catalog")).toBeInTheDocument();
     await user.click(screen.getByRole('button', {name: 'Skip for now'}));
 

@@ -131,24 +131,41 @@ export const Playground: Story = {};
 
 export const Loading: Story = {
   args: {scenario: 'loading'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', {name: 'Choose pi'}));
+  },
 };
 
 export const CatalogError: Story = {
   args: {scenario: 'catalog-error'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', {name: 'Choose pi'}));
+  },
 };
 
 export const NoProvidersAvailable: Story = {
   args: {scenario: 'no-providers'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', {name: 'Choose pi'}));
+  },
 };
 
 export const LongNames: Story = {
   args: {scenario: 'long-names'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', {name: 'Choose pi'}));
+  },
 };
 
 export const FilteredProviders: Story = {
   args: {scenario: 'available'},
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', {name: 'Choose pi'}));
     await userEvent.type(
       await canvas.findByRole('searchbox', {name: 'Search providers'}),
       'openrouter',
@@ -161,6 +178,7 @@ export const NoMatchingProviders: Story = {
   args: {scenario: 'available'},
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', {name: 'Choose pi'}));
     await userEvent.type(
       await canvas.findByRole('searchbox', {name: 'Search providers'}),
       'not-a-provider',
@@ -173,6 +191,7 @@ export const ConfigureModalOpen: Story = {
   args: {scenario: 'available'},
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', {name: 'Choose pi'}));
     await userEvent.click(await canvas.findByRole('button', {name: 'Configure Anthropic'}));
     await screen.findByLabelText('API key');
   },

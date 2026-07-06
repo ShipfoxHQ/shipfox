@@ -1,3 +1,4 @@
+import {DEFAULT_HARNESS, getHarnessDescriptor, type Harness} from '@shipfox/api-agent-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {
   CodeBlock,
@@ -23,6 +24,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {buildAgentWorkflowExample} from './agent-workflow-example.js';
+import {compatibleHarnessIds} from './harness-availability.js';
 import type {ModelProviderUsageTarget} from './model-provider-usage-target.js';
 
 type CopyState = 'idle' | 'copied' | 'failed';
@@ -35,26 +37,57 @@ export function ModelProviderUsageModal({
   open,
   onOpenChange,
   closeFocusTarget,
+  workspaceDefaultHarnessId,
 }: {
   target: ModelProviderUsageTarget | null;
   initialModel?: string | null | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   closeFocusTarget?: HTMLElement | null | undefined;
+  workspaceDefaultHarnessId?: Harness | null | undefined;
 }) {
   const [selectedModel, setSelectedModel] = useState('');
+  const [selectedHarness, setSelectedHarness] = useState<Harness>(DEFAULT_HARNESS);
 
   useEffect(() => {
     if (!target) return;
     setSelectedModel(initialModel ?? target.default_model ?? target.models[0]?.id ?? '');
   }, [target, initialModel]);
 
+  useEffect(() => {
+    if (!target) return;
+    const nextCompatibleHarnessIds = compatibleHarnessIds({
+      isCustom: target.isCustom,
+      providerId: target.id,
+    });
+    setSelectedHarness(selectInitialHarness(nextCompatibleHarnessIds, workspaceDefaultHarnessId));
+  }, [target, workspaceDefaultHarnessId]);
+
+  const compatibleIds = useMemo(
+    () =>
+      target
+        ? compatibleHarnessIds({isCustom: target.isCustom, providerId: target.id})
+        : ([] as Harness[]),
+    [target],
+  );
+  const harnessOptions = useMemo(
+    () =>
+      compatibleIds.map((harnessId) => ({
+        value: harnessId,
+        label: getHarnessDescriptor(harnessId).label,
+      })),
+    [compatibleIds],
+  );
   const modelOptions = useMemo(
     () => target?.models.map((model) => ({value: model.id, label: model.label})) ?? [],
     [target],
   );
   const example = target
-    ? buildAgentWorkflowExample({providerId: target.id, model: selectedModel})
+    ? buildAgentWorkflowExample({
+        harness: selectedHarness,
+        providerId: target.id,
+        model: selectedModel,
+      })
     : null;
   const data =
     example === null
@@ -88,20 +121,57 @@ export function ModelProviderUsageModal({
           <>
             <ModalBody className="min-h-0 flex-1 gap-0 overflow-y-auto overflow-x-clip scrollbar">
               <div className="flex w-full flex-col gap-20">
-                <div>
-                  <Combobox
-                    aria-label="Model"
-                    options={modelOptions}
-                    value={selectedModel}
-                    onValueChange={(value) => {
-                      if (value) setSelectedModel(value);
-                    }}
-                    placeholder="Select model..."
-                    searchPlaceholder="Search models..."
-                    emptyState="No model found."
-                    className="w-full"
-                  />
-                </div>
+                {compatibleIds.length === 1 ? (
+                  <div className="flex flex-col gap-12">
+                    <div className="flex min-h-40 items-center justify-between gap-12 rounded-8 border border-border-neutral-base px-12 py-8">
+                      <Text size="sm" className="text-foreground-neutral-muted">
+                        Harness
+                      </Text>
+                      <Code as="span" variant="label">
+                        {compatibleIds[0]}
+                      </Code>
+                    </div>
+                    <Combobox
+                      aria-label="Model"
+                      options={modelOptions}
+                      value={selectedModel}
+                      onValueChange={(value) => {
+                        if (value) setSelectedModel(value);
+                      }}
+                      placeholder="Select model..."
+                      searchPlaceholder="Search models..."
+                      emptyState="No model found."
+                      className="w-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-12 sm:flex-row sm:gap-12">
+                    <Combobox
+                      aria-label="Harness"
+                      options={harnessOptions}
+                      value={selectedHarness}
+                      onValueChange={(value) => {
+                        if (isHarness(value)) setSelectedHarness(value);
+                      }}
+                      placeholder="Select harness..."
+                      searchPlaceholder="Search harnesses..."
+                      emptyState="No harness found."
+                      className="w-full sm:flex-1"
+                    />
+                    <Combobox
+                      aria-label="Model"
+                      options={modelOptions}
+                      value={selectedModel}
+                      onValueChange={(value) => {
+                        if (value) setSelectedModel(value);
+                      }}
+                      placeholder="Select model..."
+                      searchPlaceholder="Search models..."
+                      emptyState="No model found."
+                      className="w-full sm:flex-1"
+                    />
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-8">
                   <CodeBlock data={data} className="h-auto min-h-0 rounded-8">
@@ -161,6 +231,21 @@ export function ModelProviderUsageModal({
       </ModalContent>
     </Modal>
   );
+}
+
+function selectInitialHarness(
+  compatibleIds: Harness[],
+  workspaceDefaultHarnessId: Harness | null | undefined,
+): Harness {
+  if (workspaceDefaultHarnessId && compatibleIds.includes(workspaceDefaultHarnessId)) {
+    return workspaceDefaultHarnessId;
+  }
+  if (compatibleIds.includes(DEFAULT_HARNESS)) return DEFAULT_HARNESS;
+  return compatibleIds[0] ?? DEFAULT_HARNESS;
+}
+
+function isHarness(value: string): value is Harness {
+  return value === 'pi' || value === 'claude';
 }
 
 function ModelProviderModelRow({label, id}: {label: string; id: string}) {

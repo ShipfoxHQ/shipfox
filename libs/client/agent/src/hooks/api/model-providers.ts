@@ -8,6 +8,8 @@ import type {
   ModelProviderCatalogResponseDto,
   ModelProviderConfigDto,
   ModelProviderRef,
+  SetDefaultHarnessBodyDto,
+  SetDefaultHarnessResponseDto,
   SetDefaultModelProviderBodyDto,
   SetDefaultModelProviderResponseDto,
   SupportedModelProviderId,
@@ -155,6 +157,19 @@ export async function setDefaultModelProvider({
   );
 }
 
+export async function setDefaultHarness({
+  workspaceId,
+  body,
+}: {
+  workspaceId: string;
+  body: SetDefaultHarnessBodyDto;
+}) {
+  return await apiRequest<SetDefaultHarnessResponseDto>(
+    `/workspaces/${workspaceId}/agent/default-harness`,
+    {method: 'PUT', body},
+  );
+}
+
 export function useModelProviderCatalogQuery() {
   return useQuery({
     queryKey: modelProviderQueryKeys.catalog(),
@@ -245,6 +260,18 @@ export function useSetDefaultModelProviderMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: setDefaultModelProvider,
+    onSuccess: async (_config, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: modelProviderQueryKeys.configs(variables.workspaceId),
+      });
+    },
+  });
+}
+
+export function useSetDefaultHarnessMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setDefaultHarness,
     onSuccess: async (_config, variables) => {
       await queryClient.invalidateQueries({
         queryKey: modelProviderQueryKeys.configs(variables.workspaceId),

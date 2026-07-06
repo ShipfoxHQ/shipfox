@@ -9,9 +9,11 @@ export interface AgentWorkflowExample {
 }
 
 export function buildAgentWorkflowExample({
+  harness,
   providerId,
   model,
 }: {
+  harness: string;
   providerId: string;
   model: string;
 }): AgentWorkflowExample {
@@ -26,17 +28,18 @@ export function buildAgentWorkflowExample({
     '    runner: ubuntu-latest',
     '    steps:',
     '      - name: implement',
+    `        harness: ${formatYamlPlainOrSingleQuotedScalar(harness)}`,
     `        provider: ${formatYamlPlainOrSingleQuotedScalar(providerId)}`,
     `        model: ${formatYamlPlainOrSingleQuotedScalar(model)}`,
     '        prompt: Describe the change you want the agent to make.',
   ];
-  const providerLineIndex = lines.findIndex((line) => line.trimStart().startsWith('provider:'));
+  const harnessLineIndex = lines.findIndex((line) => line.trimStart().startsWith('harness:'));
   const modelLineIndex = lines.findIndex((line) => line.trimStart().startsWith('model:'));
 
   return {
     code: lines.join('\n'),
     highlightedLineRange: {
-      startLine: providerLineIndex + 1,
+      startLine: harnessLineIndex + 1,
       endLine: modelLineIndex + 1,
     },
   };
