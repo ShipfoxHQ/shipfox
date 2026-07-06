@@ -514,7 +514,7 @@ function ConfiguredProviderRow({
               aria-label={`Open ${label} provider actions`}
             />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[100]">
+          <DropdownMenuContent align="end">
             {!isDefault ? (
               <DropdownMenuItem
                 icon="starLine"

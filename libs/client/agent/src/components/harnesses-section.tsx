@@ -148,7 +148,7 @@ function HarnessRow({
               aria-label={`Open ${harness.label} harness actions`}
             />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" side="top">
             {!isDefault ? (
               <DropdownMenuItem
                 icon="starLine"
