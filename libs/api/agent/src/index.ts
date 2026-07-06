@@ -1,5 +1,6 @@
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath} from '#db/index.js';
+import {agentE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {routes} from '#presentation/index.js';
 
 export {
@@ -38,4 +39,5 @@ export const agentModule: ShipfoxModule = {
   name: 'agent',
   database: {db, migrationsPath},
   routes,
+  e2eRoutes: [agentE2eRoutes],
 };

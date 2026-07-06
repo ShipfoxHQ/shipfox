@@ -48,6 +48,7 @@
     "@shipfox/e2e-observe-definitions": "workspace:*",
     "@shipfox/e2e-observe-logs": "workspace:*",
     "@shipfox/e2e-observe-workflows": "workspace:*",
+    "@shipfox/e2e-setup-agent": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",
     "@shipfox/e2e-setup-secrets": "workspace:*",
     "@shipfox/e2e-setup-workspaces": "workspace:*",

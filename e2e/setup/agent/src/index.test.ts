@@ -11,7 +11,7 @@ describe('agent e2e helper', () => {
     createApiClient.mockReset();
     requestJson.mockReset();
     createApiClient.mockReturnValue({requestJson});
-    vi.doMock('@shipfox/e2e-core', () => ({createApiClient}));
+    vi.doMock('@shipfox/e2e-core', () => ({createApiClient, requestJson}));
   });
 
   afterEach(() => {
@@ -179,5 +179,25 @@ describe('agent e2e helper', () => {
       'get',
       `/workspaces/${workspaceId}/agent/model-providers`,
     );
+  });
+
+  it('creates an Anthropic model provider config through the E2E route', async () => {
+    const {createAnthropicModelProviderConfig} = await import('./index.js');
+
+    await createAnthropicModelProviderConfig({
+      workspaceId,
+      defaultModel: 'claude-opus-4-8',
+      setAsDefault: true,
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/agent/model-provider', {
+      json: {
+        workspace_id: workspaceId,
+        provider_id: 'anthropic',
+        api_key: 'sk-e2e-anthropic-placeholder',
+        default_model: 'claude-opus-4-8',
+        set_as_default: true,
+      },
+    });
   });
 });

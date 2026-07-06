@@ -2,6 +2,18 @@ import {bool, createConfig, str} from '@shipfox/config';
 import {type EgressPolicy, parseEgressHostDenylist} from '@shipfox/node-egress-guard';
 
 export const config = createConfig({
+  AGENT_CLAUDE_ANTHROPIC_BASE_URL: str({
+    desc: 'Optional Anthropic-compatible base URL for the claude harness. Leave empty to use the Anthropic API. Set this for automated tests or private runner operations, such as a local Ollama server at http://127.0.0.1:11434.',
+    default: '',
+  }),
+  AGENT_CLAUDE_ANTHROPIC_MODEL: str({
+    desc: 'Model ID the claude harness sends when AGENT_CLAUDE_ANTHROPIC_BASE_URL is set. Leave empty to use the model resolved by the API.',
+    default: '',
+  }),
+  AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL: str({
+    desc: 'Small fast model ID the claude harness sends when AGENT_CLAUDE_ANTHROPIC_BASE_URL is set. Leave empty to use the Claude SDK default.',
+    default: '',
+  }),
   AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS: bool({
     desc: 'Allows custom model providers to use private, loopback, link-local, metadata, and .internal network targets. Keep this true for local development and self-hosted private networks. Set it to false on cloud instances.',
     default: true,

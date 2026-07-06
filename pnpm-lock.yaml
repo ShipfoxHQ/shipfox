@@ -1082,6 +1082,9 @@ importers:
       '@shipfox/e2e-observe-workflows':
         specifier: workspace:*
         version: link:../../../observe/workflows
+      '@shipfox/e2e-setup-agent':
+        specifier: workspace:*
+        version: link:../../../setup/agent
       '@shipfox/e2e-setup-auth':
         specifier: workspace:*
         version: link:../../../setup/auth
