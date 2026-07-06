@@ -17,7 +17,8 @@ vi.mock('#db/event-history.js', () => ({
   markReceivedEventFailed: vi.fn(),
   markReceivedEventErrored: vi.fn(),
   upsertTriggeredDecision: (...args: unknown[]) => upsertTriggeredDecision(...args),
-  upsertErroredDecision: vi.fn(),
+  upsertDispatchErrorDecision: vi.fn(),
+  upsertFilterErrorDecision: vi.fn(),
 }));
 
 // Import after mocks so the code under test sees the spies.
@@ -50,7 +51,8 @@ describe('trigger history is best-effort and never blocks triggering', () => {
     await expect(
       recorder.triggered(subscription, {id: crypto.randomUUID(), name: 'r'}),
     ).resolves.toBeUndefined();
-    await expect(recorder.errored(subscription, 'boom')).resolves.toBeUndefined();
+    await expect(recorder.dispatchErrored(subscription, 'boom')).resolves.toBeUndefined();
+    await expect(recorder.filterErrored(subscription, 'bad filter')).resolves.toBeUndefined();
     await expect(recorder.discarded()).resolves.toBeUndefined();
     await expect(recorder.routed(1)).resolves.toBeUndefined();
     await expect(recorder.failed(1)).resolves.toBeUndefined();

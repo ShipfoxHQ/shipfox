@@ -1,4 +1,4 @@
-import {readConfigInputs, triggerFilterMatches} from './config.js';
+import {evaluateTriggerFilter, readConfigInputs} from './config.js';
 import type {TriggerSubscription} from './entities/subscription.js';
 
 function subscriptionWithConfig(config: Record<string, unknown>): TriggerSubscription {
@@ -48,47 +48,104 @@ describe('readConfigInputs', () => {
   });
 });
 
-describe('triggerFilterMatches', () => {
-  test('returns true when filter is missing', () => {
-    const matches = triggerFilterMatches(subscriptionWithConfig({}), {ref: 'refs/heads/main'});
+describe('evaluateTriggerFilter', () => {
+  test('returns matched when filter is missing', () => {
+    const result = evaluateTriggerFilter({
+      subscription: subscriptionWithConfig({}),
+      source: 'github',
+      event: 'push',
+      payload: {ref: 'refs/heads/main'},
+    });
 
-    expect(matches).toBe(true);
+    expect(result).toEqual({kind: 'matched'});
   });
 
-  test('evaluates filter expressions against the event payload', () => {
+  test('evaluates filter expressions against the event payload and trigger identity', () => {
     const subscription = subscriptionWithConfig({
-      filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "shipfox/platform"',
+      filter:
+        'event.ref == "refs/heads/main" && event.repository.full_name == "shipfox/platform" && trigger.source == "github" && trigger.event == "push"',
     });
 
-    const matches = triggerFilterMatches(subscription, {
-      ref: 'refs/heads/main',
-      repository: {full_name: 'shipfox/platform'},
+    const matches = evaluateTriggerFilter({
+      subscription,
+      source: 'github',
+      event: 'push',
+      payload: {
+        ref: 'refs/heads/main',
+        repository: {full_name: 'shipfox/platform'},
+      },
     });
-    const misses = triggerFilterMatches(subscription, {
-      ref: 'refs/heads/main',
-      repository: {full_name: 'shipfox/docs'},
+    const misses = evaluateTriggerFilter({
+      subscription,
+      source: 'github',
+      event: 'push',
+      payload: {
+        ref: 'refs/heads/main',
+        repository: {full_name: 'shipfox/docs'},
+      },
     });
 
-    expect(matches).toBe(true);
-    expect(misses).toBe(false);
+    expect(matches).toEqual({kind: 'matched'});
+    expect(misses).toEqual({kind: 'filtered'});
   });
 
-  test('throws when the stored filter cannot be parsed', () => {
+  test('returns filter-error when the stored filter cannot be parsed', () => {
     const subscription = subscriptionWithConfig({filter: 'event.ref =='});
 
-    const act = () => triggerFilterMatches(subscription, {ref: 'refs/heads/main'});
+    const result = evaluateTriggerFilter({
+      subscription,
+      source: 'github',
+      event: 'push',
+      payload: {ref: 'refs/heads/main'},
+    });
 
-    expect(act).toThrow();
+    expect(result.kind).toBe('filter-error');
+    if (result.kind !== 'filter-error') throw new Error('expected filter-error');
+    expect(result.reason).not.toBe('Invalid workflow expression');
+  });
+
+  test('returns filter-error when filter evaluation throws', () => {
+    const subscription = subscriptionWithConfig({filter: 'event.ref.size() > 1'});
+
+    const result = evaluateTriggerFilter({
+      subscription,
+      source: 'github',
+      event: 'push',
+      payload: {},
+    });
+
+    expect(result).toEqual({kind: 'filter-error', reason: 'Trigger filter evaluation failed'});
+  });
+
+  test('returns filtered when the stored filter evaluates to a non-boolean value', () => {
+    const subscription = subscriptionWithConfig({filter: 'event.ref'});
+
+    const result = evaluateTriggerFilter({
+      subscription,
+      source: 'github',
+      event: 'push',
+      payload: {ref: 'refs/heads/main'},
+    });
+
+    expect(result).toEqual({kind: 'filtered'});
   });
 
   test.each([
     {name: 'blank', filter: '   '},
     {name: 'non-string', filter: ['event.ref == "refs/heads/main"']},
-  ])('throws when the stored filter is $name', ({filter}) => {
+  ])('returns filter-error when the stored filter is $name', ({filter}) => {
     const subscription = subscriptionWithConfig({filter});
 
-    const act = () => triggerFilterMatches(subscription, {ref: 'refs/heads/main'});
+    const result = evaluateTriggerFilter({
+      subscription,
+      source: 'github',
+      event: 'push',
+      payload: {ref: 'refs/heads/main'},
+    });
 
-    expect(act).toThrow('Trigger subscription filter must be a non-empty string when set');
+    expect(result).toEqual({
+      kind: 'filter-error',
+      reason: 'Trigger subscription filter must be a non-empty string when set',
+    });
   });
 });

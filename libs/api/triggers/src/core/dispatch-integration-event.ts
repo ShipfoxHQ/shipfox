@@ -5,7 +5,7 @@ import {
   eventReceivedCount,
   subscriptionTriggeredCount,
 } from '#metrics/instance.js';
-import {readConfigInputs, triggerFilterMatches} from './config.js';
+import {evaluateTriggerFilter, readConfigInputs} from './config.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
 
@@ -65,14 +65,19 @@ export async function dispatchIntegrationEvent(
   let firstTransientError: unknown;
 
   for (const subscription of subscriptions) {
-    try {
-      if (!triggerFilterMatches(subscription, params.payload)) continue;
+    const filterResult = evaluateTriggerFilter({
+      subscription,
+      source: params.source,
+      event: params.event,
+      payload: params.payload,
+    });
+    if (filterResult.kind === 'filtered') continue;
+    if (filterResult.kind === 'filter-error') {
       matchedCount += 1;
-    } catch (error) {
-      matchedCount += 1;
-      await history.errored(subscription, toReason(error));
+      await history.filterErrored(subscription, filterResult.reason);
       continue;
     }
+    matchedCount += 1;
 
     try {
       const run = await runWorkflow({
@@ -93,7 +98,7 @@ export async function dispatchIntegrationEvent(
       triggeredCount += 1;
       subscriptionTriggeredCount.add(1, {provider: params.provider});
     } catch (error) {
-      await history.errored(subscription, toReason(error));
+      await history.dispatchErrored(subscription, toReason(error));
       // Track presence with a flag, not `firstTransientError === undefined`: a thrown
       // value of `undefined` is still a transient failure and must drive the replay.
       if (!isPermanentRunWorkflowError(error) && !sawTransientError) {

@@ -53,11 +53,13 @@ invariant is enforced at parse time so the fire route stays unambiguous.
 The `event` field is optional when `source: manual` and defaults to
 `fire`.
 
-The `on` field (and any other per-event filter) is stored on the
-subscription but **not yet evaluated** — an integration event currently
-fires every subscription that matches its `(source, event)` in the
-workspace. Narrowing by branch, repository, or payload contents is left to
-user-defined filters, applied in a later iteration.
+Integration triggers may include a CEL `filter` predicate. Dispatch evaluates
+the predicate for every subscription that matches `(workspace_id, source,
+event)` with the context `{event: payload, trigger: {source, event}}`. A
+missing filter matches; `true` creates a run; `false` or a non-boolean result
+skips the subscription and can leave the event `discarded`; an evaluation
+failure records a `filter-error` decision and fails closed without creating a
+run.
 
 Webhook triggers use the webhook connection slug as `source` and the fixed
 event name `received`. A delivery to `POST /webhook/:connectionId` publishes
@@ -77,8 +79,7 @@ triggers:
 Workflow interpolation exposes the webhook envelope as `event`, so steps can
 read values such as `${{ event.body.payment_id }}` and
 `${{ event.headers["x-stripe-signature"] }}`. Header/body-derived event
-subtypes and dispatch-time trigger filter evaluation are not part of this
-contract.
+subtypes are not part of this contract.
 
 GitHub triggers use the raw GitHub webhook resource name, plus the payload
 `action` when one is present. For example, a pull request open event is

@@ -73,7 +73,7 @@ export async function fireCronSubscription(
     });
   } catch (error) {
     const failure = await beginTriggerHistory(historyBase);
-    await failure.errored(subscription, toReason(error));
+    await failure.dispatchErrored(subscription, toReason(error));
     if (isPermanentRunWorkflowError(error)) {
       recordFire('errored', params.scheduledSlot);
       await failure.allErrored(1);

@@ -138,14 +138,27 @@ export async function upsertTriggeredDecision(
     });
 }
 
-export interface UpsertErroredDecisionParams {
+export interface UpsertFailedDecisionParams {
   receivedEventId: string;
   subscription: TriggerSubscription;
   reason: string;
 }
 
+export async function upsertFilterErrorDecision(params: UpsertFailedDecisionParams): Promise<void> {
+  await upsertFailedDecision(params, 'filter-error');
+}
+
 // A created run is ground truth. A later retry failure must not erase it.
-export async function upsertErroredDecision(params: UpsertErroredDecisionParams): Promise<void> {
+export async function upsertDispatchErrorDecision(
+  params: UpsertFailedDecisionParams,
+): Promise<void> {
+  await upsertFailedDecision(params, 'dispatch-error');
+}
+
+async function upsertFailedDecision(
+  params: UpsertFailedDecisionParams,
+  decision: 'filter-error' | 'dispatch-error',
+): Promise<void> {
   await db()
     .insert(triggersDecisions)
     .values({
@@ -154,12 +167,12 @@ export async function upsertErroredDecision(params: UpsertErroredDecisionParams)
       subscriptionName: params.subscription.name,
       workflowDefinitionId: params.subscription.workflowDefinitionId,
       projectId: params.subscription.projectId,
-      decision: 'errored',
+      decision,
       reason: params.reason,
     })
     .onConflictDoUpdate({
       target: [triggersDecisions.receivedEventId, triggersDecisions.subscriptionId],
-      set: {decision: 'errored', reason: params.reason, runId: null, runName: null},
+      set: {decision, reason: params.reason, runId: null, runName: null},
       setWhere: ne(triggersDecisions.decision, 'triggered'),
     });
 }

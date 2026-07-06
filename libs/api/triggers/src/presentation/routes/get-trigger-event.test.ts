@@ -2,6 +2,8 @@ import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {db} from '#db/db.js';
+import {type TriggerDecisionInsertDb, triggersDecisions} from '#db/schema/decisions.js';
 import {decisionFactory, receivedEventFactory} from '#test/index.js';
 import {getTriggerEventRoute} from './get-trigger-event.js';
 
@@ -45,7 +47,7 @@ describe('GET /trigger-events/:id', () => {
     });
     const errored = await decisionFactory.create({
       receivedEventId: event.id,
-      decision: 'errored',
+      decision: 'dispatch-error',
       subscriptionName: 'Lint checks',
       runId: null,
       runName: null,
@@ -66,9 +68,36 @@ describe('GET /trigger-events/:id', () => {
     expect(
       body.decisions.map((decision: {subscription_name: string}) => decision.subscription_name),
     ).toEqual(['Deploy production', 'Lint checks']);
-    expect(body.decisions[1].decision).toBe('errored');
+    expect(body.decisions[1].decision).toBe('dispatch-error');
     expect(body.decisions[1].run_id).toBeNull();
     expect(body.decisions[1].reason).toBe('boom');
+  });
+
+  test('normalizes legacy errored decisions before serializing the response', async () => {
+    const event = await receivedEventFactory.create({
+      workspaceId,
+      outcome: 'errored',
+      matchedCount: 1,
+    });
+    const legacyDecision = {
+      receivedEventId: event.id,
+      subscriptionId: crypto.randomUUID(),
+      subscriptionName: 'Deploy production',
+      workflowDefinitionId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      decision: 'errored',
+      runId: null,
+      runName: null,
+      reason: 'legacy failure',
+    } as unknown as TriggerDecisionInsertDb;
+    await db().insert(triggersDecisions).values(legacyDecision);
+
+    const res = await app.inject({method: 'GET', url: `/trigger-events/${event.id}`});
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().decisions).toMatchObject([
+      {decision: 'dispatch-error', reason: 'legacy failure'},
+    ]);
   });
 
   test('returns an empty decisions list for a discarded event', async () => {

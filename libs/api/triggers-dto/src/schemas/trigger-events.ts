@@ -12,7 +12,7 @@ export const triggerEventOutcomeSchema = z.enum([
 ]);
 export type TriggerEventOutcomeDto = z.infer<typeof triggerEventOutcomeSchema>;
 
-export const triggerDecisionOutcomeSchema = z.enum(['triggered', 'errored']);
+export const triggerDecisionOutcomeSchema = z.enum(['triggered', 'filter-error', 'dispatch-error']);
 export type TriggerDecisionOutcomeDto = z.infer<typeof triggerDecisionOutcomeSchema>;
 
 /**

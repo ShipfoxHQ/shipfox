@@ -291,7 +291,7 @@ describe('dispatchIntegrationEvent', () => {
     expect(event.matchedCount).toBe(0);
   });
 
-  test('records an errored decision when a trigger filter is invalid', async () => {
+  test('records a filter-error decision when a trigger filter is invalid', async () => {
     const workspaceId = crypto.randomUUID();
     const eventRef = crypto.randomUUID();
     const subscription = await triggerSubscriptionFactory.create({
@@ -312,11 +312,11 @@ describe('dispatchIntegrationEvent', () => {
     expect(decisions).toHaveLength(1);
     expect(decisions[0]).toMatchObject({
       subscriptionId: subscription.id,
-      decision: 'errored',
+      decision: 'filter-error',
     });
   });
 
-  test('records an errored decision when a stored trigger filter is blank', async () => {
+  test('records a filter-error decision when a stored trigger filter is blank', async () => {
     const workspaceId = crypto.randomUUID();
     const eventRef = crypto.randomUUID();
     const subscription = await triggerSubscriptionFactory.create({
@@ -337,7 +337,7 @@ describe('dispatchIntegrationEvent', () => {
     expect(decisions).toHaveLength(1);
     expect(decisions[0]).toMatchObject({
       subscriptionId: subscription.id,
-      decision: 'errored',
+      decision: 'filter-error',
     });
   });
 
@@ -532,7 +532,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     expect(event.processedAt).toBeNull();
     const decisions = await decisionsForEvent(event.id);
     expect(decisions).toHaveLength(2);
-    expect(decisions.every((d) => d.decision === 'errored')).toBe(true);
+    expect(decisions.every((d) => d.decision === 'dispatch-error')).toBe(true);
     expect(decisions.every((d) => d.reason?.includes('runWorkflow boom'))).toBe(true);
   });
 
@@ -613,7 +613,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     const decisions = await decisionsForEvent(event.id);
     const errored = decisions.find((d) => d.subscriptionId === poison.id);
     const triggered = decisions.find((d) => d.subscriptionId === healthy.id);
-    expect(errored?.decision).toBe('errored');
+    expect(errored?.decision).toBe('dispatch-error');
     expect(errored?.reason).toContain('Definition not found');
     expect(triggered?.decision).toBe('triggered');
     expect(triggered?.runId).toBe(run.id);
@@ -648,7 +648,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     expect(event.processedAt).toBeInstanceOf(Date);
     const decisions = await decisionsForEvent(event.id);
     expect(decisions).toHaveLength(2);
-    expect(decisions.every((d) => d.decision === 'errored')).toBe(true);
+    expect(decisions.every((d) => d.decision === 'dispatch-error')).toBe(true);
   });
 
   test('records failed (not errored) when a permanent and a transient error mix in one attempt', async () => {
@@ -680,7 +680,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     expect(event.processedAt).toBeNull();
     const decisions = await decisionsForEvent(event.id);
     expect(decisions).toHaveLength(2);
-    expect(decisions.every((d) => d.decision === 'errored')).toBe(true);
+    expect(decisions.every((d) => d.decision === 'dispatch-error')).toBe(true);
   });
 
   test('promotes to routed across replay when a prior run survives a later definition deletion', async () => {
@@ -722,7 +722,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     const stillBroken = decisions.find((d) => d.subscriptionId === transient.id);
     expect(survived?.decision).toBe('triggered');
     expect(survived?.runId).toBe(run.id);
-    expect(stillBroken?.decision).toBe('errored');
+    expect(stillBroken?.decision).toBe('dispatch-error');
   });
 
   test('replaying the same event does not duplicate rows and reuses the idempotency key', async () => {
@@ -752,7 +752,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     expect(keys).toEqual([`${subscription.id}:${eventRef}`, `${subscription.id}:${eventRef}`]);
   });
 
-  test('records a triggered and an errored decision for a mixed-outcome fan-out', async () => {
+  test('records a triggered and dispatch-error decision for a mixed-outcome fan-out', async () => {
     const workspaceId = crypto.randomUUID();
     const eventRef = crypto.randomUUID();
     await triggerSubscriptionFactory.create({
@@ -780,7 +780,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     const decisions = await decisionsForEvent(event.id);
     expect(decisions).toHaveLength(2);
     const triggered = decisions.find((d) => d.decision === 'triggered');
-    const errored = decisions.find((d) => d.decision === 'errored');
+    const errored = decisions.find((d) => d.decision === 'dispatch-error');
     expect(triggered?.runId).toBe(run.id);
     expect(errored?.reason).toContain('second boom');
   });

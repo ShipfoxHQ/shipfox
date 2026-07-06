@@ -7,7 +7,8 @@ import {
   markReceivedEventErrored,
   markReceivedEventFailed,
   markReceivedEventRouted,
-  upsertErroredDecision,
+  upsertDispatchErrorDecision,
+  upsertFilterErrorDecision,
   upsertTriggeredDecision,
 } from '#db/event-history.js';
 
@@ -32,7 +33,8 @@ export interface TriggerRun {
 
 export interface TriggerHistoryRecorder {
   triggered(subscription: TriggerSubscription, run: TriggerRun): Promise<void>;
-  errored(subscription: TriggerSubscription, reason: string): Promise<void>;
+  filterErrored(subscription: TriggerSubscription, reason: string): Promise<void>;
+  dispatchErrored(subscription: TriggerSubscription, reason: string): Promise<void>;
   discarded(): Promise<void>;
   routed(matchedCount: number): Promise<void>;
   failed(matchedCount: number): Promise<void>;
@@ -78,10 +80,16 @@ export async function beginTriggerHistory(
         (id) => upsertTriggeredDecision({receivedEventId: id, subscription, run}),
         subscription.id,
       ),
-    errored: (subscription, reason) =>
+    filterErrored: (subscription, reason) =>
       record(
-        'errored-decision',
-        (id) => upsertErroredDecision({receivedEventId: id, subscription, reason}),
+        'filter-error-decision',
+        (id) => upsertFilterErrorDecision({receivedEventId: id, subscription, reason}),
+        subscription.id,
+      ),
+    dispatchErrored: (subscription, reason) =>
+      record(
+        'dispatch-error-decision',
+        (id) => upsertDispatchErrorDecision({receivedEventId: id, subscription, reason}),
         subscription.id,
       ),
     discarded: () => record('discard-event', (id) => markReceivedEventDiscarded(id)),
