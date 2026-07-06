@@ -2083,14 +2083,14 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
-  it('keeps trigger filters as source strings until event typed expressions are introduced', () => {
+  it('validates trigger filters while preserving their source strings', () => {
     const document: WorkflowDocument = {
-      name: 'deferred trigger filter',
+      name: 'validated trigger filter',
       triggers: {
         main: {
           source: 'github',
           event: 'push',
-          filter: 'event.conclsion == "success"',
+          filter: 'event.ref == "refs/heads/main" && trigger.source == "github"',
         },
       },
       jobs: {
@@ -2108,7 +2108,125 @@ describe('normalizeWorkflowDocument', () => {
         key: 'main',
         source: 'github',
         event: 'push',
-        filter: 'event.conclsion == "success"',
+        filter: 'event.ref == "refs/heads/main" && trigger.source == "github"',
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      'jobs root',
+      'jobs.build.outputs.result == "ok"',
+      'context-unavailable-at-predicate-site',
+      {
+        field: 'trigger.filter',
+        source: 'jobs.build.outputs.result == "ok"',
+        contextRoots: ['jobs'],
+        unavailableRoots: ['jobs'],
+        site: 'ingest',
+      },
+    ],
+    [
+      'run root',
+      'run.id == "run-1"',
+      'context-unavailable-at-predicate-site',
+      {
+        field: 'trigger.filter',
+        source: 'run.id == "run-1"',
+        contextRoots: ['run'],
+        unavailableRoots: ['run'],
+        site: 'ingest',
+      },
+    ],
+    [
+      'runner root',
+      'runner.os == "linux"',
+      'runner-context-in-server-predicate',
+      {
+        field: 'trigger.filter',
+        source: 'runner.os == "linux"',
+        contextRoots: ['runner'],
+        runnerRoots: ['runner'],
+        site: 'ingest',
+      },
+    ],
+    [
+      'vars root',
+      'vars.environment == "prod"',
+      'vars-context-in-server-predicate',
+      {
+        field: 'trigger.filter',
+        source: 'vars.environment == "prod"',
+        contextRoots: ['vars'],
+        rejectedRoots: ['vars'],
+        site: 'ingest',
+      },
+    ],
+    [
+      'non-boolean shape',
+      'event.ref',
+      'invalid-trigger-filter',
+      {
+        source: 'event.ref',
+        contextRoots: ['event'],
+        reason: 'Predicate source must be boolean-shaped.',
+      },
+    ],
+  ] as const)('rejects trigger filters with %s', (_label, filter, code, details) => {
+    const document: WorkflowDocument = {
+      name: 'invalid trigger filter',
+      triggers: {
+        main: {
+          source: 'github',
+          event: 'push',
+          filter,
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code,
+        message: expect.any(String),
+        path: ['triggers', 'main', 'filter'],
+        details,
+      },
+    ]);
+  });
+
+  it.each(['manual', 'cron'] as const)('rejects filters on %s triggers', (source) => {
+    const document: WorkflowDocument = {
+      name: 'unsupported trigger filter',
+      triggers: {
+        main: {
+          source,
+          event: source === 'cron' ? 'tick' : 'fire',
+          filter: 'event.ref == "refs/heads/main"',
+          ...(source === 'cron' ? {config: {schedule: '0 2 * * *'}} : {}),
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-trigger-filter',
+        message: `A ${source} trigger cannot define a filter because it does not receive an event payload.`,
+        path: ['triggers', 'main', 'filter'],
+        details: {source: 'event.ref == "refs/heads/main"', triggerSource: source},
       },
     ]);
   });

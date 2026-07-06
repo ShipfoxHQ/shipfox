@@ -6,10 +6,12 @@ import type {
 import {cronTriggerDefaultTimezone, validateCronTrigger} from './cron-trigger.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {stableId} from './stable-id.js';
+import {validatePredicateExpression} from './validate-predicate-expression.js';
 import {issue} from './validation-issue.js';
 
 const manualTriggerSource = 'manual';
 const cronTriggerSource = 'cron';
+type WorkflowDocumentTrigger = NonNullable<WorkflowDocument['triggers']>[string];
 
 export function normalizeTriggers(
   document: WorkflowDocument,
@@ -48,6 +50,8 @@ export function normalizeTriggers(
     }
     usedTriggerIds.set(id, sourceKey);
 
+    validateTriggerFilter({sourceKey, trigger, issues});
+
     const normalizedTrigger = normalizeTriggerEntry(trigger);
     if (trigger.source !== cronTriggerSource) {
       return [
@@ -76,6 +80,38 @@ export function normalizeTriggers(
         config: normalizedCronConfig,
       },
     ];
+  });
+}
+
+function validateTriggerFilter(params: {
+  sourceKey: string;
+  trigger: WorkflowDocumentTrigger;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const {sourceKey, trigger, issues} = params;
+  if (trigger.filter === undefined) return;
+
+  const path = ['triggers', sourceKey, 'filter'] as const;
+  if (trigger.source === manualTriggerSource || trigger.source === cronTriggerSource) {
+    issues.push(
+      issue({
+        code: 'invalid-trigger-filter',
+        message: `A ${trigger.source} trigger cannot define a filter because it does not receive an event payload.`,
+        path,
+        details: {source: trigger.filter, triggerSource: trigger.source},
+      }),
+    );
+    return;
+  }
+
+  validatePredicateExpression({
+    field: 'trigger.filter',
+    source: trigger.filter,
+    site: 'ingest',
+    path,
+    invalidCode: 'invalid-trigger-filter',
+    invalidMessage: 'Trigger filter must be a valid boolean predicate.',
+    issues,
   });
 }
 
