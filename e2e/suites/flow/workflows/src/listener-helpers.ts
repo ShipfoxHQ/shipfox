@@ -148,6 +148,20 @@ export function findListenerExecutionByDeliveryId(params: {
   );
 }
 
+export function findListenerExecutionByDeliveryIds(params: {
+  runDetail: WorkflowRunDetailResponseDto;
+  jobKey: string;
+  deliveryIds: string[];
+}): {deliveryId: string; execution: WorkflowRunJobExecutionDetailDto} | undefined {
+  const expected = new Set(params.deliveryIds);
+  const job = findListenerJob(params.runDetail, params.jobKey);
+  for (const execution of job?.job_executions ?? []) {
+    const event = execution.trigger_events.find((candidate) => expected.has(candidate.delivery_id));
+    if (event) return {deliveryId: event.delivery_id, execution};
+  }
+  return undefined;
+}
+
 export function findListenerExecutionBySequence(params: {
   runDetail: WorkflowRunDetailResponseDto;
   jobKey: string;
@@ -242,14 +256,34 @@ export async function sendWebhookDeliveryUntilObserved(params: {
         runId: params.runId,
         timeoutMs: attemptTimeoutMs,
         description: `listener delivery ${deliveryId}`,
-        matches: (candidate) =>
-          listenerDeliveryObserved({
+        matches: (candidate) => {
+          const match = findListenerExecutionByDeliveryIds({
             runDetail: candidate,
             jobKey: params.jobKey,
-            deliveryId,
-          }),
+            deliveryIds,
+          });
+          if (match) {
+            return {
+              matched: true,
+              diagnostic: `listener job ${params.jobKey} observed delivery ${match.deliveryId} in execution ${match.execution.sequence}`,
+            };
+          }
+          const observed = findListenerJob(candidate, params.jobKey)?.job_executions.flatMap(
+            (execution) => execution.trigger_events.map((event) => event.delivery_id),
+          );
+          return {
+            matched: false,
+            diagnostic: `listener job ${params.jobKey} did not observe deliveries [${deliveryIds.join(', ')}]; observed=[${observed?.join(', ') ?? ''}]`,
+          };
+        },
       });
-      return {deliveryId, deliveryIds, runDetail};
+      const match = findListenerExecutionByDeliveryIds({
+        runDetail,
+        jobKey: params.jobKey,
+        deliveryIds,
+      });
+      if (!match) throw new Error(`Observed listener delivery match disappeared for ${deliveryId}`);
+      return {deliveryId: match.deliveryId, deliveryIds, runDetail};
     } catch (error) {
       lastError = error;
     }

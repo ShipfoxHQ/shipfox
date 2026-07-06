@@ -389,7 +389,7 @@ jobs:
       - key: slow
         run: |
           echo "listener_started"
-          sleep 30
+          sleep 120
           echo "listener_done"
 `,
 };

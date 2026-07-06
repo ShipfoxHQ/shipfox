@@ -8,6 +8,7 @@ import type {
 import {
   batchedListenerExecutionMatches,
   findListenerExecutionByDeliveryId,
+  findListenerExecutionByDeliveryIds,
   listenerDeliveryObserved,
   listenerExecutionCountMatches,
   listenerResolutionMatches,
@@ -134,6 +135,28 @@ describe('listener helper predicates', () => {
     });
 
     expect(result?.sequence).toBe(2);
+  });
+
+  test('finds the listener execution containing any delivery id', () => {
+    const detail = runDetail({
+      jobs: [
+        listenerJob({
+          job_executions: [
+            execution({sequence: 1, trigger_events: [event({delivery_id: 'delivery-1'})]}),
+            execution({sequence: 2, trigger_events: [event({delivery_id: 'delivery-2'})]}),
+          ],
+        }),
+      ],
+    });
+
+    const result = findListenerExecutionByDeliveryIds({
+      runDetail: detail,
+      jobKey: 'listen',
+      deliveryIds: ['delivery-3', 'delivery-2'],
+    });
+
+    expect(result?.deliveryId).toBe('delivery-2');
+    expect(result?.execution.sequence).toBe(2);
   });
 
   test('reports a missing delivery with observed delivery ids', () => {
