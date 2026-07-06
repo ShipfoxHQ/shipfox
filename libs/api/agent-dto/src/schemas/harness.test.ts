@@ -1,13 +1,17 @@
 import {
+  buildHarnessToolDeploymentConfig,
+  DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG,
   getHarnessToolDescriptor,
   harnessSupportsTool,
   listEnabledHarnessTools,
   listHarnessTools,
+  parsePiEnabledToolPackages,
 } from './harness.js';
 
 const PI_BUILT_IN_TOOLS = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'];
 const PI_WEB_ACCESS_TOOLS = ['web_search', 'fetch_content', 'get_search_content'];
 const CLAUDE_TOOLS = ['Read', 'Bash', 'Edit', 'Write', 'Glob', 'Grep', 'WebFetch', 'WebSearch'];
+const piToolPackagesEnvPattern = /AGENT_PI_ENABLED_TOOL_PACKAGES/;
 
 describe('harness tool catalog', () => {
   it('lists exact pi tool names in catalog order', () => {
@@ -60,6 +64,37 @@ describe('harness tool catalog', () => {
     expect(harnessSupportsTool('pi', 'get_search_content', deploymentConfig)).toBe(true);
   });
 
+  it('builds deployment defaults with pi web access and search enabled', () => {
+    expect(DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG).toEqual({
+      pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: true},
+      claude: {enabledToolPackages: []},
+    });
+
+    const enabledToolNames = listEnabledHarnessTools(
+      'pi',
+      DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG,
+    ).map((tool) => tool.name);
+    expect(enabledToolNames).toEqual([...PI_BUILT_IN_TOOLS, ...PI_WEB_ACCESS_TOOLS]);
+  });
+
+  it('deduplicates comma-delimited Pi tool package names', () => {
+    const packageNames = parsePiEnabledToolPackages(' pi-web-access,pi-web-access ');
+
+    expect(packageNames).toEqual(['pi-web-access']);
+  });
+
+  it('allows an empty Pi tool package list', () => {
+    const packageNames = parsePiEnabledToolPackages('');
+
+    expect(packageNames).toEqual([]);
+  });
+
+  it('rejects unknown Pi tool package names with the env var name', () => {
+    expect(() => parsePiEnabledToolPackages('pi-web-access,unknown')).toThrow(
+      piToolPackagesEnvPattern,
+    );
+  });
+
   it('keeps pi fetch content enabled when web search is disabled', () => {
     const deploymentConfig = {
       pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: false},
@@ -72,6 +107,18 @@ describe('harness tool catalog', () => {
     expect(harnessSupportsTool('pi', 'fetch_content', deploymentConfig)).toBe(true);
     expect(harnessSupportsTool('pi', 'web_search', deploymentConfig)).toBe(false);
     expect(harnessSupportsTool('pi', 'get_search_content', deploymentConfig)).toBe(false);
+  });
+
+  it('builds deployment config from explicit Pi package and search settings', () => {
+    const deploymentConfig = buildHarnessToolDeploymentConfig({
+      piEnabledToolPackages: 'pi-web-access, pi-web-access',
+      piWebSearchEnabled: false,
+    });
+
+    expect(deploymentConfig).toEqual({
+      pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: false},
+      claude: {enabledToolPackages: []},
+    });
   });
 
   it('matches harness tool names case-sensitively', () => {

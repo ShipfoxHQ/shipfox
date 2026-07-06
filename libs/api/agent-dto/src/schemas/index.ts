@@ -58,7 +58,11 @@ export {
   updateCustomModelProviderHeaderRequestSchema,
 } from './custom-model-provider.js';
 export {
+  buildHarnessToolDeploymentConfig,
   CLAUDE_HARNESS,
+  DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG,
+  DEFAULT_PI_ENABLED_TOOL_PACKAGES,
+  DEFAULT_PI_WEB_SEARCH_ENABLED,
   getHarnessDescriptor,
   getHarnessToolDescriptor,
   HARNESS_TOOL_PACKAGE_NAMES,
@@ -73,6 +77,7 @@ export {
   listHarnessTools,
   PI_HARNESS,
   PI_HARNESS_TOOL_PACKAGE_NAMES,
+  parsePiEnabledToolPackages,
 } from './harness.js';
 export {
   type MaterializedAgentStepConfigDto,

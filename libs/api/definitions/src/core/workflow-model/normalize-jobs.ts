@@ -2,6 +2,8 @@ import {
   agentThinkingByHarness,
   getHarnessDescriptor,
   getModelProviderEntry,
+  type HarnessToolDeploymentConfig,
+  listEnabledHarnessTools,
 } from '@shipfox/api-agent-dto';
 import {
   type AvailabilitySite,
@@ -53,6 +55,7 @@ export function normalizeJobs(
   issues: WorkflowModelValidationIssue[],
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
   defaultRunnerLabels: readonly string[],
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig,
 ): readonly WorkflowModelJob[] {
   const entries = Object.entries(document.jobs);
   const pending = new Set(entries.map(([sourceName]) => sourceName));
@@ -80,6 +83,7 @@ export function normalizeJobs(
         stepSourceLocations,
         defaultRunnerLabels,
         jobOutputTypesBySourceName,
+        harnessToolDeploymentConfig,
       });
       if (model !== undefined) modelsBySourceName.set(sourceName, model);
       pending.delete(sourceName);
@@ -100,6 +104,7 @@ export function normalizeJobs(
         stepSourceLocations,
         defaultRunnerLabels,
         jobOutputTypesBySourceName,
+        harnessToolDeploymentConfig,
       });
       if (model !== undefined) modelsBySourceName.set(sourceName, model);
     }
@@ -137,6 +142,7 @@ function normalizeJob(params: {
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
   defaultRunnerLabels: readonly string[];
   jobOutputTypesBySourceName: Map<string, Readonly<Record<string, ExpressionType>>>;
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
 }): WorkflowModelJob | undefined {
   const id = params.jobIdBySourceName.get(params.sourceName);
   if (id === undefined) return undefined;
@@ -181,6 +187,7 @@ function normalizeJob(params: {
     typeOverlay: stepTypeOverlay,
     upstreamJobs,
     directNeedJobs,
+    harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
   });
   const runner = normalizeRunner({
     document: params.document,
@@ -436,6 +443,7 @@ function normalizeJobSteps(params: {
   typeOverlay?: ExpressionTypeEnvironment | undefined;
   upstreamJobs: readonly WorkflowJobTypeOverlay[];
   directNeedJobs: readonly WorkflowJobTypeOverlay[];
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
 }): readonly WorkflowModelStep[] {
   const usedStepIds = new Map<string, number>();
 
@@ -454,6 +462,7 @@ function normalizeJobSteps(params: {
       typeOverlay: params.typeOverlay,
       upstreamJobs: params.upstreamJobs,
       directNeedJobs: params.directNeedJobs,
+      harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
     }),
   );
 }
@@ -472,6 +481,7 @@ function normalizeStep(params: {
   typeOverlay?: ExpressionTypeEnvironment | undefined;
   upstreamJobs: readonly WorkflowJobTypeOverlay[];
   directNeedJobs: readonly WorkflowJobTypeOverlay[];
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
 }): WorkflowModelStep {
   const stepKey = params.step.key;
   const stepId =
@@ -594,6 +604,7 @@ function normalizeStep(params: {
       fillSite: params.fillSite,
       allowedJobReferences: params.allowedJobReferences,
       typeOverlay,
+      harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
     });
   }
 
@@ -659,6 +670,7 @@ function normalizeAgentStep(params: {
   fillSite: AvailabilitySite;
   allowedJobReferences: ReadonlySet<string>;
   typeOverlay?: ExpressionTypeEnvironment | undefined;
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
 }): WorkflowModelAgentStep {
   if (params.step.prompt === undefined) {
     throw new Error('Agent step normalization requires a prompt');
@@ -703,6 +715,7 @@ function normalizeAgentStep(params: {
     stepIndex: params.stepIndex,
     issues: params.issues,
     validateLiteralProvider: providerTemplate === undefined,
+    harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
   });
   const templates = optionalAgentStepTemplates({
     prompt: promptTemplate,
@@ -719,6 +732,7 @@ function normalizeAgentStep(params: {
     ...(params.step.provider === undefined ? {} : {provider: params.step.provider}),
     prompt: params.step.prompt,
     ...(params.step.thinking === undefined ? {} : {thinking: params.step.thinking}),
+    ...(params.step.tools === undefined ? {} : {tools: params.step.tools}),
     ...(templates === undefined ? {} : {templates}),
   };
 }
@@ -729,8 +743,10 @@ function validateAgentStep(params: {
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
   validateLiteralProvider: boolean;
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
 }): void {
   validateHarnessThinking(params);
+  validateHarnessTools(params);
   if (!params.validateLiteralProvider) return;
 
   const providerId = params.step.provider;
@@ -763,6 +779,48 @@ function validateAgentStep(params: {
       details: {harness, provider: providerId, supportedProviders: descriptor.supportedProviderIds},
     }),
   );
+}
+
+function validateHarnessTools(params: {
+  step: WorkflowDocumentStep;
+  sourceName: string;
+  stepIndex: number;
+  issues: WorkflowModelValidationIssue[];
+  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+}): void {
+  const {harness, tools} = params.step;
+  if (tools === undefined) return;
+
+  if (harness === undefined) {
+    params.issues.push(
+      issue({
+        code: 'missing-harness-for-tools',
+        message:
+          'Agent step tools require an explicit harness because tool names are harness-specific.',
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'tools'],
+        details: {tools},
+      }),
+    );
+    return;
+  }
+
+  const supportedTools = listEnabledHarnessTools(harness, params.harnessToolDeploymentConfig).map(
+    (tool) => tool.name,
+  );
+  const supportedToolSet = new Set(supportedTools);
+
+  tools.forEach((tool, toolIndex) => {
+    if (supportedToolSet.has(tool)) return;
+
+    params.issues.push(
+      issue({
+        code: 'harness-tool-incompatible',
+        message: `Harness "${harness}" does not support tool: ${tool}. Supported tools: ${supportedTools.join(', ')}.`,
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'tools', toolIndex],
+        details: {harness, tool, supportedTools},
+      }),
+    );
+  });
 }
 
 function validateHarnessThinking(params: {
