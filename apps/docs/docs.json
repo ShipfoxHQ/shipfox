@@ -20,6 +20,10 @@
           {
             "group": "Get Started",
             "pages": ["introduction", "getting-started"]
+          },
+          {
+            "group": "AI Assistance",
+            "pages": ["ai/overview", "ai/authoring-prompt", "ai/skills-package"]
           }
         ]
       }
