@@ -516,8 +516,8 @@ export async function peekListenerBuffer(params: {jobId: string}): Promise<Liste
     .select({
       fireCount: sql<number>`count(*) filter (where ${jobListenerEvents.disposition} = 'fire')::integer`,
       resolvePending: sql<boolean>`coalesce(bool_or(${jobListenerEvents.disposition} = 'resolve'), false)`,
-      oldestAgeMs: sql<number>`coalesce(floor(extract(epoch from (now() - min(${jobListenerEvents.receivedAt}) filter (where ${jobListenerEvents.disposition} = 'fire'))) * 1000), 0)::integer`,
-      newestAgeMs: sql<number>`coalesce(floor(extract(epoch from (now() - max(${jobListenerEvents.receivedAt}) filter (where ${jobListenerEvents.disposition} = 'fire'))) * 1000), 0)::integer`,
+      oldestAgeMs: sql<number>`coalesce(floor(extract(epoch from (clock_timestamp() - min(${jobListenerEvents.receivedAt}) filter (where ${jobListenerEvents.disposition} = 'fire'))) * 1000), 0)::integer`,
+      newestAgeMs: sql<number>`coalesce(floor(extract(epoch from (clock_timestamp() - max(${jobListenerEvents.receivedAt}) filter (where ${jobListenerEvents.disposition} = 'fire'))) * 1000), 0)::integer`,
     })
     .from(jobListenerEvents)
     .where(
