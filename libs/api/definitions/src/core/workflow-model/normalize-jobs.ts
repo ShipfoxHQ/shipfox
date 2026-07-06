@@ -214,6 +214,7 @@ function normalizeJob(params: {
     job: params.job,
     sourceName: params.sourceName,
     issues: params.issues,
+    allowedJobReferences,
   });
   const name =
     params.job.name === undefined

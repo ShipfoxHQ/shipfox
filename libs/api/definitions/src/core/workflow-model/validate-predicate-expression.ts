@@ -135,6 +135,7 @@ export function validatePredicateExpression(params: {
 }
 
 function createSyntaxExpression(params: {
+  field: WorkflowPredicateField;
   source: string;
   path: readonly WorkflowModelValidationIssuePathSegment[];
   invalidCode: WorkflowModelValidationIssueCode;
@@ -162,6 +163,7 @@ function createSyntaxExpression(params: {
 }
 
 function invalidPredicateIssue(params: {
+  field: WorkflowPredicateField;
   source: string;
   path: readonly WorkflowModelValidationIssuePathSegment[];
   invalidCode: WorkflowModelValidationIssueCode;
@@ -174,6 +176,7 @@ function invalidPredicateIssue(params: {
     message: params.invalidMessage,
     path: params.path,
     details: {
+      field: params.field,
       source: params.source,
       contextRoots: params.contextRoots,
       reason: params.reason ?? 'Expression source did not parse or type-check.',
