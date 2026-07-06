@@ -400,6 +400,152 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('validates listener filters against job-activation roots', () => {
+    const document: WorkflowDocument = {
+      name: 'listener filter roots',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+        review: {
+          needs: ['build'],
+          listening: {
+            on: [
+              {
+                source: 'github',
+                event: 'pull_request_review',
+                filter:
+                  'run.id != "" && inputs.target == event.issue.number && job.key == "review" && executions.all(execution, execution.status != "") && matrix.os == "linux" && jobs.build.outputs.pr_number == event.issue.number',
+              },
+            ],
+            until: [
+              {
+                source: 'github',
+                event: 'pull_request',
+                filter: 'event.action == "closed"',
+              },
+            ],
+          },
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[1]?.listening?.on[0]?.filter).toBe(
+      'run.id != "" && inputs.target == event.issue.number && job.key == "review" && executions.all(execution, execution.status != "") && matrix.os == "linux" && jobs.build.outputs.pr_number == event.issue.number',
+    );
+    expect(model.jobs[1]?.listening?.until?.[0]?.filter).toBe('event.action == "closed"');
+  });
+
+  it.each([
+    ['step root', 'step.status == "succeeded"', 'context-unavailable-at-predicate-site'],
+    ['steps root', 'steps.build.outputs.sha == "abc"', 'context-unavailable-at-predicate-site'],
+    ['runner root', 'runner.os == "linux"', 'runner-context-in-server-predicate'],
+    ['non-boolean source', 'event.action', 'invalid-listener-filter'],
+  ] as const)('reports invalid listener on filters for %s', (_label, filter, code) => {
+    const document: WorkflowDocument = {
+      name: 'invalid listener filter',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review', filter}],
+            max_executions: 1,
+          },
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code,
+        path: ['jobs', 'review', 'listening', 'on', 0, 'filter'],
+        details: expect.objectContaining({
+          field: 'listener.on',
+          source: filter,
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects listener filters that reference jobs without a direct needs edge', () => {
+    const document: WorkflowDocument = {
+      name: 'listener missing needs',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+        review: {
+          listening: {
+            on: [
+              {
+                source: 'github',
+                event: 'pull_request_review',
+                filter: 'jobs.build.outputs.pr_number == event.issue.number',
+              },
+            ],
+            max_executions: 1,
+          },
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'missing-job-needs-edge',
+        path: ['jobs', 'review', 'listening', 'on', 0, 'filter'],
+        details: expect.objectContaining({
+          field: 'listener.on',
+          job: 'build',
+        }),
+      }),
+    ]);
+  });
+
+  it('rejects computed job keys in listener until filters', () => {
+    const document: WorkflowDocument = {
+      name: 'computed listener job key',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+        review: {
+          needs: ['build'],
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            until: [
+              {
+                source: 'github',
+                event: 'pull_request',
+                filter: 'jobs[event.job].outputs.sha == "abc"',
+              },
+            ],
+          },
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'computed-context-key',
+        path: ['jobs', 'review', 'listening', 'until', 0, 'filter'],
+        details: expect.objectContaining({
+          field: 'listener.until',
+        }),
+      }),
+    ]);
+  });
+
   it('preserves explicit model ids even when the seed catalog only knows provider defaults', () => {
     const document: WorkflowDocument = {
       name: 'agent build',

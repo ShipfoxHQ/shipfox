@@ -4,12 +4,14 @@ import {DEFAULT_RUN_TIMEOUT_MS} from './constants.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {normalizeTriggerEntry} from './normalize-triggers.js';
 import {parseDurationMs} from './parse-duration-ms.js';
+import {validatePredicateExpression} from './validate-predicate-expression.js';
 import {issue} from './validation-issue.js';
 
 export function normalizeJobListening(params: {
   job: WorkflowDocumentJob;
   sourceName: string;
   issues: WorkflowModelValidationIssue[];
+  allowedJobReferences: ReadonlySet<string>;
 }): WorkflowModelJobListening | undefined {
   const path = ['jobs', params.sourceName] as const;
   const listening = params.job.listening;
@@ -61,11 +63,59 @@ export function normalizeJobListening(params: {
         };
 
   return {
-    on: listening.on.map(normalizeTriggerEntry),
-    ...(listening.until === undefined ? {} : {until: listening.until.map(normalizeTriggerEntry)}),
+    on: listening.on.map((trigger, index) =>
+      normalizeListeningTrigger({
+        trigger,
+        field: 'listener.on',
+        path: [...path, 'listening', 'on', index, 'filter'],
+        issues: params.issues,
+        allowedJobReferences: params.allowedJobReferences,
+      }),
+    ),
+    ...(listening.until === undefined
+      ? {}
+      : {
+          until: listening.until.map((trigger, index) =>
+            normalizeListeningTrigger({
+              trigger,
+              field: 'listener.until',
+              path: [...path, 'listening', 'until', index, 'filter'],
+              issues: params.issues,
+              allowedJobReferences: params.allowedJobReferences,
+            }),
+          ),
+        }),
     ...(timeoutMs === undefined ? {} : {timeoutMs}),
     ...(listening.max_executions === undefined ? {} : {maxExecutions: listening.max_executions}),
     ...(batch === undefined ? {} : {batch}),
     onResolve: listening.on_resolve ?? 'finish',
   };
+}
+
+function normalizeListeningTrigger(params: {
+  trigger: {
+    readonly source: string;
+    readonly event: string;
+    readonly with?: Readonly<Record<string, unknown>> | undefined;
+    readonly filter?: string | undefined;
+  };
+  field: 'listener.on' | 'listener.until';
+  path: readonly (string | number)[];
+  issues: WorkflowModelValidationIssue[];
+  allowedJobReferences: ReadonlySet<string>;
+}): WorkflowModelJobListening['on'][number] {
+  if (params.trigger.filter !== undefined) {
+    validatePredicateExpression({
+      field: params.field,
+      source: params.trigger.filter,
+      site: 'job-activation',
+      path: params.path,
+      invalidCode: 'invalid-listener-filter',
+      invalidMessage: `${params.field === 'listener.on' ? 'Listener on' : 'Listener until'} filter must be a valid CEL boolean expression.`,
+      issues: params.issues,
+      allowedJobReferences: params.allowedJobReferences,
+    });
+  }
+
+  return normalizeTriggerEntry(params.trigger);
 }
