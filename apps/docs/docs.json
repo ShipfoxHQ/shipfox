@@ -20,6 +20,10 @@
           {
             "group": "Get Started",
             "pages": ["introduction", "getting-started"]
+          },
+          {
+            "group": "Help",
+            "pages": ["troubleshooting", "faq"]
           }
         ]
       }

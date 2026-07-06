@@ -1,0 +1,53 @@
+---
+title: "Frequently Asked Questions About Shipfox"
+sidebarTitle: "FAQ"
+description: "Answers to common questions about Shipfox: workflow YAML, runners, AI agent steps, supported providers, self-hosting, triggers, and roadmap features."
+---
+
+Quick answers to the most common questions about Shipfox. For more depth on any topic, follow the links to the relevant guide or reference page.
+
+<AccordionGroup>
+  <Accordion title="Can I use GitLab or Bitbucket as a trigger source?">
+    Only GitHub push triggers are supported today. GitLab and Bitbucket are on the roadmap. For non-GitHub repositories, use `source: manual, event: fire` to trigger runs on demand.
+  </Accordion>
+
+  <Accordion title="How do I pass secrets to my workflow?">
+    Secrets should be set as environment variables in your runner's process environment — not in the workflow YAML `env:` block (those values are committed to your repo). Your runner inherits the environment from the process that starts it; set secrets there.
+  </Accordion>
+
+  <Accordion title="Can I share files between jobs?">
+    Not directly — each job re-clones the repository and runs in isolation. To pass build artifacts between jobs, upload them to external storage (S3, R2, etc.) in one job and download them in the next.
+  </Accordion>
+
+  <Accordion title="What AI providers are supported?">
+    Shipfox supports 30+ providers including Anthropic, OpenAI, DeepSeek, Google AI Studio, xAI, Mistral, Groq, OpenRouter, Vercel AI Gateway, Cloudflare AI Gateway, Hugging Face, Together AI, Fireworks, and more. See the Model Providers guide for the full list.
+  </Accordion>
+
+  <Accordion title="Can I use `${{ }}` template expressions in my workflow?">
+    Yes. `${{ }}` interpolation is supported in `run` commands, `env` values, and agent `prompt`s, resolved when the run is created from `run`, `trigger`, `event`, and `inputs` context. Trigger `filter` expressions are the exception — still parsed but not evaluated. See Expressions.
+  </Accordion>
+
+  <Accordion title="What does `filter:` do today?">
+    The `filter` field is parsed and stored but not yet evaluated. Your trigger fires on every matching `(source, event)` regardless of the filter. This will change in a future release.
+  </Accordion>
+
+  <Accordion title="How do I run Shipfox locally to test?">
+    Use the Docker Compose evaluation stack. See Local Evaluation for step-by-step instructions. GitHub push triggers don't fire locally because GitHub can't reach your local API; the evaluation stack ships its own local Git hosting so you can still test push triggers — the local guide covers it.
+  </Accordion>
+
+  <Accordion title="Can my coding agent write Shipfox workflows?">
+    Yes — and it's encouraged. Install the skills package (`npx skills add shipfox/agent-skills`) or paste the authoring prompt into your agent's context. The schema has non-obvious rules that the skill encodes, preventing the most common authoring mistakes.
+  </Accordion>
+
+  <Accordion title="Is self-hosting supported?">
+    Yes. Shipfox requires PostgreSQL, Temporal, and S3-compatible object storage. The runner is a separate process you deploy on your compute. See Self-Hosting for details. Managed hosting is also available.
+  </Accordion>
+
+  <Accordion title="What happens when a gate's `restart_from` loops infinitely?">
+    It can't loop infinitely — a gating step gets **3 attempts by default**, then the job fails. The job-level `execution_timeout` adds an outer wall-clock bound (default 6 hours). See Loop bounds.
+  </Accordion>
+
+  <Accordion title="Why is my run showing `exit_code != 0` on an agent step?">
+    Agent steps that fail to connect to the provider or encounter an API error may surface a non-zero exit code. Check the step log for the specific error, verify your API key is set on the runner, and confirm the model and provider IDs are valid.
+  </Accordion>
+</AccordionGroup>

@@ -6,3 +6,5 @@
 
 - [Introduction](/introduction): What Shipfox is, how it works, and what you can build with agentic workflows.
 - [Quick Start](/getting-started): Connect a project, add a workflow YAML, register a runner, and fire your first run.
+- [Troubleshooting](/troubleshooting): Fix common issues — pending runs, runner connection problems, workflow validation errors, agent step failures, trigger setup.
+- [FAQ](/faq): Common questions about workflow YAML, runners, agent steps, providers, self-hosting, triggers, and roadmap features.
