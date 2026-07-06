@@ -3,6 +3,7 @@ import {
   parseWorkflowTemplate,
   planInterpolationField,
   type ResolvedFieldSegment,
+  type WorkflowExpression,
   type WorkflowInterpolationField,
 } from '@shipfox/expression';
 
@@ -15,6 +16,7 @@ interface TestWorkflowStepBase {
   readonly name?: string | undefined;
   readonly sourceLocation?: WorkflowModel['jobs'][number]['steps'][number]['sourceLocation'];
   readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
+  readonly if?: WorkflowExpression | undefined;
 }
 
 interface TestRunStep extends TestWorkflowStepBase {
@@ -138,6 +140,7 @@ function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
     ...(step.name === undefined ? {} : {name: step.name}),
     ...(step.sourceLocation === undefined ? {} : {sourceLocation: step.sourceLocation}),
     ...(step.gate === undefined ? {} : {gate: step.gate}),
+    ...(step.if === undefined ? {} : {if: step.if}),
   };
 }
 

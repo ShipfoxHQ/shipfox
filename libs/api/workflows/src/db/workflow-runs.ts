@@ -51,7 +51,9 @@ import type {
   StepAttempt,
   StepAttemptStatus,
   StepStatus,
+  StepStatusReason,
 } from '#core/entities/step.js';
+import {TERMINAL_STEP_STATUSES} from '#core/entities/step.js';
 import {
   isWorkflowRunTerminal,
   type JobExecutionDetail,
@@ -323,6 +325,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           type: step.type,
           config: step.config,
           configPlan: step.configPlan ?? null,
+          condition: step.condition,
           authoredConfig: step.authoredConfig,
           position: step.position,
         });
@@ -726,9 +729,13 @@ export async function createRerunWorkflowRun(
           name: step.name,
           sourceLocation: step.sourceLocation,
           status: carriedOver ? step.status : ('pending' as const),
+          // A carried-over step keeps its skip reason; a re-materialized step
+          // resets to null so its `if:` is re-evaluated fresh on re-dispatch.
+          statusReason: carriedOver ? step.statusReason : null,
           type: step.type,
           config: step.config,
           configPlan: step.configPlan,
+          condition: step.condition,
           authoredConfig: step.authoredConfig,
           error: null,
           position: step.position,
@@ -2349,7 +2356,7 @@ export async function bulkUpdateStepStatuses(
     .where(
       and(
         eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+        notInArray(steps.status, [...TERMINAL_STEP_STATUSES]),
       ),
     );
 
@@ -2445,7 +2452,7 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
       and(
         eq(steps.id, params.stepId),
         eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+        notInArray(steps.status, [...TERMINAL_STEP_STATUSES]),
       ),
     )
     .returning();
@@ -2465,6 +2472,35 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
     tx,
   );
   return step;
+}
+
+export interface MarkStepSkippedParams {
+  jobExecutionId: string;
+  stepId: string;
+  statusReason: StepStatusReason;
+}
+
+/**
+ * Marks a `pending` step `skipped` because its `if:` predicate evaluated false
+ * or fell closed. Guarded on `status = 'pending'` (not merely non-terminal) so a
+ * `running` step can never be skipped out from under its in-flight attempt.
+ * Creates no `step_attempt` row: a skipped step is attempt-less. Returns null
+ * when the step was not pending (already dispatched/terminal) — a no-op.
+ */
+export async function markStepSkipped(params: MarkStepSkippedParams, tx: Tx): Promise<Step | null> {
+  const rows = await tx
+    .update(steps)
+    .set({status: 'skipped', statusReason: params.statusReason, updatedAt: new Date()})
+    .where(
+      and(
+        eq(steps.id, params.stepId),
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        eq(steps.status, 'pending'),
+      ),
+    )
+    .returning();
+  const row = rows[0];
+  return row ? toStep(row) : null;
 }
 
 export interface DispatchStepWithCompletedConfigParams {
@@ -2489,7 +2525,7 @@ export async function dispatchStepWithCompletedConfig(
       and(
         eq(steps.id, params.stepId),
         eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+        notInArray(steps.status, [...TERMINAL_STEP_STATUSES]),
       ),
     )
     .returning();
@@ -2802,7 +2838,7 @@ export async function applyStepResult(params: ApplyStepResultParams, tx: Tx): Pr
       and(
         eq(steps.id, params.stepId),
         eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+        notInArray(steps.status, [...TERMINAL_STEP_STATUSES]),
       ),
     );
 }

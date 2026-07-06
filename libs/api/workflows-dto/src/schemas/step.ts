@@ -82,6 +82,9 @@ export const stepDtoSchema = z.object({
   name: z.string(),
   source_location: stepSourceLocationSchema.nullable(),
   status: z.string(),
+  // Why a `skipped` step was skipped (condition_rejected | condition_errored);
+  // null for non-skipped steps.
+  status_reason: z.string().nullable(),
   type: z.string(),
   config: z.record(z.string(), z.unknown()),
   error: stepErrorDtoSchema,

@@ -105,6 +105,7 @@ export function toStepDto(step: Step): StepDto {
     name: step.name,
     source_location: toStepSourceLocationDto(step.sourceLocation),
     status: step.status,
+    status_reason: step.statusReason,
     type: step.type,
     config: step.config,
     error: toStepErrorDto(step.error, step.type === 'setup' ? 'setup' : 'user'),

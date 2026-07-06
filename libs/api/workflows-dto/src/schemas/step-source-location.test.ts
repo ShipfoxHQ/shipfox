@@ -6,6 +6,7 @@ const baseStep = {
   key: null,
   name: 'echo hello',
   status: 'pending',
+  status_reason: null,
   type: 'run',
   config: {run: 'echo hello'},
   error: null,

@@ -96,6 +96,7 @@ describe('materializeWorkflowModel', () => {
       status: 'pending',
       type: 'setup',
       config: {},
+      condition: null,
       authoredConfig: null,
       position: 0,
     };
@@ -117,6 +118,7 @@ describe('materializeWorkflowModel', () => {
             status: 'pending',
             type: 'run',
             config: {run: 'npm install'},
+            condition: null,
             authoredConfig: null,
             position: 1,
           },
@@ -133,6 +135,7 @@ describe('materializeWorkflowModel', () => {
                 on_failure: {restart_from: 'install', feedback: 'Build failed'},
               },
             },
+            condition: null,
             authoredConfig: null,
             position: 2,
           },
@@ -154,6 +157,7 @@ describe('materializeWorkflowModel', () => {
             status: 'pending',
             type: 'run',
             config: {run: 'npm test'},
+            condition: null,
             authoredConfig: null,
             position: 1,
           },
@@ -206,6 +210,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'high',
         prompt: 'Fix the tests.',
       },
+      condition: null,
       authoredConfig: null,
       position: 2,
     });
@@ -226,6 +231,7 @@ describe('materializeWorkflowModel', () => {
           on_failure: {restart_from: 'implement'},
         },
       },
+      condition: null,
       authoredConfig: null,
       position: 3,
     });
@@ -255,6 +261,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'xhigh',
         prompt: 'Fix the failing tests.',
       },
+      condition: null,
       authoredConfig: null,
       position: 1,
     });
@@ -997,6 +1004,7 @@ describe('materializeWorkflowModel', () => {
         status: 'pending',
         type: 'setup',
         config: {},
+        condition: null,
         authoredConfig: null,
         position: 0,
       },

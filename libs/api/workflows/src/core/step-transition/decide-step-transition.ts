@@ -1,16 +1,22 @@
 import type {PersistedEvaluationTraceEntry, Step, StepStatus} from '../entities/step.js';
+import {TERMINAL_STEP_STATUSES} from '../entities/step.js';
 import type {RuntimeCompletionStatus} from '../workflow-scheduling/runtime-dag.js';
 
-const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set(['succeeded', 'failed', 'cancelled']);
+const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set(TERMINAL_STEP_STATUSES);
 
 export function isTerminal(status: StepStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
-// Anything other than an all-succeeded job is a failure, so an externally
-// cancelled job never reads as a vacuous success.
+// Completion is "no step failed", not "every step succeeded": a `skipped` step
+// is terminal but non-failing, so an execution of only succeeded/skipped steps
+// resolves `succeeded`. This is the same predicate as `execution.failed`, so the
+// value a step `if:` reads and the execution's terminal status can never
+// disagree. Callers pass an all-terminal projection (each guards
+// `every(isTerminal)` first). Cancellation is a hard stop applied directly by
+// the run-termination path, never derived here.
 export function deriveCompletion(steps: Step[]): RuntimeCompletionStatus {
-  return steps.every((step) => step.status === 'succeeded') ? 'succeeded' : 'failed';
+  return steps.some((step) => step.status === 'failed') ? 'failed' : 'succeeded';
 }
 
 // The result the runner reported for the step being decided.

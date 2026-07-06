@@ -37,6 +37,7 @@ function makeStep(overrides: Partial<WorkflowRunStepDetailDto> = {}): WorkflowRu
     name: 'Greet',
     source_location: null,
     status: 'succeeded',
+    status_reason: null,
     type: 'run',
     config: {},
     error: null,

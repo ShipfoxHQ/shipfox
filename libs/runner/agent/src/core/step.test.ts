@@ -29,6 +29,7 @@ function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
     name,
     source_location: null,
     status: 'running',
+    status_reason: null,
     type: 'agent',
     config: {model: 'claude-opus-4-8', thinking: 'high', prompt: 'Fix the failing tests.'},
     error: null,

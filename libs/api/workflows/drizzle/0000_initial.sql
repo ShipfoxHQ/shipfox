@@ -7,7 +7,8 @@ CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'running', 'succe
 CREATE TYPE "public"."workflows_job_status_reason" AS ENUM('dependency_not_completed', 'condition_false', 'user_cancelled', 'run_cancelled', 'timed_out', 'runner_lost', 'step_failed', 'unknown');--> statement-breakpoint
 CREATE TYPE "public"."workflows_listener_status" AS ENUM('inactive', 'listening', 'resolved');--> statement-breakpoint
 CREATE TYPE "public"."workflows_resolution_reason" AS ENUM('until', 'timeout', 'max_executions', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled', 'skipped');--> statement-breakpoint
+CREATE TYPE "public"."workflows_step_status_reason" AS ENUM('condition_rejected', 'condition_errored');--> statement-breakpoint
 CREATE TYPE "public"."workflows_rerun_mode" AS ENUM('all', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TABLE "workflows_job_executions" (
@@ -124,9 +125,11 @@ CREATE TABLE "workflows_steps" (
 	"name" text NOT NULL,
 	"source_location" jsonb,
 	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
+	"status_reason" "workflows_step_status_reason",
 	"type" text NOT NULL,
 	"config" jsonb NOT NULL,
 	"config_plan" jsonb,
+	"condition" jsonb,
 	"authored_config" jsonb,
 	"error" jsonb,
 	"position" integer NOT NULL,

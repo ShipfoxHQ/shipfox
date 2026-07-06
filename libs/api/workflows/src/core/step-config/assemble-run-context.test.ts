@@ -249,6 +249,7 @@ describe('assembleStepDispatchContext', () => {
           index: 2,
           name: 'Deploy',
           status: 'running',
+          failed: false,
           started_at: date,
           finished_at: null,
           events: [
@@ -286,6 +287,26 @@ describe('assembleStepDispatchContext', () => {
         },
       },
     });
+  });
+
+  it('sets execution.failed from the latest-terminal step statuses', () => {
+    const targetStep = step({id: 'step-2', key: 'test'});
+
+    const succeededOnly = assembleStepDispatchContext({
+      steps: [step({id: 'step-1', key: 'build', status: 'succeeded'}), targetStep],
+      attempts: [],
+      targetStepId: targetStep.id,
+      jobExecution: jobExecution(),
+    });
+    const withFailure = assembleStepDispatchContext({
+      steps: [step({id: 'step-1', key: 'build', status: 'failed'}), targetStep],
+      attempts: [],
+      targetStepId: targetStep.id,
+      jobExecution: jobExecution(),
+    });
+
+    expect((succeededOnly.values.execution as {failed: boolean}).failed).toBe(false);
+    expect((withFailure.values.execution as {failed: boolean}).failed).toBe(true);
   });
 
   it('uses the latest terminal attempt by execution order and keeps history ordered', () => {
@@ -639,6 +660,8 @@ function step(overrides: Partial<Step> = {}): Step {
     type: 'run',
     config: {},
     configPlan: null,
+    condition: null,
+    statusReason: null,
     authoredConfig: null,
     error: null,
     position: 0,

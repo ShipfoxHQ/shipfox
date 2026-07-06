@@ -211,6 +211,11 @@ export function assembleStepDispatchContext(params: {
               index: params.jobExecution.sequence,
               name: params.jobExecution.name,
               status: params.jobExecution.status,
+              // Derived progress boolean: is any settled step already failed in
+              // this execution? Same predicate as `deriveCompletion`, projected
+              // over the latest-terminal step statuses so a step `if:` and the
+              // execution's terminal status can never disagree.
+              failed: params.steps.some((step) => step.status === 'failed'),
               started_at: params.jobExecution.startedAt,
               finished_at: params.jobExecution.finishedAt,
               events: params.jobExecution.triggerEvents,

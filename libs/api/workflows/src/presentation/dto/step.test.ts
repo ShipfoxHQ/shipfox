@@ -11,6 +11,8 @@ function step(overrides: Partial<Step> & {type: string}): Step {
     status: 'failed',
     config: {},
     configPlan: null,
+    condition: null,
+    statusReason: null,
     authoredConfig: null,
     error: null,
     position: 0,
@@ -163,6 +165,17 @@ describe('toStepDto error category', () => {
     const dto = toStepDto(step({type: 'setup', sourceLocation: null, error: null}));
 
     expect(dto.source_location).toBeNull();
+  });
+
+  it('surfaces the skip reason for a skipped step and null otherwise', () => {
+    const skipped = toStepDto(
+      step({type: 'run', status: 'skipped', statusReason: 'condition_errored', error: null}),
+    );
+    const running = toStepDto(step({type: 'run', status: 'running', error: null}));
+
+    expect(skipped.status).toBe('skipped');
+    expect(skipped.status_reason).toBe('condition_errored');
+    expect(running.status_reason).toBeNull();
   });
 });
 

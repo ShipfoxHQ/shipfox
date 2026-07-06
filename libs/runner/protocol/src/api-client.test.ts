@@ -160,6 +160,7 @@ describe('api-client auth contexts', () => {
       name: 'Test step',
       source_location: null,
       status: 'running',
+      status_reason: null,
       type: 'run',
       config: {run: 'echo ok'},
       error: null,

@@ -3,15 +3,41 @@ import type {
   EvaluationTraceEntry,
   EvaluationTraceLimitEntry,
   ResolvedField,
+  WorkflowExpression,
 } from '@shipfox/expression';
 import type {InterpolationUnresolvableField} from '../errors.js';
 
-export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
 export type StepAttemptLogOutcome = 'drained' | 'abandoned';
 
+// The statuses a step can hold once it is done. `skipped` is a terminal,
+// non-failing status: an execution containing only succeeded/skipped steps
+// resolves succeeded. Single source of truth for the dispatch/cancel guards and
+// the `TERMINAL_STATUSES` set; both `core` and `db` import from this boundary.
+export const TERMINAL_STEP_STATUSES = [
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+] as const satisfies readonly StepStatus[];
+
 // A step_attempts row exists only once an attempt is dispatched, so it is never
-// 'pending'.
-export type StepAttemptStatus = Exclude<StepStatus, 'pending'>;
+// 'pending'; a skipped step is attempt-less, so an attempt is never 'skipped'.
+export type StepAttemptStatus = Exclude<StepStatus, 'pending' | 'skipped'>;
+
+// Why a step was skipped by its `if:` predicate. `condition_rejected` = the
+// predicate evaluated to a clean `false`; `condition_errored` = it fell closed
+// on a non-boolean/unresolved/eval error. (The implicit-default-gate reason
+// `default_gate_rejected` arrives with continue-after-failure.)
+export const STEP_STATUS_REASONS = ['condition_rejected', 'condition_errored'] as const;
+export type StepStatusReason = (typeof STEP_STATUS_REASONS)[number];
+
+const STEP_STATUS_REASON_SET = new Set<StepStatusReason>(STEP_STATUS_REASONS);
+
+export function toStepStatusReason(value: string | null): StepStatusReason | null {
+  if (value === null) return null;
+  return STEP_STATUS_REASON_SET.has(value as StepStatusReason) ? (value as StepStatusReason) : null;
+}
 
 export interface StepSourceLocation {
   startLine: number;
@@ -59,9 +85,14 @@ export interface Step {
   name: string;
   sourceLocation: StepSourceLocation | null;
   status: StepStatus;
+  // Why the step was skipped, when `status === 'skipped'`; null otherwise.
+  statusReason: StepStatusReason | null;
   type: string;
   config: Record<string, unknown>;
   configPlan: StepConfigDispatchPlan | null;
+  // The materialized `if:` predicate, evaluated server-side at each dispatch.
+  // A false/errored result skips the step before any attempt is created.
+  condition: WorkflowExpression | null;
   authoredConfig: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   position: number;

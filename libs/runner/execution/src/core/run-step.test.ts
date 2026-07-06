@@ -649,6 +649,7 @@ function buildStep(
     name,
     source_location: null,
     status: 'running',
+    status_reason: null,
     type: overrides.type ?? 'run',
     config: overrides.config ?? {run: 'echo test'},
     error: null,

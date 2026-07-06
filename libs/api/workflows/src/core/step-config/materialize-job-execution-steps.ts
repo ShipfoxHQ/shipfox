@@ -3,6 +3,7 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowExpression} from '@shipfox/expression';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
@@ -21,6 +22,9 @@ export interface MaterializedWorkflowStep {
   readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
   readonly configPlan?: StepConfigDispatchPlan;
+  // The authored `if:` predicate, evaluated server-side at each dispatch. Null
+  // for the synthetic setup step and for steps with no `if:`.
+  readonly condition: WorkflowExpression | null;
   readonly authoredConfig: Readonly<Record<string, unknown>> | null;
   readonly diagnostics?: readonly WorkflowStepTemplateDiagnostic[];
   readonly position: number;
@@ -45,6 +49,9 @@ const SETUP_STEP: MaterializedWorkflowStep = {
   status: 'pending',
   type: 'setup',
   config: {},
+  // The setup step carries no `if:`, so the dispatch skip-loop always takes the
+  // no-condition branch and can never skip it.
+  condition: null,
   authoredConfig: null,
   position: 0,
 };
@@ -83,6 +90,7 @@ export function materializeJobExecutionSteps(
         status: 'pending' as const,
         type: step.kind,
         config: resolved.config,
+        condition: step.if ?? null,
         authoredConfig: resolved.authoredConfig,
         ...materializedConfigPlan(resolved.configPlan, resolved.trace),
         ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),

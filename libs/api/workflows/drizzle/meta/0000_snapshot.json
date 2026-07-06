@@ -921,6 +921,13 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "status_reason": {
+          "name": "status_reason",
+          "type": "workflows_step_status_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "type": {
           "name": "type",
           "type": "text",
@@ -935,6 +942,12 @@
         },
         "config_plan": {
           "name": "config_plan",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "condition": {
+          "name": "condition",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -1554,7 +1567,12 @@
     "public.workflows_step_status": {
       "name": "workflows_step_status",
       "schema": "public",
-      "values": ["pending", "running", "succeeded", "failed", "cancelled"]
+      "values": ["pending", "running", "succeeded", "failed", "cancelled", "skipped"]
+    },
+    "public.workflows_step_status_reason": {
+      "name": "workflows_step_status_reason",
+      "schema": "public",
+      "values": ["condition_rejected", "condition_errored"]
     },
     "public.workflows_rerun_mode": {
       "name": "workflows_rerun_mode",

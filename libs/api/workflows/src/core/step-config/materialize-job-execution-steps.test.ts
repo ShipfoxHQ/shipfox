@@ -89,6 +89,7 @@ describe('materializeJobExecutionSteps', () => {
         status: 'pending',
         type: 'setup',
         config: {},
+        condition: null,
         authoredConfig: null,
         position: 0,
       },
@@ -105,6 +106,7 @@ describe('materializeJobExecutionSteps', () => {
             __sf_0: 'Review batch 1',
           },
         },
+        condition: null,
         authoredConfig: {
           run: `echo "${template('executions[0].name')}"`,
           env: {BODY: template('execution.events[0].data.body')},

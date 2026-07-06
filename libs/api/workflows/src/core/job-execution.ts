@@ -1,6 +1,11 @@
 import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
-import {coerceStepOutputs, type StepOutputCoercionError} from '@shipfox/expression';
+import {
+  coerceStepOutputs,
+  evaluatePlannedPredicateAtSite,
+  type StepOutputCoercionError,
+  type WorkflowExpression,
+} from '@shipfox/expression';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
@@ -14,13 +19,15 @@ import {
   insertRunningStepAttempt,
   lockActiveJobExecutionLeaseForUpdate,
   markStepRunning,
+  markStepSkipped,
   settleJobFailed,
+  writeJobStepsSettledOutbox,
 } from '#db/workflow-runs.js';
 import {
   recordWorkflowJobExecutionStepsSettled,
   recordWorkflowStepRestartEnqueued,
 } from '#metrics/instance.js';
-import type {Step} from './entities/step.js';
+import type {Step, StepStatusReason} from './entities/step.js';
 import {
   AgentConfigUnresolvableError,
   InterpolationUnresolvableError,
@@ -65,35 +72,143 @@ export type NextStep = {kind: 'step'; step: Step} | {kind: 'done'; status: Compl
 
 type DispatchConfigError = InterpolationUnresolvableError | AgentConfigUnresolvableError;
 
+type DispatchInputs = {
+  readonly jobExecution: NonNullable<Awaited<ReturnType<typeof getJobExecutionById>>>;
+  readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
+  readonly jobs: Awaited<ReturnType<typeof getDirectDependencyJobContexts>>;
+};
+
+type LoadDispatchInputs = () => Promise<DispatchInputs>;
+
 interface PendingStepDispatchParams {
   readonly jobExecutionId: string;
   readonly steps: Step[];
   readonly pending: Step;
+  readonly loadInputs: LoadDispatchInputs;
   readonly tx: Tx;
+}
+
+// Step-dispatch inputs (execution, attempt history, dependency job contexts) are
+// loaded at most once per pull and shared between `if:` evaluation and config
+// completion, so a pull that skips and then dispatches does not re-query.
+async function loadDispatchInputs(jobExecutionId: string, tx: Tx): Promise<DispatchInputs> {
+  const jobExecution = await getJobExecutionById(jobExecutionId, tx);
+  if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
+
+  const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
+  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
+  return {jobExecution, attempts, jobs};
 }
 
 async function nextStepForJobExecutionInTransaction(
   jobExecutionId: string,
   tx: Tx,
 ): Promise<NextStep> {
-  const steps = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
-  const hasNoSteps = steps.length === 0;
+  const projection = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
 
   // An unknown or step-less execution has nothing to progress; rejecting it stops
   // a bad id from deriving a vacuous 'succeeded' completion below.
-  if (hasNoSteps) throw new JobNotFoundError(jobExecutionId);
+  if (projection.length === 0) throw new JobNotFoundError(jobExecutionId);
 
   // Re-deliver the in-flight step rather than advancing, so a retried pull
   // cannot skip a step.
-  const running = steps.find((step) => step.status === 'running');
-  const hasRunningStep = running !== undefined;
-  if (hasRunningStep) return {kind: 'step', step: running};
+  const running = projection.find((step) => step.status === 'running');
+  if (running !== undefined) return {kind: 'step', step: running};
 
-  const pending = steps.find((step) => step.status === 'pending');
-  const hasPendingStep = pending !== undefined;
-  if (hasPendingStep) return dispatchPendingStep({jobExecutionId, steps, pending, tx});
+  // Server-side skip loop: walk the pending steps in position order, evaluate
+  // each candidate's `if:`, mark false/errored ones `skipped` (no attempt), and
+  // dispatch the first that runs. Inputs load lazily and are cached across
+  // iterations; the local `steps` copy is updated as we skip so a later step's
+  // predicate AND its config interpolation both see the prior skips.
+  const steps = [...projection];
+  let inputs: Promise<DispatchInputs> | undefined;
+  const loadInputs: LoadDispatchInputs = () => (inputs ??= loadDispatchInputs(jobExecutionId, tx));
+  let skippedAny = false;
 
-  return {kind: 'done', status: deriveCompletion(steps)};
+  while (true) {
+    const pendingIndex = steps.findIndex((step) => step.status === 'pending');
+    if (pendingIndex === -1) {
+      return finishJobExecution({jobExecutionId, steps, skippedAny, loadInputs, tx});
+    }
+
+    const pending = steps[pendingIndex] as Step;
+    const condition = readStepCondition(pending);
+    if (condition !== undefined) {
+      const decision = evaluateStepCondition({
+        condition,
+        steps,
+        pending,
+        inputs: await loadInputs(),
+      });
+      if (!decision.run) {
+        await markStepSkipped(
+          {jobExecutionId, stepId: pending.id, statusReason: decision.reason},
+          tx,
+        );
+        steps[pendingIndex] = {...pending, status: 'skipped', statusReason: decision.reason};
+        skippedAny = true;
+        continue;
+      }
+    }
+
+    return dispatchPendingStep({jobExecutionId, steps, pending, loadInputs, tx});
+  }
+}
+
+// Settle the job execution when no runnable step remains. A skip is the only way
+// the job completes without a final step report firing, so when at least one step
+// was skipped this pull we emit the steps-settled outbox here (exactly the signal
+// the report path emits). A redundant post-completion pull has
+// `skippedAny === false` and never re-emits — the last report already settled.
+async function finishJobExecution(params: {
+  jobExecutionId: string;
+  steps: Step[];
+  skippedAny: boolean;
+  loadInputs: LoadDispatchInputs;
+  tx: Tx;
+}): Promise<NextStep> {
+  const status = deriveCompletion(params.steps);
+  if (!params.skippedAny) return {kind: 'done', status};
+
+  const {jobExecution} = await params.loadInputs();
+  await writeJobStepsSettledOutbox(params.tx, {
+    jobId: jobExecution.jobId,
+    jobExecutionId: params.jobExecutionId,
+    status,
+  });
+  recordWorkflowJobExecutionStepsSettled(status);
+  return {kind: 'done', status};
+}
+
+function readStepCondition(step: Step): WorkflowExpression | undefined {
+  return step.condition ?? undefined;
+}
+
+// Evaluates a step's `if:` predicate against the dispatch context. Fail-closed:
+// the step runs only on a strict `true`; a `false`, a non-boolean, or an
+// evaluation error all skip it (the last distinguished as `condition_errored`).
+function evaluateStepCondition(params: {
+  condition: WorkflowExpression;
+  steps: Step[];
+  pending: Step;
+  inputs: DispatchInputs;
+}): {run: true} | {run: false; reason: StepStatusReason} {
+  const context = assembleStepDispatchContext({
+    steps: params.steps,
+    attempts: params.inputs.attempts,
+    targetStepId: params.pending.id,
+    jobExecution: params.inputs.jobExecution,
+    jobs: params.inputs.jobs,
+  });
+  const outcome = evaluatePlannedPredicateAtSite({
+    expression: params.condition,
+    field: 'step.if',
+    site: context.site,
+    context: context.values,
+  });
+  if (outcome.evaluationFailed) return {run: false, reason: 'condition_errored'};
+  if (outcome.value === true) return {run: true};
+  return {run: false, reason: 'condition_rejected'};
 }
 
 async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<NextStep> {
@@ -111,13 +226,10 @@ async function dispatchPendingStepWithConfigPlan({
   jobExecutionId,
   steps,
   pending,
+  loadInputs,
   tx,
 }: PendingStepDispatchParams): Promise<NextStep> {
-  const jobExecution = await getJobExecutionById(jobExecutionId, tx);
-  if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
-
-  const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
-  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
+  const {jobExecution, attempts, jobs} = await loadInputs();
   const context = assembleStepDispatchContext({
     steps,
     attempts,

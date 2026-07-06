@@ -15,8 +15,17 @@ import {db} from '#db/db.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
 import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {bulkUpdateStepStatuses, getStepAttempts, getStepsByJobId} from '#db/workflow-runs.js';
+import {
+  bulkUpdateStepStatuses,
+  createWorkflowRun,
+  getJobsByWorkflowRunId,
+  getStepAttempts,
+  getStepsByJobId,
+} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
+import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
+import {workflowModel} from '#test/index.js';
+import type {Step} from './entities/step.js';
 import {
   JobNotFoundError,
   StepAttemptAheadError,
@@ -312,15 +321,171 @@ describe('nextStepForJob', () => {
     expect(result).toEqual({kind: 'done', status: 'failed'});
   });
 
-  test('all cancelled, none failed → {done, failed}', async () => {
+  test('all cancelled, none failed → {done, succeeded}', async () => {
     const {jobId} = await arrangeJobWithSteps(2);
-    // A cancelled job with no failure must still report 'failed', not a vacuous
-    // success.
+    // Completion is "no step failed": a cancelled-but-unfailed projection derives
+    // 'succeeded'. Real run cancellation never reaches here; it sets the run,
+    // executions, and steps 'cancelled' directly via the run-termination path.
     await bulkUpdateJobStepStatuses({jobId, status: 'cancelled'});
 
     const result = await nextStepForJob(jobId);
 
-    expect(result).toEqual({kind: 'done', status: 'failed'});
+    expect(result).toEqual({kind: 'done', status: 'succeeded'});
+  });
+});
+
+describe('nextStepForJob step if: conditions', () => {
+  const condition = (source: string) => createWorkflowExpression({source, check: {mode: 'syntax'}});
+
+  async function arrangeConditionalJob(
+    steps: ReadonlyArray<{run: string; key: string; if?: ReturnType<typeof condition>}>,
+  ): Promise<{jobId: string; steps: Step[]}> {
+    const model = workflowModel({jobs: {build: {steps}}});
+    const run = await createWorkflowRun({
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+      model,
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const jobs = await getJobsByWorkflowRunId(run.id);
+    const jobId = jobs[0]?.id as string;
+    await stripSetupStep(jobId);
+    return {jobId, steps: await getStepsByJobId(jobId)};
+  }
+
+  test('an if:false step is skipped (condition_rejected) and a later step still runs', async () => {
+    const {jobId, steps} = await arrangeConditionalJob([
+      {run: 'echo a', key: 'a', if: condition('false')},
+      {run: 'echo b', key: 'b'},
+    ]);
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: steps[1]?.id})});
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]?.status).toBe('skipped');
+    expect(after[0]?.statusReason).toBe('condition_rejected');
+    expect(after[1]?.status).toBe('running');
+    expect(await getStepAttempts(steps[0]?.id as string)).toHaveLength(0);
+  });
+
+  test('an if:true step is dispatched', async () => {
+    const {jobId, steps} = await arrangeConditionalJob([
+      {run: 'echo a', key: 'a', if: condition('true')},
+    ]);
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: steps[0]?.id})});
+    expect((await getStepsByJobId(jobId))[0]?.status).toBe('running');
+  });
+
+  test('a job whose only step is author-skipped resolves succeeded and settles once', async () => {
+    const {jobId, steps} = await arrangeConditionalJob([
+      {run: 'echo a', key: 'a', if: condition('false')},
+    ]);
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'done', status: 'succeeded'});
+    expect((await getStepsByJobId(jobId))[0]?.status).toBe('skipped');
+    expect(await getStepAttempts(steps[0]?.id as string)).toHaveLength(0);
+    const settled = await jobStepsSettledEvents(jobId);
+    expect(settled).toHaveLength(1);
+    expect(settled[0]?.status).toBe('succeeded');
+  });
+
+  test('a redundant pull after a skip-completed job does not double-emit settlement', async () => {
+    const {jobId} = await arrangeConditionalJob([
+      {run: 'echo a', key: 'a', if: condition('false')},
+    ]);
+    await nextStepForJob(jobId);
+
+    await nextStepForJob(jobId);
+
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(1);
+  });
+
+  test('if: execution.failed skips in the happy path (nothing has failed)', async () => {
+    const {jobId} = await arrangeConditionalJob([
+      {run: './upload-logs.sh', key: 'upload', if: condition('execution.failed')},
+    ]);
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'done', status: 'succeeded'});
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]?.status).toBe('skipped');
+    expect(after[0]?.statusReason).toBe('condition_rejected');
+  });
+
+  test('an if: with an unresolved reference fails closed and skips with condition_errored', async () => {
+    const {jobId} = await arrangeConditionalJob([
+      {run: 'echo a', key: 'a', if: condition('execution.bogus')},
+    ]);
+
+    await nextStepForJob(jobId);
+
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]?.status).toBe('skipped');
+    expect(after[0]?.statusReason).toBe('condition_errored');
+  });
+
+  test('a skip in the middle preserves order and dispatches the next runnable step', async () => {
+    const {jobId, steps} = await arrangeConditionalJob([
+      {run: 'echo a', key: 'a'},
+      {run: 'echo b', key: 'b', if: condition('false')},
+      {run: 'echo c', key: 'c'},
+    ]);
+    const first = await nextStepForJob(jobId);
+    expect(first).toEqual({kind: 'step', step: expect.objectContaining({id: steps[0]?.id})});
+    await recordStepResult({jobId, stepId: steps[0]?.id as string, status: 'succeeded'});
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: steps[2]?.id})});
+    const after = await getStepsByJobId(jobId);
+    expect(after[1]?.status).toBe('skipped');
+    expect(after[2]?.status).toBe('running');
+  });
+
+  test('a no-if job runs every step and resolves succeeded (skip loop is transparent)', async () => {
+    const {jobId, steps} = await arrangeConditionalJob([
+      {run: 'echo a', key: 'a'},
+      {run: 'echo b', key: 'b'},
+    ]);
+    await nextStepForJob(jobId);
+    await recordStepResult({jobId, stepId: steps[0]?.id as string, status: 'succeeded'});
+    await nextStepForJob(jobId);
+    await recordStepResult({jobId, stepId: steps[1]?.id as string, status: 'succeeded'});
+
+    const done = await nextStepForJob(jobId);
+
+    expect(done).toEqual({kind: 'done', status: 'succeeded'});
+  });
+
+  test('a later if: on a skipped step outputs falls closed; its status still reads skipped', async () => {
+    const {jobId, steps} = await arrangeConditionalJob([
+      {run: 'echo b', key: 'b', if: condition('false')},
+      {run: 'echo c', key: 'c', if: condition("steps.b.outputs.ready == 'yes'")},
+      {run: 'echo d', key: 'd', if: condition("steps.b.status == 'skipped'")},
+    ]);
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: steps[2]?.id})});
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]?.status).toBe('skipped');
+    expect(after[0]?.statusReason).toBe('condition_rejected');
+    expect(after[1]?.status).toBe('skipped');
+    expect(after[1]?.statusReason).toBe('condition_errored');
+    expect(after[2]?.status).toBe('running');
   });
 });
 

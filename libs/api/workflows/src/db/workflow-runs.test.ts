@@ -46,6 +46,7 @@ import {
   getWorkflowRunDetail,
   listRunAttempts,
   listWorkflowRunsByProject,
+  markStepSkipped,
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
   updateJobStatus,
@@ -3356,5 +3357,59 @@ jobs:
         },
       ]);
     });
+  });
+});
+
+describe('markStepSkipped', () => {
+  async function arrangeFirstStep() {
+    const run = await createTestRun({
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+    });
+    const jobs = await getJobsByWorkflowRunId(run.id);
+    const jobId = jobs[0]?.id as string;
+    await stripSetupStep(jobId);
+    const steps = await getStepsByJobId(jobId);
+    return {jobId, step: steps[0]};
+  }
+
+  test('marks a pending step skipped with its reason and creates no attempt', async () => {
+    const {step} = await arrangeFirstStep();
+
+    const updated = await db().transaction((tx) =>
+      markStepSkipped(
+        {
+          jobExecutionId: step?.jobExecutionId as string,
+          stepId: step?.id as string,
+          statusReason: 'condition_rejected',
+        },
+        tx,
+      ),
+    );
+
+    expect(updated?.status).toBe('skipped');
+    expect(updated?.statusReason).toBe('condition_rejected');
+    expect(await getStepAttempts(step?.id as string)).toHaveLength(0);
+  });
+
+  test('is a no-op on a step that is no longer pending', async () => {
+    const {jobId, step} = await arrangeFirstStep();
+    await nextStepForJob(jobId);
+
+    const updated = await db().transaction((tx) =>
+      markStepSkipped(
+        {
+          jobExecutionId: step?.jobExecutionId as string,
+          stepId: step?.id as string,
+          statusReason: 'condition_rejected',
+        },
+        tx,
+      ),
+    );
+
+    expect(updated).toBeNull();
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]?.status).toBe('running');
   });
 });

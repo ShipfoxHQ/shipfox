@@ -1360,6 +1360,7 @@ function buildStep(overrides: Partial<StepDto> = {}): StepDto {
     name,
     source_location: null,
     status: 'running',
+    status_reason: null,
     type: 'run',
     config: {run: 'echo test'},
     error: null,
