@@ -736,6 +736,53 @@ describe('step attempts', () => {
     expect(step?.status).toBe(attempts[0]?.status);
   });
 
+  test('reporting stores agent response independently of structured output', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      response: 'The implementation is complete.',
+      output: {summary: 'done'},
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      status: 'succeeded',
+      response: 'The implementation is complete.',
+      output: {summary: 'done'},
+    });
+  });
+
+  test('response survives output_invalid coercion failure', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await db()
+      .update(stepsTable)
+      .set({config: {run: 'build', outputs: {count: {type: 'number'}}}})
+      .where(eq(stepsTable.id, stepId));
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      response: 'I could not infer the numeric count.',
+      output: {count: 'not-a-number'},
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      status: 'failed',
+      response: 'I could not infer the numeric count.',
+      output: null,
+      error: {reason: 'output_invalid'},
+    });
+  });
+
   test('reporting stores log outcome and emits the terminal attempt log identity once', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
@@ -1116,7 +1163,7 @@ describe('durable gate restart', () => {
     return {jobId, producer, reviewer};
   }
 
-  async function runStep(jobId: string, stepId: string, exitCode: number) {
+  async function runStep(jobId: string, stepId: string, exitCode: number, response?: string) {
     await nextStepForJob(jobId);
     return recordStepResult({
       jobId,
@@ -1124,6 +1171,7 @@ describe('durable gate restart', () => {
       status: exitCode === 0 ? 'succeeded' : 'failed',
       ...(exitCode === 0 ? {} : {error: {message: `exit ${exitCode}`}}),
       exitCode,
+      ...(response === undefined ? {} : {response}),
     });
   }
 
@@ -1131,7 +1179,7 @@ describe('durable gate restart', () => {
     const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 
     await runStep(jobId, producer, 0); // producer succeeds, attempt 1
-    const restart = await runStep(jobId, reviewer, 1); // reviewer gate fails → restart
+    const restart = await runStep(jobId, reviewer, 1, 'Needs another build.'); // reviewer gate fails → restart
 
     expect(restart).toEqual({jobFinished: false});
     const after = await getStepsByJobId(jobId);
@@ -1145,6 +1193,7 @@ describe('durable gate restart', () => {
     );
     const reviewerAttempt = attempts.find((a) => a.stepId === reviewer && a.attempt === 1);
     expect(reviewerAttempt?.status).toBe('failed');
+    expect(reviewerAttempt?.response).toBe('Needs another build.');
     expect(reviewerAttempt?.restartFeedback).toBeTruthy();
   });
 

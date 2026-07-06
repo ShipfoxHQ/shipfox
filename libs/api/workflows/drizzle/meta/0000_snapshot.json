@@ -772,6 +772,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "response": {
+          "name": "response",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "error": {
           "name": "error",
           "type": "jsonb",

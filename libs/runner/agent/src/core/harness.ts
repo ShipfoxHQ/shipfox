@@ -1,4 +1,5 @@
 import type {CustomModelProviderRuntimeConfigDto} from '@shipfox/api-agent-dto';
+import type {OutputDeclarations} from '@shipfox/expression';
 
 // The invocation shape is still pi-oriented because v1 only has two harnesses.
 // Revisit this shared contract if a third harness needs materially different inputs.
@@ -8,6 +9,7 @@ export interface HarnessInvocation {
   readonly provider: string;
   readonly thinking: string;
   readonly prompt: string;
+  readonly outputs?: OutputDeclarations | undefined;
   readonly credentials: Record<string, string>;
   readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;
   readonly gitConfigGlobal?: string | undefined;
@@ -17,7 +19,8 @@ export interface HarnessInvocation {
 }
 
 export interface HarnessResult {
-  readonly summary?: string;
+  readonly response?: string;
+  readonly outputs?: Record<string, string>;
 }
 
 export interface HarnessAdapter {

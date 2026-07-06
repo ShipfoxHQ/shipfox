@@ -25,6 +25,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./step-output": {
+      "development": {
+        "types": "./src/core/step-output.ts",
+        "default": "./src/core/step-output.ts"
+      },
+      "default": {
+        "types": "./dist/core/step-output.d.ts",
+        "default": "./dist/core/step-output.js"
+      }
     }
   },
   "scripts": {

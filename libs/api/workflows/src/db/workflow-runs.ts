@@ -2580,6 +2580,7 @@ export interface FinishStepAttemptParams {
   status: Exclude<StepAttemptStatus, 'running'>;
   error?: Record<string, unknown> | null;
   output?: Record<string, unknown> | null;
+  response?: string | null;
   exitCode?: number | null;
   logOutcome: LogOutcomeDto;
   gateResult?: Record<string, unknown> | null;
@@ -2595,6 +2596,7 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
     .set({
       status: params.status,
       output: params.output ?? null,
+      response: params.response ?? null,
       error: params.error ?? null,
       exitCode: params.exitCode ?? null,
       logOutcome: params.logOutcome,

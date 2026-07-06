@@ -9,6 +9,7 @@ export {executeSetupStep, type SetupJobContext, type SetupStepExecution} from '#
 export {
   MAX_OUTPUT_TOTAL_BYTES,
   MAX_OUTPUT_VALUE_BYTES,
+  OUTPUT_KEY_REGEX,
   parseStepOutput,
   StepOutputError,
 } from '#core/step-output.js';

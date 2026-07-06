@@ -86,6 +86,7 @@ export interface StepAttempt {
   config: Record<string, unknown> | null;
   evaluationTrace: readonly PersistedEvaluationTraceEntry[] | null;
   output: Record<string, unknown> | null;
+  response: string | null;
   error: Record<string, unknown> | null;
   exitCode: number | null;
   gateResult: Record<string, unknown> | null;

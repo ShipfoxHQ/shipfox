@@ -2,6 +2,8 @@ import {z} from 'zod';
 import {logOutcomeSchema} from './log-outcome.js';
 import {stepDtoSchema, stepErrorDtoSchema} from './step.js';
 
+export const STEP_RESPONSE_MAX_LENGTH = 8 * 1024;
+
 /**
  * The job to progress is identified by the caller's lease-token claims, never by
  * the request. An unknown job is a 404, not a `done`.
@@ -63,6 +65,11 @@ export const reportStepBodySchema = z
       .describe(
         'Structured output captured for attempt history. Large textual logs are stored separately.',
       ),
+    response: z
+      .string()
+      .max(STEP_RESPONSE_MAX_LENGTH)
+      .optional()
+      .describe('Capped final assistant response for agent step attempts. Omitted for run steps.'),
     log_outcome: logOutcomeSchema.describe(
       'Whether the runner drained all locally spooled logs before reporting, or abandoned the log stream for backend closure.',
     ),

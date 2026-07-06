@@ -175,6 +175,7 @@ const baseAttempt: StepAttempt = {
   config: null,
   evaluationTrace: null,
   output: null,
+  response: null,
   error: null,
   exitCode: 1,
   gateResult: {passed: 'yes'},

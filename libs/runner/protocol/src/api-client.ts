@@ -25,6 +25,7 @@ import {
   reportStepBodySchema,
   reportStepResponseSchema,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
+  STEP_RESPONSE_MAX_LENGTH,
   type StepErrorDto,
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -235,6 +236,7 @@ export async function reportStep(
     error?: StepErrorDto;
     exitCode: number | null;
     logOutcome: LogOutcomeDto;
+    response?: string | null;
     outputs?: Record<string, string> | null;
     signal?: AbortSignal;
   },
@@ -248,6 +250,7 @@ export async function reportStep(
     error: error ?? undefined,
     attempt: params.attempt,
     exit_code: params.exitCode,
+    ...(params.response ? {response: params.response.slice(0, STEP_RESPONSE_MAX_LENGTH)} : {}),
     ...(params.outputs ? {output: params.outputs} : {}),
     log_outcome: params.logOutcome,
   });

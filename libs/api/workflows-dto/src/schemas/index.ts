@@ -24,6 +24,7 @@ export {
   type ReportStepResponseDto,
   reportStepBodySchema,
   reportStepResponseSchema,
+  STEP_RESPONSE_MAX_LENGTH,
 } from './job-execution.js';
 export {
   type JobListeningDto,

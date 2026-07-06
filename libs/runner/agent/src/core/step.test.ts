@@ -47,11 +47,11 @@ describe('executeAgentStep', () => {
   });
 
   it('runs the agent and reports process-success with exit_code 0', async () => {
-    runAgentMock.mockResolvedValue({summary: 'done'});
+    runAgentMock.mockResolvedValue({response: 'done'});
 
     const result = await executeAgentStep(buildAgentStep(), {cwd: '/work', runtime: RUNTIME});
 
-    expect(result).toEqual({success: true, output: 'done', error: null, exit_code: 0});
+    expect(result).toEqual({success: true, response: 'done', error: null, exit_code: 0});
     expect(runAgentMock).toHaveBeenCalledWith(
       expect.objectContaining({
         cwd: '/work',
@@ -82,6 +82,23 @@ describe('executeAgentStep', () => {
         thinking: 'medium',
         credentials: {api_key: 'sk-openai'},
       }),
+    );
+  });
+
+  it('forwards declared outputs and returns collected outputs', async () => {
+    runAgentMock.mockResolvedValue({outputs: {summary: 'done'}});
+    const step = buildAgentStep({
+      config: {
+        prompt: 'p',
+        outputs: {summary: {type: 'string'}},
+      },
+    });
+
+    const result = await executeAgentStep(step, {runtime: RUNTIME});
+
+    expect(result).toEqual({success: true, outputs: {summary: 'done'}, error: null, exit_code: 0});
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({outputs: {summary: {type: 'string'}}}),
     );
   });
 
@@ -181,13 +198,13 @@ describe('executeAgentStep', () => {
   });
 
   it('lazily selects the Claude adapter without falling back to pi', async () => {
-    runClaudeMock.mockResolvedValue({summary: 'claude done'});
+    runClaudeMock.mockResolvedValue({response: 'claude done'});
 
     const result = await executeAgentStep(buildAgentStep(), {
       runtime: {...RUNTIME, harness: 'claude'},
     });
 
-    expect(result).toEqual({success: true, output: 'claude done', error: null, exit_code: 0});
+    expect(result).toEqual({success: true, response: 'claude done', error: null, exit_code: 0});
     expect(runAgentMock).not.toHaveBeenCalled();
     expect(runClaudeMock).toHaveBeenCalledWith(expect.objectContaining({provider: 'anthropic'}));
   });

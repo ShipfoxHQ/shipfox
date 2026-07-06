@@ -12,7 +12,7 @@ import {
 import {
   deriveCompletion,
   isTerminal,
-  type StepResult,
+  type StepReport,
   type StepTransitionDecision,
 } from './decide-step-transition.js';
 
@@ -33,7 +33,7 @@ export interface StepProgressionResult {
 export interface ApplyStepTransitionContext {
   jobId: string;
   jobExecutionId: string;
-  result: StepResult;
+  result: StepReport;
   logOutcome: LogOutcomeDto;
   // Gate evaluation audit payload to record on the attempt, when a gate ran.
   gateResult?: Record<string, unknown> | null;
@@ -60,6 +60,7 @@ export async function applyStepTransition(
           attempt: decision.attempt,
           status: 'succeeded',
           output: ctx.result.output ?? null,
+          response: ctx.result.response ?? null,
           exitCode: ctx.result.exitCode ?? null,
           logOutcome: ctx.logOutcome,
           gateResult: ctx.gateResult ?? null,
@@ -85,6 +86,7 @@ export async function applyStepTransition(
           attempt: decision.attempt,
           status: 'failed',
           output: ctx.result.output ?? null,
+          response: ctx.result.response ?? null,
           error: decision.failureError,
           exitCode: ctx.result.exitCode ?? null,
           logOutcome: ctx.logOutcome,
@@ -116,6 +118,7 @@ export async function applyStepTransition(
           attempt: decision.attempt,
           status: 'failed',
           output: ctx.result.output ?? null,
+          response: ctx.result.response ?? null,
           error: decision.failureError,
           exitCode: ctx.result.exitCode ?? null,
           logOutcome: ctx.logOutcome,

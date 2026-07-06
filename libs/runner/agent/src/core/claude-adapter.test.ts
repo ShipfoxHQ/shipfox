@@ -1,4 +1,14 @@
-const {queryMock} = vi.hoisted(() => ({queryMock: vi.fn()}));
+const {createSdkMcpServerMock, queryMock, toolMock} = vi.hoisted(() => ({
+  createSdkMcpServerMock: vi.fn((options) => options),
+  queryMock: vi.fn(),
+  toolMock: vi.fn((name, description, inputSchema, handler, extras) => ({
+    name,
+    description,
+    inputSchema,
+    handler,
+    extras,
+  })),
+}));
 const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
   class EgressDeniedError extends Error {
     constructor(
@@ -13,7 +23,11 @@ const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
   return {assertEgressAllowedMock: vi.fn(), EgressDeniedErrorMock: EgressDeniedError};
 });
 
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({query: queryMock}));
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  createSdkMcpServer: createSdkMcpServerMock,
+  query: queryMock,
+  tool: toolMock,
+}));
 vi.mock('@shipfox/node-egress-guard', () => ({
   assertEgressAllowed: assertEgressAllowedMock,
   EgressDeniedError: EgressDeniedErrorMock,
@@ -109,6 +123,8 @@ describe('claudeHarnessAdapter', () => {
     previousAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
     queryMock.mockReset();
+    toolMock.mockClear();
+    createSdkMcpServerMock.mockClear();
     assertEgressAllowedMock.mockReset();
     assertEgressAllowedMock.mockResolvedValue(undefined);
   });
@@ -119,7 +135,7 @@ describe('claudeHarnessAdapter', () => {
     rmSync(testCwd, {recursive: true, force: true});
   });
 
-  it('forwards each SDK message as JSON and returns the result text as summary', async () => {
+  it('forwards each SDK message as JSON and returns the result text as response', async () => {
     const entries: string[] = [];
     queryMock.mockReturnValue(makeQuery([initMessage, assistantMessage, successMessage]));
 
@@ -127,7 +143,7 @@ describe('claudeHarnessAdapter', () => {
       invocation({onSessionEntry: (entry) => entries.push(entry)}),
     );
 
-    expect(result).toEqual({summary: 'done'});
+    expect(result).toEqual({response: 'done'});
     expect(entries.map((entry) => JSON.parse(entry) as unknown)).toEqual([
       initMessage,
       assistantMessage,
@@ -146,7 +162,7 @@ describe('claudeHarnessAdapter', () => {
       }),
     );
 
-    expect(result).toEqual({summary: 'done'});
+    expect(result).toEqual({response: 'done'});
   });
 
   it.each([
@@ -234,7 +250,7 @@ describe('claudeHarnessAdapter', () => {
       expect.objectContaining({allowPrivateNetworks: true}),
     );
     expect(queryMock).toHaveBeenCalledWith({
-      prompt: 'Fix it.',
+      prompt: expect.any(Object),
       options: expect.objectContaining({
         model: 'claude-opus-4-8',
         cwd: testCwd,
@@ -249,6 +265,9 @@ describe('claudeHarnessAdapter', () => {
           ANTHROPIC_API_KEY: 'sk-runtime-secret',
           GIT_CONFIG_GLOBAL: '/runner/job/git-cred.config',
           CLAUDE_AGENT_SDK_CLIENT_APP: '@shipfox/runner-agent',
+        }),
+        mcpServers: expect.objectContaining({
+          shipfox_outputs: expect.objectContaining({name: 'shipfox_outputs'}),
         }),
       }),
     });

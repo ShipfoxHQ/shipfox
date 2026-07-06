@@ -13,12 +13,13 @@ export function deriveCompletion(steps: Step[]): RuntimeCompletionStatus {
   return steps.every((step) => step.status === 'succeeded') ? 'succeeded' : 'failed';
 }
 
-// The result the runner reported for the step being decided.
-export interface StepResult {
+// The report the runner sent for the step being decided.
+export interface StepReport {
   status: 'succeeded' | 'failed';
   exitCode?: number | null;
   error?: Record<string, unknown> | null;
   output?: Record<string, unknown> | null;
+  response?: string | null;
 }
 
 // Precomputed gate evaluation (the CEL engine runs in evaluate-gate.ts, never
@@ -42,7 +43,7 @@ export interface DecideStepTransitionInput {
   // The reporting step, already confirmed running at `reportedAttempt`.
   target: Step;
   reportedAttempt: number;
-  result: StepResult;
+  result: StepReport;
   // Precomputed gate evaluation. Absent ⇒ no gate, so `result.status` is authoritative.
   gateOutcome?: GateOutcome;
   // The gate's on_failure policy, if any. Drives the restart branch.

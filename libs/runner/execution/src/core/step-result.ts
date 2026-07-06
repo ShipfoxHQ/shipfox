@@ -2,9 +2,9 @@ import type {StepErrorDto} from '@shipfox/api-workflows-dto';
 
 export interface StepResult {
   success: boolean;
-  // Legacy agent summary string produced in memory; never sent to the API.
-  output?: string;
-  // Run-step key/value outputs reported in the API report `output` field.
+  // Agent final reply, reported as `response` for agent attempts.
+  response?: string;
+  // Step key/value outputs reported in the API report `output` field.
   outputs?: Record<string, string>;
   // Populated when success is false. Null on success.
   error: StepErrorDto;
