@@ -10,7 +10,8 @@ Input shape for Shipfox workflow authoring.
 - `WorkflowDocumentRunStepGate` describes the step `gate` block with `success`
   and `on_failure`.
 - A job step is either a **run step** (`run: <shell command>`) or an inline
-  **agent step** (`prompt`, with optional `model`, `thinking`, and `provider`).
+  **agent step** (`prompt`, with optional `model`, `harness`, `thinking`, and
+  `provider`).
   A step carries one or the other, never both.
 
 Use this package where Shipfox accepts a workflow object from a file, tool, or
@@ -66,7 +67,7 @@ try {
 ```
 
 A step can also be an inline agent step. It declares a `prompt` and no `run`.
-`model`, `thinking`, `provider`, `tools`, and `integrations` are optional
+`model`, `harness`, `thinking`, `provider`, `tools`, and `integrations` are optional
 authoring hints; later layers resolve omitted values before the runner executes
 the step. The `provider` names the model's provider (for example `anthropic` or
 `openai`); pairing it with `model` lets a step target a non-default
@@ -149,15 +150,15 @@ parseWorkflowDocument({
 - The `gate` block is checked as input shape here. CEL parsing and restart
   target checks belong to definitions-owned model code.
 - A step is discriminated by which keys it carries: `run` marks a run step;
-  `prompt`, `model`, `thinking`, `provider`, `tools`, or `integrations` mark an
-  agent step, and an agent step must include `prompt`. Declaring run and agent
-  fields together, or neither kind, is rejected. `model`, `thinking`,
-  `provider`, `tools`, and `integrations` are valid only on an agent step; using
-  them on a run step is rejected. `thinking` is validated against a fixed set
-  (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`). Provider, model, tool,
-  integration connection, and integration catalog checks belong to the model
-  layer, not this parser. The `agent` key is reserved for a future step kind and
-  is rejected today.
+  `prompt`, `model`, `harness`, `thinking`, `provider`, `tools`, or
+  `integrations` mark an agent step, and an agent step must include `prompt`.
+  Declaring run and agent fields together, or neither kind, is rejected.
+  `model`, `harness`, `thinking`, `provider`, `tools`, and `integrations` are
+  valid only on an agent step; using them on a run step is rejected. `thinking`
+  is validated against a fixed set (`off`, `minimal`, `low`, `medium`, `high`,
+  `xhigh`). Provider, model, tool, integration connection, and integration
+  catalog checks belong to the model layer, not this parser. The `agent` key is
+  reserved for a future step kind and is rejected today.
 - `env` can be declared on the workflow, a job, or a run step. Values may be
   strings, numbers, or booleans; the model layer stringifies numbers and
   booleans before a run is saved. Values are literal. Expression interpolation
