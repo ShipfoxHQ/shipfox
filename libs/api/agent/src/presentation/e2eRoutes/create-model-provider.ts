@@ -3,10 +3,11 @@ import {setSecrets} from '@shipfox/api-secrets';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {agentSystemNamespace} from '#core/credential-fingerprints.js';
+import {listHarnessProviderModels} from '#core/harness/registry.js';
 import {upsertModelProviderConfig} from '#db/index.js';
 
 const createE2eModelProviderBodySchema = z.object({
-  workspace_id: z.string().min(1),
+  workspace_id: z.string().uuid(),
   provider_id: z.literal('anthropic'),
   api_key: z.string().min(1),
   default_model: z.string().min(1).optional(),
@@ -32,6 +33,14 @@ export const createE2eModelProviderRoute = defineRoute({
         status: 400,
       });
     }
+    const defaultModel = request.body.default_model ?? entry.default_model;
+    const supportedModels = listHarnessProviderModels('claude', request.body.provider_id);
+    if (!supportedModels.some((model) => model.id === defaultModel)) {
+      throw new ClientError('Unsupported Anthropic default model', 'unsupported-model', {
+        status: 400,
+        details: {default_model: defaultModel},
+      });
+    }
 
     await setSecrets({
       workspaceId: request.body.workspace_id,
@@ -41,7 +50,7 @@ export const createE2eModelProviderRoute = defineRoute({
     await upsertModelProviderConfig({
       workspaceId: request.body.workspace_id,
       providerId: request.body.provider_id,
-      defaultModel: request.body.default_model ?? entry.default_model,
+      defaultModel,
       defaultThinking: DEFAULT_AGENT_THINKING,
       setAsDefault: request.body.set_as_default,
     });
