@@ -2,6 +2,13 @@ strictPeerDependencies: true
 dedupePeerDependents: true
 nodeLinker: isolated
 minimumReleaseAge: 2880
+# The Mintlify CLI (@shipfox/docs devDependency) ships packages built for React 18;
+# this repo is React 19. Let React 19 satisfy those peer ranges so mint installs under
+# the strict peer policy. This whole repo is React 19, so the allowance is safe.
+peerDependencyRules:
+  allowedVersions:
+    react: '19'
+    react-dom: '19'
 allowBuilds:
   '@google/genai': true
   '@swc/core': true
