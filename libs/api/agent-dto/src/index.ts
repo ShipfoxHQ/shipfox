@@ -80,6 +80,7 @@ export {
   modelProviderRefSchema,
   modelProviderSupportStatusSchema,
   PI_HARNESS,
+  PI_HARNESS_TOOL_PACKAGE_NAMES,
   piAgentThinkingSchema,
   providerIdSchema,
   type SetDefaultHarnessBodyDto,

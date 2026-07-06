@@ -1,7 +1,8 @@
 import {type AgentThinking, agentThinkingByHarness, type Harness} from '@shipfox/workflow-document';
 import {type ModelProviderRef, SUPPORTED_MODEL_PROVIDER_IDS} from './model-provider-id.js';
 
-export const HARNESS_TOOL_PACKAGE_NAMES = ['pi-web-access'] as const;
+export const PI_HARNESS_TOOL_PACKAGE_NAMES = ['pi-web-access'] as const;
+export const HARNESS_TOOL_PACKAGE_NAMES = [...PI_HARNESS_TOOL_PACKAGE_NAMES] as const;
 
 export type HarnessToolPackageName = (typeof HARNESS_TOOL_PACKAGE_NAMES)[number];
 

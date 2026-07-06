@@ -72,6 +72,7 @@ export {
   listHarnessDescriptors,
   listHarnessTools,
   PI_HARNESS,
+  PI_HARNESS_TOOL_PACKAGE_NAMES,
 } from './harness.js';
 export {
   type MaterializedAgentStepConfigDto,
