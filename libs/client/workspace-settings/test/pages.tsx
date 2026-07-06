@@ -53,7 +53,7 @@ function createTestRouter(path: string, element: ReactElement) {
   });
   const modelProvidersRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/settings/model-providers',
+    path: '/workspaces/$wid/settings/agents',
     component: () => element,
   });
   const integrationsRoute = createRoute({

@@ -22,7 +22,7 @@ import {AgentConfigFailureCallout as AgentConfigFailureCalloutView} from '../wor
 import {StepList} from './step-list.js';
 
 const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
-const MODEL_PROVIDERS_LINK_NAME = 'Configure Model Providers';
+const AGENTS_LINK_NAME = 'Configure Agents';
 
 const meta = {
   title: 'Workflows/StepList',
@@ -61,21 +61,21 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 type StepListStoryContext = Parameters<NonNullable<Story['play']>>[0];
 
-const withModelProviderSettingsRoute: Decorator = (Story) => {
+const withAgentSettingsRoute: Decorator = (Story) => {
   const rootRoute = createRootRoute({component: Outlet});
   const storyRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/',
     component: () => <Story />,
   });
-  const modelProviderSettingsRoute = createRoute({
+  const agentSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/settings/model-providers',
+    path: '/workspaces/$wid/settings/agents',
     component: () => null,
   });
   const router = createRouter({
     history: createMemoryHistory({initialEntries: ['/']}),
-    routeTree: rootRoute.addChildren([storyRoute, modelProviderSettingsRoute]),
+    routeTree: rootRoute.addChildren([storyRoute, agentSettingsRoute]),
   });
 
   return <RouterProvider router={router} />;
@@ -85,7 +85,7 @@ async function assertAgentConfigFailureCallout(ctx: StepListStoryContext) {
   const canvas = within(ctx.canvasElement);
 
   await canvas.findByText('Configure credentials for anthropic');
-  await canvas.findByRole('link', {name: MODEL_PROVIDERS_LINK_NAME});
+  await canvas.findByRole('link', {name: AGENTS_LINK_NAME});
 }
 
 export const Playground: Story = {};
@@ -303,7 +303,7 @@ export const ExpandedSlot: Story = {
 };
 
 export const TestAgentConfigFailureCallout: Story = {
-  decorators: [withModelProviderSettingsRoute],
+  decorators: [withAgentSettingsRoute],
   render: renderAgentConfigFailureCallout,
   play: assertAgentConfigFailureCallout,
 };

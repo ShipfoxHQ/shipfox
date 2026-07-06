@@ -87,8 +87,8 @@ function createTestRouter(path: string, element: ReactElement) {
   });
   const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/settings/model-providers',
-    component: () => <div>Model provider settings placeholder</div>,
+    path: '/workspaces/$wid/settings/agents',
+    component: () => <div>Agent settings placeholder</div>,
   });
   const projectDetailRoute = createRoute({
     getParentRoute: () => rootRoute,

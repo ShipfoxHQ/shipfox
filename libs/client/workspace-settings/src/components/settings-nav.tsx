@@ -13,8 +13,8 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
   const isProvisionersActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/provisioners', params: {wid: workspaceId}}),
   );
-  const isModelProvidersActive = Boolean(
-    matchRoute({to: '/workspaces/$wid/settings/model-providers', params: {wid: workspaceId}}),
+  const isAgentsActive = Boolean(
+    matchRoute({to: '/workspaces/$wid/settings/agents', params: {wid: workspaceId}}),
   );
   const isSecretsActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/secrets', params: {wid: workspaceId}}),
@@ -75,16 +75,16 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
       </Button>
       <Button
         asChild
-        variant={isModelProvidersActive ? 'secondary' : 'transparent'}
+        variant={isAgentsActive ? 'secondary' : 'transparent'}
         className="w-full justify-start"
       >
         <Link
-          to="/workspaces/$wid/settings/model-providers"
+          to="/workspaces/$wid/settings/agents"
           params={{wid: workspaceId}}
-          aria-current={isModelProvidersActive ? 'page' : undefined}
+          aria-current={isAgentsActive ? 'page' : undefined}
         >
           <Icon name="robot2Line" className="size-16" />
-          Model providers
+          Agents
         </Link>
       </Button>
       <Button

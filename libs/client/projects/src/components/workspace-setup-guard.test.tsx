@@ -126,7 +126,7 @@ function renderSetupRoute(
     guardedRoute('/workspaces/$wid/integrations', 'VCS onboarding'),
     guardedRoute('/workspaces/$wid/integrations/gitea', 'Gitea install'),
     guardedRoute('/workspaces/$wid/projects/new', 'Create project'),
-    guardedRoute('/workspaces/$wid/settings/model-providers', 'Settings model providers'),
+    guardedRoute('/workspaces/$wid/settings/agents', 'Settings agents'),
     guardedRoute('/workspaces/$wid/settings/integrations', 'Settings integrations'),
   ]);
   const router = createRouter({
@@ -284,7 +284,7 @@ describe('workspace setup route hook', () => {
 
   test('keeps model provider settings available before first project creation', async () => {
     renderSetupRoute(
-      `/workspaces/${WORKSPACE_ID}/settings/model-providers`,
+      `/workspaces/${WORKSPACE_ID}/settings/agents`,
       setupFetch({
         connections: [sourceConnection()],
         providerConfigs: [],
@@ -292,7 +292,7 @@ describe('workspace setup route hook', () => {
       }),
     );
 
-    expect(await screen.findByText('Settings model providers')).toBeInTheDocument();
+    expect(await screen.findByText('Settings agents')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 

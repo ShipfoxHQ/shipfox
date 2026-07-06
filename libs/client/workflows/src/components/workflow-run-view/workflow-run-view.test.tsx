@@ -296,12 +296,12 @@ describe('WorkflowRunView', () => {
     expect(screen.getByText('Configure credentials for the selected provider')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This step uses the selected provider, but no workspace credentials are configured for that model provider. Configure the selected provider in Model Providers, then re-run the workflow.',
+        'This step uses the selected provider, but no workspace credentials are configured for that model provider. Configure the selected provider in Agents, then re-run the workflow.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Configure Model Providers'})).toHaveAttribute(
+    expect(screen.getByRole('link', {name: 'Configure Agents'})).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/model-providers`,
+      `/workspaces/${PROJECT_TEST_WID}/settings/agents`,
     );
   });
 
@@ -376,9 +376,9 @@ describe('WorkflowRunView', () => {
     expect(screen.queryByText('claude-opus-4-8')).not.toBeInTheDocument();
     expect(screen.queryByText('high')).not.toBeInTheDocument();
     expect(screen.getByText('Configure credentials for the selected provider')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Configure Model Providers'})).toHaveAttribute(
+    expect(screen.getByRole('link', {name: 'Configure Agents'})).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/model-providers`,
+      `/workspaces/${PROJECT_TEST_WID}/settings/agents`,
     );
   });
 

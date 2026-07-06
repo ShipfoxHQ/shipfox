@@ -35,7 +35,7 @@ describe('ModelProvidersSettingsPage', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     renderWorkspaceSettingsPage(
-      `/workspaces/${WORKSPACE_SETTINGS_TEST_WID}/settings/model-providers`,
+      `/workspaces/${WORKSPACE_SETTINGS_TEST_WID}/settings/agents`,
       <ModelProvidersSettingsPage />,
     );
 
