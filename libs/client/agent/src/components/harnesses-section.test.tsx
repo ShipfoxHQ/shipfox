@@ -21,13 +21,14 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
 
 function renderHarnesses(element: ReactElement) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
-
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       {element}
       <Toaster />
     </QueryClientProvider>,
   );
+
+  return {...result, queryClient};
 }
 
 function deferred<T>() {
@@ -139,5 +140,45 @@ describe('WorkspaceHarnessesSection', () => {
       ),
     );
     expect(await screen.findByText('Could not save default harness. Try again.')).toBeVisible();
+  });
+
+  test('ignores stale default harness failures after changing workspaces', async () => {
+    const user = userEvent.setup();
+    const updateResponse = deferred<Response>();
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.method === 'PUT') {
+        return updateResponse.promise;
+      }
+      return Promise.resolve(jsonResponse(modelProviderConfigsResponse()));
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const nextWorkspaceId = '22222222-2222-4222-8222-222222222222';
+
+    const result = renderHarnesses(
+      <WorkspaceHarnessesSection workspaceId={AGENT_TEST_WORKSPACE_ID} />,
+    );
+
+    await screen.findByText('Claude');
+    await openHarnessActions(user, 'Claude');
+    await user.click(screen.getByRole('menuitem', {name: 'Set as default'}));
+    await waitFor(() =>
+      expect(screen.getByRole('button', {name: 'Open Claude harness actions'})).toBeDisabled(),
+    );
+
+    result.rerender(
+      <QueryClientProvider client={result.queryClient}>
+        <WorkspaceHarnessesSection workspaceId={nextWorkspaceId} />
+        <Toaster />
+      </QueryClientProvider>,
+    );
+    updateResponse.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', {name: 'Open Claude harness actions'})).not.toBeDisabled(),
+    );
+    expect(
+      screen.queryByText('Could not save default harness. Try again.'),
+    ).not.toBeInTheDocument();
   });
 });

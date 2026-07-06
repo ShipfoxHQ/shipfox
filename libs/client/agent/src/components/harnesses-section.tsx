@@ -33,35 +33,57 @@ const SURFACE_CLASS =
 export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) {
   const configsQuery = useModelProviderConfigsQuery(workspaceId);
   const setDefaultHarness = useSetDefaultHarnessMutation();
-  const defaultRequestInFlightRef = useRef(false);
-  const [pendingDefaultHarnessId, setPendingDefaultHarnessId] = useState<Harness | null>(null);
+  const activeWorkspaceIdRef = useRef(workspaceId);
+  const defaultRequestSeqRef = useRef(0);
+  const activeDefaultRequestRef = useRef<{workspaceId: string; id: number} | null>(null);
+  const [pendingDefaultHarness, setPendingDefaultHarness] = useState<{
+    workspaceId: string;
+    harnessId: Harness;
+  } | null>(null);
   const [defaultError, setDefaultError] = useState<
-    {harnessId: Harness; message: string} | undefined
+    {workspaceId: string; harnessId: Harness; message: string} | undefined
   >();
   const configs = configsQuery.data?.configs ?? [];
   const defaultHarnessId = configsQuery.data?.default_harness_id ?? DEFAULT_HARNESS;
+  activeWorkspaceIdRef.current = workspaceId;
+
+  function isActiveDefaultRequest(request: {workspaceId: string; id: number}) {
+    const activeRequest = activeDefaultRequestRef.current;
+    return (
+      activeWorkspaceIdRef.current === request.workspaceId &&
+      activeRequest?.workspaceId === request.workspaceId &&
+      activeRequest.id === request.id
+    );
+  }
 
   async function handleSetDefault(harness: HarnessDescriptor) {
-    if (defaultRequestInFlightRef.current) return;
+    if (activeDefaultRequestRef.current?.workspaceId === workspaceId) return;
 
-    defaultRequestInFlightRef.current = true;
-    setPendingDefaultHarnessId(harness.id);
+    const request = {workspaceId, id: defaultRequestSeqRef.current + 1};
+    defaultRequestSeqRef.current = request.id;
+    activeDefaultRequestRef.current = request;
+    setPendingDefaultHarness({workspaceId, harnessId: harness.id});
     setDefaultError(undefined);
     try {
       await setDefaultHarness.mutateAsync({
         workspaceId,
         body: {harness_id: harness.id},
       });
+      if (!isActiveDefaultRequest(request)) return;
       toast.success(`${harness.label} is now the default harness`);
     } catch (error) {
+      if (!isActiveDefaultRequest(request)) return;
       const mapped = modelProviderConfigErrorToFormError(error);
       setDefaultError({
+        workspaceId,
         harnessId: harness.id,
         message: mapped.message || 'Could not save default harness. Try again.',
       });
     } finally {
-      defaultRequestInFlightRef.current = false;
-      setPendingDefaultHarnessId(null);
+      if (isActiveDefaultRequest(request)) {
+        activeDefaultRequestRef.current = null;
+        setPendingDefaultHarness(null);
+      }
     }
   }
 
@@ -90,9 +112,11 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
               harness={harness}
               isDefault={harness.id === defaultHarnessId}
               isAvailable={isHarnessAvailable(harness, configs)}
-              isSettingDefault={pendingDefaultHarnessId !== null}
+              isSettingDefault={pendingDefaultHarness?.workspaceId === workspaceId}
               defaultError={
-                defaultError?.harnessId === harness.id ? defaultError.message : undefined
+                defaultError?.workspaceId === workspaceId && defaultError.harnessId === harness.id
+                  ? defaultError.message
+                  : undefined
               }
               onSetDefault={handleSetDefault}
             />
