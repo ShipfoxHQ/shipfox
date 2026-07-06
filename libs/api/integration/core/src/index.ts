@@ -52,6 +52,15 @@ export {
   IntegrationProviderError,
   IntegrationProviderUnavailableError,
 } from '#core/errors.js';
+export type {
+  AgentToolCallInput,
+  AgentToolCatalogEntry,
+  AgentToolJsonSchema,
+  AgentToolSensitivity,
+  AgentToolSession,
+  AgentToolsProvider,
+  OpenAgentToolsSessionInput,
+} from '#core/providers/agent-tools.js';
 export {redactCheckoutSpec} from '#core/providers/redact-checkout-spec.js';
 export type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 export type {

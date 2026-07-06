@@ -36,6 +36,45 @@ describe('GET /integration-providers', () => {
     ]);
   });
 
+  it('lists providers with agent tools capability', async () => {
+    const app = await createTestApp([
+      sourceProvider(),
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {
+          agent_tools: {
+            catalog: () => [],
+            openSession: async () => {
+              await Promise.resolve();
+              return {
+                call: async () => {
+                  await Promise.resolve();
+                  return {};
+                },
+              };
+            },
+          },
+        },
+      },
+    ]);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/integration-providers?capability=agent_tools',
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().providers).toEqual([
+      {
+        provider: 'github',
+        display_name: 'GitHub',
+        capabilities: ['agent_tools'],
+      },
+    ]);
+  });
+
   it('surfaces the gitea provider once its module is registered', async () => {
     const {provider} = await giteaProviderModule.load();
     const app = await createTestApp([provider]);

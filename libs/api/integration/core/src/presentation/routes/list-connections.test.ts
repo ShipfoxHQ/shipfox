@@ -65,6 +65,50 @@ describe('GET /integration-connections', () => {
     ).toEqual(['gitea']);
   });
 
+  it('advertises agent tools capability on matching connections', async () => {
+    const app = await createTestApp([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {
+          agent_tools: {
+            catalog: () => [],
+            openSession: async () => {
+              await Promise.resolve();
+              return {
+                call: async () => {
+                  await Promise.resolve();
+                  return {};
+                },
+              };
+            },
+          },
+        },
+      },
+    ]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'github',
+      externalAccountId: 'team-1',
+      slug: 'github_team_1',
+      displayName: 'GitHub',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}&capability=agent_tools`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections).toMatchObject([
+      {
+        provider: 'github',
+        capabilities: ['agent_tools'],
+      },
+    ]);
+  });
+
   it('includes external_url when the provider resolves one', async () => {
     const app = await createTestApp([
       sourceProvider({

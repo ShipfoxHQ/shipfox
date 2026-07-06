@@ -1,5 +1,5 @@
 export type IntegrationProviderKind = string;
-export type IntegrationCapability = 'source_control';
+export type IntegrationCapability = 'source_control' | 'agent_tools';
 export type IntegrationConnectionLifecycleStatus = 'active' | 'disabled' | 'error';
 
 export interface IntegrationConnection<
@@ -120,10 +120,61 @@ export interface SourceControlProvider<
   createCheckoutSpec?(input: CreateCheckoutSpecInput<Connection>): Promise<CheckoutSpec>;
 }
 
+export type AgentToolSensitivity = 'read' | 'write';
+export type AgentToolJsonSchema = Record<string, unknown>;
+
+export interface AgentToolCatalogEntry<RequiredScope = unknown> {
+  id: string;
+  description: string;
+  sensitivity: AgentToolSensitivity;
+  sensitive: boolean;
+  requiredScope: RequiredScope;
+  inputSchema: AgentToolJsonSchema;
+  outputSchema?: AgentToolJsonSchema | undefined;
+}
+
+export interface AgentToolCallInput {
+  toolId: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface AgentToolSession<CallResult = unknown> {
+  call(input: AgentToolCallInput): Promise<CallResult>;
+  close?(): Promise<void>;
+}
+
+export interface OpenAgentToolsSessionInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+  RequiredScope = unknown,
+  ProviderScope = unknown,
+  ScopedToken = unknown,
+> {
+  connection: Connection;
+  tools: readonly AgentToolCatalogEntry<RequiredScope>[];
+  scope: ProviderScope;
+  mintToken(requiredScope: RequiredScope): Promise<ScopedToken>;
+}
+
+export interface AgentToolsProvider<
+  Connection extends IntegrationConnection = IntegrationConnection,
+  RequiredScope = unknown,
+  ProviderScope = unknown,
+  ScopedToken = unknown,
+  CallResult = unknown,
+> {
+  catalog():
+    | readonly AgentToolCatalogEntry<RequiredScope>[]
+    | Promise<readonly AgentToolCatalogEntry<RequiredScope>[]>;
+  openSession(
+    input: OpenAgentToolsSessionInput<Connection, RequiredScope, ProviderScope, ScopedToken>,
+  ): Promise<AgentToolSession<CallResult>>;
+}
+
 export interface IntegrationProviderAdapters<
   Connection extends IntegrationConnection = IntegrationConnection,
 > {
   source_control?: SourceControlProvider<Connection> | undefined;
+  agent_tools?: AgentToolsProvider<Connection> | undefined;
 }
 
 export interface IntegrationProvider<
