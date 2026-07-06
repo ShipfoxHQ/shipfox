@@ -8,6 +8,8 @@ const baseAttempt = {
   status: 'succeeded',
   exit_code: 0,
   output: null,
+  outputs: null,
+  response: null,
   error: null,
   restart_feedback: null,
   started_at: '2026-01-01T00:00:00.000Z',

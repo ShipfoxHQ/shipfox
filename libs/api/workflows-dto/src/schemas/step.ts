@@ -149,6 +149,8 @@ export const stepAttemptDtoSchema = z.object({
   // `error.exitCode`). Consume the top-level snake_case `exit_code` for the
   // numeric code; treat these as display/debug payloads.
   output: z.record(z.string(), z.unknown()).nullable(),
+  outputs: z.record(z.string(), z.unknown()).nullable(),
+  response: z.string().nullable(),
   error: z.record(z.string(), z.unknown()).nullable(),
   // `unknown.data` is the raw jsonb gate payload for legacy or unrecognized
   // rows; nested keys are not snake_case-normalized.

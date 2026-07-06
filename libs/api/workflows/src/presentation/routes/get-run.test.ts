@@ -12,10 +12,13 @@ import {
 } from '#core/job-execution.js';
 import {db} from '#db/db.js';
 import * as dbIndex from '#db/index.js';
+import {jobExecutions as jobExecutionsTable} from '#db/schema/job-executions.js';
+import {jobs as jobsTable} from '#db/schema/jobs.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
 import {
   createRerunWorkflowRun,
   createWorkflowRun,
+  getJobExecutionsByJobId,
   getJobsByWorkflowRunId,
   getStepsByJobId,
   updateWorkflowRunStatus,
@@ -439,6 +442,76 @@ jobs:
     // A never-dispatched step has no attempt history yet.
     expect(step1.current_attempt).toBe(1);
     expect(step1.attempts).toEqual([]);
+  });
+
+  test('exposes server-derived outputs and responses in run detail', async () => {
+    const projectId = crypto.randomUUID();
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: workflowModel({
+        name: 'Test',
+        jobs: {build: {steps: [{run: 'build'}]}},
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const job = (await getJobsByWorkflowRunId(run.id))[0];
+    if (!job) throw new Error('Expected workflow job');
+    const jobExecution = (await getJobExecutionsByJobId(job.id))[0];
+    if (!jobExecution) throw new Error('Expected job execution');
+    const steps = await getStepsByJobId(job.id);
+    const setupId = steps[0]?.id as string;
+    const buildId = steps[1]?.id as string;
+    await db()
+      .update(jobsTable)
+      .set({outputs: {image_sha: 'sha-123'}})
+      .where(eq(jobsTable.id, job.id));
+    await db()
+      .update(jobExecutionsTable)
+      .set({outputs: {image_sha: 'sha-123', token: '***'}})
+      .where(eq(jobExecutionsTable.id, jobExecution.id));
+    await nextStepForJob(job.id);
+    await recordStepResult({
+      jobId: job.id,
+      stepId: setupId,
+      status: 'succeeded',
+      exitCode: 0,
+    });
+    await nextStepForJob(job.id);
+    await recordStepResult({
+      jobId: job.id,
+      stepId: buildId,
+      status: 'succeeded',
+      exitCode: 0,
+      output: {image_sha: 'sha-123', token: '***'},
+      response: 'Build complete',
+    });
+
+    const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
+
+    expect(res.statusCode).toBe(200);
+    const responseJob = res.json().jobs[0];
+    const responseExecution = responseJob.job_executions[0];
+    const responseBuildStep = responseExecution.steps[1];
+    expect(responseJob.outputs).toEqual({image_sha: 'sha-123'});
+    expect(responseExecution.outputs).toEqual({image_sha: 'sha-123', token: '***'});
+    expect(responseBuildStep).toMatchObject({
+      exit_code: 0,
+      outputs: {image_sha: 'sha-123', token: '***'},
+      response: 'Build complete',
+      gate_result: {kind: 'none'},
+    });
+    expect(responseBuildStep.attempts[0]).toMatchObject({
+      output: {image_sha: 'sha-123', token: '***'},
+      outputs: {image_sha: 'sha-123', token: '***'},
+      response: 'Build complete',
+    });
   });
 
   test('exposes multiple ordered attempts for a restarted step', async () => {

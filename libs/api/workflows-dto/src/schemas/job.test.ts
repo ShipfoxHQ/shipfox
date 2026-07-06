@@ -12,6 +12,7 @@ const baseJob = {
   listening: null,
   listener_status: 'inactive',
   resolution_reason: null,
+  outputs: null,
   dependencies: [],
   position: 0,
   created_at: '2026-06-21T12:00:00.000Z',
