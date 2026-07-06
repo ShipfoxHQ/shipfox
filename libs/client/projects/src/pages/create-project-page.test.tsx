@@ -178,9 +178,9 @@ describe('CreateProjectPage', () => {
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
 
     expect(await screen.findByText('Finish setting up a model provider')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Model Providers'})).toHaveAttribute(
+    expect(screen.getByRole('link', {name: 'Agents'})).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/model-providers`,
+      `/workspaces/${PROJECT_TEST_WID}/settings/agents`,
     );
   });
 

@@ -42,8 +42,8 @@ export function ModelProviderReminderBanner({workspaceId}: {workspaceId: string}
         </AlertDescription>
         <AlertActions>
           <Button asChild size="sm" variant="secondary">
-            <Link to="/workspaces/$wid/settings/model-providers" params={{wid: workspaceId}}>
-              Model Providers
+            <Link to="/workspaces/$wid/settings/agents" params={{wid: workspaceId}}>
+              Agents
             </Link>
           </Button>
         </AlertActions>

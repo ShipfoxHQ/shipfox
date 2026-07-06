@@ -125,7 +125,7 @@ function createStoryRouter() {
   });
   const modelProvidersRoute = createRoute({
     getParentRoute: () => workspaceRoute,
-    path: 'settings/model-providers',
+    path: 'settings/agents',
     component: () => <div />,
   });
   const projectRoute = createRoute({

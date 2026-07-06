@@ -72,7 +72,7 @@ export async function loadWorkspaceSetupRoute({
     });
   }
 
-  if (isModelProviderSettingsPath(normalizedPathname, workspaceId)) {
+  if (isAgentSettingsPath(normalizedPathname, workspaceId)) {
     return {hideProjectNavigation: true};
   }
 
@@ -262,6 +262,6 @@ function isModelProviderOnboardingPath(pathname: string, workspaceId: string) {
   return pathname === workspacePath(workspaceId, '/model-provider');
 }
 
-function isModelProviderSettingsPath(pathname: string, workspaceId: string) {
-  return pathname === workspacePath(workspaceId, '/settings/model-providers');
+function isAgentSettingsPath(pathname: string, workspaceId: string) {
+  return pathname === workspacePath(workspaceId, '/settings/agents');
 }

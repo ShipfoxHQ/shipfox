@@ -1,4 +1,4 @@
-name: Agent
+name: Agent Claude
 runner: ubuntu-latest
 triggers:
   on_demand:
@@ -11,6 +11,7 @@ triggers:
 jobs:
   greet:
     steps:
-      - provider: openrouter
-        model: meta-llama/llama-3.1-8b-instruct
-        prompt: Say hello
+      - harness: claude
+        provider: anthropic
+        model: claude-haiku-4-5
+        prompt: Say hello from Claude

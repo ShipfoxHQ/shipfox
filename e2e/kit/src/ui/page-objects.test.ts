@@ -9,7 +9,7 @@ type SettingsTab =
   | 'members'
   | 'runners'
   | 'provisioners'
-  | 'model-providers'
+  | 'agents'
   | 'secrets'
   | 'variables'
   | 'integrations'
@@ -19,7 +19,7 @@ const settingsTabLabels: Record<SettingsTab, string> = {
   members: 'Members',
   runners: 'Runners',
   provisioners: 'Runner provisioners',
-  'model-providers': 'Model providers',
+  agents: 'Agents',
   secrets: 'Secrets',
   variables: 'Variables',
   integrations: 'Integrations',
@@ -106,7 +106,7 @@ describe('ui page objects', () => {
     const setup = new SetupShell(pageObject as never);
 
     setup.sourceControlHeading();
-    setup.modelProviderHeading();
+    setup.agentHarnessHeading();
     setup.projectTab();
     setup.settingsTab();
     setup.projectSwitcher();
@@ -114,7 +114,7 @@ describe('ui page objects', () => {
 
     expect(pageObject.getByRole).toHaveBeenCalledWith('heading', {name: 'Install source control'});
     expect(pageObject.getByRole).toHaveBeenCalledWith('heading', {
-      name: 'Configure model provider',
+      name: 'Choose agent harness',
     });
     expect(pageObject.getByRole).toHaveBeenCalledWith('tab', {name: 'Projects'});
     expect(pageObject.getByRole).toHaveBeenCalledWith('tab', {name: 'Settings'});

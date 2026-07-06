@@ -1,4 +1,5 @@
 import type {
+  CustomModelProviderConfigDto,
   ListModelProviderConfigsResponseDto,
   ModelProviderCatalogEntryDto,
   ModelProviderCatalogResponseDto,
@@ -67,6 +68,25 @@ export function modelProviderConfig(
     kind: 'builtin',
     provider_id: 'anthropic',
     default_model: null,
+    created_at: '2026-05-08T00:00:00.000Z',
+    updated_at: '2026-05-08T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+export function customModelProviderConfig(
+  overrides: Partial<Omit<CustomModelProviderConfigDto, 'kind'>> = {},
+): CustomModelProviderConfigDto {
+  return {
+    kind: 'custom',
+    provider_id: 'openai-compatible',
+    display_name: 'OpenAI Compatible',
+    base_url: 'https://models.example.test/v1',
+    api: 'openai-responses',
+    headers: [],
+    secret_header_names: [],
+    default_model: 'custom-model',
+    models: [{id: 'custom-model', label: 'Custom Model'}],
     created_at: '2026-05-08T00:00:00.000Z',
     updated_at: '2026-05-08T00:00:00.000Z',
     ...overrides,

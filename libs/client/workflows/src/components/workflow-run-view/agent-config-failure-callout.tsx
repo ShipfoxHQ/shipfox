@@ -28,8 +28,8 @@ export function AgentConfigFailureCallout({
         {copy.showProviderCta ? (
           <AlertActions>
             <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-              <Link to="/workspaces/$wid/settings/model-providers" params={{wid: workspaceId}}>
-                Configure Model Providers
+              <Link to="/workspaces/$wid/settings/agents" params={{wid: workspaceId}}>
+                Configure Agents
               </Link>
             </Button>
           </AlertActions>
@@ -50,13 +50,13 @@ function agentConfigFailureCopy(
     case 'provider_not_configured':
       return {
         title: `Configure credentials for ${provider}`,
-        description: `This step uses ${provider}, but no workspace credentials are configured for that model provider. Configure ${provider} in Model Providers, then re-run the workflow.`,
+        description: `This step uses ${provider}, but no workspace credentials are configured for that model provider. Configure ${provider} in Agents, then re-run the workflow.`,
         showProviderCta: true,
       };
     case 'credentials_invalid':
       return {
         title: `Update credentials for ${provider}`,
-        description: `This step uses ${provider}, but the saved credentials could not be used. Reconfigure ${provider} in Model Providers, then re-run the workflow.`,
+        description: `This step uses ${provider}, but the saved credentials could not be used. Reconfigure ${provider} in Agents, then re-run the workflow.`,
         showProviderCta: true,
       };
     case 'provider_unsupported':
@@ -82,7 +82,7 @@ function agentConfigFailureCopy(
       return {
         title: "We couldn't load the agent configuration for this step",
         description:
-          'Make sure the step has a prompt, provider, model, and thinking value. Then configure credentials for the model provider in Model Providers and re-run the workflow.',
+          'Make sure the step has a prompt, provider, model, and thinking value. Then configure credentials for the model provider in Agents and re-run the workflow.',
         showProviderCta: true,
       };
   }

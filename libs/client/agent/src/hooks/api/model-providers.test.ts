@@ -9,6 +9,7 @@ import {
   deleteModelProviderConfig,
   getModelProviderCatalog,
   listModelProviderConfigs,
+  setDefaultHarness,
   setDefaultModelProvider,
   updateModelProviderDefaultModel,
   upsertModelProviderConfig,
@@ -136,6 +137,29 @@ describe('model provider transport', () => {
     expect(result.default_provider_id).toBe('anthropic');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-model-provider`,
+    );
+    expect(request.method).toBe('PUT');
+    expect(requestBody).toEqual(body);
+  });
+
+  test('sets the default harness', async () => {
+    let requestBody: unknown;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      requestBody = await (input as Request).clone().json();
+      return jsonResponse({default_harness_id: 'claude'});
+    });
+    configureApiClient({fetchImpl});
+    const body = {harness_id: 'claude'} as const;
+
+    const result = await setDefaultHarness({
+      workspaceId: AGENT_TEST_WORKSPACE_ID,
+      body,
+    });
+
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(result.default_harness_id).toBe('claude');
+    expect(request.url).toBe(
+      `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-harness`,
     );
     expect(request.method).toBe('PUT');
     expect(requestBody).toEqual(body);

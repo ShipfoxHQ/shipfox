@@ -1,8 +1,11 @@
 import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {modelProviderEntry} from '#test/fixtures/model-providers.js';
+import {customModelProviderConfig, modelProviderEntry} from '#test/fixtures/model-providers.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
-import {usageTargetFromCatalogEntry} from './model-provider-usage-target.js';
+import {
+  usageTargetFromCatalogEntry,
+  usageTargetFromCustomConfig,
+} from './model-provider-usage-target.js';
 
 const CLAUDE_MODEL_ROW_NAME = 'Copy Claude Opus 4.8 model id claude-opus-4-8';
 const KIMI_MODEL_ROW_NAME = 'Copy Kimi K2.7 Code model id @cf/moonshotai/kimi-k2.7-code';
@@ -34,6 +37,11 @@ describe('ModelProviderUsageModal', () => {
     renderUsageModal();
     await waitFor(() =>
       expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(
+        'harness: pi',
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(
         'model: claude-opus-4-8',
       ),
     );
@@ -50,6 +58,109 @@ describe('ModelProviderUsageModal', () => {
       'model: claude-opus-4-8',
     );
   }, 10_000);
+
+  test('changes the selected harness in the workflow example', async () => {
+    renderUsageModal();
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(
+        'harness: pi',
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('button', {name: 'Harness'}));
+    fireEvent.click(await screen.findByRole('option', {name: 'Claude'}));
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(
+        'harness: claude',
+      ),
+    );
+  });
+
+  test('uses the workspace default harness when it is compatible', async () => {
+    const onOpenChange = vi.fn();
+    const entry = modelProviderEntry();
+
+    render(
+      <ModelProviderUsageModal
+        target={usageTargetFromCatalogEntry(entry)}
+        initialModel="claude-opus-4-8"
+        workspaceDefaultHarnessId="claude"
+        open
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(
+        'harness: claude',
+      ),
+    );
+  });
+
+  test('clamps the selected harness when the target changes', async () => {
+    const onOpenChange = vi.fn();
+    const anthropic = modelProviderEntry();
+    const openai = modelProviderEntry({
+      id: 'openai',
+      label: 'OpenAI',
+      models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
+    });
+    const {rerender} = render(
+      <ModelProviderUsageModal
+        target={usageTargetFromCatalogEntry(anthropic)}
+        initialModel="claude-opus-4-8"
+        workspaceDefaultHarnessId="claude"
+        open
+        onOpenChange={onOpenChange}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).toHaveTextContent(
+        'harness: claude',
+      ),
+    );
+
+    rerender(
+      <ModelProviderUsageModal
+        target={usageTargetFromCatalogEntry(openai)}
+        initialModel="gpt-5.5-pro"
+        workspaceDefaultHarnessId="claude"
+        open
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', {name: 'Use OpenAI in a workflow'})).toHaveTextContent(
+        'harness: pi',
+      ),
+    );
+    expect(screen.queryByRole('button', {name: 'Harness'})).not.toBeInTheDocument();
+  });
+
+  test('renders a static pi harness line for custom providers', async () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <ModelProviderUsageModal
+        target={usageTargetFromCustomConfig(customModelProviderConfig())}
+        initialModel="custom-model"
+        workspaceDefaultHarnessId="claude"
+        open
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('dialog', {name: 'Use OpenAI Compatible in a workflow'}),
+      ).toHaveTextContent('harness: pi'),
+    );
+    expect(screen.getByText('Harness')).toBeVisible();
+    expect(screen.getAllByText('pi').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', {name: 'Harness'})).not.toBeInTheDocument();
+  });
 
   test('renders reference models as clickable rows with inline ids', async () => {
     renderUsageModal();

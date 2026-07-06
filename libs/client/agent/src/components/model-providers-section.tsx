@@ -341,6 +341,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
       <ModelProviderUsageModal
         target={usageTarget?.target ?? null}
         initialModel={usageTarget?.initialModel ?? null}
+        workspaceDefaultHarnessId={configsQuery.data?.default_harness_id ?? null}
         open={usageTarget !== null}
         closeFocusTarget={
           usageTarget?.restoreFocusToConfiguredProviders

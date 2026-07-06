@@ -39,7 +39,7 @@ jobs:
         name: Run checkout regression gate
         run: node scripts/demo-step.mjs repair test-gate
         gate:
-          success_if: step.exit_code == 0
+          success: step.exit_code == 0
           on_failure:
             restart_from: implement
             feedback: Checkout regression gate failed. Sending failure context back to the agent.
