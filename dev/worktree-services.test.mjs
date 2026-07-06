@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {describe, test} from 'node:test';
 
 import {
@@ -8,6 +11,7 @@ import {
   parseEnvFile,
   parsePort,
   portsFromBase,
+  resolveComposeFile,
 } from './worktree-services.mjs';
 
 const longShipfoxProjectName = /^shipfox-a+-[a-f0-9]{8}$/;
@@ -68,6 +72,55 @@ describe('appEnv', () => {
 
     assert.equal(env.SHIPFOX_RUNNER_API_URL, 'http://host.docker.internal:55291');
     assert.equal(env.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS, 'host.docker.internal:host-gateway');
+  });
+});
+
+describe('resolveComposeFile', () => {
+  test('prefers the workspace compose file', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'shipfox-worktree-services-'));
+    try {
+      const workspaceDir = join(tempDir, 'workspace');
+      const rootDir = join(tempDir, 'root');
+      const workspaceComposeFile = join(workspaceDir, 'compose.yml');
+
+      mkdirSync(workspaceDir);
+      mkdirSync(rootDir);
+      writeFileSync(workspaceComposeFile, '');
+      writeFileSync(join(rootDir, 'compose.yml'), '');
+
+      const composeFile = resolveComposeFile({
+        workspacePath: workspaceDir,
+        rootPath: rootDir,
+        allowRootFallback: true,
+      });
+
+      assert.equal(composeFile, workspaceComposeFile);
+    } finally {
+      rmSync(tempDir, {recursive: true, force: true});
+    }
+  });
+
+  test('falls back to the root compose file for archive cleanup', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'shipfox-worktree-services-'));
+    try {
+      const workspaceDir = join(tempDir, 'workspace');
+      const rootDir = join(tempDir, 'root');
+      const rootComposeFile = join(rootDir, 'compose.yml');
+
+      mkdirSync(workspaceDir);
+      mkdirSync(rootDir);
+      writeFileSync(rootComposeFile, '');
+
+      const composeFile = resolveComposeFile({
+        workspacePath: workspaceDir,
+        rootPath: rootDir,
+        allowRootFallback: true,
+      });
+
+      assert.equal(composeFile, rootComposeFile);
+    } finally {
+      rmSync(tempDir, {recursive: true, force: true});
+    }
   });
 });
 

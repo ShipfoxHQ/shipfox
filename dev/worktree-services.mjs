@@ -2,11 +2,12 @@
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
-import {resolve} from 'node:path';
+import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const composeProjectNameMaxLength = 63;
 const composeProjectNamePrefix = 'shipfox-';
+const composeFileName = 'compose.yml';
 const stateDir = resolve('.context/local-services');
 const portsFile = resolve(stateDir, 'ports.env');
 const composeEnvFile = resolve(stateDir, 'compose.env');
@@ -61,9 +62,13 @@ function up(workspaceName, projectName) {
   writeEnvFile(composeEnvFile, composeEnv(ports));
   writeAppEnvFile(appEnvFile, appEnv(ports));
 
-  runDockerCompose(projectName, ['up', '-d', '--wait', 'postgres', 'temporal', 'garage', 'gitea']);
-  runDockerCompose(projectName, ['run', '--rm', 'garage-init']);
-  runDockerCompose(projectName, ['run', '--rm', 'gitea-init']);
+  const composeFile = resolveComposeFile();
+
+  runDockerCompose(projectName, ['up', '-d', '--wait', 'postgres', 'temporal', 'garage', 'gitea'], {
+    composeFile,
+  });
+  runDockerCompose(projectName, ['run', '--rm', 'garage-init'], {composeFile});
+  runDockerCompose(projectName, ['run', '--rm', 'gitea-init'], {composeFile});
 
   printLine(`Worktree services are ready for ${workspaceName}.`);
   printLine(`Docker Compose project: ${projectName}`);
@@ -72,7 +77,9 @@ function up(workspaceName, projectName) {
 
 function stop(projectName) {
   requireComposeState();
-  runDockerCompose(projectName, ['down', '--remove-orphans']);
+  runDockerCompose(projectName, ['down', '--remove-orphans'], {
+    composeFile: resolveComposeFile({allowRootFallback: true}),
+  });
 }
 
 function destroy(projectName) {
@@ -80,13 +87,17 @@ function destroy(projectName) {
     rmSync(stateDir, {recursive: true, force: true});
     return;
   }
-  runDockerCompose(projectName, ['down', '-v', '--remove-orphans']);
+  runDockerCompose(projectName, ['down', '-v', '--remove-orphans'], {
+    composeFile: resolveComposeFile({allowRootFallback: true}),
+  });
   rmSync(stateDir, {recursive: true, force: true});
 }
 
 function status(projectName) {
   requireComposeState();
-  runDockerCompose(projectName, ['ps']);
+  runDockerCompose(projectName, ['ps'], {
+    composeFile: resolveComposeFile({allowRootFallback: true}),
+  });
 }
 
 function requireConductorWorkspace() {
@@ -201,14 +212,41 @@ export function appEnv(ports) {
   };
 }
 
-function runDockerCompose(projectName, args) {
+function runDockerCompose(projectName, args, {composeFile = resolveComposeFile()} = {}) {
   const result = spawnSync(
     'docker',
-    ['compose', '--env-file', composeEnvFile, '-p', projectName, ...args],
+    [
+      'compose',
+      '--env-file',
+      composeEnvFile,
+      '-f',
+      composeFile,
+      '--project-directory',
+      dirname(composeFile),
+      '-p',
+      projectName,
+      ...args,
+    ],
     {stdio: 'inherit'},
   );
   if (result.error) fail(result.error.message);
   if (result.status !== 0) process.exit(result.status ?? 1);
+}
+
+export function resolveComposeFile({
+  workspacePath = process.cwd(),
+  rootPath = process.env.CONDUCTOR_ROOT_PATH,
+  allowRootFallback = false,
+} = {}) {
+  const workspaceComposeFile = resolve(workspacePath, composeFileName);
+  if (existsSync(workspaceComposeFile)) return workspaceComposeFile;
+
+  if (allowRootFallback && rootPath) {
+    const rootComposeFile = resolve(rootPath, composeFileName);
+    if (existsSync(rootComposeFile)) return rootComposeFile;
+  }
+
+  fail(`Missing ${relativePath(workspaceComposeFile)}.`);
 }
 
 function resolveProjectName(workspaceName) {
