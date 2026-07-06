@@ -114,6 +114,7 @@ export function completeAgentConfig(params: {
   params.config.model = defaults.model;
   params.config.thinking = defaults.thinking;
   params.config.prompt = prompt;
+  if (agent.tools !== undefined) params.config.tools = [...agent.tools];
 }
 
 function completeAgentField(args: {
@@ -215,6 +216,7 @@ function authoredAgentStepConfig(
       ...(step.model === undefined ? {} : {model: step.model}),
       ...(step.harness === undefined ? {} : {harness: step.harness}),
       ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
+      ...agentToolsConfig(step),
       prompt: step.prompt,
     },
     configPlan: null,
@@ -237,6 +239,7 @@ function deferredAgentStepConfig(
         ...(fields.provider === undefined ? {} : {provider: dispatchPlanField(fields.provider)}),
         ...(step.harness === undefined ? {} : {harness: step.harness}),
         ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
+        ...agentToolsConfig(step),
       },
     },
     diagnostics: fields.diagnostics,
@@ -273,6 +276,7 @@ function agentStepConfigWithDefaults(
       configPlan: {
         agent: {
           prompt: dispatchPlanField(fields.prompt),
+          ...agentToolsConfig(step),
         },
       },
       diagnostics: fields.diagnostics,
@@ -288,6 +292,7 @@ function agentStepConfigWithDefaults(
       model: resolved.model,
       harness: resolved.harness,
       thinking: resolved.thinking,
+      ...agentToolsConfig(step),
       prompt: promptValue,
     },
     configPlan: null,
@@ -295,6 +300,12 @@ function agentStepConfigWithDefaults(
     trace: fields.trace,
     hasTemplates: fields.hasTemplates,
   };
+}
+
+function agentToolsConfig(
+  step: WorkflowModelAgentStep,
+): {readonly tools: readonly string[]} | Record<string, never> {
+  return step.tools === undefined ? {} : {tools: [...step.tools]};
 }
 
 function dispatchPlanField(field: FieldResolution): ResolvedField {

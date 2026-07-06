@@ -179,6 +179,7 @@ describe('completeStepDispatchConfig', () => {
       configPlan: {
         agent: {
           harness: 'claude',
+          tools: ['Read', 'WebSearch'],
           prompt: plannedField(`Review ${template('steps.build.outputs.sha')}`),
         },
       },
@@ -197,6 +198,7 @@ describe('completeStepDispatchConfig', () => {
         provider: 'openai',
         model: 'gpt-5.5',
         thinking: 'off',
+        tools: ['Read', 'WebSearch'],
         prompt: 'Review abc123',
       },
       trace: [

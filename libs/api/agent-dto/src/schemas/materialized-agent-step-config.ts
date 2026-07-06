@@ -8,6 +8,7 @@ export const materializedAgentStepConfigSchema = z
     provider: modelProviderRefSchema,
     model: z.string().min(1),
     thinking: agentThinkingSchema,
+    tools: z.array(z.string().min(1)).min(1).optional(),
     prompt: z.string(),
   })
   .strip();

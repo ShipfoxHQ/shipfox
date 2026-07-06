@@ -65,6 +65,7 @@ export interface StepConfigDispatchPlan {
     provider?: ResolvedField;
     harness?: Harness;
     thinking?: AgentThinking;
+    tools?: readonly string[];
   };
   trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }

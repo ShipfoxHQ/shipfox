@@ -7,6 +7,7 @@ describe('materializedAgentStepConfigSchema', () => {
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
+      tools: ['read', 'web_search'],
       prompt: 'Fix the failing tests.',
     });
 
@@ -15,6 +16,7 @@ describe('materializedAgentStepConfigSchema', () => {
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
+      tools: ['read', 'web_search'],
       prompt: 'Fix the failing tests.',
     });
   });
@@ -67,5 +69,19 @@ describe('materializedAgentStepConfigSchema', () => {
       thinking: 'high',
       prompt: 'Fix the failing tests.',
     });
+  });
+
+  it('rejects malformed tools', () => {
+    const emptyTools = () =>
+      materializedAgentStepConfigSchema.parse({
+        harness: 'pi',
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        tools: [],
+        prompt: 'Fix the failing tests.',
+      });
+
+    expect(emptyTools).toThrow();
   });
 });
