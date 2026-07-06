@@ -51,8 +51,10 @@ describe('runnerToolCapabilitiesSchema', () => {
   it.each([
     null,
     {},
+    {harnesses: {}, extra: true},
     {harnesses: {pi: {tools: ['read']}, unknown: {tools: ['x']}}},
     {harnesses: {pi: {tools: ['read'], extra: true}}},
+    {harnesses: {pi: {tools: ['']}}},
     {harnesses: {pi: {tools: [42]}}},
   ])('rejects malformed capability report %#', (value) => {
     const result = runnerToolCapabilitiesSchema.safeParse(value);
