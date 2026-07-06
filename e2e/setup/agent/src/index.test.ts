@@ -86,15 +86,13 @@ describe('agent e2e helper', () => {
 
   it('creates a local Ollama custom provider through the product route', async () => {
     requestJson.mockResolvedValueOnce({provider_id: 'local-ollama-e2e'});
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({models: [{name: 'smollm2:135m-instruct-q2_K'}]}), {
-          status: 200,
-          headers: {'content-type': 'application/json'},
-        }),
-      ),
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({models: [{name: 'smollm2:135m-instruct-q2_K'}]}), {
+        status: 200,
+        headers: {'content-type': 'application/json'},
+      }),
     );
+    vi.stubGlobal('fetch', fetch);
     const {createOllamaCustomProvider} = await import('./index.js');
 
     await createOllamaCustomProvider({
@@ -104,6 +102,7 @@ describe('agent e2e helper', () => {
       displayName: 'Local Ollama E2E',
     });
 
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/tags');
     expect(createApiClient).toHaveBeenCalledWith({token: sessionToken});
     expect(requestJson).toHaveBeenCalledWith(
       'post',
@@ -119,6 +118,54 @@ describe('agent e2e helper', () => {
         },
       },
     );
+  });
+
+  it('creates an OpenAI-compatible custom provider without probing Ollama', async () => {
+    requestJson.mockResolvedValueOnce({provider_id: 'fake-openai-provider'});
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const {createOpenAiCompatibleCustomProvider} = await import('./index.js');
+
+    await createOpenAiCompatibleCustomProvider({
+      workspaceId,
+      sessionToken,
+      providerId: 'fake-openai-provider',
+      displayName: 'Deterministic Agent Provider',
+      baseUrl: 'http://127.0.0.1:9000/scripts/run-1/v1',
+      model: 'deterministic-output-agent',
+      modelMetadata: {max_output_tokens: 512},
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(createApiClient).toHaveBeenCalledWith({token: sessionToken});
+    expect(requestJson).toHaveBeenCalledWith(
+      'post',
+      `/workspaces/${workspaceId}/agent/custom-model-providers`,
+      {
+        json: {
+          slug: 'fake-openai-provider',
+          display_name: 'Deterministic Agent Provider',
+          api: 'openai-completions',
+          base_url: 'http://127.0.0.1:9000/scripts/run-1/v1',
+          models: [
+            {
+              id: 'deterministic-output-agent',
+              label: 'deterministic-output-agent',
+              max_output_tokens: 512,
+            },
+          ],
+          default_model: 'deterministic-output-agent',
+        },
+      },
+    );
+  });
+
+  it('exposes the OpenAI-compatible custom provider helper through the fixture helper', async () => {
+    const {createAgentHelper, createOpenAiCompatibleCustomProvider} = await import('./index.js');
+
+    const helper = createAgentHelper();
+
+    expect(helper.createOpenAiCompatibleCustomProvider).toBe(createOpenAiCompatibleCustomProvider);
   });
 
   it('lists model provider configs through the product route', async () => {

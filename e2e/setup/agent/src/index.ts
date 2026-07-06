@@ -1,5 +1,6 @@
 import type {
   CreateCustomModelProviderBodyDto,
+  CustomAgentModelDto,
   CustomModelProviderConfigDto,
   ListModelProviderConfigsResponseDto,
   ModelProviderApi,
@@ -9,7 +10,7 @@ import {createApiClient} from '@shipfox/e2e-core';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'smollm2:135m-instruct-q2_K';
-const DEFAULT_OLLAMA_PROVIDER_API: ModelProviderApi = 'openai-completions';
+const OPENAI_COMPATIBLE_PROVIDER_API: ModelProviderApi = 'openai-completions';
 const TRAILING_SLASHES_RE = /\/+$/u;
 
 export interface OllamaConfig {
@@ -27,12 +28,24 @@ export interface RequireOllamaModelParams {
 export interface CreateOllamaCustomProviderParams {
   workspaceId: string;
   sessionToken: string;
-  api?: ModelProviderApi | undefined;
   baseUrl?: string | undefined;
   displayName?: string | undefined;
   model?: string | undefined;
+  modelMetadata?: OpenAiCompatibleCustomProviderModelMetadata | undefined;
   providerId?: ModelProviderRef | undefined;
 }
+
+export interface CreateOpenAiCompatibleCustomProviderParams {
+  workspaceId: string;
+  sessionToken: string;
+  baseUrl: string;
+  displayName: string;
+  model: string;
+  providerId: ModelProviderRef;
+  modelMetadata?: OpenAiCompatibleCustomProviderModelMetadata | undefined;
+}
+
+export type OpenAiCompatibleCustomProviderModelMetadata = Omit<CustomAgentModelDto, 'id' | 'label'>;
 
 export interface ListModelProviderConfigsParams {
   workspaceId: string;
@@ -84,6 +97,19 @@ export async function requireOllamaModel(
   return {baseUrl, model, openAiBaseUrl: `${baseUrl}/v1`};
 }
 
+export async function createOpenAiCompatibleCustomProvider(
+  params: CreateOpenAiCompatibleCustomProviderParams,
+): Promise<CustomModelProviderConfigDto> {
+  const body = createOpenAiCompatibleCustomProviderBody(params);
+  const client = createApiClient({token: params.sessionToken});
+
+  return await client.requestJson<CustomModelProviderConfigDto>(
+    'post',
+    `/workspaces/${params.workspaceId}/agent/custom-model-providers`,
+    {json: body},
+  );
+}
+
 export async function createOllamaCustomProvider(
   params: CreateOllamaCustomProviderParams,
 ): Promise<CustomModelProviderConfigDto> {
@@ -92,20 +118,15 @@ export async function createOllamaCustomProvider(
     model: params.model,
   });
   const providerId = params.providerId ?? createOllamaProviderId();
-  const body = createOllamaCustomProviderBody({
-    api: params.api ?? DEFAULT_OLLAMA_PROVIDER_API,
+  return await createOpenAiCompatibleCustomProvider({
     baseUrl: ollama.openAiBaseUrl,
     displayName: params.displayName ?? 'Local Ollama',
     model: ollama.model,
+    modelMetadata: params.modelMetadata,
     providerId,
+    sessionToken: params.sessionToken,
+    workspaceId: params.workspaceId,
   });
-  const client = createApiClient({token: params.sessionToken});
-
-  return await client.requestJson<CustomModelProviderConfigDto>(
-    'post',
-    `/workspaces/${params.workspaceId}/agent/custom-model-providers`,
-    {json: body},
-  );
 }
 
 export async function listModelProviderConfigs(
@@ -121,6 +142,7 @@ export async function listModelProviderConfigs(
 
 export function createAgentHelper() {
   return {
+    createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,
     listModelProviderConfigs,
     requireOllamaModel,
@@ -142,19 +164,25 @@ export const agentHelper = {
   },
 };
 
-function createOllamaCustomProviderBody(params: {
-  api: ModelProviderApi;
+function createOpenAiCompatibleCustomProviderBody(params: {
   baseUrl: string;
   displayName: string;
   model: string;
+  modelMetadata?: OpenAiCompatibleCustomProviderModelMetadata | undefined;
   providerId: ModelProviderRef;
 }): CreateCustomModelProviderBodyDto {
+  const model = {
+    id: params.model,
+    label: params.model,
+    ...params.modelMetadata,
+  };
+
   return {
     slug: params.providerId,
     display_name: params.displayName,
-    api: params.api,
+    api: OPENAI_COMPATIBLE_PROVIDER_API,
     base_url: params.baseUrl,
-    models: [{id: params.model, label: params.model}],
+    models: [model],
     default_model: params.model,
   };
 }
