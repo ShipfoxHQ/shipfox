@@ -135,7 +135,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
     <div className="flex min-w-0 flex-col gap-32">
       <section
         ref={configuredProvidersRegionRef}
-        className="relative z-20 flex flex-col gap-16 outline-none"
+        className="flex flex-col gap-16 outline-none"
         aria-label="Configured providers"
         tabIndex={-1}
       >
@@ -213,7 +213,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         ) : null}
       </section>
 
-      <section className="relative z-10 flex flex-col gap-16" aria-label="Available providers">
+      <section className="flex flex-col gap-16" aria-label="Available providers">
         <div className="flex flex-col gap-4">
           <Header variant="h3">Available providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
@@ -241,7 +241,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         ) : null}
       </section>
 
-      <section className="relative flex flex-col gap-16" aria-label="Unsupported providers">
+      <section className="flex flex-col gap-16" aria-label="Unsupported providers">
         <div className="flex flex-col gap-4">
           <Header variant="h3">Unsupported providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
@@ -514,7 +514,7 @@ function ConfiguredProviderRow({
               aria-label={`Open ${label} provider actions`}
             />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="z-[100]">
             {!isDefault ? (
               <DropdownMenuItem
                 icon="starLine"

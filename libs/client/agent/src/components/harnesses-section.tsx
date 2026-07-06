@@ -35,7 +35,7 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
   const defaultHarnessId = configsQuery.data?.default_harness_id ?? DEFAULT_HARNESS;
 
   return (
-    <section className="relative z-30 flex flex-col gap-16" aria-label="Harnesses">
+    <section className="flex flex-col gap-16" aria-label="Harnesses">
       <div className="flex flex-col gap-4">
         <Header variant="h3">Harnesses</Header>
         <Text size="sm" className="text-foreground-neutral-muted">
