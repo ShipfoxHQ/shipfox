@@ -60,10 +60,19 @@ export {
 export {
   CLAUDE_HARNESS,
   getHarnessDescriptor,
+  getHarnessToolDescriptor,
+  HARNESS_TOOL_PACKAGE_NAMES,
   type HarnessDescriptor,
+  type HarnessToolDeploymentConfig,
+  type HarnessToolDescriptor,
+  type HarnessToolPackageName,
   harnessSupportsProvider,
+  harnessSupportsTool,
+  listEnabledHarnessTools,
   listHarnessDescriptors,
+  listHarnessTools,
   PI_HARNESS,
+  PI_HARNESS_TOOL_PACKAGE_NAMES,
 } from './harness.js';
 export {
   type MaterializedAgentStepConfigDto,
