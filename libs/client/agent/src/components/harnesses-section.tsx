@@ -39,7 +39,7 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
       <div className="flex flex-col gap-4">
         <Header variant="h3">Harnesses</Header>
         <Text size="sm" className="text-foreground-neutral-muted">
-          Harnesses are the engines that run agent steps; each uses a model provider's credentials.
+          Harnesses available to run agent steps in this workspace.
         </Text>
       </div>
 
