@@ -16,6 +16,7 @@ export interface ListenerMatcher {
   event: string;
   inputs?: Readonly<Record<string, unknown>> | undefined;
   filter?: string | undefined;
+  filter_snapshot?: Readonly<Record<string, unknown>> | undefined;
 }
 
 export interface ProjectJobListenerSubscriptionsParams {
@@ -41,6 +42,7 @@ export async function projectJobListenerSubscriptions(
         const config: Record<string, unknown> = {};
         if (matcher.inputs !== undefined) config.inputs = matcher.inputs;
         if (matcher.filter !== undefined) config.filter = matcher.filter;
+        if (matcher.filter_snapshot !== undefined) config.filter_snapshot = matcher.filter_snapshot;
 
         await tx
           .insert(jobListenerSubscriptions)

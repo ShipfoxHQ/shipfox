@@ -80,16 +80,20 @@ const workflowsJobActivatedBaseSchema = z.object({
   workspaceId: nonEmptyStringSchema,
 });
 
+const resolvedListeningTriggerSchema = listeningTriggerSchema.extend({
+  filter_snapshot: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const workflowsJobActivatedSchema = z.discriminatedUnion('mode', [
   workflowsJobActivatedBaseSchema.extend({
     mode: z.literal('one_shot'),
-    on: z.array(listeningTriggerSchema).nullable().optional(),
-    until: z.array(listeningTriggerSchema).nullable().optional(),
+    on: z.array(resolvedListeningTriggerSchema).nullable().optional(),
+    until: z.array(resolvedListeningTriggerSchema).nullable().optional(),
   }),
   workflowsJobActivatedBaseSchema.extend({
     mode: z.literal('listening'),
-    on: z.array(listeningTriggerSchema).nonempty(),
-    until: z.array(listeningTriggerSchema).nullable(),
+    on: z.array(resolvedListeningTriggerSchema).nonempty(),
+    until: z.array(resolvedListeningTriggerSchema).nullable(),
   }),
 ]);
 export type WorkflowsJobActivatedEventDto = z.infer<typeof workflowsJobActivatedSchema>;

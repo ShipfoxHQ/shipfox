@@ -216,6 +216,44 @@ describe('workflowsJobActivatedSchema', () => {
 
     expect(result).toEqual(payload);
   });
+
+  it('retains resolved listener filter snapshots on job-activated matchers', () => {
+    const payload = {
+      ...validJobActivated,
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request_review',
+          filter: 'jobs.build.outputs.pr_number == event.pull_request.number',
+          filter_snapshot: {jobs: {build: {outputs: {pr_number: 42}}}},
+        },
+      ],
+      until: [
+        {
+          source: 'github',
+          event: 'pull_request',
+          filter: 'jobs.build.outputs.pr_number == event.pull_request.number',
+          filter_snapshot: {jobs: {build: {outputs: {pr_number: 42}}}},
+        },
+      ],
+    };
+
+    const result = workflowsJobActivatedSchema.parse(payload);
+
+    expect(result).toEqual(payload);
+  });
+
+  it('keeps authoring-shaped matchers compatible when no snapshot is present', () => {
+    const payload = {
+      ...validJobActivated,
+      on: [{source: 'github', event: 'pull_request_review', filter: 'event.action == "opened"'}],
+      until: [{source: 'github', event: 'pull_request'}],
+    };
+
+    const result = workflowsJobActivatedSchema.parse(payload);
+
+    expect(result).toEqual(payload);
+  });
 });
 
 describe('workflowsStepRestartEnqueuedSchema', () => {

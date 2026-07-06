@@ -121,6 +121,77 @@ describe('job listener subscriptions', () => {
     ).toBe(true);
   });
 
+  it('persists listener filter snapshots verbatim in matcher config', async () => {
+    const filterSnapshot = {jobs: {build: {outputs: {pr_number: 42}}}};
+    const payload = buildActivatedPayload({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request_review',
+          filter: 'jobs.build.outputs.pr_number == event.pull_request.number',
+          filter_snapshot: filterSnapshot,
+        },
+      ],
+      until: null,
+    });
+
+    await onJobActivated(payload);
+
+    const rows = await listJobSubscriptions(payload.jobId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.config).toEqual({
+      filter: 'jobs.build.outputs.pr_number == event.pull_request.number',
+      filter_snapshot: filterSnapshot,
+    });
+  });
+
+  it('omits filter snapshots from matcher config when absent', async () => {
+    const payload = buildActivatedPayload({
+      on: [{source: 'github', event: 'pull_request_review', filter: 'event.action == "created"'}],
+      until: null,
+    });
+
+    await onJobActivated(payload);
+
+    const rows = await listJobSubscriptions(payload.jobId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.config).toEqual({filter: 'event.action == "created"'});
+  });
+
+  it('updates existing matcher ordinals with replacement filter snapshots', async () => {
+    const payload = buildActivatedPayload({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request_review',
+          filter: 'jobs.build.outputs.pr_number == event.pull_request.number',
+          filter_snapshot: {jobs: {build: {outputs: {pr_number: 42}}}},
+        },
+      ],
+      until: null,
+    });
+
+    await onJobActivated(payload);
+    await onJobActivated({
+      ...payload,
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request_review',
+          filter: 'jobs.build.outputs.pr_number == event.pull_request.number',
+          filter_snapshot: {jobs: {build: {outputs: {pr_number: 43}}}},
+        },
+      ],
+    });
+
+    const rows = await listJobSubscriptions(payload.jobId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.config).toEqual({
+      filter: 'jobs.build.outputs.pr_number == event.pull_request.number',
+      filter_snapshot: {jobs: {build: {outputs: {pr_number: 43}}}},
+    });
+  });
+
   it('deletes all subscriptions for a terminated job', async () => {
     const jobId = crypto.randomUUID();
     await jobListenerSubscriptionFactory.create({jobId, kind: 'on', matcherOrdinal: 0});

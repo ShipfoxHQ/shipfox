@@ -1,6 +1,9 @@
-import {WORKFLOWS_JOB_ACTIVATED} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOWS_JOB_ACTIVATED,
+  type WorkflowsJobActivatedEventDto,
+} from '@shipfox/api-workflows-dto';
 import {and, asc, eq, isNull} from 'drizzle-orm';
-import type {JobStatus} from '#core/entities/job.js';
+import type {JobListeningTrigger, JobStatus} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
@@ -101,6 +104,98 @@ function readJob(jobId: string) {
     .then((rows) => rows[0]);
 }
 
+async function activatedPayload(jobId: string): Promise<WorkflowsJobActivatedEventDto> {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(eq(workflowsOutbox.eventType, WORKFLOWS_JOB_ACTIVATED));
+  const payload = rows
+    .map((row) => row.payload as WorkflowsJobActivatedEventDto)
+    .find((candidate) => candidate.jobId === jobId);
+  if (!payload) throw new Error(`No activated payload for job ${jobId}`);
+  return payload;
+}
+
+function expectListeningPayload(
+  payload: WorkflowsJobActivatedEventDto,
+): asserts payload is Extract<WorkflowsJobActivatedEventDto, {mode: 'listening'}> {
+  expect(payload.mode).toBe('listening');
+}
+
+async function createInactiveListeningJobWithMatchers(params: {
+  readonly on: readonly JobListeningTrigger[];
+  readonly until?: readonly JobListeningTrigger[] | null;
+}) {
+  const job = await createListeningJob({
+    key: 'await',
+    status: 'pending',
+    listenerStatus: 'inactive',
+  });
+  await db()
+    .update(jobs)
+    .set({listeningOn: [...params.on], listeningUntil: params.until ? [...params.until] : null})
+    .where(eq(jobs.id, job.id));
+  const updated = await readJob(job.id);
+  if (!updated) throw new Error('Expected inactive listener job');
+  return updated;
+}
+
+async function createListenerWithDependencies(params: {
+  readonly on: readonly JobListeningTrigger[];
+}) {
+  const run = await workflowRunFactory.create(
+    {
+      inputs: {environment: 'prod'},
+      triggerPayload: {
+        source: 'github',
+        event: 'pull_request',
+        deliveryId: 'delivery-1',
+        data: {action: 'opened'},
+      },
+    },
+    {
+      transient: {
+        model: workflowModel({
+          jobs: {
+            build: {steps: [{run: 'echo build'}]},
+            review: {steps: [{run: 'echo review'}]},
+            await: {needs: ['build', 'review'], steps: [{run: 'echo await'}]},
+          },
+        }),
+      },
+    },
+  );
+  const runJobs = await getJobsByWorkflowRunId(run.id);
+  const build = runJobs.find((job) => job.key === 'build');
+  const review = runJobs.find((job) => job.key === 'review');
+  const listener = runJobs.find((job) => job.key === 'await');
+  if (!build || !review || !listener) throw new Error('Expected dependency fixture jobs');
+
+  await db()
+    .update(jobs)
+    .set({status: 'succeeded', outputs: {pr_number: 42}})
+    .where(eq(jobs.id, build.id));
+  await db()
+    .update(jobs)
+    .set({status: 'succeeded', outputs: {pr_number: 99}})
+    .where(eq(jobs.id, review.id));
+  await db()
+    .update(jobs)
+    .set({
+      mode: 'listening',
+      status: 'pending',
+      listenerStatus: 'inactive',
+      listeningOn: [...params.on],
+      listeningUntil: null,
+    })
+    .where(eq(jobs.id, listener.id));
+  await db().delete(jobExecutions).where(eq(jobExecutions.jobId, listener.id));
+
+  const updated = await readJob(listener.id);
+  if (!updated) throw new Error('Expected listener fixture job');
+  return updated;
+}
+
 function template(source: string): string {
   return `\${{ ${source} }}`;
 }
@@ -151,6 +246,93 @@ describe('activateJobListener', () => {
     const result = await activateJobListener({jobId: job.id, expectedVersion: job.version});
 
     expect(result.executionCount).toBe(2);
+  });
+
+  it('omits filter snapshots for matchers without non-event roots', async () => {
+    const job = await createInactiveListeningJobWithMatchers({
+      on: [{source: 'github', event: 'pull_request'}],
+      until: [{source: 'github', event: 'pull_request', filter: 'event.action == "closed"'}],
+    });
+
+    await activateJobListener({jobId: job.id, expectedVersion: job.version});
+
+    const payload = await activatedPayload(job.id);
+    expectListeningPayload(payload);
+    expect(payload.on[0]).toEqual({source: 'github', event: 'pull_request'});
+    expect(payload.until?.[0]).toEqual({
+      source: 'github',
+      event: 'pull_request',
+      filter: 'event.action == "closed"',
+    });
+  });
+
+  it('snapshots only referenced activation roots for listener filters', async () => {
+    const job = await createListenerWithDependencies({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request',
+          filter:
+            'jobs.build.outputs.pr_number == event.pull_request.number && inputs.environment == "prod" && trigger.event == "pull_request" && run.id != "" && job.key == "await"',
+        },
+      ],
+    });
+
+    await activateJobListener({jobId: job.id, expectedVersion: job.version});
+
+    const payload = await activatedPayload(job.id);
+    expectListeningPayload(payload);
+    const snapshot = payload.on[0]?.filter_snapshot;
+    expect(snapshot).toEqual({
+      run: expect.objectContaining({id: expect.any(String), name: 'Test Workflow'}),
+      trigger: {source: 'github', event: 'pull_request'},
+      inputs: {environment: 'prod'},
+      job: {key: 'await'},
+      jobs: {
+        build: expect.objectContaining({
+          status: 'succeeded',
+          outputs: {pr_number: 42},
+          executions: expect.any(Array),
+        }),
+      },
+    });
+    expect(snapshot).not.toHaveProperty('event');
+    expect(snapshot?.jobs).not.toHaveProperty('review');
+  });
+
+  it('omits snapshots when referenced job keys are absent', async () => {
+    const job = await createListenerWithDependencies({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request',
+          filter: 'jobs.missing.outputs.pr_number == event.pull_request.number',
+        },
+      ],
+    });
+
+    await activateJobListener({jobId: job.id, expectedVersion: job.version});
+
+    const payload = await activatedPayload(job.id);
+    expectListeningPayload(payload);
+    expect(payload.on[0]).toEqual({
+      source: 'github',
+      event: 'pull_request',
+      filter: 'jobs.missing.outputs.pr_number == event.pull_request.number',
+    });
+  });
+
+  it('keeps listener activation total when filter root extraction fails', async () => {
+    const job = await createInactiveListeningJobWithMatchers({
+      on: [{source: 'github', event: 'pull_request', filter: 'event.'}],
+    });
+
+    const result = await activateJobListener({jobId: job.id, expectedVersion: job.version});
+
+    const payload = await activatedPayload(job.id);
+    expect(result.status).toBe('running');
+    expectListeningPayload(payload);
+    expect(payload.on[0]).toEqual({source: 'github', event: 'pull_request', filter: 'event.'});
   });
 });
 
