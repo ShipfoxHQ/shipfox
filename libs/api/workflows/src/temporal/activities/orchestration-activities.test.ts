@@ -7,7 +7,7 @@ import {
 } from '#db/index.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
-import {resolveLeaseExpiredJobExecutionActivity} from './orchestration-activities.js';
+import {resolveLeaseExpiredJobExecutionActivity, setJobStatus} from './orchestration-activities.js';
 
 describe('resolveLeaseExpiredJobExecutionActivity', () => {
   let workspaceId: string;
@@ -69,5 +69,45 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
     });
 
     expect(result.status).toBe('failed');
+  });
+
+  test('default-gate skipped jobs record an evaluation trace', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({
+        jobs: {
+          build: {steps: [{run: 'npm run build'}]},
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const [job] = await getJobsByWorkflowRunId(run.id);
+    if (!job) throw new Error('Expected job');
+
+    await setJobStatus({
+      jobId: job.id,
+      status: 'skipped',
+      version: job.version,
+      statusReason: 'default_gate_rejected',
+    });
+
+    const [skipped] = await getJobsByWorkflowRunId(run.id);
+    expect(skipped?.evaluationTrace).toEqual([
+      {
+        expression: 'needs.all(n, n.status == "succeeded")',
+        roots: ['needs'],
+        fillTarget: 'job-activation',
+        evaluatedAt: 'job-activation',
+        value: 'false',
+        field: 'job.default_gate',
+      },
+    ]);
   });
 });

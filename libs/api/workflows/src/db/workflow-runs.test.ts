@@ -68,6 +68,24 @@ function expression(source: string) {
   return createWorkflowExpression({source, check: {mode: 'syntax'}});
 }
 
+function conditionTrace(
+  field: 'job.if',
+  expression: string,
+  roots: string[],
+  value: boolean,
+  degraded = false,
+) {
+  return {
+    expression,
+    roots,
+    fillTarget: 'job-activation',
+    evaluatedAt: 'job-activation',
+    value: String(value),
+    ...(degraded ? {degraded: true} : {}),
+    field,
+  };
+}
+
 function stepOutputField(stepKey: string, outputKey: string) {
   return {
     segments: [
@@ -307,6 +325,9 @@ describe('evaluateJobActivations', () => {
     const skipped = await jobByKey(run.id, 'notify');
     expect(skipped.status).toBe('skipped');
     expect(skipped.statusReason).toBe('condition_rejected');
+    expect(skipped.evaluationTrace).toEqual([
+      conditionTrace('job.if', 'jobs.build.status == "failed"', ['jobs'], false),
+    ]);
   });
 
   it('evaluates fan-in needs aggregation and dependency outputs from persisted state', async () => {
@@ -397,6 +418,9 @@ describe('evaluateJobActivations', () => {
     ]);
     const skipped = await jobByKey(run.id, 'notify');
     expect(skipped.statusReason).toBe('condition_errored');
+    expect(skipped.evaluationTrace).toEqual([
+      conditionTrace('job.if', 'jobs.build.outputs.sha.missing == "abc123"', ['jobs'], false, true),
+    ]);
   });
 });
 

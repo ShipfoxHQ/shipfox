@@ -338,6 +338,7 @@ describe('nextStepForJob', () => {
     expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
       status: 'skipped',
       statusReason: 'condition_rejected',
+      evaluationTrace: [conditionTrace('step.if', 'false', [], false)],
     });
     expect(after.find((step) => step.id === runnableStep.id)?.status).toBe('running');
     expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
@@ -360,6 +361,7 @@ describe('nextStepForJob', () => {
     expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
       status: 'skipped',
       statusReason: 'condition_errored',
+      evaluationTrace: [conditionTrace('step.if', '1 / 0 == 0', [], false, true)],
     });
     expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
   });
@@ -416,12 +418,40 @@ describe('nextStepForJob', () => {
     expect(after.find((step) => step.id === defaultGated.id)).toMatchObject({
       status: 'skipped',
       statusReason: 'default_gate_rejected',
+      evaluationTrace: [
+        {
+          expression: '!execution.failed',
+          roots: ['execution'],
+          fillTarget: 'step-dispatch',
+          evaluatedAt: 'step-dispatch',
+          value: 'false',
+          field: 'step.default_gate',
+        },
+      ],
     });
   });
 });
 
 function conditionExpression(source: string) {
   return createWorkflowExpression({source, check: {mode: 'syntax'}});
+}
+
+function conditionTrace(
+  field: 'step.if',
+  expression: string,
+  roots: string[],
+  value: boolean,
+  degraded = false,
+) {
+  return {
+    expression,
+    roots,
+    fillTarget: 'step-dispatch',
+    evaluatedAt: 'step-dispatch',
+    value: String(value),
+    ...(degraded ? {degraded: true} : {}),
+    field,
+  };
 }
 
 function stepOutputField(stepKey: string, outputKey: string) {

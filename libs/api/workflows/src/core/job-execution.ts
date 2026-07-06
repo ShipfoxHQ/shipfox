@@ -26,8 +26,9 @@ import {
   recordWorkflowJobExecutionStepsSettled,
   recordWorkflowStepRestartEnqueued,
 } from '#metrics/instance.js';
+import {defaultStepConditionTrace, explicitConditionTrace} from './condition-trace.js';
 import type {JobExecution} from './entities/job-execution.js';
-import type {Step, StepStatusReason} from './entities/step.js';
+import type {PersistedEvaluationTraceEntry, Step, StepStatusReason} from './entities/step.js';
 import {
   AgentConfigUnresolvableError,
   InterpolationUnresolvableError,
@@ -82,7 +83,13 @@ interface PendingStepDispatchParams {
   readonly tx: Tx;
 }
 
-type StepConditionOutcome = {kind: 'run'} | {kind: 'skip'; statusReason: StepStatusReason};
+type StepConditionOutcome =
+  | {kind: 'run'}
+  | {
+      kind: 'skip';
+      statusReason: StepStatusReason;
+      evaluationTrace: readonly PersistedEvaluationTraceEntry[];
+    };
 
 async function nextStepForJobExecutionInTransaction(
   jobExecutionId: string,
@@ -145,6 +152,7 @@ async function nextStepForJobExecutionInTransaction(
         jobExecutionId,
         stepId: pending.id,
         statusReason: condition.statusReason,
+        evaluationTrace: condition.evaluationTrace,
       },
       tx,
     );
@@ -152,6 +160,7 @@ async function nextStepForJobExecutionInTransaction(
       ...pending,
       status: 'skipped' as const,
       statusReason: condition.statusReason,
+      evaluationTrace: condition.evaluationTrace,
       error: null,
     };
     currentSteps = currentSteps.map((step) => (step.id === pending.id ? skippedStep : step));
@@ -239,7 +248,11 @@ function evaluateStepCondition(params: {
   if (condition === null) {
     const execution = params.context.values.execution as {failed?: unknown} | undefined;
     return execution?.failed === true
-      ? {kind: 'skip', statusReason: 'default_gate_rejected'}
+      ? {
+          kind: 'skip',
+          statusReason: 'default_gate_rejected',
+          evaluationTrace: defaultStepConditionTrace(),
+        }
       : {kind: 'run'};
   }
 
@@ -249,8 +262,20 @@ function evaluateStepCondition(params: {
     site: params.context.site,
     context: params.context.values,
   });
-  if (outcome.evaluationFailed) return {kind: 'skip', statusReason: 'condition_errored'};
-  return outcome.value ? {kind: 'run'} : {kind: 'skip', statusReason: 'condition_rejected'};
+  const evaluationTrace = explicitConditionTrace({
+    expression: condition,
+    field: 'step.if',
+    route: outcome.route,
+    site: params.context.site,
+    value: outcome.value,
+    degraded: outcome.evaluationFailed,
+  });
+  if (outcome.evaluationFailed) {
+    return {kind: 'skip', statusReason: 'condition_errored', evaluationTrace};
+  }
+  return outcome.value
+    ? {kind: 'run'}
+    : {kind: 'skip', statusReason: 'condition_rejected', evaluationTrace};
 }
 
 function toDispatchConfigError(error: unknown): DispatchConfigError | null {

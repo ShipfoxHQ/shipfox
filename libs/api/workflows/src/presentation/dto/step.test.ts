@@ -10,6 +10,7 @@ function step(overrides: Partial<Step> & {type: string}): Step {
     sourceLocation: null,
     status: 'failed',
     statusReason: null,
+    evaluationTrace: null,
     config: {},
     condition: null,
     configPlan: null,
