@@ -2,15 +2,28 @@ import {
   type AgentDefaultsResolver,
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
-import {WORKFLOWS_JOB_ACTIVATED} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOWS_JOB_ACTIVATED,
+  type WorkflowsJobActivatedEventDto,
+} from '@shipfox/api-workflows-dto';
+import {
+  analyzeContextRootKeyAccess,
+  extractExactContextRoots,
+  type WorkflowExpressionEvaluationContext,
+} from '@shipfox/expression';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
-import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
+import type {JobListeningTrigger, JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
 import {
   AgentConfigUnresolvableError,
   InterpolationUnresolvableError,
   InvalidJobRunnerLabelsError,
 } from '#core/errors.js';
+import {
+  assembleJobsContext,
+  assembleWorkflowRunContext,
+  type JobContextInput,
+} from '#core/step-config/assemble-run-context.js';
 import {
   assembleExecutionCreationContext,
   materializeJobExecutionSteps,
@@ -33,6 +46,7 @@ import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
 import {
   bulkUpdateStepStatuses,
   evaluateJobSuccess,
+  getDirectDependencyJobContexts,
   updateJobStatusAtVersion,
 } from './workflow-runs.js';
 
@@ -48,6 +62,26 @@ export interface ActivateJobListenerResult {
   jobStatus: JobStatus;
   jobVersion: number;
   executionCount: number;
+}
+
+type JobActivatedListenerMatcher = Extract<
+  WorkflowsJobActivatedEventDto,
+  {mode: 'listening'}
+>['on'][number];
+
+type SnapshotRoot = 'run' | 'trigger' | 'inputs' | 'job' | 'jobs';
+
+interface MatcherSnapshotPlan {
+  readonly matcher: JobListeningTrigger;
+  readonly roots: ReadonlySet<SnapshotRoot>;
+  readonly jobKeys: ReadonlySet<string>;
+}
+
+interface ListenerSnapshotPlan {
+  readonly on: readonly MatcherSnapshotPlan[];
+  readonly until: readonly MatcherSnapshotPlan[];
+  readonly roots: ReadonlySet<SnapshotRoot>;
+  readonly jobKeys: ReadonlySet<string>;
 }
 
 export async function activateJobListener(
@@ -105,6 +139,17 @@ export async function activateJobListener(
       .returning();
 
     if (listenerRows[0]) {
+      const matchers = {
+        on: target.job.listeningOn ?? [],
+        until: target.job.listeningUntil ?? null,
+      };
+      const snapshotPlan = planListenerFilterSnapshots(matchers);
+      const snapshotContext = await assembleListenerSnapshotContext(tx, {
+        job: toJob(target.job),
+        run: toWorkflowRun(target.run),
+        plan: snapshotPlan,
+      });
+
       await writeWorkflowsOutboxEvent(tx, {
         type: WORKFLOWS_JOB_ACTIVATED,
         payload: {
@@ -112,14 +157,156 @@ export async function activateJobListener(
           workflowRunId: target.run.id,
           workspaceId: target.run.workspaceId,
           mode: 'listening',
-          on: target.job.listeningOn ?? [],
-          until: target.job.listeningUntil ?? null,
+          on: applyFilterSnapshots(snapshotPlan.on, snapshotContext),
+          until:
+            matchers.until === null
+              ? null
+              : applyFilterSnapshots(snapshotPlan.until, snapshotContext),
         },
       });
     }
 
     return {status: 'running', jobStatus: job.status, jobVersion: job.version, executionCount};
   });
+}
+
+function planListenerFilterSnapshots(params: {
+  readonly on: readonly JobListeningTrigger[];
+  readonly until: readonly JobListeningTrigger[] | null;
+}): ListenerSnapshotPlan {
+  const roots = new Set<SnapshotRoot>();
+  const jobKeys = new Set<string>();
+  const on = params.on.map((matcher) => planMatcherFilterSnapshot(matcher, roots, jobKeys));
+  const until = (params.until ?? []).map((matcher) =>
+    planMatcherFilterSnapshot(matcher, roots, jobKeys),
+  );
+  return {on, until, roots, jobKeys};
+}
+
+function planMatcherFilterSnapshot(
+  matcher: JobListeningTrigger,
+  allRoots: Set<SnapshotRoot>,
+  allJobKeys: Set<string>,
+): MatcherSnapshotPlan {
+  if (matcher.filter === undefined) return {matcher, roots: new Set(), jobKeys: new Set()};
+
+  let roots: SnapshotRoot[];
+  try {
+    roots = extractExactContextRoots(matcher.filter)
+      .filter((root) => root !== 'event')
+      .filter(isSnapshotRoot);
+  } catch {
+    return {matcher, roots: new Set(), jobKeys: new Set()};
+  }
+
+  if (roots.length === 0) return {matcher, roots: new Set(), jobKeys: new Set()};
+
+  const jobKeys =
+    roots.includes('jobs') && matcher.filter !== undefined
+      ? new Set(
+          analyzeContextRootKeyAccess(matcher.filter, ['jobs']).references.map(
+            (reference) => reference.key,
+          ),
+        )
+      : new Set<string>();
+  for (const root of roots) allRoots.add(root);
+  for (const key of jobKeys) allJobKeys.add(key);
+  return {matcher, roots: new Set(roots), jobKeys};
+}
+
+function isSnapshotRoot(root: string): root is SnapshotRoot {
+  return (
+    root === 'run' || root === 'trigger' || root === 'inputs' || root === 'job' || root === 'jobs'
+  );
+}
+
+async function assembleListenerSnapshotContext(
+  tx: Tx,
+  params: {
+    readonly job: ReturnType<typeof toJob>;
+    readonly run: ReturnType<typeof toWorkflowRun>;
+    readonly plan: ListenerSnapshotPlan;
+  },
+): Promise<WorkflowExpressionEvaluationContext> {
+  const context: Record<string, unknown> = {};
+  if (params.plan.roots.has('run') || params.plan.roots.has('trigger')) {
+    const runContext = assembleWorkflowRunContext({
+      run: params.run,
+      triggerPayload: params.run.triggerPayload,
+      inputs: params.run.inputs,
+    });
+    if (params.plan.roots.has('run')) context.run = runContext.run;
+    if (params.plan.roots.has('trigger')) context.trigger = runContext.trigger;
+  }
+
+  if (params.plan.roots.has('inputs')) {
+    context.inputs = params.run.inputs;
+  }
+  if (params.plan.roots.has('job')) {
+    context.job = {key: params.job.key};
+  }
+  if (params.plan.roots.has('jobs') && params.plan.jobKeys.size > 0) {
+    const dependencyJobs = await getDirectDependencyJobContexts(params.job.id, tx);
+    const jobsContext = requestedJobsContext(dependencyJobs, params.plan.jobKeys);
+    if (jobsContext !== undefined) context.jobs = jobsContext;
+  }
+
+  return context;
+}
+
+function requestedJobsContext(
+  dependencyJobs: readonly JobContextInput[],
+  jobKeys: ReadonlySet<string>,
+): unknown {
+  const filtered = dependencyJobs.filter(({job}) => jobKeys.has(job.key));
+  if (filtered.length === 0) return undefined;
+
+  return assembleJobsContext(filtered).jobs;
+}
+
+function applyFilterSnapshots(
+  plans: readonly MatcherSnapshotPlan[],
+  context: WorkflowExpressionEvaluationContext,
+): JobActivatedListenerMatcher[] {
+  return plans.map((plan) => {
+    const filterSnapshot = filterSnapshotForPlan(plan, context);
+    if (filterSnapshot === undefined) return plan.matcher;
+
+    return {...plan.matcher, filter_snapshot: filterSnapshot};
+  });
+}
+
+function filterSnapshotForPlan(
+  plan: MatcherSnapshotPlan,
+  context: WorkflowExpressionEvaluationContext,
+): Record<string, unknown> | undefined {
+  const snapshot: Record<string, unknown> = {};
+  for (const root of plan.roots) {
+    if (root === 'jobs') {
+      const jobsSnapshot = jobsSnapshotForPlan(plan, context);
+      if (jobsSnapshot !== undefined) snapshot.jobs = jobsSnapshot;
+      continue;
+    }
+
+    if (root in context) snapshot[root] = context[root];
+  }
+
+  return Object.keys(snapshot).length === 0 ? undefined : snapshot;
+}
+
+function jobsSnapshotForPlan(
+  plan: MatcherSnapshotPlan,
+  context: WorkflowExpressionEvaluationContext,
+): Record<string, unknown> | undefined {
+  if (plan.jobKeys.size === 0 || typeof context.jobs !== 'object' || context.jobs === null) {
+    return undefined;
+  }
+
+  const jobsContext = context.jobs as Record<string, unknown>;
+  const snapshot = Object.fromEntries(
+    [...plan.jobKeys].flatMap((key) => (key in jobsContext ? [[key, jobsContext[key]]] : [])),
+  );
+  return Object.keys(snapshot).length === 0 ? undefined : snapshot;
 }
 
 export type DrainListenerEventsResult =
