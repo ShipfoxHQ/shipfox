@@ -139,17 +139,17 @@ function HarnessRow({
             </>
           ) : null}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              size="sm"
-              variant="transparent"
-              icon="more2Line"
-              aria-label={`Open ${harness.label} harness actions`}
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="top">
-            {!isDefault ? (
+        {!isDefault ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton
+                size="sm"
+                variant="transparent"
+                icon="more2Line"
+                aria-label={`Open ${harness.label} harness actions`}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
               <DropdownMenuItem
                 icon="starLine"
                 disabled={setDefaultHarness.isPending || !isAvailable}
@@ -159,9 +159,9 @@ function HarnessRow({
               >
                 Set as default
               </DropdownMenuItem>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
       {defaultError ? (
         <Alert variant="error" animated={false}>

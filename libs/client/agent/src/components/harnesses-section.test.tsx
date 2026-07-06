@@ -35,7 +35,7 @@ async function openHarnessActions(user: ReturnType<typeof userEvent.setup>, labe
 }
 
 describe('WorkspaceHarnessesSection', () => {
-  test('omits set as default on the default row and enables it on an available non-default row', async () => {
+  test('omits actions on the default row and enables them on an available non-default row', async () => {
     const user = userEvent.setup();
     configureApiClient({
       baseUrl: 'https://api.example.test',
@@ -47,10 +47,8 @@ describe('WorkspaceHarnessesSection', () => {
     expect(await screen.findByText('Harnesses')).toBeVisible();
     expect(await screen.findByText('Default harness')).toHaveClass('sr-only');
 
-    await openHarnessActions(user, 'pi');
-    expect(screen.queryByRole('menuitem', {name: 'Set as default'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Open pi harness actions'})).not.toBeInTheDocument();
 
-    await user.keyboard('{Escape}');
     await openHarnessActions(user, 'Claude');
     expect(screen.getByRole('menuitem', {name: 'Set as default'})).toBeVisible();
     expect(screen.getByRole('menuitem', {name: 'Set as default'})).not.toHaveAttribute(
