@@ -547,8 +547,13 @@ function skippedJobDescription(reason: Job['statusReason']): string {
   switch (reason) {
     case 'dependency_not_completed':
       return 'A required job did not complete, so this job was skipped.';
+    case 'default_gate_rejected':
+      return 'A required job did not succeed, so this job was skipped.';
     case 'condition_false':
+    case 'condition_rejected':
       return 'The job condition did not match, so this job was skipped.';
+    case 'condition_errored':
+      return 'The job condition could not be evaluated, so this job was skipped.';
     case 'user_cancelled':
     case 'run_cancelled':
     case 'timed_out':

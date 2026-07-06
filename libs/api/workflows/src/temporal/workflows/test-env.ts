@@ -2,6 +2,7 @@ import {resolve} from 'node:path';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
+import type {JobActivationDecision} from '#db/index.js';
 import type {
   ActivateJobListenerResult,
   DrainListenerEventsResult,
@@ -40,6 +41,8 @@ export interface TestConfig {
   resolveJobStatusError?: string;
   /** If set, releaseLeaseActivity throws (non-retryable) to prove the workflow still returns */
   releaseLeaseError?: string;
+  /** Scripted job activation decisions keyed by job id; defaults to start */
+  activationDecisions?: Map<string, JobActivationDecision>;
   /** If set, failJobExecutionAsTimedOutActivity throws (for timeout error-path testing) */
   failJobExecutionAsTimedOutError?: string;
   /** Effective status returned by the initial running setRunAttemptStatus call */
@@ -137,6 +140,7 @@ export function dagJob(
   options: {
     mode?: RunDag['jobs'][number]['mode'] | undefined;
     status?: RunDag['jobs'][number]['status'] | undefined;
+    hasActivationCondition?: boolean | undefined;
   } = {},
 ): RunDag['jobs'][number] {
   const mode = options.mode ?? 'one_shot';
@@ -150,6 +154,7 @@ export function dagJob(
     listeningTimeoutMs: null,
     maxExecutions: null,
     onResolve: null,
+    hasActivationCondition: options.hasActivationCondition ?? false,
     dependencies: deps,
     runner: ['ubuntu22'],
     version: 1,
@@ -224,6 +229,17 @@ function createMockActivities() {
       const status =
         params.status === 'running' && cfg.runningJobStatus ? cfg.runningJobStatus : params.status;
       return {newVersion: nextVersion(), status};
+    },
+
+    evaluateJobActivationsActivity: (params: {
+      runAttemptId: string;
+      jobs: readonly {jobId: string; expectedVersion: number}[];
+    }): JobActivationDecision[] => {
+      calls.push({name: 'evaluateJobActivationsActivity', params});
+      return params.jobs.map((job) => {
+        const decision = cfg.activationDecisions?.get(job.jobId);
+        return decision ?? {kind: 'start-job', jobId: job.jobId};
+      });
     },
 
     setJobExecutionStatus: (params: {

@@ -271,7 +271,7 @@ describe('jobExecutionOrchestration', () => {
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-cancelled'});
 
-    expect(result).toMatchObject({status: 'failed'});
+    expect(result).toMatchObject({status: 'cancelled'});
     expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(0);
   });

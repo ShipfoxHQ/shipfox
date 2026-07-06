@@ -1,5 +1,4 @@
 import type {PersistedEvaluationTraceEntry, Step, StepStatus} from '../entities/step.js';
-import type {RuntimeCompletionStatus} from '../workflow-scheduling/runtime-dag.js';
 
 const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set([
   'succeeded',
@@ -12,7 +11,7 @@ export function isTerminal(status: StepStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
-export function deriveCompletion(steps: Step[]): RuntimeCompletionStatus {
+export function deriveCompletion(steps: Step[]): 'succeeded' | 'failed' {
   return steps.some((step) => step.status === 'failed') ? 'failed' : 'succeeded';
 }
 

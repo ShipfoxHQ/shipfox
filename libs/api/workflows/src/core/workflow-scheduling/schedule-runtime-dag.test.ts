@@ -5,8 +5,16 @@ function job(
   key: string,
   dependencies: readonly string[] = [],
   mode: RuntimeDagNode['mode'] = 'one_shot',
+  hasActivationCondition = false,
 ): RuntimeDagNode {
-  return {id: `job-${key}`, key, mode, dependencies, version: 1};
+  return {
+    id: `job-${key}`,
+    key,
+    mode,
+    dependencies,
+    hasActivationCondition,
+    version: 1,
+  };
 }
 
 function completed(
@@ -60,8 +68,23 @@ describe('scheduleRuntimeDag', () => {
     const commands = scheduleRuntimeDag({jobs, completed: completed({build: 'failed'})});
 
     expect(commands).toEqual([
-      {kind: 'skip-job', job: jobs[1]},
+      {kind: 'skip-job', job: jobs[1], statusReason: 'default_gate_rejected'},
       {kind: 'complete-run', status: 'failed'},
+    ]);
+  });
+
+  it.each([
+    'failed',
+    'cancelled',
+    'skipped',
+  ] as const)('skips a no-if dependent when a dependency completed as %s', (status) => {
+    const jobs = [job('build'), job('test', ['build'])];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({build: status})});
+
+    expect(commands).toEqual([
+      {kind: 'skip-job', job: jobs[1], statusReason: 'default_gate_rejected'},
+      {kind: 'complete-run', status: status === 'failed' ? 'failed' : 'succeeded'},
     ]);
   });
 
@@ -71,8 +94,8 @@ describe('scheduleRuntimeDag', () => {
     const commands = scheduleRuntimeDag({jobs, completed: completed({})});
 
     expect(commands).toEqual([
-      {kind: 'skip-job', job: jobs[0]},
-      {kind: 'complete-run', status: 'failed'},
+      {kind: 'skip-job', job: jobs[0], statusReason: 'default_gate_rejected'},
+      {kind: 'complete-run', status: 'succeeded'},
     ]);
   });
 
@@ -89,6 +112,15 @@ describe('scheduleRuntimeDag', () => {
     const commands = scheduleRuntimeDag({
       jobs: [job('build'), job('test', ['build'])],
       completed: completed({build: 'succeeded', test: 'succeeded'}),
+    });
+
+    expect(commands).toEqual([{kind: 'complete-run', status: 'succeeded'}]);
+  });
+
+  it('completes a run as succeeded when all jobs skipped', () => {
+    const commands = scheduleRuntimeDag({
+      jobs: [job('build'), job('test', ['build'])],
+      completed: completed({build: 'skipped', test: 'skipped'}),
     });
 
     expect(commands).toEqual([{kind: 'complete-run', status: 'succeeded'}]);
@@ -145,5 +177,21 @@ describe('scheduleRuntimeDag', () => {
     const commands = scheduleRuntimeDag({jobs, completed: completed({listen: 'succeeded'})});
 
     expect(commands).toEqual([{kind: 'start-job', job: jobs[1]}]);
+  });
+
+  it('evaluates an explicit-if job after all dependencies are terminal', () => {
+    const jobs = [job('build'), job('notify', ['build'], 'one_shot', true)];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({build: 'failed'})});
+
+    expect(commands).toEqual([{kind: 'evaluate-job-activation', jobs: [jobs[1]]}]);
+  });
+
+  it('evaluates an explicit-if root job before starting it', () => {
+    const jobs = [job('notify', [], 'one_shot', true)];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({})});
+
+    expect(commands).toEqual([{kind: 'evaluate-job-activation', jobs}]);
   });
 });

@@ -121,16 +121,33 @@ export function assembleJobsContext(
   jobs: readonly JobContextInput[],
 ): WorkflowExpressionEvaluationContext {
   return {
-    jobs: Object.fromEntries(
-      jobs.map(({job, executions}) => [
-        job.key,
-        {
-          status: job.status,
-          outputs: job.outputs ?? {},
-          executions: assembleExecutionsContext(executions).executions,
-        },
-      ]),
-    ),
+    jobs: Object.fromEntries(jobs.map((input) => [input.job.key, assembleJobContext(input)])),
+  };
+}
+
+export interface AssembleJobActivationContextParams extends AssembleWorkflowRunContextParams {
+  readonly jobs: readonly JobContextInput[];
+}
+
+export function assembleJobActivationContext(
+  params: AssembleJobActivationContextParams,
+): WorkflowEvaluationContext {
+  return {
+    site: 'job-activation',
+    values: {
+      ...assembleWorkflowRunContext(params),
+      ...assembleJobsContext(params.jobs),
+      needs: params.jobs.map(assembleJobContext),
+    },
+  };
+}
+
+function assembleJobContext({job, executions}: JobContextInput): Record<string, unknown> {
+  return {
+    key: job.key,
+    status: job.status,
+    outputs: job.outputs ?? {},
+    executions: assembleExecutionsContext(executions).executions,
   };
 }
 

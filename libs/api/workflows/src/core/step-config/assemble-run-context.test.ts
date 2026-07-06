@@ -5,6 +5,7 @@ import {
   assembleExecutionCreationContext,
   assembleExecutionResolutionContext,
   assembleGateContext,
+  assembleJobActivationContext,
   assembleJobResolutionContext,
   assembleStepDispatchContext,
   assembleWorkflowRunContext,
@@ -210,6 +211,112 @@ describe('assembleExecutionCreationContext', () => {
           ],
           outputs: {},
         },
+      },
+    });
+  });
+});
+
+describe('assembleJobActivationContext', () => {
+  const run = {
+    id: 'run-1',
+    name: 'Build',
+    definitionId: 'def-1',
+    projectId: 'proj-1',
+    workspaceId: 'workspace-1',
+    createdAt: new Date('2026-06-30T12:00:00.000Z'),
+  };
+
+  it('wraps run values, named dependency jobs, and ordered needs', () => {
+    const buildExecution = jobExecution({
+      id: 'exec-build',
+      jobId: 'job-build',
+      sequence: 1,
+      name: 'Build #1',
+      status: 'succeeded',
+      outputs: {sha: 'abc123'},
+    });
+    const context = assembleJobActivationContext({
+      run,
+      triggerPayload: {
+        source: 'github',
+        event: 'push',
+        deliveryId: 'delivery-1',
+        data: {ref: 'refs/heads/main'},
+      },
+      inputs: {deploy: true},
+      jobs: [
+        {
+          job: {key: 'build', status: 'succeeded', outputs: {image: 'app:123'}},
+          executions: [buildExecution],
+        },
+        {
+          job: {key: 'lint', status: 'skipped', outputs: null},
+          executions: [],
+        },
+      ],
+    });
+
+    expect(context).toEqual({
+      site: 'job-activation',
+      values: {
+        ...assembleWorkflowRunContext({
+          run,
+          triggerPayload: {
+            source: 'github',
+            event: 'push',
+            deliveryId: 'delivery-1',
+            data: {ref: 'refs/heads/main'},
+          },
+          inputs: {deploy: true},
+        }),
+        jobs: {
+          build: {
+            key: 'build',
+            status: 'succeeded',
+            outputs: {image: 'app:123'},
+            executions: [
+              {
+                index: 0,
+                name: 'Build #1',
+                status: 'succeeded',
+                started_at: date,
+                finished_at: null,
+                events: buildExecution.triggerEvents,
+                outputs: {sha: 'abc123'},
+              },
+            ],
+          },
+          lint: {
+            key: 'lint',
+            status: 'skipped',
+            outputs: {},
+            executions: [],
+          },
+        },
+        needs: [
+          {
+            key: 'build',
+            status: 'succeeded',
+            outputs: {image: 'app:123'},
+            executions: [
+              {
+                index: 0,
+                name: 'Build #1',
+                status: 'succeeded',
+                started_at: date,
+                finished_at: null,
+                events: buildExecution.triggerEvents,
+                outputs: {sha: 'abc123'},
+              },
+            ],
+          },
+          {
+            key: 'lint',
+            status: 'skipped',
+            outputs: {},
+            executions: [],
+          },
+        ],
       },
     });
   });

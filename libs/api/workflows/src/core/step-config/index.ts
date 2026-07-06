@@ -1,11 +1,13 @@
 export {
   type AssembleExecutionCreationContextParams,
+  type AssembleJobActivationContextParams,
   type AssembleWorkflowRunContextParams,
   assembleCreationContext,
   assembleExecutionCreationContext,
   assembleExecutionResolutionContext,
   assembleExecutionsContext,
   assembleGateContext,
+  assembleJobActivationContext,
   assembleJobResolutionContext,
   assembleStepDispatchContext,
   assembleWorkflowRunContext,

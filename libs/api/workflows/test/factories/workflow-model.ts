@@ -1,5 +1,6 @@
 import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions';
 import {
+  createWorkflowExpression,
   parseWorkflowTemplate,
   planInterpolationField,
   type ResolvedFieldSegment,
@@ -40,6 +41,7 @@ interface TestWorkflowJob {
   readonly runner?: string | readonly string[] | undefined;
   readonly runnerTemplates?: readonly string[] | undefined;
   readonly checkout?: WorkflowModel['jobs'][number]['checkout'] | undefined;
+  readonly if?: string | undefined;
   readonly success?: string | undefined;
   readonly outputs?: Readonly<Record<string, string>> | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
@@ -74,6 +76,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
             ),
           }),
       checkout: job.checkout ?? DEFAULT_JOB_CHECKOUT,
+      ...(job.if === undefined ? {} : {if: workflowExpression(job.if)}),
       ...(job.success === undefined ? {} : {success: job.success}),
       ...(job.outputs === undefined ? {} : {outputs: outputTemplates(job.outputs)}),
       ...(job.name === undefined
@@ -99,6 +102,13 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       job.dependencies.map((dependency) => ({from: dependency, to: job.id})),
     ),
   };
+}
+
+function workflowExpression(source: string) {
+  return createWorkflowExpression({
+    source,
+    check: {mode: 'syntax'},
+  });
 }
 
 function outputTemplates(outputs: Readonly<Record<string, string>>) {

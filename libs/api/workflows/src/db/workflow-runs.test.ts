@@ -34,6 +34,7 @@ import {
   cancelWorkflowRun,
   createRerunWorkflowRun,
   createWorkflowRun,
+  evaluateJobActivations,
   evaluateJobSuccess,
   getFirstJobExecutionByJobId,
   getJobExecutionsByJobId,
@@ -108,6 +109,23 @@ function createTestRun(scope: {workspaceId: string; projectId: string; definitio
       userId: crypto.randomUUID(),
     },
   });
+}
+
+async function workflowRunAttemptId(workflowRunId: string): Promise<string> {
+  const [attempt] = await db()
+    .select()
+    .from(workflowRunAttempts)
+    .where(eq(workflowRunAttempts.workflowRunId, workflowRunId))
+    .limit(1);
+  if (!attempt) throw new Error(`Run attempt not found for run ${workflowRunId}`);
+  return attempt.id;
+}
+
+async function jobByKey(workflowRunId: string, key: string) {
+  const runJobs = await getJobsByWorkflowRunId(workflowRunId);
+  const job = runJobs.find((item) => item.key === key);
+  if (!job) throw new Error(`Job not found: ${key}`);
+  return job;
 }
 
 async function jobTerminatedEvents(jobId: string) {
@@ -203,6 +221,184 @@ async function stepAttemptTerminatedEvents(jobId: string) {
     );
   return rows.map((row) => row.payload);
 }
+
+describe('evaluateJobActivations', () => {
+  const scope = {
+    workspaceId: crypto.randomUUID(),
+    projectId: crypto.randomUUID(),
+    definitionId: crypto.randomUUID(),
+  };
+
+  it('starts a failure-handling job when its dependency failed', async () => {
+    const run = await createWorkflowRun({
+      ...scope,
+      name: 'failure handler',
+      model: buildModel({
+        jobs: {
+          build: {steps: [{run: 'npm run build'}]},
+          notify: {
+            needs: 'build',
+            if: 'jobs.build.status == "failed"',
+            steps: [{run: './notify.sh'}],
+          },
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const build = await jobByKey(run.id, 'build');
+    const notify = await jobByKey(run.id, 'notify');
+    await updateJobStatus({
+      jobId: build.id,
+      status: 'failed',
+      expectedVersion: build.version,
+      statusReason: 'step_failed',
+    });
+
+    const result = await evaluateJobActivations({
+      runAttemptId: await workflowRunAttemptId(run.id),
+      jobs: [{jobId: notify.id, expectedVersion: notify.version}],
+    });
+
+    expect(result).toEqual([{kind: 'start-job', jobId: notify.id}]);
+  });
+
+  it('skips a failure-handling job when its dependency succeeded', async () => {
+    const run = await createWorkflowRun({
+      ...scope,
+      name: 'handler skipped',
+      model: buildModel({
+        jobs: {
+          build: {steps: [{run: 'npm run build'}]},
+          notify: {
+            needs: 'build',
+            if: 'jobs.build.status == "failed"',
+            steps: [{run: './notify.sh'}],
+          },
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const build = await jobByKey(run.id, 'build');
+    const notify = await jobByKey(run.id, 'notify');
+    await updateJobStatus({
+      jobId: build.id,
+      status: 'succeeded',
+      expectedVersion: build.version,
+    });
+
+    const result = await evaluateJobActivations({
+      runAttemptId: await workflowRunAttemptId(run.id),
+      jobs: [{jobId: notify.id, expectedVersion: notify.version}],
+    });
+
+    expect(result).toEqual([
+      {kind: 'terminal-job', jobId: notify.id, status: 'skipped', jobVersion: expect.any(Number)},
+    ]);
+    const skipped = await jobByKey(run.id, 'notify');
+    expect(skipped.status).toBe('skipped');
+    expect(skipped.statusReason).toBe('condition_rejected');
+  });
+
+  it('evaluates fan-in needs aggregation and dependency outputs from persisted state', async () => {
+    const run = await createWorkflowRun({
+      ...scope,
+      name: 'fan in',
+      model: buildModel({
+        jobs: {
+          build: {steps: [{run: 'npm run build'}]},
+          lint: {steps: [{run: 'npm run lint'}]},
+          notify: {
+            needs: ['build', 'lint'],
+            if: 'needs.exists(n, n.status == "failed") && jobs.build.outputs.sha == "abc123"',
+            steps: [{run: './notify.sh'}],
+          },
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const build = await jobByKey(run.id, 'build');
+    const lint = await jobByKey(run.id, 'lint');
+    const notify = await jobByKey(run.id, 'notify');
+    await updateJobStatus({
+      jobId: build.id,
+      status: 'failed',
+      expectedVersion: build.version,
+      statusReason: 'step_failed',
+    });
+    await db()
+      .update(jobs)
+      .set({outputs: {sha: 'abc123'}})
+      .where(eq(jobs.id, build.id));
+    await updateJobStatus({
+      jobId: lint.id,
+      status: 'succeeded',
+      expectedVersion: lint.version,
+    });
+
+    const result = await evaluateJobActivations({
+      runAttemptId: await workflowRunAttemptId(run.id),
+      jobs: [{jobId: notify.id, expectedVersion: notify.version}],
+    });
+
+    expect(result).toEqual([{kind: 'start-job', jobId: notify.id}]);
+  });
+
+  it('records condition_errored when predicate evaluation fails closed', async () => {
+    const run = await createWorkflowRun({
+      ...scope,
+      name: 'broken condition',
+      model: buildModel({
+        jobs: {
+          build: {steps: [{run: 'npm run build'}]},
+          notify: {
+            needs: 'build',
+            if: 'jobs.build.outputs.sha.missing == "abc123"',
+            steps: [{run: './notify.sh'}],
+          },
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const build = await jobByKey(run.id, 'build');
+    const notify = await jobByKey(run.id, 'notify');
+    await updateJobStatus({
+      jobId: build.id,
+      status: 'succeeded',
+      expectedVersion: build.version,
+    });
+
+    const result = await evaluateJobActivations({
+      runAttemptId: await workflowRunAttemptId(run.id),
+      jobs: [{jobId: notify.id, expectedVersion: notify.version}],
+    });
+
+    expect(result).toEqual([
+      {kind: 'terminal-job', jobId: notify.id, status: 'skipped', jobVersion: expect.any(Number)},
+    ]);
+    const skipped = await jobByKey(run.id, 'notify');
+    expect(skipped.statusReason).toBe('condition_errored');
+  });
+});
 
 describe('workflow run queries', () => {
   let workspaceId: string;

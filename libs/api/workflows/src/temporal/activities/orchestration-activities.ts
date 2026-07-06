@@ -12,12 +12,15 @@ import {
   activateJobListener,
   bulkUpdateStepStatuses,
   drainListenerEventsIntoExecution,
+  type EvaluateJobActivationsParams,
+  evaluateJobActivations,
   failJobExecutionAsTimedOut,
   failWorkflowRunAsTimedOut,
   getJobExecutionsByWorkflowRunAttemptId,
   getJobsByWorkflowRunAttemptId,
   getWorkflowRunAttemptById,
   getWorkflowRunByAttemptId,
+  type JobActivationDecision,
   peekListenerBuffer,
   resolveJobExecutionAfterLeaseExpiry,
   resolveJobListener,
@@ -82,6 +85,7 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
     runTimeoutMs: run.timeoutMs,
     jobs: jobs.flatMap((job) => {
       const jobExecution = firstJobExecutions.get(job.id);
+      const modelJob = attempt.model?.jobs.find((item) => item.key === job.key);
       if (!jobExecution && job.mode !== 'listening') return [];
       return [
         {
@@ -100,12 +104,19 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
           batchMaxSize: job.batchMaxSize,
           batchMaxWaitMs: job.batchMaxWaitMs,
           dependencies: job.dependencies,
+          hasActivationCondition: modelJob?.if !== undefined,
           runner: jobExecution?.runner ?? job.runner ?? [],
           version: job.version,
         },
       ];
     }),
   };
+}
+
+export async function evaluateJobActivationsActivity(
+  params: EvaluateJobActivationsParams,
+): Promise<JobActivationDecision[]> {
+  return await evaluateJobActivations(params);
 }
 
 export async function setRunAttemptStatus(params: {

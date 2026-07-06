@@ -187,7 +187,7 @@ async function resolveFinishedJobExecution({
 }): Promise<JobExecutionOrchestrationResult> {
   await setJobExecutionStatus({
     jobExecutionId: input.jobExecutionId,
-    status,
+    status: jobExecutionStatusForRuntimeStatus(status),
     version: runningVersion,
     statusReason: status === 'failed' ? 'step_failed' : null,
   });
@@ -210,6 +210,13 @@ async function resolveFinishedJobExecution({
   });
   await releaseLeaseBestEffort(input.jobExecutionId);
   return resolved;
+}
+
+function jobExecutionStatusForRuntimeStatus(
+  status: RuntimeCompletionStatus,
+): 'succeeded' | 'failed' | 'cancelled' {
+  if (status === 'succeeded' || status === 'failed' || status === 'cancelled') return status;
+  throw new Error(`Job execution cannot be marked ${status}`);
 }
 
 async function resolveLeaseExpiredJobExecution({
