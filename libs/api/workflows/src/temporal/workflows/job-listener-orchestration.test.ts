@@ -5,6 +5,7 @@ import {
   LISTENER_EVENTS_AVAILABLE_SIGNAL,
   LISTENER_RESOLVE_SIGNAL,
 } from '../constants.js';
+import type {ListenerContinuationState} from './job-listener-orchestration.js';
 import {
   callsNamed,
   listenerFiringOutcomeCalls,
@@ -43,6 +44,7 @@ interface ListenerInputOverrides {
   batchDebounceMs?: number | null;
   batchMaxSize?: number | null;
   batchMaxWaitMs?: number | null;
+  continuation?: ListenerContinuationState;
 }
 
 function listenerInput(overrides: ListenerInputOverrides = {}) {
@@ -67,6 +69,7 @@ function listenerInput(overrides: ListenerInputOverrides = {}) {
       : {batchDebounceMs: overrides.batchDebounceMs}),
     ...(overrides.batchMaxSize === undefined ? {} : {batchMaxSize: overrides.batchMaxSize}),
     ...(overrides.batchMaxWaitMs === undefined ? {} : {batchMaxWaitMs: overrides.batchMaxWaitMs}),
+    ...(overrides.continuation === undefined ? {} : {continuation: overrides.continuation}),
   };
 }
 
@@ -130,6 +133,28 @@ describe('jobListenerOrchestration', () => {
       expect(result).toEqual({status: expected, jobVersion: 7});
       expect(callsNamed('drainListenerEventsActivity')).toHaveLength(0);
       expect(resolveJobListenerCalls()).toHaveLength(0);
+    });
+
+    test('continued listeners skip activation and resume at the carried sequence', async () => {
+      setCfg({
+        dag: makeDag([]),
+        jobResults: new Map(),
+        drainResults: [firingDrain(7, 'pending')],
+        listenerResolved: {status: 'succeeded', jobVersion: 9},
+      });
+
+      const result = await runListener({
+        maxExecutions: 7,
+        continuation: {nextSequence: 7},
+      });
+
+      expect(callsNamed('activateJobListenerActivity')).toHaveLength(0);
+      expect(callsNamed('drainListenerEventsActivity').map((c) => c.params)).toEqual([
+        {jobId, expectedSequence: 7},
+      ]);
+      expect(listenerFiringOutcomeCalls().map((c) => c.params.outcome)).toEqual(['succeeded']);
+      expect(resolveJobListenerCalls().map((c) => c.params.reason)).toEqual(['max_executions']);
+      expect(result).toEqual({status: 'succeeded', jobVersion: 9});
     });
   });
 
