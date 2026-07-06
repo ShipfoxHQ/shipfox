@@ -1,4 +1,5 @@
 import {logger} from '@shipfox/node-opentelemetry';
+import type {JobListenerSubscription} from '#core/entities/job-listener-subscription.js';
 import type {TriggerEventOrigin} from '#core/entities/received-event.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {
@@ -9,6 +10,9 @@ import {
   markReceivedEventRouted,
   upsertDispatchErrorDecision,
   upsertFilterErrorDecision,
+  upsertListenerDispatchErrorDecision,
+  upsertListenerFilterErrorDecision,
+  upsertListenerTriggeredDecision,
   upsertTriggeredDecision,
 } from '#db/event-history.js';
 
@@ -35,6 +39,9 @@ export interface TriggerHistoryRecorder {
   triggered(subscription: TriggerSubscription, run: TriggerRun): Promise<void>;
   filterErrored(subscription: TriggerSubscription, reason: string): Promise<void>;
   dispatchErrored(subscription: TriggerSubscription, reason: string): Promise<void>;
+  listenerTriggered(subscription: JobListenerSubscription): Promise<void>;
+  listenerFilterErrored(subscription: JobListenerSubscription, reason: string): Promise<void>;
+  listenerDispatchErrored(subscription: JobListenerSubscription, reason: string): Promise<void>;
   discarded(): Promise<void>;
   routed(matchedCount: number): Promise<void>;
   failed(matchedCount: number): Promise<void>;
@@ -90,6 +97,24 @@ export async function beginTriggerHistory(
       record(
         'dispatch-error-decision',
         (id) => upsertDispatchErrorDecision({receivedEventId: id, subscription, reason}),
+        subscription.id,
+      ),
+    listenerTriggered: (subscription) =>
+      record(
+        'listener-triggered-decision',
+        (id) => upsertListenerTriggeredDecision({receivedEventId: id, subscription}),
+        subscription.id,
+      ),
+    listenerFilterErrored: (subscription, reason) =>
+      record(
+        'listener-filter-error-decision',
+        (id) => upsertListenerFilterErrorDecision({receivedEventId: id, subscription, reason}),
+        subscription.id,
+      ),
+    listenerDispatchErrored: (subscription, reason) =>
+      record(
+        'listener-dispatch-error-decision',
+        (id) => upsertListenerDispatchErrorDecision({receivedEventId: id, subscription, reason}),
         subscription.id,
       ),
     discarded: () => record('discard-event', (id) => markReceivedEventDiscarded(id)),

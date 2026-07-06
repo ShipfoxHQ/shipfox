@@ -60,7 +60,7 @@ export async function dispatchIntegrationEvent(
   });
 
   let triggeredCount = 0;
-  let matchedCount = 0;
+  let triggerEngagedCount = 0;
   let sawTransientError = false;
   let firstTransientError: unknown;
 
@@ -73,11 +73,11 @@ export async function dispatchIntegrationEvent(
     });
     if (filterResult.kind === 'filtered') continue;
     if (filterResult.kind === 'filter-error') {
-      matchedCount += 1;
+      triggerEngagedCount += 1;
       await history.filterErrored(subscription, filterResult.reason);
       continue;
     }
-    matchedCount += 1;
+    triggerEngagedCount += 1;
 
     try {
       const run = await runWorkflow({
@@ -109,6 +109,7 @@ export async function dispatchIntegrationEvent(
   }
 
   const listenerResult = await routeEventToJobListeners({
+    history,
     eventRef: params.eventRef,
     workspaceId: params.workspaceId,
     provider: params.provider,
@@ -124,30 +125,26 @@ export async function dispatchIntegrationEvent(
     firstTransientError = listenerResult.transientError;
   }
 
+  const totalMatchedCount = triggerEngagedCount + listenerResult.engagedCount;
+
   if (sawTransientError) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'failed'});
-    await history.failed(matchedCount);
+    await history.failed(totalMatchedCount);
     throw firstTransientError;
   }
 
   if (triggeredCount > 0 || listenerResult.acceptedJobCount > 0) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'routed'});
-    await history.routed(matchedCount);
+    await history.routed(totalMatchedCount);
     return;
   }
 
-  if (subscriptions.length === 0) {
-    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
-    await history.discarded();
-    return;
-  }
-
-  if (matchedCount === 0) {
+  if (totalMatchedCount === 0) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
     await history.discarded();
     return;
   }
 
   eventOutcomeCount.add(1, {provider: params.provider, outcome: 'errored'});
-  await history.allErrored(matchedCount);
+  await history.allErrored(totalMatchedCount);
 }

@@ -1,4 +1,5 @@
 import {eq} from 'drizzle-orm';
+import type {JobListenerSubscription} from '#core/entities/job-listener-subscription.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {db} from './db.js';
 import {
@@ -10,6 +11,9 @@ import {
   markReceivedEventRouted,
   upsertDispatchErrorDecision,
   upsertFilterErrorDecision,
+  upsertListenerDispatchErrorDecision,
+  upsertListenerFilterErrorDecision,
+  upsertListenerTriggeredDecision,
   upsertTriggeredDecision,
 } from './event-history.js';
 import {triggersDecisions} from './schema/decisions.js';
@@ -46,6 +50,24 @@ function buildSubscription(overrides: Partial<TriggerSubscription> = {}): Trigge
     config: {},
     createdAt: new Date(),
     updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+function buildListenerSubscription(
+  overrides: Partial<JobListenerSubscription> = {},
+): JobListenerSubscription {
+  return {
+    id: crypto.randomUUID(),
+    workspaceId: crypto.randomUUID(),
+    workflowRunId: crypto.randomUUID(),
+    jobId: crypto.randomUUID(),
+    kind: 'on',
+    matcherOrdinal: 0,
+    source: 'github',
+    event: 'push',
+    config: {},
+    createdAt: new Date(),
     ...overrides,
   };
 }
@@ -247,6 +269,7 @@ describe('decision upserts', () => {
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.subscriptionKind).toBe('trigger');
     expect(rows[0]?.decision).toBe('triggered');
     expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.runId).toBe(run.id);
@@ -264,6 +287,7 @@ describe('decision upserts', () => {
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.subscriptionKind).toBe('trigger');
     expect(rows[0]?.decision).toBe('triggered');
     expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.runId).toBe(run.id);
@@ -285,6 +309,7 @@ describe('decision upserts', () => {
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.subscriptionKind).toBe('trigger');
     expect(rows[0]?.decision).toBe('triggered');
     expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.runId).toBe(run.id);
@@ -305,6 +330,7 @@ describe('decision upserts', () => {
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.subscriptionKind).toBe('trigger');
     expect(rows[0]?.decision).toBe('dispatch-error');
     expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.reason).toBe('still broken');
@@ -322,7 +348,74 @@ describe('decision upserts', () => {
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.subscriptionKind).toBe('trigger');
     expect(rows[0]?.decision).toBe('filter-error');
     expect(rows[0]?.reason).toBe('Trigger filter evaluation failed');
+  });
+
+  it('records a listener triggered decision with matcher identity', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const subscription = buildListenerSubscription({kind: 'until', matcherOrdinal: 2});
+
+    await upsertListenerTriggeredDecision({receivedEventId, subscription});
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      subscriptionKind: 'listener',
+      subscriptionId: subscription.id,
+      subscriptionName: 'listener until[2] github/push',
+      workflowDefinitionId: null,
+      projectId: null,
+      workflowRunId: subscription.workflowRunId,
+      jobId: subscription.jobId,
+      matcherKind: 'until',
+      matcherOrdinal: 2,
+      decision: 'triggered',
+      reason: null,
+    });
+  });
+
+  it('flips a listener dispatch-error decision to triggered on a successful retry', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const subscription = buildListenerSubscription();
+
+    await upsertListenerDispatchErrorDecision({receivedEventId, subscription, reason: 'boom'});
+    await upsertListenerTriggeredDecision({receivedEventId, subscription});
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.decision).toBe('triggered');
+    expect(rows[0]?.reason).toBeNull();
+  });
+
+  it('never downgrades an existing listener triggered decision to dispatch-error', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const subscription = buildListenerSubscription();
+
+    await upsertListenerTriggeredDecision({receivedEventId, subscription});
+    await upsertListenerDispatchErrorDecision({receivedEventId, subscription, reason: 'boom'});
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.decision).toBe('triggered');
+    expect(rows[0]?.reason).toBeNull();
+  });
+
+  it('records a listener filter-error decision', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const subscription = buildListenerSubscription();
+
+    await upsertListenerFilterErrorDecision({
+      receivedEventId,
+      subscription,
+      reason: 'Listener filter evaluation failed',
+    });
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.subscriptionKind).toBe('listener');
+    expect(rows[0]?.decision).toBe('filter-error');
+    expect(rows[0]?.reason).toBe('Listener filter evaluation failed');
   });
 });

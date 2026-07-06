@@ -1,4 +1,5 @@
 import {eq} from 'drizzle-orm';
+import {getTableConfig} from 'drizzle-orm/pg-core';
 import {db} from '../db.js';
 import {
   type TriggerDecisionDb,
@@ -13,10 +14,15 @@ describe('toTriggerDecision', () => {
     const row: TriggerDecisionDb = {
       id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
       receivedEventId: '019e98ab-b90f-7265-b13c-8b441c991381',
+      subscriptionKind: 'trigger',
       subscriptionId: '019e98ab-b90f-7265-b13c-8b441c991382',
       subscriptionName: 'Deploy production',
       workflowDefinitionId: '019e98ab-b90f-7265-b13c-8b441c991383',
       projectId: '019e98ab-b90f-7265-b13c-8b441c991384',
+      workflowRunId: null,
+      jobId: null,
+      matcherKind: null,
+      matcherOrdinal: null,
       decision: 'triggered',
       runId: '019e98ab-b90f-7265-b13c-8b441c991385',
       runName: 'Build and test',
@@ -29,10 +35,15 @@ describe('toTriggerDecision', () => {
     expect(result).toEqual({
       id: row.id,
       receivedEventId: row.receivedEventId,
+      subscriptionKind: 'trigger',
       subscriptionId: row.subscriptionId,
       subscriptionName: 'Deploy production',
       workflowDefinitionId: row.workflowDefinitionId,
       projectId: row.projectId,
+      workflowRunId: null,
+      jobId: null,
+      matcherKind: null,
+      matcherOrdinal: null,
       decision: 'triggered',
       runId: row.runId,
       runName: 'Build and test',
@@ -45,10 +56,15 @@ describe('toTriggerDecision', () => {
     const row: TriggerDecisionDb = {
       id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
       receivedEventId: '019e98ab-b90f-7265-b13c-8b441c991381',
+      subscriptionKind: 'trigger',
       subscriptionId: '019e98ab-b90f-7265-b13c-8b441c991382',
       subscriptionName: 'Deploy production',
       workflowDefinitionId: '019e98ab-b90f-7265-b13c-8b441c991383',
       projectId: '019e98ab-b90f-7265-b13c-8b441c991384',
+      workflowRunId: null,
+      jobId: null,
+      matcherKind: null,
+      matcherOrdinal: null,
       decision: 'dispatch-error',
       runId: null,
       runName: null,
@@ -68,10 +84,15 @@ describe('toTriggerDecision', () => {
     const row = {
       id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
       receivedEventId: '019e98ab-b90f-7265-b13c-8b441c991381',
+      subscriptionKind: 'trigger',
       subscriptionId: '019e98ab-b90f-7265-b13c-8b441c991382',
       subscriptionName: 'Deploy production',
       workflowDefinitionId: '019e98ab-b90f-7265-b13c-8b441c991383',
       projectId: '019e98ab-b90f-7265-b13c-8b441c991384',
+      workflowRunId: null,
+      jobId: null,
+      matcherKind: null,
+      matcherOrdinal: null,
       decision: 'errored',
       runId: null,
       runName: null,
@@ -106,6 +127,7 @@ describe('triggers_decisions schema', () => {
     const receivedEventId = await insertEvent();
     const values: TriggerDecisionInsertDb = {
       receivedEventId,
+      subscriptionKind: 'trigger',
       subscriptionId: crypto.randomUUID(),
       subscriptionName: 'Deploy production',
       workflowDefinitionId: crypto.randomUUID(),
@@ -131,6 +153,7 @@ describe('triggers_decisions schema', () => {
     expect(row.reason).toBeNull();
     expect(result).toMatchObject({
       receivedEventId,
+      subscriptionKind: 'trigger',
       subscriptionId: values.subscriptionId,
       subscriptionName: 'Deploy production',
       workflowDefinitionId: values.workflowDefinitionId,
@@ -143,6 +166,7 @@ describe('triggers_decisions schema', () => {
     const receivedEventId = await insertEvent();
     await db().insert(triggersDecisions).values({
       receivedEventId,
+      subscriptionKind: 'trigger',
       subscriptionId: crypto.randomUUID(),
       subscriptionName: 'Deploy production',
       workflowDefinitionId: crypto.randomUUID(),
@@ -159,10 +183,11 @@ describe('triggers_decisions schema', () => {
     expect(rows).toHaveLength(0);
   });
 
-  test('rejects a duplicate (received_event_id, subscription_id)', async () => {
+  test('rejects a duplicate (received_event_id, subscription_kind, subscription_id)', async () => {
     const receivedEventId = await insertEvent();
     const values: TriggerDecisionInsertDb = {
       receivedEventId,
+      subscriptionKind: 'trigger',
       subscriptionId: crypto.randomUUID(),
       subscriptionName: 'Deploy production',
       workflowDefinitionId: crypto.randomUUID(),
@@ -174,5 +199,81 @@ describe('triggers_decisions schema', () => {
     const duplicate = db().insert(triggersDecisions).values(values);
 
     await expect(duplicate).rejects.toThrow();
+  });
+
+  test('allows trigger and listener decisions with the same subscription id', async () => {
+    const receivedEventId = await insertEvent();
+    const subscriptionId = crypto.randomUUID();
+    await db().insert(triggersDecisions).values({
+      receivedEventId,
+      subscriptionKind: 'trigger',
+      subscriptionId,
+      subscriptionName: 'Deploy production',
+      workflowDefinitionId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      decision: 'triggered',
+    });
+
+    await db().insert(triggersDecisions).values({
+      receivedEventId,
+      subscriptionKind: 'listener',
+      subscriptionId,
+      subscriptionName: 'listener on[0] github/push',
+      workflowRunId: crypto.randomUUID(),
+      jobId: crypto.randomUUID(),
+      matcherKind: 'on',
+      matcherOrdinal: 0,
+      decision: 'triggered',
+    });
+
+    const rows = await db()
+      .select()
+      .from(triggersDecisions)
+      .where(eq(triggersDecisions.receivedEventId, receivedEventId));
+    expect(rows).toHaveLength(2);
+  });
+
+  test('declares a database check for valid subscription kinds', () => {
+    const subscriptionKindCheck = getTableConfig(triggersDecisions).checks.find(
+      (check) => check.name === 'triggers_decisions_subscription_kind_ck',
+    );
+
+    expect(subscriptionKindCheck).toBeDefined();
+  });
+
+  test('maps listener identity fields', async () => {
+    const receivedEventId = await insertEvent();
+    const workflowRunId = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    const [row] = await db()
+      .insert(triggersDecisions)
+      .values({
+        receivedEventId,
+        subscriptionKind: 'listener',
+        subscriptionId: crypto.randomUUID(),
+        subscriptionName: 'listener until[1] github/pull_request.closed',
+        workflowRunId,
+        jobId,
+        matcherKind: 'until',
+        matcherOrdinal: 1,
+        decision: 'dispatch-error',
+        reason: 'workflow db down',
+      })
+      .returning();
+    if (!row) throw new Error('insert returned no rows');
+
+    const result = toTriggerDecision(row);
+
+    expect(result).toMatchObject({
+      subscriptionKind: 'listener',
+      workflowDefinitionId: null,
+      projectId: null,
+      workflowRunId,
+      jobId,
+      matcherKind: 'until',
+      matcherOrdinal: 1,
+      decision: 'dispatch-error',
+      reason: 'workflow db down',
+    });
   });
 });

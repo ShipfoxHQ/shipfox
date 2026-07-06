@@ -13,15 +13,21 @@ CREATE TABLE "triggers_cron_schedules" (
 CREATE TABLE "triggers_decisions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"received_event_id" uuid NOT NULL,
+	"subscription_kind" text NOT NULL,
 	"subscription_id" uuid NOT NULL,
 	"subscription_name" text NOT NULL,
-	"workflow_definition_id" uuid NOT NULL,
-	"project_id" uuid NOT NULL,
+	"workflow_definition_id" uuid,
+	"project_id" uuid,
+	"workflow_run_id" uuid,
+	"job_id" uuid,
+	"matcher_kind" "triggers_job_listener_matcher_kind",
+	"matcher_ordinal" integer,
 	"decision" text NOT NULL,
 	"run_id" uuid,
 	"run_name" text,
 	"reason" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "triggers_decisions_subscription_kind_ck" CHECK ("triggers_decisions"."subscription_kind" IN ('trigger', 'listener'))
 );
 --> statement-breakpoint
 CREATE TABLE "triggers_job_listener_subscriptions" (
@@ -86,7 +92,7 @@ CREATE TABLE "triggers_subscriptions" (
 ALTER TABLE "triggers_cron_schedules" ADD CONSTRAINT "triggers_cron_schedules_subscription_id_triggers_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."triggers_subscriptions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "triggers_decisions" ADD CONSTRAINT "triggers_decisions_received_event_id_triggers_received_events_id_fk" FOREIGN KEY ("received_event_id") REFERENCES "public"."triggers_received_events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "triggers_cron_schedules_next_fire_at_idx" ON "triggers_cron_schedules" USING btree ("next_fire_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "triggers_decisions_event_subscription_unique" ON "triggers_decisions" USING btree ("received_event_id","subscription_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "triggers_decisions_event_subscription_unique" ON "triggers_decisions" USING btree ("received_event_id","subscription_kind","subscription_id");--> statement-breakpoint
 CREATE INDEX "triggers_decisions_run_idx" ON "triggers_decisions" USING btree ("run_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "triggers_job_listener_subscriptions_job_kind_ordinal_unique" ON "triggers_job_listener_subscriptions" USING btree ("job_id","kind","matcher_ordinal");--> statement-breakpoint
 CREATE INDEX "triggers_job_listener_subscriptions_match_idx" ON "triggers_job_listener_subscriptions" USING btree ("workspace_id","source","event");--> statement-breakpoint

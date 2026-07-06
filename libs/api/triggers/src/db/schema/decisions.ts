@@ -1,8 +1,12 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
+import {check, index, integer, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import {type TriggerDecision, triggerDecisionOutcomes} from '#core/entities/decision.js';
 import {pgTable} from './common.js';
+import {jobListenerMatcherKindEnum} from './job-listener-subscriptions.js';
 import {triggersReceivedEvents} from './received-events.js';
+
+const triggerDecisionSubscriptionKinds = ['trigger', 'listener'] as const;
 
 export const triggersDecisions = pgTable(
   'decisions',
@@ -11,10 +15,15 @@ export const triggersDecisions = pgTable(
     receivedEventId: uuid('received_event_id')
       .notNull()
       .references(() => triggersReceivedEvents.id, {onDelete: 'cascade'}),
+    subscriptionKind: text('subscription_kind', {enum: triggerDecisionSubscriptionKinds}).notNull(),
     subscriptionId: uuid('subscription_id').notNull(),
     subscriptionName: text('subscription_name').notNull(),
-    workflowDefinitionId: uuid('workflow_definition_id').notNull(),
-    projectId: uuid('project_id').notNull(),
+    workflowDefinitionId: uuid('workflow_definition_id'),
+    projectId: uuid('project_id'),
+    workflowRunId: uuid('workflow_run_id'),
+    jobId: uuid('job_id'),
+    matcherKind: jobListenerMatcherKindEnum('matcher_kind'),
+    matcherOrdinal: integer('matcher_ordinal'),
     decision: text('decision', {enum: triggerDecisionOutcomes}).notNull(),
     runId: uuid('run_id'),
     runName: text('run_name'),
@@ -24,9 +33,14 @@ export const triggersDecisions = pgTable(
   (table) => [
     uniqueIndex('triggers_decisions_event_subscription_unique').on(
       table.receivedEventId,
+      table.subscriptionKind,
       table.subscriptionId,
     ),
     index('triggers_decisions_run_idx').on(table.runId),
+    check(
+      'triggers_decisions_subscription_kind_ck',
+      sql`${table.subscriptionKind} IN ('trigger', 'listener')`,
+    ),
   ],
 );
 
@@ -37,10 +51,15 @@ export function toTriggerDecision(row: TriggerDecisionDb): TriggerDecision {
   return {
     id: row.id,
     receivedEventId: row.receivedEventId,
+    subscriptionKind: row.subscriptionKind,
     subscriptionId: row.subscriptionId,
     subscriptionName: row.subscriptionName,
     workflowDefinitionId: row.workflowDefinitionId,
     projectId: row.projectId,
+    workflowRunId: row.workflowRunId,
+    jobId: row.jobId,
+    matcherKind: row.matcherKind,
+    matcherOrdinal: row.matcherOrdinal,
     decision: toTriggerDecisionOutcome(row.decision),
     runId: row.runId,
     runName: row.runName,

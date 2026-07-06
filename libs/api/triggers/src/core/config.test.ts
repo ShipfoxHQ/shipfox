@@ -1,4 +1,4 @@
-import {evaluateTriggerFilter, readConfigInputs} from './config.js';
+import {evaluateStoredFilter, evaluateTriggerFilter, readConfigInputs} from './config.js';
 import type {TriggerSubscription} from './entities/subscription.js';
 
 function subscriptionWithConfig(config: Record<string, unknown>): TriggerSubscription {
@@ -147,5 +147,67 @@ describe('evaluateTriggerFilter', () => {
       kind: 'filter-error',
       reason: 'Trigger subscription filter must be a non-empty string when set',
     });
+  });
+});
+
+describe('evaluateStoredFilter', () => {
+  const invalidReason = 'Stored filter must be a non-empty string when set';
+  const evaluationFailedReason = 'Stored filter evaluation failed';
+
+  function evaluate(value: unknown, context: Record<string, unknown>) {
+    return evaluateStoredFilter({value, context, invalidReason, evaluationFailedReason});
+  }
+
+  test('returns matched when filter is missing', () => {
+    const result = evaluate(undefined, {event: {ref: 'refs/heads/main'}});
+
+    expect(result).toEqual({kind: 'matched'});
+  });
+
+  test('evaluates against the provided context', () => {
+    const value = 'event.issue.number == jobs.build.outputs.pr_number';
+
+    const matches = evaluate(value, {
+      event: {issue: {number: 42}},
+      jobs: {build: {outputs: {pr_number: 42}}},
+    });
+    const misses = evaluate(value, {
+      event: {issue: {number: 7}},
+      jobs: {build: {outputs: {pr_number: 42}}},
+    });
+
+    expect(matches).toEqual({kind: 'matched'});
+    expect(misses).toEqual({kind: 'filtered'});
+  });
+
+  test('returns filter-error when the filter cannot be parsed', () => {
+    const result = evaluate('event.ref ==', {event: {ref: 'refs/heads/main'}});
+
+    expect(result.kind).toBe('filter-error');
+    if (result.kind !== 'filter-error') throw new Error('expected filter-error');
+    expect(result.reason).not.toBe('Invalid workflow expression');
+  });
+
+  test('returns filter-error when evaluation throws', () => {
+    const result = evaluate('jobs.build.outputs.pr_number == 42', {
+      event: {issue: {number: 42}},
+    });
+
+    expect(result).toEqual({kind: 'filter-error', reason: evaluationFailedReason});
+  });
+
+  test('returns filtered when the stored filter evaluates to a non-boolean value', () => {
+    const result = evaluate('event.ref', {event: {ref: 'refs/heads/main'}});
+
+    expect(result).toEqual({kind: 'filtered'});
+  });
+
+  test.each([
+    {name: 'blank', filter: '   '},
+    {name: 'non-string', filter: ['event.ref == "refs/heads/main"']},
+  ])('returns filter-error when the stored filter is $name', ({filter}) => {
+    const result = evaluate(filter, {event: {ref: 'refs/heads/main'}});
+
+    expect(result).toEqual({kind: 'filter-error', reason: invalidReason});
   });
 });

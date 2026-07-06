@@ -23,23 +23,22 @@ export type TriggerFilterEvaluation =
   | {kind: 'filtered'}
   | {kind: 'filter-error'; reason: string};
 
-export interface EvaluateTriggerFilterParams {
-  subscription: TriggerSubscription;
-  source: string;
-  event: string;
-  payload: unknown;
+export type StoredFilterEvaluation = TriggerFilterEvaluation;
+
+export interface EvaluateStoredFilterParams {
+  value: unknown;
+  context: Record<string, unknown>;
+  invalidReason: string;
+  evaluationFailedReason: string;
 }
 
-export function evaluateTriggerFilter(
-  params: EvaluateTriggerFilterParams,
-): TriggerFilterEvaluation {
-  const {subscription} = params;
-  const value = subscription.config.filter;
+export function evaluateStoredFilter(params: EvaluateStoredFilterParams): StoredFilterEvaluation {
+  const {value} = params;
   if (value === null || value === undefined) return {kind: 'matched'};
   if (typeof value !== 'string' || value.trim() === '') {
     return {
       kind: 'filter-error',
-      reason: 'Trigger subscription filter must be a non-empty string when set',
+      reason: params.invalidReason,
     };
   }
 
@@ -50,16 +49,34 @@ export function evaluateTriggerFilter(
     return {kind: 'filter-error', reason: reasonFrom(error)};
   }
 
-  const result = evaluateWorkflowPredicateFailClosed(expression, {
-    event: params.payload,
-    trigger: {source: params.source, event: params.event},
-  });
+  const result = evaluateWorkflowPredicateFailClosed(expression, params.context);
 
   if (result.evaluationFailed) {
-    return {kind: 'filter-error', reason: 'Trigger filter evaluation failed'};
+    return {kind: 'filter-error', reason: params.evaluationFailedReason};
   }
 
   return result.value ? {kind: 'matched'} : {kind: 'filtered'};
+}
+
+export interface EvaluateTriggerFilterParams {
+  subscription: TriggerSubscription;
+  source: string;
+  event: string;
+  payload: unknown;
+}
+
+export function evaluateTriggerFilter(
+  params: EvaluateTriggerFilterParams,
+): TriggerFilterEvaluation {
+  return evaluateStoredFilter({
+    value: params.subscription.config.filter,
+    context: {
+      event: params.payload,
+      trigger: {source: params.source, event: params.event},
+    },
+    invalidReason: 'Trigger subscription filter must be a non-empty string when set',
+    evaluationFailedReason: 'Trigger filter evaluation failed',
+  });
 }
 
 function reasonFrom(error: unknown): string {

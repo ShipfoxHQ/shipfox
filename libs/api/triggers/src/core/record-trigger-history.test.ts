@@ -1,4 +1,4 @@
-import {triggerSubscriptionFactory} from '#test/index.js';
+import {jobListenerSubscriptionFactory, triggerSubscriptionFactory} from '#test/index.js';
 
 const runWorkflow = vi.fn();
 const insertReceivedEvent = vi.fn();
@@ -19,6 +19,9 @@ vi.mock('#db/event-history.js', () => ({
   upsertTriggeredDecision: (...args: unknown[]) => upsertTriggeredDecision(...args),
   upsertDispatchErrorDecision: vi.fn(),
   upsertFilterErrorDecision: vi.fn(),
+  upsertListenerTriggeredDecision: vi.fn(),
+  upsertListenerDispatchErrorDecision: vi.fn(),
+  upsertListenerFilterErrorDecision: vi.fn(),
 }));
 
 // Import after mocks so the code under test sees the spies.
@@ -47,12 +50,20 @@ describe('trigger history is best-effort and never blocks triggering', () => {
       receivedAt: new Date(),
     });
     const subscription = triggerSubscriptionFactory.build();
+    const listenerSubscription = jobListenerSubscriptionFactory.build();
 
     await expect(
       recorder.triggered(subscription, {id: crypto.randomUUID(), name: 'r'}),
     ).resolves.toBeUndefined();
     await expect(recorder.dispatchErrored(subscription, 'boom')).resolves.toBeUndefined();
     await expect(recorder.filterErrored(subscription, 'bad filter')).resolves.toBeUndefined();
+    await expect(recorder.listenerTriggered(listenerSubscription)).resolves.toBeUndefined();
+    await expect(
+      recorder.listenerDispatchErrored(listenerSubscription, 'boom'),
+    ).resolves.toBeUndefined();
+    await expect(
+      recorder.listenerFilterErrored(listenerSubscription, 'bad filter'),
+    ).resolves.toBeUndefined();
     await expect(recorder.discarded()).resolves.toBeUndefined();
     await expect(recorder.routed(1)).resolves.toBeUndefined();
     await expect(recorder.failed(1)).resolves.toBeUndefined();

@@ -1,4 +1,5 @@
 import {and, eq, ne, notInArray, sql} from 'drizzle-orm';
+import type {JobListenerSubscription} from '#core/entities/job-listener-subscription.js';
 import type {TriggerEventOrigin} from '#core/entities/received-event.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {db} from './db.js';
@@ -123,6 +124,7 @@ export async function upsertTriggeredDecision(
     .insert(triggersDecisions)
     .values({
       receivedEventId: params.receivedEventId,
+      subscriptionKind: 'trigger',
       subscriptionId: params.subscription.id,
       subscriptionName: params.subscription.name,
       workflowDefinitionId: params.subscription.workflowDefinitionId,
@@ -133,7 +135,11 @@ export async function upsertTriggeredDecision(
       reason: null,
     })
     .onConflictDoUpdate({
-      target: [triggersDecisions.receivedEventId, triggersDecisions.subscriptionId],
+      target: [
+        triggersDecisions.receivedEventId,
+        triggersDecisions.subscriptionKind,
+        triggersDecisions.subscriptionId,
+      ],
       set: {decision: 'triggered', runId: params.run.id, runName: params.run.name, reason: null},
     });
 }
@@ -163,6 +169,7 @@ async function upsertFailedDecision(
     .insert(triggersDecisions)
     .values({
       receivedEventId: params.receivedEventId,
+      subscriptionKind: 'trigger',
       subscriptionId: params.subscription.id,
       subscriptionName: params.subscription.name,
       workflowDefinitionId: params.subscription.workflowDefinitionId,
@@ -171,8 +178,102 @@ async function upsertFailedDecision(
       reason: params.reason,
     })
     .onConflictDoUpdate({
-      target: [triggersDecisions.receivedEventId, triggersDecisions.subscriptionId],
+      target: [
+        triggersDecisions.receivedEventId,
+        triggersDecisions.subscriptionKind,
+        triggersDecisions.subscriptionId,
+      ],
       set: {decision, reason: params.reason, runId: null, runName: null},
       setWhere: ne(triggersDecisions.decision, 'triggered'),
     });
+}
+
+export interface UpsertListenerTriggeredDecisionParams {
+  receivedEventId: string;
+  subscription: JobListenerSubscription;
+}
+
+export async function upsertListenerTriggeredDecision(
+  params: UpsertListenerTriggeredDecisionParams,
+): Promise<void> {
+  await db()
+    .insert(triggersDecisions)
+    .values({
+      ...listenerDecisionIdentity(params),
+      decision: 'triggered',
+      runId: null,
+      runName: null,
+      reason: null,
+    })
+    .onConflictDoUpdate({
+      target: [
+        triggersDecisions.receivedEventId,
+        triggersDecisions.subscriptionKind,
+        triggersDecisions.subscriptionId,
+      ],
+      set: {decision: 'triggered', runId: null, runName: null, reason: null},
+    });
+}
+
+export interface UpsertListenerFailedDecisionParams {
+  receivedEventId: string;
+  subscription: JobListenerSubscription;
+  reason: string;
+}
+
+export async function upsertListenerFilterErrorDecision(
+  params: UpsertListenerFailedDecisionParams,
+): Promise<void> {
+  await upsertListenerFailedDecision(params, 'filter-error');
+}
+
+export async function upsertListenerDispatchErrorDecision(
+  params: UpsertListenerFailedDecisionParams,
+): Promise<void> {
+  await upsertListenerFailedDecision(params, 'dispatch-error');
+}
+
+async function upsertListenerFailedDecision(
+  params: UpsertListenerFailedDecisionParams,
+  decision: 'filter-error' | 'dispatch-error',
+): Promise<void> {
+  await db()
+    .insert(triggersDecisions)
+    .values({
+      ...listenerDecisionIdentity(params),
+      decision,
+      reason: params.reason,
+    })
+    .onConflictDoUpdate({
+      target: [
+        triggersDecisions.receivedEventId,
+        triggersDecisions.subscriptionKind,
+        triggersDecisions.subscriptionId,
+      ],
+      set: {decision, reason: params.reason, runId: null, runName: null},
+      setWhere: ne(triggersDecisions.decision, 'triggered'),
+    });
+}
+
+function listenerDecisionIdentity(params: {
+  receivedEventId: string;
+  subscription: JobListenerSubscription;
+}) {
+  const {subscription} = params;
+  return {
+    receivedEventId: params.receivedEventId,
+    subscriptionKind: 'listener' as const,
+    subscriptionId: subscription.id,
+    subscriptionName: listenerSubscriptionName(subscription),
+    workflowDefinitionId: null,
+    projectId: null,
+    workflowRunId: subscription.workflowRunId,
+    jobId: subscription.jobId,
+    matcherKind: subscription.kind,
+    matcherOrdinal: subscription.matcherOrdinal,
+  };
+}
+
+function listenerSubscriptionName(subscription: JobListenerSubscription): string {
+  return `listener ${subscription.kind}[${subscription.matcherOrdinal}] ${subscription.source}/${subscription.event}`;
 }
