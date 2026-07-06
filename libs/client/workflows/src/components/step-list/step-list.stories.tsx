@@ -137,6 +137,41 @@ export const Statuses: Story = {
   },
 };
 
+export const SkippedSteps: Story = {
+  args: {
+    job: makeJob({
+      name: 'release-production',
+      status: 'failed',
+      steps: [
+        makeStep({
+          name: 'build',
+          status: 'failed',
+          error: {message: 'Build failed', category: 'user', reason: 'agent_invocation_failed'},
+          attempts: [makeAttempt({status: 'failed', exit_code: 1})],
+        }),
+        makeStep({
+          name: 'test',
+          position: 1,
+          status: 'skipped',
+          status_reason: 'default_gate_rejected',
+        }),
+        makeStep({
+          name: 'deploy',
+          position: 2,
+          status: 'skipped',
+          status_reason: 'condition_rejected',
+        }),
+        makeStep({
+          name: 'notify',
+          position: 3,
+          status: 'skipped',
+          status_reason: 'condition_errored',
+        }),
+      ],
+    }),
+  },
+};
+
 const activeLogRecords: LogViewProps['records'] = [
   {
     v: 1,

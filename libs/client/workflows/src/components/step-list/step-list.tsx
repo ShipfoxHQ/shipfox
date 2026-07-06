@@ -297,6 +297,10 @@ function StepRow({
   expandedContent: ReactNode;
 }) {
   const shouldShowLabelTooltip = entry.step.label.length > 32;
+  const conditionErrored = entry.step.statusReason === 'condition_errored';
+  // An ordinary skip reads as muted; a broken condition stays at full contrast so
+  // it is not mistaken for a routine skip.
+  const muted = entry.carriedOver || (entry.statusVisual.kind === 'skipped' && !conditionErrored);
   const rowContent = (
     <>
       <Icon
@@ -314,6 +318,7 @@ function StepRow({
             {entry.step.label}
           </Text>
           {entry.step.attempts.length > 1 ? <StepAttemptChip attempt={entry} /> : null}
+          {conditionErrored ? <ConditionErrorBadge /> : null}
           {entry.carriedOver ? <CarriedOverBadge /> : null}
         </div>
       </div>
@@ -323,7 +328,7 @@ function StepRow({
   const rowClasses = cn(
     'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)_auto] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
     selected && 'bg-background-components-hover',
-    entry.carriedOver && 'opacity-[0.55]',
+    muted && 'opacity-[0.55]',
   );
   const button = hasExpandedContent ? (
     <AccordionTrigger
@@ -393,6 +398,23 @@ function CarriedOverBadge() {
       </TooltipTrigger>
       <TooltipContent>
         Carried over from a previous attempt; did not run in this attempt.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function ConditionErrorBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="shrink-0">
+          <Badge variant="warning" size="2xs">
+            condition error
+          </Badge>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        The step condition could not be evaluated, so the step was skipped.
       </TooltipContent>
     </Tooltip>
   );

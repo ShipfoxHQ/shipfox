@@ -354,6 +354,25 @@ describe('buildStepListModel', () => {
 
     expect(result.entries[0]?.step.error).toBeNull();
   });
+
+  test('synthesizes an entry for a skipped step that never produced an attempt', () => {
+    const step = makeStep({
+      name: 'cleanup',
+      status: 'skipped',
+      status_reason: 'condition_rejected',
+      attempts: [],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      id: `skipped:${step.id}`,
+      carriedOver: false,
+      statusVisual: {kind: 'skipped'},
+    });
+    expect(result.entries[0]?.step.statusReason).toBe('condition_rejected');
+  });
 });
 
 function makeJob(overrides: JobDtoOverrides = {}): Job {

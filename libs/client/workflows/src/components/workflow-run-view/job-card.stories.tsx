@@ -104,6 +104,12 @@ export const EmptyStates: Story = {
       <StorySection label="skipped, no execution">
         <JobCardStory job={zeroExecutionJob()} />
       </StorySection>
+      <StorySection label="skipped, condition rejected">
+        <JobCardStory job={conditionSkippedJob()} />
+      </StorySection>
+      <StorySection label="skipped, condition errored">
+        <JobCardStory job={conditionErroredJob()} />
+      </StorySection>
       <StorySection label="cancelled, no execution">
         <JobCardStory job={cancelledNoExecutionJob()} />
       </StorySection>
@@ -472,6 +478,48 @@ function zeroExecutionJob(): Job {
     status: 'skipped',
     status_reason: 'dependency_not_completed',
     dependencies: ['build'],
+    job_executions: [],
+  });
+}
+
+function conditionSkippedJob(): Job {
+  return makeJob({
+    id: 'job-condition-skip',
+    name: 'notify',
+    status: 'skipped',
+    status_reason: 'condition_rejected',
+    dependencies: ['build'],
+    evaluation_trace: [
+      {
+        field: 'job.if',
+        expression: "jobs.build.status == 'failed'",
+        roots: ['jobs'],
+        fill_target: 'job-activation',
+        evaluated_at: 'job-activation',
+        value: 'false',
+      },
+    ],
+    job_executions: [],
+  });
+}
+
+function conditionErroredJob(): Job {
+  return makeJob({
+    id: 'job-condition-error',
+    name: 'canary',
+    status: 'skipped',
+    status_reason: 'condition_errored',
+    dependencies: ['build'],
+    evaluation_trace: [
+      {
+        field: 'job.if',
+        expression: 'jobs.build.outputs.redy',
+        roots: ['jobs'],
+        fill_target: 'job-activation',
+        evaluated_at: 'job-activation',
+        degraded: true,
+      },
+    ],
     job_executions: [],
   });
 }

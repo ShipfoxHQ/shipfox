@@ -16,6 +16,42 @@ describe('toJobDto', () => {
     expect(dto.status_reason).toBe('dependency_not_completed');
     expect(dto.outputs).toEqual({image_sha: 'abc123'});
   });
+
+  it('maps the job condition trace to snake_case', () => {
+    const job = jobEntity({
+      status: 'skipped',
+      statusReason: 'condition_rejected',
+      evaluationTrace: [
+        {
+          field: 'job.if',
+          expression: "jobs.build.status == 'failed'",
+          roots: ['jobs'],
+          fillTarget: 'job-activation',
+          evaluatedAt: 'job-activation',
+          value: 'false',
+        },
+      ],
+    });
+
+    const dto = toJobDto(job);
+
+    expect(dto.evaluation_trace).toEqual([
+      {
+        field: 'job.if',
+        expression: "jobs.build.status == 'failed'",
+        roots: ['jobs'],
+        fill_target: 'job-activation',
+        evaluated_at: 'job-activation',
+        value: 'false',
+      },
+    ]);
+  });
+
+  it('maps a missing condition trace to null', () => {
+    const dto = toJobDto(jobEntity());
+
+    expect(dto.evaluation_trace).toBeNull();
+  });
 });
 
 describe('toJobExecutionDto', () => {

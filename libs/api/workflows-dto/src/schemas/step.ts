@@ -1,4 +1,32 @@
 import {z} from 'zod';
+import {evaluationTraceRowEntryDtoSchema} from './evaluation-trace.js';
+
+// The projection status of a step. Unlike a step attempt, the projection also
+// carries `pending` (not yet dispatched) and `skipped` (a false `if:` or the
+// implicit default gate rejected it, so no attempt was ever created).
+export const stepStatusSchema = z.enum([
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+]);
+
+export type StepStatusDto = z.infer<typeof stepStatusSchema>;
+
+// Why a step was skipped. `default_gate_rejected` is the implicit gate (no `if:`,
+// an earlier step failed); `condition_rejected` is an explicit `if:` that
+// evaluated to a clean `false`; `condition_errored` is an explicit `if:` that fell
+// closed on a broken predicate (non-boolean, unresolved path, or eval error) and
+// must be surfaced distinctly from an ordinary skip.
+export const stepStatusReasonSchema = z.enum([
+  'default_gate_rejected',
+  'condition_rejected',
+  'condition_errored',
+]);
+
+export type StepStatusReasonDto = z.infer<typeof stepStatusReasonSchema>;
 
 // Machine-readable cause of a step failure, for DB troubleshooting. The runner
 // reports it and the server stores it as-is. The `checkout_*`, `git_unavailable`,
@@ -81,9 +109,15 @@ export const stepDtoSchema = z.object({
   key: z.string().nullable(),
   name: z.string(),
   source_location: stepSourceLocationSchema.nullable(),
-  status: z.string(),
+  status: stepStatusSchema,
+  // Set only when `status` is `skipped`; the reason the step never ran.
+  status_reason: stepStatusReasonSchema.nullable(),
   type: z.string(),
   config: z.record(z.string(), z.unknown()),
+  // Server-derived, secrets-free trace of the step's condition evaluation. On a
+  // skipped step it explains the skip (the evaluated `if:` or default gate and its
+  // result); null when the step carries no condition trace.
+  evaluation_trace: z.array(evaluationTraceRowEntryDtoSchema).nullable(),
   error: stepErrorDtoSchema,
   position: z.number(),
   // Execution-attempt identity of the current projection (>1 after a restart).

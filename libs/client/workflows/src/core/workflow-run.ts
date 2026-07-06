@@ -1,4 +1,9 @@
 export type {
+  NodeConditionLevel,
+  NodeConditionSummary,
+} from './entities/condition-trace.js';
+export {nodeConditionSummary} from './entities/condition-trace.js';
+export type {
   JobDisplayDuration,
   JobMode,
   JobStatus,
@@ -29,6 +34,7 @@ export type {
   StepErrorCategory,
   StepErrorReason,
   StepSourceLocation,
+  StepStatusReason,
 } from './entities/step.js';
 export {toStep} from './entities/step.js';
 export type {

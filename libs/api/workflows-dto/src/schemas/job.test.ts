@@ -8,6 +8,7 @@ const baseJob = {
   mode: 'one_shot',
   status: 'pending',
   status_reason: null,
+  evaluation_trace: null,
   carried_over: false,
   listening: null,
   listener_status: 'inactive',
@@ -38,5 +39,25 @@ describe('job DTO schema', () => {
     });
 
     expect(result.status_reason).toBe(statusReason);
+  });
+
+  it('accepts a skipped job with its condition trace', () => {
+    const result = jobDtoSchema.parse({
+      ...baseJob,
+      status: 'skipped',
+      status_reason: 'condition_rejected',
+      evaluation_trace: [
+        {
+          field: 'job.if',
+          expression: "jobs.build.status == 'failed'",
+          roots: ['jobs'],
+          fill_target: 'job-activation',
+          evaluated_at: 'job-activation',
+          value: 'false',
+        },
+      ],
+    });
+
+    expect(result.evaluation_trace).toHaveLength(1);
   });
 });

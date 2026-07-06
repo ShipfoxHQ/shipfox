@@ -406,9 +406,8 @@ describe('WorkflowRunView', () => {
 
     renderView();
 
-    expect(await screen.findByText('This job was skipped')).toBeInTheDocument();
     expect(
-      screen.getByText('A required job did not complete, so this job was skipped.'),
+      await screen.findByText('A required job did not succeed, so this job was skipped.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
   });
