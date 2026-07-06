@@ -260,6 +260,36 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('materializes agent step tools into resolved config', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              model: 'claude-opus-4-8',
+              provider: 'anthropic',
+              thinking: 'high',
+              tools: ['read', 'web_search'],
+              prompt: 'Fix the failing tests.',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      harness: 'pi',
+      model: 'claude-opus-4-8',
+      provider: 'anthropic',
+      thinking: 'high',
+      tools: ['read', 'web_search'],
+      prompt: 'Fix the failing tests.',
+    });
+  });
+
   it('materializes provider-only agent steps with that provider catalog default model', () => {
     const model = workflowModel({
       jobs: {
@@ -687,8 +717,10 @@ describe('materializeWorkflowModel', () => {
         fix: {
           steps: [
             {
+              harness: 'claude',
               provider: template('trigger.source'),
               model: template('run.name'),
+              tools: ['Read', 'WebSearch'],
               prompt: `Fix ${template('run.id')}`,
             },
           ],
@@ -696,7 +728,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
     const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
-      harness: 'pi',
+      harness: 'claude',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
@@ -713,23 +745,69 @@ describe('materializeWorkflowModel', () => {
     });
 
     expect(resolveAgentDefaults).toHaveBeenCalledWith({
-      harness: undefined,
+      harness: 'claude',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: undefined,
     });
     expect(rows[0]?.steps[1]?.config).toEqual({
-      harness: 'pi',
+      harness: 'claude',
       provider: 'openai',
       model: 'gpt-5.5-pro',
       thinking: 'medium',
+      tools: ['Read', 'WebSearch'],
       prompt: 'Fix run-1',
     });
     expect(rows[0]?.steps[1]?.authoredConfig).toEqual({
+      harness: 'claude',
       provider: template('trigger.source'),
       model: template('run.name'),
+      tools: ['Read', 'WebSearch'],
       prompt: `Fix ${template('run.id')}`,
     });
+  });
+
+  it('keeps agent tools in the dispatch plan while config is deferred', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'claude',
+              model: template('execution.events[0].data.model'),
+              provider: 'anthropic',
+              tools: ['Read', 'Grep'],
+              prompt: 'Review it.',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({
+      model,
+      context: creationContext(),
+      definitionId: 'def-1',
+    });
+
+    expect(rows[0]?.steps[1]?.config).toEqual({});
+    expect(rows[0]?.steps[1]?.configPlan?.agent).toMatchObject({
+      harness: 'claude',
+      provider: {
+        segments: [{kind: 'literal', value: 'anthropic'}],
+      },
+      tools: ['Read', 'Grep'],
+      prompt: {
+        segments: [{kind: 'literal', value: 'Review it.'}],
+      },
+    });
+    expect(rows[0]?.steps[1]?.configPlan?.agent?.model?.segments).toEqual([
+      expect.objectContaining({
+        kind: 'deferred',
+        roots: ['execution'],
+        fillTarget: 'execution-creation',
+      }),
+    ]);
   });
 
   it('throws a permanent interpolation error for unsafe run interpolation', () => {

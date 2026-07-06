@@ -9,6 +9,7 @@ import {
 
 type ModelStep = WorkflowModel['jobs'][number]['steps'][number];
 type AgentThinking = Extract<ModelStep, {kind: 'agent'}>['thinking'];
+type Harness = Extract<ModelStep, {kind: 'agent'}>['harness'];
 type WorkflowEnvTemplates = NonNullable<NonNullable<WorkflowModel['templates']>['env']>;
 
 interface TestWorkflowStepBase {
@@ -25,10 +26,12 @@ interface TestRunStep extends TestWorkflowStepBase {
 }
 
 interface TestAgentStep extends TestWorkflowStepBase {
+  readonly harness?: Harness | undefined;
   readonly model?: string | undefined;
   readonly provider?: string | undefined;
   readonly prompt: string;
   readonly thinking?: AgentThinking | undefined;
+  readonly tools?: readonly string[] | undefined;
 }
 
 type TestWorkflowStep = TestRunStep | TestAgentStep;
@@ -133,9 +136,11 @@ function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number)
     : {
         ...base,
         kind: 'agent',
+        ...(step.harness === undefined ? {} : {harness: step.harness}),
         ...(step.model === undefined ? {} : {model: step.model}),
         ...(step.provider === undefined ? {} : {provider: step.provider}),
         ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
+        ...(step.tools === undefined ? {} : {tools: step.tools}),
         prompt: step.prompt,
         ...optionalAgentTemplates(step),
       };

@@ -1323,14 +1323,22 @@ describe('workflow run queries', () => {
       expect(runJobs[0]?.dependencies).toEqual([]);
     });
 
-    test('stores prompt-only agent steps with runtime agent defaults resolved', async () => {
+    test('stores authored agent tools with runtime agent defaults resolved', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
         definitionId,
         model: buildModel({
           jobs: {
-            fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+            fix: {
+              steps: [
+                {
+                  harness: 'pi',
+                  tools: ['read', 'web_search'],
+                  prompt: 'Fix the failing tests.',
+                },
+              ],
+            },
           },
         }),
         triggerPayload: {
@@ -1352,6 +1360,7 @@ describe('workflow run queries', () => {
           model: 'claude-opus-4-8',
           provider: 'anthropic',
           thinking: 'xhigh',
+          tools: ['read', 'web_search'],
           prompt: 'Fix the failing tests.',
         },
       });
@@ -1938,7 +1947,15 @@ jobs:
         definitionId,
         model: buildModel({
           jobs: {
-            fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+            fix: {
+              steps: [
+                {
+                  harness: 'pi',
+                  tools: ['read', 'web_search'],
+                  prompt: 'Fix the failing tests.',
+                },
+              ],
+            },
           },
         }),
         triggerPayload: {
@@ -1972,6 +1989,7 @@ jobs:
         model: 'gpt-5.5-pro',
         provider: 'openai',
         thinking: 'medium',
+        tools: ['read', 'web_search'],
         prompt: 'Fix the failing tests.',
       });
     });
