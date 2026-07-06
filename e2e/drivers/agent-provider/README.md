@@ -5,9 +5,26 @@ provider for E2E tests. It is strict test infrastructure: suites register it as 
 normal custom model provider through product HTTP routes, while the fake provider
 itself stays outside the API app.
 
-This package currently owns the in-process HTTP server and script engine. The
-child-process sidecar wrapper is added separately so flow suites can keep the
-provider alive across Playwright `globalSetup` and worker processes.
+Use `startFakeOpenAiProvider()` for suites that need the provider to outlive
+Playwright `globalSetup` and serve worker-process jobs:
+
+```ts
+const provider = await startFakeOpenAiProvider({runId});
+const script = await provider.createScript({
+  id: `${runId}-agent-output-tool`,
+  model: 'deterministic-output-agent',
+  responses: [
+    toolCall('set_output', {key: 'message', value: 'qwen-tool-output-ok'}),
+    message('done'),
+  ],
+});
+
+await provider.stop();
+```
+
+The provider writes `.context/e2e-agent-provider/<runId>.json` with the child
+pid, base URL, and admin token. Global teardown can call
+`stopFakeOpenAiProvider({runId})` when the original handle is not available.
 
 ## HTTP Surface
 

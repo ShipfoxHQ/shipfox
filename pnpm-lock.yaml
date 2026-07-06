@@ -280,6 +280,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../tools/vitest
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
 
   e2e/drivers/gitea:
     dependencies:
