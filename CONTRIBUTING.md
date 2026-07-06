@@ -191,9 +191,10 @@ turbo lint --filter=@shipfox/api-hello
 
 ## E2E Testing
 
-E2E tests live under `e2e/` and mirror the application/library module structure.
-They use [Playwright](https://playwright.dev/) and run against an already-started
-local stack.
+E2E tests live under `e2e/` and use
+[Playwright](https://playwright.dev/) against the local stack. The full authoring
+guide is [`e2e/README.md`](e2e/README.md); it defines the suite levels, setup
+rules, page-object rules, dependency boundaries, and review checklist.
 
 Start the local service dependencies, then use the repo E2E harness to start the
 API/client dev servers and run Playwright:
@@ -219,10 +220,6 @@ If the API and client are already running, run E2E packages directly:
 ```sh
 turbo test:e2e --filter=@shipfox/e2e-client-auth
 ```
-
-E2E setup APIs are module-owned routes under `/__e2e/<module>`. They are mounted only
-when both `E2E_ENABLED=true` and `E2E_ADMIN_API_KEY` are set. Tests must create data
-through these HTTP APIs, not through direct database access.
 
 ## Unit Testing Strategy (Client Apps)
 

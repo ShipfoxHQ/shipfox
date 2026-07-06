@@ -1,5 +1,9 @@
 # @shipfox/e2e-flow-workflows
 
+For the repo-wide E2E rules, level decision tree, dependency boundaries, and
+review checklist, start with [`../../../README.md`](../../../README.md). This
+file is the deep runbook for the workflow flow suite.
+
 End-to-end tests where each case is a real workflow YAML run through the whole
 platform: a gitea push, the org webhook, definition sync, trigger dispatch, Temporal
 orchestration, a local source runner, step execution, and log capture. The suite

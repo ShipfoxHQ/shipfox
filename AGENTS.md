@@ -154,11 +154,22 @@ into a Jotai atom on field blur and on form unmount only (never on every
 keystroke) and filter the atom shape explicitly so unrelated fields (e.g.
 signup's `name`) don't leak into a `{email, password}` draft.
 
-### E2E setup
+### E2E testing
 
-E2E setup must stay HTTP-first. Add module-owned setup routes under
-`/__e2e/<module>` and wrap them in `@shipfox/e2e-setup-*` helpers; do not create
-E2E data through direct database access.
+Read [e2e/README.md](e2e/README.md) before adding or reshaping E2E tests. It is
+the source of truth for suite levels, setup rules, screens, granularity,
+dependency boundaries, and debugging.
+
+Load-bearing rules:
+
+- E2E setup must stay HTTP-first. Add module-owned setup routes under
+  `/__e2e/<module>` and wrap them in `@shipfox/e2e-setup-*` helpers; do not
+  create E2E data through direct database access.
+- Put browser locators, navigation, waits, and visual normalization behind
+  `@shipfox/e2e-screens-*` or `@shipfox/e2e-kit/ui` methods, not inline in
+  specs.
+- Granularity is review-enforced: one test proves one behavior, and one file
+  covers one surface or one journey.
 
 Each E2E package must also declare an explicit workspace dependency on the package
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
@@ -166,13 +177,11 @@ Turbo includes the referenced package in the task DAG.
 
 ### Running the flow workflow E2E suite
 
-`@shipfox/e2e-flow-workflows` (`e2e/suites/flow/workflows`) is the full-loop suite:
-each scenario pushes a real `workflow.yml` to a gitea repo and asserts on the public
-run and log APIs after it flows through the org webhook, definition sync, trigger
-dispatch, Temporal, a local source runner, and step execution. Each Playwright test
-starts its own `@shipfox/runner` process with a unique runner label and injects that
-label into the workflow YAML, so scenarios run against the current workspace source
-without building a runner image.
+`@shipfox/e2e-flow-workflows` (`e2e/suites/flow/workflows`) is the full-loop
+suite. Each scenario pushes a real `workflow.yml` to Gitea and asserts on public
+run and log APIs after webhook delivery, definition sync, trigger dispatch,
+Temporal orchestration, a local source runner, and step execution. See
+`e2e/suites/flow/workflows/README.md` for the scenario format and deep runbook.
 
 The pure `expect.yaml` evaluator has Vitest node tests that need no infrastructure:
 
@@ -192,12 +201,9 @@ mise run e2e -- --filter=@shipfox/e2e-flow-workflows
 
 The `e2e` mise task reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS provider
-enabled, waits for both to become ready, then runs `turbo test:e2e`. Local runner
-logs are written under
-`e2e/suites/flow/workflows/.e2e-run/runners/` and attached to failed scenario results. A
-green run deletes its gitea org; a failing run keeps it and attaches the run detail,
-the expectation diff, fetched step logs, and runner log under `test-results/`. See
-`e2e/suites/flow/workflows/README.md` for the full runbook.
+enabled, waits for both to become ready, then runs `turbo test:e2e`. Diagnostics
+land in `.context/shipfox-e2e-logs/`; flow runner logs are attached to failed
+scenario results.
 
 ### Configuration
 
