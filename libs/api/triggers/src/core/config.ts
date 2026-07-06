@@ -1,6 +1,7 @@
 import {
   createWorkflowExpression,
   evaluateWorkflowPredicateFailClosed,
+  InvalidWorkflowExpressionError,
   type WorkflowExpression,
 } from '@shipfox/expression';
 import type {TriggerSubscription} from './entities/subscription.js';
@@ -62,6 +63,7 @@ export function evaluateTriggerFilter(
 }
 
 function reasonFrom(error: unknown): string {
+  if (error instanceof InvalidWorkflowExpressionError) return error.reason;
   if (error instanceof Error) return error.message;
   return String(error);
 }

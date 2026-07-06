@@ -63,6 +63,26 @@ describe('toTriggerDecision', () => {
     expect(result.runName).toBeNull();
     expect(result.reason).toBe('runWorkflow threw');
   });
+
+  test('maps legacy errored rows to dispatch-error', () => {
+    const row = {
+      id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
+      receivedEventId: '019e98ab-b90f-7265-b13c-8b441c991381',
+      subscriptionId: '019e98ab-b90f-7265-b13c-8b441c991382',
+      subscriptionName: 'Deploy production',
+      workflowDefinitionId: '019e98ab-b90f-7265-b13c-8b441c991383',
+      projectId: '019e98ab-b90f-7265-b13c-8b441c991384',
+      decision: 'errored',
+      runId: null,
+      runName: null,
+      reason: 'runWorkflow threw',
+      createdAt: new Date('2026-06-09T10:00:02.000Z'),
+    } as unknown as TriggerDecisionDb;
+
+    const result = toTriggerDecision(row);
+
+    expect(result.decision).toBe('dispatch-error');
+  });
 });
 
 describe('triggers_decisions schema', () => {

@@ -41,10 +41,18 @@ export function toTriggerDecision(row: TriggerDecisionDb): TriggerDecision {
     subscriptionName: row.subscriptionName,
     workflowDefinitionId: row.workflowDefinitionId,
     projectId: row.projectId,
-    decision: row.decision,
+    decision: toTriggerDecisionOutcome(row.decision),
     runId: row.runId,
     runName: row.runName,
     reason: row.reason,
     createdAt: row.createdAt,
   };
+}
+
+function toTriggerDecisionOutcome(decision: string): TriggerDecision['decision'] {
+  if (decision === 'errored') return 'dispatch-error';
+  if (decision === 'triggered' || decision === 'filter-error' || decision === 'dispatch-error') {
+    return decision;
+  }
+  return 'dispatch-error';
 }

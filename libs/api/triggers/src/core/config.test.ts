@@ -100,6 +100,8 @@ describe('evaluateTriggerFilter', () => {
     });
 
     expect(result.kind).toBe('filter-error');
+    if (result.kind !== 'filter-error') throw new Error('expected filter-error');
+    expect(result.reason).not.toBe('Invalid workflow expression');
   });
 
   test('returns filter-error when filter evaluation throws', () => {
