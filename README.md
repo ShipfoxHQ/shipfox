@@ -47,10 +47,7 @@ jobs:
 If you've written GitHub Actions, you already know how to read this file, and
 that's deliberate. What's different is what a step can be and the control flow
 around it: a Sentry issue starts the run, an agent reproduces and fixes the cause,
-then a `gate` reruns the tests and sends the agent back until they pass. Events can
-also drive a workflow while it is still running; see
-[listening jobs](docs/concepts/listening-jobs.mdx) for event-driven, asynchronous
-workflows.
+then a `gate` reruns the tests and sends the agent back until they pass.
 
 ## Highlights
 
@@ -63,17 +60,6 @@ workflows.
 - **Your own runners, your own keys.** Runners poll outbound, so nothing connects
   into your network. Model traffic leaves from your runners across 30+ providers.
 
-## How a run executes
-
-```
-event source → trigger match → run created (event data resolved into prompts)
-             → jobs scheduled as a needs DAG
-             → a runner on your compute polls outbound and claims a job
-             → it re-clones the repo and runs each step (shell or agent)
-             → a gate can loop back on failure
-             → logs and agent sessions stream live to the dashboard
-```
-
 ## Core concepts
 
 | Concept | Summary |
@@ -83,6 +69,7 @@ event source → trigger match → run created (event data resolved into prompts
 | **Job** | A group of steps on one runner. Jobs form a DAG via `needs` and are isolated, so each re-clones the repo. |
 | **Step** | A `run` shell command or an agent (`model` + `prompt`). Runs in order within a job. |
 | **Gate** | A CEL `success_if` on a step plus `on_failure.restart_from` to build bounded retry loops. |
+| **Listening job** | A [job that waits on events](docs/concepts/listening-jobs.mdx) and runs again per batch inside the same run, until a resolution condition. Drives event-driven, asynchronous workflows. |
 | **Runner** | A process you register on your own compute; matched to jobs by label. |
 
 ## Repository layout
