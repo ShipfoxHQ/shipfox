@@ -1,0 +1,17 @@
+name: Agent pi
+runner: ubuntu-latest
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+  on_push:
+    source: gitea
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
+jobs:
+  greet:
+    steps:
+      - harness: pi
+        provider: openrouter
+        model: meta-llama/llama-3.1-8b-instruct
+        prompt: Say hello from pi
