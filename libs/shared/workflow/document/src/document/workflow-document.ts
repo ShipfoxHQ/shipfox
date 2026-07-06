@@ -221,6 +221,16 @@ export const workflowDocumentCheckoutSchema = z.strictObject({
   'persist-credentials': z.boolean().optional(),
 });
 
+export const workflowDocumentStepIntegrationSelectionSchema = z.array(z.string().min(1)).min(1);
+
+export const workflowDocumentStepIntegrationSchema = z.strictObject({
+  connection: z.string().min(1).optional(),
+  include: workflowDocumentStepIntegrationSelectionSchema,
+  exclude: workflowDocumentStepIntegrationSelectionSchema.optional(),
+  allow_write: z.boolean().optional(),
+  repos: z.array(z.string().min(1)).min(1).optional(),
+});
+
 // A step is a run step (`run`) or an inline agent step (`prompt`), never
 // both. They share one strict object so an unknown key is still rejected; the
 // `superRefine` discriminates by which payload keys are present and emits one
@@ -239,6 +249,7 @@ export const workflowDocumentStepSchema = z
     thinking: agentThinkingSchema.optional(),
     provider: z.string().min(1).optional(),
     tools: z.array(z.string().min(1)).min(1).optional(),
+    integrations: z.array(workflowDocumentStepIntegrationSchema).min(1).optional(),
     agent: z.unknown().optional(),
     gate: workflowDocumentStepGateSchema.optional(),
     env: workflowDocumentEnvSchema.optional(),
@@ -255,7 +266,15 @@ export const workflowDocumentStepSchema = z
     }
 
     if (step.run !== undefined) {
-      for (const key of ['model', 'prompt', 'harness', 'thinking', 'provider', 'tools'] as const) {
+      for (const key of [
+        'model',
+        'prompt',
+        'harness',
+        'thinking',
+        'provider',
+        'tools',
+        'integrations',
+      ] as const) {
         if (step[key] !== undefined) {
           ctx.addIssue({
             code: 'custom',
@@ -273,7 +292,8 @@ export const workflowDocumentStepSchema = z
       step.harness !== undefined ||
       step.thinking !== undefined ||
       step.provider !== undefined ||
-      step.tools !== undefined;
+      step.tools !== undefined ||
+      step.integrations !== undefined;
 
     if (!isAgent) {
       ctx.addIssue({
@@ -327,6 +347,7 @@ export type WorkflowDocumentEnv = z.infer<typeof workflowDocumentEnvSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
 export type WorkflowDocumentJobListening = z.infer<typeof workflowDocumentListeningSchema>;
 export type WorkflowDocumentRunStepGate = z.infer<typeof workflowDocumentStepGateSchema>;
+export type WorkflowDocumentStepIntegration = z.infer<typeof workflowDocumentStepIntegrationSchema>;
 export type WorkflowDocumentStepOutputType = (typeof workflowDocumentStepOutputTypes)[number];
 export type WorkflowDocumentStepOutputs = z.infer<typeof workflowDocumentStepOutputsSchema>;
 export type WorkflowDocumentStep = z.infer<typeof workflowDocumentStepSchema>;

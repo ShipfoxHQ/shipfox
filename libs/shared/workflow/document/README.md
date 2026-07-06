@@ -66,12 +66,12 @@ try {
 ```
 
 A step can also be an inline agent step. It declares a `prompt` and no `run`.
-`model`, `thinking`, and `provider` are optional authoring hints; later layers
-resolve omitted values before the runner executes the step. The `provider` names
-the model's provider (for example `anthropic` or `openai`); pairing it with
-`model` lets a step target a non-default provider/model pair. The recommended
-pattern is an agent step that produces a change, followed by a `run` step whose
-`gate` judges the result:
+`model`, `thinking`, `provider`, `tools`, and `integrations` are optional
+authoring hints; later layers resolve omitted values before the runner executes
+the step. The `provider` names the model's provider (for example `anthropic` or
+`openai`); pairing it with `model` lets a step target a non-default
+provider/model pair. The recommended pattern is an agent step that produces a
+change, followed by a `run` step whose `gate` judges the result:
 
 ```ts
 parseWorkflowDocument({
@@ -82,6 +82,37 @@ parseWorkflowDocument({
         {prompt: 'Fix the failing tests.'},
         {model: 'gpt-5.5-pro', provider: 'openai', prompt: 'Review the fix.'},
         {run: 'npm test', gate: {success: 'step.exit_code == 0'}},
+      ],
+    },
+  },
+});
+```
+
+Integration tools are selected with an `integrations` block on an agent step.
+This package validates the shape only: non-empty selections, optional connection
+and repository strings, and boolean write opt-in. Catalog checks, wildcard
+expansion, connection lookup, and write-safety rules belong to later layers.
+
+```ts
+parseWorkflowDocument({
+  name: 'triage',
+  jobs: {
+    inspect: {
+      steps: [
+        {
+          harness: 'claude',
+          tools: ['Read', 'Grep'],
+          prompt: 'Triage the pull request and comment with the next action.',
+          integrations: [
+            {
+              connection: 'github-main',
+              include: ['issue_read.get', 'pull_request_read.get_files'],
+              exclude: ['actions_run_trigger.run_workflow'],
+              allow_write: false,
+              repos: ['shipfox'],
+            },
+          ],
+        },
       ],
     },
   },
@@ -118,13 +149,15 @@ parseWorkflowDocument({
 - The `gate` block is checked as input shape here. CEL parsing and restart
   target checks belong to definitions-owned model code.
 - A step is discriminated by which keys it carries: `run` marks a run step;
-  `prompt`, `model`, `thinking`, or `provider` mark an agent step, and an agent
-  step must include `prompt`. Declaring run and agent fields together, or neither
-  kind, is rejected. `model`, `thinking`, and `provider` are valid only on an
-  agent step; using them on a run step is rejected. `thinking` is validated
-  against a fixed set (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`).
-  Provider and model catalog checks belong to the model layer, not this parser.
-  The `agent` key is reserved for a future step kind and is rejected today.
+  `prompt`, `model`, `thinking`, `provider`, `tools`, or `integrations` mark an
+  agent step, and an agent step must include `prompt`. Declaring run and agent
+  fields together, or neither kind, is rejected. `model`, `thinking`,
+  `provider`, `tools`, and `integrations` are valid only on an agent step; using
+  them on a run step is rejected. `thinking` is validated against a fixed set
+  (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`). Provider, model, tool,
+  integration connection, and integration catalog checks belong to the model
+  layer, not this parser. The `agent` key is reserved for a future step kind and
+  is rejected today.
 - `env` can be declared on the workflow, a job, or a run step. Values may be
   strings, numbers, or booleans; the model layer stringifies numbers and
   booleans before a run is saved. Values are literal. Expression interpolation
