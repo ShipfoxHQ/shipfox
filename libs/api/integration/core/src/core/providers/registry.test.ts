@@ -25,6 +25,21 @@ function sourceControlAdapter() {
   };
 }
 
+function agentToolsAdapter() {
+  return {
+    catalog: () => [],
+    openSession: async () => {
+      await Promise.resolve();
+      return {
+        call: async () => {
+          await Promise.resolve();
+          return {};
+        },
+      };
+    },
+  };
+}
+
 describe('integration provider registry', () => {
   it('lists providers by capability', () => {
     const registry = createIntegrationProviderRegistry([
@@ -44,6 +59,23 @@ describe('integration provider registry', () => {
     const result = registry.list('source_control');
 
     expect(result.map((provider) => provider.provider)).toEqual(['gitea']);
+  });
+
+  it('computes the agent tools capability from the adapter', () => {
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {
+          agent_tools: agentToolsAdapter(),
+        },
+      },
+    ]);
+
+    const result = registry.list('agent_tools');
+
+    expect(result.map((provider) => provider.provider)).toEqual(['github']);
+    expect(registry.get('github').capabilities).toEqual(['agent_tools']);
   });
 
   it('keeps provider sets isolated per registry instance', () => {

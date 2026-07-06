@@ -1,4 +1,10 @@
 export type {
+  AgentToolCallInput,
+  AgentToolCatalogEntry,
+  AgentToolJsonSchema,
+  AgentToolSensitivity,
+  AgentToolSession,
+  AgentToolsProvider,
   CheckoutCredentials,
   CheckoutPermissions,
   CheckoutSpec,
@@ -16,6 +22,7 @@ export type {
   IntegrationProviderKind,
   ListFilesInput,
   ListRepositoriesInput,
+  OpenAgentToolsSessionInput,
   RegisteredIntegrationProvider,
   RepositoryPage,
   RepositorySnapshot,
