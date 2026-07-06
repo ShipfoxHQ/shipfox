@@ -1,5 +1,6 @@
-import {preflightCheck} from '@shipfox/e2e-core';
+import {createApiClient, preflightCheck} from '@shipfox/e2e-core';
 import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
+import {createOllamaCustomProvider} from '@shipfox/e2e-setup-agent';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {resetSuiteRunDir, writeSuiteContext} from '#suite-context.js';
@@ -27,6 +28,18 @@ export default async function globalSetup(): Promise<void> {
     });
     cleanups.push(() => deleteOrg({org: org.org}).catch(() => undefined));
 
+    const ollamaProvider = await createOllamaCustomProvider({
+      workspaceId: workspace.id,
+      sessionToken: session.token,
+      providerId: 'local-ollama-e2e',
+      displayName: 'Local Ollama E2E',
+    });
+    await setDefaultModelProvider({
+      workspaceId: workspace.id,
+      sessionToken: session.token,
+      providerId: ollamaProvider.provider_id,
+    });
+
     writeSuiteContext({
       runId,
       workspaceId: workspace.id,
@@ -41,4 +54,17 @@ export default async function globalSetup(): Promise<void> {
     }
     throw error;
   }
+}
+
+async function setDefaultModelProvider(params: {
+  workspaceId: string;
+  sessionToken: string;
+  providerId: string;
+}): Promise<void> {
+  const client = createApiClient({token: params.sessionToken});
+  await client.requestJson(
+    'put',
+    `/workspaces/${params.workspaceId}/agent/default-model-provider`,
+    {json: {provider_id: params.providerId}},
+  );
 }
