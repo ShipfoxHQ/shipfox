@@ -11,6 +11,7 @@ type GithubIntegrationConnection = IntegrationConnection<'github'>;
 export type GithubAgentToolCategory = 'issues' | 'pull_requests' | 'actions';
 export type GithubAgentToolPermission = 'actions' | 'contents' | 'issues' | 'pull_requests';
 export type GithubAgentToolPermissionAccess = 'read' | 'write';
+export type GithubAgentToolSensitivity = 'read' | 'write';
 
 export interface GithubAgentToolRequiredPermission {
   permission: GithubAgentToolPermission;
@@ -19,9 +20,30 @@ export interface GithubAgentToolRequiredPermission {
 
 export type GithubAgentToolRequiredScope = readonly GithubAgentToolRequiredPermission[];
 
+export interface GithubAgentToolCatalogMethod {
+  id: string;
+  description: string;
+  sensitivity: GithubAgentToolSensitivity;
+  sensitive: boolean;
+  requiredScope: GithubAgentToolRequiredScope;
+}
+
 export interface GithubAgentToolCatalogEntry
   extends AgentToolCatalogEntry<GithubAgentToolRequiredScope> {
   category: GithubAgentToolCategory;
+  methods?: readonly GithubAgentToolCatalogMethod[] | undefined;
+}
+
+interface GithubAgentToolCatalogInput {
+  id: string;
+  category: GithubAgentToolCategory;
+  description: string;
+  inputSchema: AgentToolJsonSchema;
+  outputSchema: AgentToolJsonSchema;
+  sensitivity?: GithubAgentToolSensitivity | undefined;
+  sensitive?: boolean | undefined;
+  requiredScope?: GithubAgentToolRequiredScope | undefined;
+  methods?: readonly GithubAgentToolCatalogMethod[] | undefined;
 }
 
 const scopes = {
@@ -38,460 +60,684 @@ const scopes = {
 } as const satisfies Record<string, GithubAgentToolRequiredScope>;
 
 const repositoryProperties = {
-  owner: stringSchema('Repository owner login'),
+  owner: stringSchema('Repository owner'),
   repo: stringSchema('Repository name'),
 };
 
-const issueNumber = integerSchema('GitHub issue number');
-const pullNumber = integerSchema('GitHub pull request number');
-const runId = integerSchema('GitHub Actions workflow run id');
-const jobId = integerSchema('GitHub Actions job id');
-const workflowId = {
-  description: 'GitHub Actions workflow id, node id, or workflow file name',
-  anyOf: [integerSchema(), stringSchema()],
-};
 const pageProperties = {
-  per_page: integerSchema('Results per page', {minimum: 1, maximum: 100}),
-  page: integerSchema('Page number', {minimum: 1}),
+  page: integerSchema('Page number for pagination', {minimum: 1}),
+  per_page: integerSchema('Results per page for pagination', {minimum: 1, maximum: 100}),
 };
 
+const issueReadMethods = [
+  method('get', 'Get information about a specific issue.', 'read', false, scopes.issuesRead),
+  method('get_comments', 'Get comments on a specific issue.', 'read', false, scopes.issuesRead),
+  method(
+    'get_sub_issues',
+    'Get sub-issues for a specific issue.',
+    'read',
+    false,
+    scopes.issuesRead,
+  ),
+  method(
+    'get_parent',
+    'Get the parent issue for a specific issue.',
+    'read',
+    false,
+    scopes.issuesRead,
+  ),
+  method(
+    'get_labels',
+    'Get labels assigned to a specific issue.',
+    'read',
+    false,
+    scopes.issuesRead,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const issueWriteMethods = [
+  method('create', 'Create a new issue.', 'write', false, scopes.issuesWrite),
+  method('update', 'Update an existing issue.', 'write', false, scopes.issuesWrite),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const subIssueWriteMethods = [
+  method('add', 'Add a sub-issue to a parent issue.', 'write', false, scopes.issuesWrite),
+  method('remove', 'Remove a sub-issue from a parent issue.', 'write', false, scopes.issuesWrite),
+  method(
+    'reprioritize',
+    'Reprioritize a sub-issue under its parent issue.',
+    'write',
+    false,
+    scopes.issuesWrite,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const pullRequestReadMethods = [
+  method(
+    'get',
+    'Get information about a specific pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+  method(
+    'get_diff',
+    'Get the diff for a specific pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+  method(
+    'get_status',
+    'Get status information for a specific pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+  method(
+    'get_files',
+    'Get files changed in a specific pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+  method(
+    'get_commits',
+    'Get commits in a specific pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+  method(
+    'get_review_comments',
+    'Get review comments for a specific pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+  method(
+    'get_reviews',
+    'Get reviews for a specific pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+  method(
+    'get_comments',
+    'Get conversation comments for a specific pull request.',
+    'read',
+    false,
+    scopes.issuesRead,
+  ),
+  method(
+    'get_check_runs',
+    'Get check runs for the head commit of a pull request.',
+    'read',
+    false,
+    scopes.pullRequestsRead,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const pullRequestReviewWriteMethods = [
+  method(
+    'create',
+    'Create a pending pull request review.',
+    'write',
+    false,
+    scopes.pullRequestsWrite,
+  ),
+  method(
+    'submit_pending',
+    'Submit the latest pending pull request review.',
+    'write',
+    false,
+    scopes.pullRequestsWrite,
+  ),
+  method(
+    'delete_pending',
+    'Delete the latest pending pull request review.',
+    'write',
+    false,
+    scopes.pullRequestsWrite,
+  ),
+  method(
+    'resolve_thread',
+    'Resolve a pull request review thread.',
+    'write',
+    false,
+    scopes.pullRequestsWrite,
+  ),
+  method(
+    'unresolve_thread',
+    'Unresolve a pull request review thread.',
+    'write',
+    false,
+    scopes.pullRequestsWrite,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const actionsListMethods = [
+  method('list_workflows', 'List workflows in a repository.', 'read', false, scopes.actionsRead),
+  method(
+    'list_workflow_runs',
+    'List workflow runs in a repository or for a workflow.',
+    'read',
+    false,
+    scopes.actionsRead,
+  ),
+  method('list_workflow_jobs', 'List jobs for a workflow run.', 'read', false, scopes.actionsRead),
+  method(
+    'list_workflow_run_artifacts',
+    'List artifacts for a workflow run.',
+    'read',
+    false,
+    scopes.actionsRead,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const actionsGetMethods = [
+  method('get_workflow', 'Get details for a workflow.', 'read', false, scopes.actionsRead),
+  method('get_workflow_run', 'Get details for a workflow run.', 'read', false, scopes.actionsRead),
+  method('get_workflow_job', 'Get details for a workflow job.', 'read', false, scopes.actionsRead),
+  method(
+    'download_workflow_run_artifact',
+    'Download a workflow run artifact.',
+    'read',
+    false,
+    scopes.actionsRead,
+  ),
+  method('get_workflow_run_usage', 'Get workflow run usage.', 'read', false, scopes.actionsRead),
+  method(
+    'get_workflow_run_logs_url',
+    'Get a workflow run logs download URL.',
+    'read',
+    false,
+    scopes.actionsRead,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const actionsRunTriggerMethods = [
+  method('run_workflow', 'Trigger a workflow_dispatch run.', 'write', true, scopes.actionsWrite),
+  method('rerun_workflow_run', 'Rerun a workflow run.', 'write', false, scopes.actionsWrite),
+  method(
+    'rerun_failed_jobs',
+    'Rerun failed jobs in a workflow run.',
+    'write',
+    false,
+    scopes.actionsWrite,
+  ),
+  method('cancel_workflow_run', 'Cancel a workflow run.', 'write', false, scopes.actionsWrite),
+  method(
+    'delete_workflow_run_logs',
+    'Delete logs for a workflow run.',
+    'write',
+    true,
+    scopes.actionsWrite,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
 export const githubAgentToolCatalog = [
-  {
-    id: 'get_issue',
+  tool({
+    id: 'issue_read',
     category: 'issues',
-    description: 'Get a GitHub issue by number.',
+    description: 'Get information about a specific issue in a GitHub repository.',
+    methods: issueReadMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(issueReadMethods, 'The read operation to perform on a single issue'),
+        issue_number: integerSchema('The number of the issue'),
+        ...pageProperties,
+      },
+      ['method', 'issue_number'],
+    ),
+    outputSchema: openObjectSchema('Issue read result'),
+  }),
+  tool({
+    id: 'list_issue_types',
+    category: 'issues',
+    description:
+      'List supported issue types for a repository or its owner organization. When repo is omitted, returns org-level issue types directly.',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.issuesRead,
-    inputSchema: repositoryInputSchema({issue_number: issueNumber}, ['issue_number']),
-    outputSchema: objectSchema({issue: openObjectSchema('GitHub issue')}, ['issue']),
-  },
-  {
+    inputSchema: objectSchema({
+      owner: stringSchema('The account owner of the repository or organization'),
+      repo: stringSchema('The name of the repository'),
+    }),
+    outputSchema: objectSchema({issue_types: arraySchema(openObjectSchema('Issue type'))}, [
+      'issue_types',
+    ]),
+  }),
+  tool({
     id: 'list_issues',
     category: 'issues',
-    description: 'List GitHub issues in a repository.',
+    description:
+      "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.issuesRead,
     inputSchema: repositoryInputSchema({
-      state: enumSchema(['open', 'closed', 'all'], 'Issue state filter'),
+      state: enumSchema(['OPEN', 'CLOSED'], 'Filter by state'),
       labels: arraySchema(stringSchema('Label name')),
-      ...pageProperties,
+      orderBy: enumSchema(['CREATED_AT', 'UPDATED_AT', 'COMMENTS'], 'Order issues by field'),
+      direction: enumSchema(['ASC', 'DESC'], 'Order direction'),
+      since: stringSchema('Filter by date (ISO 8601 timestamp)'),
+      after: stringSchema('Pagination cursor'),
+      first: integerSchema('Number of issues to return', {minimum: 1, maximum: 100}),
     }),
     outputSchema: objectSchema({issues: arraySchema(openObjectSchema('GitHub issue'))}, ['issues']),
-  },
-  {
+  }),
+  tool({
     id: 'search_issues',
     category: 'issues',
-    description: 'Search GitHub issues in a repository.',
+    description:
+      'Search for issues in GitHub repositories using issues search syntax already scoped to is:issue',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.issuesRead,
-    inputSchema: repositoryInputSchema({query: stringSchema('Search query'), ...pageProperties}, [
-      'query',
-    ]),
+    inputSchema: objectSchema(
+      {
+        query: stringSchema('Search query using GitHub issues search syntax'),
+        owner: stringSchema('Optional repository owner'),
+        repo: stringSchema('Optional repository name'),
+        sort: enumSchema(
+          [
+            'comments',
+            'reactions',
+            'reactions-+1',
+            'reactions--1',
+            'reactions-smile',
+            'reactions-thinking_face',
+            'reactions-heart',
+            'reactions-tada',
+            'interactions',
+            'created',
+            'updated',
+          ],
+          'Sort field',
+        ),
+        order: enumSchema(['asc', 'desc'], 'Sort order'),
+        ...pageProperties,
+      },
+      ['query'],
+    ),
     outputSchema: objectSchema({issues: arraySchema(openObjectSchema('GitHub issue'))}, ['issues']),
-  },
-  {
+  }),
+  tool({
     id: 'add_issue_comment',
     category: 'issues',
-    description: 'Add a comment to a GitHub issue or pull request conversation.',
+    description:
+      'Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well, but only if the user is not asking specifically to add or react to review comments. At least one of body or reaction is required.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.issuesWrite,
     inputSchema: repositoryInputSchema(
       {
-        issue_number: issueNumber,
-        body: stringSchema('Markdown comment body'),
-      },
-      ['issue_number', 'body'],
-    ),
-    outputSchema: objectSchema({comment: openObjectSchema('Created issue comment')}, ['comment']),
-  },
-  {
-    id: 'create_issue',
-    category: 'issues',
-    description: 'Create a GitHub issue.',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: scopes.issuesWrite,
-    inputSchema: repositoryInputSchema(
-      {
-        title: stringSchema('Issue title'),
-        body: stringSchema('Issue body'),
-        labels: arraySchema(stringSchema('Label name')),
-        assignees: arraySchema(stringSchema('GitHub username')),
-      },
-      ['title'],
-    ),
-    outputSchema: objectSchema({issue: openObjectSchema('Created GitHub issue')}, ['issue']),
-  },
-  {
-    id: 'update_issue',
-    category: 'issues',
-    description: 'Update a GitHub issue title, body, state, labels, or assignees.',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: scopes.issuesWrite,
-    inputSchema: repositoryInputSchema(
-      {
-        issue_number: issueNumber,
-        title: stringSchema('Issue title'),
-        body: stringSchema('Issue body'),
-        state: enumSchema(['open', 'closed'], 'Issue state'),
-        labels: arraySchema(stringSchema('Label name')),
-        assignees: arraySchema(stringSchema('GitHub username')),
+        issue_number: integerSchema('Issue or pull request number to comment on or react to'),
+        comment_id: integerSchema(
+          'The numeric ID of the issue or pull request comment to react to',
+        ),
+        body: stringSchema('Comment content. Required unless reaction is provided'),
+        reaction: enumSchema(
+          ['+1', '-1', 'laugh', 'confused', 'heart', 'hooray', 'rocket', 'eyes'],
+          'Emoji reaction to add. Required unless body is provided',
+        ),
       },
       ['issue_number'],
     ),
-    outputSchema: objectSchema({issue: openObjectSchema('Updated GitHub issue')}, ['issue']),
-  },
-  {
-    id: 'get_pull_request',
-    category: 'pull_requests',
-    description: 'Get a GitHub pull request by number, including optional details.',
-    sensitivity: 'read',
-    sensitive: false,
-    requiredScope: scopes.pullRequestsRead,
+    outputSchema: openObjectSchema('Created issue comment or reaction'),
+  }),
+  tool({
+    id: 'issue_write',
+    category: 'issues',
+    description: 'Create a new or update an existing issue in a GitHub repository.',
+    methods: issueWriteMethods,
     inputSchema: repositoryInputSchema(
       {
-        pull_number: pullNumber,
-        include_diff: booleanSchema('Include the pull request diff'),
-        include_files: booleanSchema('Include changed files'),
-        include_commits: booleanSchema('Include commits'),
-        include_reviews: booleanSchema('Include reviews'),
+        method: methodSchema(issueWriteMethods, 'Write operation to perform on a single issue'),
+        issue_number: integerSchema('Issue number to update'),
+        title: stringSchema('Issue title'),
+        body: stringSchema('Issue body content'),
+        assignees: arraySchema(stringSchema('GitHub username')),
+        labels: arraySchema(stringSchema('Label name')),
+        milestone: integerSchema('Milestone number'),
+        issue_type: stringSchema('Type of this issue'),
+        state: enumSchema(['open', 'closed'], 'New state'),
+        state_reason: enumSchema(
+          ['completed', 'not_planned', 'duplicate'],
+          'Reason for the state change',
+        ),
+        duplicate_of: integerSchema('Issue number that this issue is a duplicate of'),
       },
-      ['pull_number'],
+      ['method'],
     ),
-    outputSchema: objectSchema({pull_request: openObjectSchema('GitHub pull request')}, [
-      'pull_request',
-    ]),
-  },
-  {
+    outputSchema: openObjectSchema('Issue write result'),
+  }),
+  tool({
+    id: 'sub_issue_write',
+    category: 'issues',
+    description:
+      'Add, remove, or reprioritize a sub-issue under a parent issue in a GitHub repository.',
+    methods: subIssueWriteMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(subIssueWriteMethods, 'The action to perform on a single sub-issue'),
+        issue_number: integerSchema('The number of the parent issue'),
+        sub_issue_id: integerSchema('The ID of the sub-issue'),
+        replace_parent: booleanSchema("Replace the sub-issue's current parent issue"),
+        after_id: integerSchema('The ID of the sub-issue to be prioritized after'),
+        before_id: integerSchema('The ID of the sub-issue to be prioritized before'),
+      },
+      ['method', 'issue_number', 'sub_issue_id'],
+    ),
+    outputSchema: openObjectSchema('Sub-issue write result'),
+  }),
+  tool({
+    id: 'pull_request_read',
+    category: 'pull_requests',
+    description: 'Get information on a specific pull request in a GitHub repository.',
+    methods: pullRequestReadMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(
+          pullRequestReadMethods,
+          'Action to specify what pull request data needs to be retrieved from GitHub',
+        ),
+        pull_number: integerSchema('Pull request number'),
+        cursor: stringSchema('Cursor for review comment pagination'),
+        ...pageProperties,
+      },
+      ['method', 'pull_number'],
+    ),
+    outputSchema: openObjectSchema('Pull request read result'),
+  }),
+  tool({
     id: 'list_pull_requests',
     category: 'pull_requests',
-    description: 'List GitHub pull requests in a repository.',
+    description:
+      'List pull requests in a GitHub repository. If the user specifies an author, then do not use this tool and use the search_pull_requests tool instead.',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.pullRequestsRead,
     inputSchema: repositoryInputSchema({
-      state: enumSchema(['open', 'closed', 'all'], 'Pull request state filter'),
-      base: stringSchema('Base branch'),
-      head: stringSchema('Head branch or owner:branch'),
+      state: enumSchema(['open', 'closed', 'all'], 'Filter by state'),
+      head: stringSchema('Filter by head user/org and branch'),
+      base: stringSchema('Filter by base branch'),
+      sort: enumSchema(['created', 'updated', 'popularity', 'long-running'], 'Sort by'),
+      direction: enumSchema(['asc', 'desc'], 'Sort direction'),
       ...pageProperties,
     }),
     outputSchema: objectSchema(
       {pull_requests: arraySchema(openObjectSchema('GitHub pull request'))},
       ['pull_requests'],
     ),
-  },
-  {
+  }),
+  tool({
     id: 'search_pull_requests',
     category: 'pull_requests',
-    description: 'Search GitHub pull requests in a repository.',
+    description:
+      'Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.pullRequestsRead,
-    inputSchema: repositoryInputSchema({query: stringSchema('Search query'), ...pageProperties}, [
-      'query',
-    ]),
+    inputSchema: objectSchema(
+      {
+        query: stringSchema('Search query using GitHub pull request search syntax'),
+        owner: stringSchema('Optional repository owner'),
+        repo: stringSchema('Optional repository name'),
+        sort: enumSchema(
+          [
+            'comments',
+            'reactions',
+            'reactions-+1',
+            'reactions--1',
+            'reactions-smile',
+            'reactions-thinking_face',
+            'reactions-heart',
+            'reactions-tada',
+            'interactions',
+            'created',
+            'updated',
+          ],
+          'Sort field',
+        ),
+        order: enumSchema(['asc', 'desc'], 'Sort order'),
+        ...pageProperties,
+      },
+      ['query'],
+    ),
     outputSchema: objectSchema(
       {pull_requests: arraySchema(openObjectSchema('GitHub pull request'))},
       ['pull_requests'],
     ),
-  },
-  {
+  }),
+  tool({
     id: 'create_pull_request',
     category: 'pull_requests',
-    description: 'Create a GitHub pull request.',
+    description: 'Create a new pull request in a GitHub repository.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.pullRequestsWrite,
     inputSchema: repositoryInputSchema(
       {
-        title: stringSchema('Pull request title'),
-        head: stringSchema('Head branch or owner:branch'),
-        base: stringSchema('Base branch'),
-        body: stringSchema('Pull request body'),
-        draft: booleanSchema('Create the pull request as a draft'),
+        title: stringSchema('PR title'),
+        body: stringSchema('PR description'),
+        head: stringSchema('Branch containing changes'),
+        base: stringSchema('Branch to merge into'),
+        draft: booleanSchema('Create as draft PR'),
+        maintainer_can_modify: booleanSchema('Allow maintainer edits'),
+        reviewers: arraySchema(stringSchema('GitHub username or ORG/team-slug reviewer')),
       },
       ['title', 'head', 'base'],
     ),
     outputSchema: objectSchema({pull_request: openObjectSchema('Created GitHub pull request')}, [
       'pull_request',
     ]),
-  },
-  {
+  }),
+  tool({
     id: 'update_pull_request',
     category: 'pull_requests',
-    description: 'Update a GitHub pull request title, body, state, base branch, or draft state.',
+    description: 'Update an existing pull request in a GitHub repository.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.pullRequestsWrite,
     inputSchema: repositoryInputSchema(
       {
-        pull_number: pullNumber,
-        title: stringSchema('Pull request title'),
-        body: stringSchema('Pull request body'),
-        state: enumSchema(['open', 'closed'], 'Pull request state'),
-        base: stringSchema('Base branch'),
-        draft: booleanSchema('Draft state'),
+        pull_number: integerSchema('Pull request number to update'),
+        title: stringSchema('New title'),
+        body: stringSchema('New description'),
+        state: enumSchema(['open', 'closed'], 'New state'),
+        draft: booleanSchema('Mark pull request as draft or ready for review'),
+        base: stringSchema('New base branch name'),
+        maintainer_can_modify: booleanSchema('Allow maintainer edits'),
+        reviewers: arraySchema(stringSchema('GitHub username or ORG/team-slug reviewer')),
       },
       ['pull_number'],
     ),
     outputSchema: objectSchema({pull_request: openObjectSchema('Updated GitHub pull request')}, [
       'pull_request',
     ]),
-  },
-  {
-    id: 'add_pull_request_review_comment',
+  }),
+  tool({
+    id: 'add_reply_to_pull_request_comment',
     category: 'pull_requests',
-    description: 'Add an inline review comment to a GitHub pull request diff.',
+    description:
+      'Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.pullRequestsWrite,
     inputSchema: repositoryInputSchema(
       {
-        pull_number: pullNumber,
-        body: stringSchema('Markdown review comment body'),
-        path: stringSchema('File path in the pull request diff'),
-        line: integerSchema('Line number in the diff'),
-        side: enumSchema(['LEFT', 'RIGHT'], 'Diff side'),
-        commit_id: stringSchema('Commit SHA for the review comment'),
-      },
-      ['pull_number', 'body', 'path', 'line'],
-    ),
-    outputSchema: objectSchema({comment: openObjectSchema('Created pull request review comment')}, [
-      'comment',
-    ]),
-  },
-  {
-    id: 'create_pull_request_review',
-    category: 'pull_requests',
-    description: 'Create a GitHub pull request review.',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: scopes.pullRequestsWrite,
-    inputSchema: repositoryInputSchema(
-      {
-        pull_number: pullNumber,
-        event: enumSchema(['APPROVE', 'REQUEST_CHANGES', 'COMMENT'], 'Review event'),
-        body: stringSchema('Markdown review body'),
-        comments: arraySchema(
-          objectSchema(
-            {
-              path: stringSchema('File path in the pull request diff'),
-              line: integerSchema('Line number in the diff'),
-              body: stringSchema('Markdown review comment body'),
-              side: enumSchema(['LEFT', 'RIGHT'], 'Diff side'),
-            },
-            ['path', 'line', 'body'],
-          ),
+        pull_number: integerSchema('Pull request number. Required when body is provided'),
+        comment_id: integerSchema(
+          'The numeric ID of the pull request review comment to reply or react to',
+        ),
+        body: stringSchema('The text of the reply'),
+        reaction: enumSchema(
+          ['+1', '-1', 'laugh', 'confused', 'heart', 'hooray', 'rocket', 'eyes'],
+          'Emoji reaction to add',
         ),
       },
-      ['pull_number', 'event'],
+      ['comment_id'],
     ),
-    outputSchema: objectSchema({review: openObjectSchema('Created pull request review')}, [
-      'review',
-    ]),
-  },
-  {
-    id: 'request_reviewers',
-    category: 'pull_requests',
-    description: 'Request users or teams to review a GitHub pull request.',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: scopes.pullRequestsWrite,
-    inputSchema: repositoryInputSchema(
-      {
-        pull_number: pullNumber,
-        reviewers: arraySchema(stringSchema('GitHub username')),
-        team_reviewers: arraySchema(stringSchema('GitHub team slug')),
-      },
-      ['pull_number'],
-    ),
-    outputSchema: objectSchema(
-      {pull_request: openObjectSchema('GitHub pull request with requested reviewers')},
-      ['pull_request'],
-    ),
-  },
-  {
+    outputSchema: openObjectSchema('Pull request comment reply or reaction result'),
+  }),
+  tool({
     id: 'merge_pull_request',
     category: 'pull_requests',
-    description: 'Merge a GitHub pull request into its base branch.',
+    description: 'Merge a pull request in a GitHub repository.',
     sensitivity: 'write',
     sensitive: true,
     requiredScope: scopes.mergePullRequest,
     inputSchema: repositoryInputSchema(
       {
-        pull_number: pullNumber,
-        commit_title: stringSchema('Merge commit title'),
-        commit_message: stringSchema('Merge commit message'),
+        pull_number: integerSchema('Pull request number'),
+        commit_title: stringSchema('Title for merge commit'),
+        commit_message: stringSchema('Extra detail for merge commit'),
         merge_method: enumSchema(['merge', 'squash', 'rebase'], 'Merge method'),
-        sha: stringSchema('Expected head SHA'),
       },
       ['pull_number'],
     ),
     outputSchema: objectSchema({merge: openObjectSchema('Merge result')}, ['merge']),
-  },
-  {
-    id: 'list_workflows',
-    category: 'actions',
-    description: 'List GitHub Actions workflows in a repository.',
-    sensitivity: 'read',
+  }),
+  tool({
+    id: 'update_pull_request_branch',
+    category: 'pull_requests',
+    description:
+      'Update the branch of a pull request with the latest changes from the base branch.',
+    sensitivity: 'write',
     sensitive: false,
-    requiredScope: scopes.actionsRead,
-    inputSchema: repositoryInputSchema(pageProperties),
-    outputSchema: objectSchema(
-      {workflows: arraySchema(openObjectSchema('GitHub Actions workflow'))},
-      ['workflows'],
+    requiredScope: scopes.pullRequestsWrite,
+    inputSchema: repositoryInputSchema(
+      {
+        pull_number: integerSchema('Pull request number'),
+        expected_head_sha: stringSchema("The expected SHA of the pull request's HEAD ref"),
+      },
+      ['pull_number'],
     ),
-  },
-  {
-    id: 'list_workflow_runs',
+    outputSchema: openObjectSchema('Pull request branch update result'),
+  }),
+  tool({
+    id: 'pull_request_review_write',
+    category: 'pull_requests',
+    description: 'Create and/or submit, delete review of a pull request.',
+    methods: pullRequestReviewWriteMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(
+          pullRequestReviewWriteMethods,
+          'The write operation to perform on pull request review',
+        ),
+        pull_number: integerSchema('Pull request number'),
+        body: stringSchema('Review comment text'),
+        event: enumSchema(['APPROVE', 'REQUEST_CHANGES', 'COMMENT'], 'Review action to perform'),
+        commit_id: stringSchema('SHA of commit to review'),
+        thread_id: stringSchema('The node ID of the review thread'),
+      },
+      ['method', 'pull_number'],
+    ),
+    outputSchema: openObjectSchema('Pull request review write result'),
+  }),
+  tool({
+    id: 'add_comment_to_pending_review',
+    category: 'pull_requests',
+    description:
+      "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this.",
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: scopes.pullRequestsWrite,
+    inputSchema: repositoryInputSchema(
+      {
+        pull_number: integerSchema('Pull request number'),
+        path: stringSchema('The relative path to the file that necessitates a comment'),
+        body: stringSchema('The text of the review comment'),
+        subject_type: enumSchema(['LINE', 'FILE'], 'The level at which the comment is targeted'),
+        line: integerSchema('The line of the blob in the pull request diff'),
+        side: enumSchema(['LEFT', 'RIGHT'], 'The side of the diff to comment on'),
+        start_line: integerSchema('The first line of a multi-line comment range'),
+        start_side: enumSchema(
+          ['LEFT', 'RIGHT'],
+          'The starting side of a multi-line comment range',
+        ),
+      },
+      ['pull_number', 'path', 'body'],
+    ),
+    outputSchema: openObjectSchema('Pending review comment result'),
+  }),
+  tool({
+    id: 'actions_list',
     category: 'actions',
-    description: 'List GitHub Actions workflow runs in a repository.',
+    description:
+      'Tools for listing GitHub Actions resources. Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.',
+    methods: actionsListMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(actionsListMethods, 'The action to perform'),
+        resource_id: stringSchema('The unique identifier of the resource'),
+        workflow_runs_filter: openObjectSchema('Filters for workflow runs'),
+        workflow_jobs_filter: openObjectSchema('Filters for workflow jobs'),
+        ...pageProperties,
+      },
+      ['method'],
+    ),
+    outputSchema: openObjectSchema('Actions list result'),
+  }),
+  tool({
+    id: 'actions_get',
+    category: 'actions',
+    description:
+      'Get details about specific GitHub Actions resources. Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.',
+    methods: actionsGetMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(actionsGetMethods, 'The method to execute'),
+        resource_id: stringSchema('The unique identifier of the resource'),
+      },
+      ['method', 'resource_id'],
+    ),
+    outputSchema: openObjectSchema('Actions get result'),
+  }),
+  tool({
+    id: 'actions_run_trigger',
+    category: 'actions',
+    description:
+      'Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs.',
+    methods: actionsRunTriggerMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(actionsRunTriggerMethods, 'The method to execute'),
+        workflow_id: stringSchema(
+          'The workflow ID or workflow file name. Required for run_workflow',
+        ),
+        ref: stringSchema('The git reference for the workflow. Required for run_workflow'),
+        inputs: openObjectSchema('Inputs the workflow accepts. Only used for run_workflow'),
+        run_id: integerSchema(
+          'The ID of the workflow run. Required for all methods except run_workflow',
+        ),
+      },
+      ['method'],
+    ),
+    outputSchema: openObjectSchema('Actions run trigger result'),
+  }),
+  tool({
+    id: 'get_job_logs',
+    category: 'actions',
+    description:
+      'Get logs for GitHub Actions workflow jobs. Use this tool to retrieve logs for a specific job or all failed jobs in a workflow run.',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.actionsRead,
     inputSchema: repositoryInputSchema({
-      workflow_id: workflowId,
-      branch: stringSchema('Branch name'),
-      status: enumSchema(
-        [
-          'completed',
-          'action_required',
-          'cancelled',
-          'failure',
-          'neutral',
-          'skipped',
-          'stale',
-          'success',
-          'timed_out',
-          'in_progress',
-          'queued',
-          'requested',
-          'waiting',
-          'pending',
-        ],
-        'Workflow run status',
+      job_id: integerSchema('The unique identifier of the workflow job'),
+      run_id: integerSchema('The unique identifier of the workflow run'),
+      failed_only: booleanSchema(
+        'When true, gets logs for all failed jobs in the workflow run specified by run_id',
       ),
-      event: stringSchema('Triggering event name'),
-      ...pageProperties,
+      return_content: booleanSchema('Returns actual log content instead of URLs'),
+      tail_lines: integerSchema('Number of lines to return from the end of the log'),
     }),
-    outputSchema: objectSchema(
-      {workflow_runs: arraySchema(openObjectSchema('GitHub Actions workflow run'))},
-      ['workflow_runs'],
-    ),
-  },
-  {
-    id: 'get_workflow_run',
-    category: 'actions',
-    description: 'Get a GitHub Actions workflow run by id.',
-    sensitivity: 'read',
-    sensitive: false,
-    requiredScope: scopes.actionsRead,
-    inputSchema: repositoryInputSchema({run_id: runId}, ['run_id']),
-    outputSchema: objectSchema({workflow_run: openObjectSchema('GitHub Actions workflow run')}, [
-      'workflow_run',
-    ]),
-  },
-  {
-    id: 'get_workflow_run_logs',
-    category: 'actions',
-    description: 'Get download metadata for GitHub Actions workflow run logs.',
-    sensitivity: 'read',
-    sensitive: false,
-    requiredScope: scopes.actionsRead,
-    inputSchema: repositoryInputSchema({run_id: runId}, ['run_id']),
-    outputSchema: objectSchema(
-      {logs: openObjectSchema('GitHub Actions workflow run log metadata')},
-      ['logs'],
-    ),
-  },
-  {
-    id: 'list_workflow_jobs',
-    category: 'actions',
-    description: 'List jobs for a GitHub Actions workflow run.',
-    sensitivity: 'read',
-    sensitive: false,
-    requiredScope: scopes.actionsRead,
-    inputSchema: repositoryInputSchema(
-      {
-        run_id: runId,
-        filter: enumSchema(['latest', 'all'], 'Workflow jobs filter'),
-        ...pageProperties,
-      },
-      ['run_id'],
-    ),
-    outputSchema: objectSchema(
-      {jobs: arraySchema(openObjectSchema('GitHub Actions workflow job'))},
-      ['jobs'],
-    ),
-  },
-  {
-    id: 'get_job_logs',
-    category: 'actions',
-    description: 'Get download metadata for GitHub Actions job logs.',
-    sensitivity: 'read',
-    sensitive: false,
-    requiredScope: scopes.actionsRead,
-    inputSchema: repositoryInputSchema({job_id: jobId}, ['job_id']),
-    outputSchema: objectSchema({logs: openObjectSchema('GitHub Actions job log metadata')}, [
-      'logs',
-    ]),
-  },
-  {
-    id: 'run_workflow',
-    category: 'actions',
-    description: 'Dispatch a GitHub Actions workflow run.',
-    sensitivity: 'write',
-    sensitive: true,
-    requiredScope: scopes.actionsWrite,
-    inputSchema: repositoryInputSchema(
-      {
-        workflow_id: workflowId,
-        ref: stringSchema('Git ref to run the workflow on'),
-        inputs: {
-          type: 'object',
-          description: 'Workflow dispatch inputs',
-          additionalProperties: {type: ['string', 'number', 'boolean']},
-        },
-      },
-      ['workflow_id', 'ref'],
-    ),
-    outputSchema: objectSchema({dispatch: openObjectSchema('Workflow dispatch result')}, [
-      'dispatch',
-    ]),
-  },
-  {
-    id: 'rerun_workflow_run',
-    category: 'actions',
-    description: 'Rerun a GitHub Actions workflow run.',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: scopes.actionsWrite,
-    inputSchema: repositoryInputSchema(
-      {
-        run_id: runId,
-        enable_debug_logging: booleanSchema('Enable debug logging for the rerun'),
-      },
-      ['run_id'],
-    ),
-    outputSchema: objectSchema({rerun: openObjectSchema('Workflow rerun result')}, ['rerun']),
-  },
-  {
-    id: 'cancel_workflow_run',
-    category: 'actions',
-    description: 'Cancel a GitHub Actions workflow run.',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: scopes.actionsWrite,
-    inputSchema: repositoryInputSchema({run_id: runId}, ['run_id']),
-    outputSchema: objectSchema({cancellation: openObjectSchema('Workflow cancellation result')}, [
-      'cancellation',
-    ]),
-  },
+    outputSchema: objectSchema({logs: openObjectSchema('GitHub Actions job logs')}, ['logs']),
+  }),
 ] as const satisfies readonly GithubAgentToolCatalogEntry[];
 
 export type GithubAgentToolId = (typeof githubAgentToolCatalog)[number]['id'];
@@ -510,6 +756,63 @@ export class GithubAgentToolsProvider
       'GitHub agent tool execution is not implemented yet',
     );
   }
+}
+
+function tool(input: GithubAgentToolCatalogInput): GithubAgentToolCatalogEntry {
+  if (!input.methods) {
+    if (!input.sensitivity || input.sensitive === undefined || !input.requiredScope) {
+      throw new Error(`GitHub agent tool ${input.id} is missing sensitivity or required scope`);
+    }
+    return {
+      id: input.id,
+      category: input.category,
+      description: input.description,
+      sensitivity: input.sensitivity,
+      sensitive: input.sensitive,
+      requiredScope: input.requiredScope,
+      inputSchema: input.inputSchema,
+      outputSchema: input.outputSchema,
+    };
+  }
+
+  return {
+    id: input.id,
+    category: input.category,
+    description: input.description,
+    sensitivity: input.methods.some((candidate) => candidate.sensitivity === 'write')
+      ? 'write'
+      : 'read',
+    sensitive: input.methods.some((candidate) => candidate.sensitive),
+    requiredScope: unionRequiredScopes(input.methods),
+    inputSchema: input.inputSchema,
+    outputSchema: input.outputSchema,
+    methods: input.methods,
+  };
+}
+
+function method(
+  id: string,
+  description: string,
+  sensitivity: GithubAgentToolSensitivity,
+  sensitive: boolean,
+  requiredScope: GithubAgentToolRequiredScope,
+): GithubAgentToolCatalogMethod {
+  return {id, description, sensitivity, sensitive, requiredScope};
+}
+
+function unionRequiredScopes(
+  methods: readonly GithubAgentToolCatalogMethod[],
+): GithubAgentToolRequiredScope {
+  const byPermission = new Map<GithubAgentToolPermission, GithubAgentToolPermissionAccess>();
+
+  for (const {requiredScope} of methods) {
+    for (const {permission, access} of requiredScope) {
+      if (byPermission.get(permission) === 'write') continue;
+      byPermission.set(permission, access);
+    }
+  }
+
+  return [...byPermission.entries()].map(([permission, access]) => ({permission, access}));
 }
 
 function repositoryInputSchema(
@@ -552,6 +855,16 @@ function booleanSchema(description: string): AgentToolJsonSchema {
 
 function enumSchema(values: string[], description: string): AgentToolJsonSchema {
   return {type: 'string', description, enum: values};
+}
+
+function methodSchema(
+  methods: readonly GithubAgentToolCatalogMethod[],
+  description: string,
+): AgentToolJsonSchema {
+  return enumSchema(
+    methods.map((candidate) => candidate.id),
+    description,
+  );
 }
 
 function arraySchema(items: AgentToolJsonSchema): AgentToolJsonSchema {

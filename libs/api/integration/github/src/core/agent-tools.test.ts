@@ -4,7 +4,15 @@ import {createGithubIntegrationProvider} from '#index.js';
 
 const expectedCatalogRows = [
   {
-    id: 'get_issue',
+    id: 'issue_read',
+    category: 'issues',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: [{permission: 'issues', access: 'read'}],
+    methods: ['get', 'get_comments', 'get_sub_issues', 'get_parent', 'get_labels'],
+  },
+  {
+    id: 'list_issue_types',
     category: 'issues',
     sensitivity: 'read',
     sensitive: false,
@@ -32,25 +40,41 @@ const expectedCatalogRows = [
     requiredScope: [{permission: 'issues', access: 'write'}],
   },
   {
-    id: 'create_issue',
+    id: 'issue_write',
     category: 'issues',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: [{permission: 'issues', access: 'write'}],
+    methods: ['create', 'update'],
   },
   {
-    id: 'update_issue',
+    id: 'sub_issue_write',
     category: 'issues',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: [{permission: 'issues', access: 'write'}],
+    methods: ['add', 'remove', 'reprioritize'],
   },
   {
-    id: 'get_pull_request',
+    id: 'pull_request_read',
     category: 'pull_requests',
     sensitivity: 'read',
     sensitive: false,
-    requiredScope: [{permission: 'pull_requests', access: 'read'}],
+    requiredScope: [
+      {permission: 'pull_requests', access: 'read'},
+      {permission: 'issues', access: 'read'},
+    ],
+    methods: [
+      'get',
+      'get_diff',
+      'get_status',
+      'get_files',
+      'get_commits',
+      'get_review_comments',
+      'get_reviews',
+      'get_comments',
+      'get_check_runs',
+    ],
   },
   {
     id: 'list_pull_requests',
@@ -81,21 +105,7 @@ const expectedCatalogRows = [
     requiredScope: [{permission: 'pull_requests', access: 'write'}],
   },
   {
-    id: 'add_pull_request_review_comment',
-    category: 'pull_requests',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: [{permission: 'pull_requests', access: 'write'}],
-  },
-  {
-    id: 'create_pull_request_review',
-    category: 'pull_requests',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: [{permission: 'pull_requests', access: 'write'}],
-  },
-  {
-    id: 'request_reviewers',
+    id: 'add_reply_to_pull_request_comment',
     category: 'pull_requests',
     sensitivity: 'write',
     sensitive: false,
@@ -112,39 +122,68 @@ const expectedCatalogRows = [
     ],
   },
   {
-    id: 'list_workflows',
-    category: 'actions',
-    sensitivity: 'read',
+    id: 'update_pull_request_branch',
+    category: 'pull_requests',
+    sensitivity: 'write',
     sensitive: false,
-    requiredScope: [{permission: 'actions', access: 'read'}],
+    requiredScope: [{permission: 'pull_requests', access: 'write'}],
   },
   {
-    id: 'list_workflow_runs',
-    category: 'actions',
-    sensitivity: 'read',
+    id: 'pull_request_review_write',
+    category: 'pull_requests',
+    sensitivity: 'write',
     sensitive: false,
-    requiredScope: [{permission: 'actions', access: 'read'}],
+    requiredScope: [{permission: 'pull_requests', access: 'write'}],
+    methods: ['create', 'submit_pending', 'delete_pending', 'resolve_thread', 'unresolve_thread'],
   },
   {
-    id: 'get_workflow_run',
-    category: 'actions',
-    sensitivity: 'read',
+    id: 'add_comment_to_pending_review',
+    category: 'pull_requests',
+    sensitivity: 'write',
     sensitive: false,
-    requiredScope: [{permission: 'actions', access: 'read'}],
+    requiredScope: [{permission: 'pull_requests', access: 'write'}],
   },
   {
-    id: 'get_workflow_run_logs',
+    id: 'actions_list',
     category: 'actions',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: [{permission: 'actions', access: 'read'}],
+    methods: [
+      'list_workflows',
+      'list_workflow_runs',
+      'list_workflow_jobs',
+      'list_workflow_run_artifacts',
+    ],
   },
   {
-    id: 'list_workflow_jobs',
+    id: 'actions_get',
     category: 'actions',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: [{permission: 'actions', access: 'read'}],
+    methods: [
+      'get_workflow',
+      'get_workflow_run',
+      'get_workflow_job',
+      'download_workflow_run_artifact',
+      'get_workflow_run_usage',
+      'get_workflow_run_logs_url',
+    ],
+  },
+  {
+    id: 'actions_run_trigger',
+    category: 'actions',
+    sensitivity: 'write',
+    sensitive: true,
+    requiredScope: [{permission: 'actions', access: 'write'}],
+    methods: [
+      'run_workflow',
+      'rerun_workflow_run',
+      'rerun_failed_jobs',
+      'cancel_workflow_run',
+      'delete_workflow_run_logs',
+    ],
   },
   {
     id: 'get_job_logs',
@@ -153,53 +192,52 @@ const expectedCatalogRows = [
     sensitive: false,
     requiredScope: [{permission: 'actions', access: 'read'}],
   },
-  {
-    id: 'run_workflow',
-    category: 'actions',
-    sensitivity: 'write',
-    sensitive: true,
-    requiredScope: [{permission: 'actions', access: 'write'}],
-  },
-  {
-    id: 'rerun_workflow_run',
-    category: 'actions',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: [{permission: 'actions', access: 'write'}],
-  },
-  {
-    id: 'cancel_workflow_run',
-    category: 'actions',
-    sensitivity: 'write',
-    sensitive: false,
-    requiredScope: [{permission: 'actions', access: 'write'}],
-  },
 ];
 
 describe('github agent tool catalog', () => {
-  it('matches the Appendix A tool rows', () => {
+  it('matches the GitHub MCP-style tool rows', () => {
     const rows = githubAgentToolCatalog.map(
-      ({id, category, sensitivity, sensitive, requiredScope}) => ({
+      ({id, category, sensitivity, sensitive, requiredScope, methods}) => ({
         id,
         category,
         sensitivity,
         sensitive,
         requiredScope,
+        ...(methods ? {methods: methods.map((method) => method.id)} : {}),
       }),
     );
 
     expect(rows).toEqual(expectedCatalogRows);
   });
 
-  it('defines descriptions and schemas for every tool', () => {
+  it('defines descriptions and schemas for every tool and method', () => {
     const entriesMissingCatalogData = githubAgentToolCatalog.filter(
       (entry) =>
         entry.description.trim().length === 0 ||
         entry.inputSchema.type !== 'object' ||
-        entry.outputSchema?.type !== 'object',
+        entry.outputSchema?.type !== 'object' ||
+        entry.methods?.some((method) => method.description.trim().length === 0),
     );
 
     expect(entriesMissingCatalogData).toEqual([]);
+  });
+
+  it('defines method enums for method-based tools', () => {
+    const entriesWithWrongMethodEnums = githubAgentToolCatalog.filter((entry) => {
+      if (!entry.methods) return false;
+
+      const inputSchema = entry.inputSchema as {
+        properties?: Record<string, {enum?: unknown[] | undefined}> | undefined;
+      };
+      const methodProperty = inputSchema.properties?.method;
+      return (
+        !methodProperty ||
+        !Array.isArray(methodProperty.enum) ||
+        methodProperty.enum.join(',') !== entry.methods.map((method) => method.id).join(',')
+      );
+    });
+
+    expect(entriesWithWrongMethodEnums).toEqual([]);
   });
 
   it('uses unique bare native ids', () => {
