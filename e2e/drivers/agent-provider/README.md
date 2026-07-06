@@ -9,6 +9,8 @@ Use `startFakeOpenAiProvider()` for suites that need the provider to outlive
 Playwright `globalSetup` and serve worker-process jobs:
 
 ```ts
+import {message, startFakeOpenAiProvider, toolCall} from '@shipfox/e2e-driver-agent-provider';
+
 const provider = await startFakeOpenAiProvider({runId});
 const script = await provider.createScript({
   id: `${runId}-agent-output-tool`,

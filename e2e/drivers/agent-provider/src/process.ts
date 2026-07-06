@@ -6,7 +6,9 @@ import {fileURLToPath} from 'node:url';
 import type {FakeOpenAiRecordedRequest, FakeOpenAiResponse, FakeOpenAiScript} from './scripts.js';
 
 const DEFAULT_READINESS_TIMEOUT_MS = 10_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 const DEFAULT_SIGTERM_TIMEOUT_MS = 5_000;
+const HEALTHZ_REQUEST_TIMEOUT_MS = 500;
 const READY_EVENT = 'ready';
 
 export interface StartFakeOpenAiProviderParams {
@@ -98,7 +100,12 @@ export async function startFakeOpenAiProvider(
   }
 
   const stateFile = providerStateFile({runId, stateDirectory: params.stateDirectory});
-  await writeProviderState(stateFile, {runId, pid, baseUrl, adminToken});
+  try {
+    await writeProviderState(stateFile, {runId, pid, baseUrl, adminToken});
+  } catch (error) {
+    await terminate(child, DEFAULT_SIGTERM_TIMEOUT_MS);
+    throw error;
+  }
 
   return {
     baseUrl,
@@ -176,9 +183,11 @@ async function writeProviderState(path: string, state: FakeOpenAiProviderState):
 function providerSidecarModule(entryPath: string | undefined): {cwd: string; entry: string} {
   if (entryPath) return {cwd: dirname(entryPath), entry: entryPath};
 
-  const sourceDir = dirname(fileURLToPath(import.meta.url));
-  const packageDir = dirname(sourceDir);
-  return {cwd: packageDir, entry: join(sourceDir, 'sidecar.ts')};
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const packageDir = dirname(moduleDir);
+  const sourceEntry = join(packageDir, 'src', 'sidecar.ts');
+  const builtEntry = join(packageDir, 'dist', 'sidecar.js');
+  return {cwd: packageDir, entry: existsSync(sourceEntry) ? sourceEntry : builtEntry};
 }
 
 function inheritedProcessEnv(): Record<string, string> {
@@ -271,8 +280,10 @@ async function waitForHealthz(params: {
     }
 
     try {
-      const response = await fetch(`${params.baseUrl}/healthz`, {
+      const remainingMs = deadline - Date.now();
+      const response = await fetchWithTimeout(`${params.baseUrl}/healthz`, {
         headers: adminHeaders(params.adminToken),
+        timeoutMs: Math.min(HEALTHZ_REQUEST_TIMEOUT_MS, remainingMs),
       });
       if (response.ok) return;
     } catch {
@@ -292,13 +303,14 @@ async function requestJson<T>(params: {
   method: string;
   url: string;
 }): Promise<T> {
-  const response = await fetch(params.url, {
+  const response = await fetchWithTimeout(params.url, {
     method: params.method,
     headers: {
       ...adminHeaders(params.adminToken),
       ...(params.body === undefined ? {} : {'content-type': 'application/json'}),
     },
     ...(params.body === undefined ? {} : {body: JSON.stringify(params.body)}),
+    timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
   });
 
   if (!response.ok) throw new Error(await responseErrorMessage(response));
@@ -310,9 +322,10 @@ async function requestNoContent(params: {
   method: string;
   url: string;
 }): Promise<void> {
-  const response = await fetch(params.url, {
+  const response = await fetchWithTimeout(params.url, {
     method: params.method,
     headers: adminHeaders(params.adminToken),
+    timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
   });
 
   if (!response.ok) throw new Error(await responseErrorMessage(response));
@@ -320,6 +333,25 @@ async function requestNoContent(params: {
 
 function adminHeaders(adminToken: string): Record<string, string> {
   return {authorization: `Bearer ${adminToken}`};
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit & {timeoutMs: number},
+): Promise<Response> {
+  const {timeoutMs, ...requestInit} = init;
+  const abortController = new AbortController();
+  const timer = setTimeout(() => abortController.abort(), timeoutMs);
+  try {
+    return await fetch(url, {...requestInit, signal: abortController.signal});
+  } catch (error) {
+    if (abortController.signal.aborted) {
+      throw new Error(`Fake OpenAI provider request timed out after ${timeoutMs}ms: ${url}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function responseErrorMessage(response: Response): Promise<string> {
@@ -347,7 +379,7 @@ function terminate(child: ChildProcess, sigtermTimeoutMs: number): Promise<void>
 
 async function terminatePid(pid: number, sigtermTimeoutMs: number): Promise<void> {
   if (!isProcessAlive(pid)) return;
-  process.kill(pid, 'SIGTERM');
+  if (!sendSignal(pid, 'SIGTERM')) return;
 
   const deadline = Date.now() + sigtermTimeoutMs;
   while (Date.now() < deadline) {
@@ -355,16 +387,31 @@ async function terminatePid(pid: number, sigtermTimeoutMs: number): Promise<void
     await sleep(50);
   }
 
-  if (isProcessAlive(pid)) process.kill(pid, 'SIGKILL');
+  if (isProcessAlive(pid)) sendSignal(pid, 'SIGKILL');
 }
 
 function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
+  } catch (error) {
+    if (isErrnoException(error) && error.code === 'EPERM') return true;
     return false;
   }
+}
+
+function sendSignal(pid: number, signal: NodeJS.Signals): boolean {
+  try {
+    process.kill(pid, signal);
+    return true;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
 }
 
 function defaultStateDirectory(): string {
