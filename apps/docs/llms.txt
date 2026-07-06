@@ -6,3 +6,10 @@
 
 - [Introduction](/introduction): What Shipfox is, how it works, and what you can build with agentic workflows.
 - [Quick Start](/getting-started): Connect a project, add a workflow YAML, register a runner, and fire your first run.
+- [Workflow Schema](/reference/workflow-schema): Complete YAML schema reference — top-level and job fields, step kinds, gate blocks, env, checkout, and validation rules.
+- [Trigger Sources](/reference/trigger-sources): Every trigger source and its events — manual, GitHub, Sentry, custom webhooks; integration source is the connection slug.
+- [Step Types](/reference/step-types): The two step types — run steps (shell) and agent steps (AI models) — fields, constraints, and the gate block.
+- [Expressions (CEL)](/reference/expressions): CEL in gates and job success, and ${{ }} interpolation in run commands, env, and prompts from run/trigger context.
+- [Model Providers](/reference/model-providers): The agent provider catalog — every provider, its ID and default model, and how config and model resolution work.
+- [REST API](/reference/rest-api): The HTTP API — base URL, bearer-token auth, endpoints for projects, definitions, runs, runners, providers, integrations, and the error shape.
+- [Glossary](/reference/glossary): Definitions for every Shipfox term — workspace, project, workflow, run, job, step, trigger, runner, gate, CEL, filter, key.
