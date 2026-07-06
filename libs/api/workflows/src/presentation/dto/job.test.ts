@@ -4,18 +4,24 @@ import {toJobDto, toJobExecutionDto} from './job.js';
 
 describe('toJobDto', () => {
   it('maps job status reason to snake_case', () => {
-    const job = jobEntity({status: 'skipped', statusReason: 'dependency_not_completed'});
+    const job = jobEntity({
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+      outputs: {image_sha: 'abc123'},
+    });
 
     const dto = toJobDto(job);
 
     expect(dto.status).toBe('skipped');
     expect(dto.status_reason).toBe('dependency_not_completed');
+    expect(dto.outputs).toEqual({image_sha: 'abc123'});
   });
 });
 
 describe('toJobExecutionDto', () => {
   it('maps listener trigger events', () => {
     const jobExecution = jobExecutionEntity({
+      outputs: {verdict: 'approved'},
       triggerEvents: [
         {
           source: 'github',
@@ -29,6 +35,7 @@ describe('toJobExecutionDto', () => {
 
     const dto = toJobExecutionDto(jobExecution);
 
+    expect(dto.outputs).toEqual({verdict: 'approved'});
     expect(dto.trigger_events).toEqual([
       {
         source: 'github',

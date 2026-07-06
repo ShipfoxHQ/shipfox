@@ -40,10 +40,20 @@ export const getRunRoute = defineRoute({
       ...toJobDto(job),
       job_executions: job.jobExecutions.map((jobExecution) => ({
         ...toJobExecutionDto(jobExecution),
-        steps: jobExecution.steps.map((step) => ({
-          ...toStepDto(step),
-          attempts: step.attempts.map(toStepAttemptDto),
-        })),
+        steps: jobExecution.steps.map((step) => {
+          const attempts = step.attempts.map(toStepAttemptDto);
+          const latestTerminalAttempt = attempts
+            .filter((attempt) => attempt.status !== 'running')
+            .at(-1);
+          return {
+            ...toStepDto(step),
+            exit_code: latestTerminalAttempt?.exit_code ?? null,
+            outputs: latestTerminalAttempt?.outputs ?? null,
+            response: latestTerminalAttempt?.response ?? null,
+            gate_result: latestTerminalAttempt?.gate_result ?? null,
+            attempts,
+          };
+        }),
       })),
     }));
 

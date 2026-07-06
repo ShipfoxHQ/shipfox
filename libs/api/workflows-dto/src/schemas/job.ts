@@ -41,6 +41,7 @@ export const jobDtoSchema = z.object({
   listening: jobListeningSchema.nullable(),
   listener_status: listenerStatusSchema,
   resolution_reason: resolutionReasonSchema.nullable(),
+  outputs: z.record(z.string(), z.unknown()).nullable(),
   dependencies: z.array(z.string()),
   position: z.number(),
   created_at: z.string(),

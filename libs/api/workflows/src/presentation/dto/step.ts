@@ -134,6 +134,8 @@ export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
     status: attempt.status,
     exit_code: attempt.exitCode,
     output: attempt.output,
+    outputs: attempt.output,
+    response: attempt.response,
     error: attempt.error,
     gate_result: toStepGateResultDto(attempt.gateResult, attempt.status),
     restart_feedback: attempt.restartFeedback,

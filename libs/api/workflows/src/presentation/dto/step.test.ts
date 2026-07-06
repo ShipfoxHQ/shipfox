@@ -278,10 +278,18 @@ describe('toStepAttemptDto', () => {
   });
 
   it('maps restart feedback', () => {
-    const attempt: StepAttempt = {...baseAttempt, restartFeedback: 'gate condition not met'};
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      output: {summary: 'looks good'},
+      response: 'done',
+      restartFeedback: 'gate condition not met',
+    };
 
     const result = toStepAttemptDto(attempt);
 
+    expect(result.output).toEqual({summary: 'looks good'});
+    expect(result.outputs).toEqual({summary: 'looks good'});
+    expect(result.response).toBe('done');
     expect(result.restart_feedback).toBe('gate condition not met');
   });
 
