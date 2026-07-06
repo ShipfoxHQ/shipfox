@@ -873,9 +873,9 @@
           "name": "workflows_step_attempts_execution_order_positive_ck",
           "value": "\"workflows_step_attempts\".\"execution_order\" > 0"
         },
-        "workflows_step_attempts_status_not_pending_ck": {
-          "name": "workflows_step_attempts_status_not_pending_ck",
-          "value": "\"workflows_step_attempts\".\"status\" <> 'pending'"
+        "workflows_step_attempts_status_dispatched_ck": {
+          "name": "workflows_step_attempts_status_dispatched_ck",
+          "value": "\"workflows_step_attempts\".\"status\" NOT IN ('pending', 'skipped')"
         },
         "workflows_step_attempts_log_outcome_ck": {
           "name": "workflows_step_attempts_log_outcome_ck",
@@ -927,6 +927,13 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "status_reason": {
+          "name": "status_reason",
+          "type": "workflows_step_status_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "type": {
           "name": "type",
           "type": "text",
@@ -938,6 +945,12 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "condition": {
+          "name": "condition",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "config_plan": {
           "name": "config_plan",
@@ -1560,7 +1573,12 @@
     "public.workflows_step_status": {
       "name": "workflows_step_status",
       "schema": "public",
-      "values": ["pending", "running", "succeeded", "failed", "cancelled"]
+      "values": ["pending", "running", "succeeded", "failed", "cancelled", "skipped"]
+    },
+    "public.workflows_step_status_reason": {
+      "name": "workflows_step_status_reason",
+      "schema": "public",
+      "values": ["default_gate_rejected", "condition_rejected", "condition_errored"]
     },
     "public.workflows_rerun_mode": {
       "name": "workflows_rerun_mode",

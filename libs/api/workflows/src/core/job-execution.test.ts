@@ -312,17 +312,117 @@ describe('nextStepForJob', () => {
     expect(result).toEqual({kind: 'done', status: 'failed'});
   });
 
-  test('all cancelled, none failed → {done, failed}', async () => {
+  test('all cancelled, none failed → {done, succeeded}', async () => {
     const {jobId} = await arrangeJobWithSteps(2);
-    // A cancelled job with no failure must still report 'failed', not a vacuous
-    // success.
     await bulkUpdateJobStepStatuses({jobId, status: 'cancelled'});
 
     const result = await nextStepForJob(jobId);
 
+    expect(result).toEqual({kind: 'done', status: 'succeeded'});
+  });
+
+  test('skips a false condition without creating an attempt and dispatches the next step', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const skippedStep = steps[0];
+    const runnableStep = steps[1];
+    if (!skippedStep || !runnableStep) throw new Error('Expected arranged steps');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('false')})
+      .where(eq(stepsTable.id, skippedStep.id));
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: runnableStep.id})});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
+      status: 'skipped',
+      statusReason: 'condition_rejected',
+    });
+    expect(after.find((step) => step.id === runnableStep.id)?.status).toBe('running');
+    expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
+  });
+
+  test('skips an errored condition without creating an attempt', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const skippedStep = steps[0];
+    const runnableStep = steps[1];
+    if (!skippedStep || !runnableStep) throw new Error('Expected arranged steps');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('1 / 0 == 0')})
+      .where(eq(stepsTable.id, skippedStep.id));
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: runnableStep.id})});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
+      status: 'skipped',
+      statusReason: 'condition_errored',
+    });
+    expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
+  });
+
+  test('skips adjacent false conditions in one pull and keeps condition out of runner config', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(3);
+    const [first, second, third] = steps;
+    if (!first || !second || !third) throw new Error('Expected arranged steps');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('false')})
+      .where(sql`${stepsTable.id} = ${first.id} OR ${stepsTable.id} = ${second.id}`);
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: third.id})});
+    if (result.kind !== 'step') throw new Error('Expected a runnable step');
+    expect(result.step.config).not.toHaveProperty('if');
+    expect(result.step.condition).toBeNull();
+    const after = await getStepsByJobId(jobId);
+    expect(after.map((step) => step.status)).toEqual(['skipped', 'skipped', 'running']);
+    expect(await getStepAttempts(jobId)).toMatchObject([{stepId: third.id}]);
+  });
+
+  test('a job with only author-skipped steps resolves succeeded', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const [onlyStep] = steps;
+    if (!onlyStep) throw new Error('Expected arranged step');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('false')})
+      .where(eq(stepsTable.id, onlyStep.id));
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'done', status: 'succeeded'});
+    const after = await getStepsByJobId(jobId);
+    expect(after).toMatchObject([{status: 'skipped', statusReason: 'condition_rejected'}]);
+    expect(await getStepAttempts(jobId)).toHaveLength(0);
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(0);
+  });
+
+  test('the implicit default gate skips when execution.failed is true', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const failed = steps[0];
+    const defaultGated = steps[1];
+    if (!failed || !defaultGated) throw new Error('Expected arranged steps');
+    await db().update(stepsTable).set({status: 'failed'}).where(eq(stepsTable.id, failed.id));
+
+    const result = await nextStepForJob(jobId);
+
     expect(result).toEqual({kind: 'done', status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === defaultGated.id)).toMatchObject({
+      status: 'skipped',
+      statusReason: 'default_gate_rejected',
+    });
   });
 });
+
+function conditionExpression(source: string) {
+  return createWorkflowExpression({source, check: {mode: 'syntax'}});
+}
 
 function stepOutputField(stepKey: string, outputKey: string) {
   return {

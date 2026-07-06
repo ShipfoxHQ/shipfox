@@ -146,6 +146,7 @@ function buildStepAttemptContext(params: {
   readonly attempts: readonly StepAttempt[];
 }): {
   readonly stepsContext: Record<string, Record<string, unknown>>;
+  readonly stepsFailed: boolean;
   readonly orderedAttempts: readonly StepAttempt[];
   readonly stepsByKey: ReadonlyMap<string, Step>;
   readonly terminalAttemptsByStepId: ReadonlyMap<string, readonly StepAttempt[]>;
@@ -178,7 +179,13 @@ function buildStepAttemptContext(params: {
     };
   }
 
-  return {stepsContext, orderedAttempts, stepsByKey, terminalAttemptsByStepId};
+  return {
+    stepsContext,
+    stepsFailed: params.steps.some((step) => step.status === 'failed'),
+    orderedAttempts,
+    stepsByKey,
+    terminalAttemptsByStepId,
+  };
 }
 
 export function assembleStepDispatchContext(params: {
@@ -211,6 +218,7 @@ export function assembleStepDispatchContext(params: {
               index: params.jobExecution.sequence,
               name: params.jobExecution.name,
               status: params.jobExecution.status,
+              failed: stepAttemptContext.stepsFailed,
               started_at: params.jobExecution.startedAt,
               finished_at: params.jobExecution.finishedAt,
               events: params.jobExecution.triggerEvents,

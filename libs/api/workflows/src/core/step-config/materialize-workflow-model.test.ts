@@ -1004,6 +1004,29 @@ describe('materializeWorkflowModel', () => {
     expect(rows[0]?.checkout).toEqual(DEFAULT_JOB_CHECKOUT);
   });
 
+  it('materializes step if as server-owned condition outside runner config', () => {
+    const model = normalizeWorkflowDocument({
+      name: 'Conditional workflow',
+      runner: 'ubuntu-latest',
+      jobs: {
+        build: {
+          steps: [{if: template('false'), run: 'npm test'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model});
+
+    const step = rows[0]?.steps[1];
+    expect(step?.condition).toEqual({
+      language: 'cel',
+      source: 'false',
+      check: 'typed',
+      resultType: 'bool',
+    });
+    expect(step?.config).toEqual({run: 'npm test'});
+  });
+
   it('fails fast when the model contains an unresolved dependency id', () => {
     const model: WorkflowModel = {
       ...workflowModel(),

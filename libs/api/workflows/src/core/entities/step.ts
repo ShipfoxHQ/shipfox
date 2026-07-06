@@ -3,15 +3,32 @@ import type {
   EvaluationTraceEntry,
   EvaluationTraceLimitEntry,
   ResolvedField,
+  WorkflowExpression,
 } from '@shipfox/expression';
 import type {InterpolationUnresolvableField} from '../errors.js';
 
-export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
+
+export const STEP_STATUS_REASONS = [
+  'default_gate_rejected',
+  'condition_rejected',
+  'condition_errored',
+] as const;
+
+export type StepStatusReason = (typeof STEP_STATUS_REASONS)[number];
+
+const STEP_STATUS_REASON_SET = new Set<StepStatusReason>(STEP_STATUS_REASONS);
+
+export function toStepStatusReason(value: string | null): StepStatusReason | null {
+  if (value === null) return null;
+  return STEP_STATUS_REASON_SET.has(value as StepStatusReason) ? (value as StepStatusReason) : null;
+}
+
 export type StepAttemptLogOutcome = 'drained' | 'abandoned';
 
 // A step_attempts row exists only once an attempt is dispatched, so it is never
-// 'pending'.
-export type StepAttemptStatus = Exclude<StepStatus, 'pending'>;
+// 'pending' or 'skipped'.
+export type StepAttemptStatus = Exclude<StepStatus, 'pending' | 'skipped'>;
 
 export interface StepSourceLocation {
   startLine: number;
@@ -59,8 +76,10 @@ export interface Step {
   name: string;
   sourceLocation: StepSourceLocation | null;
   status: StepStatus;
+  statusReason: StepStatusReason | null;
   type: string;
   config: Record<string, unknown>;
+  condition: WorkflowExpression | null;
   configPlan: StepConfigDispatchPlan | null;
   authoredConfig: Record<string, unknown> | null;
   error: Record<string, unknown> | null;

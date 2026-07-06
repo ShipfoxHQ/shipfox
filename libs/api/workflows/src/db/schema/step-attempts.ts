@@ -62,7 +62,10 @@ export const stepAttempts = pgTable(
     }).onDelete('cascade'),
     check('workflows_step_attempts_attempt_positive_ck', sql`${table.attempt} > 0`),
     check('workflows_step_attempts_execution_order_positive_ck', sql`${table.executionOrder} > 0`),
-    check('workflows_step_attempts_status_not_pending_ck', sql`${table.status} <> 'pending'`),
+    check(
+      'workflows_step_attempts_status_dispatched_ck',
+      sql`${table.status} NOT IN ('pending', 'skipped')`,
+    ),
     check(
       'workflows_step_attempts_log_outcome_ck',
       sql`${table.logOutcome} IS NULL OR ${table.logOutcome} IN ('drained', 'abandoned')`,

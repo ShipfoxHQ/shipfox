@@ -8,8 +8,10 @@ function step(overrides: Partial<Step> & {id: string; position: number}): Step {
     name: 'step',
     sourceLocation: null,
     status: 'pending',
+    statusReason: null,
     type: 'run',
     config: {},
+    condition: null,
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -280,16 +282,24 @@ describe('deriveCompletion / isTerminal', () => {
     expect(isTerminal('succeeded')).toBe(true);
     expect(isTerminal('failed')).toBe(true);
     expect(isTerminal('cancelled')).toBe(true);
+    expect(isTerminal('skipped')).toBe(true);
     expect(isTerminal('running')).toBe(false);
     expect(isTerminal('pending')).toBe(false);
   });
 
-  test('deriveCompletion is succeeded only when every step succeeded', () => {
+  test('deriveCompletion fails only when a step failed', () => {
     expect(deriveCompletion([step({id: 'a', position: 0, status: 'succeeded'})])).toBe('succeeded');
     expect(
       deriveCompletion([
         step({id: 'a', position: 0, status: 'succeeded'}),
-        step({id: 'b', position: 1, status: 'cancelled'}),
+        step({id: 'b', position: 1, status: 'skipped'}),
+      ]),
+    ).toBe('succeeded');
+    expect(deriveCompletion([step({id: 'a', position: 0, status: 'skipped'})])).toBe('succeeded');
+    expect(
+      deriveCompletion([
+        step({id: 'a', position: 0, status: 'skipped'}),
+        step({id: 'b', position: 1, status: 'failed'}),
       ]),
     ).toBe('failed');
   });

@@ -51,6 +51,7 @@ import type {
   StepAttempt,
   StepAttemptStatus,
   StepStatus,
+  StepStatusReason,
 } from '#core/entities/step.js';
 import {
   isWorkflowRunTerminal,
@@ -113,6 +114,7 @@ import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
 const TERMINAL_WORKFLOW_RUN_STATUSES: WorkflowRunStatus[] = ['succeeded', 'failed', 'cancelled'];
 const TERMINAL_JOB_STATUSES: JobStatus[] = ['succeeded', 'failed', 'cancelled', 'skipped'];
 const TERMINAL_EXECUTION_STATUSES: JobExecutionStatus[] = ['succeeded', 'failed', 'cancelled'];
+const NON_TERMINAL_STEP_STATUS_FILTER = sql`${steps.status} NOT IN ('succeeded','failed','cancelled','skipped')`;
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 
@@ -322,6 +324,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           status: step.status,
           type: step.type,
           config: step.config,
+          condition: step.condition ?? null,
           configPlan: step.configPlan ?? null,
           authoredConfig: step.authoredConfig,
           position: step.position,
@@ -726,8 +729,10 @@ export async function createRerunWorkflowRun(
           name: step.name,
           sourceLocation: step.sourceLocation,
           status: carriedOver ? step.status : ('pending' as const),
+          statusReason: carriedOver ? step.statusReason : null,
           type: step.type,
           config: step.config,
+          condition: step.condition ?? null,
           configPlan: step.configPlan,
           authoredConfig: step.authoredConfig,
           error: null,
@@ -2344,14 +2349,10 @@ export async function bulkUpdateStepStatuses(
     .update(steps)
     .set({
       status: params.status,
+      statusReason: null,
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
-      ),
-    );
+    .where(and(eq(steps.jobExecutionId, params.jobExecutionId), NON_TERMINAL_STEP_STATUS_FILTER));
 
   // Finalize any open attempt rows for the steps just terminalized, so a
   // dispatched-then-timed-out/cancelled step never leaves a `running` audit row
@@ -2440,12 +2441,12 @@ export interface MarkStepRunningParams {
 export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Promise<Step | null> {
   const rows = await tx
     .update(steps)
-    .set({status: 'running', updatedAt: new Date()})
+    .set({status: 'running', statusReason: null, updatedAt: new Date()})
     .where(
       and(
         eq(steps.id, params.stepId),
         eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+        NON_TERMINAL_STEP_STATUS_FILTER,
       ),
     )
     .returning();
@@ -2482,6 +2483,7 @@ export async function dispatchStepWithCompletedConfig(
     .update(steps)
     .set({
       status: 'running',
+      statusReason: null,
       config: params.config,
       updatedAt: new Date(),
     })
@@ -2489,7 +2491,7 @@ export async function dispatchStepWithCompletedConfig(
       and(
         eq(steps.id, params.stepId),
         eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+        NON_TERMINAL_STEP_STATUS_FILTER,
       ),
     )
     .returning();
@@ -2507,6 +2509,33 @@ export async function dispatchStepWithCompletedConfig(
     tx,
   );
   return step;
+}
+
+export interface MarkStepSkippedParams {
+  jobExecutionId: string;
+  stepId: string;
+  statusReason: StepStatusReason;
+}
+
+export async function markStepSkipped(params: MarkStepSkippedParams, tx: Tx): Promise<Step | null> {
+  const rows = await tx
+    .update(steps)
+    .set({
+      status: 'skipped',
+      statusReason: params.statusReason,
+      error: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(steps.id, params.stepId),
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        eq(steps.status, 'pending'),
+      ),
+    )
+    .returning();
+  const row = rows[0];
+  return row ? toStep(row) : null;
 }
 
 export async function settleJobFailed(
@@ -2700,6 +2729,7 @@ export async function rewindStepsToPending(
     .update(steps)
     .set({
       status: 'pending',
+      statusReason: null,
       error: null,
       version: sql`${steps.version} + 1`,
       currentAttempt: sql`${steps.currentAttempt} + 1`,
@@ -2799,12 +2829,17 @@ export interface ApplyStepResultParams {
 export async function applyStepResult(params: ApplyStepResultParams, tx: Tx): Promise<void> {
   await tx
     .update(steps)
-    .set({status: params.status, error: params.error ?? null, updatedAt: new Date()})
+    .set({
+      status: params.status,
+      statusReason: null,
+      error: params.error ?? null,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(steps.id, params.stepId),
         eq(steps.jobExecutionId, params.jobExecutionId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+        NON_TERMINAL_STEP_STATUS_FILTER,
       ),
     );
 }

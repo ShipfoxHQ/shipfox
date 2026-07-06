@@ -1,16 +1,19 @@
 import type {PersistedEvaluationTraceEntry, Step, StepStatus} from '../entities/step.js';
 import type {RuntimeCompletionStatus} from '../workflow-scheduling/runtime-dag.js';
 
-const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set(['succeeded', 'failed', 'cancelled']);
+const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set([
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+]);
 
 export function isTerminal(status: StepStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
-// Anything other than an all-succeeded job is a failure, so an externally
-// cancelled job never reads as a vacuous success.
 export function deriveCompletion(steps: Step[]): RuntimeCompletionStatus {
-  return steps.every((step) => step.status === 'succeeded') ? 'succeeded' : 'failed';
+  return steps.some((step) => step.status === 'failed') ? 'failed' : 'succeeded';
 }
 
 // The report the runner sent for the step being decided.
