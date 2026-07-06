@@ -1,0 +1,34 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Shipfox",
+  "theme": "luma",
+  "colors": {
+    "primary": "#E85D3B",
+    "light": "#FFF4F1",
+    "dark": "#1A0F0B"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Docs",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "getting-started"]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/ShipfoxHQ/shipfox"
+    }
+  }
+}

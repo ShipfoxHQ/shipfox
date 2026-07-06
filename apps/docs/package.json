@@ -1,0 +1,9 @@
+{
+  "name": "@shipfox/docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes mint@4 dev",
+    "broken-links": "npx --yes mint@4 broken-links"
+  }
+}

@@ -151,6 +151,22 @@ Available in most packages via `pnpm <script>`:
 | `test`       | Run tests once                                  |
 | `test:watch` | Run tests in watch mode                         |
 
+## Documentation
+
+The user docs are the [Mintlify](https://mintlify.com/) documentation app
+`@shipfox/docs` under `apps/docs/` (served at `www.shipfox.io/docs`):
+
+| Command                                   | Description                                         |
+| ----------------------------------------- | --------------------------------------------------- |
+| `pnpm --filter=@shipfox/docs dev`         | Serve the docs with live reload at `localhost:3000` |
+| `pnpm --filter=@shipfox/docs broken-links`| Report broken internal links                        |
+
+The scripts run the Mintlify CLI through `npx` (the first run downloads it) rather
+than a workspace dependency: Mintlify pulls React 18 and this repo is React 19 with
+`strictPeerDependencies`, so it can't install as a normal dependency. The package
+defines no `build`/`check`/`type`/`test` scripts, so `turbo` skips it for those. See
+[apps/docs/README.md](apps/docs/README.md) for details.
+
 ## Publishing & Changesets
 
 `libs/` and `tools/` packages publish to npm under `@shipfox/*`. `apps/`,

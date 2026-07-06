@@ -131,6 +131,18 @@
   },
   "overrides": [
     {
+      "includes": ["apps/docs/docs.json", "apps/docs/**/*.mdx"],
+      "assist": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["libs/client/router/src/routeTree.gen.ts"],
       "assist": {
         "enabled": false
