@@ -30,11 +30,11 @@
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "depcruise": "shipfox-depcruise",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-runners": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/runner": "workspace:*",
@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*"

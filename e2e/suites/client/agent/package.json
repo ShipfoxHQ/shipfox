@@ -14,6 +14,7 @@
   "scripts": {
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "depcruise": "shipfox-depcruise",
     "test:e2e": "shipfox-playwright-test",
     "type": "shipfox-tsc-check"
   },
@@ -22,13 +23,14 @@
     "@shipfox/client-agent": "workspace:*",
     "@shipfox/client-router": "workspace:*",
     "@shipfox/client-workspace-settings": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-agent": "workspace:*",
     "@shipfox/e2e-setup-agent": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",
     "@shipfox/e2e-setup-projects": "workspace:*",
     "@shipfox/e2e-setup-workspaces": "workspace:*",
-    "@shipfox/e2e-kit": "workspace:*",
-    "@shipfox/e2e-screens-agent": "workspace:*",
     "@shipfox/playwright": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*"

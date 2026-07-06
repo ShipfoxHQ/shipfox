@@ -14,6 +14,7 @@
   "scripts": {
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "depcruise": "shipfox-depcruise",
     "test:e2e": "shipfox-playwright-test",
     "type": "shipfox-tsc-check"
   },
@@ -22,6 +23,7 @@
     "@shipfox/api-integration-sentry-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-driver-gitea": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
