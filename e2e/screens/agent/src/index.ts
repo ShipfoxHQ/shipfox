@@ -14,7 +14,7 @@ export class CustomModelProviderScreen {
   }
 
   async goto(workspaceId: string): Promise<void> {
-    await this.shell.goto(workspaceId, 'model-providers');
+    await this.shell.goto(workspaceId, 'agents');
   }
 
   configuredProvidersSection(): Locator {

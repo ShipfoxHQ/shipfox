@@ -6,7 +6,7 @@ export type SettingsTab =
   | 'members'
   | 'runners'
   | 'provisioners'
-  | 'model-providers'
+  | 'agents'
   | 'secrets'
   | 'variables'
   | 'integrations'
@@ -16,7 +16,7 @@ export const SETTINGS_TAB_LABELS: Record<SettingsTab, string> = {
   members: 'Members',
   runners: 'Runners',
   provisioners: 'Runner provisioners',
-  'model-providers': 'Model providers',
+  agents: 'Agents',
   secrets: 'Secrets',
   variables: 'Variables',
   integrations: 'Integrations',
