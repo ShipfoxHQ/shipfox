@@ -42,7 +42,7 @@ jobs:
           success_if: step.exit_code == 0
           on_failure:
             restart_from: implement
-            output: Checkout regression gate failed. Sending failure context back to the agent.
+            feedback: Checkout regression gate failed. Sending failure context back to the agent.
       - key: package
         name: Package verified change
         run: node scripts/demo-step.mjs repair package
