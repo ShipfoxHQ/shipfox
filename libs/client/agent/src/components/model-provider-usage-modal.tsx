@@ -1,4 +1,9 @@
-import {DEFAULT_HARNESS, getHarnessDescriptor, type Harness} from '@shipfox/api-agent-dto';
+import {
+  DEFAULT_HARNESS,
+  getHarnessDescriptor,
+  type Harness,
+  listHarnessDescriptors,
+} from '@shipfox/api-agent-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {
   CodeBlock,
@@ -245,7 +250,7 @@ function selectInitialHarness(
 }
 
 function isHarness(value: string): value is Harness {
-  return value === 'pi' || value === 'claude';
+  return listHarnessDescriptors().some((descriptor) => descriptor.id === value);
 }
 
 function ModelProviderModelRow({label, id}: {label: string; id: string}) {
