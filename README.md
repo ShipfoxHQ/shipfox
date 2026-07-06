@@ -53,6 +53,10 @@ then a `gate` reruns the tests and sends the agent back until they pass.
 
 - **Workflows as code.** YAML under `.shipfox/workflows/`, versioned and reviewed
   like the rest of your repo. No plugin, no action, no glue.
+- **Trigger from your whole stack.** Start runs from GitHub, Sentry, Slack, Linear,
+  and more through integrations. Missing one? Point it at the generic webhook
+  integration and trigger on its events too. Connect several of the same provider
+  and target each independently.
 - **Bounded retry loops.** A gate's `success_if` plus `restart_from` loops back to
   an earlier step until a real check passes, automatically bounded, no scripting.
 - **See the agent think.** Agent steps stream structured events (messages,
@@ -65,7 +69,8 @@ then a `gate` reruns the tests and sends the agent back until they pass.
 | Concept | Summary |
 |---|---|
 | **Workflow** | A YAML file under `.shipfox/workflows/`, versioned and reviewed like code. One file, one workflow. |
-| **Trigger** | What starts a run: an event from a connected source, or an on-demand fire. |
+| **Trigger** | What starts a run: an event from a connected integration, or an on-demand fire. |
+| **Integration** | A connection to an external tool (GitHub, Sentry, Slack, Linear, ...) whose events start runs. Use the [generic webhook](docs/integrations/webhooks.mdx) to connect anything not built in. |
 | **Job** | A group of steps on one runner. Jobs form a DAG via `needs` and are isolated, so each re-clones the repo. |
 | **Step** | A `run` shell command or an agent (`model` + `prompt`). Runs in order within a job. |
 | **Gate** | A [`success_if` expression](docs/reference/expressions.mdx) on a step, such as `exit_code == 0`, plus `on_failure.restart_from` to build bounded retry loops. |
@@ -143,6 +148,7 @@ Full documentation lives in [`docs/`](docs) and is published at
 
 - **Getting started:** connect a project, add a workflow, register a runner, fire a run
 - **Concepts:** workflows, jobs & steps, gates, triggers, runners, logging
+- **Integrations:** GitHub, Sentry, Slack, Linear, and custom webhooks
 - **Guides:** agent steps, gate & retry loops, multi-job pipelines, triaging Sentry issues
 - **Reference:** workflow schema, step types, expressions, model providers, REST API
 - **Installation:** local evaluation and self-hosting
