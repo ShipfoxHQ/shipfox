@@ -1,0 +1,60 @@
+---
+title: "Trigger Sources and Events Reference"
+sidebarTitle: "Trigger Sources"
+description: "Every Shipfox trigger source and its events at a glance: manual fire, GitHub, Sentry, and custom webhooks. For integration triggers, source is the connection slug."
+---
+
+A trigger has a `source` and an `event`. This page lists every source and its
+events at a glance. For **integration** sources, the `source` you write is the
+**connection slug** (for example `github_acme`), not the provider name — see
+Integrations. Setup and payloads live on each
+integration page.
+
+## Sources at a glance
+
+| Source | `source` value | Events | Setup |
+|---|---|---|---|
+| Manual | `manual` (literal) | `fire` | None — Triggers |
+| GitHub | connection slug, e.g. `github_acme` | `push` and other repository events | GitHub |
+| Sentry | connection slug, e.g. `sentry_acme` | `issue.created`, `issue.resolved`, `issue.assigned`, `issue.archived`, `issue.unresolved` | Sentry |
+| Custom webhook | connection slug you choose | `received` | Custom webhook |
+| Cron | 🚧 Coming soon — `cron` (literal) | `tick` | Triggers |
+| Linear | 🚧 Coming soon | — | Linear |
+| Slack | 🚧 Coming soon | — | Slack |
+| GitLab | 🔜 Roadmap | — | — |
+
+## manual
+
+The built-in on-demand source. Use `manual` to start a workflow from the dashboard
+or API without an external integration. At most one `manual` trigger per workflow.
+
+```yaml
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+```
+
+## Integration sources
+
+For GitHub, Sentry, and custom webhooks, the `source` is the **connection slug**
+created when you connect the integration. A single workspace can hold several
+connections of the same provider, disambiguated by slug.
+
+```yaml
+triggers:
+  on_push:
+    source: github_acme
+    event: push
+```
+
+See the Integrations section for setup, the full event
+list per source, and payload details.
+
+## filter (not enforced)
+
+The `filter` field accepts a CEL expression intended to narrow which events fire a
+trigger — for example `event.ref == "refs/heads/main"` on a GitHub push. Today `filter` is
+parsed and stored but **not evaluated**: the trigger fires on every matching
+`(source, event)` pair regardless of the expression. Authoring a filter is safe and
+takes effect once evaluation is enabled — no schema change will be required.
