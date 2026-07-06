@@ -1,9 +1,18 @@
 import {createApiClient, preflightCheck} from '@shipfox/e2e-core';
+import {message, startFakeOpenAiProvider, toolCall} from '@shipfox/e2e-driver-agent-provider';
 import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
-import {createOllamaCustomProvider, deleteModelProviderConfig} from '@shipfox/e2e-setup-agent';
+import {
+  createOllamaCustomProvider,
+  createOpenAiCompatibleCustomProvider,
+  deleteModelProviderConfig,
+} from '@shipfox/e2e-setup-agent';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {resetSuiteRunDir, writeSuiteContext} from '#suite-context.js';
+
+const AGENT_OUTPUT_MODEL = 'deterministic-output-agent';
+const AGENT_OUTPUT_PROVIDER_ID = 'fake-openai-flow';
+const AGENT_OUTPUT_VALUE = 'qwen-tool-output-ok';
 
 /**
  * Arranges the whole suite once over HTTP: user, session, workspace, a fresh gitea org
@@ -27,6 +36,37 @@ export default async function globalSetup(): Promise<void> {
       sessionToken: session.token,
     });
     cleanups.push(() => deleteOrg({org: org.org}).catch(() => undefined));
+
+    const fakeProvider = await startFakeOpenAiProvider({runId});
+    cleanups.push(() => fakeProvider.stop().catch(() => undefined));
+    const agentOutputScript = await fakeProvider.createScript({
+      id: `${runId}-agent-output-tool`,
+      model: AGENT_OUTPUT_MODEL,
+      assertions: [
+        {kind: 'model', equals: AGENT_OUTPUT_MODEL},
+        {kind: 'tool_present', name: 'set_output'},
+      ],
+      responses: [
+        toolCall('set_output', {key: 'message', value: AGENT_OUTPUT_VALUE}),
+        message('done'),
+      ],
+    });
+    const fakeOutputProvider = await createOpenAiCompatibleCustomProvider({
+      workspaceId: workspace.id,
+      sessionToken: session.token,
+      providerId: AGENT_OUTPUT_PROVIDER_ID,
+      displayName: 'Fake OpenAI Flow',
+      baseUrl: agentOutputScript.providerBaseUrl,
+      model: agentOutputScript.model,
+      modelMetadata: {max_output_tokens: 512},
+    });
+    cleanups.push(() =>
+      deleteModelProviderConfig({
+        workspaceId: workspace.id,
+        sessionToken: session.token,
+        providerId: fakeOutputProvider.provider_id,
+      }).catch(() => undefined),
+    );
 
     const ollamaProvider = await createOllamaCustomProvider({
       workspaceId: workspace.id,
@@ -54,6 +94,8 @@ export default async function globalSetup(): Promise<void> {
       org: org.org,
       connectionId: org.connection.id,
       connectionSlug: org.connection.slug,
+      agentProviderId: AGENT_OUTPUT_PROVIDER_ID,
+      agentModel: agentOutputScript.model,
     });
   } catch (error) {
     for (const cleanup of cleanups.reverse()) {

@@ -43,6 +43,7 @@
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-driver-agent-provider": "workspace:*",
     "@shipfox/e2e-driver-gitea": "workspace:*",
     "@shipfox/e2e-driver-runner-process": "workspace:*",
     "@shipfox/e2e-observe-definitions": "workspace:*",

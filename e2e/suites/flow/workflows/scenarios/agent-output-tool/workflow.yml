@@ -1,0 +1,29 @@
+name: Agent output tool
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: produce
+        provider: __AGENT_PROVIDER__
+        model: __AGENT_MODEL__
+        prompt: |
+          Set workflow output "message" to exactly "qwen-tool-output-ok".
+          You must call the set_output tool with key "message" and value "qwen-tool-output-ok".
+          After setting the output, reply with a short confirmation.
+        outputs:
+          message: string
+      - key: consume
+        env:
+          MESSAGE: ${{ steps.produce.outputs.message }}
+        run: |
+          if [ "$MESSAGE" != "qwen-tool-output-ok" ]; then
+            echo "agent-output mismatch: $MESSAGE"
+            exit 1
+          fi
+
+          echo "agent-output=$MESSAGE"

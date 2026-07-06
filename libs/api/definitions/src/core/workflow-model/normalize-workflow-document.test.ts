@@ -165,6 +165,25 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('allows custom explicit providers for pi agent steps', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{provider: 'local-ollama-flow', model: 'qwen3.5:0.8b', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      provider: 'local-ollama-flow',
+      model: 'qwen3.5:0.8b',
+    });
+  });
+
   it('reports explicit harness/provider incompatibility', () => {
     const document: WorkflowDocument = {
       name: 'agent build',
@@ -313,6 +332,33 @@ describe('normalizeWorkflowDocument', () => {
           supportedTools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'fetch_content'],
         }),
       }),
+    ]);
+  });
+
+  it('reports claude harness incompatibility with custom explicit providers', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{harness: 'claude', provider: 'local-ollama-flow', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'harness-provider-incompatible',
+        message:
+          'Harness "claude" does not support provider: local-ollama-flow. Supported providers: anthropic.',
+        path: ['jobs', 'fix', 'steps', 0, 'provider'],
+        details: {
+          harness: 'claude',
+          provider: 'local-ollama-flow',
+          supportedProviders: ['anthropic'],
+        },
+      },
     ]);
   });
 

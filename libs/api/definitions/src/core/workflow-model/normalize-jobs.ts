@@ -4,6 +4,7 @@ import {
   getModelProviderEntry,
   type HarnessToolDeploymentConfig,
   listEnabledHarnessTools,
+  modelProviderRefSchema,
 } from '@shipfox/api-agent-dto';
 import {
   type AvailabilitySite,
@@ -753,7 +754,21 @@ function validateAgentStep(params: {
   if (providerId === undefined) return;
 
   const provider = getModelProviderEntry(providerId);
-  if (provider === undefined || provider.support_status !== 'supported') {
+  const customProviderAllowed =
+    provider === undefined && modelProviderRefSchema.safeParse(providerId).success;
+  if (provider === undefined && !customProviderAllowed) {
+    params.issues.push(
+      issue({
+        code: 'invalid-provider',
+        message: `Provider "${providerId}" is not supported.`,
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
+        details: {provider: providerId},
+      }),
+    );
+    return;
+  }
+
+  if (provider?.support_status !== undefined && provider.support_status !== 'supported') {
     params.issues.push(
       issue({
         code: 'invalid-provider',
@@ -769,6 +784,24 @@ function validateAgentStep(params: {
   if (harness === undefined) return;
 
   const descriptor = getHarnessDescriptor(harness);
+  if (customProviderAllowed) {
+    if (harness === 'pi') return;
+
+    params.issues.push(
+      issue({
+        code: 'harness-provider-incompatible',
+        message: `Harness "${harness}" does not support provider: ${providerId}. Supported providers: ${descriptor.supportedProviderIds.join(', ')}.`,
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
+        details: {
+          harness,
+          provider: providerId,
+          supportedProviders: descriptor.supportedProviderIds,
+        },
+      }),
+    );
+    return;
+  }
+
   if (descriptor.supportedProviderIds.includes(providerId)) return;
 
   params.issues.push(

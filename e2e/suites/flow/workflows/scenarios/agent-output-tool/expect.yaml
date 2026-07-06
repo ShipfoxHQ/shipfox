@@ -1,0 +1,16 @@
+trigger: push
+timeout_seconds: 240
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      produce:
+        status: succeeded
+        exit_code: 0
+      consume:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["agent-output=qwen-tool-output-ok"]
