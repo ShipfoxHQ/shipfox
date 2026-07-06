@@ -73,6 +73,7 @@ async function routeRequest(params: {
       }
 
       const script = await readJson<FakeOpenAiScript>(params.request);
+      validateScriptRegistration(script);
       const result = params.registry.register(script);
       writeJson(params.response, 201, {
         script_id: result.scriptId,
@@ -147,6 +148,17 @@ function writeUnauthorized(response: ServerResponse): void {
   writeJson(response, 401, buildOpenAiError('unauthorized', 'Missing or invalid admin token'));
 }
 
+function validateScriptRegistration(script: FakeOpenAiScript): void {
+  if (!script || typeof script !== 'object') throw new Error('Script body must be an object.');
+  if (!isNonEmptyString(script.id)) throw new Error('Script id must be a non-empty string.');
+  if (!isNonEmptyString(script.model)) throw new Error('Script model must be a non-empty string.');
+  if (!Array.isArray(script.responses)) throw new Error('Script responses must be an array.');
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 async function readJson<T = unknown>(request: IncomingMessage): Promise<T> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
@@ -158,7 +170,7 @@ async function readJson<T = unknown>(request: IncomingMessage): Promise<T> {
     chunks.push(buffer);
   }
 
-  if (chunks.length === 0) return undefined as T;
+  if (chunks.length === 0) throw new Error('Request body is required.');
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
 }
 

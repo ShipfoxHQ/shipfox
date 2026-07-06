@@ -43,6 +43,30 @@ describe('fake OpenAI provider server', () => {
     });
   });
 
+  it.each([
+    [
+      'missing id',
+      {model: 'deterministic-output-agent', responses: [{kind: 'message', content: 'done'}]},
+      'Script id must be a non-empty string.',
+    ],
+    [
+      'missing model',
+      {id: 'invalid-script', responses: [{kind: 'message', content: 'done'}]},
+      'Script model must be a non-empty string.',
+    ],
+    ['empty body', undefined, 'Request body is required.'],
+  ])('rejects script registration with %s', async (_caseName, body, message) => {
+    const result = await postRawScript(server, body);
+
+    expect(result.status).toBe(400);
+    await expect(result.json()).resolves.toEqual({
+      error: {
+        message,
+        type: 'bad_request',
+      },
+    });
+  });
+
   it('advances the script cursor and returns OpenAI chat completion payloads', async () => {
     await postScript(
       server,
@@ -225,11 +249,20 @@ async function postScript(
   server: FakeOpenAiProviderServer,
   script: FakeOpenAiScript,
 ): Promise<Response> {
-  return await fetch(`${server.baseUrl}/scripts`, {
+  return await postRawScript(server, script);
+}
+
+async function postRawScript(
+  server: FakeOpenAiProviderServer,
+  body: unknown | undefined,
+): Promise<Response> {
+  const request = {
     method: 'POST',
     headers: adminHeaders(),
-    body: JSON.stringify(script),
-  });
+    ...(body === undefined ? {} : {body: JSON.stringify(body)}),
+  };
+
+  return await fetch(`${server.baseUrl}/scripts`, request);
 }
 
 async function chatCompletion(
