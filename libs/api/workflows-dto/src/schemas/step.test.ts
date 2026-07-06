@@ -67,6 +67,16 @@ describe('stepDtoSchema', () => {
 
     expect(result.success).toBe(false);
   });
+
+  it('rejects a status_reason on a non-skipped step', () => {
+    const result = stepDtoSchema.safeParse({
+      ...baseStep,
+      status: 'running',
+      status_reason: 'condition_rejected',
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 const baseAttempt = {

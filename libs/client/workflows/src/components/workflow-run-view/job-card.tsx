@@ -381,6 +381,7 @@ function selectedStepSourceAction(
   for (const step of jobExecution.steps) {
     const selected =
       selectedAttemptId === `carried-over:${step.id}` ||
+      selectedAttemptId === `skipped:${step.id}` ||
       step.attempts.some((attempt) => attempt.id === selectedAttemptId);
     if (selected && step.sourceLocation) {
       return {stepId: step.id, location: step.sourceLocation};

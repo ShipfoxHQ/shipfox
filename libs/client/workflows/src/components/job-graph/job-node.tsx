@@ -7,6 +7,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Code} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import type {KeyboardEventHandler, Ref} from 'react';
+import {ConditionErrorBadge} from '#components/workflow-status/condition-error-badge.js';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {JobExecution, JobExecutionStatus, WorkflowRunDetail} from '#core/workflow-run.js';
@@ -116,7 +117,7 @@ export function JobNode({
       </div>
       <JobDurationLabel duration={node.displayDuration} />
       {node.executionCountVisible ? <ExecutionCountText executions={node.jobExecutions} /> : null}
-      {conditionErrored ? <ConditionErrorBadge /> : null}
+      {conditionErrored ? <ConditionErrorBadge level="job" /> : null}
       {node.carriedOver ? <CarriedOverBadge /> : null}
     </button>
   );
@@ -155,23 +156,6 @@ function CarriedOverBadge() {
       </TooltipTrigger>
       <TooltipContent>
         Carried over from a previous attempt; did not run in this attempt
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function ConditionErrorBadge() {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="shrink-0">
-          <Badge variant="warning" size="2xs">
-            condition error
-          </Badge>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>
-        The job condition could not be evaluated, so the job was skipped
       </TooltipContent>
     </Tooltip>
   );

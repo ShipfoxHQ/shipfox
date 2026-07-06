@@ -14,6 +14,7 @@ import {Code, Text} from '@shipfox/react-ui/typography';
 import {cn, humanDuration} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
+import {ConditionErrorBadge} from '#components/workflow-status/condition-error-badge.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import {
   isWorkflowStatus,
@@ -318,7 +319,7 @@ function StepRow({
             {entry.step.label}
           </Text>
           {entry.step.attempts.length > 1 ? <StepAttemptChip attempt={entry} /> : null}
-          {conditionErrored ? <ConditionErrorBadge /> : null}
+          {conditionErrored ? <ConditionErrorBadge level="step" /> : null}
           {entry.carriedOver ? <CarriedOverBadge /> : null}
         </div>
       </div>
@@ -398,23 +399,6 @@ function CarriedOverBadge() {
       </TooltipTrigger>
       <TooltipContent>
         Carried over from a previous attempt; did not run in this attempt.
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function ConditionErrorBadge() {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="shrink-0">
-          <Badge variant="warning" size="2xs">
-            condition error
-          </Badge>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>
-        The step condition could not be evaluated, so the step was skipped.
       </TooltipContent>
     </Tooltip>
   );

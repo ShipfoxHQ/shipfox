@@ -103,7 +103,11 @@ export const stepSourceLocationSchema = z
 
 export type StepSourceLocationDto = z.infer<typeof stepSourceLocationSchema>;
 
-export const stepDtoSchema = z.object({
+// The step object shape without cross-field checks. Exported so the run-detail
+// step schema can `.extend()` it (a refined schema is a ZodEffects and can't be
+// extended); apply `stepStatusReasonRefinement` after extending to keep the
+// consistency check.
+export const stepDtoObjectSchema = z.object({
   id: z.string().uuid(),
   job_execution_id: z.string().uuid(),
   key: z.string().nullable(),
@@ -125,6 +129,19 @@ export const stepDtoSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
 });
+
+// `status_reason` explains a skip, so it may only be set when the step is
+// skipped. Reject the impossible combination at the DTO boundary rather than
+// letting a server bug pass it through silently.
+export const stepStatusReasonRefinement: [
+  (step: {status: StepStatusDto; status_reason: StepStatusReasonDto | null}) => boolean,
+  {message: string; path: string[]},
+] = [
+  (step) => step.status_reason === null || step.status === 'skipped',
+  {message: 'status_reason is only set when status is "skipped"', path: ['status_reason']},
+];
+
+export const stepDtoSchema = stepDtoObjectSchema.refine(...stepStatusReasonRefinement);
 
 export type StepDto = z.infer<typeof stepDtoSchema>;
 
