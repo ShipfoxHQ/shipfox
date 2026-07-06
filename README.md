@@ -143,15 +143,7 @@ local evaluation and self-hosting paths.
 
 ## Documentation
 
-Full documentation lives in [`docs/`](docs) and is published at
-[shipfox.io/docs](https://www.shipfox.io/docs):
-
-- **Getting started:** connect a project, add a workflow, register a runner, fire a run
-- **Concepts:** workflows, jobs & steps, gates, triggers, runners, logging
-- **Integrations:** GitHub, Sentry, Slack, Linear, and custom webhooks
-- **Guides:** agent steps, gate & retry loops, multi-job pipelines, triaging Sentry issues
-- **Reference:** workflow schema, step types, expressions, model providers, REST API
-- **Installation:** local evaluation and self-hosting
+Full documentation is published at [shipfox.io/docs](https://www.shipfox.io/docs).
 
 ## Community
 
