@@ -1,6 +1,6 @@
 import {createApiClient, preflightCheck} from '@shipfox/e2e-core';
 import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
-import {createOllamaCustomProvider} from '@shipfox/e2e-setup-agent';
+import {createOllamaCustomProvider, deleteModelProviderConfig} from '@shipfox/e2e-setup-agent';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {resetSuiteRunDir, writeSuiteContext} from '#suite-context.js';
@@ -34,6 +34,13 @@ export default async function globalSetup(): Promise<void> {
       providerId: 'local-ollama-e2e',
       displayName: 'Local Ollama E2E',
     });
+    cleanups.push(() =>
+      deleteModelProviderConfig({
+        workspaceId: workspace.id,
+        sessionToken: session.token,
+        providerId: ollamaProvider.provider_id,
+      }).catch(() => undefined),
+    );
     await setDefaultModelProvider({
       workspaceId: workspace.id,
       sessionToken: session.token,
