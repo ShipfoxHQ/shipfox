@@ -1,0 +1,83 @@
+---
+title: "Run Automated Checks on Every GitHub Push with Shipfox"
+sidebarTitle: "Checks on Push"
+description: "Set up a Shipfox workflow that runs tests, lint, and an AI code review step automatically on every push to your GitHub repository."
+---
+
+This guide walks you through creating a Shipfox workflow that runs your test suite and an AI code review on every push to GitHub. You'll set up a two-job pipeline: one job for automated checks, one for an agent review that runs after tests pass.
+
+## What you'll build
+
+You'll create a workflow with two jobs: `checks` and `review`. The `checks` job runs `npm ci && npm test` to validate the codebase on every push. The `review` job declares `needs: checks`, meaning it only starts once `checks` succeeds, and uses an agent step that reads the repository and flags likely bugs and missing tests — mechanical validation and an agent review, in one workflow that lives with your code.
+
+## The workflow file
+
+Create the following file at `.shipfox/workflows/checks-on-push.yml` in your repository:
+
+```yaml
+name: Checks on push
+runner: ubuntu-latest
+triggers:
+  on_push:
+    source: github_acme
+    event: push
+jobs:
+  checks:
+    steps:
+      - run: npm ci
+      - run: npm test
+  review:
+    needs: checks
+    steps:
+      - model: claude-opus-4-8
+        thinking: high
+        prompt: >
+          Review this repository for likely bugs and missing test coverage.
+          Be concise — summarize the top 3 issues only.
+```
+
+The `triggers` block tells Shipfox to fire this workflow on every GitHub push. The `review` job's `needs: checks` declaration creates a dependency edge — if `checks` fails, `review` is skipped automatically.
+
+## Deploy it
+
+Follow these steps to get the workflow running:
+
+1. Create the directory and file in your repository: `.shipfox/workflows/checks-on-push.yml`.
+2. Paste the YAML above into the file.
+3. Commit the file and push to GitHub.
+
+The workflow appears in the Shipfox dashboard immediately after the push. The next push to any branch fires it.
+
+<Note>
+  Push triggers require a GitHub repository connected to your Shipfox project.
+  GitLab is on the roadmap — use `source: manual, event: fire` if your repo is
+  on GitLab.
+</Note>
+
+## Parallel checks
+
+When lint and tests are independent, running them in parallel cuts wall-clock time. Split `checks` into independent `lint` and `test` jobs that both start immediately, then fan in to the `review` job once both finish:
+
+```yaml
+jobs:
+  lint:
+    steps:
+      - run: npm ci
+      - run: npm run lint
+  test:
+    steps:
+      - run: npm ci
+      - run: npm test
+  review:
+    needs: [lint, test]
+    steps:
+      - model: claude-opus-4-8
+        prompt: Summarize any issues found in the test or lint output.
+```
+
+Because each job runs in its own isolated environment, both `lint` and `test` install dependencies independently. The `review` job waits for both to finish before the agent step executes.
+
+## Next steps
+
+- [Multi-Job Pipeline](/guides/multi-job-pipeline) — learn more about sequencing and fan-out patterns.
+- [Agent Steps](/guides/agent-steps) — configure models, thinking levels, and providers.
