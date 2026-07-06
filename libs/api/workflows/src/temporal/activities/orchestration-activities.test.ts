@@ -9,17 +9,17 @@ import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {resolveLeaseExpiredJobExecutionActivity, setJobStatus} from './orchestration-activities.js';
 
+let workspaceId: string;
+let projectId: string;
+let definitionId: string;
+
+beforeEach(() => {
+  workspaceId = crypto.randomUUID();
+  projectId = crypto.randomUUID();
+  definitionId = crypto.randomUUID();
+});
+
 describe('resolveLeaseExpiredJobExecutionActivity', () => {
-  let workspaceId: string;
-  let projectId: string;
-  let definitionId: string;
-
-  beforeEach(() => {
-    workspaceId = crypto.randomUUID();
-    projectId = crypto.randomUUID();
-    definitionId = crypto.randomUUID();
-  });
-
   async function seedRunningJob(stepCount: number) {
     const run = await createWorkflowRun({
       workspaceId,
@@ -70,7 +70,9 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
 
     expect(result.status).toBe('failed');
   });
+});
 
+describe('setJobStatus', () => {
   test('default-gate skipped jobs record an evaluation trace', async () => {
     const run = await createWorkflowRun({
       workspaceId,
