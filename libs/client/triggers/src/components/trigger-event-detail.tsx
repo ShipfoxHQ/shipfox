@@ -229,7 +229,7 @@ function EventRuns({
 }
 
 function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: TriggerDecisionDto}) {
-  if (decision.decision === 'errored' || !decision.run_id || !decision.run_name) {
+  if (decision.decision !== 'triggered' || !decision.run_id || !decision.run_name) {
     return (
       <li className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6">
         <Icon

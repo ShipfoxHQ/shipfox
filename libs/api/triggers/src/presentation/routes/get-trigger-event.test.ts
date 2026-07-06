@@ -45,7 +45,7 @@ describe('GET /trigger-events/:id', () => {
     });
     const errored = await decisionFactory.create({
       receivedEventId: event.id,
-      decision: 'errored',
+      decision: 'dispatch-error',
       subscriptionName: 'Lint checks',
       runId: null,
       runName: null,
@@ -66,7 +66,7 @@ describe('GET /trigger-events/:id', () => {
     expect(
       body.decisions.map((decision: {subscription_name: string}) => decision.subscription_name),
     ).toEqual(['Deploy production', 'Lint checks']);
-    expect(body.decisions[1].decision).toBe('errored');
+    expect(body.decisions[1].decision).toBe('dispatch-error');
     expect(body.decisions[1].run_id).toBeNull();
     expect(body.decisions[1].reason).toBe('boom');
   });

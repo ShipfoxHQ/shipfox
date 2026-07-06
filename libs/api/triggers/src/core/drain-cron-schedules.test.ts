@@ -158,7 +158,7 @@ describe('drainDueCronSchedules', () => {
     });
   });
 
-  test('records an errored decision and still advances on a permanent runWorkflow failure', async () => {
+  test('records a dispatch-error decision and still advances on a permanent runWorkflow failure', async () => {
     const {subscription, key} = await createCronSchedule({
       nextFireAt: new Date(Date.now() - MINUTE_MS),
     });
@@ -176,7 +176,7 @@ describe('drainDueCronSchedules', () => {
       .select()
       .from(triggersDecisions)
       .where(eq(triggersDecisions.receivedEventId, event.id));
-    expect(decisions[0]?.decision).toBe('errored');
+    expect(decisions[0]?.decision).toBe('dispatch-error');
     const row = await reload(subscription.id);
     expect(row.nextFireAt.getTime()).toBeGreaterThan(Date.now());
   });

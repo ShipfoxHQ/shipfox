@@ -8,7 +8,8 @@ import {
   markReceivedEventErrored,
   markReceivedEventFailed,
   markReceivedEventRouted,
-  upsertErroredDecision,
+  upsertDispatchErrorDecision,
+  upsertFilterErrorDecision,
   upsertTriggeredDecision,
 } from './event-history.js';
 import {triggersDecisions} from './schema/decisions.js';
@@ -252,13 +253,13 @@ describe('decision upserts', () => {
     expect(rows[0]?.runName).toBe(run.name);
   });
 
-  it('flips an errored decision to triggered on a successful retry', async () => {
+  it('flips a dispatch-error decision to triggered on a successful retry', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
     const subscription = buildSubscription();
     const renamedSubscription = buildSubscription({...subscription, name: 'renamed trigger'});
     const run = {id: crypto.randomUUID(), name: 'Build and test'};
 
-    await upsertErroredDecision({receivedEventId, subscription, reason: 'boom'});
+    await upsertDispatchErrorDecision({receivedEventId, subscription, reason: 'boom'});
     await upsertTriggeredDecision({receivedEventId, subscription: renamedSubscription, run});
 
     const rows = await decisionsFor(receivedEventId);
@@ -269,14 +270,14 @@ describe('decision upserts', () => {
     expect(rows[0]?.reason).toBeNull();
   });
 
-  it('never downgrades an existing triggered decision to errored', async () => {
+  it('never downgrades an existing triggered decision to dispatch-error', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
     const subscription = buildSubscription();
     const renamedSubscription = buildSubscription({...subscription, name: 'renamed trigger'});
     const run = {id: crypto.randomUUID(), name: 'Build and test'};
 
     await upsertTriggeredDecision({receivedEventId, subscription, run});
-    await upsertErroredDecision({
+    await upsertDispatchErrorDecision({
       receivedEventId,
       subscription: renamedSubscription,
       reason: 'definition deleted',
@@ -290,13 +291,13 @@ describe('decision upserts', () => {
     expect(rows[0]?.reason).toBeNull();
   });
 
-  it('preserves the original subscription name on errored replay', async () => {
+  it('preserves the original subscription name on dispatch-error replay', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
     const subscription = buildSubscription();
     const renamedSubscription = buildSubscription({...subscription, name: 'renamed trigger'});
 
-    await upsertErroredDecision({receivedEventId, subscription, reason: 'boom'});
-    await upsertErroredDecision({
+    await upsertDispatchErrorDecision({receivedEventId, subscription, reason: 'boom'});
+    await upsertDispatchErrorDecision({
       receivedEventId,
       subscription: renamedSubscription,
       reason: 'still broken',
@@ -304,8 +305,24 @@ describe('decision upserts', () => {
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.decision).toBe('errored');
+    expect(rows[0]?.decision).toBe('dispatch-error');
     expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.reason).toBe('still broken');
+  });
+
+  it('records a filter-error decision', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const subscription = buildSubscription();
+
+    await upsertFilterErrorDecision({
+      receivedEventId,
+      subscription,
+      reason: 'Trigger filter evaluation failed',
+    });
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.decision).toBe('filter-error');
+    expect(rows[0]?.reason).toBe('Trigger filter evaluation failed');
   });
 });

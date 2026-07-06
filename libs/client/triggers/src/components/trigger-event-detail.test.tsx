@@ -85,7 +85,7 @@ describe('TriggerEventDetailView', () => {
     expect(screen.queryByText('Matched workflows')).not.toBeInTheDocument();
   });
 
-  test('renders errored decisions inline with their reason', async () => {
+  test('renders failed decisions inline with their reason', async () => {
     renderDetailView(
       makeEvent({
         outcome: 'errored',
@@ -97,7 +97,7 @@ describe('TriggerEventDetailView', () => {
             subscription_name: 'Deploy production',
             workflow_definition_id: '88888888-8888-4888-8888-888888888888',
             project_id: PROJECT_ID,
-            decision: 'errored',
+            decision: 'dispatch-error',
             run_id: null,
             run_name: null,
             reason: 'workflow definition deleted',
@@ -123,7 +123,7 @@ describe('TriggerEventDetailView', () => {
             subscription_name: 'Deploy production',
             workflow_definition_id: '88888888-8888-4888-8888-888888888888',
             project_id: PROJECT_ID,
-            decision: 'errored',
+            decision: 'filter-error',
             run_id: null,
             run_name: null,
             reason: null,

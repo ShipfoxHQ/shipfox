@@ -1,4 +1,4 @@
-export const triggerDecisionOutcomes = ['triggered', 'errored'] as const;
+export const triggerDecisionOutcomes = ['triggered', 'filter-error', 'dispatch-error'] as const;
 export type TriggerDecisionOutcome = (typeof triggerDecisionOutcomes)[number];
 
 export interface TriggerDecision {

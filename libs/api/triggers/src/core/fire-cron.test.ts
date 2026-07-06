@@ -86,7 +86,7 @@ describe('fireCronSubscription', () => {
     expect(decisions[0]?.runId).toBe(run.id);
   });
 
-  test('returns errored (terminal) and records an errored decision on a permanent failure', async () => {
+  test('returns errored (terminal) and records a dispatch-error decision on a permanent failure', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'cron',
       event: 'tick',
@@ -105,7 +105,7 @@ describe('fireCronSubscription', () => {
     expect(event.outcome).toBe('errored');
     expect(event.processedAt).toBeInstanceOf(Date);
     const decisions = await decisionsForEvent(event.id);
-    expect(decisions[0]?.decision).toBe('errored');
+    expect(decisions[0]?.decision).toBe('dispatch-error');
     expect(decisions[0]?.reason).toContain('Definition not found');
   });
 
@@ -126,7 +126,7 @@ describe('fireCronSubscription', () => {
     expect(event.outcome).toBe('failed');
     expect(event.processedAt).toBeNull();
     const decisions = await decisionsForEvent(event.id);
-    expect(decisions[0]?.decision).toBe('errored');
+    expect(decisions[0]?.decision).toBe('dispatch-error');
   });
 
   test('throws and records nothing when the subscription is not a cron trigger', async () => {

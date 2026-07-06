@@ -72,7 +72,7 @@ export async function fireManualSubscription(
     });
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
-    await failure.errored(subscription, toReason(error));
+    await failure.dispatchErrored(subscription, toReason(error));
     if (isPermanentRunWorkflowError(error)) {
       eventOutcomeCount.add(1, {provider: 'manual', outcome: 'errored'});
       await failure.allErrored(1);

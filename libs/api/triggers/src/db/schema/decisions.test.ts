@@ -49,7 +49,7 @@ describe('toTriggerDecision', () => {
       subscriptionName: 'Deploy production',
       workflowDefinitionId: '019e98ab-b90f-7265-b13c-8b441c991383',
       projectId: '019e98ab-b90f-7265-b13c-8b441c991384',
-      decision: 'errored',
+      decision: 'dispatch-error',
       runId: null,
       runName: null,
       reason: 'runWorkflow threw',
@@ -58,7 +58,7 @@ describe('toTriggerDecision', () => {
 
     const result = toTriggerDecision(row);
 
-    expect(result.decision).toBe('errored');
+    expect(result.decision).toBe('dispatch-error');
     expect(result.runId).toBeNull();
     expect(result.runName).toBeNull();
     expect(result.reason).toBe('runWorkflow threw');

@@ -17,7 +17,8 @@ vi.mock('#db/event-history.js', () => ({
   markReceivedEventFailed: vi.fn(),
   markReceivedEventErrored: vi.fn(),
   upsertTriggeredDecision: vi.fn(),
-  upsertErroredDecision: vi.fn(),
+  upsertDispatchErrorDecision: vi.fn(),
+  upsertFilterErrorDecision: vi.fn(),
 }));
 
 // Import after mocks so the code under test sees the spies.

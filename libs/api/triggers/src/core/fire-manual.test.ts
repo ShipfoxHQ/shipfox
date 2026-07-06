@@ -78,7 +78,7 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(decisions[0]?.runName).toBe('Manual run');
   });
 
-  test('records a failed manual event with an errored decision and re-throws when runWorkflow throws', async () => {
+  test('records a failed manual event with a dispatch-error decision and re-throws when runWorkflow throws', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
       event: 'fire',
@@ -104,7 +104,7 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(event.processedAt).toBeNull();
     const decisions = await decisionsForEvent(event.id);
     expect(decisions).toHaveLength(1);
-    expect(decisions[0]?.decision).toBe('errored');
+    expect(decisions[0]?.decision).toBe('dispatch-error');
     expect(decisions[0]?.reason).toContain('manual boom');
   });
 
@@ -132,7 +132,7 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(event.matchedCount).toBe(1);
     expect(event.processedAt).toBeInstanceOf(Date);
     const decisions = await decisionsForEvent(event.id);
-    expect(decisions[0]?.decision).toBe('errored');
+    expect(decisions[0]?.decision).toBe('dispatch-error');
     expect(decisions[0]?.reason).toContain('Definition not found');
   });
 
