@@ -1,6 +1,8 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {HTTPError, heartbeat} from '@shipfox/runner-protocol';
 
+type HeartbeatCapabilities = NonNullable<Parameters<typeof heartbeat>[2]>['capabilities'];
+
 export interface HeartbeatLoopOptions {
   intervalMs: number;
   /**
@@ -9,6 +11,7 @@ export interface HeartbeatLoopOptions {
    * call in flight" under any API latency.
    */
   maxStaleMs: number;
+  getToolCapabilities?: () => HeartbeatCapabilities;
   onLeaseTokenRenewed?: (leaseToken: string) => void;
 }
 
@@ -63,8 +66,10 @@ export function startHeartbeatLoop(
     }, options.maxStaleMs);
 
     try {
+      const capabilities = options.getToolCapabilities?.();
       const {cancel, lease_token: renewedLeaseToken} = await heartbeat(jobId, sentLeaseToken, {
         signal: httpAc.signal,
+        ...(capabilities ? {capabilities} : {}),
       });
       if (stopped) return;
       if (generation === sentGeneration && renewedLeaseToken !== getLeaseToken()) {

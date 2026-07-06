@@ -2,7 +2,10 @@
 // claim, heartbeat, and step calls use the right bearer token class. SHIPFOX_API_URL comes
 // from test/env.ts (setupFiles), loaded before config is imported.
 
-import {RUNNER_SESSION_EXHAUSTED_CODE} from '@shipfox/api-runners-dto';
+import {
+  RUNNER_SESSION_EXHAUSTED_CODE,
+  type RunnerToolCapabilitiesDto,
+} from '@shipfox/api-runners-dto';
 import {STEP_ERROR_MESSAGE_MAX_LENGTH, STEP_RESPONSE_MAX_LENGTH} from '@shipfox/api-workflows-dto';
 import {
   AgentRuntimeConfigRequestError,
@@ -30,6 +33,12 @@ const WORKFLOW_RUN_ATTEMPT_ID = crypto.randomUUID();
 const STEP_ID = crypto.randomUUID();
 const SESSION_ID = crypto.randomUUID();
 const ZOD_ERROR_TEXT_REGEX = /Zod|Invalid|Required/;
+const TOOL_CAPABILITIES: RunnerToolCapabilitiesDto = {
+  harnesses: {
+    pi: {tools: ['read', 'bash']},
+    claude: {tools: ['Read', 'Bash']},
+  },
+};
 
 let calls: Array<{url: string; method: string; authorization: string | null; body: string}>;
 let originalFetch: typeof globalThis.fetch;
@@ -80,6 +89,17 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.url).toContain('runners/register');
     expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_REGISTRATION_TOKEN}`);
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({labels: ['linux', 'x64']});
+  });
+
+  it('registerRunnerSession sends runner tool capabilities when provided', async () => {
+    stubFetch(() => jsonResponse(registerResponse()));
+
+    await registerRunnerSession({capabilities: TOOL_CAPABILITIES});
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      labels: ['linux', 'x64'],
+      capabilities: TOOL_CAPABILITIES,
+    });
   });
 
   it('requestJob sends the runner session token and parses the step-less claim + lease token', async () => {
@@ -139,6 +159,16 @@ describe('api-client auth contexts', () => {
     expect(response.lease_token).toBe('lease-next');
     expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
     expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
+  });
+
+  it('heartbeat sends runner tool capabilities when provided', async () => {
+    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
+
+    await heartbeat(JOB_ID, 'lease-heartbeat', {capabilities: TOOL_CAPABILITIES});
+
+    expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
+    expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({capabilities: TOOL_CAPABILITIES});
   });
 
   it('requestNextStep sends the lease token, not the runner registration token', async () => {

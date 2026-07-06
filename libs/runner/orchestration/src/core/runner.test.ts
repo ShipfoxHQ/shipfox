@@ -27,6 +27,14 @@ vi.mock('#core/step-loop.js', () => ({
   runJobSteps: vi.fn(),
 }));
 
+vi.mock('@shipfox/runner-agent', () => ({
+  runnerToolCapabilities: vi.fn(() => ({
+    harnesses: {
+      pi: {tools: ['read']},
+    },
+  })),
+}));
+
 vi.mock('@shipfox/runner-protocol', () => ({
   registerRunnerSession: vi.fn(),
   requireRunnerLabels: vi.fn(),
@@ -45,6 +53,7 @@ vi.mock('@shipfox/runner-protocol', () => ({
   },
 }));
 
+import {runnerToolCapabilities} from '@shipfox/runner-agent';
 import {
   createLeaseClient,
   HTTPError,
@@ -83,6 +92,7 @@ const mockRegisterRunnerSession = vi.mocked(registerRunnerSession);
 const mockRequireRunnerLabels = vi.mocked(requireRunnerLabels);
 const mockRequestJob = vi.mocked(requestJob);
 const mockStartHeartbeatLoop = vi.mocked(startHeartbeatLoop);
+const mockRunnerToolCapabilities = vi.mocked(runnerToolCapabilities);
 
 const JOB = {
   workflow_run_id: '00000000-0000-0000-0000-000000000004',
@@ -138,6 +148,7 @@ describe('runJob', () => {
       expect.objectContaining({
         intervalMs: 10_000,
         maxStaleMs: 10_000,
+        getToolCapabilities: runnerToolCapabilities,
       }),
     );
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
@@ -280,6 +291,10 @@ describe('startRunner', () => {
     await startRunner();
 
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(1);
+    expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
+      capabilities: {harnesses: {pi: {tools: ['read']}}},
+    });
+    expect(mockRunnerToolCapabilities).toHaveBeenCalled();
     expect(mockRequestJob).toHaveBeenCalledTimes(1);
     expect(mockRunJobSteps).not.toHaveBeenCalled();
   });

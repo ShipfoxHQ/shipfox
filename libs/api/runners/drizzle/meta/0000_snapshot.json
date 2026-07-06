@@ -1175,6 +1175,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "tool_capabilities": {
+          "name": "tool_capabilities",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tool_capabilities_reported_at": {
+          "name": "tool_capabilities_reported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "max_claims": {
           "name": "max_claims",
           "type": "integer",

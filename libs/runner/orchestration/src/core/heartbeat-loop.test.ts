@@ -3,8 +3,11 @@ import {HTTPError} from 'ky';
 const heartbeatMock = vi.fn();
 
 vi.mock('@shipfox/runner-protocol', () => ({
-  heartbeat: (jobId: string, leaseToken: string, opts?: {signal?: AbortSignal}) =>
-    heartbeatMock(jobId, leaseToken, opts),
+  heartbeat: (
+    jobId: string,
+    leaseToken: string,
+    opts?: {signal?: AbortSignal; capabilities?: unknown},
+  ) => heartbeatMock(jobId, leaseToken, opts),
   HTTPError,
 }));
 
@@ -44,6 +47,26 @@ describe('startHeartbeatLoop', () => {
     expect(heartbeatMock.mock.calls[0]?.[1]).toBe('lease-1');
     expect(ac.signal.aborted).toBe(false);
     expect(handle.bumpGeneration).toEqual(expect.any(Function));
+
+    handle.stop();
+  });
+
+  test('passes advertised tool capabilities to heartbeat', async () => {
+    const capabilities = {harnesses: {pi: {tools: ['read']}}};
+    heartbeatMock.mockResolvedValue({cancel: false, lease_token: 'lease-1'});
+    const ac = new AbortController();
+
+    const handle = startHeartbeatLoop('job-1', () => 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 1000,
+      getToolCapabilities: () => capabilities,
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(heartbeatMock.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({capabilities, signal: expect.any(AbortSignal)}),
+    );
 
     handle.stop();
   });
@@ -126,7 +149,11 @@ describe('startHeartbeatLoop', () => {
   test('max-stale guard aborts the in-flight call and schedules the next tick', async () => {
     let receivedSignal: AbortSignal | undefined;
     heartbeatMock.mockImplementation(
-      (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
+      (
+        _jobId: string,
+        _leaseToken: string,
+        opts?: {signal?: AbortSignal; capabilities?: unknown},
+      ) =>
         new Promise<{cancel: boolean; lease_token: string}>((_resolve, reject) => {
           receivedSignal = opts?.signal;
           opts?.signal?.addEventListener('abort', () => {
@@ -221,7 +248,11 @@ describe('startHeartbeatLoop', () => {
   test('stop() prevents future ticks and aborts any in-flight call', async () => {
     let aborted = false;
     heartbeatMock.mockImplementation(
-      (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
+      (
+        _jobId: string,
+        _leaseToken: string,
+        opts?: {signal?: AbortSignal; capabilities?: unknown},
+      ) =>
         new Promise<{cancel: boolean; lease_token: string}>((_resolve, reject) => {
           opts?.signal?.addEventListener('abort', () => {
             aborted = true;

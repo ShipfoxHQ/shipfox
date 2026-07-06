@@ -1,6 +1,6 @@
 import {issueJobLeaseToken, jobLeaseParamsFrom} from '@shipfox/api-auth';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
-import {heartbeatResponseSchema} from '@shipfox/api-runners-dto';
+import {heartbeatBodySchema, heartbeatResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {RunningJobExecutionNotFoundError} from '#core/errors.js';
@@ -13,6 +13,7 @@ export const heartbeatRoute = defineRoute({
     'Keeps a running job execution alive while the runner is still working on it. Returns whether the server has asked the runner to cancel.',
   schema: {
     params: z.object({jobId: z.string().uuid()}),
+    body: heartbeatBodySchema.nullish(),
     response: {
       200: heartbeatResponseSchema,
     },
@@ -32,14 +33,35 @@ export const heartbeatRoute = defineRoute({
       });
     }
 
-    const {cancellationRequested, runningJobExecution} = await recordHeartbeat({
+    const heartbeatResult = await recordHeartbeat({
       jobExecutionId: lease.jobExecutionId,
       runnerSessionId: lease.runnerSessionId,
+      toolCapabilities: request.body?.capabilities ?? null,
     });
+
+    if (
+      heartbeatResult.previousToolCapabilities &&
+      !sameToolCapabilities(
+        heartbeatResult.previousToolCapabilities,
+        heartbeatResult.currentToolCapabilities,
+      )
+    ) {
+      request.log.info(
+        {
+          runnerSessionId: lease.runnerSessionId,
+          jobExecutionId: lease.jobExecutionId,
+          previousHarnesses: Object.keys(heartbeatResult.previousToolCapabilities.harnesses),
+          currentHarnesses: heartbeatResult.currentToolCapabilities
+            ? Object.keys(heartbeatResult.currentToolCapabilities.harnesses)
+            : [],
+        },
+        'Runner heartbeat changed advertised tool capabilities',
+      );
+    }
 
     const leaseToken = await issueJobLeaseToken(
       jobLeaseParamsFrom(
-        runningJobExecution,
+        heartbeatResult.runningJobExecution,
         lease.currentStepId && lease.currentStepAttempt !== undefined
           ? {
               currentStepId: lease.currentStepId,
@@ -49,6 +71,10 @@ export const heartbeatRoute = defineRoute({
       ),
     );
 
-    return {cancel: cancellationRequested, lease_token: leaseToken};
+    return {cancel: heartbeatResult.cancellationRequested, lease_token: leaseToken};
   },
 });
+
+function sameToolCapabilities(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}

@@ -39,14 +39,18 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.200",
     "@anthropic-ai/sdk": "0.110.0",
+    "@earendil-works/pi-ai": "0.79.9",
     "@earendil-works/pi-coding-agent": "0.79.6",
+    "@earendil-works/pi-tui": "0.79.9",
     "@shipfox/api-agent-dto": "workspace:*",
+    "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/expression": "workspace:*",
     "@shipfox/node-egress-guard": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/runner-execution": "workspace:*",
+    "pi-web-access": "0.13.0",
     "typebox": "1.1.38",
     "zod": "4.4.3"
   },

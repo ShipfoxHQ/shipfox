@@ -4,6 +4,7 @@ import {
   RUNNER_LABEL_PATTERN,
 } from '@shipfox/runner-labels';
 import {z} from 'zod';
+import {runnerToolCapabilitiesSchema} from './tool-capabilities.js';
 
 export const runnerLabelSchema = z
   .string()
@@ -13,6 +14,7 @@ export const runnerLabelSchema = z
 
 export const registerRunnerBodySchema = z.object({
   labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
+  capabilities: runnerToolCapabilitiesSchema.optional(),
 });
 
 export const registerRunnerResponseSchema = z.object({

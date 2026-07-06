@@ -7,9 +7,11 @@ import {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
   type HeartbeatResponseDto,
+  heartbeatBodySchema,
   heartbeatResponseSchema,
   type RegisterRunnerResponseDto,
   RUNNER_SESSION_EXHAUSTED_CODE,
+  type RunnerToolCapabilitiesDto,
   registerRunnerBodySchema,
   registerRunnerResponseSchema,
 } from '@shipfox/api-runners-dto';
@@ -133,12 +135,17 @@ export function requireRunnerLabels(): string[] {
   return labels;
 }
 
-export async function registerRunnerSession(): Promise<RegisterRunnerResponseDto> {
+export async function registerRunnerSession(
+  options: {capabilities?: RunnerToolCapabilitiesDto} = {},
+): Promise<RegisterRunnerResponseDto> {
   const labels = configuredRunnerLabels();
 
   logger().debug({labels}, 'Registering runner session');
 
-  const body = registerRunnerBodySchema.parse({labels});
+  const body = registerRunnerBodySchema.parse({
+    labels,
+    ...(options.capabilities ? {capabilities: options.capabilities} : {}),
+  });
   const response = await registrationApi.post('runners/register', {json: body});
 
   return registerRunnerResponseSchema.parse(await response.json());
@@ -420,11 +427,19 @@ export async function appendStepLogs(
 export async function heartbeat(
   jobId: string,
   leaseToken: string,
-  options: {signal?: AbortSignal} = {},
+  options: {signal?: AbortSignal; capabilities?: RunnerToolCapabilitiesDto} = {},
 ): Promise<HeartbeatResponseDto> {
+  const body =
+    options.capabilities === undefined
+      ? undefined
+      : heartbeatBodySchema.parse({capabilities: options.capabilities});
+  const requestOptions = {
+    ...(body ? {json: body} : {}),
+    ...(options.signal ? {signal: options.signal} : {}),
+  };
   const response = await createLeaseClient(leaseToken).post(
     `runners/jobs/${jobId}/heartbeat`,
-    options.signal ? {signal: options.signal} : undefined,
+    Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
   );
   return heartbeatResponseSchema.parse(await response.json());
 }

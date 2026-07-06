@@ -1,6 +1,7 @@
+import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {check, index, integer, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {check, index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import type {RunnerSession} from '#core/entities/runner-session.js';
 import {pgTable} from './common.js';
 
@@ -22,6 +23,8 @@ export const runnerSessions = pgTable(
     provisionerId: uuid('provisioner_id'),
     provisionedRunnerId: text('provisioned_runner_id'),
     labels: text('labels').array().notNull(),
+    toolCapabilities: jsonb('tool_capabilities').$type<RunnerToolCapabilitiesDto | null>(),
+    toolCapabilitiesReportedAt: timestamp('tool_capabilities_reported_at', {withTimezone: true}),
     maxClaims: integer('max_claims'),
     claimsUsed: integer('claims_used').notNull().default(0),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
@@ -64,6 +67,8 @@ export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
     provisionerId: row.provisionerId,
     provisionedRunnerId: row.provisionedRunnerId,
     labels: row.labels,
+    toolCapabilities: row.toolCapabilities,
+    toolCapabilitiesReportedAt: row.toolCapabilitiesReportedAt,
     maxClaims: row.maxClaims,
     claimsUsed: row.claimsUsed,
     createdAt: row.createdAt,

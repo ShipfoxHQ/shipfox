@@ -9,6 +9,7 @@ export const runnerSessionFactory = Factory.define<RunnerSession>(({onCreate}) =
       scope: session.scope,
       registrationTokenId: session.registrationTokenId,
       labels: session.labels,
+      toolCapabilities: session.toolCapabilities,
     });
   });
 
@@ -21,6 +22,8 @@ export const runnerSessionFactory = Factory.define<RunnerSession>(({onCreate}) =
     provisionerId: null,
     provisionedRunnerId: null,
     labels: ['linux', 'x64'],
+    toolCapabilities: null,
+    toolCapabilitiesReportedAt: null,
     maxClaims: null,
     claimsUsed: 0,
     createdAt: new Date(),

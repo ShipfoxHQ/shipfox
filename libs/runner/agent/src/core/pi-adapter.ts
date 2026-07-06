@@ -3,7 +3,8 @@ import {
   type ApiKeyCredential,
   AuthStorage,
   type CreateAgentSessionOptions,
-  createAgentSession,
+  createAgentSessionFromServices,
+  createAgentSessionServices,
   defineTool,
   ModelRegistry,
   SessionManager,
@@ -89,12 +90,19 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     );
   }
 
-  const {session} = await createAgentSession({
+  const services = await createAgentSessionServices({
     cwd,
-    model,
-    thinkingLevel: thinking as PiThinkingLevel,
     authStorage,
     modelRegistry,
+    resourceLoaderOptions: {
+      additionalExtensionPaths: ['pi-web-access'],
+    },
+  });
+
+  const {session} = await createAgentSessionFromServices({
+    services,
+    model,
+    thinkingLevel: thinking as PiThinkingLevel,
     customTools: [setOutputTool(collector)],
     // Keep the session JSONL inside the job workspace so it forwards from a deterministic path
     // and is cleaned up with the workspace; pi's default lives under ~/.pi, outside it.
