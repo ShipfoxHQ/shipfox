@@ -22,21 +22,33 @@ to finish, on compute you own. A software factory that assembles itself in your
 repo.
 
 ```yaml
-name: Test and review
+name: Fix new Sentry issues
 runner: ubuntu-latest
+triggers:
+  on_issue:
+    source: sentry_acme            # a new Sentry issue starts the run
+    event: issue.created
 jobs:
-  ci:
+  fix:
     steps:
-      - run: npm test              # a shell step
-      - model: claude-opus-4-8     # an agent step, same job
-        prompt: Review the latest diff and flag any regressions.
+      - run: npm install
+      - key: fix                    # an agent step
+        model: claude-opus-4-8
+        prompt: >
+          Sentry reported "${{ event.title }}" (${{ event.webUrl }}).
+          Reproduce it in this repository, find the root cause, and fix it.
+      - run: npm test               # verify the fix
+        gate:
+          success_if: exit_code == 0
+          on_failure:
+            restart_from: fix        # send the agent back until the tests pass
 ```
 
 If you've written GitHub Actions, you already know how to read this file, and
-that's deliberate. What's different is what a step can be: `run` executes a shell
-command, and an agent step hands the same job to a model that reads your code and
-acts. Events can go further and drive a workflow while it is still running, so a
-job can react to what arrives instead of running once. See
+that's deliberate. What's different is what a step can be and the control flow
+around it: a Sentry issue starts the run, an agent reproduces and fixes the cause,
+then a `gate` reruns the tests and sends the agent back until they pass. Events can
+also drive a workflow while it is still running; see
 [listening jobs](docs/concepts/listening-jobs.mdx) for event-driven, asynchronous
 workflows.
 
