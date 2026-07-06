@@ -282,6 +282,23 @@ describe('activateJobListener', () => {
     });
   });
 
+  it('snapshots null run inputs when listener filters reference inputs', async () => {
+    const job = await createInactiveListeningJobWithMatchers({
+      on: [{source: 'github', event: 'pull_request', filter: 'inputs == null'}],
+    });
+
+    await activateJobListener({jobId: job.id, expectedVersion: job.version});
+
+    const payload = await activatedPayload(job.id);
+    expectListeningPayload(payload);
+    expect(payload.on[0]).toEqual({
+      source: 'github',
+      event: 'pull_request',
+      filter: 'inputs == null',
+      filter_snapshot: {inputs: null},
+    });
+  });
+
   it('snapshots only referenced activation roots for listener filters', async () => {
     const job = await createListenerWithDependencies({
       on: [

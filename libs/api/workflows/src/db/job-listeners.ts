@@ -239,7 +239,7 @@ async function assembleListenerSnapshotContext(
     if (params.plan.roots.has('trigger')) context.trigger = runContext.trigger;
   }
 
-  if (params.plan.roots.has('inputs') && params.run.inputs !== null) {
+  if (params.plan.roots.has('inputs')) {
     context.inputs = params.run.inputs;
   }
   if (params.plan.roots.has('job')) {
