@@ -13,6 +13,7 @@ import {
 import {
   applyListenerFilterSnapshots,
   assembleListenerSnapshotContext,
+  type ListenerTriggerWithSnapshot,
   planListenerFilterSnapshots,
 } from '#core/step-config/assemble-run-context.js';
 import {
@@ -52,7 +53,15 @@ export interface ActivateJobListenerResult {
 type JobActivatedListenerMatcher = Extract<
   WorkflowsJobActivatedEventDto,
   {mode: 'listening'}
->['on'][number];
+>['on'][number] &
+  ListenerTriggerWithSnapshot;
+
+function applyActivatedListenerFilterSnapshots(
+  plans: Parameters<typeof applyListenerFilterSnapshots>[0],
+  context: Parameters<typeof applyListenerFilterSnapshots>[1],
+): JobActivatedListenerMatcher[] {
+  return applyListenerFilterSnapshots(plans, context);
+}
 
 export async function activateJobListener(
   params: ActivateJobListenerParams,
@@ -134,17 +143,11 @@ export async function activateJobListener(
           workflowRunId: target.run.id,
           workspaceId: target.run.workspaceId,
           mode: 'listening',
-          on: applyListenerFilterSnapshots(
-            snapshotPlan.on,
-            snapshotContext,
-          ) as JobActivatedListenerMatcher[],
+          on: applyActivatedListenerFilterSnapshots(snapshotPlan.on, snapshotContext),
           until:
             matchers.until === null
               ? null
-              : (applyListenerFilterSnapshots(
-                  snapshotPlan.until,
-                  snapshotContext,
-                ) as JobActivatedListenerMatcher[]),
+              : applyActivatedListenerFilterSnapshots(snapshotPlan.until, snapshotContext),
         },
       });
     }

@@ -107,7 +107,7 @@ export function materializeListenerExecution(
     runner,
     status,
     statusReason: status === 'failed' ? 'unknown' : null,
-    triggerEvents: [...params.triggerEvents],
+    triggerEvents: params.triggerEvents,
     evaluationTrace: evaluationTrace.length === 0 ? null : evaluationTrace,
     steps,
   };

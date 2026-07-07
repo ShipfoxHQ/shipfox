@@ -123,7 +123,7 @@ function assembleExecutionContext(execution: JobExecution, index: number): Recor
 
 export function assembleJobsContext(
   jobs: readonly JobContextInput[],
-): WorkflowExpressionEvaluationContext {
+): WorkflowExpressionEvaluationContext & {readonly jobs: Record<string, unknown>} {
   return {
     jobs: Object.fromEntries(jobs.map((input) => [input.job.key, assembleJobContext(input)])),
   };
@@ -247,7 +247,7 @@ export function assembleListenerSnapshotContext(params: {
 function requestedJobsContext(
   dependencyJobs: readonly JobContextInput[],
   jobKeys: ReadonlySet<string>,
-): unknown {
+): Record<string, unknown> | undefined {
   const filtered = dependencyJobs.filter(({job}) => jobKeys.has(job.key));
   if (filtered.length === 0) return undefined;
 
