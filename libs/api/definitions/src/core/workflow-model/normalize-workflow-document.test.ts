@@ -170,7 +170,9 @@ describe('normalizeWorkflowDocument', () => {
       name: 'agent build',
       jobs: {
         fix: {
-          steps: [{provider: 'local-ollama-flow', model: 'qwen3.5:0.8b', prompt: 'Fix it.'}],
+          steps: [
+            {provider: 'local-ollama-flow', model: 'smollm2:135m-instruct-q2_K', prompt: 'Fix it.'},
+          ],
         },
       },
     };
@@ -180,7 +182,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs[0]?.steps[0]).toMatchObject({
       kind: 'agent',
       provider: 'local-ollama-flow',
-      model: 'qwen3.5:0.8b',
+      model: 'smollm2:135m-instruct-q2_K',
     });
   });
 

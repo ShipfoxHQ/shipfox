@@ -261,7 +261,7 @@ node dev/worktree-services.mjs up
 ```
 
 Agent E2E tests that validate custom model providers also need the shared local
-Ollama service. The default model is `qwen3.5:0.8b`; set
+Ollama service. The default model is `smollm2:135m-instruct-q2_K`; set
 `SHIPFOX_OLLAMA_MODEL` before `mise run ollama:up` to use another installed
 model.
 

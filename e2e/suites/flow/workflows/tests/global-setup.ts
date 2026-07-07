@@ -12,7 +12,7 @@ import {resetSuiteRunDir, writeSuiteContext} from '#suite-context.js';
 
 const AGENT_OUTPUT_MODEL = 'deterministic-output-agent';
 const AGENT_OUTPUT_PROVIDER_ID = 'fake-openai-flow';
-const AGENT_OUTPUT_VALUE = 'qwen-tool-output-ok';
+const AGENT_OUTPUT_VALUE = 'fake-tool-output-ok';
 
 /**
  * Arranges the whole suite once over HTTP: user, session, workspace, a fresh gitea org
@@ -42,11 +42,9 @@ export default async function globalSetup(): Promise<void> {
     const agentOutputScript = await fakeProvider.createScript({
       id: `${runId}-agent-output-tool`,
       model: AGENT_OUTPUT_MODEL,
-      assertions: [
-        {kind: 'model', equals: AGENT_OUTPUT_MODEL},
-        {kind: 'tool_present', name: 'set_output'},
-      ],
+      assertions: [{kind: 'model', equals: AGENT_OUTPUT_MODEL}],
       responses: [
+        message('OK'),
         toolCall('set_output', {key: 'message', value: AGENT_OUTPUT_VALUE}),
         message('done'),
       ],

@@ -128,8 +128,9 @@ turbo test --filter=@shipfox/e2e-flow-workflows
 ```
 
 Agent scenarios use the suite's shared Ollama custom provider. Start the local
-Ollama service before the full loop; it defaults to `qwen3.5:0.8b` for tool
-calling, and can be overridden with `SHIPFOX_OLLAMA_MODEL`:
+Ollama service before the full loop; it defaults to
+`smollm2:135m-instruct-q2_K`, and can be overridden with
+`SHIPFOX_OLLAMA_MODEL`:
 
 ```sh
 mise run ollama:up

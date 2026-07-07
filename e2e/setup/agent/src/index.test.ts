@@ -79,9 +79,9 @@ describe('agent e2e helper', () => {
     );
     const {requireOllamaModel} = await import('./index.js');
 
-    await expect(
-      requireOllamaModel({fetch, model: 'smollm2:135m-instruct-q2_K'}),
-    ).rejects.toThrow('Available models: llama3.2:1b.');
+    await expect(requireOllamaModel({fetch, model: 'smollm2:135m-instruct-q2_K'})).rejects.toThrow(
+      'Available models: llama3.2:1b.',
+    );
   });
 
   it('creates a local Ollama custom provider through the product route', async () => {

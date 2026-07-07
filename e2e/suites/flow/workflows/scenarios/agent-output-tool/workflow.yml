@@ -14,9 +14,9 @@ jobs:
         model: __AGENT_MODEL__
         prompt: |
           This is not a code task. Do not inspect files or run shell commands.
-          Set workflow output "message" to exactly "qwen-tool-output-ok".
+          Set workflow output "message" to exactly "fake-tool-output-ok".
           Use only the set_output tool. Do not call any other tool.
-          Call set_output with key "message" and value "qwen-tool-output-ok".
+          Call set_output with key "message" and value "fake-tool-output-ok".
           After the tool call succeeds, reply exactly: done
         outputs:
           message: string

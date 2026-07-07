@@ -16,7 +16,7 @@ const script = await provider.createScript({
   id: `${runId}-agent-output-tool`,
   model: 'deterministic-output-agent',
   responses: [
-    toolCall('set_output', {key: 'message', value: 'qwen-tool-output-ok'}),
+    toolCall('set_output', {key: 'message', value: 'fake-tool-output-ok'}),
     message('done'),
   ],
 });

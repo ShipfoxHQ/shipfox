@@ -12,16 +12,21 @@ export default async function globalTeardown(): Promise<void> {
   }
 
   await stopFakeOpenAiProvider({runId: suite.runId}).catch((error: unknown) => {
-    process.stderr.write(`platform-e2e teardown: stopFakeOpenAiProvider failed: ${String(error)}\n`);
+    process.stderr.write(
+      `platform-e2e teardown: stopFakeOpenAiProvider failed: ${String(error)}\n`,
+    );
   });
 
   // Keep gitea state on failure for inspection; a fully green run deletes its org,
   // which cascades to its repos. Leaked orgs are harmless: names are unique and a
   // compose volume reset wipes the instance.
   if (failed) {
-    process.stdout.write(`platform-e2e teardown: run had failures; keeping gitea org ${suite.org}\n`);
+    process.stdout.write(
+      `platform-e2e teardown: run had failures; keeping gitea org ${suite.org}\n`,
+    );
     return;
   }
+
   await deleteOrg({org: suite.org}).catch((error: unknown) => {
     process.stderr.write(`platform-e2e teardown: deleteOrg failed: ${String(error)}\n`);
   });

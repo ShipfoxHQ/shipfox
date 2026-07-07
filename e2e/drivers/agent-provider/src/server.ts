@@ -1,6 +1,11 @@
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import type {AddressInfo} from 'node:net';
-import {buildOpenAiError, buildOpenAiModelList} from './openai.js';
+import {
+  buildChatCompletionChunks,
+  buildOpenAiError,
+  buildOpenAiModelList,
+  type OpenAiChatCompletion,
+} from './openai.js';
 import {type FakeOpenAiScript, FakeOpenAiScriptRegistry} from './scripts.js';
 
 export interface FakeOpenAiProviderServer {
@@ -21,6 +26,7 @@ const resetPathRe = /^\/scripts\/([^/]+)\/reset$/u;
 const requestsPathRe = /^\/scripts\/([^/]+)\/requests$/u;
 const completionsPathRe = /^\/scripts\/([^/]+)\/v1\/chat\/completions$/u;
 const modelsPathRe = /^\/scripts\/([^/]+)\/v1\/models$/u;
+const completionIndexRe = /-(\d+)$/u;
 
 export async function createFakeOpenAiProviderServer(
   params: CreateFakeOpenAiProviderServerParams = {},
@@ -117,6 +123,15 @@ async function routeRequest(params: {
       const scriptId = decodeURIComponent(completionsMatch[1] ?? '');
       const body = await readJson(params.request);
       const result = params.registry.advance(scriptId, {body, method, path: pathname});
+      if (
+        result.status === 200 &&
+        isOpenAiChatCompletion(result.body) &&
+        shouldStreamOpenAiCompletion(body)
+      ) {
+        writeOpenAiStream(params.response, result.body);
+        return;
+      }
+
       writeJson(params.response, result.status, result.body);
       return;
     }
@@ -186,6 +201,57 @@ function writeJson(response: ServerResponse, status: number, body: unknown): voi
   response.statusCode = status;
   response.setHeader('content-type', 'application/json');
   response.end(JSON.stringify(body));
+}
+
+function writeOpenAiStream(response: ServerResponse, completion: OpenAiChatCompletion): void {
+  response.statusCode = 200;
+  response.setHeader('content-type', 'text/event-stream; charset=utf-8');
+  response.setHeader('cache-control', 'no-cache');
+  response.setHeader('connection', 'keep-alive');
+
+  const choice = completion.choices[0];
+  if (!choice) throw new Error('OpenAI completion has no choices.');
+  const message = choice.message;
+  const scriptedResponse =
+    'tool_calls' in message
+      ? {
+          kind: 'tool_call' as const,
+          toolName: message.tool_calls[0].function.name,
+          arguments: JSON.parse(message.tool_calls[0].function.arguments) as Record<
+            string,
+            unknown
+          >,
+        }
+      : {
+          kind: 'message' as const,
+          content: message.content,
+        };
+
+  for (const chunk of buildChatCompletionChunks({
+    completionId: completion.id,
+    model: completion.model,
+    response: scriptedResponse,
+    responseIndex: completionIndex(completion.id),
+    scriptId: '',
+  })) {
+    response.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  }
+  response.end('data: [DONE]\n\n');
+}
+
+function isOpenAiChatCompletion(body: unknown): body is OpenAiChatCompletion {
+  return (
+    !!body && typeof body === 'object' && (body as {object?: unknown}).object === 'chat.completion'
+  );
+}
+
+function shouldStreamOpenAiCompletion(body: unknown): boolean {
+  return !!body && typeof body === 'object' && (body as {stream?: unknown}).stream === true;
+}
+
+function completionIndex(id: string): number {
+  const index = completionIndexRe.exec(id)?.[1];
+  return index ? Number(index) : 0;
 }
 
 async function listen(server: Server): Promise<AddressInfo> {

@@ -39,6 +39,7 @@ export interface FakeOpenAiRecordedRequest {
   method: string;
   path: string;
   model: string | null;
+  stream: boolean;
   tools: string[];
   message_roles: string[];
   served_response: string | null;
@@ -187,23 +188,26 @@ export class FakeOpenAiScriptRegistry {
 
 interface OpenAiRequestSummary {
   model: string | null;
+  stream: boolean;
   tools: string[];
   messageRoles: string[];
 }
 
 function summarizeOpenAiRequest(body: unknown): OpenAiRequestSummary {
   if (!body || typeof body !== 'object') {
-    return {model: null, tools: [], messageRoles: []};
+    return {model: null, stream: false, tools: [], messageRoles: []};
   }
 
   const request = body as {
     messages?: unknown;
     model?: unknown;
+    stream?: unknown;
     tools?: unknown;
   };
 
   return {
     model: typeof request.model === 'string' ? request.model : null,
+    stream: request.stream === true,
     tools: toolNames(request.tools),
     messageRoles: messageRoles(request.messages),
   };
@@ -260,6 +264,7 @@ function recordedRequest(params: {
     method: params.request.method,
     path: params.request.path,
     model: params.summary.model,
+    stream: params.summary.stream,
     tools: params.summary.tools,
     message_roles: params.summary.messageRoles,
     served_response: params.servedResponse,

@@ -15,12 +15,58 @@ export interface OpenAiChatCompletion {
   };
 }
 
+export interface OpenAiChatCompletionChunk {
+  id: string;
+  object: 'chat.completion.chunk';
+  created: number;
+  model: string;
+  choices: OpenAiChatCompletionChunkChoice[];
+}
+
+export type OpenAiChatCompletionChunkChoice =
+  | {
+      index: 0;
+      delta: {
+        role: 'assistant';
+      };
+      finish_reason: null;
+    }
+  | {
+      index: 0;
+      delta: {
+        content: string;
+      };
+      finish_reason: null;
+    }
+  | {
+      index: 0;
+      delta: {
+        tool_calls: [
+          {
+            index: 0;
+            id?: string | undefined;
+            type?: 'function' | undefined;
+            function: {
+              name?: string | undefined;
+              arguments?: string | undefined;
+            };
+          },
+        ];
+      };
+      finish_reason: null;
+    }
+  | {
+      index: 0;
+      delta: Record<string, never>;
+      finish_reason: 'stop' | 'tool_calls';
+    };
+
 export type OpenAiChatCompletionChoice =
   | {
       index: 0;
       message: {
         role: 'assistant';
-        content: string;
+        content: null;
         tool_calls: [
           {
             id: string;
@@ -72,7 +118,7 @@ export function buildChatCompletion(params: {
     params.response.kind === 'tool_call'
       ? {
           role: 'assistant' as const,
-          content: params.response.content ?? '',
+          content: null,
           tool_calls: [
             {
               id: `call_fake_${params.responseIndex + 1}`,
@@ -107,6 +153,72 @@ export function buildChatCompletion(params: {
       total_tokens: 2,
     },
   };
+}
+
+export function buildChatCompletionChunks(params: {
+  completionId?: string | undefined;
+  model: string;
+  response: Exclude<FakeOpenAiResponse, {kind: 'error'}>;
+  responseIndex: number;
+  scriptId: string;
+}): OpenAiChatCompletionChunk[] {
+  const id = params.completionId ?? `chatcmpl-fake-${params.scriptId}-${params.responseIndex}`;
+  const base = {
+    id,
+    object: 'chat.completion.chunk' as const,
+    created: fakeCreatedAt,
+    model: params.model,
+  };
+
+  if (params.response.kind === 'tool_call') {
+    return [
+      {
+        ...base,
+        choices: [{index: 0, delta: {role: 'assistant'}, finish_reason: null}],
+      },
+      {
+        ...base,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: `call_fake_${params.responseIndex + 1}`,
+                  type: 'function',
+                  function: {
+                    name: params.response.toolName,
+                    arguments: JSON.stringify(params.response.arguments),
+                  },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        ...base,
+        choices: [{index: 0, delta: {}, finish_reason: 'tool_calls'}],
+      },
+    ];
+  }
+
+  return [
+    {
+      ...base,
+      choices: [{index: 0, delta: {role: 'assistant'}, finish_reason: null}],
+    },
+    {
+      ...base,
+      choices: [{index: 0, delta: {content: params.response.content}, finish_reason: null}],
+    },
+    {
+      ...base,
+      choices: [{index: 0, delta: {}, finish_reason: 'stop'}],
+    },
+  ];
 }
 
 export function buildOpenAiError(type: string, message: string): OpenAiErrorBody {

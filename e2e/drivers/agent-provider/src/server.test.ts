@@ -6,6 +6,7 @@ import {
 } from './index.js';
 
 const adminToken = 'test-admin-token';
+const eventDataPrefixRe = /^data: /u;
 
 describe('fake OpenAI provider server', () => {
   let server: FakeOpenAiProviderServer;
@@ -76,8 +77,7 @@ describe('fake OpenAI provider server', () => {
           {
             kind: 'tool_call',
             toolName: 'set_output',
-            arguments: {key: 'message', value: 'qwen-tool-output-ok'},
-            content: '',
+            arguments: {key: 'message', value: 'fake-tool-output-ok'},
           },
           {kind: 'message', content: 'done'},
         ],
@@ -102,14 +102,14 @@ describe('fake OpenAI provider server', () => {
           index: 0,
           message: {
             role: 'assistant',
-            content: '',
+            content: null,
             tool_calls: [
               {
                 id: 'call_fake_1',
                 type: 'function',
                 function: {
                   name: 'set_output',
-                  arguments: '{"key":"message","value":"qwen-tool-output-ok"}',
+                  arguments: '{"key":"message","value":"fake-tool-output-ok"}',
                 },
               },
             ],
@@ -136,6 +136,69 @@ describe('fake OpenAI provider server', () => {
         },
       ],
     });
+  });
+
+  it('streams OpenAI chat completion chunks when requested', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'streaming',
+        responses: [
+          {
+            kind: 'tool_call',
+            toolName: 'set_output',
+            arguments: {key: 'message', value: 'fake-tool-output-ok'},
+          },
+        ],
+      }),
+    );
+
+    const result = await chatCompletion(server, 'streaming', openAiRequest({stream: true}));
+
+    expect(result.status).toBe(200);
+    expect(result.headers.get('content-type')).toContain('text/event-stream');
+    const events = await openAiStreamEvents(result);
+    expect(events).toEqual([
+      {
+        id: 'chatcmpl-fake-streaming-0',
+        object: 'chat.completion.chunk',
+        created: 1783344000,
+        model: 'deterministic-output-agent',
+        choices: [{index: 0, delta: {role: 'assistant'}, finish_reason: null}],
+      },
+      {
+        id: 'chatcmpl-fake-streaming-0',
+        object: 'chat.completion.chunk',
+        created: 1783344000,
+        model: 'deterministic-output-agent',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_fake_1',
+                  type: 'function',
+                  function: {
+                    name: 'set_output',
+                    arguments: '{"key":"message","value":"fake-tool-output-ok"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-fake-streaming-0',
+        object: 'chat.completion.chunk',
+        created: 1783344000,
+        model: 'deterministic-output-agent',
+        choices: [{index: 0, delta: {}, finish_reason: 'tool_calls'}],
+      },
+    ]);
   });
 
   it('lists the registered model through the OpenAI-compatible models endpoint', async () => {
@@ -227,6 +290,7 @@ describe('fake OpenAI provider server', () => {
           method: 'POST',
           path: '/scripts/diagnostics/v1/chat/completions',
           model: 'deterministic-output-agent',
+          stream: false,
           tools: ['set_output'],
           message_roles: ['system', 'user'],
           served_response: 'message',
@@ -302,9 +366,21 @@ function adminHeaders(): Record<string, string> {
   };
 }
 
-function openAiRequest(params: {roles?: string[] | undefined} = {}) {
+async function openAiStreamEvents(result: Response): Promise<unknown[]> {
+  const text = await result.text();
+  return text
+    .trim()
+    .split('\n\n')
+    .flatMap((event) => {
+      const data = event.replace(eventDataPrefixRe, '');
+      return data === '[DONE]' ? [] : [JSON.parse(data) as unknown];
+    });
+}
+
+function openAiRequest(params: {roles?: string[] | undefined; stream?: boolean | undefined} = {}) {
   return {
     model: 'deterministic-output-agent',
+    ...(params.stream === undefined ? {} : {stream: params.stream}),
     messages: (params.roles ?? ['system', 'user']).map((role) => ({role})),
     tools: [
       {

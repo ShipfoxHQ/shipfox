@@ -33,7 +33,7 @@ describe('fake OpenAI provider process', () => {
       id: 'scripted-request',
       model: 'deterministic-output-agent',
       responses: [
-        toolCall('set_output', {key: 'message', value: 'qwen-tool-output-ok'}),
+        toolCall('set_output', {key: 'message', value: 'fake-tool-output-ok'}),
         message('done'),
       ],
     });
@@ -59,7 +59,7 @@ describe('fake OpenAI provider process', () => {
               {
                 function: {
                   name: 'set_output',
-                  arguments: '{"key":"message","value":"qwen-tool-output-ok"}',
+                  arguments: '{"key":"message","value":"fake-tool-output-ok"}',
                 },
               },
             ],
