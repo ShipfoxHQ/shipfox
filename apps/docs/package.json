@@ -1,0 +1,43 @@
+{
+  "name": "@shipfox/docs",
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "apps/docs"
+  },
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "next build",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "dev": "next dev --turbo --port 3500",
+    "start": "next start --port 3500",
+    "type": "shipfox-tsc-check",
+    "postinstall": "fumadocs-mdx"
+  },
+  "dependencies": {
+    "fumadocs-core": "16.7.10",
+    "fumadocs-mdx": "14.2.11",
+    "fumadocs-ui": "16.7.10",
+    "lucide-react": "^0.577.0",
+    "next": "16.2.3",
+    "posthog-js": "^1.256.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "simple-icons": "^14.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/mdx": "^2.0.13",
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19.1.7",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11"
+  }
+}
