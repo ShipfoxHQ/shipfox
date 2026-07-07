@@ -1,6 +1,6 @@
 import {createConfig, str, url} from '@shipfox/config';
 
-export const config = createConfig({
+const linearConfigSchema = {
   LINEAR_OAUTH_CLIENT_ID: str({
     desc: 'OAuth client ID of the Linear app, used to start and complete the Linear connect flow. Required.',
   }),
@@ -13,4 +13,6 @@ export const config = createConfig({
   LINEAR_OAUTH_REDIRECT_URL: url({
     desc: 'Absolute callback URL Linear redirects to after OAuth authorization, such as https://shipfox.example.com/integrations/linear/callback/api. Required.',
   }),
-});
+};
+
+export const config = createConfig(linearConfigSchema);

@@ -1,10 +1,10 @@
 import {LINEAR_PROVIDER} from '@shipfox/api-integration-linear-dto';
+import {config} from '#config.js';
 import {closeDb, db} from '#db/db.js';
 import {getLinearInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 
 export type {LinearProvider} from '@shipfox/api-integration-linear-dto';
-export {config} from '#config.js';
 export {
   LinearConnectionAlreadyLinkedError,
   LinearInstallationAlreadyLinkedError,
@@ -20,7 +20,7 @@ export {
   markLinearInstallationRevoked,
   upsertLinearInstallation,
 } from '#db/installations.js';
-export {closeDb, db, migrationsPath};
+export {closeDb, config, db, migrationsPath};
 
 export interface CreateLinearIntegrationProviderOptions {
   getLinearInstallationByConnectionId?: typeof getLinearInstallationByConnectionId | undefined;
