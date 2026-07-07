@@ -11,8 +11,8 @@ import {workflowsOutbox} from '../schema/outbox.js';
 import {workflowRuns} from '../schema/workflow-runs.js';
 import {
   createWorkflowRun,
-  getJobExecutionsByJobId,
   getJobExecutionDetail,
+  getJobExecutionsByJobId,
   getJobsByWorkflowRunId,
   getStepsByJobId,
   getWorkflowRunAttemptById,

@@ -4,18 +4,18 @@ import {
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {and, asc, count, desc, eq, gte, lte, type SQL, sql} from 'drizzle-orm';
+import type {StepAttemptStatus} from '#core/entities/step.js';
 import type {
   JobExecutionDetail,
   StepDetail,
-  WorkflowRunJobExecutionDetail,
   WorkflowJobDetail,
   WorkflowRun,
   WorkflowRunDetail,
+  WorkflowRunJobExecutionDetail,
+  WorkflowRunStatus,
   WorkflowRunStepAttemptDetail,
   WorkflowRunStepDetail,
-  WorkflowRunStatus,
 } from '#core/entities/workflow-run.js';
-import type {StepAttemptStatus} from '#core/entities/step.js';
 import {db} from '../db.js';
 import {jobExecutions, toJobExecution} from '../schema/job-executions.js';
 import {jobs, toJob} from '../schema/jobs.js';

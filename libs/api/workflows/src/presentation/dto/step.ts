@@ -27,6 +27,23 @@ type StepDtoInput = Pick<
   | 'updatedAt'
 >;
 
+type StepAttemptDtoInput = Pick<
+  StepAttempt,
+  | 'id'
+  | 'stepId'
+  | 'attempt'
+  | 'executionOrder'
+  | 'status'
+  | 'output'
+  | 'response'
+  | 'error'
+  | 'exitCode'
+  | 'gateResult'
+  | 'restartFeedback'
+  | 'startedAt'
+  | 'finishedAt'
+>;
+
 // Domain `error` is loosely typed (jsonb), so narrow it to the fixed runner
 // contract rather than trusting whatever shape the row happens to hold. `category`
 // is not stored on the row; the caller derives it from the step type and passes it
@@ -148,7 +165,7 @@ function toStepSourceLocationDto(
   };
 }
 
-export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
+export function toStepAttemptDto(attempt: StepAttemptDtoInput): StepAttemptDto {
   return {
     id: attempt.id,
     step_id: attempt.stepId,
