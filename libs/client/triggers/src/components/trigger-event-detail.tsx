@@ -1,7 +1,7 @@
 import type {TriggerDecisionDto, TriggerEventDetailResponseDto} from '@shipfox/api-triggers-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {
   CodeBlock,
   CodeBlockBody,
@@ -184,14 +184,14 @@ function TriggerEventDetailError({onBack, onRetry}: {onBack: () => void; onRetry
       >
         Back to events
       </Button>
-      <Alert variant="error" animated={false}>
+      <Callout role="alert" type="error">
         <div className="flex items-center justify-between gap-12">
           <Text size="sm">Event detail could not be loaded.</Text>
           <Button type="button" variant="secondary" size="xs" onClick={onRetry}>
             Retry
           </Button>
         </div>
-      </Alert>
+      </Callout>
     </aside>
   );
 }

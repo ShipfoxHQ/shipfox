@@ -1,5 +1,4 @@
 import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
@@ -119,14 +118,14 @@ export function CreateManualRegistrationTokenForm({
           </form.Subscribe>
         </form>
         {formError ? (
-          <Alert variant="error" animated={false}>
+          <Callout role="alert" type="error">
             <div className="flex flex-col gap-8">
               <Text size="sm" bold>
                 Could not create token
               </Text>
               <Text size="sm">{formError}</Text>
             </div>
-          </Alert>
+          </Callout>
         ) : null}
       </ModalBody>
       <ModalFooter>

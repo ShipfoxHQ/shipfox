@@ -1,6 +1,6 @@
 import {AuthShell, useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {ShipfoxLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {Text} from '@shipfox/react-ui/typography';
@@ -90,9 +90,9 @@ export function InvitationAcceptPage() {
   if (!token) {
     return (
       <AuthShell title="Invalid link" description="This invitation link is incomplete.">
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           This invitation link is missing a token. Ask your administrator to resend it.
-        </Alert>
+        </Callout>
         <Text size="sm" className="text-center text-foreground-neutral-muted" aria-live="polite">
           Redirecting to the dashboard…
         </Text>
@@ -111,9 +111,9 @@ export function InvitationAcceptPage() {
   if (preview.isError) {
     return (
       <AuthShell title="Couldn't load invitation" description="Try again in a moment.">
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           We couldn't reach the server. Check your connection and retry.
-        </Alert>
+        </Callout>
         <Button className="w-full" onClick={() => preview.refetch()}>
           Try again
         </Button>
@@ -130,9 +130,9 @@ export function InvitationAcceptPage() {
     notifyOnce(`invalid:${token}`, () => toast.error('This invitation link is no longer valid.'));
     return (
       <AuthShell title="Invalid invitation" description="The link you used didn't work.">
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           This invitation link is not valid. Ask your administrator to send a new one.
-        </Alert>
+        </Callout>
         <GoHomeButton navigate={navigate} />
       </AuthShell>
     );
@@ -142,10 +142,10 @@ export function InvitationAcceptPage() {
     notifyOnce(`expired:${token}`, () => toast.error('This invitation has expired.'));
     return (
       <AuthShell title="Invitation expired" description="The link is no longer accepting joins.">
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           This invitation expired on {formatDate(data.expires_at)}. Ask your administrator to send a
           new one.
-        </Alert>
+        </Callout>
         <GoHomeButton navigate={navigate} />
       </AuthShell>
     );
@@ -157,12 +157,12 @@ export function InvitationAcceptPage() {
     );
     return (
       <AuthShell title="Invitation already used" description={data.workspace_name}>
-        <Alert variant="info">
+        <Callout role="alert" type="info">
           This invitation has already been accepted.{' '}
           {auth.isAuthenticated
             ? `Open your dashboard to access ${data.workspace_name} if your account is a member.`
             : `Log in to access ${data.workspace_name}.`}
-        </Alert>
+        </Callout>
         {auth.isAuthenticated ? null : (
           <Button asChild className="w-full">
             <Link to="/auth/login">Log in</Link>
@@ -206,9 +206,9 @@ export function InvitationAcceptPage() {
     const logoutHref = `/auth/logout?redirect=${encodeURIComponent(redirect)}`;
     return (
       <AuthShell title={data.workspace_name} description={inviterLine}>
-        <Alert variant="warning">
+        <Callout role="alert" type="warning">
           You're signed in as {auth.user?.email}, but this invitation is for {data.email}.
-        </Alert>
+        </Callout>
         <div className="flex flex-col gap-16">
           <Button asChild className="w-full">
             <Link to={logoutHref}>Log out and continue</Link>
@@ -230,9 +230,9 @@ export function InvitationAcceptPage() {
   if (accept.isError) {
     return (
       <AuthShell title={data.workspace_name} description={inviterLine}>
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           We couldn't add you to {data.workspace_name}. Try again in a moment.
-        </Alert>
+        </Callout>
         <Button
           className="w-full"
           isLoading={accept.isPending}

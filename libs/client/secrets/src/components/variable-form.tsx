@@ -1,6 +1,6 @@
 import {isSensitiveSecretName} from '@shipfox/api-secrets-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {
   FormField,
   FormFieldInput,
@@ -119,12 +119,12 @@ export function VariableForm({
                   onBlur={field.handleBlur}
                 />
                 {isSensitiveSecretName(field.state.value) ? (
-                  <Alert variant="warning" animated={false}>
+                  <Callout role="alert" type="warning">
                     <Text size="sm" aria-live="polite">
                       This looks like it may be sensitive. Variables are stored in plaintext and are
                       not redacted from logs. Use a Secret if this value contains private data.
                     </Text>
-                  </Alert>
+                  </Callout>
                 ) : null}
               </FormField>
             )}
@@ -154,14 +154,14 @@ export function VariableForm({
           </form.Field>
         </form>
         {awaitingFullValue && fullValueQuery.isError ? (
-          <Alert variant="error" animated={false}>
+          <Callout role="alert" type="error">
             <Text size="sm">Could not load the current value. Close and try again.</Text>
-          </Alert>
+          </Callout>
         ) : null}
         {formError ? (
-          <Alert variant="error" animated={false}>
+          <Callout role="alert" type="error">
             <Text size="sm">{formError}</Text>
-          </Alert>
+          </Callout>
         ) : null}
       </FormBody>
       <FormFooter>

@@ -1,5 +1,5 @@
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {
   Modal,
   ModalBody,
@@ -37,10 +37,10 @@ export function IntegrationDeleteConfirmModal({
         <ModalTitle className="sr-only">Delete integration</ModalTitle>
         <ModalHeader title="Delete integration" showClose={!isPending} />
         <ModalBody className="gap-16">
-          <Alert variant="error" animated={false}>
+          <Callout role="alert" type="error">
             Are you sure you want to delete <strong>{name}</strong>? Once deleted, Shipfox will
             immediately stop processing events from this integration. This cannot be undone.
-          </Alert>
+          </Callout>
         </ModalBody>
         <ModalFooter>
           <Button

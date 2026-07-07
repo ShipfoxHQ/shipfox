@@ -25,7 +25,7 @@ const meta = {
   },
   args: {
     variant: 'default',
-    animated: false,
+    animated: true,
   },
 } satisfies Meta<typeof Alert>;
 
@@ -53,7 +53,7 @@ export const Variants: Story = {
   render: () => (
     <div className="flex min-w-500 flex-col gap-16">
       {variants.map((variant) => (
-        <Alert key={variant} variant={variant} animated={false}>
+        <Alert key={variant} variant={variant}>
           <AlertContent>
             <AlertTitle>{variant}</AlertTitle>
             <AlertDescription>Short message explaining the current status.</AlertDescription>
@@ -73,7 +73,7 @@ export const DesignMock: Story = {
       </Header>
       <div className="flex min-w-500 flex-col gap-16">
         {variants.map((variant) => (
-          <Alert key={variant} variant={variant} animated={false}>
+          <Alert key={variant} variant={variant}>
             <AlertContent>
               <AlertTitle>Title</AlertTitle>
               <AlertDescription>Description</AlertDescription>

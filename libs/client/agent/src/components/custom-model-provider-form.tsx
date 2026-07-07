@@ -1,7 +1,7 @@
 import type {CustomModelProviderConfigDto, ModelProviderApi} from '@shipfox/api-agent-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@shipfox/react-ui/collapsible';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
@@ -365,11 +365,11 @@ export function CustomModelProviderForm({
                   </form.Field>
 
                   {removedDefaultNotice ? (
-                    <Alert variant="warning" animated={false}>
+                    <Callout role="alert" type="warning">
                       <Text size="sm">
                         Default model removed - choose a new default or keep none.
                       </Text>
-                    </Alert>
+                    </Callout>
                   ) : null}
                   <form.Field
                     name="default_model"
@@ -410,14 +410,14 @@ export function CustomModelProviderForm({
           </form.Subscribe>
         </form>
         {formError ? (
-          <Alert variant="error" animated={false} className="mt-16">
+          <Callout role="alert" type="error" className="mt-16">
             <div className="flex flex-col gap-8">
               <Text size="sm" bold>
                 Could not save provider
               </Text>
               <Text size="sm">{formError}</Text>
             </div>
-          </Alert>
+          </Callout>
         ) : null}
       </ModalBody>
       <ModalFooter>

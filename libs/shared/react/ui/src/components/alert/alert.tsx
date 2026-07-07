@@ -13,40 +13,8 @@ import {
   useState,
 } from 'react';
 import {cn} from '#utils/cn.js';
+import {Callout, type CalloutType} from '../callout/index.js';
 import {Icon} from '../icon/index.js';
-
-const alertVariants = cva(
-  'relative w-full rounded-l-4 rounded-r-8 px-16 py-12 text-sm flex gap-12 items-start border',
-  {
-    variants: {
-      variant: {
-        default: 'bg-tag-neutral-bg text-foreground-neutral-base border-tag-neutral-border',
-        info: 'bg-tag-blue-bg text-foreground-neutral-base border-tag-blue-border',
-        success: 'bg-tag-success-bg text-foreground-neutral-base border-tag-success-border',
-        warning: 'bg-tag-warning-bg text-foreground-neutral-base border-tag-warning-border',
-        error: 'bg-tag-error-bg text-foreground-neutral-base border-tag-error-border',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
-  },
-);
-
-const alertLineVariants = cva('w-4 self-stretch rounded-full', {
-  variants: {
-    variant: {
-      default: 'bg-tag-neutral-icon',
-      info: 'bg-tag-blue-icon',
-      success: 'bg-tag-success-icon',
-      warning: 'bg-tag-warning-icon',
-      error: 'bg-tag-error-icon',
-    },
-  },
-  defaultVariants: {
-    variant: 'default',
-  },
-});
 
 const closeIconVariants = cva('w-16 h-16', {
   variants: {
@@ -71,7 +39,7 @@ const alertDefaultTransition: Transition = {
 type AlertContextValue = {
   isOpen: boolean;
   onClose: () => void;
-  variant: VariantProps<typeof alertVariants>['variant'];
+  variant: CalloutType;
 };
 
 const AlertContext = createContext<AlertContextValue | null>(null);
@@ -84,15 +52,15 @@ function useAlertContext() {
   return context;
 }
 
-type AlertProps = ComponentProps<'div'> &
-  VariantProps<typeof alertVariants> & {
-    open?: boolean;
-    defaultOpen?: boolean;
-    onOpenChange?: (open: boolean) => void;
-    animated?: boolean;
-    transition?: Transition;
-    autoClose?: number;
-  };
+type AlertProps = ComponentProps<'div'> & {
+  variant?: CalloutType;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  animated?: boolean;
+  transition?: Transition;
+  autoClose?: number;
+};
 
 function Alert({
   className,
@@ -140,30 +108,26 @@ function Alert({
     variant,
   };
 
+  const alert = (
+    <AlertContext.Provider value={contextValue}>
+      <Callout
+        data-slot="alert"
+        role="alert"
+        type={variant}
+        className={cn('relative', className)}
+        {...props}
+      >
+        {children}
+      </Callout>
+    </AlertContext.Provider>
+  );
+
   if (!animated) {
     if (!isOpen) {
       return null;
     }
 
-    return (
-      <AlertContext.Provider value={contextValue}>
-        <div className="w-full flex items-start gap-4">
-          <div
-            data-slot="alert-line"
-            className={cn(alertLineVariants({variant}))}
-            aria-hidden="true"
-          />
-          <div
-            data-slot="alert"
-            role="alert"
-            className={cn(alertVariants({variant}), className)}
-            {...props}
-          >
-            {children}
-          </div>
-        </div>
-      </AlertContext.Provider>
-    );
+    return alert;
   }
 
   return (
@@ -177,21 +141,7 @@ function Alert({
           exit={{opacity: 0}}
           transition={transition}
         >
-          <AlertContext.Provider value={contextValue}>
-            <div
-              data-slot="alert-line"
-              className={cn(alertLineVariants({variant}))}
-              aria-hidden="true"
-            />
-            <div
-              data-slot="alert"
-              role="alert"
-              className={cn(alertVariants({variant}), className)}
-              {...props}
-            >
-              {children}
-            </div>
-          </AlertContext.Provider>
+          {alert}
         </motion.div>
       )}
     </AnimatePresence>

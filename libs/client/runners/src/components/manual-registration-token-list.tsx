@@ -1,6 +1,6 @@
 import type {ManualRegistrationTokenDto} from '@shipfox/api-runners-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, IconButton} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -197,9 +197,9 @@ function RevokeManualRegistrationTokenButton({
               expire on their own.
             </Text>
             {revokeToken.isError ? (
-              <Alert variant="error" animated={false}>
+              <Callout role="alert" type="error">
                 <Text size="sm">{manualRegistrationTokenErrorMessage(revokeToken.error)}</Text>
-              </Alert>
+              </Callout>
             ) : null}
           </ModalBody>
           <ModalFooter>

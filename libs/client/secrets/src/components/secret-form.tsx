@@ -1,6 +1,6 @@
 import {isShortSecretValue} from '@shipfox/api-secrets-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, IconButton} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {
   FormField,
   FormFieldInput,
@@ -140,21 +140,21 @@ export function SecretForm({
                   />
                 </div>
                 {isShortSecretValue(field.state.value, SHORT_VALUE_THRESHOLD) ? (
-                  <Alert variant="warning" animated={false}>
+                  <Callout role="alert" type="warning">
                     <Text size="sm">
                       Very short secrets can match ordinary log text and redact unrelated output. If
                       this value is not sensitive, store it as a Variable instead.
                     </Text>
-                  </Alert>
+                  </Callout>
                 ) : null}
               </FormField>
             )}
           </form.Field>
         </form>
         {formError ? (
-          <Alert variant="error" animated={false}>
+          <Callout role="alert" type="error">
             <Text size="sm">{formError}</Text>
-          </Alert>
+          </Callout>
         ) : null}
       </FormBody>
       <FormFooter>

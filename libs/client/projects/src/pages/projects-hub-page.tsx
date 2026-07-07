@@ -7,8 +7,8 @@ import {
   useIntegrationConnectionsQuery,
 } from '@shipfox/client-integrations';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {Card} from '@shipfox/react-ui/card';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -109,11 +109,11 @@ export function ProjectsHubPage() {
             ))}
           </ul>
           {query.error && query.data ? (
-            <Alert variant="error" className="mt-16">
+            <Callout role="alert" type="error" className="mt-16">
               <Text size="sm">
                 Could not load the next page. Existing projects are still shown.
               </Text>
-            </Alert>
+            </Callout>
           ) : null}
           {query.hasNextPage ? (
             <div className="mt-16 flex justify-center">
