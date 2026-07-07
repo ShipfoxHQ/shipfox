@@ -4,6 +4,7 @@ import {
 } from '@shipfox/api-agent-dto';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {WorkflowModel, WorkflowStepSourceLocationMap} from '../entities/workflow-model.js';
 import {
   InvalidWorkflowModelError,
@@ -20,6 +21,7 @@ export function normalizeWorkflowDocument(
   options: {
     defaultRunnerLabels?: readonly string[] | undefined;
     harnessToolDeploymentConfig?: HarnessToolDeploymentConfig | undefined;
+    integrationValidationContext?: IntegrationValidationContext | undefined;
     stepSourceLocations?: WorkflowStepSourceLocationMap | undefined;
   } = {},
 ): WorkflowModel {
@@ -27,6 +29,11 @@ export function normalizeWorkflowDocument(
   const defaultRunnerLabels = canonicalizeLabels(options.defaultRunnerLabels);
   const harnessToolDeploymentConfig =
     options.harnessToolDeploymentConfig ?? DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG;
+  const context = {
+    defaultRunnerLabels,
+    harnessToolDeploymentConfig,
+    integrationValidationContext: options.integrationValidationContext,
+  };
   const jobIdBySourceName = mapJobIds(document, issues);
   const triggers = normalizeTriggers(document, issues);
   const jobs = normalizeJobs(
@@ -34,8 +41,7 @@ export function normalizeWorkflowDocument(
     jobIdBySourceName,
     issues,
     options.stepSourceLocations,
-    defaultRunnerLabels,
-    harnessToolDeploymentConfig,
+    context,
   );
   const dependencies = normalizeDependencies(document.jobs, jobIdBySourceName, issues);
   const workflowEnv = normalizeEnv({env: document.env, path: ['env'], issues});

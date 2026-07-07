@@ -2,15 +2,19 @@ import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {createDefinitionRoute} from './create-definition.js';
+import {buildCreateDefinitionRoute, createDefinitionRoute} from './create-definition.js';
 
-const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+const projectAccessState = vi.hoisted(() => ({workspaceId: '', sourceConnectionId: ''}));
 
 vi.mock('@shipfox/api-projects', () => ({
   ProjectNotFoundError: class ProjectNotFoundError extends Error {},
   requireProjectAccess: vi.fn(({projectId}) =>
     Promise.resolve({
-      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
+      project: {
+        id: projectId,
+        workspaceId: projectAccessState.workspaceId,
+        sourceConnectionId: projectAccessState.sourceConnectionId,
+      },
       workspaceId: projectAccessState.workspaceId,
     }),
   ),
@@ -44,6 +48,7 @@ describe('POST /api/definitions', () => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     projectAccessState.workspaceId = workspaceId;
+    projectAccessState.sourceConnectionId = crypto.randomUUID();
   });
 
   const validYaml = `
@@ -74,6 +79,131 @@ jobs:
     expect(body.sha).toBeNull();
     expect(body.ref).toBeNull();
     expect(body.fetched_at).toBeDefined();
+  });
+
+  test('skips connection snapshot loading when YAML has no integrations', async () => {
+    const loadWorkspaceConnectionSnapshot = vi.fn(() => Promise.resolve(new Map()));
+    const appWithOptions = Fastify();
+    appWithOptions.setValidatorCompiler(validatorCompiler);
+    appWithOptions.setSerializerCompiler(serializerCompiler);
+    appWithOptions.addHook('onRequest', (request, _reply, done) => {
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
+      done();
+    });
+    appWithOptions.post(
+      '/api/definitions',
+      buildCreateDefinitionRoute({
+        agentToolSelectionCatalogs: new Map(),
+        loadWorkspaceConnectionSnapshot,
+      }),
+    );
+    await appWithOptions.ready();
+
+    const res = await appWithOptions.inject({
+      method: 'POST',
+      url: '/api/definitions',
+      payload: {
+        project_id: projectId,
+        config_path: '.shipfox/workflows/test.yml',
+        yaml: validYaml,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(loadWorkspaceConnectionSnapshot).not.toHaveBeenCalled();
+  });
+
+  test('uses the project source connection as the default integration connection', async () => {
+    const loadWorkspaceConnectionSnapshot = vi.fn(() =>
+      Promise.resolve(
+        new Map([
+          [
+            'github-main',
+            {
+              id: projectAccessState.sourceConnectionId,
+              provider: 'github',
+              capabilities: ['agent_tools'] as const,
+            },
+          ],
+        ]),
+      ),
+    );
+    const getIntegrationConnectionById = vi.fn(() =>
+      Promise.resolve({
+        id: projectAccessState.sourceConnectionId,
+        workspaceId,
+        provider: 'github',
+        externalAccountId: 'installation-1',
+        slug: 'github-main',
+        displayName: 'GitHub',
+        lifecycleStatus: 'active' as const,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+    const appWithOptions = Fastify();
+    appWithOptions.setValidatorCompiler(validatorCompiler);
+    appWithOptions.setSerializerCompiler(serializerCompiler);
+    appWithOptions.addHook('onRequest', (request, _reply, done) => {
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
+      done();
+    });
+    appWithOptions.post(
+      '/api/definitions',
+      buildCreateDefinitionRoute({
+        agentToolSelectionCatalogs: new Map([
+          [
+            'github',
+            {
+              selectors: [
+                {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
+              ],
+            },
+          ],
+        ]),
+        loadWorkspaceConnectionSnapshot,
+        getIntegrationConnectionById,
+      }),
+    );
+    await appWithOptions.ready();
+
+    const res = await appWithOptions.inject({
+      method: 'POST',
+      url: '/api/definitions',
+      payload: {
+        project_id: projectId,
+        config_path: '.shipfox/workflows/test.yml',
+        yaml: `
+name: Agent Workflow
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - prompt: Fix the issue
+        integrations:
+          - include: [issue_read]
+`,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(getIntegrationConnectionById).toHaveBeenCalledWith(
+      projectAccessState.sourceConnectionId,
+    );
   });
 
   test('invalid YAML syntax returns 400', async () => {

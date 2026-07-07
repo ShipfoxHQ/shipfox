@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => {
     createE2eAdminAuthMethod: vi.fn(),
     createE2eRouteGroup: vi.fn(),
     createIntegrationsContext: vi.fn(),
+    buildAgentToolSelectionCatalogs: vi.fn(),
+    createWorkspaceConnectionSnapshotLoader: vi.fn(),
+    getIntegrationConnectionById: vi.fn(),
     createPostgresClient: vi.fn(),
     createProjectsModule: vi.fn(),
     apiConfig: {
@@ -46,7 +49,10 @@ vi.mock('@shipfox/api-definitions', () => ({
 }));
 vi.mock('@shipfox/api-dispatcher', () => ({dispatcherModule: {name: 'dispatcher'}}));
 vi.mock('@shipfox/api-integration-core', () => ({
+  buildAgentToolSelectionCatalogs: mocks.buildAgentToolSelectionCatalogs,
   createIntegrationsContext: mocks.createIntegrationsContext,
+  createWorkspaceConnectionSnapshotLoader: mocks.createWorkspaceConnectionSnapshotLoader,
+  getIntegrationConnectionById: mocks.getIntegrationConnectionById,
 }));
 vi.mock('@shipfox/api-logs', () => ({logsModule: {name: 'logs'}}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
@@ -113,6 +119,9 @@ describe('run', () => {
     mocks.createE2eAdminAuthMethod.mockReset();
     mocks.createE2eRouteGroup.mockReset();
     mocks.createIntegrationsContext.mockReset();
+    mocks.buildAgentToolSelectionCatalogs.mockReset();
+    mocks.createWorkspaceConnectionSnapshotLoader.mockReset();
+    mocks.getIntegrationConnectionById.mockReset();
     mocks.createPostgresClient.mockReset();
     mocks.createProjectsModule.mockReset();
     mocks.apiConfig.API_PORT = undefined;
@@ -132,9 +141,12 @@ describe('run', () => {
 
     mocks.createIntegrationsContext.mockResolvedValue({
       module: {name: 'integrations'},
+      registry: {},
       runStartupTasks: vi.fn().mockResolvedValue(undefined),
       sourceControl: {},
     });
+    mocks.buildAgentToolSelectionCatalogs.mockResolvedValue(new Map());
+    mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
     mocks.createProjectsModule.mockReturnValue({name: 'projects'});
     mocks.createDefinitionsModule.mockReturnValue({name: 'definitions'});
     mocks.initializeModules.mockResolvedValue({

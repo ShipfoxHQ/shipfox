@@ -1,4 +1,8 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import type {
+  AgentToolSelectionCatalogs,
+  IntegrationSourceControlService,
+  LoadWorkspaceConnectionSnapshot,
+} from '@shipfox/api-integration-core';
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
 import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
@@ -48,11 +52,23 @@ export interface FetchAndApplyActivityResult {
   deletedCount: number;
 }
 
-export function createDefinitionSyncActivities(sourceControl: IntegrationSourceControlService) {
+export interface DefinitionSyncIntegrationValidationOptions {
+  agentToolSelectionCatalogs: AgentToolSelectionCatalogs;
+  loadWorkspaceConnectionSnapshot: LoadWorkspaceConnectionSnapshot;
+  getIntegrationConnectionById: (id: string) => Promise<{slug: string} | undefined>;
+}
+
+export function createDefinitionSyncActivities(
+  sourceControl: IntegrationSourceControlService,
+  integrationValidation?: DefinitionSyncIntegrationValidationOptions | undefined,
+) {
   return {
     prepareDefinitionSync: createPrepareDefinitionSyncActivity(sourceControl),
     discoverDefinitionWorkflows: createDiscoverDefinitionWorkflowsActivity(sourceControl),
-    fetchAndApplyDefinitionWorkflows: createFetchAndApplyActivity(sourceControl),
+    fetchAndApplyDefinitionWorkflows: createFetchAndApplyActivity(
+      sourceControl,
+      integrationValidation,
+    ),
     markDefinitionSyncSucceeded: createMarkSyncSucceededActivity(),
     markDefinitionSyncFailed: createMarkSyncFailedActivity(),
   };
@@ -96,7 +112,10 @@ function createDiscoverDefinitionWorkflowsActivity(sourceControl: IntegrationSou
   };
 }
 
-function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlService) {
+function createFetchAndApplyActivity(
+  sourceControl: IntegrationSourceControlService,
+  integrationValidation?: DefinitionSyncIntegrationValidationOptions | undefined,
+) {
   return async function fetchAndApplyDefinitionWorkflows(
     input: FetchAndApplyActivityInput,
   ): Promise<FetchAndApplyActivityResult> {
@@ -106,6 +125,20 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
         ref: input.sourceCommitSha ?? input.sourceRef,
         sourceControl,
         onProgress: (path) => Context.current().heartbeat({path}),
+        loadIntegrationValidationContext:
+          integrationValidation === undefined
+            ? undefined
+            : async () => {
+                const sourceConnection = await integrationValidation.getIntegrationConnectionById(
+                  input.sourceConnectionId,
+                );
+                return {
+                  agentToolSelectionCatalogs: integrationValidation.agentToolSelectionCatalogs,
+                  workspaceConnectionSnapshot:
+                    await integrationValidation.loadWorkspaceConnectionSnapshot(input.workspaceId),
+                  defaultConnectionSlug: sourceConnection?.slug,
+                };
+              },
       });
 
       return await applyVcsDefinitionsBatch({

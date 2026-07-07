@@ -1,9 +1,11 @@
 import type {
   AgentToolCatalogEntry,
   AgentToolJsonSchema,
+  AgentToolSelectionCatalog,
   AgentToolsProvider,
   IntegrationConnection,
 } from '@shipfox/api-integration-core-dto';
+import {buildGithubAgentToolSelectionCatalog} from './agent-tool-selection.js';
 import {GithubIntegrationProviderError} from './errors.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
@@ -761,11 +763,18 @@ export const githubAgentToolCatalog = [
 
 export type GithubAgentToolId = (typeof githubAgentToolCatalog)[number]['id'];
 
+export const githubAgentToolSelectionCatalog =
+  buildGithubAgentToolSelectionCatalog(githubAgentToolCatalog);
+
 export class GithubAgentToolsProvider
   implements AgentToolsProvider<GithubIntegrationConnection, GithubAgentToolRequiredScope>
 {
   catalog(): readonly GithubAgentToolCatalogEntry[] {
     return githubAgentToolCatalog;
+  }
+
+  selectionCatalog(): AgentToolSelectionCatalog {
+    return githubAgentToolSelectionCatalog;
   }
 
   openSession(): Promise<never> {
