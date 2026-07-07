@@ -1,4 +1,13 @@
 export {
+  type AnthropicContentBlock,
+  type AnthropicErrorBody,
+  type AnthropicMessage,
+  type AnthropicStreamEvent,
+  buildAnthropicError,
+  buildAnthropicMessage,
+  buildAnthropicMessageStream,
+} from './anthropic.js';
+export {
   buildChatCompletion,
   buildChatCompletionChunks,
   buildOpenAiError,
@@ -22,6 +31,7 @@ export {
   toolCall,
 } from './process.js';
 export {
+  type AnthropicScriptAdvanceResult,
   type FakeOpenAiRecordedRequest,
   type FakeOpenAiRequestAssertion,
   type FakeOpenAiResponse,

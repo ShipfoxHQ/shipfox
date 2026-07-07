@@ -34,6 +34,7 @@ export interface FakeOpenAiModelProviderState {
 export interface FakeOpenAiScriptHandle {
   id: string;
   model: string;
+  anthropicBaseUrl: string;
   modelProviderBaseUrl: string;
 }
 
@@ -111,6 +112,7 @@ export async function startFakeOpenAiModelProvider(
     baseUrl,
     createScript: async (script) => {
       const body = await requestJson<{
+        anthropic_model_provider_base_url: string;
         model: string;
         model_provider_base_url: string;
         script_id: string;
@@ -123,6 +125,7 @@ export async function startFakeOpenAiModelProvider(
       return {
         id: body.script_id,
         model: body.model,
+        anthropicBaseUrl: body.anthropic_model_provider_base_url,
         modelProviderBaseUrl: body.model_provider_base_url,
       };
     },

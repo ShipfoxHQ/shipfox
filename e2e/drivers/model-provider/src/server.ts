@@ -1,5 +1,6 @@
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import type {AddressInfo} from 'node:net';
+import {buildAnthropicError, buildAnthropicMessageStream} from './anthropic.js';
 import {buildChatCompletionChunks, buildOpenAiError, buildOpenAiModelList} from './openai.js';
 import {type FakeOpenAiScript, FakeOpenAiScriptRegistry} from './scripts.js';
 
@@ -20,6 +21,7 @@ const maxBodyBytes = 1024 * 1024;
 const resetPathRe = /^\/scripts\/([^/]+)\/reset$/u;
 const requestsPathRe = /^\/scripts\/([^/]+)\/requests$/u;
 const completionsPathRe = /^\/scripts\/([^/]+)\/v1\/chat\/completions$/u;
+const messagesPathRe = /^\/scripts\/([^/]+)\/v1\/messages$/u;
 const modelsPathRe = /^\/scripts\/([^/]+)\/v1\/models$/u;
 
 export async function createFakeOpenAiModelProviderServer(
@@ -80,6 +82,7 @@ async function routeRequest(params: {
         script_id: result.scriptId,
         model: result.model,
         model_provider_base_url: `${origin(url)}/scripts/${result.scriptId}/v1`,
+        anthropic_model_provider_base_url: `${origin(url)}/scripts/${result.scriptId}`,
       });
       return;
     }
@@ -125,6 +128,19 @@ async function routeRequest(params: {
       return;
     }
 
+    const messagesMatch = messagesPathRe.exec(pathname);
+    if (messagesMatch && method === 'POST') {
+      const scriptId = decodeURIComponent(messagesMatch[1] ?? '');
+      const body = await readJson(params.request);
+      const result = params.registry.advanceAnthropic(scriptId, {body, method, path: pathname});
+      if (result.status === 200 && isStreamRequest(body) && isAnthropicMessage(result.body)) {
+        writeNamedEventStream(params.response, buildAnthropicMessageStream(result.body));
+        return;
+      }
+      writeJson(params.response, result.status, result.body);
+      return;
+    }
+
     const modelsMatch = modelsPathRe.exec(pathname);
     if (modelsMatch && method === 'GET') {
       const script = params.registry.script(decodeURIComponent(modelsMatch[1] ?? ''));
@@ -139,7 +155,11 @@ async function routeRequest(params: {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Fake model provider request failed.';
-    writeJson(params.response, 400, buildOpenAiError('bad_request', message));
+    writeJson(
+      params.response,
+      400,
+      buildBadRequestBody(requestUrl(params.request).pathname, message),
+    );
   }
 }
 
@@ -168,6 +188,12 @@ function isChatCompletion(body: unknown): body is Parameters<typeof buildChatCom
   return Boolean(
     body && typeof body === 'object' && (body as {object?: unknown}).object === 'chat.completion',
   );
+}
+
+function isAnthropicMessage(
+  body: unknown,
+): body is Parameters<typeof buildAnthropicMessageStream>[0] {
+  return Boolean(body && typeof body === 'object' && (body as {type?: unknown}).type === 'message');
 }
 
 function validateScriptRegistration(script: FakeOpenAiScript): void {
@@ -210,6 +236,26 @@ function writeEventStream(response: ServerResponse, chunks: unknown[]): void {
     response.write(`data: ${JSON.stringify(chunk)}\n\n`);
   }
   response.end('data: [DONE]\n\n');
+}
+
+function writeNamedEventStream(
+  response: ServerResponse,
+  events: Array<{event: string; data: unknown}>,
+): void {
+  response.statusCode = 200;
+  response.setHeader('content-type', 'text/event-stream; charset=utf-8');
+  response.setHeader('cache-control', 'no-cache');
+  for (const event of events) {
+    response.write(`event: ${event.event}\n`);
+    response.write(`data: ${JSON.stringify(event.data)}\n\n`);
+  }
+  response.end();
+}
+
+function buildBadRequestBody(pathname: string, message: string): unknown {
+  return messagesPathRe.test(pathname)
+    ? buildAnthropicError('bad_request', message)
+    : buildOpenAiError('bad_request', message);
 }
 
 async function listen(server: Server): Promise<AddressInfo> {

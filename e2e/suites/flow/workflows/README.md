@@ -125,7 +125,7 @@ localhost API and gitea URLs are correct for the standard dev stack.
 # 1. Infrastructure (postgres, temporal, garage, gitea)
 docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
-# 2. Local Ollama for the single Ollama-backed runner agent-step scenario.
+# 2. Local Ollama for the skip-gated Claude and Pi live smoke workflows.
 mise run ollama:up
 
 # 3. Start the API/client dev servers and run the suite.

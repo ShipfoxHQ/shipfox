@@ -293,21 +293,34 @@ describe('claudeHarnessAdapter', () => {
     expect(lastQueryOptions().mcpServers).toBeUndefined();
   });
 
-  it('rejects declared outputs when the Anthropic base URL override is active', async () => {
+  it('registers declared output tools when the Anthropic base URL override is active', async () => {
     configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://127.0.0.1:11434';
+    queryMock.mockReturnValue(makeQuery([successMessage, successMessage, successMessage]));
 
     const result = claudeHarnessAdapter.run(
       invocation({credentials: {}, outputs: {summary: {type: 'string'}}}),
     );
 
-    await expect(result).rejects.toThrow(
-      new AgentConfigError(
-        'Claude Anthropic base URL override does not support declared step outputs.',
-        'provider_unsupported',
-      ),
+    await expect(result).rejects.toThrow('Agent step finished without required outputs: summary');
+    expect(assertEgressAllowedMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:11434',
+      expect.objectContaining({allowPrivateNetworks: true}),
     );
-    expect(assertEgressAllowedMock).not.toHaveBeenCalled();
-    expect(queryMock).not.toHaveBeenCalled();
+    expect(createSdkMcpServerMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'shipfox_outputs',
+        tools: [expect.objectContaining({name: 'set_output'})],
+      }),
+    );
+    expect(queryMock).toHaveBeenCalledWith({
+      prompt: expect.any(Object),
+      options: expect.objectContaining({
+        tools: [],
+        mcpServers: expect.objectContaining({
+          shipfox_outputs: expect.objectContaining({name: 'shipfox_outputs'}),
+        }),
+      }),
+    });
   });
 
   it('maps Anthropic override egress denial to AgentConfigError', async () => {
@@ -356,14 +369,12 @@ describe('claudeHarnessAdapter', () => {
           GIT_CONFIG_GLOBAL: '/runner/job/git-cred.config',
           CLAUDE_AGENT_SDK_CLIENT_APP: '@shipfox/runner-agent',
         }),
-        mcpServers: expect.objectContaining({
-          shipfox_outputs: expect.objectContaining({name: 'shipfox_outputs'}),
-        }),
       }),
     });
     const env = lastQueryOptions().env;
     expect(env.CLAUDE_CONFIG_DIR).toMatch(`${testCwd}/logs/claude-config-`);
     expect(lastQueryOptions()).not.toHaveProperty('tools');
+    expect(lastQueryOptions().mcpServers).toBeUndefined();
   });
 
   it('passes selected Claude tool names through unchanged', async () => {

@@ -10,6 +10,8 @@ import {createApiClient, requestJson} from '@shipfox/e2e-core';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'smollm2:135m-instruct-q2_K';
+const DEFAULT_ANTHROPIC_FAKE_MODEL = 'deterministic-claude-agent';
+const DEFAULT_ANTHROPIC_CONFIG_MODEL = 'claude-opus-4-8';
 const OPENAI_COMPATIBLE_PROVIDER_API: ModelProviderApi = 'openai-completions';
 const TRAILING_SLASHES_RE = /\/+$/u;
 
@@ -57,6 +59,74 @@ export interface CreateAnthropicModelProviderConfigParams {
   apiKey?: string | undefined;
   defaultModel?: string | undefined;
   setAsDefault?: boolean | undefined;
+}
+
+export interface CreateAnthropicFakeModelProviderConfigParams {
+  workspaceId: string;
+  fakeModelProvider: FakeModelProviderScriptCreator;
+  scriptId: string;
+  responses: FakeModelProviderResponse[];
+  assertions?: FakeModelProviderRequestAssertion[] | undefined;
+  model?: string | undefined;
+  configDefaultModel?: string | undefined;
+  smallFastModel?: string | undefined;
+  setAsDefault?: boolean | undefined;
+}
+
+export interface AnthropicFakeModelProviderConfig {
+  script: FakeModelProviderScriptHandle;
+  runnerEnv: Record<
+    | 'AGENT_CLAUDE_ANTHROPIC_BASE_URL'
+    | 'AGENT_CLAUDE_ANTHROPIC_MODEL'
+    | 'AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL',
+    string
+  >;
+}
+
+export interface FakeModelProviderScriptCreator {
+  createScript(params: FakeModelProviderScript): Promise<FakeModelProviderScriptHandle>;
+}
+
+export interface FakeModelProviderScript {
+  id: string;
+  model: string;
+  responses: FakeModelProviderResponse[];
+  assertions?: FakeModelProviderRequestAssertion[] | undefined;
+}
+
+export type FakeModelProviderResponse =
+  | {
+      kind: 'tool_call';
+      toolName: string;
+      arguments: Record<string, unknown>;
+      content?: string | undefined;
+    }
+  | {
+      kind: 'message';
+      content: string;
+    }
+  | {
+      kind: 'error';
+      status: number;
+      message: string;
+    };
+
+export type FakeModelProviderRequestAssertion = (
+  | {
+      kind: 'model';
+      equals: string;
+    }
+  | {
+      kind: 'tool_present';
+      name: string;
+    }
+) & {minRequestIndex?: number | undefined};
+
+export interface FakeModelProviderScriptHandle {
+  id: string;
+  model: string;
+  anthropicBaseUrl: string;
+  modelProviderBaseUrl: string;
 }
 
 export interface DeleteModelProviderConfigParams {
@@ -167,6 +237,34 @@ export async function createAnthropicModelProviderConfig(
   });
 }
 
+export async function createAnthropicFakeModelProviderConfig(
+  params: CreateAnthropicFakeModelProviderConfigParams,
+): Promise<AnthropicFakeModelProviderConfig> {
+  const model = params.model ?? DEFAULT_ANTHROPIC_FAKE_MODEL;
+  const smallFastModel = params.smallFastModel ?? `${model}-small-fast`;
+  const script = await params.fakeModelProvider.createScript({
+    id: params.scriptId,
+    model,
+    responses: params.responses,
+    assertions: params.assertions,
+  });
+
+  await createAnthropicModelProviderConfig({
+    workspaceId: params.workspaceId,
+    defaultModel: params.configDefaultModel ?? DEFAULT_ANTHROPIC_CONFIG_MODEL,
+    setAsDefault: params.setAsDefault,
+  });
+
+  return {
+    script,
+    runnerEnv: {
+      AGENT_CLAUDE_ANTHROPIC_BASE_URL: script.anthropicBaseUrl,
+      AGENT_CLAUDE_ANTHROPIC_MODEL: script.model,
+      AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL: smallFastModel,
+    },
+  };
+}
+
 export async function deleteModelProviderConfig(
   params: DeleteModelProviderConfigParams,
 ): Promise<void> {
@@ -180,6 +278,7 @@ export async function deleteModelProviderConfig(
 
 export function createAgentHelper() {
   return {
+    createAnthropicFakeModelProviderConfig,
     createAnthropicModelProviderConfig,
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,
