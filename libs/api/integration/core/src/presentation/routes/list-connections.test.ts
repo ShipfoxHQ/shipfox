@@ -73,6 +73,7 @@ describe('GET /integration-connections', () => {
         adapters: {
           agent_tools: {
             catalog: () => [],
+            selectionCatalog: () => ({selectors: []}),
             openSession: async () => {
               await Promise.resolve();
               return {

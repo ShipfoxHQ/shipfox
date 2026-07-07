@@ -25,6 +25,7 @@ import type {
   WorkflowDocumentJob,
   WorkflowDocumentStep,
 } from '@shipfox/workflow-document';
+import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {
   WorkflowEnvTemplates,
   WorkflowFieldTemplate,
@@ -36,6 +37,7 @@ import type {
   WorkflowStepSourceLocationMap,
 } from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
+import {normalizeAgentIntegrations} from './normalize-agent-integrations.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
 import {normalizeJobCheckout} from './normalize-job-checkout.js';
@@ -49,13 +51,18 @@ import {parseInterpolationField} from './parse-interpolation-field.js';
 import {stableId} from './stable-id.js';
 import {issue} from './validation-issue.js';
 
+export interface NormalizeContext {
+  readonly defaultRunnerLabels: readonly string[];
+  readonly harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+  readonly integrationValidationContext?: IntegrationValidationContext | undefined;
+}
+
 export function normalizeJobs(
   document: WorkflowDocument,
   jobIdBySourceName: ReadonlyMap<string, string>,
   issues: WorkflowModelValidationIssue[],
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
-  defaultRunnerLabels: readonly string[],
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig,
+  context: NormalizeContext,
 ): readonly WorkflowModelJob[] {
   const entries = Object.entries(document.jobs);
   const pending = new Set(entries.map(([sourceName]) => sourceName));
@@ -81,9 +88,8 @@ export function normalizeJobs(
         jobIdBySourceName,
         issues: issuesForSourceName(issuesBySourceName, sourceName),
         stepSourceLocations,
-        defaultRunnerLabels,
+        context,
         jobOutputTypesBySourceName,
-        harnessToolDeploymentConfig,
       });
       if (model !== undefined) modelsBySourceName.set(sourceName, model);
       pending.delete(sourceName);
@@ -102,9 +108,8 @@ export function normalizeJobs(
         jobIdBySourceName,
         issues: issuesForSourceName(issuesBySourceName, sourceName),
         stepSourceLocations,
-        defaultRunnerLabels,
+        context,
         jobOutputTypesBySourceName,
-        harnessToolDeploymentConfig,
       });
       if (model !== undefined) modelsBySourceName.set(sourceName, model);
     }
@@ -140,9 +145,8 @@ function normalizeJob(params: {
   jobIdBySourceName: ReadonlyMap<string, string>;
   issues: WorkflowModelValidationIssue[];
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
-  defaultRunnerLabels: readonly string[];
+  context: NormalizeContext;
   jobOutputTypesBySourceName: Map<string, Readonly<Record<string, ExpressionType>>>;
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
 }): WorkflowModelJob | undefined {
   const id = params.jobIdBySourceName.get(params.sourceName);
   if (id === undefined) return undefined;
@@ -187,14 +191,14 @@ function normalizeJob(params: {
     typeOverlay: stepTypeOverlay,
     upstreamJobs,
     directNeedJobs,
-    harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
+    context: params.context,
   });
   const runner = normalizeRunner({
     document: params.document,
     job: params.job,
     sourceName: params.sourceName,
     issues: params.issues,
-    defaultRunnerLabels: params.defaultRunnerLabels,
+    defaultRunnerLabels: params.context.defaultRunnerLabels,
   });
   const checkout = normalizeJobCheckout(params.job.checkout);
   const jobEnv = normalizeEnv({
@@ -443,7 +447,7 @@ function normalizeJobSteps(params: {
   typeOverlay?: ExpressionTypeEnvironment | undefined;
   upstreamJobs: readonly WorkflowJobTypeOverlay[];
   directNeedJobs: readonly WorkflowJobTypeOverlay[];
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+  context: NormalizeContext;
 }): readonly WorkflowModelStep[] {
   const usedStepIds = new Map<string, number>();
 
@@ -462,7 +466,7 @@ function normalizeJobSteps(params: {
       typeOverlay: params.typeOverlay,
       upstreamJobs: params.upstreamJobs,
       directNeedJobs: params.directNeedJobs,
-      harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
+      context: params.context,
     }),
   );
 }
@@ -481,7 +485,7 @@ function normalizeStep(params: {
   typeOverlay?: ExpressionTypeEnvironment | undefined;
   upstreamJobs: readonly WorkflowJobTypeOverlay[];
   directNeedJobs: readonly WorkflowJobTypeOverlay[];
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+  context: NormalizeContext;
 }): WorkflowModelStep {
   const stepKey = params.step.key;
   const stepId =
@@ -604,7 +608,7 @@ function normalizeStep(params: {
       fillSite: params.fillSite,
       allowedJobReferences: params.allowedJobReferences,
       typeOverlay,
-      harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
+      context: params.context,
     });
   }
 
@@ -670,7 +674,7 @@ function normalizeAgentStep(params: {
   fillSite: AvailabilitySite;
   allowedJobReferences: ReadonlySet<string>;
   typeOverlay?: ExpressionTypeEnvironment | undefined;
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+  context: NormalizeContext;
 }): WorkflowModelAgentStep {
   if (params.step.prompt === undefined) {
     throw new Error('Agent step normalization requires a prompt');
@@ -715,7 +719,14 @@ function normalizeAgentStep(params: {
     stepIndex: params.stepIndex,
     issues: params.issues,
     validateLiteralProvider: providerTemplate === undefined,
-    harnessToolDeploymentConfig: params.harnessToolDeploymentConfig,
+    harnessToolDeploymentConfig: params.context.harnessToolDeploymentConfig,
+  });
+  const integrations = normalizeAgentIntegrations({
+    integrations: params.step.integrations,
+    sourceName: params.sourceName,
+    stepIndex: params.stepIndex,
+    issues: params.issues,
+    integrationValidationContext: params.context.integrationValidationContext,
   });
   const templates = optionalAgentStepTemplates({
     prompt: promptTemplate,
@@ -733,6 +744,7 @@ function normalizeAgentStep(params: {
     prompt: params.step.prompt,
     ...(params.step.thinking === undefined ? {} : {thinking: params.step.thinking}),
     ...(params.step.tools === undefined ? {} : {tools: params.step.tools}),
+    ...(integrations === undefined ? {} : {integrations}),
     ...(templates === undefined ? {} : {templates}),
   };
 }

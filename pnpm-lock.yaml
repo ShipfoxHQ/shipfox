@@ -1412,6 +1412,9 @@ importers:
       '@shipfox/api-integration-core':
         specifier: workspace:*
         version: link:../integration/core
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../integration/core-dto
       '@shipfox/api-projects':
         specifier: workspace:*
         version: link:../projects

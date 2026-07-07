@@ -2,7 +2,12 @@ import {agentModule} from '@shipfox/api-agent';
 import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
-import {createIntegrationsContext} from '@shipfox/api-integration-core';
+import {
+  buildAgentToolSelectionCatalogs,
+  createIntegrationsContext,
+  createWorkspaceConnectionSnapshotLoader,
+  getIntegrationConnectionById,
+} from '@shipfox/api-integration-core';
 import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
@@ -28,11 +33,20 @@ export async function run(): Promise<void> {
   createPostgresClient();
 
   const integrations = await createIntegrationsContext();
+  const agentToolSelectionCatalogs = await buildAgentToolSelectionCatalogs(integrations.registry);
+  const loadWorkspaceConnectionSnapshot = createWorkspaceConnectionSnapshotLoader(
+    integrations.registry,
+  );
   // The checkout-token route resolves intents and mints credentials through the
   // source-control service; wire it into the workflows module before serving.
   setSourceControl(integrations.sourceControl);
   const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
-  const definitionsModule = createDefinitionsModule({sourceControl: integrations.sourceControl});
+  const definitionsModule = createDefinitionsModule({
+    sourceControl: integrations.sourceControl,
+    agentToolSelectionCatalogs,
+    loadWorkspaceConnectionSnapshot,
+    getIntegrationConnectionById,
+  });
 
   const modules = [
     authModule,

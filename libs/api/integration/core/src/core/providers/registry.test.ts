@@ -28,6 +28,7 @@ function sourceControlAdapter() {
 function agentToolsAdapter() {
   return {
     catalog: () => [],
+    selectionCatalog: () => ({selectors: []}),
     openSession: async () => {
       await Promise.resolve();
       return {

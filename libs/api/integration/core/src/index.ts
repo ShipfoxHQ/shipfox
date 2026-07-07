@@ -31,6 +31,16 @@ export {
   parseProviderRepositoryId,
 } from '@shipfox/api-integration-core-dto';
 export type {
+  AgentToolSelectionCatalogs,
+  LoadWorkspaceConnectionSnapshot,
+  WorkspaceConnectionSnapshot,
+  WorkspaceConnectionSnapshotEntry,
+} from '#core/agent-tool-selection.js';
+export {
+  buildAgentToolSelectionCatalogs,
+  createWorkspaceConnectionSnapshotLoader,
+} from '#core/agent-tool-selection.js';
+export type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
 } from '#core/entities/connection.js';
@@ -83,6 +93,7 @@ export type {
 export type {IntegrationSourceControlService} from '#core/source-control-service.js';
 export {createSourceControlIntegrationService} from '#core/source-control-service.js';
 export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
+export {getIntegrationConnectionById} from '#db/connections.js';
 export type {
   PublishIntegrationEventReceivedFn,
   PublishIntegrationEventReceivedParams,

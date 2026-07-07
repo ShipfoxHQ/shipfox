@@ -8,6 +8,7 @@ import {
   MAX_REPOSITORY_FILE_BYTES,
 } from '@shipfox/api-integration-core';
 import {boundedMap} from '@shipfox/node-module';
+import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
@@ -84,12 +85,13 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   ref: string;
   paths: string[];
   onProgress?: ((path: string) => void) | undefined;
+  loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
 }
 
 export async function fetchAndParseWorkflows(
   params: FetchAndParseWorkflowsParams,
 ): Promise<ParsedWorkflow[]> {
-  return await boundedMap(
+  const parsed = await boundedMap(
     params.paths,
     FILE_FETCH_CONCURRENCY,
     async (path) => {
@@ -110,21 +112,56 @@ export async function fetchAndParseWorkflows(
         );
       }
 
-      try {
-        const definition = parseDefinition(snapshot.content);
-        const contentHash = sha256Hex(snapshot.content);
-        return {path: snapshot.path, name: definition.document.name, definition, contentHash};
-      } catch (error) {
-        if (error instanceof DefinitionParseError) {
-          throw new DefinitionSyncPermanentError(
-            'invalid-definition',
-            `Invalid workflow definition at ${snapshot.path}: ${error.message}`,
-          );
-        }
-        throw error;
-      }
+      return {
+        ...parseWorkflowSnapshot({path: snapshot.path, content: snapshot.content}),
+        rawContent: snapshot.content,
+      };
     },
     {stopOnError: true},
+  );
+
+  if (!params.loadIntegrationValidationContext || !parsed.some(hasAgentStepIntegrations)) {
+    return parsed.map(({rawContent: _rawContent, ...entry}) => entry);
+  }
+
+  const integrationValidationContext = await params.loadIntegrationValidationContext();
+  return parsed.map((entry) =>
+    parseWorkflowSnapshot({
+      path: entry.path,
+      content: entry.rawContent,
+      integrationValidationContext,
+    }),
+  );
+}
+
+function parseWorkflowSnapshot(params: {
+  path: string;
+  content: string;
+  integrationValidationContext?: IntegrationValidationContext | undefined;
+}): ParsedWorkflow {
+  try {
+    const definition =
+      params.integrationValidationContext === undefined
+        ? parseDefinition(params.content)
+        : parseDefinition(params.content, {
+            integrationValidationContext: params.integrationValidationContext,
+          });
+    const contentHash = sha256Hex(params.content);
+    return {path: params.path, name: definition.document.name, definition, contentHash};
+  } catch (error) {
+    if (error instanceof DefinitionParseError) {
+      throw new DefinitionSyncPermanentError(
+        'invalid-definition',
+        `Invalid workflow definition at ${params.path}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+}
+
+function hasAgentStepIntegrations(entry: ParsedWorkflow): boolean {
+  return Object.values(entry.definition.document.jobs).some((job) =>
+    job.steps.some((step) => step.integrations !== undefined),
   );
 }
 

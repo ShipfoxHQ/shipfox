@@ -45,6 +45,7 @@ describe('GET /integration-providers', () => {
         adapters: {
           agent_tools: {
             catalog: () => [],
+            selectionCatalog: () => ({selectors: []}),
             openSession: async () => {
               await Promise.resolve();
               return {
