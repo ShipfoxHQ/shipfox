@@ -54,6 +54,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     provider,
     thinking,
     prompt,
+    tools,
     credentials,
     customProvider,
     gitConfigGlobal,
@@ -103,6 +104,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     services,
     model,
     thinkingLevel: thinking as PiThinkingLevel,
+    ...(tools === undefined ? {} : {tools: [...tools]}),
     customTools: [setOutputTool(collector)],
     // Keep the session JSONL inside the job workspace so it forwards from a deterministic path
     // and is cleaned up with the workspace; pi's default lives under ~/.pi, outside it.
