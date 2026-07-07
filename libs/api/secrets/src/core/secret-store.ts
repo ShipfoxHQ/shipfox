@@ -96,6 +96,7 @@ export function createSecretStoreApi(params: {
         );
         await assertWorkspaceCap({
           workspaceId: input.workspaceId,
+          namespace,
           incomingEntries: entries.length - existingEntries,
           tx,
         });

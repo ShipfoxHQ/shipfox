@@ -1,4 +1,4 @@
-import {namespaceSchema, secretKeySchema} from '@shipfox/api-secrets-dto';
+import {isSystemNamespace, namespaceSchema, secretKeySchema} from '@shipfox/api-secrets-dto';
 import {config, MAX_VALUE_BYTES} from '#config.js';
 import {countWorkspaceEntries, type Tx} from '#db/index.js';
 import {
@@ -29,9 +29,13 @@ export function validateValueBytes(values: Iterable<string>): void {
 
 export async function assertWorkspaceCap(params: {
   workspaceId: string;
+  namespace: string;
   incomingEntries: number;
   tx: Tx;
 }): Promise<void> {
+  // System namespaces are internal-only; public management routes do not accept a namespace.
+  if (isSystemNamespace(params.namespace)) return;
+
   const count = await countWorkspaceEntries(params.workspaceId, params.tx);
   if (count + params.incomingEntries > config.SECRETS_MAX_PER_WORKSPACE) {
     throw new WorkspaceSecretCapExceededError(params.workspaceId, config.SECRETS_MAX_PER_WORKSPACE);

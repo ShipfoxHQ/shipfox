@@ -25,5 +25,13 @@ export interface IntegrationModuleParts {
 export interface IntegrationProviderModule {
   id: string;
   enabled: boolean;
-  load(): Promise<IntegrationModuleParts>;
+  load(options?: IntegrationProviderModuleLoadOptions): Promise<IntegrationModuleParts>;
+}
+
+export interface IntegrationProviderModuleLoadOptions {
+  secrets?: IntegrationProviderSecrets | undefined;
+}
+
+export interface IntegrationProviderSecrets {
+  deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }

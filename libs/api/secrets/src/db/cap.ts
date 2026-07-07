@@ -5,8 +5,18 @@ export async function countWorkspaceEntries(workspaceId: string, tx?: Tx): Promi
   const executor = tx ?? db();
   const result = await executor.execute<{count: string | number}>(sql`
     SELECT
-      (SELECT COUNT(*) FROM secrets_values WHERE workspace_id = ${workspaceId}) +
-      (SELECT COUNT(*) FROM secrets_variables WHERE workspace_id = ${workspaceId}) AS count
+      (
+        SELECT COUNT(*)
+        FROM secrets_values
+        WHERE workspace_id = ${workspaceId}
+          AND namespace NOT LIKE 'system/%'
+      ) +
+      (
+        SELECT COUNT(*)
+        FROM secrets_variables
+        WHERE workspace_id = ${workspaceId}
+          AND namespace NOT LIKE 'system/%'
+      ) AS count
   `);
   const count = result.rows[0]?.count ?? 0;
   return Number(count);

@@ -27,6 +27,9 @@ export interface CreateGithubWebhookRoutesOptions {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  deleteInstallationTokenSecret?:
+    | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
+    | undefined;
 }
 
 export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOptions): RouteGroup {
@@ -94,6 +97,7 @@ export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOpti
           publishSourcePush: options.publishSourcePush,
           recordDeliveryOnly: options.recordDeliveryOnly,
           getIntegrationConnectionById: options.getIntegrationConnectionById,
+          deleteInstallationTokenSecret: options.deleteInstallationTokenSecret,
         });
       });
 

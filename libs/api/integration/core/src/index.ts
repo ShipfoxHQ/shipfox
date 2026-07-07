@@ -18,7 +18,7 @@ import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
-import type {IntegrationModuleParts} from '#providers/types.js';
+import type {IntegrationModuleParts, IntegrationProviderSecrets} from '#providers/types.js';
 import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
 import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
@@ -114,6 +114,7 @@ export interface CreateIntegrationsModuleOptions {
    * precedence over `providers`.
    */
   parts?: IntegrationModuleParts[] | undefined;
+  secrets?: IntegrationProviderSecrets | undefined;
 }
 
 export interface IntegrationsContext {
@@ -144,7 +145,7 @@ export async function createIntegrationsContext(
     options.parts ??
     (options.providers
       ? options.providers.map((provider) => ({provider}))
-      : await loadEnabledProviderModules());
+      : await loadEnabledProviderModules({secrets: options.secrets}));
 
   const registry = createIntegrationProviderRegistry(parts.map((part) => part.provider));
   const sourceControl = createSourceControlIntegrationService({

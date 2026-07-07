@@ -30,6 +30,9 @@ export interface HandleGithubEventParams {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  deleteInstallationTokenSecret?:
+    | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
+    | undefined;
 }
 
 export type HandleGithubEventOutcome =
@@ -98,6 +101,13 @@ export async function handleGithubEvent(
     return {outcome: 'missing-connection'};
   }
 
+  if (shouldDeleteInstallationTokenSecret(params.event, action)) {
+    await params.deleteInstallationTokenSecret?.({
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
+  }
+
   if (connection.lifecycleStatus !== 'active') {
     const logContext = {
       deliveryId: params.deliveryId,
@@ -154,6 +164,10 @@ export async function handleGithubEvent(
     connection,
     event: eventName,
   });
+}
+
+function shouldDeleteInstallationTokenSecret(event: string, action: string | undefined): boolean {
+  return event === 'installation' && (action === 'deleted' || action === 'suspend');
 }
 
 async function publishGithubPush(params: {

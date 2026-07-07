@@ -205,6 +205,7 @@ function writeManagementEntries<Row extends {key: string}>(params: {
     );
     await assertWorkspaceCap({
       workspaceId: params.input.workspaceId,
+      namespace: '',
       incomingEntries: params.keys.length - existingKeys.size,
       tx,
     });

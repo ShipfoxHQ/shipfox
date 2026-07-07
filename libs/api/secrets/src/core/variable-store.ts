@@ -72,6 +72,7 @@ export async function setVariables(input: SetVariablesParams): Promise<void> {
     );
     await assertWorkspaceCap({
       workspaceId: input.workspaceId,
+      namespace,
       incomingEntries: entries.length - existingEntries,
       tx,
     });

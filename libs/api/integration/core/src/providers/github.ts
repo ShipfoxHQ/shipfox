@@ -16,7 +16,11 @@ import {
   recordDeliveryOnly,
 } from '#db/webhook-deliveries.js';
 import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
-import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
+import type {
+  IntegrationModuleParts,
+  IntegrationProviderModule,
+  IntegrationProviderModuleLoadOptions,
+} from '#providers/types.js';
 
 // Stable migration-tracking table name for the GitHub provider database. This
 // must NOT depend on the provider's position in the module `database` array. A
@@ -24,7 +28,9 @@ import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers
 // re-run migrations against existing tables.
 const GITHUB_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_github';
 
-async function loadGithubModuleParts(): Promise<IntegrationModuleParts> {
+async function loadGithubModuleParts(
+  options: IntegrationProviderModuleLoadOptions = {},
+): Promise<IntegrationModuleParts> {
   const {
     createGithubIntegrationProvider,
     getGithubInstallationByInstallationId,
@@ -94,6 +100,7 @@ async function loadGithubModuleParts(): Promise<IntegrationModuleParts> {
       recordDeliveryOnly,
       getIntegrationConnectionById,
       coreDb: db,
+      deleteSecrets: options.secrets?.deleteSecrets,
     }),
     database: {
       db: githubDb,
