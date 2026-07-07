@@ -40,6 +40,20 @@ describe('checkoutTokenResponseSchema', () => {
     expect(result).toEqual(basicResponse);
   });
 
+  it('accepts a Git author identity', () => {
+    const input = {
+      ...basicResponse,
+      git_author: {
+        name: 'shipfox-test[bot]',
+        email: '1+shipfox-test[bot]@users.noreply.github.com',
+      },
+    };
+
+    const result = checkoutTokenResponseSchema.parse(input);
+
+    expect(result.git_author).toEqual(input.git_author);
+  });
+
   it('accepts a credential-free response with no auth (debug provider)', () => {
     const input = {repository_url: 'https://github.com/acme/repo.git', ref: 'main'};
 

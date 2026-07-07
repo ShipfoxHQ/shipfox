@@ -51,6 +51,9 @@ export function toCheckoutTokenDto(
   return {
     repository_url: spec.repositoryUrl,
     ref: spec.ref,
+    ...(spec.gitAuthor
+      ? {git_author: {name: spec.gitAuthor.name, email: spec.gitAuthor.email}}
+      : {}),
     ...(spec.credentials
       ? {
           auth: {

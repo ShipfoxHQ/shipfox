@@ -177,11 +177,19 @@ export async function writeAmbientGitCredential(params: {
   configPath: string;
   repositoryUrl: string;
   auth: CheckoutTokenAuthDto;
+  gitAuthor?: {name: string; email: string} | undefined;
 }): Promise<void> {
-  const {configPath, repositoryUrl, auth} = params;
+  const {configPath, repositoryUrl, auth, gitAuthor} = params;
   const includePath = await ambientIncludePath();
   const lines = [
     ...(includePath ? ['[include]', `\tpath = ${gitConfigQuotedValue(includePath)}`] : []),
+    ...(gitAuthor
+      ? [
+          '[user]',
+          `\tname = ${gitConfigQuotedValue(gitAuthor.name)}`,
+          `\temail = ${gitConfigQuotedValue(gitAuthor.email)}`,
+        ]
+      : []),
     `[http "${gitConfigSubsection(repositoryUrl)}"]`,
     `\textraHeader = ${gitConfigQuotedValue(`Authorization: ${authorizationValue(auth)}`)}`,
     '[http]',

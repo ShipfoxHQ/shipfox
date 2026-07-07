@@ -41,11 +41,12 @@ const jobContext = {
   jobExecutionId: '00000000-0000-0000-0000-0000000000ad',
 };
 
-function checkoutResponse(auth?: unknown) {
+function checkoutResponse(auth?: unknown, gitAuthor?: unknown) {
   return {
     repository_url: 'https://github.com/acme/repo.git',
     ref: 'main',
     auth,
+    ...(gitAuthor ? {git_author: gitAuthor} : {}),
   };
 }
 
@@ -112,14 +113,20 @@ afterEach(() => {
 describe('executeSetupStep', () => {
   it('prepares the workspace, checks out the repo, and succeeds', async () => {
     requestCheckoutTokenMock.mockResolvedValue(
-      checkoutResponse({
-        kind: 'bearer',
-        token: 't',
-        expires_at: '2026-01-01T00:00:00Z',
-        carry: 'header',
-        host: 'github.com',
-        persist: true,
-      }),
+      checkoutResponse(
+        {
+          kind: 'bearer',
+          token: 't',
+          expires_at: '2026-01-01T00:00:00Z',
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        },
+        {
+          name: 'shipfox-test[bot]',
+          email: '1+shipfox-test[bot]@users.noreply.github.com',
+        },
+      ),
     );
 
     const result = await run();
@@ -155,6 +162,10 @@ describe('executeSetupStep', () => {
         carry: 'header',
         host: 'github.com',
         persist: true,
+      },
+      gitAuthor: {
+        name: 'shipfox-test[bot]',
+        email: '1+shipfox-test[bot]@users.noreply.github.com',
       },
     });
     expect(result).toEqual({

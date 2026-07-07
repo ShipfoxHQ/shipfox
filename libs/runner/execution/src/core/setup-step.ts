@@ -239,6 +239,7 @@ async function persistAmbientGitCredential(params: {
       configPath: gitConfigPath,
       repositoryUrl: checkout.repository_url,
       auth: checkout.auth,
+      ...(checkout.git_author ? {gitAuthor: checkout.git_author} : {}),
     });
     return gitConfigPath;
   } catch (error) {

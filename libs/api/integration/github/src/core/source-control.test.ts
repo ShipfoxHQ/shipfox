@@ -267,6 +267,10 @@ describe('GithubSourceControlProvider', () => {
         token: 'ghs_installationtoken',
         expiresAt: new Date('2026-06-10T12:00:00.000Z'),
       },
+      gitAuthor: {
+        name: 'shipfox-test[bot]',
+        email: '1+shipfox-test[bot]@users.noreply.github.com',
+      },
     });
     expect(result.repositoryUrl).not.toContain('ghs_installationtoken');
     expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
