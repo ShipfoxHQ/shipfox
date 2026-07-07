@@ -26,7 +26,6 @@ describe('buildStepListModel', () => {
       key: null,
       name: 'npm test',
       position: 1,
-      config: {run: 'npm test'},
       attempts: [makeAttempt({execution_order: 1})],
     });
     const unnamed = makeStep({
@@ -57,7 +56,6 @@ describe('buildStepListModel', () => {
       name: 'pnpm test',
       position: 1,
       type: 'run',
-      config: {run: 'pnpm test\npnpm build'},
       attempts: [makeAttempt()],
     });
     const agent = makeStep({
@@ -65,7 +63,6 @@ describe('buildStepListModel', () => {
       name: 'claude-opus-4-8 · Fix the failing tests.',
       position: 2,
       type: 'agent',
-      config: {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.\nKeep it small.'},
       attempts: [makeAttempt()],
     });
 

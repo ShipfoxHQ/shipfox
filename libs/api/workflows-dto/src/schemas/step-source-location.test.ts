@@ -1,4 +1,5 @@
-import {stepDtoSchema, stepSourceLocationSchema} from './step.js';
+import {executableStepDtoSchema, stepDtoSchema, stepSourceLocationSchema} from './step.js';
+import {workflowRunStepDetailDtoSchema} from './workflow-run-detail.js';
 
 const baseStep = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -7,7 +8,6 @@ const baseStep = {
   name: 'echo hello',
   status: 'pending',
   type: 'run',
-  config: {run: 'echo hello'},
   error: null,
   position: 1,
   current_attempt: 1,
@@ -41,5 +41,40 @@ describe('step source location schemas', () => {
     const result = stepDtoSchema.parse({...baseStep, source_location: null});
 
     expect(result.source_location).toBeNull();
+  });
+
+  test('rejects config on read step DTOs', () => {
+    const result = stepDtoSchema.safeParse({
+      ...baseStep,
+      source_location: null,
+      config: {run: 'echo hello'},
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('accepts config on executable step DTOs', () => {
+    const result = executableStepDtoSchema.parse({
+      ...baseStep,
+      source_location: null,
+      config: {run: 'echo hello'},
+    });
+
+    expect(result.config).toEqual({run: 'echo hello'});
+  });
+
+  test('rejects config on workflow run detail step DTOs', () => {
+    const result = workflowRunStepDetailDtoSchema.safeParse({
+      ...baseStep,
+      source_location: null,
+      exit_code: null,
+      outputs: null,
+      response: null,
+      gate_result: null,
+      attempts: [],
+      config: {run: 'echo hello'},
+    });
+
+    expect(result.success).toBe(false);
   });
 });

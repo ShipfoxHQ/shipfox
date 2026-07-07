@@ -49,6 +49,8 @@ export {type LogOutcomeDto, logOutcomeSchema} from './log-outcome.js';
 export {
   type AgentConfigIssueDto,
   agentConfigIssueSchema,
+  type ExecutableStepDto,
+  executableStepDtoSchema,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
   type StepAttemptDto,
   type StepDto,

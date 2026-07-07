@@ -245,12 +245,6 @@ describe('WorkflowRunView', () => {
                     name: 'Fix the failing tests.',
                     type: 'agent',
                     status: 'failed',
-                    config: {
-                      provider: 'anthropic',
-                      model: 'claude-opus-4-8',
-                      thinking: 'high',
-                      prompt: 'Fix the failing tests.',
-                    },
                     error: {
                       message: 'Model provider request failed',
                       reason: 'agent_invocation_failed',
@@ -333,12 +327,6 @@ describe('WorkflowRunView', () => {
                       name: 'Fix the failing tests.',
                       type: 'agent',
                       status: 'failed',
-                      config: {
-                        provider: 'anthropic',
-                        model: 'claude-opus-4-8',
-                        thinking: 'high',
-                        prompt: 'Fix the failing tests.',
-                      },
                       error: {
                         message: 'Model provider credentials are not configured',
                         reason: 'agent_config_invalid',

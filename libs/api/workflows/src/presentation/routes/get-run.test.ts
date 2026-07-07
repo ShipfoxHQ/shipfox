@@ -134,6 +134,11 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(steps[0].name).toBe('Set up job');
     expect(steps[1].name).toBe('Install');
     expect(steps[2].name).toBe('npm build');
+    for (const step of steps) {
+      expect(step).not.toHaveProperty('config');
+      expect(step).not.toHaveProperty('authored_config');
+      expect(step).not.toHaveProperty('config_plan');
+    }
     // Run timing fields flow through the read model (null on a fresh, unstamped run).
     expect(body).toMatchObject({latest_attempt: 1, started_at: null, finished_at: null});
     expect(body.jobs[0]).not.toHaveProperty('queued_at');

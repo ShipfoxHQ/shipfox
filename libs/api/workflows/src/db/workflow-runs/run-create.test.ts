@@ -12,6 +12,7 @@ import {workflowRuns} from '../schema/workflow-runs.js';
 import {
   createWorkflowRun,
   getJobExecutionsByJobId,
+  getJobExecutionDetail,
   getJobsByWorkflowRunId,
   getStepsByJobId,
   getWorkflowRunAttemptById,
@@ -430,11 +431,33 @@ describe('workflow run queries', () => {
         },
       });
 
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const job = runJobs[0];
+      if (!job) throw new Error('Expected job');
+      const dispatched = await nextStepForJob(job.id);
+      if (dispatched.kind !== 'step') throw new Error('Expected dispatched step');
+
       const detail = await getWorkflowRunDetail(run.id);
 
       expect(detail?.runAttempt.model).toEqual(model);
       expect(detail?.jobs).toHaveLength(1);
       expect(detail?.jobs[0]?.jobExecutions[0]?.steps).toHaveLength(3);
+      const setupStep = detail?.jobs[0]?.jobExecutions[0]?.steps[0];
+      const setupAttempt = setupStep?.attempts[0];
+      expect(setupAttempt).not.toHaveProperty('config');
+      expect(setupAttempt).not.toHaveProperty('evaluationTrace');
+      expect(setupAttempt).not.toHaveProperty('logOutcome');
+      const userStep = detail?.jobs[0]?.jobExecutions[0]?.steps[1];
+      expect(userStep).not.toHaveProperty('config');
+      expect(userStep).not.toHaveProperty('authoredConfig');
+      expect(userStep).not.toHaveProperty('configPlan');
+
+      const jobExecutionId = detail?.jobs[0]?.jobExecutions[0]?.id;
+      if (!jobExecutionId) throw new Error('Expected job execution');
+      const jobExecutionDetail = await getJobExecutionDetail(jobExecutionId);
+      expect(jobExecutionDetail?.steps[0]?.attempts[0]).toHaveProperty('config');
+      expect(jobExecutionDetail?.steps[0]?.attempts[0]).toHaveProperty('evaluationTrace');
+      expect(jobExecutionDetail?.steps[1]?.config).toMatchObject({run: 'echo first'});
     });
 
     test('persists explicit checkout policy on jobs', async () => {

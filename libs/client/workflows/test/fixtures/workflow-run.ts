@@ -226,7 +226,6 @@ export function workflowStepDto(
     source_location: null,
     status: 'pending',
     type: 'run',
-    config: {},
     error: null,
     position: 0,
     current_attempt: 1,

@@ -7,11 +7,15 @@ import {and, asc, count, desc, eq, gte, lte, type SQL, sql} from 'drizzle-orm';
 import type {
   JobExecutionDetail,
   StepDetail,
+  WorkflowRunJobExecutionDetail,
   WorkflowJobDetail,
   WorkflowRun,
   WorkflowRunDetail,
+  WorkflowRunStepAttemptDetail,
+  WorkflowRunStepDetail,
   WorkflowRunStatus,
 } from '#core/entities/workflow-run.js';
+import type {StepAttemptStatus} from '#core/entities/step.js';
 import {db} from '../db.js';
 import {jobExecutions, toJobExecution} from '../schema/job-executions.js';
 import {jobs, toJob} from '../schema/jobs.js';
@@ -307,8 +311,35 @@ export async function getWorkflowRunDetail(
       run: workflowRuns,
       job: jobs,
       jobExecution: jobExecutions,
-      step: steps,
-      stepAttempt: stepAttempts,
+      step: {
+        id: steps.id,
+        jobExecutionId: steps.jobExecutionId,
+        key: steps.key,
+        name: steps.name,
+        sourceLocation: steps.sourceLocation,
+        status: steps.status,
+        type: steps.type,
+        error: steps.error,
+        position: steps.position,
+        currentAttempt: steps.currentAttempt,
+        createdAt: steps.createdAt,
+        updatedAt: steps.updatedAt,
+      },
+      stepAttempt: {
+        id: stepAttempts.id,
+        stepId: stepAttempts.stepId,
+        attempt: stepAttempts.attempt,
+        executionOrder: stepAttempts.executionOrder,
+        status: stepAttempts.status,
+        output: stepAttempts.output,
+        response: stepAttempts.response,
+        error: stepAttempts.error,
+        exitCode: stepAttempts.exitCode,
+        gateResult: stepAttempts.gateResult,
+        restartFeedback: stepAttempts.restartFeedback,
+        startedAt: stepAttempts.startedAt,
+        finishedAt: stepAttempts.finishedAt,
+      },
     })
     .from(workflowRuns)
     .innerJoin(workflowRunAttempts, eq(workflowRunAttempts.id, target.attempt.id))
@@ -376,8 +407,8 @@ function hydrateWorkflowRunDetail(
     run: typeof workflowRuns.$inferSelect;
     job: typeof jobs.$inferSelect | null;
     jobExecution: typeof jobExecutions.$inferSelect | null;
-    step: typeof steps.$inferSelect | null;
-    stepAttempt: typeof stepAttempts.$inferSelect | null;
+    step: WorkflowRunStepDetailRow | null;
+    stepAttempt: WorkflowRunStepAttemptDetailRow | null;
   }[],
   attempt: typeof workflowRunAttempts.$inferSelect,
   latestAttempt: number,
@@ -392,8 +423,8 @@ function hydrateWorkflowRunDetail(
     jobs: [],
   };
   const jobById = new Map<string, WorkflowJobDetail>();
-  const jobExecutionById = new Map<string, JobExecutionDetail>();
-  const stepById = new Map<string, StepDetail>();
+  const jobExecutionById = new Map<string, WorkflowRunJobExecutionDetail>();
+  const stepById = new Map<string, WorkflowRunStepDetail>();
 
   for (const row of rows) {
     if (!row.job) continue;
@@ -413,13 +444,94 @@ function hydrateWorkflowRunDetail(
     }
 
     if (!row.step) continue;
-    const step = getOrCreateStepDetail(stepById, jobExecution.steps, row.step);
+    const step = getOrCreateWorkflowRunStepDetail(stepById, jobExecution.steps, row.step);
     if (row.stepAttempt) {
-      step.attempts.push(toStepAttempt(row.stepAttempt));
+      step.attempts.push(toWorkflowRunStepAttemptDetail(row.stepAttempt));
     }
   }
 
   return detail;
+}
+
+type WorkflowRunStepDetailRow = Pick<
+  typeof steps.$inferSelect,
+  | 'id'
+  | 'jobExecutionId'
+  | 'key'
+  | 'name'
+  | 'sourceLocation'
+  | 'status'
+  | 'type'
+  | 'error'
+  | 'position'
+  | 'currentAttempt'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+type WorkflowRunStepAttemptDetailRow = Pick<
+  typeof stepAttempts.$inferSelect,
+  | 'id'
+  | 'stepId'
+  | 'attempt'
+  | 'executionOrder'
+  | 'status'
+  | 'output'
+  | 'response'
+  | 'error'
+  | 'exitCode'
+  | 'gateResult'
+  | 'restartFeedback'
+  | 'startedAt'
+  | 'finishedAt'
+>;
+
+function toWorkflowRunStepAttemptDetail(
+  row: WorkflowRunStepAttemptDetailRow,
+): WorkflowRunStepAttemptDetail {
+  return {
+    id: row.id,
+    stepId: row.stepId,
+    attempt: row.attempt,
+    executionOrder: row.executionOrder,
+    status: row.status as StepAttemptStatus,
+    output: (row.output as Record<string, unknown>) ?? null,
+    response: row.response ?? null,
+    error: (row.error as Record<string, unknown>) ?? null,
+    exitCode: row.exitCode ?? null,
+    gateResult: (row.gateResult as Record<string, unknown>) ?? null,
+    restartFeedback: row.restartFeedback ?? null,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt ?? null,
+  };
+}
+
+function getOrCreateWorkflowRunStepDetail(
+  stepById: Map<string, WorkflowRunStepDetail>,
+  target: WorkflowRunStepDetail[],
+  row: WorkflowRunStepDetailRow,
+): WorkflowRunStepDetail {
+  let step = stepById.get(row.id);
+  if (!step) {
+    step = {
+      id: row.id,
+      jobExecutionId: row.jobExecutionId,
+      key: row.key,
+      name: row.name,
+      sourceLocation: row.sourceLocation ?? null,
+      status: row.status,
+      type: row.type,
+      error: (row.error as Record<string, unknown>) ?? null,
+      position: row.position,
+      currentAttempt: row.currentAttempt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      attempts: [],
+    };
+    stepById.set(row.id, step);
+    target.push(step);
+  }
+  return step;
 }
 
 function getOrCreateStepDetail(

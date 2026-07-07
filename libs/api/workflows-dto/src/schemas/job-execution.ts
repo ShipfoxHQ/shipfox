@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {logOutcomeSchema} from './log-outcome.js';
-import {stepDtoSchema, stepErrorDtoSchema} from './step.js';
+import {executableStepDtoSchema, stepErrorDtoSchema} from './step.js';
 
 export const STEP_RESPONSE_MAX_LENGTH = 8 * 1024;
 
@@ -11,7 +11,7 @@ export const STEP_RESPONSE_MAX_LENGTH = 8 * 1024;
 export const nextStepResponseSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('step'),
-    step: stepDtoSchema,
+    step: executableStepDtoSchema,
     attempt: z
       .number()
       .int()

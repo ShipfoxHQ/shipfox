@@ -236,7 +236,6 @@ export const ContentVariants: Story = {
           name: 'pnpm test --filter=@shipfox/client-workflows',
           position: 1,
           type: 'run',
-          config: {run: 'pnpm test --filter=@shipfox/client-workflows'},
           status: 'succeeded',
           attempts: [makeAttempt({status: 'succeeded'})],
         }),
@@ -245,10 +244,6 @@ export const ContentVariants: Story = {
           name: 'claude-opus-4-8 · Review the failing workflow step tests and propose the smallest fix.',
           position: 2,
           type: 'agent',
-          config: {
-            model: 'claude-opus-4-8',
-            prompt: 'Review the failing workflow step tests and propose the smallest fix.',
-          },
           status: 'failed',
           error: {
             message: 'Agent invocation failed',
@@ -369,12 +364,6 @@ function renderAgentConfigFailureCallout() {
     name: 'Fix the failing tests.',
     type: 'agent',
     status: 'failed',
-    config: {
-      provider: 'anthropic',
-      model: 'claude-opus-4-8',
-      thinking: 'high',
-      prompt: 'Fix the failing tests.',
-    },
     error: {
       message: 'Model provider credentials are not configured',
       category: 'user',
