@@ -9,3 +9,4 @@ process.env.LINEAR_OAUTH_CLIENT_ID = 'test-client-id';
 process.env.LINEAR_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.LINEAR_WEBHOOK_SIGNING_SECRET = 'test-webhook-secret';
 process.env.LINEAR_OAUTH_REDIRECT_URL = 'https://api.example.com/integrations/linear/callback/api';
+process.env.SECRETS_ENCRYPTION_KEK = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';
