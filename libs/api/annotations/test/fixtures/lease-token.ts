@@ -9,6 +9,7 @@ export interface MintLeaseTokenParams {
   workspaceId?: string;
   projectId?: string;
   workflowRunId?: string;
+  workflowRunAttempt?: number;
   workflowRunAttemptId?: string;
   currentStepId?: string;
   currentStepAttempt?: number;
@@ -23,6 +24,7 @@ export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
       workflowRunId: params.workflowRunId ?? crypto.randomUUID(),
+      workflowRunAttempt: params.workflowRunAttempt ?? 1,
       workflowRunAttemptId: params.workflowRunAttemptId ?? crypto.randomUUID(),
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),

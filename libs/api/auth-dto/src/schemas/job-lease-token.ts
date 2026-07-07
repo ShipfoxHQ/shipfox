@@ -9,6 +9,7 @@ export const JOB_LEASE_TOKEN_AUDIENCE = 'runner-job-lease';
 
 export const jobLeaseTokenClaimsSchema = z.object({
   workflowRunId: z.string().uuid(),
+  workflowRunAttempt: z.number().int().positive().optional(),
   workflowRunAttemptId: z.string().uuid(),
   jobId: z.string().uuid(),
   jobExecutionId: z.string().uuid(),

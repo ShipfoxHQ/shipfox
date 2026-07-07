@@ -2,7 +2,7 @@ import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-con
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import {annotationFactory} from '#test/index.js';
-import {annotationsRoutes} from './index.js';
+import {readAnnotationsRoute} from './read-annotations.js';
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -36,7 +36,7 @@ describe('GET /annotations', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [fakeUserAuth],
-      routes: annotationsRoutes,
+      routes: [{prefix: '/annotations', auth: AUTH_USER, routes: [readAnnotationsRoute]}],
       swagger: false,
     });
     await app.ready();

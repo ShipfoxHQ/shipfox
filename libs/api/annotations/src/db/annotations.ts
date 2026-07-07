@@ -1,5 +1,5 @@
 import type {AnnotationStyleDto} from '@shipfox/annotations-dto';
-import {and, asc, eq, inArray, sql, type SQL} from 'drizzle-orm';
+import {and, asc, eq, inArray, type SQL, sql} from 'drizzle-orm';
 import type {Annotation} from '#core/entities/annotation.js';
 import {db} from './db.js';
 import {annotations, toAnnotation} from './schema/annotations.js';
@@ -51,6 +51,7 @@ export interface CreateAnnotationParams {
   workspaceId: string;
   projectId: string;
   workflowRunId: string;
+  workflowRunAttempt: number;
   workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;
