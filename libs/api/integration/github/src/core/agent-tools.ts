@@ -1,5 +1,6 @@
 import type {
   AgentToolCatalogEntry,
+  AgentToolCatalogMethod,
   AgentToolJsonSchema,
   AgentToolSelectionCatalog,
   AgentToolsProvider,
@@ -22,13 +23,7 @@ export interface GithubAgentToolRequiredPermission {
 
 export type GithubAgentToolRequiredScope = readonly GithubAgentToolRequiredPermission[];
 
-export interface GithubAgentToolCatalogMethod {
-  id: string;
-  description: string;
-  sensitivity: GithubAgentToolSensitivity;
-  sensitive: boolean;
-  requiredScope: GithubAgentToolRequiredScope;
-}
+export type GithubAgentToolCatalogMethod = AgentToolCatalogMethod<GithubAgentToolRequiredScope>;
 
 export interface GithubAgentToolCatalogEntry
   extends AgentToolCatalogEntry<GithubAgentToolRequiredScope> {

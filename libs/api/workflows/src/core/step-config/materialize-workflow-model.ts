@@ -1,6 +1,7 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {canonicalizeLabels, findInvalidLabels, MAX_RUNNER_LABELS} from '@shipfox/runner-labels';
+import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import {InvalidJobRunnerLabelsError} from '#core/errors.js';
 import {completeStepField} from './fields.js';
 import {
@@ -30,6 +31,7 @@ export interface MaterializeWorkflowModelParams {
   readonly context?: WorkflowEvaluationContext | undefined;
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId?: string | undefined;
+  readonly agentToolContext?: AgentToolMaterializationContext | undefined;
 }
 
 export function materializeWorkflowModel(
@@ -40,6 +42,7 @@ export function materializeWorkflowModel(
     context = {site: 'run-creation', values: {}},
     resolveAgentDefaults,
     definitionId = model.name,
+    agentToolContext,
   } = params;
   const jobsById = new Map(model.jobs.map((job) => [job.id, job]));
 
@@ -64,6 +67,7 @@ export function materializeWorkflowModel(
             context,
             resolveAgentDefaults,
             definitionId,
+            agentToolContext,
           }),
   }));
 }

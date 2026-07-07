@@ -1,6 +1,7 @@
 export type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
+  AgentToolCatalogMethod,
   AgentToolJsonSchema,
   AgentToolSelectionCatalog,
   AgentToolSelector,

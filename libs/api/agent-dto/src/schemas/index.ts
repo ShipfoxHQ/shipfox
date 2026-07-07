@@ -80,7 +80,11 @@ export {
   parsePiEnabledToolPackages,
 } from './harness.js';
 export {
+  type MaterializedAgentIntegrationConfigDto,
+  type MaterializedAgentIntegrationToolConfigDto,
   type MaterializedAgentStepConfigDto,
+  materializedAgentIntegrationSchema,
+  materializedAgentIntegrationToolSchema,
   materializedAgentStepConfigSchema,
 } from './materialized-agent-step-config.js';
 export {

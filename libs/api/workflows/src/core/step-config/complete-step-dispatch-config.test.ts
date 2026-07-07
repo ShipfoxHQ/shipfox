@@ -63,6 +63,60 @@ const resolveAgentDefaults: AgentDefaultsResolver = (params) => ({
 });
 
 describe('completeStepDispatchConfig', () => {
+  it('copies frozen agent integrations from the dispatch plan', () => {
+    const integrations = [
+      {
+        connectionId: 'connection-1',
+        connectionSlug: 'github-main',
+        provider: 'github',
+        repos: ['github:owner/repo'],
+        requiredScope: [{permission: 'issues', access: 'read'}],
+        tools: [
+          {
+            id: 'issue_read',
+            sensitivity: 'read' as const,
+            sensitive: false,
+            requiredScope: [{permission: 'issues', access: 'read'}],
+            inputSchema: {type: 'object'},
+            methods: [
+              {
+                id: 'get',
+                token: 'issue_read.get',
+                sensitivity: 'read' as const,
+                sensitive: false,
+                requiredScope: [{permission: 'issues', access: 'read'}],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const pending = step({
+      type: 'agent',
+      config: {
+        harness: 'pi',
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+      },
+      configPlan: {
+        agent: {
+          prompt: plannedField(template('steps.build.outputs.sha')),
+          integrations,
+        },
+      },
+    });
+
+    const result = completeStepDispatchConfig({
+      step: pending,
+      context,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(result.config.integrations).toEqual(integrations);
+  });
+
   it('serializes residual secret env values as secret bindings without writing env values', () => {
     const pending = step({
       config: {},

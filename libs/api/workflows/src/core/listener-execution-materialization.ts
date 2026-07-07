@@ -3,6 +3,7 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {AgentToolMaterializationContext} from './agent-tools.js';
 import type {Job} from './entities/job.js';
 import type {
   JobExecution,
@@ -42,6 +43,7 @@ export interface MaterializeListenerExecutionParams {
   readonly triggerEvents: readonly WorkflowExecutionEvent[];
   readonly priorExecutions: readonly JobExecution[];
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
+  readonly agentToolContext?: AgentToolMaterializationContext | undefined;
 }
 
 export interface MaterializedListenerExecution {
@@ -94,6 +96,7 @@ export function materializeListenerExecution(
       context,
       resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
       definitionId: params.run.definitionId,
+      agentToolContext: params.agentToolContext,
     });
   } catch (error) {
     if (!isPermanentListenerMaterializationError(error)) throw error;

@@ -5,9 +5,13 @@ import {
   UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {AgentThinking} from '@shipfox/api-agent-dto';
+import type {AgentThinking, MaterializedAgentIntegrationConfigDto} from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
+import {
+  type AgentToolMaterializationContext,
+  materializeAgentIntegrations,
+} from '#core/agent-tools.js';
 import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {AgentConfigUnresolvableError} from '#core/errors.js';
 import {
@@ -42,6 +46,7 @@ export interface ResolveAgentStepConfigParams {
   readonly mode: StepConfigMode;
   readonly definitionId: string;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
+  readonly agentToolContext?: AgentToolMaterializationContext | undefined;
 }
 
 export interface AgentStepConfig {
@@ -60,7 +65,7 @@ export function resolveAgentStepConfig(params: ResolveAgentStepConfigParams): Ag
 
   const hasDeferredModelOrProvider =
     fields.model?.kind === 'residual' || fields.provider?.kind === 'residual';
-  if (hasDeferredModelOrProvider) return deferredAgentStepConfig(params.step, fields);
+  if (hasDeferredModelOrProvider) return deferredAgentStepConfig(params, fields);
 
   return agentStepConfigWithDefaults(params.step, params, fields);
 }
@@ -115,6 +120,7 @@ export function completeAgentConfig(params: {
   params.config.thinking = defaults.thinking;
   params.config.prompt = prompt;
   if (agent.tools !== undefined) params.config.tools = [...agent.tools];
+  if (agent.integrations !== undefined) params.config.integrations = agent.integrations;
 }
 
 function completeAgentField(args: {
@@ -217,6 +223,7 @@ function authoredAgentStepConfig(
       ...(step.harness === undefined ? {} : {harness: step.harness}),
       ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
       ...agentToolsConfig(step),
+      ...authoredAgentIntegrationsConfig(step),
       prompt: step.prompt,
     },
     configPlan: null,
@@ -227,9 +234,10 @@ function authoredAgentStepConfig(
 }
 
 function deferredAgentStepConfig(
-  step: WorkflowModelAgentStep,
+  params: ResolveAgentStepConfigParams,
   fields: AgentFieldResolutions,
 ): AgentStepConfig {
+  const {step} = params;
   return {
     config: {},
     configPlan: {
@@ -240,6 +248,7 @@ function deferredAgentStepConfig(
         ...(step.harness === undefined ? {} : {harness: step.harness}),
         ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
         ...agentToolsConfig(step),
+        ...materializedAgentIntegrationsConfig(step, params.agentToolContext),
       },
     },
     diagnostics: fields.diagnostics,
@@ -277,6 +286,7 @@ function agentStepConfigWithDefaults(
         agent: {
           prompt: dispatchPlanField(fields.prompt),
           ...agentToolsConfig(step),
+          ...materializedAgentIntegrationsConfig(step, params.agentToolContext),
         },
       },
       diagnostics: fields.diagnostics,
@@ -293,6 +303,7 @@ function agentStepConfigWithDefaults(
       harness: resolved.harness,
       thinking: resolved.thinking,
       ...agentToolsConfig(step),
+      ...materializedAgentIntegrationsConfig(step, params.agentToolContext),
       prompt: promptValue,
     },
     configPlan: null,
@@ -306,6 +317,24 @@ function agentToolsConfig(
   step: WorkflowModelAgentStep,
 ): {readonly tools: readonly string[]} | Record<string, never> {
   return step.tools === undefined ? {} : {tools: [...step.tools]};
+}
+
+function authoredAgentIntegrationsConfig(
+  step: WorkflowModelAgentStep,
+):
+  | {readonly integrations: NonNullable<WorkflowModelAgentStep['integrations']>}
+  | Record<string, never> {
+  return step.integrations === undefined ? {} : {integrations: step.integrations};
+}
+
+function materializedAgentIntegrationsConfig(
+  step: WorkflowModelAgentStep,
+  context: AgentToolMaterializationContext | undefined,
+):
+  | {readonly integrations: readonly MaterializedAgentIntegrationConfigDto[]}
+  | Record<string, never> {
+  const integrations = materializeAgentIntegrations({integrations: step.integrations, context});
+  return integrations === undefined ? {} : {integrations};
 }
 
 function dispatchPlanField(field: FieldResolution): ResolvedField {

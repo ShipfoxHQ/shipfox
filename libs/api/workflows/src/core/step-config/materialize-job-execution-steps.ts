@@ -4,6 +4,7 @@ import {
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {WorkflowExpression} from '@shipfox/expression';
+import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
@@ -34,6 +35,7 @@ export interface MaterializeJobExecutionStepsParams {
   readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId?: string | undefined;
+  readonly agentToolContext?: AgentToolMaterializationContext | undefined;
 }
 
 // Synthetic "Set up job" step prepended when a job execution's steps are materialized.
@@ -60,6 +62,7 @@ export function materializeJobExecutionSteps(
     context,
     resolveAgentDefaults = catalogDefaultAgentResolver,
     definitionId = model.name,
+    agentToolContext,
   } = params;
 
   return [
@@ -77,6 +80,7 @@ export function materializeJobExecutionSteps(
         site: context.site,
         resolveAgentDefaults,
         definitionId,
+        agentToolContext,
       });
       return {
         key: step.key ?? null,
