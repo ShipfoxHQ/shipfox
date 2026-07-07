@@ -1589,21 +1589,14 @@ interface RunTerminationSpec {
   emitCancelledEvent: boolean;
 }
 
-/**
- * Shared terminal transition for a run attempt. The caller locks the run and the
- * attempt (and decides how an already-terminal run is handled: timeout returns
- * idempotently, cancellation rejects), then this drives every non-terminal job,
- * execution, and step to `spec.terminalStatus`, resolves still-listening jobs,
- * flips the attempt and run, and writes the outbox. Callers record metrics after
- * the transaction commits.
- */
-async function terminateRunAttempt(
+interface TerminateRunAttemptParams {
+  lockedRun: typeof workflowRuns.$inferSelect;
+  lockedAttempt: typeof workflowRunAttempts.$inferSelect;
+}
+
+async function cascadeRunAttemptTermination(
   tx: Tx,
-  params: {
-    lockedRun: typeof workflowRuns.$inferSelect;
-    lockedAttempt: typeof workflowRunAttempts.$inferSelect;
-    spec: RunTerminationSpec;
-  },
+  params: TerminateRunAttemptParams & {spec: RunTerminationSpec},
 ): Promise<{run: WorkflowRun; changedJobs: Job[]}> {
   const {lockedRun, lockedAttempt, spec} = params;
 
@@ -1726,6 +1719,36 @@ async function terminateRunAttempt(
   return {run, changedJobs};
 }
 
+function timeoutRunAttempt(
+  tx: Tx,
+  params: TerminateRunAttemptParams,
+): Promise<{run: WorkflowRun; changedJobs: Job[]}> {
+  return cascadeRunAttemptTermination(tx, {
+    ...params,
+    spec: {
+      terminalStatus: 'failed',
+      statusReason: 'timed_out',
+      markExecutionTimedOut: true,
+      emitCancelledEvent: false,
+    },
+  });
+}
+
+function cancelRunAttempt(
+  tx: Tx,
+  params: TerminateRunAttemptParams,
+): Promise<{run: WorkflowRun; changedJobs: Job[]}> {
+  return cascadeRunAttemptTermination(tx, {
+    ...params,
+    spec: {
+      terminalStatus: 'cancelled',
+      statusReason: 'run_cancelled',
+      markExecutionTimedOut: false,
+      emitCancelledEvent: true,
+    },
+  });
+}
+
 export async function failWorkflowRunAsTimedOut(
   params: FailWorkflowRunAsTimedOutParams,
 ): Promise<WorkflowRun> {
@@ -1749,15 +1772,9 @@ export async function failWorkflowRunAsTimedOut(
       return {run: toWorkflowRun(lockedRun), changedJobs: []};
     }
 
-    return terminateRunAttempt(tx, {
+    return timeoutRunAttempt(tx, {
       lockedRun,
       lockedAttempt,
-      spec: {
-        terminalStatus: 'failed',
-        statusReason: 'timed_out',
-        markExecutionTimedOut: true,
-        emitCancelledEvent: false,
-      },
     });
   });
 
@@ -1799,15 +1816,9 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
       );
     }
 
-    return terminateRunAttempt(tx, {
+    return cancelRunAttempt(tx, {
       lockedRun,
       lockedAttempt,
-      spec: {
-        terminalStatus: 'cancelled',
-        statusReason: 'run_cancelled',
-        markExecutionTimedOut: false,
-        emitCancelledEvent: true,
-      },
     });
   });
 

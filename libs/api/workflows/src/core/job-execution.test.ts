@@ -17,13 +17,18 @@ import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
 import {bulkUpdateStepStatuses, getStepAttempts, getStepsByJobId} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
+import type {Step} from './entities/step.js';
 import {
   JobNotFoundError,
   StepAttemptAheadError,
   StepNotFoundError,
   StepNotRunningError,
 } from './errors.js';
-import {nextStepForJob, recordStepResult as recordJobExecutionStepResult} from './job-execution.js';
+import {
+  classifyReportedStep,
+  nextStepForJob,
+  recordStepResult as recordJobExecutionStepResult,
+} from './job-execution.js';
 
 async function recordStepResult(
   params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'jobExecutionId'> & {
@@ -78,6 +83,31 @@ async function stepAttemptTerminatedEvents(
       ),
     );
   return rows.map((row) => row.payload as WorkflowsStepAttemptTerminatedEventDto);
+}
+
+function stepForClassification(params: Partial<Step> = {}): Step {
+  return {
+    id: 'step-1',
+    jobExecutionId: 'job-execution-1',
+    key: 'build',
+    name: 'Build',
+    sourceLocation: null,
+    status: 'running',
+    statusReason: null,
+    evaluationTrace: null,
+    type: 'run',
+    config: {run: 'echo ok'},
+    condition: null,
+    configPlan: null,
+    authoredConfig: null,
+    error: null,
+    position: 0,
+    version: 1,
+    currentAttempt: 1,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...params,
+  };
 }
 
 describe('nextStepForJob', () => {
@@ -469,6 +499,54 @@ function stepOutputField(stepKey: string, outputKey: string) {
     ],
   };
 }
+
+describe('classifyReportedStep', () => {
+  it('allows a report for the current running attempt', () => {
+    const step = stepForClassification({status: 'running', currentAttempt: 2});
+
+    const result = classifyReportedStep(step, 2, 'job-1');
+
+    expect(result).toBe('proceed');
+  });
+
+  it('rejects a report ahead of the current attempt', () => {
+    const step = stepForClassification({currentAttempt: 2});
+
+    const result = classifyReportedStep(step, 3, 'job-1');
+
+    expect(result).toBeInstanceOf(StepAttemptAheadError);
+    expect(result).toMatchObject({stepId: step.id, jobId: 'job-1'});
+  });
+
+  it('ignores a stale report from an older attempt', () => {
+    const step = stepForClassification({currentAttempt: 2});
+
+    const result = classifyReportedStep(step, 1, 'job-1');
+
+    expect(result).toBe('noop');
+  });
+
+  it.each([
+    'succeeded',
+    'failed',
+    'cancelled',
+    'skipped',
+  ] as const)('ignores duplicate reports for a %s step', (status) => {
+    const step = stepForClassification({status});
+
+    const result = classifyReportedStep(step, 1, 'job-1');
+
+    expect(result).toBe('noop');
+  });
+
+  it('rejects a report for a pending step', () => {
+    const step = stepForClassification({status: 'pending'});
+
+    const result = classifyReportedStep(step, 1, 'job-1');
+
+    expect(result).toBeInstanceOf(StepNotRunningError);
+  });
+});
 
 describe('recordStepResult', () => {
   test('succeeded on a non-final step → {jobFinished:false}', async () => {
