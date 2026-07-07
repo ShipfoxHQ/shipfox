@@ -33,6 +33,19 @@ export const materializedAgentIntegrationSchema = z.strictObject({
   tools: z.array(materializedAgentIntegrationToolSchema).min(1),
 });
 
+export const AGENT_INTEGRATION_MCP_SERVER_NAME = 'shipfox_integration_tools';
+export const AGENT_INTEGRATION_MCP_ENDPOINT = '/runs/jobs/current/integration-tools/mcp';
+export const AGENT_INTEGRATION_MCP_TRANSPORT = 'http';
+export const AGENT_INTEGRATION_MCP_AUTH = 'lease_token';
+
+export const agentIntegrationMcpServerSchema = z.strictObject({
+  name: z.literal(AGENT_INTEGRATION_MCP_SERVER_NAME),
+  transport: z.literal(AGENT_INTEGRATION_MCP_TRANSPORT),
+  endpoint: z.literal(AGENT_INTEGRATION_MCP_ENDPOINT),
+  auth: z.literal(AGENT_INTEGRATION_MCP_AUTH),
+  integrations: z.array(materializedAgentIntegrationSchema).min(1),
+});
+
 export const materializedAgentStepConfigSchema = z
   .object({
     harness: harnessSchema.default(DEFAULT_HARNESS),
@@ -41,6 +54,7 @@ export const materializedAgentStepConfigSchema = z
     thinking: agentThinkingSchema,
     tools: z.array(z.string().min(1)).min(1).optional(),
     integrations: z.array(materializedAgentIntegrationSchema).min(1).optional(),
+    mcpServers: z.array(agentIntegrationMcpServerSchema).length(1).optional(),
     prompt: z.string(),
   })
   .strip();
@@ -52,3 +66,4 @@ export type MaterializedAgentIntegrationConfigDto = z.infer<
 export type MaterializedAgentIntegrationToolConfigDto = z.infer<
   typeof materializedAgentIntegrationToolSchema
 >;
+export type AgentIntegrationMcpServerConfigDto = z.infer<typeof agentIntegrationMcpServerSchema>;

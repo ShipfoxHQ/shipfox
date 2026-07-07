@@ -1,4 +1,61 @@
-import {materializedAgentStepConfigSchema} from './materialized-agent-step-config.js';
+import {
+  AGENT_INTEGRATION_MCP_AUTH,
+  AGENT_INTEGRATION_MCP_ENDPOINT,
+  AGENT_INTEGRATION_MCP_SERVER_NAME,
+  AGENT_INTEGRATION_MCP_TRANSPORT,
+  materializedAgentStepConfigSchema,
+} from './materialized-agent-step-config.js';
+
+const materializedIntegration = {
+  connectionId: 'connection-1',
+  connectionSlug: 'github-main',
+  provider: 'github',
+  repos: ['github:owner/repo'],
+  requiredScope: [{permission: 'issues', access: 'write'}],
+  tools: [
+    {
+      id: 'issue_read',
+      sensitivity: 'read',
+      sensitive: false,
+      requiredScope: [{permission: 'issues', access: 'read'}],
+      inputSchema: {type: 'object'},
+      methods: [
+        {
+          id: 'get',
+          token: 'issue_read.get',
+          sensitivity: 'read',
+          sensitive: false,
+          requiredScope: [{permission: 'issues', access: 'read'}],
+        },
+      ],
+    },
+    {
+      id: 'issue_write',
+      sensitivity: 'write',
+      sensitive: false,
+      requiredScope: [{permission: 'issues', access: 'write'}],
+      inputSchema: {type: 'object'},
+      outputSchema: {type: 'object'},
+      methods: [
+        {
+          id: 'create',
+          token: 'issue_write.create',
+          sensitivity: 'write',
+          sensitive: false,
+          requiredScope: [{permission: 'issues', access: 'write'}],
+        },
+      ],
+    },
+  ],
+} as const;
+
+const integrationMcpServer = {
+  name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+  transport: AGENT_INTEGRATION_MCP_TRANSPORT,
+  endpoint: AGENT_INTEGRATION_MCP_ENDPOINT,
+  auth: AGENT_INTEGRATION_MCP_AUTH,
+  integrations: [materializedIntegration],
+} as const;
 
 describe('materializedAgentStepConfigSchema', () => {
   it('accepts a materialized agent step config', () => {
@@ -8,50 +65,8 @@ describe('materializedAgentStepConfigSchema', () => {
       model: 'claude-opus-4-8',
       thinking: 'high',
       tools: ['read', 'web_search'],
-      integrations: [
-        {
-          connectionId: 'connection-1',
-          connectionSlug: 'github-main',
-          provider: 'github',
-          repos: ['github:owner/repo'],
-          requiredScope: [{permission: 'issues', access: 'write'}],
-          tools: [
-            {
-              id: 'issue_read',
-              sensitivity: 'read',
-              sensitive: false,
-              requiredScope: [{permission: 'issues', access: 'read'}],
-              inputSchema: {type: 'object'},
-              methods: [
-                {
-                  id: 'get',
-                  token: 'issue_read.get',
-                  sensitivity: 'read',
-                  sensitive: false,
-                  requiredScope: [{permission: 'issues', access: 'read'}],
-                },
-              ],
-            },
-            {
-              id: 'issue_write',
-              sensitivity: 'write',
-              sensitive: false,
-              requiredScope: [{permission: 'issues', access: 'write'}],
-              inputSchema: {type: 'object'},
-              outputSchema: {type: 'object'},
-              methods: [
-                {
-                  id: 'create',
-                  token: 'issue_write.create',
-                  sensitivity: 'write',
-                  sensitive: false,
-                  requiredScope: [{permission: 'issues', access: 'write'}],
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      integrations: [materializedIntegration],
+      mcpServers: [integrationMcpServer],
       prompt: 'Fix the failing tests.',
     });
 
@@ -61,50 +76,8 @@ describe('materializedAgentStepConfigSchema', () => {
       model: 'claude-opus-4-8',
       thinking: 'high',
       tools: ['read', 'web_search'],
-      integrations: [
-        {
-          connectionId: 'connection-1',
-          connectionSlug: 'github-main',
-          provider: 'github',
-          repos: ['github:owner/repo'],
-          requiredScope: [{permission: 'issues', access: 'write'}],
-          tools: [
-            {
-              id: 'issue_read',
-              sensitivity: 'read',
-              sensitive: false,
-              requiredScope: [{permission: 'issues', access: 'read'}],
-              inputSchema: {type: 'object'},
-              methods: [
-                {
-                  id: 'get',
-                  token: 'issue_read.get',
-                  sensitivity: 'read',
-                  sensitive: false,
-                  requiredScope: [{permission: 'issues', access: 'read'}],
-                },
-              ],
-            },
-            {
-              id: 'issue_write',
-              sensitivity: 'write',
-              sensitive: false,
-              requiredScope: [{permission: 'issues', access: 'write'}],
-              inputSchema: {type: 'object'},
-              outputSchema: {type: 'object'},
-              methods: [
-                {
-                  id: 'create',
-                  token: 'issue_write.create',
-                  sensitivity: 'write',
-                  sensitive: false,
-                  requiredScope: [{permission: 'issues', access: 'write'}],
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      integrations: [materializedIntegration],
+      mcpServers: [integrationMcpServer],
       prompt: 'Fix the failing tests.',
     });
   });
@@ -195,4 +168,31 @@ describe('materializedAgentStepConfigSchema', () => {
 
     expect(emptyTools).toThrow();
   });
+
+  it.each([
+    ['empty integrations', {...integrationMcpServer, integrations: []}],
+    ['wrong auth', {...integrationMcpServer, auth: 'provider_token'}],
+    ['wrong transport', {...integrationMcpServer, transport: 'stdio'}],
+    ['missing endpoint', omit(integrationMcpServer, 'endpoint')],
+    ['missing name', omit(integrationMcpServer, 'name')],
+  ])('rejects malformed integration MCP server config for %s', (_caseName, mcpServer) => {
+    const parse = () =>
+      materializedAgentStepConfigSchema.parse({
+        harness: 'pi',
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        integrations: [materializedIntegration],
+        mcpServers: [mcpServer],
+        prompt: 'Fix the failing tests.',
+      });
+
+    expect(parse).toThrow();
+  });
 });
+
+function omit<T extends object, K extends keyof T>(object: T, key: K): Omit<T, K> {
+  const copy = {...object};
+  delete copy[key];
+  return copy;
+}

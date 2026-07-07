@@ -1,7 +1,13 @@
 export {
+  AGENT_INTEGRATION_MCP_AUTH,
+  AGENT_INTEGRATION_MCP_ENDPOINT,
+  AGENT_INTEGRATION_MCP_SERVER_NAME,
+  AGENT_INTEGRATION_MCP_TRANSPORT,
+  type AgentIntegrationMcpServerConfigDto,
   type AgentModelOptionDto,
   type AgentRuntimeCredentialsResponseDto,
   type AgentThinking,
+  agentIntegrationMcpServerSchema,
   agentModelOptionSchema,
   agentRuntimeCredentialsResponseSchema,
   agentThinkingByHarness,
