@@ -283,6 +283,24 @@ describe('createLinearApiClient.getIdentity', () => {
     expect(serialized).not.toContain('invalid token');
   });
 
+  it('maps GraphQL transport auth failures to access-denied', async () => {
+    mocks.post.mockReturnValue(rejects(httpError(401)));
+    const client = createLinearApiClient();
+
+    const result = client.getIdentity({accessToken: 'linear-token'});
+
+    await expect(result).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('maps GraphQL non-auth transport 4xx failures to malformed-provider-response', async () => {
+    mocks.post.mockReturnValue(rejects(httpError(400)));
+    const client = createLinearApiClient();
+
+    const result = client.getIdentity({accessToken: 'linear-token'});
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
   it('maps non-auth GraphQL errors to malformed-provider-response', async () => {
     mocks.post.mockReturnValue(
       resolves({

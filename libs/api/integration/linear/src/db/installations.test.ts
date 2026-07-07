@@ -7,6 +7,7 @@ import {
   getLinearInstallationByOrganizationId,
   markLinearInstallationRevoked,
   upsertLinearInstallation,
+  withLinearRefreshLock,
 } from './installations.js';
 
 describe('linear installations', () => {
@@ -153,5 +154,29 @@ describe('linear installations', () => {
     const result = await markLinearInstallationRevoked(connectionId);
 
     expect(result?.status).toBe('revoked');
+  });
+
+  it('allows one refresh lock holder per connection and fails contenders fast', async () => {
+    const connectionId = crypto.randomUUID();
+    let releaseLock: () => void = () => {
+      throw new Error('releaseLock was not initialized');
+    };
+    const holder = withLinearRefreshLock(
+      connectionId,
+      () =>
+        new Promise<string>((resolve) => {
+          releaseLock = () => resolve('holder');
+        }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const contender = await withLinearRefreshLock(connectionId, async () => 'contender');
+    const different = await withLinearRefreshLock(crypto.randomUUID(), async () => 'different');
+    releaseLock();
+    const held = await holder;
+
+    expect(contender).toEqual({acquired: false});
+    expect(different).toEqual({acquired: true, value: 'different'});
+    expect(held).toEqual({acquired: true, value: 'holder'});
   });
 });

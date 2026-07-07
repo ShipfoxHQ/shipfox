@@ -62,6 +62,10 @@ interface LinearIdentityData {
   organization?: {id?: unknown; name?: unknown; urlKey?: unknown} | null;
 }
 
+interface MapLinearErrorOptions {
+  classifyHttp4xx?(status: number): 'access-denied' | 'malformed-provider-response';
+}
+
 export function createLinearApiClient(): LinearApiClient {
   return {
     async exchangeAuthorizationCode(input) {
@@ -102,14 +106,17 @@ export function createLinearApiClient(): LinearApiClient {
     },
 
     async getIdentity(input) {
-      const body = await mapLinearError('get-identity', () =>
-        ky
-          .post(LINEAR_GRAPHQL_URL, {
-            headers: {authorization: `Bearer ${input.accessToken}`},
-            json: {query: IDENTITY_QUERY},
-            timeout: LINEAR_API_TIMEOUT_MS,
-          })
-          .json<LinearGraphqlResponse<LinearIdentityData>>(),
+      const body = await mapLinearError(
+        'get-identity',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {query: IDENTITY_QUERY},
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearIdentityData>>(),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
       );
       const data = graphqlData('get-identity', body);
       const appUserId = data.viewer?.id;
@@ -206,7 +213,11 @@ function hasAuthGraphqlError(errors: LinearGraphqlError[] | undefined): boolean 
   );
 }
 
-async function mapLinearError<T>(operation: string, request: () => Promise<T>): Promise<T> {
+async function mapLinearError<T>(
+  operation: string,
+  request: () => Promise<T>,
+  options: MapLinearErrorOptions = {},
+): Promise<T> {
   try {
     return await request();
   } catch (error) {
@@ -224,7 +235,8 @@ async function mapLinearError<T>(operation: string, request: () => Promise<T>): 
       if (status >= 500) {
         throw new LinearIntegrationProviderError('provider-unavailable', 'Linear request failed');
       }
-      throw new LinearIntegrationProviderError('access-denied', 'Linear request was rejected');
+      const reason = options.classifyHttp4xx?.(status) ?? 'access-denied';
+      throw new LinearIntegrationProviderError(reason, 'Linear request was rejected');
     }
     if (error instanceof TimeoutError) {
       logger().warn({operation}, 'Linear API request timed out');
@@ -236,6 +248,10 @@ async function mapLinearError<T>(operation: string, request: () => Promise<T>): 
     );
     throw new LinearIntegrationProviderError('provider-unavailable', 'Linear request failed');
   }
+}
+
+function classifyGraphqlHttp4xx(status: number): 'access-denied' | 'malformed-provider-response' {
+  return status === 401 || status === 403 ? 'access-denied' : 'malformed-provider-response';
 }
 
 function retryAfterSeconds(headers: Headers): number | undefined {

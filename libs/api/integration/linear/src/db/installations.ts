@@ -1,4 +1,5 @@
-import {eq, sql} from 'drizzle-orm';
+import {pgClient} from '@shipfox/node-postgres';
+import {eq} from 'drizzle-orm';
 import {
   LinearConnectionAlreadyLinkedError,
   LinearInstallationAlreadyLinkedError,
@@ -172,14 +173,32 @@ export function withLinearRefreshLock<T>(
   connectionId: string,
   fn: () => Promise<T>,
 ): Promise<LinearRefreshLockResult<T>> {
-  return db().transaction(async (tx) => {
-    const lock = await tx.execute<{acquired: boolean}>(sql`
-      SELECT pg_try_advisory_xact_lock(hashtext(${connectionId})) AS acquired
-    `);
-    const acquired = lock.rows[0]?.acquired === true;
+  return withLinearRefreshLockClient(connectionId, fn);
+}
+
+async function withLinearRefreshLockClient<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<LinearRefreshLockResult<T>> {
+  const client = await pgClient().connect();
+  let acquired = false;
+  try {
+    const lock = await client.query<{acquired: boolean}>(
+      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+      [connectionId],
+    );
+    acquired = lock.rows[0]?.acquired === true;
     if (!acquired) return {acquired: false};
 
     const value = await fn();
     return {acquired: true, value};
-  });
+  } finally {
+    try {
+      if (acquired) {
+        await client.query('SELECT pg_advisory_unlock(hashtext($1))', [connectionId]);
+      }
+    } finally {
+      client.release();
+    }
+  }
 }
