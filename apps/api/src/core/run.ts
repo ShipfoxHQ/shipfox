@@ -13,7 +13,7 @@ import {
 import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
-import {deleteSecrets, secretsModule} from '@shipfox/api-secrets';
+import {deleteSecrets, getSecret, secretsModule, setSecrets} from '@shipfox/api-secrets';
 import {triggersModule} from '@shipfox/api-triggers';
 import {
   setAgentToolMaterializationServices,
@@ -38,7 +38,9 @@ export async function run(): Promise<void> {
 
   createPostgresClient();
 
-  const integrations = await createIntegrationsContext({secrets: {deleteSecrets}});
+  const integrations = await createIntegrationsContext({
+    secrets: {deleteSecrets, getSecret, setSecrets},
+  });
   const [agentToolSelectionCatalogs, agentToolCatalogs] = await Promise.all([
     buildAgentToolSelectionCatalogs(integrations.registry),
     buildAgentToolCatalogs(integrations.registry),

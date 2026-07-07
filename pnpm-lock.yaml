@@ -2029,6 +2029,9 @@ importers:
 
   libs/api/integration/linear:
     dependencies:
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../../auth-context
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../core-dto
@@ -2038,12 +2041,18 @@ importers:
       '@shipfox/api-secrets':
         specifier: workspace:*
         version: link:../../secrets
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../../shared/node/fastify
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../../shared/node/opentelemetry
@@ -2081,12 +2090,18 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
 
   libs/api/integration/linear-dto:
     dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
       zod:
         specifier: ^4.4.3
         version: 4.4.3

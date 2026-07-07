@@ -8,7 +8,6 @@ export async function setup() {
   createPostgresClient();
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_integrations_linear');
-  // @ts-expect-error @shipfox/api-secrets is a peer supplied by the composing API app.
   const {secretsModule} = await import('@shipfox/api-secrets');
   if (!secretsModule.database || Array.isArray(secretsModule.database)) {
     throw new Error('Secrets module database is not configured');

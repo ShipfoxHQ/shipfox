@@ -2,6 +2,20 @@ import {IntegrationProviderError} from '@shipfox/api-integration-core-dto';
 
 export class LinearIntegrationProviderError extends IntegrationProviderError {}
 
+export class LinearInstallStateError extends Error {
+  constructor(message = 'Invalid Linear install state') {
+    super(message);
+    this.name = 'LinearInstallStateError';
+  }
+}
+
+export class LinearInstallStateActorMismatchError extends Error {
+  constructor() {
+    super('Linear install state was created by a different user');
+    this.name = 'LinearInstallStateActorMismatchError';
+  }
+}
+
 export class LinearInstallationAlreadyLinkedError extends Error {
   constructor(organizationId: string) {
     super(`Linear organization is already linked to another Shipfox workspace: ${organizationId}`);
