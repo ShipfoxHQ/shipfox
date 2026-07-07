@@ -23,6 +23,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/annotations": "workspace:*",
     "@shipfox/api-agent": "workspace:*",
     "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",

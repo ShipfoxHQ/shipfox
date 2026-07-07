@@ -1,3 +1,4 @@
+import {annotationsModule} from '@shipfox/annotations';
 import {agentModule} from '@shipfox/api-agent';
 import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
@@ -43,6 +44,7 @@ export async function run(): Promise<void> {
     projectsModule,
     definitionsModule,
     workflowsModule,
+    annotationsModule,
     runnersModule,
     logsModule,
     triggersModule,
