@@ -5,6 +5,16 @@ import {getLinearInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 
 export type {LinearProvider} from '@shipfox/api-integration-linear-dto';
+export type {
+  LinearAgentToolCatalogEntry,
+  LinearAgentToolCategory,
+  LinearAgentToolId,
+  LinearAgentToolRequiredScope,
+} from '#core/agent-tools.js';
+export {
+  linearAgentToolCatalog,
+  linearAgentToolSelectionCatalog,
+} from '#core/agent-tools.js';
 export {
   LinearConnectionAlreadyLinkedError,
   LinearInstallationAlreadyLinkedError,
