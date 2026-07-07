@@ -1,27 +1,26 @@
 import {CodeBlock, Pre} from 'fumadocs-ui/components/codeblock';
-import {ImageZoom} from 'fumadocs-ui/components/image-zoom';
-import {Step, Steps} from 'fumadocs-ui/components/steps';
 import {Tab, Tabs} from 'fumadocs-ui/components/tabs';
+import {TypeTable} from 'fumadocs-ui/components/type-table';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type {MDXComponents} from 'mdx/types';
-import {RunnerLabelsSpecTable} from './app/components/runner-labels-spec-table';
+import {MintImage, mintlifyComponents} from '@/mdx/mintlify';
 
-// use this function to get MDX components, you will need it for rendering MDX
+// The MDX component seam: Fumadocs UI primitives, the Mintlify→Fumadocs compat
+// shim (so ported source renders nearly verbatim), and the door to embedding
+// @shipfox/react-ui components in docs pages.
 export function getMDXComponents(components?: MDXComponents): MDXComponents {
   return {
     ...defaultMdxComponents,
-    ...components,
-    // biome-ignore lint/suspicious/noExplicitAny: required by fuma-docs
-    img: (props) => <ImageZoom {...(props as any)} />,
-    RunnerLabelsSpecTable,
-    Steps,
-    Step,
+    ...mintlifyComponents,
+    img: MintImage,
     Tabs,
     Tab,
+    TypeTable,
     pre: ({ref: _ref, ...props}) => (
       <CodeBlock {...props}>
         <Pre>{props.children}</Pre>
       </CodeBlock>
     ),
+    ...components,
   };
 }

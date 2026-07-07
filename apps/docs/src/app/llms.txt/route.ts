@@ -3,15 +3,39 @@ import {toUrl} from '@/url';
 
 export const revalidate = false;
 
-const SECTION_ORDER = ['', 'runners', 'cache', 'observability', 'integrations'];
+const SECTION_ORDER = [
+  'get-started',
+  'concepts',
+  'integrations',
+  'guides',
+  'ai',
+  'reference',
+  'installation',
+  'help',
+] as const;
 
-const SECTION_LABELS: Record<string, string> = {
-  '': 'Introduction',
-  runners: 'Runners',
-  cache: 'Caching',
-  observability: 'Observability',
+const SECTION_LABELS: Record<(typeof SECTION_ORDER)[number], string> = {
+  'get-started': 'Get Started',
+  concepts: 'Core Concepts',
   integrations: 'Integrations',
+  guides: 'Guides',
+  ai: 'AI Assistance',
+  reference: 'Reference',
+  installation: 'Installation',
+  help: 'Help',
 };
+
+// Root-level pages have no folder segment, so map them explicitly; everything
+// else buckets by its first path segment. Keep this exhaustive so no page is
+// dropped from llms.txt.
+function sectionOf(url: string): (typeof SECTION_ORDER)[number] {
+  if (url === '/' || url === '/introduction' || url === '/getting-started') return 'get-started';
+  if (url === '/troubleshooting' || url === '/faq') return 'help';
+  const segment = url.split('/').filter(Boolean)[0];
+  return (SECTION_ORDER as readonly string[]).includes(segment ?? '')
+    ? (segment as (typeof SECTION_ORDER)[number])
+    : 'get-started';
+}
 
 export function GET() {
   const pages = source.getPages();
@@ -22,8 +46,7 @@ export function GET() {
   }
 
   for (const page of pages) {
-    const segment = page.url.split('/').filter(Boolean)[0] ?? '';
-    sections.get(segment)?.push(page);
+    sections.get(sectionOf(page.url))?.push(page);
   }
 
   for (const [, sectionPages] of sections) {

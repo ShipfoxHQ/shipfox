@@ -1,0 +1,105 @@
+---
+title: "Model Providers Reference"
+sidebarTitle: "Model Providers"
+description: "The complete Shipfox agent provider catalog: every supported provider, its provider ID, and default model — plus how provider config and model resolution work."
+---
+
+Agent steps run against an **AI provider**. This page is the canonical list of every
+supported provider, the `provider` ID you use in workflow YAML, and the default
+model Shipfox uses when a step doesn't name one. For a step-by-step setup walkthrough
+see the [Model Providers guide](/guides/model-providers).
+
+## Supported providers
+
+Each provider is configured per workspace with its credentials. The **default model**
+is used when an agent step names the provider but not a `model`.
+
+| Provider | `provider` ID | Default model |
+|---|---|---|
+| Anthropic | `anthropic` | `claude-opus-4-8` |
+| OpenAI | `openai` | `gpt-5.5-pro` |
+| Azure OpenAI | `azure-openai-responses` | `gpt-5.5-pro` |
+| DeepSeek | `deepseek` | `deepseek-v4-pro` |
+| Google AI Studio | `google` | `gemini-3.1-pro-preview` |
+| xAI | `xai` | `grok-4.3` |
+| Mistral | `mistral` | `mistral-large-latest` |
+| Groq | `groq` | `openai/gpt-oss-120b` |
+| Cerebras | `cerebras` | `gpt-oss-120b` |
+| OpenRouter | `openrouter` | `anthropic/claude-opus-4.8` |
+| Vercel AI Gateway | `vercel-ai-gateway` | `anthropic/claude-opus-4.8` |
+| Cloudflare AI Gateway | `cloudflare-ai-gateway` | `claude-opus-4-8` |
+| Cloudflare Workers AI | `cloudflare-workers-ai` | `@cf/moonshotai/kimi-k2.7-code` |
+| Hugging Face | `huggingface` | `deepseek-ai/DeepSeek-V4-Pro` |
+| Together AI | `together` | `deepseek-ai/DeepSeek-V4-Pro` |
+| Fireworks | `fireworks` | `accounts/fireworks/models/deepseek-v4-pro` |
+| NVIDIA | `nvidia` | `nvidia/nemotron-3-ultra-550b-a55b` |
+| Ant Ling | `ant-ling` | `Ring-2.6-1T` |
+| OpenCode | `opencode` | `claude-opus-4-8` |
+| OpenCode Go | `opencode-go` | `kimi-k2.7-code` |
+| Z.ai | `zai` | `glm-5.2` |
+| Z.ai Coding (CN) | `zai-coding-cn` | `glm-5.2` |
+| Kimi Coding | `kimi-coding` | `k2p7` |
+| MiniMax | `minimax` | `MiniMax-M3` |
+| MiniMax (CN) | `minimax-cn` | `MiniMax-M3` |
+| Moonshot AI | `moonshotai` | `kimi-k2.7-code` |
+| Moonshot AI (CN) | `moonshotai-cn` | `kimi-k2.7-code` |
+| Xiaomi | `xiaomi` | `mimo-v2.5-pro` |
+| Xiaomi Token Plan (CN) | `xiaomi-token-plan-cn` | `mimo-v2.5-pro` |
+| Xiaomi Token Plan (AMS) | `xiaomi-token-plan-ams` | `mimo-v2.5-pro` |
+| Xiaomi Token Plan (SGP) | `xiaomi-token-plan-sgp` | `mimo-v2.5-pro` |
+
+<Note>
+  Most providers need only an **API key**. Azure OpenAI also requires an endpoint;
+  Cloudflare providers require an account ID (and a gateway ID for the AI Gateway).
+  The configuration form shows the fields each provider needs.
+</Note>
+
+### Selecting a model
+
+The `model` you set on an agent step is passed to the provider and **validated
+against that provider's available models** — an unrecognized model ID fails the step
+with a clear error. Each provider's full model list comes from the provider's own
+catalog; the default model above is what Shipfox picks when you omit `model`.
+
+## How configuration works
+
+Providers are configured **per workspace**. For each provider you configure, you
+supply its credentials and can optionally set a **default model** and mark one
+provider as the **workspace default**. Credentials are stored securely — Shipfox
+keeps only fingerprints, never the raw secret. Configuration takes effect
+immediately; no redeploy is needed.
+
+## Resolution and defaults
+
+When an agent step runs, Shipfox resolves the provider, model, and thinking level in
+this order:
+
+- **Provider** — the step's `provider`, else the workspace default provider, else
+  `anthropic`.
+- **Model** — the step's `model`, else the configured default model for the resolved
+  provider, else that provider's catalog default (the table above).
+- **Thinking** — the step's `thinking`, else the provider's configured default, else
+  `high`.
+
+So an agent step with just a `prompt` runs on your workspace default provider and its
+default model; naming a `provider` but no `model` uses that provider's default model.
+
+## Unsupported providers
+
+<Note>
+  **Amazon Bedrock**, **Google Vertex AI**, **OpenAI Codex**, and **GitHub Copilot**
+  appear in the catalog but are **not yet supported** — they require cloud IAM
+  credentials or OAuth flows that API-key configuration can't provide. Support is
+  planned for a future release.
+</Note>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Model Providers guide" icon="robot" href="/guides/model-providers">
+    Configure a provider and use it in a workflow, step by step.
+  </Card>
+  <Card title="Agent steps" icon="wand-magic-sparkles" href="/guides/agent-steps">
+    Models, thinking levels, and providers on an agent step.
+  </Card>
+</CardGroup>

@@ -1,0 +1,120 @@
+---
+title: "Expressions and Interpolation (CEL)"
+sidebarTitle: "Expressions (CEL)"
+description: "Shipfox evaluates CEL expressions in gates and job success, and resolves ${{ }} template interpolation in run commands, env, and prompts using run and trigger context."
+---
+
+Shipfox uses [CEL (Common Expression Language)](https://cel.dev) in two places:
+**predicates** that decide an outcome (a gate, a job's success), and **template
+interpolation** — the `${{ }}` syntax that injects run and trigger context into your
+step values. Both are evaluated by the same read-only CEL engine: expressions can
+compute over the data in scope, but they cannot read secrets, the database, the
+network, or the filesystem.
+
+## The CEL engine
+
+Expressions support CEL's standard value types — integers, strings, booleans, lists,
+and maps — and its standard operators (`==`, `!=`, `<`, `>`, `&&`, `||`, `!`, `in`,
+arithmetic) and macros (`.map()`, `.filter()`, `.all()`, `.exists()`) plus string
+helpers like `.contains()`, `.startsWith()`, and `.endsWith()`. There are no custom
+functions and no side effects.
+
+## Predicates
+
+### Gate success — `gate.success_if`
+
+Evaluated on a gated step the moment it finishes. The only variable in scope is
+`exit_code` (an integer). See [Gates](/concepts/gates) for the full gate model.
+
+```yaml
+gate:
+  success_if: "exit_code == 0"
+```
+
+### Job success — `success`
+
+A job's optional `success` expression decides whether the job succeeded once all its
+step executions have settled. In scope is `executions` — a list of
+`{index, status}` — so you can express partial-success rules. The default, applied
+when you omit `success`, is:
+
+```yaml
+jobs:
+  build:
+    success: 'executions.all(e, e.status == "succeeded")'
+    steps:
+      - run: ./maybe-flaky.sh
+```
+
+## Template interpolation — `${{ }}`
+
+Interpolation injects run and trigger context into step values. Expressions are
+resolved **when a run is created**, before any runner sees the step, and the
+resolved values are what execute.
+
+```yaml
+jobs:
+  build:
+    env:
+      RUN_ID: "${{ run.id }}"
+      SOURCE: "${{ trigger.source }}"
+    steps:
+      - run: echo "Building for ${{ trigger.event }}"
+      - prompt: "Investigate the event that triggered this run: ${{ event.title }}"
+```
+
+Interpolation is supported in **`run` commands**, **`env` values**, and **agent
+`prompt`s**. To write a literal `${{`, escape it as `$${{`.
+
+### Context available
+
+| Context | Fields | Trust |
+|---|---|---|
+| `run` | `id`, `name`, `definition_id`, `project_id`, `workspace_id`, `created_at` | Trusted |
+| `trigger` | `source`, `event` | Trusted |
+| `job` | `name` | Trusted |
+| `event` | The trigger's raw event payload (open shape — e.g. `event.ref`, `event.action`, `event.body`) | Untrusted |
+| `inputs` | Values passed through a trigger's `with` block (open shape) | Untrusted |
+
+<Note>
+  **Untrusted context can't select infrastructure.** `event` and `inputs` carry
+  data from outside your workspace, so they may be used in `env`, `run`, and
+  `prompt` values but **not** to choose an agent's `model` or `provider`, which
+  accept trusted context only.
+</Note>
+
+### Interpolation inside `run` commands
+
+For safety, values interpolated into a `run` command are passed to the shell through
+generated environment variables rather than spliced into the command text. You write
+`echo "${{ run.id }}"` as normal; Shipfox rewrites it to reference a generated
+variable holding the resolved value, so event-derived data can't inject shell syntax.
+
+## Trigger filters are not evaluated yet
+
+A trigger's `filter` also accepts a CEL expression (over the event, e.g.
+`event.ref == "refs/heads/main"`), but it is **parsed and stored, not evaluated** — every
+matching `(source, event)` fires the trigger today. See
+[Triggers](/concepts/triggers). To gate on event data now, branch inside a `run`
+step or interpolate the value and check it there.
+
+## Shipped vs. roadmap
+
+| Feature | Status |
+|---|---|
+| `gate.success_if` (CEL over `exit_code`) | ✅ Shipped |
+| Job `success` (CEL over `executions`) | ✅ Shipped |
+| `${{ }}` interpolation in `run`, `env`, `prompt` | ✅ Shipped |
+| Trigger `filter` evaluation | 🔜 Roadmap |
+| `loop`, `matrix`, `branch` | 🔜 Roadmap |
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Gates" icon="rotate" href="/concepts/gates">
+    Where `success_if` decides a step outcome.
+  </Card>
+  <Card title="Workflow schema" icon="code" href="/reference/workflow-schema">
+    The full YAML schema these expressions live in.
+  </Card>
+</CardGroup>

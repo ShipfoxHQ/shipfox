@@ -1,0 +1,82 @@
+---
+title: "Troubleshooting Shipfox Workflows and Runners"
+sidebarTitle: "Troubleshooting"
+description: "Fix common Shipfox issues: pending runs, runner connection problems, workflow validation errors, agent step failures, and trigger setup issues."
+---
+
+This page covers the most common issues teams encounter with Shipfox and how to resolve them quickly. For each symptom, you'll find the likely cause and the steps to fix it.
+
+<AccordionGroup>
+  <Accordion title="Run is stuck in `pending`">
+    **Cause:** No online runner with a matching label.
+
+    **Fix:**
+    - Check the runner process's log for `Runner session registered` — the dashboard does not list connected runners yet.
+    - Verify your workflow's `runner:` label exactly matches a runner label (case-sensitive).
+    - Ensure the runner process is running; a runner exits after its idle window unless `SHIPFOX_POLL_MAX_DURATION_MS=0` is set.
+    - In evaluation mode, remember the compose services do not execute jobs — a separate runner process must be started.
+  </Accordion>
+
+  <Accordion title="Workflow file not detected">
+    **Cause:** File is not in the correct location or has a YAML syntax error.
+
+    **Fix:**
+    - Confirm the file is under `.shipfox/workflows/` and has a `.yml` or `.yaml` extension.
+    - Run the file through a YAML linter (`npx js-yaml your-file.yml`).
+    - Check that the file extension is `.yml` or `.yaml`.
+  </Accordion>
+
+  <Accordion title="Validation error on push">
+    **Cause:** Workflow YAML contains invalid or unsupported keys.
+
+    **Common mistakes:**
+    - Using `loop`, `matrix`, or `branch` — these are roadmap features not yet shipped. (`${{ }}` interpolation **is** shipped; writing `{{ }}` instead of `${{ }}` is the common mistake.)
+    - Setting `env` on an agent step — `env` is run-step only.
+    - Using `model`, `thinking`, or `provider` on a `run` step.
+    - No `prompt` on an agent step.
+    - Using the reserved `agent:` key.
+
+    **Fix:** Review the [Workflow Schema reference](/reference/workflow-schema). Use the [Authoring Prompt](/ai/authoring-prompt) or [Skills Package](/ai/skills-package) to get valid YAML from your coding agent.
+  </Accordion>
+
+  <Accordion title="Agent step fails or produces no output">
+    **Cause:** Missing API key on the runner, or model/provider mismatch.
+
+    **Fix:**
+    - Verify the AI provider is configured in **Settings → Agent providers** with a valid API key.
+    - Check that `ANTHROPIC_API_KEY` (or the relevant provider key) is set in the runner's environment.
+    - Confirm `model` and `provider` IDs are valid (see [Model Providers](/guides/model-providers)).
+    - Check the step log in the dashboard for error messages from the provider.
+  </Accordion>
+
+  <Accordion title="Push trigger not firing">
+    **Cause:** GitHub integration not connected, wrong trigger `source`, or repository is on GitLab.
+
+    **Fix:**
+    - Open **Settings → Events**. It lists every trigger event the workspace received. If your push appears with **No workflows triggered**, the workflow's `source` does not match the connection's slug (see [Integrations](/integrations/overview#finding-your-connection-slug)). If the push does not appear at all, the webhook never reached Shipfox.
+    - In the project settings, verify the GitHub repository is connected.
+    - Push triggers only work with GitHub — GitLab is roadmap. Use `source: manual, event: fire` for non-GitHub repos.
+    - Verify the GitHub webhook is registered (visible in your GitHub repo's **Settings → Webhooks**).
+  </Accordion>
+
+  <Accordion title="`restart_from` validation error">
+    **Cause:** The step referenced by `restart_from` doesn't exist, appears after the gate step, or has no `key:`.
+
+    **Fix:**
+    - Add a `key:` field to the step you want to restart from (`restart_from` matches keys, not `name:` labels).
+    - Ensure the keyed step appears **before** the gate step in the same job.
+    - Use the exact `name` string — it's case-sensitive.
+  </Accordion>
+
+  <Accordion title="Sentry trigger not firing">
+    **Cause:** Sentry integration not configured.
+
+    **Fix:**
+    - Go to **Settings → Integrations → Sentry** and complete the setup.
+    - Verify the `event` value is one of: `issue.created`, `issue.resolved`, `issue.assigned`, `issue.archived`, `issue.unresolved`.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  If you're still stuck, check the run's step log in the dashboard — it often contains the exact error message. Still need help? Reach out to the Shipfox team.
+</Note>
