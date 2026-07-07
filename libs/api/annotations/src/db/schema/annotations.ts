@@ -16,6 +16,34 @@ import {pgTable} from './common.js';
 
 export const annotationStyleEnum = pgEnum('annotations_style', [...ANNOTATION_STYLES]);
 
+const annotationContextTrimCharactersSql = sql`concat(
+  chr(9),
+  chr(10),
+  chr(11),
+  chr(12),
+  chr(13),
+  chr(32),
+  chr(160),
+  chr(5760),
+  chr(8192),
+  chr(8193),
+  chr(8194),
+  chr(8195),
+  chr(8196),
+  chr(8197),
+  chr(8198),
+  chr(8199),
+  chr(8200),
+  chr(8201),
+  chr(8202),
+  chr(8232),
+  chr(8233),
+  chr(8239),
+  chr(8287),
+  chr(12288),
+  chr(65279)
+)`;
+
 export const annotations = pgTable(
   'annotations',
   {
@@ -47,7 +75,10 @@ export const annotations = pgTable(
     ),
     check('annotations_sequence_positive_ck', sql`${table.sequence} > 0`),
     check('annotations_context_not_empty_ck', sql`length(${table.context}) > 0`),
-    check('annotations_context_trimmed_ck', sql`${table.context} = btrim(${table.context})`),
+    check(
+      'annotations_context_trimmed_ck',
+      sql`${table.context} = btrim(${table.context}, ${annotationContextTrimCharactersSql})`,
+    ),
     check(
       'annotations_context_max_length_ck',
       sql`length(${table.context}) <= ${ANNOTATION_CONTEXT_MAX_LENGTH}`,

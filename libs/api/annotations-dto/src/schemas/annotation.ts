@@ -3,11 +3,21 @@ import {z} from 'zod';
 export const ANNOTATION_STYLES = ['default', 'info', 'success', 'warning', 'error'] as const;
 export const ANNOTATION_CONTEXT_MAX_LENGTH = 255;
 
+function hasMaxCodePoints(value: string, maxCodePoints: number): boolean {
+  let count = 0;
+  for (const _codePoint of value) {
+    count += 1;
+    if (count > maxCodePoints) return false;
+  }
+
+  return true;
+}
+
 const annotationContextSchema = z
   .string()
   .trim()
   .min(1)
-  .refine((value) => [...value].length <= ANNOTATION_CONTEXT_MAX_LENGTH, {
+  .refine((value) => hasMaxCodePoints(value, ANNOTATION_CONTEXT_MAX_LENGTH), {
     message: `String must contain at most ${ANNOTATION_CONTEXT_MAX_LENGTH} character(s)`,
   })
   .describe('Caller-chosen annotation key. Trimmed and unique within a job execution.');

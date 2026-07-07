@@ -20,7 +20,7 @@ CREATE TABLE "annotations_annotations" (
 	CONSTRAINT "annotations_body_bytes_matches_body_ck" CHECK ("annotations_annotations"."body_bytes" = octet_length("annotations_annotations"."body")),
 	CONSTRAINT "annotations_sequence_positive_ck" CHECK ("annotations_annotations"."sequence" > 0),
 	CONSTRAINT "annotations_context_not_empty_ck" CHECK (length("annotations_annotations"."context") > 0),
-	CONSTRAINT "annotations_context_trimmed_ck" CHECK ("annotations_annotations"."context" = btrim("annotations_annotations"."context")),
+	CONSTRAINT "annotations_context_trimmed_ck" CHECK ("annotations_annotations"."context" = btrim("annotations_annotations"."context", concat(chr(9), chr(10), chr(11), chr(12), chr(13), chr(32), chr(160), chr(5760), chr(8192), chr(8193), chr(8194), chr(8195), chr(8196), chr(8197), chr(8198), chr(8199), chr(8200), chr(8201), chr(8202), chr(8232), chr(8233), chr(8239), chr(8287), chr(12288), chr(65279)))),
 	CONSTRAINT "annotations_context_max_length_ck" CHECK (length("annotations_annotations"."context") <= 255)
 );
 --> statement-breakpoint
