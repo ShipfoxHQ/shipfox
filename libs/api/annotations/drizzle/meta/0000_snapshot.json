@@ -184,6 +184,10 @@
           "name": "annotations_context_not_empty_ck",
           "value": "length(\"annotations_annotations\".\"context\") > 0"
         },
+        "annotations_context_trimmed_ck": {
+          "name": "annotations_context_trimmed_ck",
+          "value": "\"annotations_annotations\".\"context\" = btrim(\"annotations_annotations\".\"context\")"
+        },
         "annotations_context_max_length_ck": {
           "name": "annotations_context_max_length_ck",
           "value": "length(\"annotations_annotations\".\"context\") <= 255"

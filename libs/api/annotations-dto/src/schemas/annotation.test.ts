@@ -1,4 +1,8 @@
-import {leasedWriteAnnotationsBodySchema, readAnnotationsResponseSchema} from './annotation.js';
+import {
+  ANNOTATION_CONTEXT_MAX_LENGTH,
+  leasedWriteAnnotationsBodySchema,
+  readAnnotationsResponseSchema,
+} from './annotation.js';
 
 describe('annotation schemas', () => {
   it('defaults leased write operation style and op', () => {
@@ -35,6 +39,28 @@ describe('annotation schemas', () => {
 
     expect(missingReplaceBody).toThrow();
     expect(removeWithBody).toThrow();
+  });
+
+  it('counts context length by Unicode code point', () => {
+    const baseBody = {
+      step_id: crypto.randomUUID(),
+      attempt: 1,
+    };
+    const maxLengthContext = '😀'.repeat(ANNOTATION_CONTEXT_MAX_LENGTH);
+    const tooLongContext = '😀'.repeat(ANNOTATION_CONTEXT_MAX_LENGTH + 1);
+
+    const body = leasedWriteAnnotationsBodySchema.parse({
+      ...baseBody,
+      annotations: [{context: maxLengthContext, body: 'ok'}],
+    });
+    const parseTooLong = () =>
+      leasedWriteAnnotationsBodySchema.parse({
+        ...baseBody,
+        annotations: [{context: tooLongContext, body: 'no'}],
+      });
+
+    expect(body.annotations[0]?.context).toBe(maxLengthContext);
+    expect(parseTooLong).toThrow();
   });
 
   it('accepts the read response annotation DTO shape', () => {

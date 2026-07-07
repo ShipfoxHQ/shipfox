@@ -31,4 +31,10 @@ describe('annotations schema', () => {
     expect(row).toBeDefined();
     expect(row ? toAnnotation(row) : undefined).toEqual(annotation);
   });
+
+  it('rejects untrimmed context values at the database boundary', async () => {
+    const createAnnotation = annotationFactory.create({context: ' deploy '});
+
+    await expect(createAnnotation).rejects.toThrow();
+  });
 });

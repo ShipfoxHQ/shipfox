@@ -7,7 +7,9 @@ const annotationContextSchema = z
   .string()
   .trim()
   .min(1)
-  .max(ANNOTATION_CONTEXT_MAX_LENGTH)
+  .refine((value) => [...value].length <= ANNOTATION_CONTEXT_MAX_LENGTH, {
+    message: `String must contain at most ${ANNOTATION_CONTEXT_MAX_LENGTH} character(s)`,
+  })
   .describe('Caller-chosen annotation key. Trimmed and unique within a job execution.');
 
 export const annotationStyleSchema = z.enum(ANNOTATION_STYLES);

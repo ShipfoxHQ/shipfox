@@ -47,6 +47,7 @@ export const annotations = pgTable(
     ),
     check('annotations_sequence_positive_ck', sql`${table.sequence} > 0`),
     check('annotations_context_not_empty_ck', sql`length(${table.context}) > 0`),
+    check('annotations_context_trimmed_ck', sql`${table.context} = btrim(${table.context})`),
     check(
       'annotations_context_max_length_ck',
       sql`length(${table.context}) <= ${ANNOTATION_CONTEXT_MAX_LENGTH}`,
