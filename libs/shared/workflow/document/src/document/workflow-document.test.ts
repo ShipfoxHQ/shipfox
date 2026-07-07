@@ -863,6 +863,29 @@ describe('workflowDocumentSchema', () => {
       'agent step with tools',
       {harness: 'pi', prompt: 'Fetch docs.', tools: ['read', 'fetch_content']},
     ],
+    [
+      'agent step with integrations',
+      {
+        harness: 'claude',
+        prompt: 'Triage the pull request.',
+        integrations: [
+          {
+            connection: 'github-main',
+            include: ['issue_read.get', 'pull_request_read.get_files'],
+            exclude: ['actions_run_trigger.run_workflow'],
+            allow_write: false,
+            repos: ['shipfox'],
+          },
+        ],
+      },
+    ],
+    [
+      'agent step with whole-family integration selection',
+      {
+        prompt: 'Review the issue.',
+        integrations: [{include: ['issue_read', 'actions_run_trigger'], allow_write: true}],
+      },
+    ],
     ['agent step with name', {name: 'fix', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     [
       'agent step with gate',
@@ -888,9 +911,30 @@ describe('workflowDocumentSchema', () => {
     ['harness on a run step', {run: 'npm test', harness: 'pi'}],
     ['provider on a run step', {run: 'npm test', provider: 'openai'}],
     ['tools on a run step', {run: 'npm test', tools: ['read']}],
+    ['integrations on a run step', {run: 'npm test', integrations: [{include: ['issue_read']}]}],
     ['tools without prompt', {tools: ['read']}],
+    ['integrations without prompt', {integrations: [{include: ['issue_read']}]}],
     ['empty tools array', {prompt: 'Fix.', tools: []}],
     ['empty tool name', {prompt: 'Fix.', tools: ['']}],
+    ['empty integrations array', {prompt: 'Fix.', integrations: []}],
+    ['empty integration include', {prompt: 'Fix.', integrations: [{include: []}]}],
+    [
+      'empty integration include name',
+      {prompt: 'Fix.', integrations: [{include: ['issue_read', '']}]},
+    ],
+    ['empty integration exclude', {prompt: 'Fix.', integrations: [{include: ['*'], exclude: []}]}],
+    [
+      'empty integration connection',
+      {prompt: 'Fix.', integrations: [{connection: '', include: ['issue_read']}]},
+    ],
+    [
+      'empty integration repo',
+      {prompt: 'Fix.', integrations: [{include: ['issue_read'], repos: ['shipfox', '']}]},
+    ],
+    [
+      'non-boolean integration allow_write',
+      {prompt: 'Fix.', integrations: [{include: ['issue_read'], allow_write: 'true'}]},
+    ],
     ['unknown harness value', {model: 'claude-opus-4-8', prompt: 'Fix.', harness: 'codex'}],
     ['unknown thinking value', {model: 'claude-opus-4-8', prompt: 'Fix.', thinking: 'ultra'}],
     ['empty model string', {model: '', prompt: 'Fix.'}],
@@ -936,5 +980,17 @@ describe('workflowDocumentSchema', () => {
       ? undefined
       : result.error.issues.find((issue) => issue.path.includes('tools'));
     expect(toolsIssue?.message).toBe('"tools" is not valid on a run step.');
+  });
+
+  it('reports a run-step integrations message on the integrations path', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'agent build',
+      jobs: {fix: {steps: [{run: 'npm test', integrations: [{include: ['issue_read']}]}]}},
+    });
+
+    const integrationsIssue = result.success
+      ? undefined
+      : result.error.issues.find((issue) => issue.path.includes('integrations'));
+    expect(integrationsIssue?.message).toBe('"integrations" is not valid on a run step.');
   });
 });
