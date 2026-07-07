@@ -179,7 +179,7 @@ export class GithubSourceControlProvider
 }
 
 function githubAppGitAuthor(): CheckoutSpec['gitAuthor'] {
-  const appUsername = config.GITHUB_APP_USERNAME.trim();
+  const appUsername = config.GITHUB_APP_USERNAME?.trim();
   if (!appUsername) return undefined;
   const name = appUsername.endsWith(GITHUB_APP_BOT_SUFFIX)
     ? appUsername
