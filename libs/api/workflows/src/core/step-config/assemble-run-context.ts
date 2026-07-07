@@ -236,9 +236,8 @@ export function assembleListenerSnapshotContext(params: {
   if (params.plan.roots.has('job')) {
     context.job = {key: params.job.key};
   }
-  if (params.plan.roots.has('jobs') && params.plan.jobKeys.size > 0) {
-    const jobsContext = requestedJobsContext(params.dependencyJobs, params.plan.jobKeys);
-    if (jobsContext !== undefined) context.jobs = jobsContext;
+  if (params.plan.roots.has('jobs')) {
+    context.jobs = requestedJobsContext(params.dependencyJobs, params.plan.jobKeys);
   }
 
   return context;
@@ -247,9 +246,10 @@ export function assembleListenerSnapshotContext(params: {
 function requestedJobsContext(
   dependencyJobs: readonly JobContextInput[],
   jobKeys: ReadonlySet<string>,
-): Record<string, unknown> | undefined {
+): Record<string, unknown> {
+  if (jobKeys.size === 0) return assembleJobsContext(dependencyJobs).jobs;
+
   const filtered = dependencyJobs.filter(({job}) => jobKeys.has(job.key));
-  if (filtered.length === 0) return undefined;
 
   return assembleJobsContext(filtered).jobs;
 }
@@ -292,15 +292,19 @@ function jobsSnapshotForPlan(
   plan: MatcherSnapshotPlan,
   context: WorkflowExpressionEvaluationContext,
 ): Record<string, unknown> | undefined {
-  if (plan.jobKeys.size === 0 || typeof context.jobs !== 'object' || context.jobs === null) {
+  if (typeof context.jobs !== 'object' || context.jobs === null) {
     return undefined;
   }
 
   const jobsContext = context.jobs as Record<string, unknown>;
+  if (plan.jobKeys.size === 0) return {...jobsContext};
+
   const snapshot = Object.fromEntries(
-    [...plan.jobKeys].flatMap((key) => (key in jobsContext ? [[key, jobsContext[key]]] : [])),
+    [...plan.jobKeys].flatMap((key) =>
+      Object.hasOwn(jobsContext, key) ? [[key, jobsContext[key]]] : [],
+    ),
   );
-  return Object.keys(snapshot).length === 0 ? undefined : snapshot;
+  return snapshot;
 }
 
 function assembleJobContext({job, executions}: JobContextInput): Record<string, unknown> {

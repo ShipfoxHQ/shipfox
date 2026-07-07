@@ -363,14 +363,7 @@ async function findExistingExecution(
     )
     .limit(1);
   if (!existing) return undefined;
-  return {
-    kind: 'execution',
-    jobExecutionId: existing.id,
-    executionVersion: existing.version,
-    sequence: existing.sequence,
-    requiredLabels: existing.runner ?? [],
-    status: existing.status,
-  };
+  return drainExecutionResult(existing);
 }
 
 async function hasPendingResolveEvent(jobId: string, tx: Tx): Promise<boolean> {
