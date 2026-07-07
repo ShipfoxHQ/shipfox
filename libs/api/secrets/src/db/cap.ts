@@ -5,23 +5,29 @@ import {secretVariables} from './schema/variables.js';
 
 export async function countWorkspaceEntries(workspaceId: string, tx?: Tx): Promise<number> {
   const executor = tx ?? db();
-  const valueRows = await executor
-    .select({value: count()})
+  const valueCount = executor
+    .select({count: count().as('value_count')})
     .from(secretValues)
     .where(
       and(eq(secretValues.workspaceId, workspaceId), notLike(secretValues.namespace, 'system/%')),
-    );
-  const variableRows = await executor
-    .select({value: count()})
+    )
+    .as('value_count');
+  const variableCount = executor
+    .select({count: count().as('variable_count')})
     .from(secretVariables)
     .where(
       and(
         eq(secretVariables.workspaceId, workspaceId),
         notLike(secretVariables.namespace, 'system/%'),
       ),
-    );
+    )
+    .as('variable_count');
+  const [row] = await executor
+    .select({value: sql<number>`${valueCount.count} + ${variableCount.count}`})
+    .from(valueCount)
+    .crossJoin(variableCount);
 
-  return Number(valueRows[0]?.value ?? 0) + Number(variableRows[0]?.value ?? 0);
+  return Number(row?.value ?? 0);
 }
 
 export async function lockWorkspaceEntries(workspaceId: string, tx: Tx): Promise<void> {
