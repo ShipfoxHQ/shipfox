@@ -5,7 +5,7 @@ describe('annotation schemas', () => {
     const body = leasedWriteAnnotationsBodySchema.parse({
       step_id: crypto.randomUUID(),
       attempt: 1,
-      annotations: [{context: 'default', body: '### Summary'}],
+      annotations: [{context: ' default ', body: '### Summary'}],
     });
 
     expect(body.annotations[0]).toMatchObject({
@@ -14,6 +14,27 @@ describe('annotation schemas', () => {
       op: 'replace',
       body: '### Summary',
     });
+  });
+
+  it('rejects write operations with invalid body pairing', () => {
+    const baseBody = {
+      step_id: crypto.randomUUID(),
+      attempt: 1,
+    };
+
+    const missingReplaceBody = () =>
+      leasedWriteAnnotationsBodySchema.parse({
+        ...baseBody,
+        annotations: [{context: 'deploy', op: 'replace'}],
+      });
+    const removeWithBody = () =>
+      leasedWriteAnnotationsBodySchema.parse({
+        ...baseBody,
+        annotations: [{context: 'deploy', op: 'remove', body: 'ignored'}],
+      });
+
+    expect(missingReplaceBody).toThrow();
+    expect(removeWithBody).toThrow();
   });
 
   it('accepts the read response annotation DTO shape', () => {

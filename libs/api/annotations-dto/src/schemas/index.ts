@@ -1,4 +1,6 @@
 export {
+  ANNOTATION_CONTEXT_MAX_LENGTH,
+  ANNOTATION_STYLES,
   type AnnotationDto,
   type AnnotationStyleDto,
   annotationDtoSchema,

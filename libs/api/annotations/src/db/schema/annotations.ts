@@ -1,3 +1,4 @@
+import {ANNOTATION_CONTEXT_MAX_LENGTH, ANNOTATION_STYLES} from '@shipfox/annotations-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
@@ -13,13 +14,7 @@ import {
 import type {Annotation} from '#core/entities/annotation.js';
 import {pgTable} from './common.js';
 
-export const annotationStyleEnum = pgEnum('annotations_style', [
-  'default',
-  'info',
-  'success',
-  'warning',
-  'error',
-]);
+export const annotationStyleEnum = pgEnum('annotations_style', [...ANNOTATION_STYLES]);
 
 export const annotations = pgTable(
   'annotations',
@@ -46,9 +41,16 @@ export const annotations = pgTable(
     index('annotations_workflow_run_attempt_id_idx').on(table.workflowRunAttemptId),
     index('annotations_job_execution_id_idx').on(table.jobExecutionId),
     check('annotations_origin_step_attempt_positive_ck', sql`${table.originStepAttempt} > 0`),
-    check('annotations_body_bytes_nonnegative_ck', sql`${table.bodyBytes} >= 0`),
+    check(
+      'annotations_body_bytes_matches_body_ck',
+      sql`${table.bodyBytes} = octet_length(${table.body})`,
+    ),
     check('annotations_sequence_positive_ck', sql`${table.sequence} > 0`),
     check('annotations_context_not_empty_ck', sql`length(${table.context}) > 0`),
+    check(
+      'annotations_context_max_length_ck',
+      sql`length(${table.context}) <= ${ANNOTATION_CONTEXT_MAX_LENGTH}`,
+    ),
   ],
 );
 

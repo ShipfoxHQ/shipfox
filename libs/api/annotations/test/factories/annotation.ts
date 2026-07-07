@@ -1,7 +1,7 @@
 import {Factory} from 'fishery';
 import type {Annotation} from '#core/entities/annotation.js';
 import {db} from '#db/db.js';
-import {annotations, toAnnotation} from '#db/schema/annotations.js';
+import {annotations} from '#db/schema/annotations.js';
 
 export const annotationFactory = Factory.define<Annotation>(({onCreate}) => {
   onCreate(async (annotation) => {
@@ -28,7 +28,7 @@ export const annotationFactory = Factory.define<Annotation>(({onCreate}) => {
       .returning();
 
     if (!row) throw new Error('annotationFactory: insert returned no row');
-    return toAnnotation(row);
+    return annotation;
   });
 
   const body = '### Summary\nAnnotation body';
