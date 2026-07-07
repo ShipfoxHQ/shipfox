@@ -13,14 +13,6 @@ const config = {
   turbopack: {
     root: fileURLToPath(new URL('../..', import.meta.url)),
   },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'a.storyblok.com',
-      },
-    ],
-  },
   rewrites() {
     return [
       {

@@ -41,7 +41,7 @@ export function GET() {
   const lines: string[] = [
     '# Shipfox Documentation',
     '',
-    '> Shipfox is a CI platform fully integrated with GitHub Actions. Shipfox runners are 2x faster and 50% cheaper than GitHub-hosted runners, with built-in remote caching and complete CI observability.',
+    '> Shipfox is a continuous shipping platform for engineering teams. Define YAML workflows in your repo, run shell and AI agent steps on your own runners, and trigger pipelines from GitHub, Sentry, and more.',
     '',
   ];
 

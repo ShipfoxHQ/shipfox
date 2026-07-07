@@ -1,4 +1,5 @@
 import type {BaseLayoutProps} from 'fumadocs-ui/layouts/shared';
+import {basePath} from '@/url';
 
 /**
  * Shared layout configurations
@@ -12,11 +13,9 @@ export const baseOptions: BaseLayoutProps = {
     title: (
       <div className="flex items-center px-4">
         <picture>
-          <img
-            src="https://a.storyblok.com/f/338460/971x200/e86f43be28/shipfox-logotype-orange-black.svg"
-            alt="Shipfox"
-            className="max-h-8"
-          />
+          {/* Dark-background lockup (white wordmark + orange mark). Served from
+              public/ under the /docs basePath. */}
+          <img src={`${basePath}/logo.svg`} alt="Shipfox" className="max-h-6" />
         </picture>
       </div>
     ),
