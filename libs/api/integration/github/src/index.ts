@@ -19,6 +19,10 @@ import {createGithubWebhookRoutes} from '#presentation/routes/webhooks.js';
 
 export type {GithubApiClient} from '#api/client.js';
 export {
+  createGithubInstallationTokenProvider,
+  type GithubInstallationTokenProvider,
+} from '#api/installation-token-provider.js';
+export {
   type GithubAgentToolCatalogEntry,
   type GithubAgentToolCategory,
   type GithubAgentToolId,

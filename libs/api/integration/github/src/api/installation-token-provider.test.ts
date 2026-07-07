@@ -1,0 +1,184 @@
+import {GithubIntegrationProviderError} from '#core/errors.js';
+import {createGithubInstallationTokenProvider} from './installation-token-provider.js';
+
+const {appOptions, createInstallationAccessTokenMock, RequestErrorMock} = vi.hoisted(() => ({
+  appOptions: [] as unknown[],
+  createInstallationAccessTokenMock: vi.fn(),
+  RequestErrorMock: class RequestError extends Error {
+    constructor(
+      message: string,
+      public readonly status: number,
+    ) {
+      super(message);
+    }
+  },
+}));
+
+vi.mock('octokit', () => ({
+  App: class App {
+    octokit = {
+      rest: {apps: {createInstallationAccessToken: createInstallationAccessTokenMock}},
+    };
+
+    constructor(options: unknown) {
+      appOptions.push(options);
+    }
+  },
+  Octokit: {
+    defaults(options: unknown) {
+      return {defaults: options};
+    },
+  },
+  RequestError: RequestErrorMock,
+}));
+
+describe('GithubInstallationTokenProvider', () => {
+  beforeEach(() => {
+    appOptions.length = 0;
+    createInstallationAccessTokenMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('mints a broad installation token on a cache miss', async () => {
+    createInstallationAccessTokenMock.mockResolvedValue({
+      data: {token: 'ghs_installationtoken', expires_at: '2026-06-10T12:00:00.000Z'},
+    });
+    const provider = createGithubInstallationTokenProvider();
+
+    const result = await provider.getInstallationAccessToken(1);
+
+    expect(result).toEqual({
+      token: 'ghs_installationtoken',
+      expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+    });
+    expect(createInstallationAccessTokenMock).toHaveBeenCalledWith({
+      installation_id: 1,
+    });
+  });
+
+  it('returns a cached token without a second mint', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T11:00:00.000Z'));
+    createInstallationAccessTokenMock.mockResolvedValue({
+      data: {token: 'ghs_installationtoken', expires_at: '2026-06-10T12:00:00.000Z'},
+    });
+    const provider = createGithubInstallationTokenProvider();
+
+    const first = await provider.getInstallationAccessToken(1);
+    const second = await provider.getInstallationAccessToken(1);
+
+    expect(first).toEqual(second);
+    expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mints a fresh token inside the expiry refresh margin', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z'));
+    createInstallationAccessTokenMock
+      .mockResolvedValueOnce({
+        data: {token: 'ghs_first', expires_at: '2026-06-10T12:10:00.000Z'},
+      })
+      .mockResolvedValueOnce({
+        data: {token: 'ghs_second', expires_at: '2026-06-10T13:00:00.000Z'},
+      });
+    const provider = createGithubInstallationTokenProvider();
+
+    const first = await provider.getInstallationAccessToken(1);
+    vi.setSystemTime(new Date('2026-06-10T12:06:00.000Z'));
+    const second = await provider.getInstallationAccessToken(1);
+
+    expect(first.token).toBe('ghs_first');
+    expect(second.token).toBe('ghs_second');
+    expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('dedupes concurrent cold-cache mints for one installation', async () => {
+    let resolveMint: (
+      value: Awaited<ReturnType<typeof createInstallationAccessTokenMock>>,
+    ) => void = (_value) => {
+      throw new Error('Mint promise was not initialized');
+    };
+    createInstallationAccessTokenMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMint = resolve;
+      }),
+    );
+    const provider = createGithubInstallationTokenProvider();
+
+    const first = provider.getInstallationAccessToken(1);
+    const second = provider.getInstallationAccessToken(1);
+    resolveMint({
+      data: {token: 'ghs_installationtoken', expires_at: '2026-06-10T12:00:00.000Z'},
+    });
+    const results = await Promise.all([first, second]);
+
+    expect(results).toEqual([
+      {token: 'ghs_installationtoken', expiresAt: new Date('2026-06-10T12:00:00.000Z')},
+      {token: 'ghs_installationtoken', expiresAt: new Date('2026-06-10T12:00:00.000Z')},
+    ]);
+    expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('configures throttle retry handlers on the mint octokit', async () => {
+    createInstallationAccessTokenMock.mockResolvedValue({
+      data: {token: 'ghs_installationtoken', expires_at: '2026-06-10T12:00:00.000Z'},
+    });
+    const provider = createGithubInstallationTokenProvider();
+
+    await provider.getInstallationAccessToken(1);
+
+    expect(appOptions).toEqual([
+      expect.objectContaining({
+        Octokit: {
+          defaults: {
+            throttle: {
+              onRateLimit: expect.any(Function),
+              onSecondaryRateLimit: expect.any(Function),
+            },
+          },
+        },
+      }),
+    ]);
+  });
+
+  it('maps missing installations to an installation-not-found provider error', async () => {
+    createInstallationAccessTokenMock.mockRejectedValue(new RequestErrorMock('Not Found', 404));
+    const provider = createGithubInstallationTokenProvider();
+
+    const result = provider.getInstallationAccessToken(1);
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'installation-not-found',
+    });
+  });
+
+  it('rejects a response without a token', async () => {
+    createInstallationAccessTokenMock.mockResolvedValue({
+      data: {expires_at: '2026-06-10T12:00:00.000Z'},
+    });
+    const provider = createGithubInstallationTokenProvider();
+
+    const result = provider.getInstallationAccessToken(1);
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+    });
+    await expect(result).rejects.toBeInstanceOf(GithubIntegrationProviderError);
+  });
+
+  it('rejects a response with a missing or unparseable expiry', async () => {
+    createInstallationAccessTokenMock.mockResolvedValue({
+      data: {token: 'ghs_installationtoken'},
+    });
+    const provider = createGithubInstallationTokenProvider();
+
+    const result = provider.getInstallationAccessToken(1);
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+    });
+  });
+});

@@ -205,6 +205,7 @@ export interface RegisteredIntegrationProvider<
 
 export type IntegrationProviderErrorReason =
   | 'repository-not-found'
+  | 'installation-not-found'
   | 'file-not-found'
   | 'access-denied'
   | 'rate-limited'
