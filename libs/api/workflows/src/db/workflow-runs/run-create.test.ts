@@ -1,0 +1,1383 @@
+import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
+import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
+import {and, eq, sql} from 'drizzle-orm';
+import {InterpolationUnresolvableError} from '#core/errors.js';
+import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
+import {db} from '../db.js';
+import {workflowsOutbox} from '../schema/outbox.js';
+import {workflowRuns} from '../schema/workflow-runs.js';
+import {
+  createWorkflowRun,
+  getJobExecutionsByJobId,
+  getJobsByWorkflowRunId,
+  getStepsByJobId,
+  getWorkflowRunAttemptById,
+  getWorkflowRunById,
+  getWorkflowRunDetail,
+  listRunAttempts,
+  resolveJobStatusFromJobExecutions,
+  updateJobExecutionStatus,
+} from '../workflow-runs.js';
+import {buildModel, expression, shellRef, template} from './workflow-runs.test-helpers.js';
+
+describe('workflow run queries', () => {
+  let workspaceId: string;
+  let projectId: string;
+  let definitionId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    projectId = crypto.randomUUID();
+    definitionId = crypto.randomUUID();
+  });
+
+  describe('createWorkflowRun', () => {
+    test('inserts run, jobs, and steps atomically', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      expect(run.id).toBeDefined();
+      expect(run.projectId).toBe(projectId);
+      expect(run.definitionId).toBe(definitionId);
+      expect(run.status).toBe('pending');
+      expect(run.triggerProvider).toBeNull();
+      expect(run.triggerPayload).toMatchObject({source: 'manual', event: 'fire'});
+      expect(run.inputs).toBeNull();
+      expect(run.version).toBe(1);
+      expect(run.createdAt).toBeInstanceOf(Date);
+      expect(run.updatedAt).toBeInstanceOf(Date);
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      expect(runJobs).toHaveLength(1);
+      expect(runJobs[0]?.key).toBe('build');
+      expect(runJobs[0]?.name).toBeNull();
+      expect(runJobs[0]?.checkout).toEqual({
+        permissions: {contents: 'read'},
+        persistCredentials: true,
+      });
+
+      const jobExecutions = await getJobExecutionsByJobId(runJobs[0]?.id as string);
+      expect(jobExecutions).toHaveLength(1);
+      expect(jobExecutions[0]).toMatchObject({
+        jobId: runJobs[0]?.id,
+        sequence: 1,
+        name: 'build #1',
+        runner: ['ubuntu-latest'],
+        evaluationTrace: null,
+      });
+
+      // Every job gets a synthetic "Set up job" step at position 0; user steps follow.
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+      expect(jobSteps).toHaveLength(2);
+      expect(jobSteps.every((step) => step.jobExecutionId === jobExecutions[0]?.id)).toBe(true);
+      expect(jobSteps[0]).toMatchObject({
+        type: 'setup',
+        name: 'Set up job',
+        position: 0,
+        config: {},
+      });
+      expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
+    });
+
+    test('materializes a templated runner on the one-shot job execution', async () => {
+      const model = buildModel({
+        jobs: {
+          build: {
+            runner: ['linux'],
+            runnerTemplates: [template('inputs.runner')],
+            steps: [{run: 'echo hello'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        inputs: {runner: 'GPU'},
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      const executions = await getJobExecutionsByJobId(job?.id as string);
+      expect(executions[0]?.runner).toEqual(['gpu', 'linux']);
+    });
+
+    async function createJobOutputRun() {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [{key: 'pack', run: 'echo pack'}],
+              outputs: {
+                image_sha: template('steps.pack.outputs.sha'),
+              },
+            },
+            deploy: {
+              needs: 'build',
+              steps: [
+                {
+                  key: 'deploy',
+                  run: 'deploy',
+                  env: {IMAGE_SHA: template('jobs.build.outputs.image_sha')},
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [build, deploy] = await getJobsByWorkflowRunId(run.id);
+      if (!build || !deploy) throw new Error('Expected build and deploy jobs');
+      const [buildExecution] = await getJobExecutionsByJobId(build.id);
+      if (!buildExecution) throw new Error('Expected build execution');
+      const [buildSetup, pack] = await getStepsByJobId(build.id);
+      if (!buildSetup || !pack) throw new Error('Expected build steps');
+      const [deploySetup] = await getStepsByJobId(deploy.id);
+      if (!deploySetup) throw new Error('Expected deploy setup step');
+
+      return {run, build, deploy, buildExecution, buildSetup, pack, deploySetup};
+    }
+
+    async function recordBuildStepOutputs(state: Awaited<ReturnType<typeof createJobOutputRun>>) {
+      await nextStepForJob(state.build.id);
+      await recordStepResult({
+        jobExecutionId: state.buildExecution.id,
+        stepId: state.buildSetup.id,
+        status: 'succeeded',
+      });
+      await nextStepForJob(state.build.id);
+      await recordStepResult({
+        jobExecutionId: state.buildExecution.id,
+        stepId: state.pack.id,
+        status: 'succeeded',
+        output: {sha: 'abc123'},
+      });
+    }
+
+    test('persists mapped outputs on the succeeded job execution', async () => {
+      const state = await createJobOutputRun();
+      await recordBuildStepOutputs(state);
+
+      const outputExecution = await updateJobExecutionStatus({
+        jobExecutionId: state.buildExecution.id,
+        expectedVersion: state.buildExecution.version,
+        status: 'succeeded',
+      });
+
+      expect(outputExecution.outputs).toEqual({image_sha: 'abc123'});
+    });
+
+    test('reduces the latest succeeded execution outputs onto the job', async () => {
+      const state = await createJobOutputRun();
+      await recordBuildStepOutputs(state);
+      await updateJobExecutionStatus({
+        jobExecutionId: state.buildExecution.id,
+        expectedVersion: state.buildExecution.version,
+        status: 'succeeded',
+      });
+
+      await resolveJobStatusFromJobExecutions({jobId: state.build.id});
+
+      const [build] = (await getJobsByWorkflowRunId(state.run.id)).filter(
+        (job) => job.id === state.build.id,
+      );
+      expect(build?.outputs).toEqual({image_sha: 'abc123'});
+    });
+
+    test('fills dependent step configs from direct dependency job outputs', async () => {
+      const state = await createJobOutputRun();
+      await recordBuildStepOutputs(state);
+      await updateJobExecutionStatus({
+        jobExecutionId: state.buildExecution.id,
+        expectedVersion: state.buildExecution.version,
+        status: 'succeeded',
+      });
+      await resolveJobStatusFromJobExecutions({jobId: state.build.id});
+      await nextStepForJob(state.deploy.id);
+      const [deployExecution] = await getJobExecutionsByJobId(state.deploy.id);
+      if (!deployExecution) throw new Error('Expected deploy execution');
+      await recordStepResult({
+        jobExecutionId: deployExecution.id,
+        stepId: state.deploySetup.id,
+        status: 'succeeded',
+      });
+
+      const deployStep = await nextStepForJob(state.deploy.id);
+
+      expect(deployStep).toEqual({
+        kind: 'step',
+        step: expect.objectContaining({
+          key: 'deploy',
+          config: expect.objectContaining({env: {IMAGE_SHA: 'abc123'}}),
+        }),
+      });
+    });
+
+    test('persists the resolved one-shot job execution name', async () => {
+      const model = buildModel({
+        jobs: {
+          deploy: {
+            name: `Deploy ${template('inputs.environment')}`,
+            steps: [{run: 'echo deploy'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        inputs: {environment: 'prod'},
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Missing deploy job');
+      const executions = await getJobExecutionsByJobId(job.id);
+      expect(executions[0]?.name).toBe('Deploy prod');
+    });
+
+    test('falls back to the job key and sequence for unnamed one-shot executions', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            deploy: {
+              steps: [{run: 'echo deploy'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Missing deploy job');
+      const executions = await getJobExecutionsByJobId(job.id);
+      expect(executions[0]?.name).toBe('deploy #1');
+    });
+
+    test('uses the fallback name for execution-name self references', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            deploy: {
+              name: `Current ${template('execution.name')}`,
+              steps: [{run: 'echo deploy'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Missing deploy job');
+      const executions = await getJobExecutionsByJobId(job.id);
+      expect(executions[0]?.name).toBe('Current deploy #1');
+    });
+
+    test('persists the parsed model on the run attempt', async () => {
+      const model = buildModel({
+        env: {RUN_ID: template('run.id')},
+        jobs: {
+          build: {
+            name: `Build ${template('event.ref')}`,
+            steps: [
+              {
+                run: 'npm test',
+                env: {REF: template('event.ref')},
+                gate: {success: expression('step.exit_code == 0')},
+              },
+            ],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'github',
+          event: 'push',
+          deliveryId: 'delivery-1',
+          data: {ref: 'refs/heads/main'},
+        },
+      });
+
+      const [attemptSummary] = await listRunAttempts({workflowRunId: run.id, projectId});
+      const attempt = await getWorkflowRunAttemptById(attemptSummary?.id as string);
+      const [runJob] = await getJobsByWorkflowRunId(run.id);
+      if (!runJob) throw new Error('Expected workflow job');
+      const [jobExecution] = await getJobExecutionsByJobId(runJob.id);
+
+      expect(attempt?.model).toEqual(model);
+      expect(jobExecution).toMatchObject({
+        name: 'Build refs/heads/main',
+        evaluationTrace: [
+          {
+            expression: 'event.ref',
+            roots: ['event'],
+            fillTarget: 'ingest',
+            evaluatedAt: 'execution-creation',
+            value: 'refs/heads/main',
+            field: 'job.name',
+          },
+        ],
+      });
+    });
+
+    test('returns the persisted model in run detail', async () => {
+      const model = buildModel({
+        env: {RUN_ID: template('run.id')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo first'}, {run: 'echo second'}],
+          },
+        },
+      });
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const detail = await getWorkflowRunDetail(run.id);
+
+      expect(detail?.runAttempt.model).toEqual(model);
+      expect(detail?.jobs).toHaveLength(1);
+      expect(detail?.jobs[0]?.jobExecutions[0]?.steps).toHaveLength(3);
+    });
+
+    test('persists explicit checkout policy on jobs', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              checkout: {
+                permissions: {contents: 'write'},
+                persistCredentials: false,
+              },
+              steps: [{run: 'echo hello'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      expect(runJobs[0]?.checkout).toEqual({
+        permissions: {contents: 'write'},
+        persistCredentials: false,
+      });
+    });
+
+    test('persists listening job config without initial execution or steps', async () => {
+      const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
+      const stepNameSource = ['Review $', '{{ execution.index }}'].join('');
+      const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
+      const model = normalizeWorkflowDocument({
+        name: 'Listening workflow',
+        runner: 'ubuntu-latest',
+        jobs: {
+          listen: {
+            name: displayNameSource,
+            listening: {
+              on: [{source: 'github', event: 'pull_request_review'}],
+              until: [{source: 'github', event: 'pull_request'}],
+              timeout: '30d',
+              max_executions: 3,
+              batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
+              on_resolve: 'cancel',
+            },
+            steps: [{name: stepNameSource, prompt: promptSource}],
+          },
+          build: {
+            steps: [{run: 'echo build'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const listen = runJobs.find((job) => job.key === 'listen');
+      const build = runJobs.find((job) => job.key === 'build');
+      expect(listen).toMatchObject({
+        mode: 'listening',
+        name: displayNameSource,
+        listeningTimeoutMs: 30 * 24 * 60 * 60 * 1000,
+        maxExecutions: 3,
+        onResolve: 'cancel',
+        batchDebounceMs: 5000,
+        batchMaxSize: 10,
+        batchMaxWaitMs: 60 * 60 * 1000,
+        listenerStatus: 'inactive',
+        resolutionReason: null,
+        listeningOn: [{source: 'github', event: 'pull_request_review'}],
+        listeningUntil: [{source: 'github', event: 'pull_request'}],
+      });
+      expect(build).toMatchObject({mode: 'one_shot', listenerStatus: 'inactive'});
+
+      const listenExecutions = await getJobExecutionsByJobId(listen?.id as string);
+      const listenSteps = await getStepsByJobId(listen?.id as string);
+      expect(listenExecutions).toEqual([]);
+      expect(listenSteps).toEqual([]);
+
+      const buildExecutions = await getJobExecutionsByJobId(build?.id as string);
+      const buildSteps = await getStepsByJobId(build?.id as string);
+      expect(buildExecutions).toHaveLength(1);
+      expect(buildSteps).toHaveLength(2);
+      expect(buildSteps[0]).toMatchObject({type: 'setup', name: 'Set up job', position: 0});
+      expect(buildSteps[1]).toMatchObject({type: 'run', config: {run: 'echo build'}, position: 1});
+    });
+
+    test('persists the listening workflow model on the run attempt', async () => {
+      const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
+      const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
+      const model = normalizeWorkflowDocument({
+        name: 'Listening workflow',
+        runner: 'ubuntu-latest',
+        jobs: {
+          listen: {
+            name: displayNameSource,
+            listening: {
+              on: [{source: 'github', event: 'pull_request_review'}],
+              until: [{source: 'github', event: 'pull_request'}],
+              timeout: '30d',
+              max_executions: 3,
+              batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
+              on_resolve: 'cancel',
+            },
+            steps: [{prompt: promptSource}],
+          },
+          build: {
+            steps: [{run: 'echo build'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [attemptSummary] = await listRunAttempts({workflowRunId: run.id, projectId});
+      const attempt = await getWorkflowRunAttemptById(attemptSummary?.id as string);
+      expect(attempt?.model).toEqual(model);
+    });
+
+    test('does not load variables referenced only by listening job executions at run creation', async () => {
+      const model = normalizeWorkflowDocument({
+        name: 'Listening vars workflow',
+        runner: 'ubuntu-latest',
+        jobs: {
+          listen: {
+            listening: {
+              on: [{source: 'github', event: 'pull_request_review'}],
+              until: [{source: 'github', event: 'pull_request'}],
+            },
+            steps: [
+              {
+                run: 'echo region',
+                env: {REGION: template('vars.REGION')},
+              },
+            ],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const listen = runJobs[0];
+      expect(listen).toMatchObject({mode: 'listening'});
+      await expect(getJobExecutionsByJobId(listen?.id as string)).resolves.toEqual([]);
+    });
+
+    test.each([
+      {
+        field: 'run',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing run var',
+            runner: 'ubuntu-latest',
+            jobs: {build: {steps: [{run: `echo ${template('vars.REQUIRED')}`}]}},
+          }),
+        expected: {field: 'run', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'env',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing env var',
+            runner: 'ubuntu-latest',
+            jobs: {
+              build: {
+                steps: [{run: 'echo ok', env: {REGION: template('vars.REQUIRED')}}],
+              },
+            },
+          }),
+        expected: {field: 'env', envKey: 'REGION', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'agent.prompt',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing prompt var',
+            runner: 'ubuntu-latest',
+            jobs: {fix: {steps: [{prompt: template('vars.REQUIRED')}]}},
+          }),
+        expected: {field: 'agent.prompt', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'agent.model',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing model var',
+            runner: 'ubuntu-latest',
+            jobs: {fix: {steps: [{prompt: 'Fix it', model: template('vars.REQUIRED')}]}},
+          }),
+        expected: {field: 'agent.model', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'agent.provider',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing provider var',
+            runner: 'ubuntu-latest',
+            jobs: {fix: {steps: [{prompt: 'Fix it', provider: template('vars.REQUIRED')}]}},
+          }),
+        expected: {field: 'agent.provider', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'step.name',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing step name var',
+            runner: 'ubuntu-latest',
+            jobs: {build: {steps: [{name: template('vars.REQUIRED'), run: 'echo ok'}]}},
+          }),
+        expected: {field: 'step.name', source: 'vars.REQUIRED'},
+      },
+    ] as const)('reports missing variables against $field', async ({model, expected}) => {
+      let error: unknown;
+      try {
+        await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: model(),
+          triggerPayload: {
+            source: 'manual',
+            event: 'fire',
+            subscriptionId: crypto.randomUUID(),
+            userId: crypto.randomUUID(),
+          },
+        });
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+      expect(error).toMatchObject(expected);
+    });
+
+    test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const outboxRows = await db()
+        .select()
+        .from(workflowsOutbox)
+        .where(eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED));
+
+      const matchingRow = outboxRows.find(
+        (row) => (row.payload as Record<string, unknown>).workflowRunId === run.id,
+      );
+
+      expect(matchingRow).toBeDefined();
+      expect(matchingRow?.payload).toMatchObject({
+        workflowRunId: run.id,
+        attempt: 1,
+        workspaceId: run.workspaceId,
+        projectId: run.projectId,
+        definitionId: run.definitionId,
+      });
+      expect(matchingRow?.orderingKey).toBe(run.id);
+      expect(matchingRow?.dispatchedAt).toBeNull();
+    });
+
+    test('persists resolved step config and authored step config separately', async () => {
+      const model = normalizeWorkflowDocument({
+        name: 'Interpolated workflow',
+        runner: 'ubuntu-latest',
+        env: {RUN_ID: template('run.id'), REF: template('event.ref')},
+        jobs: {
+          build: {
+            steps: [{run: `echo "${template('run.id')}"`}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'github',
+          event: 'push',
+          deliveryId: 'delivery-1',
+          data: {ref: 'refs/heads/main'},
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      const rows = (await getStepsByJobId(job?.id as string)).map((step) => ({
+        type: step.type,
+        config: step.config,
+        authoredConfig: step.authoredConfig,
+      }));
+
+      expect(rows[1]).toEqual({
+        type: 'run',
+        config: {
+          run: `echo "${shellRef('__sf_0')}"`,
+          env: {RUN_ID: run.id, REF: 'refs/heads/main', __sf_0: run.id},
+        },
+        authoredConfig: {
+          run: `echo "${template('run.id')}"`,
+          env: {RUN_ID: template('run.id'), REF: template('event.ref')},
+        },
+      });
+
+      const steps = await getStepsByJobId(job?.id as string);
+      expect(steps[1]?.authoredConfig).toEqual({
+        run: `echo "${template('run.id')}"`,
+        env: {RUN_ID: template('run.id'), REF: template('event.ref')},
+      });
+    });
+
+    test('resolves webhook trigger payload body and headers into step config', async () => {
+      const model = normalizeWorkflowDocument({
+        name: 'Webhook workflow',
+        runner: 'ubuntu-latest',
+        env: {
+          PAYMENT_ID: template('event.body.payment_id'),
+          SIGNATURE: template('event.headers["x-stripe-signature"]'),
+        },
+        jobs: {
+          build: {
+            steps: [{run: 'echo webhook'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          provider: 'webhook',
+          source: 'stripe_prod',
+          event: 'received',
+          deliveryId: 'delivery-1',
+          data: {
+            method: 'POST',
+            headers: {'x-stripe-signature': 'sig_123'},
+            query: {mode: 'live'},
+            body: {payment_id: 'pay_123'},
+          },
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      const steps = await getStepsByJobId(job?.id as string);
+
+      expect(steps[1]?.config).toEqual({
+        run: 'echo webhook',
+        env: {
+          PAYMENT_ID: 'pay_123',
+          SIGNATURE: 'sig_123',
+        },
+      });
+    });
+
+    test('fails for missing available untrusted interpolation paths', async () => {
+      const model = normalizeWorkflowDocument({
+        name: 'Diagnostic workflow',
+        runner: 'ubuntu-latest',
+        env: {REF: template('event.ref')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      });
+
+      let error: unknown;
+      try {
+        await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model,
+          triggerPayload: {
+            source: 'github',
+            event: 'push',
+            deliveryId: 'delivery-1',
+            data: {},
+          },
+        });
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(InterpolationUnresolvableError);
+      expect(error).toMatchObject({
+        field: 'env',
+        source: 'event.ref',
+        envKey: 'REF',
+      });
+      const runs = await db()
+        .select()
+        .from(workflowRuns)
+        .where(
+          and(
+            eq(workflowRuns.workspaceId, workspaceId),
+            eq(workflowRuns.definitionId, definitionId),
+          ),
+        );
+      expect(runs).toEqual([]);
+    });
+
+    test('rolls back outbox event when transaction fails', async () => {
+      const marker = crypto.randomUUID();
+
+      const transaction = db().transaction(async (tx) => {
+        await tx.insert(workflowsOutbox).values({
+          eventType: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+          payload: {workflowRunId: marker, projectId, definitionId},
+        });
+        throw new Error('Simulated failure');
+      });
+
+      await expect(transaction).rejects.toThrow('Simulated failure');
+
+      const leaked = await db()
+        .select()
+        .from(workflowsOutbox)
+        .where(sql`${workflowsOutbox.payload}->>'workflowRunId' = ${marker}`);
+
+      expect(leaked).toHaveLength(0);
+    });
+
+    test('normalizes needs string to array', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {steps: [{run: 'echo build'}]},
+            test: {needs: 'build', steps: [{run: 'echo test'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const testJob = runJobs.find((j) => j.key === 'test');
+
+      expect(testJob?.dependencies).toEqual(['build']);
+    });
+
+    test('normalizes needs undefined to empty array', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+
+      expect(runJobs[0]?.dependencies).toEqual([]);
+    });
+
+    test('stores authored agent tools with runtime agent defaults resolved', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {
+              steps: [
+                {
+                  harness: 'pi',
+                  tools: ['read', 'web_search'],
+                  prompt: 'Fix the failing tests.',
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+      const agentStep = jobSteps.find((step) => step.type === 'agent');
+
+      expect(agentStep).toMatchObject({
+        type: 'agent',
+        config: {
+          harness: 'pi',
+          model: 'claude-opus-4-8',
+          provider: 'anthropic',
+          thinking: 'xhigh',
+          tools: ['read', 'web_search'],
+          prompt: 'Fix the failing tests.',
+        },
+      });
+    });
+
+    test('stores agent step config resolved by the injected resolver', async () => {
+      const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        resolveAgentDefaults,
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+      const agentStep = jobSteps.find((step) => step.type === 'agent');
+      expect(resolveAgentDefaults).toHaveBeenCalledWith({
+        harness: undefined,
+        provider: undefined,
+        model: undefined,
+        thinking: undefined,
+      });
+      expect(agentStep?.config).toEqual({
+        harness: 'pi',
+        model: 'gpt-5.5-pro',
+        provider: 'openai',
+        thinking: 'medium',
+        prompt: 'Fix the failing tests.',
+      });
+    });
+
+    test('handles multi-job definitions with correct positions', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            lint: {steps: [{run: 'echo lint'}]},
+            build: {steps: [{run: 'echo build'}]},
+            test: {needs: ['lint', 'build'], steps: [{run: 'echo test'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+
+      expect(runJobs).toHaveLength(3);
+      expect(runJobs[0]?.position).toBe(0);
+      expect(runJobs[1]?.position).toBe(1);
+      expect(runJobs[2]?.position).toBe(2);
+    });
+
+    test('handles definition with empty jobs object', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({jobs: {}}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      expect(run.id).toBeDefined();
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+
+      expect(runJobs).toHaveLength(0);
+    });
+
+    test('handles job with zero steps', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            empty: {steps: []},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      expect(runJobs).toHaveLength(1);
+
+      // A job with no user steps still gets the synthetic setup step.
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+
+      expect(jobSteps).toHaveLength(1);
+      expect(jobSteps[0]).toMatchObject({type: 'setup', name: 'Set up job', position: 0});
+    });
+
+    test('stores step display names', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [{name: 'Install deps', run: 'npm install'}, {run: 'npm build'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+
+      // Index 0 is the synthetic setup step; user steps start at index 1.
+      expect(jobSteps[0]?.name).toBe('Set up job');
+      expect(jobSteps[1]?.name).toBe('Install deps');
+      expect(jobSteps[2]?.name).toBe('npm build');
+    });
+
+    test('stores source locations for authored steps', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [
+                {run: 'npm install', sourceLocation: {startLine: 5, endLine: 6}},
+                {run: 'npm test', sourceLocation: {startLine: 7, endLine: 10}},
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+
+      expect(jobSteps.map((step) => step.sourceLocation)).toEqual([
+        null,
+        {startLine: 5, endLine: 6},
+        {startLine: 7, endLine: 10},
+      ]);
+    });
+
+    test('stores frozen step config', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {steps: [{run: 'make build'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByWorkflowRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+
+      // Index 0 is the synthetic setup step; the user run step is at index 1.
+      expect(jobSteps[1]?.type).toBe('run');
+      expect(jobSteps[1]?.config).toEqual({run: 'make build'});
+    });
+
+    test('stores inputs when provided', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        inputs: {env: 'staging', verbose: true},
+      });
+
+      expect(run.inputs).toEqual({env: 'staging', verbose: true});
+    });
+
+    test('stores the exact source snapshot when provided', async () => {
+      const sourceContent = `name: Exact
+  # keep comment and spacing
+  jobs:
+    build:
+      steps:
+        - run: echo "hello"
+  `;
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({name: 'Exact'}),
+        sourceSnapshot: {content: sourceContent, format: 'yaml'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const found = await getWorkflowRunById(run.id);
+
+      expect(run.sourceSnapshot).toEqual({content: sourceContent, format: 'yaml'});
+      expect(found?.sourceSnapshot).toEqual({content: sourceContent, format: 'yaml'});
+    });
+
+    test('stores null source snapshot when omitted', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const found = await getWorkflowRunById(run.id);
+
+      expect(run.sourceSnapshot).toBeNull();
+      expect(found?.sourceSnapshot).toBeNull();
+    });
+
+    test('duplicate triggerIdempotencyKey returns the existing run without writing jobs/steps/outbox a second time', async () => {
+      const subscriptionId = crypto.randomUUID();
+      const eventId = crypto.randomUUID();
+      const idempotencyKey = `${subscriptionId}:${eventId}`;
+      const model = buildModel({name: 'Original idempotent model'});
+
+      const first = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        sourceSnapshot: {content: 'name: Original\njobs: {}\n', format: 'yaml'},
+        triggerIdempotencyKey: idempotencyKey,
+      });
+      const second = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({name: 'Mutated idempotent model'}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        sourceSnapshot: {content: 'name: Mutated\njobs: {}\n', format: 'yaml'},
+        triggerIdempotencyKey: idempotencyKey,
+      });
+
+      expect(second.id).toBe(first.id);
+      expect(second.triggerIdempotencyKey).toBe(idempotencyKey);
+      expect(second.sourceSnapshot).toEqual({
+        content: 'name: Original\njobs: {}\n',
+        format: 'yaml',
+      });
+
+      const allJobs = await getJobsByWorkflowRunId(first.id);
+      expect(allJobs).toHaveLength(1);
+      const attempts = await listRunAttempts({workflowRunId: first.id, projectId});
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0]?.model).toEqual(model);
+      const outboxRows = await db()
+        .select()
+        .from(workflowsOutbox)
+        .where(sql`${workflowsOutbox.payload}->>'workflowRunId' = ${first.id}`);
+      expect(outboxRows).toHaveLength(1);
+    });
+
+    test('duplicate triggerIdempotencyKey returns the existing run without re-materializing', async () => {
+      const subscriptionId = crypto.randomUUID();
+      const eventId = crypto.randomUUID();
+      const idempotencyKey = `${subscriptionId}:${eventId}`;
+      const model = buildModel({
+        jobs: {
+          fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+        },
+      });
+      const firstResolver = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      });
+      const secondResolver = vi.fn<AgentDefaultsResolver>().mockImplementation(() => {
+        throw new Error('agent defaults unavailable');
+      });
+      const first = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        triggerIdempotencyKey: idempotencyKey,
+        resolveAgentDefaults: firstResolver,
+      });
+
+      const replay = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        triggerIdempotencyKey: idempotencyKey,
+        resolveAgentDefaults: secondResolver,
+      });
+
+      expect(replay.id).toBe(first.id);
+      expect(firstResolver).toHaveBeenCalledTimes(1);
+      expect(secondResolver).not.toHaveBeenCalled();
+
+      const allJobs = await getJobsByWorkflowRunId(first.id);
+      expect(allJobs).toHaveLength(1);
+    });
+
+    test('null triggerIdempotencyKey allows independent inserts', async () => {
+      const a = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const b = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      expect(b.id).not.toBe(a.id);
+      expect(a.triggerIdempotencyKey).toBeNull();
+      expect(b.triggerIdempotencyKey).toBeNull();
+    });
+  });
+});

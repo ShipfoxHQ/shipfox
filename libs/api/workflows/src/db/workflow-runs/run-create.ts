@@ -1,0 +1,415 @@
+import {
+  type AgentDefaultsResolver,
+  catalogDefaultAgentResolver,
+} from '@shipfox/api-agent/core/resolve-agent-config';
+import type {WorkflowModel} from '@shipfox/api-definitions';
+import {getVariablesByNamespace} from '@shipfox/api-secrets';
+import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
+import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
+import {logger} from '@shipfox/node-opentelemetry';
+import {eq} from 'drizzle-orm';
+import type {
+  TriggerPayload,
+  WorkflowRun,
+  WorkflowSourceSnapshot,
+} from '#core/entities/workflow-run.js';
+import {InterpolationUnresolvableError} from '#core/errors.js';
+import {
+  assembleCreationContext,
+  assembleExecutionCreationContext,
+} from '#core/step-config/assemble-run-context.js';
+import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
+import {
+  materializeJobRunner,
+  materializeWorkflowModel,
+} from '#core/step-config/materialize-workflow-model.js';
+import {resolveJobExecutionName} from '#core/step-config/resolve-job-execution-name.js';
+import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
+import {recordWorkflowRunCreated} from '#metrics/instance.js';
+import {db} from '../db.js';
+import {writeWorkflowsOutboxEvent} from '../outbox-writes.js';
+import {jobExecutions} from '../schema/job-executions.js';
+import {jobs} from '../schema/jobs.js';
+import {steps} from '../schema/steps.js';
+import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
+import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
+
+export type WorkflowModelJob = WorkflowModel['jobs'][number];
+
+export interface ReferencedVariable {
+  readonly key: string;
+  readonly field: InterpolationUnresolvableError['field'];
+  readonly source: string;
+  readonly envKey?: string | undefined;
+}
+
+export interface CreateWorkflowRunParams {
+  workspaceId: string;
+  projectId: string;
+  definitionId: string;
+  name?: string | undefined;
+  model: WorkflowModel;
+  triggerPayload: TriggerPayload;
+  inputs?: Record<string, unknown> | undefined;
+  sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
+  triggerIdempotencyKey?: string | undefined;
+  resolveAgentDefaults?: AgentDefaultsResolver | undefined;
+}
+
+export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
+  const result = await db().transaction(async (tx) => {
+    const insertResult = await tx
+      .insert(workflowRuns)
+      .values({
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        definitionId: params.definitionId,
+        name: params.name ?? params.model.name,
+        status: 'pending',
+        currentAttempt: 1,
+        triggerProvider: params.triggerPayload.provider ?? null,
+        triggerSource: params.triggerPayload.source,
+        triggerEvent: params.triggerPayload.event,
+        triggerPayload: params.triggerPayload,
+        inputs: params.inputs ?? null,
+        sourceSnapshot: params.sourceSnapshot ?? null,
+        triggerIdempotencyKey: params.triggerIdempotencyKey ?? null,
+      })
+      .onConflictDoNothing({target: workflowRuns.triggerIdempotencyKey})
+      .returning();
+
+    const runRow = insertResult[0];
+    if (!runRow) {
+      // Conflict path: skip jobs/steps/outbox so the first insert keeps ownership of side effects.
+      if (!params.triggerIdempotencyKey) {
+        throw new Error('Insert returned no rows');
+      }
+      const existing = await tx
+        .select()
+        .from(workflowRuns)
+        .where(eq(workflowRuns.triggerIdempotencyKey, params.triggerIdempotencyKey))
+        .limit(1);
+      const existingRow = existing[0];
+      if (!existingRow) {
+        throw new Error(
+          `Idempotency conflict but existing run missing for key ${params.triggerIdempotencyKey}`,
+        );
+      }
+      return {run: toWorkflowRun(existingRow), created: false};
+    }
+
+    const run = toWorkflowRun(runRow);
+    const [attemptRow] = await tx
+      .insert(workflowRunAttempts)
+      .values({
+        workflowRunId: runRow.id,
+        attempt: 1,
+        status: 'pending',
+        model: params.model,
+      })
+      .returning();
+    if (!attemptRow) throw new Error('Insert returned no rows');
+
+    // Resolving one-shot templates here gives interpolation access to the inserted run id.
+    // If resolution fails, the transaction rolls back the run, jobs, steps, and outbox event together.
+    // Listening steps are resolved later when a job execution is created.
+    const oneShotJobs = params.model.jobs.filter((job) => job.mode !== 'listening');
+    const context = assembleCreationContext({
+      run,
+      triggerPayload: params.triggerPayload,
+      inputs: params.inputs ?? null,
+      vars: await loadReferencedVariables({
+        model: params.model,
+        jobs: oneShotJobs,
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        definitionId: params.definitionId,
+      }),
+    });
+    const materializedJobs = materializeWorkflowModel({
+      model: params.model,
+      context,
+      resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
+      definitionId: params.definitionId,
+    });
+
+    let jobRows: (typeof jobs.$inferSelect)[] = [];
+
+    if (materializedJobs.length > 0) {
+      jobRows = await tx
+        .insert(jobs)
+        .values(
+          materializedJobs.map((job) => ({
+            workflowRunAttemptId: attemptRow.id,
+            key: job.key,
+            mode: job.mode,
+            name: workflowTemplateSource(job.name),
+            status: 'pending' as const,
+            checkoutPersistCredentials: job.checkout.persistCredentials,
+            checkoutPermissionsContents: job.checkout.permissions.contents,
+            success: job.success ?? null,
+            executionTimeoutMs: job.executionTimeoutMs ?? null,
+            listeningTimeoutMs: job.listening?.timeoutMs ?? null,
+            maxExecutions: job.listening?.maxExecutions ?? null,
+            onResolve: job.listening?.onResolve ?? null,
+            batchDebounceMs: job.listening?.batch?.debounceMs ?? null,
+            batchMaxSize: job.listening?.batch?.maxSize ?? null,
+            batchMaxWaitMs: job.listening?.batch?.maxWaitMs ?? null,
+            listeningOn: job.listening?.on ? [...job.listening.on] : null,
+            listeningUntil: job.listening?.until ? [...job.listening.until] : null,
+            dependencies: [...job.dependencies],
+            runner: job.runner.length === 0 ? null : [...job.runner],
+            position: job.position,
+          })),
+        )
+        .returning();
+    }
+
+    const jobExecutionValues = jobRows.flatMap((jobRow, jobIndex) => {
+      if (jobRow.mode === 'listening') return [];
+      const job = materializedJobs[jobIndex];
+      if (!job) return [];
+
+      const fallbackName = `${jobRow.key} #1`;
+      const context = assembleExecutionCreationContext({
+        run,
+        triggerPayload: params.triggerPayload,
+        inputs: params.inputs ?? null,
+        jobId: jobRow.id,
+        sequence: 1,
+        executionName: fallbackName,
+        status: 'pending',
+        triggerEvents: [],
+        priorExecutions: [],
+      });
+      const resolvedName = resolveJobExecutionName({
+        definitionId: params.definitionId,
+        job,
+        fallbackName,
+        context: context.values,
+      });
+      const modelJob = params.model.jobs[jobIndex];
+      if (!modelJob) return [];
+      const runnerContext = assembleExecutionCreationContext({
+        run,
+        triggerPayload: params.triggerPayload,
+        inputs: params.inputs ?? null,
+        jobId: jobRow.id,
+        sequence: 1,
+        executionName: resolvedName.value,
+        status: 'pending',
+        triggerEvents: [],
+        priorExecutions: [],
+      });
+      const runner = materializeJobRunner({
+        job: modelJob,
+        context: runnerContext,
+        definitionId: params.definitionId,
+      });
+
+      return [
+        {
+          jobId: jobRow.id,
+          sequence: 1,
+          name: resolvedName.value,
+          runner: [...runner],
+          status: 'pending' as const,
+          evaluationTrace: resolvedName.trace.length === 0 ? null : resolvedName.trace,
+        },
+      ];
+    });
+    const jobExecutionRows =
+      jobExecutionValues.length === 0
+        ? []
+        : await tx.insert(jobExecutions).values(jobExecutionValues).returning();
+
+    const jobExecutionByJobId = new Map(
+      jobExecutionRows.map((jobExecution) => [jobExecution.jobId, jobExecution]),
+    );
+
+    const stepValues: (typeof steps.$inferInsert)[] = [];
+    for (const [jobIndex, jobRow] of jobRows.entries()) {
+      const job = materializedJobs[jobIndex];
+      const jobExecution = jobExecutionByJobId.get(jobRow.id);
+      if (!jobExecution) continue;
+      if (!job) continue;
+      for (const step of job.steps) {
+        stepValues.push({
+          jobExecutionId: jobExecution.id,
+          key: step.key,
+          name: step.name,
+          sourceLocation: step.sourceLocation,
+          status: step.status,
+          type: step.type,
+          config: step.config,
+          condition: step.condition ?? null,
+          configPlan: step.configPlan ?? null,
+          authoredConfig: step.authoredConfig,
+          position: step.position,
+        });
+      }
+    }
+
+    if (stepValues.length > 0) {
+      await tx.insert(steps).values(stepValues);
+    }
+
+    await writeWorkflowsOutboxEvent(tx, {
+      type: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+      payload: {
+        workflowRunId: runRow.id,
+        workflowRunAttemptId: attemptRow.id,
+        attempt: attemptRow.attempt,
+        workspaceId: runRow.workspaceId,
+        projectId: runRow.projectId,
+        definitionId: runRow.definitionId,
+      },
+    });
+
+    logTemplateDiagnostics({
+      workflowRunId: runRow.id,
+      diagnostics: materializedJobs.flatMap((job) =>
+        job.steps.flatMap((step) =>
+          (step.diagnostics ?? []).map((diagnostic) => ({
+            jobKey: job.key,
+            stepName: step.name,
+            ...diagnostic,
+          })),
+        ),
+      ),
+    });
+
+    return {run, created: true};
+  });
+
+  if (result.created)
+    recordWorkflowRunCreated(result.run.triggerPayload.provider ?? result.run.triggerSource);
+
+  return result.run;
+}
+
+export async function loadReferencedVariables(params: {
+  readonly model: WorkflowModel;
+  readonly jobs?: readonly WorkflowModelJob[] | undefined;
+  readonly workspaceId: string;
+  readonly projectId: string;
+  readonly definitionId: string;
+}): Promise<Record<string, string> | undefined> {
+  const references = referencedVariables(params.model, params.jobs ?? params.model.jobs);
+  const keys = [...new Set(references.map((reference) => reference.key))].sort();
+  if (keys.length === 0) return undefined;
+
+  const vars = await getVariablesByNamespace({
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+    namespace: '',
+  });
+  const missingKey = keys.find((key) => !(key in vars));
+  if (missingKey !== undefined) {
+    const reference = references.find((candidate) => candidate.key === missingKey);
+    throw new InterpolationUnresolvableError(params.definitionId, {
+      field: reference?.field ?? 'env',
+      source: reference?.source ?? `vars.${missingKey}`,
+      ...(reference?.envKey === undefined ? {} : {envKey: reference.envKey}),
+    });
+  }
+
+  return vars;
+}
+
+function referencedVariables(
+  model: WorkflowModel,
+  jobs: readonly WorkflowModelJob[],
+): readonly ReferencedVariable[] {
+  const references: ReferencedVariable[] = [];
+
+  if (jobs.length > 0) {
+    collectTemplateVariableReferences(model.templates?.env, references);
+  }
+
+  for (const job of jobs) {
+    collectFieldVariableReferences(job.name, references, {field: 'job.name'});
+    collectTemplateVariableReferences(job.outputs, references, {field: 'job.outputs'});
+    collectTemplateVariableReferences(job.templates?.env, references);
+
+    for (const step of job.steps) {
+      collectFieldVariableReferences(step.templates?.name, references, {field: 'step.name'});
+      if (step.kind === 'run') {
+        collectFieldVariableReferences(step.templates?.command, references, {field: 'run'});
+        collectTemplateVariableReferences(step.templates?.env, references);
+      } else {
+        collectFieldVariableReferences(step.templates?.prompt, references, {field: 'agent.prompt'});
+        collectFieldVariableReferences(step.templates?.model, references, {field: 'agent.model'});
+        collectFieldVariableReferences(step.templates?.provider, references, {
+          field: 'agent.provider',
+        });
+      }
+    }
+  }
+
+  return references;
+}
+
+function collectTemplateVariableReferences(
+  templates: Readonly<Record<string, readonly ResolvedFieldSegment[]>> | undefined,
+  references: ReferencedVariable[],
+  source?: {
+    readonly field: InterpolationUnresolvableError['field'];
+  },
+): void {
+  for (const [envKey, template] of Object.entries(templates ?? {})) {
+    collectFieldVariableReferences(
+      template,
+      references,
+      source === undefined ? {field: 'env', envKey} : source,
+    );
+  }
+}
+
+function collectFieldVariableReferences(
+  template: readonly ResolvedFieldSegment[] | undefined,
+  references: ReferencedVariable[],
+  source: {
+    readonly field: InterpolationUnresolvableError['field'];
+    readonly envKey?: string | undefined;
+  },
+): void {
+  for (const segment of template ?? []) {
+    if (segment.kind === 'literal') continue;
+    const keyAccess = analyzeContextKeyAccess(segment.expression);
+    for (const reference of keyAccess.references) {
+      if (reference.root !== 'vars') continue;
+      references.push({
+        key: reference.key,
+        field: source.field,
+        source: segment.expression.source,
+        envKey: source.envKey,
+      });
+    }
+  }
+}
+
+function workflowTemplateSource(template: MaterializedWorkflowJob['name']): string | null {
+  if (template === undefined) return null;
+
+  return template
+    .map((segment) =>
+      segment.kind === 'literal' ? segment.value : `$${'{{'} ${segment.expression.source} ${'}}'}`,
+    )
+    .join('');
+}
+
+function logTemplateDiagnostics(params: {
+  readonly workflowRunId: string;
+  readonly diagnostics: readonly (WorkflowStepTemplateDiagnostic & {
+    readonly jobKey: string;
+    readonly stepName: string;
+  })[];
+}): void {
+  if (params.diagnostics.length === 0) return;
+
+  logger().warn(
+    {workflowRunId: params.workflowRunId, diagnostics: params.diagnostics},
+    'Workflow interpolation resolved with diagnostics',
+  );
+}

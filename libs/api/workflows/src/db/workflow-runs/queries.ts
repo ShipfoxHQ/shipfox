@@ -1,0 +1,439 @@
+import {
+  paginateTimestampIdRows,
+  type TimestampIdCursor,
+  timestampIdCursorWhere,
+} from '@shipfox/node-drizzle';
+import {and, asc, count, desc, eq, gte, lte, type SQL, sql} from 'drizzle-orm';
+import type {
+  JobExecutionDetail,
+  StepDetail,
+  WorkflowJobDetail,
+  WorkflowRun,
+  WorkflowRunDetail,
+  WorkflowRunStatus,
+} from '#core/entities/workflow-run.js';
+import {db} from '../db.js';
+import {jobExecutions, toJobExecution} from '../schema/job-executions.js';
+import {jobs, toJob} from '../schema/jobs.js';
+import {stepAttempts, toStepAttempt} from '../schema/step-attempts.js';
+import {steps, toStep} from '../schema/steps.js';
+import {toWorkflowRunAttempt, workflowRunAttempts} from '../schema/workflow-run-attempts.js';
+import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
+
+export type WorkflowRunCursor = TimestampIdCursor;
+
+export interface WorkflowRunFilters {
+  status?: WorkflowRunStatus | undefined;
+  definitionId?: string | undefined;
+  triggerSource?: string | undefined;
+  createdFrom?: Date | undefined;
+  createdTo?: Date | undefined;
+}
+
+export interface ListWorkflowRunsParams {
+  projectId: string;
+  limit: number;
+  cursor?: WorkflowRunCursor | undefined;
+  filters?: WorkflowRunFilters | undefined;
+  includeTotal?: boolean | undefined;
+}
+
+export interface ListWorkflowRunsResult {
+  runs: WorkflowRun[];
+  nextCursor: WorkflowRunCursor | null;
+  filteredTotalCount: number | null;
+}
+
+export interface WorkflowRunAggregates {
+  status: Array<{value: WorkflowRunStatus; count: number}>;
+  triggerSource: Array<{value: string; count: number}>;
+  workflow: Array<{value: string; count: number}>;
+}
+
+export interface WorkflowJobExecutionDepth {
+  runningRuns: number;
+  runningJobExecutions: number;
+}
+
+export interface WorkflowJobExecutionDepthParams {
+  workspaceId?: string;
+}
+
+export async function getWorkflowRunById(id: string): Promise<WorkflowRun | undefined> {
+  const rows = await db().select().from(workflowRuns).where(eq(workflowRuns.id, id)).limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  return toWorkflowRun(row);
+}
+
+export async function getWorkflowRunByAttemptId(
+  workflowRunAttemptId: string,
+): Promise<WorkflowRun | undefined> {
+  const rows = await db()
+    .select({run: workflowRuns})
+    .from(workflowRunAttempts)
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .where(eq(workflowRunAttempts.id, workflowRunAttemptId))
+    .limit(1);
+  const row = rows[0];
+  return row ? toWorkflowRun(row.run) : undefined;
+}
+
+export async function getWorkflowRunAttemptById(workflowRunAttemptId: string) {
+  const rows = await db()
+    .select()
+    .from(workflowRunAttempts)
+    .where(eq(workflowRunAttempts.id, workflowRunAttemptId))
+    .limit(1);
+  const row = rows[0];
+  return row ? toWorkflowRunAttempt(row) : undefined;
+}
+
+export async function listRunAttempts(params: {workflowRunId: string; projectId: string}) {
+  return (
+    await db()
+      .select({
+        attempt: workflowRunAttempts,
+      })
+      .from(workflowRunAttempts)
+      .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+      .where(
+        and(
+          eq(workflowRunAttempts.workflowRunId, params.workflowRunId),
+          eq(workflowRuns.projectId, params.projectId),
+        ),
+      )
+      .orderBy(asc(workflowRunAttempts.attempt))
+  ).map((row) => toWorkflowRunAttempt(row.attempt));
+}
+
+export async function getLatestAttempt(params: {
+  workflowRunId: string;
+  projectId: string;
+}): Promise<number> {
+  const [row] = await db()
+    .select({value: sql<number>`coalesce(max(${workflowRunAttempts.attempt}), 1)`})
+    .from(workflowRunAttempts)
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .where(
+      and(
+        eq(workflowRunAttempts.workflowRunId, params.workflowRunId),
+        eq(workflowRuns.projectId, params.projectId),
+      ),
+    )
+    .limit(1);
+
+  return Number(row?.value ?? 1);
+}
+
+export function buildWorkflowRunListConditions(params: {
+  projectId: string;
+  filters?: WorkflowRunFilters | undefined;
+  cursor?: WorkflowRunCursor | undefined;
+  omit?: 'status' | 'definitionId' | 'triggerSource' | undefined;
+}): SQL[] {
+  const filters = params.filters;
+  const conditions: SQL[] = [eq(workflowRuns.projectId, params.projectId)];
+  const cursorCondition = timestampIdCursorWhere({
+    timestampColumn: workflowRuns.createdAt,
+    idColumn: workflowRuns.id,
+    cursor: params.cursor,
+  });
+  if (cursorCondition) conditions.push(cursorCondition);
+  if (filters?.status && params.omit !== 'status') {
+    conditions.push(eq(workflowRuns.status, filters.status));
+  }
+  if (filters?.definitionId && params.omit !== 'definitionId') {
+    conditions.push(eq(workflowRuns.definitionId, filters.definitionId));
+  }
+  if (filters?.triggerSource && params.omit !== 'triggerSource') {
+    conditions.push(eq(workflowRuns.triggerSource, filters.triggerSource));
+  }
+  if (filters?.createdFrom) {
+    conditions.push(gte(workflowRuns.createdAt, filters.createdFrom));
+  }
+  if (filters?.createdTo) {
+    conditions.push(lte(workflowRuns.createdAt, filters.createdTo));
+  }
+  return conditions;
+}
+
+export async function listWorkflowRuns(
+  params: ListWorkflowRunsParams,
+): Promise<ListWorkflowRunsResult> {
+  const conditions = buildWorkflowRunListConditions(params);
+  const rows = await db()
+    .select()
+    .from(workflowRuns)
+    .where(and(...conditions))
+    .orderBy(desc(workflowRuns.createdAt), desc(workflowRuns.id))
+    .limit(params.limit + 1);
+
+  let totalCount: number | null = null;
+  if (params.includeTotal) {
+    const [{value} = {value: 0}] = await db()
+      .select({value: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({projectId: params.projectId, filters: params.filters}),
+        ),
+      );
+    totalCount = value;
+  }
+
+  const page = paginateTimestampIdRows({rows, limit: params.limit, timestampKey: 'createdAt'});
+
+  return {
+    runs: page.pageRows.map(toWorkflowRun),
+    nextCursor: page.nextCursor,
+    filteredTotalCount: totalCount,
+  };
+}
+
+export async function listWorkflowRunsByProject(projectId: string): Promise<WorkflowRun[]> {
+  const result = await listWorkflowRuns({projectId, limit: 100});
+  return result.runs;
+}
+
+export async function getWorkflowRunAggregates(params: {
+  projectId: string;
+  filters?: WorkflowRunFilters | undefined;
+}): Promise<WorkflowRunAggregates> {
+  const [statusRows, triggerRows, workflowRows] = await Promise.all([
+    db()
+      .select({value: workflowRuns.status, count: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({
+            projectId: params.projectId,
+            filters: params.filters,
+            omit: 'status',
+          }),
+        ),
+      )
+      .groupBy(workflowRuns.status),
+    db()
+      .select({value: workflowRuns.triggerSource, count: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({
+            projectId: params.projectId,
+            filters: params.filters,
+            omit: 'triggerSource',
+          }),
+        ),
+      )
+      .groupBy(workflowRuns.triggerSource),
+    db()
+      .select({value: workflowRuns.definitionId, count: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({
+            projectId: params.projectId,
+            filters: params.filters,
+            omit: 'definitionId',
+          }),
+        ),
+      )
+      .groupBy(workflowRuns.definitionId),
+  ]);
+
+  return {
+    status: statusRows,
+    triggerSource: triggerRows,
+    workflow: workflowRows,
+  };
+}
+
+export async function getWorkflowJobExecutionDepth(
+  params: WorkflowJobExecutionDepthParams = {},
+): Promise<WorkflowJobExecutionDepth> {
+  const runConditions = [eq(workflowRuns.status, 'running')];
+  const jobConditions = [eq(jobExecutions.status, 'running')];
+  if (params.workspaceId) {
+    runConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
+    jobConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
+  }
+
+  const [runRows, jobRows] = await Promise.all([
+    db()
+      .select({value: count()})
+      .from(workflowRuns)
+      .where(and(...runConditions)),
+    db()
+      .select({value: count()})
+      .from(jobExecutions)
+      .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+      .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+      .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+      .where(and(...jobConditions)),
+  ]);
+
+  return {
+    runningRuns: runRows[0]?.value ?? 0,
+    runningJobExecutions: jobRows[0]?.value ?? 0,
+  };
+}
+
+export async function getWorkflowRunDetail(
+  workflowRunId: string,
+  attempt?: number | undefined,
+): Promise<WorkflowRunDetail | undefined> {
+  const [target] = await db()
+    .select({run: workflowRuns, attempt: workflowRunAttempts})
+    .from(workflowRuns)
+    .innerJoin(
+      workflowRunAttempts,
+      and(
+        eq(workflowRunAttempts.workflowRunId, workflowRuns.id),
+        eq(workflowRunAttempts.attempt, attempt ?? workflowRuns.currentAttempt),
+      ),
+    )
+    .where(eq(workflowRuns.id, workflowRunId))
+    .limit(1);
+  if (!target) return undefined;
+
+  const latestAttempt = await getLatestAttempt({
+    workflowRunId: target.run.id,
+    projectId: target.run.projectId,
+  });
+
+  const rows = await db()
+    .select({
+      run: workflowRuns,
+      attemptId: workflowRunAttempts.id,
+      job: jobs,
+      jobExecution: jobExecutions,
+      step: steps,
+      stepAttempt: stepAttempts,
+    })
+    .from(workflowRuns)
+    .innerJoin(workflowRunAttempts, eq(workflowRunAttempts.id, target.attempt.id))
+    .leftJoin(jobs, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .leftJoin(jobExecutions, eq(jobExecutions.jobId, jobs.id))
+    .leftJoin(steps, eq(steps.jobExecutionId, jobExecutions.id))
+    .leftJoin(stepAttempts, eq(stepAttempts.stepId, steps.id))
+    .where(eq(workflowRuns.id, workflowRunId))
+    .orderBy(
+      asc(jobs.position),
+      asc(jobs.id),
+      asc(jobExecutions.sequence),
+      asc(jobExecutions.id),
+      asc(steps.position),
+      asc(steps.id),
+      asc(stepAttempts.executionOrder),
+      asc(stepAttempts.id),
+    );
+
+  return hydrateWorkflowRunDetail(rows, target.attempt, latestAttempt);
+}
+
+export async function getJobExecutionDetail(
+  jobExecutionId: string,
+): Promise<JobExecutionDetail | undefined> {
+  const rows = await db()
+    .select({
+      jobExecution: jobExecutions,
+      step: steps,
+      stepAttempt: stepAttempts,
+    })
+    .from(jobExecutions)
+    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .leftJoin(steps, eq(steps.jobExecutionId, jobExecutions.id))
+    .leftJoin(stepAttempts, eq(stepAttempts.stepId, steps.id))
+    .where(eq(jobExecutions.id, jobExecutionId))
+    .orderBy(
+      asc(steps.position),
+      asc(steps.id),
+      asc(stepAttempts.executionOrder),
+      asc(stepAttempts.id),
+    );
+
+  const first = rows[0];
+  if (!first) return undefined;
+
+  const detail: JobExecutionDetail = {...toJobExecution(first.jobExecution), steps: []};
+  const stepById = new Map<string, StepDetail>();
+  for (const row of rows) {
+    if (row.step) {
+      const step = getOrCreateStepDetail(stepById, detail.steps, row.step);
+      if (row.stepAttempt) {
+        step.attempts.push(toStepAttempt(row.stepAttempt));
+      }
+    }
+  }
+
+  return detail;
+}
+
+function hydrateWorkflowRunDetail(
+  rows: {
+    run: typeof workflowRuns.$inferSelect;
+    attemptId: string;
+    job: typeof jobs.$inferSelect | null;
+    jobExecution: typeof jobExecutions.$inferSelect | null;
+    step: typeof steps.$inferSelect | null;
+    stepAttempt: typeof stepAttempts.$inferSelect | null;
+  }[],
+  attempt: typeof workflowRunAttempts.$inferSelect,
+  latestAttempt: number,
+): WorkflowRunDetail | undefined {
+  const first = rows[0];
+  if (!first) return undefined;
+
+  const detail: WorkflowRunDetail = {
+    ...toWorkflowRun(first.run),
+    runAttempt: toWorkflowRunAttempt(attempt),
+    latestAttempt,
+    jobs: [],
+  };
+  const jobById = new Map<string, WorkflowJobDetail>();
+  const jobExecutionById = new Map<string, JobExecutionDetail>();
+  const stepById = new Map<string, StepDetail>();
+
+  for (const row of rows) {
+    if (!row.job) continue;
+    let job = jobById.get(row.job.id);
+    if (!job) {
+      job = {...toJob(row.job), jobExecutions: []};
+      jobById.set(row.job.id, job);
+      detail.jobs.push(job);
+    }
+
+    if (!row.jobExecution) continue;
+    let jobExecution = jobExecutionById.get(row.jobExecution.id);
+    if (!jobExecution) {
+      jobExecution = {...toJobExecution(row.jobExecution), steps: []};
+      jobExecutionById.set(row.jobExecution.id, jobExecution);
+      job.jobExecutions.push(jobExecution);
+    }
+
+    if (!row.step) continue;
+    const step = getOrCreateStepDetail(stepById, jobExecution.steps, row.step);
+    if (row.stepAttempt) {
+      step.attempts.push(toStepAttempt(row.stepAttempt));
+    }
+  }
+
+  return detail;
+}
+
+function getOrCreateStepDetail(
+  stepById: Map<string, StepDetail>,
+  target: StepDetail[],
+  row: typeof steps.$inferSelect,
+): StepDetail {
+  let step = stepById.get(row.id);
+  if (!step) {
+    step = {...toStep(row), attempts: []};
+    stepById.set(row.id, step);
+    target.push(step);
+  }
+  return step;
+}
