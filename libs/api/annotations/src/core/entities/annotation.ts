@@ -5,6 +5,7 @@ export interface Annotation {
   workspaceId: string;
   projectId: string;
   workflowRunId: string;
+  workflowRunAttempt: number;
   workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;

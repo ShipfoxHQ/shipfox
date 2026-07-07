@@ -1,7 +1,42 @@
 import type {AnnotationStyleDto} from '@shipfox/annotations-dto';
-import {and, eq, sql} from 'drizzle-orm';
+import {and, asc, eq, inArray, sql, type SQL} from 'drizzle-orm';
+import type {Annotation} from '#core/entities/annotation.js';
 import {db} from './db.js';
-import {annotations} from './schema/annotations.js';
+import {annotations, toAnnotation} from './schema/annotations.js';
+
+export const DEFAULT_ANNOTATIONS_READ_LIMIT = 500;
+
+export interface ListAnnotationsForRunAttemptParams {
+  workflowRunId: string;
+  workflowRunAttempt: number;
+  workspaceIds: readonly string[];
+  jobExecutionId?: string | undefined;
+  limit?: number | undefined;
+}
+
+export async function listAnnotationsForRunAttempt(
+  params: ListAnnotationsForRunAttemptParams,
+): Promise<Annotation[]> {
+  if (params.workspaceIds.length === 0) return [];
+
+  const conditions: SQL[] = [
+    eq(annotations.workflowRunId, params.workflowRunId),
+    eq(annotations.workflowRunAttempt, params.workflowRunAttempt),
+    inArray(annotations.workspaceId, [...params.workspaceIds]),
+  ];
+  if (params.jobExecutionId) {
+    conditions.push(eq(annotations.jobExecutionId, params.jobExecutionId));
+  }
+
+  const rows = await db()
+    .select()
+    .from(annotations)
+    .where(and(...conditions))
+    .orderBy(asc(annotations.sequence), asc(annotations.id))
+    .limit(params.limit ?? DEFAULT_ANNOTATIONS_READ_LIMIT);
+
+  return rows.map(toAnnotation);
+}
 
 export interface StoredAnnotation {
   id: string;

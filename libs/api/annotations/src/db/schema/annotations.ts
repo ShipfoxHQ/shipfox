@@ -32,6 +32,7 @@ export const annotations = pgTable(
     workspaceId: uuid('workspace_id').notNull(),
     projectId: uuid('project_id').notNull(),
     workflowRunId: uuid('workflow_run_id').notNull(),
+    workflowRunAttempt: integer('workflow_run_attempt').notNull(),
     workflowRunAttemptId: uuid('workflow_run_attempt_id').notNull(),
     jobId: uuid('job_id').notNull(),
     jobExecutionId: uuid('job_execution_id').notNull(),
@@ -47,8 +48,10 @@ export const annotations = pgTable(
   },
   (table) => [
     uniqueIndex('annotations_job_execution_context_unique').on(table.jobExecutionId, table.context),
+    index('annotations_workflow_run_attempt_idx').on(table.workflowRunId, table.workflowRunAttempt),
     index('annotations_workflow_run_attempt_id_idx').on(table.workflowRunAttemptId),
     index('annotations_job_execution_id_idx').on(table.jobExecutionId),
+    check('annotations_workflow_run_attempt_positive_ck', sql`${table.workflowRunAttempt} > 0`),
     check('annotations_origin_step_attempt_positive_ck', sql`${table.originStepAttempt} > 0`),
     check(
       'annotations_body_bytes_matches_body_ck',
@@ -76,6 +79,7 @@ export function toAnnotation(row: AnnotationDb): Annotation {
     workspaceId: row.workspaceId,
     projectId: row.projectId,
     workflowRunId: row.workflowRunId,
+    workflowRunAttempt: row.workflowRunAttempt,
     workflowRunAttemptId: row.workflowRunAttemptId,
     jobId: row.jobId,
     jobExecutionId: row.jobExecutionId,

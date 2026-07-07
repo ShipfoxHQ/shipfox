@@ -4,6 +4,7 @@ CREATE TABLE "annotations_annotations" (
 	"workspace_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"workflow_run_id" uuid NOT NULL,
+	"workflow_run_attempt" integer NOT NULL,
 	"workflow_run_attempt_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
 	"job_execution_id" uuid NOT NULL,
@@ -16,6 +17,7 @@ CREATE TABLE "annotations_annotations" (
 	"sequence" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "annotations_workflow_run_attempt_positive_ck" CHECK ("annotations_annotations"."workflow_run_attempt" > 0),
 	CONSTRAINT "annotations_origin_step_attempt_positive_ck" CHECK ("annotations_annotations"."origin_step_attempt" > 0),
 	CONSTRAINT "annotations_body_bytes_matches_body_ck" CHECK ("annotations_annotations"."body_bytes" = octet_length("annotations_annotations"."body")),
 	CONSTRAINT "annotations_sequence_positive_ck" CHECK ("annotations_annotations"."sequence" > 0),
@@ -25,5 +27,6 @@ CREATE TABLE "annotations_annotations" (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "annotations_job_execution_context_unique" ON "annotations_annotations" USING btree ("job_execution_id","context");--> statement-breakpoint
+CREATE INDEX "annotations_workflow_run_attempt_idx" ON "annotations_annotations" USING btree ("workflow_run_id","workflow_run_attempt");--> statement-breakpoint
 CREATE INDEX "annotations_workflow_run_attempt_id_idx" ON "annotations_annotations" USING btree ("workflow_run_attempt_id");--> statement-breakpoint
 CREATE INDEX "annotations_job_execution_id_idx" ON "annotations_annotations" USING btree ("job_execution_id");

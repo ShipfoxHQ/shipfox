@@ -33,6 +33,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "workflow_run_attempt": {
+          "name": "workflow_run_attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "workflow_run_attempt_id": {
           "name": "workflow_run_attempt_id",
           "type": "uuid",
@@ -132,6 +138,27 @@
           "method": "btree",
           "with": {}
         },
+        "annotations_workflow_run_attempt_idx": {
+          "name": "annotations_workflow_run_attempt_idx",
+          "columns": [
+            {
+              "expression": "workflow_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workflow_run_attempt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "annotations_workflow_run_attempt_id_idx": {
           "name": "annotations_workflow_run_attempt_id_idx",
           "columns": [
@@ -168,6 +195,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "annotations_workflow_run_attempt_positive_ck": {
+          "name": "annotations_workflow_run_attempt_positive_ck",
+          "value": "\"annotations_annotations\".\"workflow_run_attempt\" > 0"
+        },
         "annotations_origin_step_attempt_positive_ck": {
           "name": "annotations_origin_step_attempt_positive_ck",
           "value": "\"annotations_annotations\".\"origin_step_attempt\" > 0"
