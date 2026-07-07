@@ -83,6 +83,15 @@ interface PendingStepDispatchParams {
   readonly tx: Tx;
 }
 
+interface ResolvePendingStepParams {
+  readonly jobExecutionId: string;
+  readonly steps: Step[];
+  readonly jobExecution: JobExecution;
+  readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
+  readonly jobs: Awaited<ReturnType<typeof getDirectDependencyJobContexts>>;
+  readonly tx: Tx;
+}
+
 type StepConditionOutcome =
   | {kind: 'run'}
   | {
@@ -108,10 +117,9 @@ async function nextStepForJobExecutionInTransaction(
   const hasRunningStep = running !== undefined;
   if (hasRunningStep) return {kind: 'step', step: running};
 
-  let currentSteps = steps;
-  const firstPending = currentSteps.find((step) => step.status === 'pending');
+  const firstPending = steps.find((step) => step.status === 'pending');
   const hasPendingStep = firstPending !== undefined;
-  if (!hasPendingStep) return {kind: 'done', status: deriveCompletion(currentSteps)};
+  if (!hasPendingStep) return {kind: 'done', status: deriveCompletion(steps)};
 
   const jobExecution = await getJobExecutionById(jobExecutionId, tx);
   if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
@@ -119,7 +127,20 @@ async function nextStepForJobExecutionInTransaction(
   const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
   const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
 
+  return resolveNextPendingStep({jobExecutionId, steps, jobExecution, attempts, jobs, tx});
+}
+
+async function resolveNextPendingStep({
+  jobExecutionId,
+  steps,
+  jobExecution,
+  attempts,
+  jobs,
+  tx,
+}: ResolvePendingStepParams): Promise<NextStep> {
   let skippedAny = false;
+  let currentSteps = steps;
+
   while (true) {
     const pending = currentSteps.find((step) => step.status === 'pending');
     if (pending === undefined) {
@@ -388,34 +409,11 @@ async function recordStepResultInTransaction(
 
   if (!hasTargetStep) throw new StepNotFoundError(params.stepId, jobExecutionId);
 
-  // Attempt-aware idempotency, evaluated before the running/terminal checks and
-  // anchored on the step's current attempt (the step_attempts unique constraint
-  // is the race backstop). These DB-state-dependent guards stay in the service;
-  // only the semantic decision below is pure.
   const current = target.currentAttempt;
   const reported = params.attempt ?? current;
-  const reportIsAhead = reported > current;
-  if (reportIsAhead) {
-    // The host allocates attempts; a runner cannot report one ahead of dispatch.
-    throw new StepAttemptAheadError(params.stepId, jobExecution.jobId, reported, current);
-  }
-
-  const reportIsStale = reported < current;
-  if (reportIsStale) {
-    // A stale report from a superseded attempt (e.g. after a rewind bumped the
-    // current attempt). No-op: leave the projection untouched.
-    return {outcome: outcomeFromSteps(steps), metrics: {}};
-  }
-
-  const targetIsTerminal = isTerminal(target.status);
-  // A terminal target is a duplicate report, left untouched.
-  if (targetIsTerminal) return {outcome: outcomeFromSteps(steps), metrics: {}};
-
-  const targetIsPending = target.status === 'pending';
-  // A result may only land on a step that was actually handed out.
-  if (targetIsPending) {
-    throw new StepNotRunningError(params.stepId, jobExecution.jobId);
-  }
+  const reportClassification = classifyReportedStep(target, reported, jobExecution.jobId);
+  if (reportClassification instanceof Error) throw reportClassification;
+  if (reportClassification === 'noop') return {outcome: outcomeFromSteps(steps), metrics: {}};
 
   // Migration/back-compat boundary: a running step may predate the
   // step_attempts table or have been marked running by legacy code. Create
@@ -495,6 +493,24 @@ type OutputCoercionResult =
   | {kind: 'not-applicable'}
   | {kind: 'coerced'; output: Record<string, unknown>}
   | {kind: 'failed'; error: StepOutputCoercionError};
+
+export type ReportedStepClassification = 'proceed' | 'noop' | Error;
+
+export function classifyReportedStep(
+  target: Step,
+  reportedAttempt: number,
+  jobId: string,
+): ReportedStepClassification {
+  const currentAttempt = target.currentAttempt;
+  if (reportedAttempt > currentAttempt) {
+    return new StepAttemptAheadError(target.id, jobId, reportedAttempt, currentAttempt);
+  }
+
+  if (reportedAttempt < currentAttempt) return 'noop';
+  if (isTerminal(target.status)) return 'noop';
+  if (target.status === 'pending') return new StepNotRunningError(target.id, jobId);
+  return 'proceed';
+}
 
 function coerceReportedStepOutput(
   config: Record<string, unknown>,
