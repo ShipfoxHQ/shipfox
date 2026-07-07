@@ -235,7 +235,12 @@ describe('routeEventToJobListeners', () => {
     expect(result).toMatchObject({engagedCount: 0, matchedJobCount: 0, acceptedJobCount: 0});
   });
 
-  it('records filter-error when listener filter evaluation fails', async () => {
+  it.each([
+    {name: 'missing jobs snapshot', filterSnapshot: {}},
+    {name: 'empty jobs snapshot', filterSnapshot: {jobs: {}}},
+  ])('records filter-error when listener filter evaluation fails with $name', async ({
+    filterSnapshot,
+  }) => {
     const workspaceId = crypto.randomUUID();
     await jobListenerSubscriptionFactory.create({
       workspaceId,
@@ -243,7 +248,7 @@ describe('routeEventToJobListeners', () => {
       event: 'pull_request_review',
       config: {
         filter: 'event.issue.number == jobs.build.outputs.pr_number',
-        filter_snapshot: {},
+        filter_snapshot: filterSnapshot,
       },
     });
 
