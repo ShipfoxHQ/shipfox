@@ -4,6 +4,11 @@ import {getLinearInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 
 export type {LinearProvider} from '@shipfox/api-integration-linear-dto';
+export {config} from '#config.js';
+export {
+  LinearConnectionAlreadyLinkedError,
+  LinearInstallationAlreadyLinkedError,
+} from '#core/errors.js';
 export type {
   LinearInstallation,
   LinearInstallationStatus,
