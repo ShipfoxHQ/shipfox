@@ -4,8 +4,8 @@
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.annotations": {
-      "name": "annotations",
+    "public.annotations_annotations": {
+      "name": "annotations_annotations",
       "schema": "",
       "columns": {
         "id": {
@@ -170,23 +170,23 @@
       "checkConstraints": {
         "annotations_origin_step_attempt_positive_ck": {
           "name": "annotations_origin_step_attempt_positive_ck",
-          "value": "\"annotations\".\"origin_step_attempt\" > 0"
+          "value": "\"annotations_annotations\".\"origin_step_attempt\" > 0"
         },
         "annotations_body_bytes_matches_body_ck": {
           "name": "annotations_body_bytes_matches_body_ck",
-          "value": "\"annotations\".\"body_bytes\" = octet_length(\"annotations\".\"body\")"
+          "value": "\"annotations_annotations\".\"body_bytes\" = octet_length(\"annotations_annotations\".\"body\")"
         },
         "annotations_sequence_positive_ck": {
           "name": "annotations_sequence_positive_ck",
-          "value": "\"annotations\".\"sequence\" > 0"
+          "value": "\"annotations_annotations\".\"sequence\" > 0"
         },
         "annotations_context_not_empty_ck": {
           "name": "annotations_context_not_empty_ck",
-          "value": "length(\"annotations\".\"context\") > 0"
+          "value": "length(\"annotations_annotations\".\"context\") > 0"
         },
         "annotations_context_max_length_ck": {
           "name": "annotations_context_max_length_ck",
-          "value": "length(\"annotations\".\"context\") <= 255"
+          "value": "length(\"annotations_annotations\".\"context\") <= 255"
         }
       },
       "isRLSEnabled": false

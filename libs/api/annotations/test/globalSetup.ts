@@ -13,7 +13,7 @@ export async function setup() {
   await db().execute(sql`DROP TABLE IF EXISTS drizzle.__drizzle_migrations_annotations CASCADE`);
   await db().execute(sql`DROP TYPE IF EXISTS annotations_style CASCADE`);
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_annotations');
-  await db().execute(sql`TRUNCATE annotations CASCADE`);
+  await db().execute(sql`TRUNCATE annotations_annotations CASCADE`);
 
   closeDb();
   await closePostgresClient();
