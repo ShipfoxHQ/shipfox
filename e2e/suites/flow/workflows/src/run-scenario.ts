@@ -1,5 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import {createApiClient} from '@shipfox/e2e-core';
+import {readFakeOpenAiModelProviderState} from '@shipfox/e2e-driver-model-provider';
 import {type LocalRunnerHandle, stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import {createSecret} from '@shipfox/e2e-setup-secrets';
@@ -26,6 +27,7 @@ import {seedAndWaitForDefinition, seedWorkflowProject} from './workflow-project.
 
 const REJECTION_NO_RUN_TIMEOUT_MS = 15_000;
 const E2E_SECRET_ACTOR_ID = '11111111-1111-4111-8111-111111111111';
+const FAKE_MODEL_PROVIDER_REQUEST_TIMEOUT_MS = 5_000;
 
 export interface RunScenarioParams {
   scenario: Scenario;
@@ -258,6 +260,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       });
       for (const log of fetchedLogs) await params.attach(log);
       if (runnerLogFile !== undefined) await attachLocalRunnerLog(params.attach, runnerLogFile);
+      await attachFakeModelProviderRequests({attach: params.attach, scenario, suite});
       if (webhookDiagnostics !== undefined) {
         await attachWebhookTriggerDiagnostics({
           attach: params.attach,
@@ -290,6 +293,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       });
     }
     if (runnerLogFile !== undefined) await attachLocalRunnerLog(params.attach, runnerLogFile);
+    await attachFakeModelProviderRequests({attach: params.attach, scenario, suite});
     throw error;
   } finally {
     if (runner !== undefined) {
@@ -297,5 +301,91 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
         process.stderr.write(`platform-e2e: stopLocalRunner failed: ${String(error)}\n`);
       });
     }
+  }
+}
+
+async function attachFakeModelProviderRequests(params: {
+  attach: (attachment: Attachment) => Promise<void>;
+  scenario: Scenario;
+  suite: SuiteContext;
+}): Promise<void> {
+  const scriptKey = params.scenario.fakeModelProviderScriptKey;
+  if (scriptKey === undefined) return;
+
+  const scriptId = params.suite.fakeModelProviderScripts[scriptKey];
+  if (scriptId === undefined) {
+    await attachFakeModelProviderError({
+      attach: params.attach,
+      scenario: params.scenario.name,
+      message: `No fake model provider script is registered for key "${scriptKey}".`,
+    });
+    return;
+  }
+
+  try {
+    const state = await readFakeOpenAiModelProviderState({
+      runId: params.suite.fakeModelProviderRunId,
+    });
+    const response = await fetchWithTimeout(
+      `${state.baseUrl}/scripts/${encodeURIComponent(scriptId)}/requests`,
+      {
+        headers: {authorization: `Bearer ${state.adminToken}`},
+        timeoutMs: FAKE_MODEL_PROVIDER_REQUEST_TIMEOUT_MS,
+      },
+    );
+    const body = await response.text();
+    if (!response.ok)
+      throw new Error(`GET /scripts/${scriptId}/requests returned ${response.status}: ${body}`);
+
+    await params.attach({
+      name: `fake-model-provider-${params.scenario.name}.json`,
+      contentType: 'application/json',
+      body: formatJsonBody(body),
+    });
+  } catch (error) {
+    await attachFakeModelProviderError({
+      attach: params.attach,
+      scenario: params.scenario.name,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function attachFakeModelProviderError(params: {
+  attach: (attachment: Attachment) => Promise<void>;
+  message: string;
+  scenario: string;
+}): Promise<void> {
+  await params.attach({
+    name: `fake-model-provider-${params.scenario}-error.txt`,
+    contentType: 'text/plain',
+    body: params.message,
+  });
+}
+
+function formatJsonBody(body: string): string {
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return body;
+  }
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit & {timeoutMs: number},
+): Promise<Response> {
+  const {timeoutMs, ...requestInit} = init;
+  const abortController = new AbortController();
+  const timer = setTimeout(() => abortController.abort(), timeoutMs);
+  try {
+    return await fetch(url, {...requestInit, signal: abortController.signal});
+  } catch (error) {
+    if (abortController.signal.aborted) {
+      throw new Error(`Fake model provider request timed out after ${timeoutMs}ms: ${url}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
 }

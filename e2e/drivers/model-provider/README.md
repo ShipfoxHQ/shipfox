@@ -48,3 +48,5 @@ POST /scripts/:scriptId/v1/chat/completions
 
 Scripts advance one response per provider request. Exhausted scripts return
 `409 script_exhausted`; assertion failures return `422 script_assertion_failed`.
+Assertions can set `minRequestIndex` when setup probes should use the script before
+scenario-only request assertions apply.

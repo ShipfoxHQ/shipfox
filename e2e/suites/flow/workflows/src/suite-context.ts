@@ -17,6 +17,7 @@ export interface SuiteContext {
   modelProviderId: string;
   agentModel: string;
   fakeModelProviderRunId: string;
+  fakeModelProviderScripts: Record<string, string>;
 }
 
 const runDir = fileURLToPath(new URL('../.e2e-run/', import.meta.url));

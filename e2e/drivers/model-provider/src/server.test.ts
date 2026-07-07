@@ -280,6 +280,40 @@ describe('fake OpenAI model provider server', () => {
     });
   });
 
+  it('can apply request assertions after a setup probe', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'deferred-assertions',
+        assertions: [{kind: 'tool_present', name: 'set_output', minRequestIndex: 1}],
+        responses: [
+          {kind: 'message', content: 'probe-ok'},
+          {kind: 'message', content: 'workflow-ok'},
+        ],
+      }),
+    );
+
+    const probeResult = await chatCompletion(server, 'deferred-assertions', {
+      model: 'deterministic-output-agent',
+      messages: [{role: 'user'}],
+      tools: [],
+    });
+    const workflowResult = await chatCompletion(server, 'deferred-assertions', {
+      model: 'deterministic-output-agent',
+      messages: [{role: 'user'}],
+      tools: [],
+    });
+
+    expect(probeResult.status).toBe(200);
+    expect(workflowResult.status).toBe(422);
+    await expect(workflowResult.json()).resolves.toEqual({
+      error: {
+        message: 'Expected tool set_output to be present',
+        type: 'script_assertion_failed',
+      },
+    });
+  });
+
   it('records request diagnostics and clears them on reset', async () => {
     await postScript(
       server,

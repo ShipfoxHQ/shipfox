@@ -20,6 +20,12 @@ const seededSecretsSchema = z
   })
   .strict();
 
+const modelProviderSchema = z
+  .object({
+    script_key: z.string().min(1),
+  })
+  .strict();
+
 export type SeededSecret = z.infer<typeof seededSecretSchema>;
 
 export interface ScenarioFile {
@@ -34,6 +40,7 @@ interface BaseScenario {
   workflowYaml: string;
   extraFiles: ScenarioFile[];
   seededSecrets: SeededSecret[];
+  fakeModelProviderScriptKey?: string | undefined;
 }
 
 export interface ExpectScenario extends BaseScenario {
@@ -82,6 +89,12 @@ function loadSeededSecrets(dir: string): SeededSecret[] {
   return seededSecretsSchema.parse(yaml.load(readFileSync(path, 'utf8'))).secrets;
 }
 
+function loadModelProviderScriptKey(dir: string): string | undefined {
+  const path = join(dir, 'model-provider.yaml');
+  if (!existsSync(path)) return undefined;
+  return modelProviderSchema.parse(yaml.load(readFileSync(path, 'utf8'))).script_key;
+}
+
 function loadScenario(root: string, name: string): Scenario {
   const dir = join(root, name);
   const workflowPath = requireScenarioFile(dir, name, 'workflow.yml');
@@ -101,6 +114,7 @@ function loadScenario(root: string, name: string): Scenario {
     workflowYaml: readFileSync(workflowPath, 'utf8'),
     extraFiles: readScenarioFiles(join(dir, 'files')),
     seededSecrets: loadSeededSecrets(dir),
+    fakeModelProviderScriptKey: loadModelProviderScriptKey(dir),
   };
 
   if (hasExpect) {

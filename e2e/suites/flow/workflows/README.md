@@ -19,6 +19,7 @@ scenarios/hello-world/
   workflow.yml    pushed verbatim to .shipfox/workflows/hello-world.yml
   expect.yaml     declarative expectations (run/job/step status, job status reason, step error, exit code, logs)
   reject.yaml     alternative to expect.yaml for authoring-time rejection scenarios
+  model-provider.yaml optional fake model-provider script metadata
   secrets.yaml    optional E2E setup secrets to seed before the run
   files/          optional extra repo files, committed alongside the workflow
 ```
@@ -78,6 +79,26 @@ Assertions that are only observable inside the runner (checkout contents, env
 propagation) are written as self-asserting `run` steps in the workflow itself; the
 manifest then only asserts the run succeeded.
 
+### model-provider.yaml
+
+Use `model-provider.yaml` only for scenarios backed by the deterministic
+`@shipfox/e2e-driver-model-provider` sidecar:
+
+```yaml
+script_key: agent-output-tool
+```
+
+`globalSetup` starts the sidecar, creates known scenario scripts, and writes a
+`script_key` to script id map into the suite context. `runScenario` uses that map to
+attach `GET /scripts/:scriptId/requests` to failing Playwright results. The attachment
+contains each provider request's index, model, advertised tools, message roles, served
+response, and assertion failures.
+
+The flow suite uses the fake provider for `agent-output-tool` output-plumbing coverage.
+The script is registered as a normal `openai-completions` custom provider through the
+product HTTP route; the API has no `/__e2e` fake-provider control surface. Required
+script assertions are the deterministic model name and `set_output` tool presence.
+
 ### reject.yaml
 
 Use `reject.yaml` instead of `expect.yaml` when the workflow must be rejected during
@@ -104,7 +125,7 @@ localhost API and gitea URLs are correct for the standard dev stack.
 # 1. Infrastructure (postgres, temporal, garage, gitea)
 docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
 
-# 2. Local Ollama for the runner agent-step scenario.
+# 2. Local Ollama for the single Ollama-backed runner agent-step scenario.
 mise run ollama:up
 
 # 3. Start the API/client dev servers and run the suite.
