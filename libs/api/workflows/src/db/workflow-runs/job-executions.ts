@@ -3,8 +3,7 @@ import {and, asc, desc, eq, isNull, notInArray, sql} from 'drizzle-orm';
 import type {JobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
 import {InterpolationUnresolvableError, JobNotFoundError} from '#core/errors.js';
-import {assembleExecutionResolutionContext} from '#core/step-config/assemble-run-context.js';
-import {materializeJobOutputs} from '#core/step-config/materialize-workflow-model.js';
+import {deriveJobExecutionOutputs} from '#core/job-transition/index.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import {
@@ -166,10 +165,15 @@ async function resolveJobExecutionOutputs(
     .orderBy(asc(stepAttempts.executionOrder), asc(stepAttempts.id));
   const dependencyJobs = await getDirectDependencyJobContexts(target.job.id, tx);
 
-  const context = assembleExecutionResolutionContext({
+  return deriveJobExecutionOutputs({
     run: toWorkflowRun(target.run),
-    triggerPayload: target.run.triggerPayload,
-    inputs: target.run.inputs,
+    modelJob,
+    job: toJob(target.job),
+    jobExecution,
+    executions,
+    steps: stepRows.map(toStep),
+    attempts: attemptRows.map(toStepAttempt),
+    jobs: dependencyJobs,
     vars: await loadReferencedVariables({
       model,
       jobs: [modelJob],
@@ -177,18 +181,6 @@ async function resolveJobExecutionOutputs(
       projectId: target.run.projectId,
       definitionId: target.run.definitionId,
     }),
-    job: toJob(target.job),
-    jobExecution,
-    executions,
-    steps: stepRows.map(toStep),
-    attempts: attemptRows.map(toStepAttempt),
-    jobs: dependencyJobs,
-  });
-
-  return materializeJobOutputs({
-    job: modelJob,
-    context,
-    definitionId: target.run.definitionId,
   });
 }
 

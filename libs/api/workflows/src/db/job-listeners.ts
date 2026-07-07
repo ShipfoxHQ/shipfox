@@ -7,6 +7,7 @@ import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm
 import {loadAgentToolMaterializationContext} from '#core/agent-tools.js';
 import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
+import {deriveJobSuccess} from '#core/job-transition/index.js';
 import {
   type MaterializedListenerExecution,
   materializeListenerExecution,
@@ -32,7 +33,6 @@ import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
 import {
   bulkUpdateStepStatuses,
-  evaluateJobSuccess,
   getDirectDependencyJobContexts,
   updateJobStatusAtVersion,
 } from './workflow-runs.js';
@@ -292,7 +292,7 @@ export async function resolveJobListener(params: {
       .from(jobExecutions)
       .where(eq(jobExecutions.jobId, params.jobId))
       .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
-    const {status, statusReason, trace} = evaluateJobSuccess({
+    const {status, statusReason, trace} = deriveJobSuccess({
       success: jobRow.success,
       executions: executionRows.map(toJobExecution),
     });

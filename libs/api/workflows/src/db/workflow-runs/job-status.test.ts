@@ -1,11 +1,9 @@
 import {eq, sql} from 'drizzle-orm';
-import type {JobExecution} from '#core/entities/job-execution.js';
 import {buildModel, createTestRun, jobTerminatedEvents} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {jobs} from '../schema/jobs.js';
 import {
   createWorkflowRun,
-  evaluateJobSuccess,
   getFirstJobExecutionByJobId,
   getJobsByWorkflowRunId,
   resolveJobStatusFromJobExecutions,
@@ -25,46 +23,6 @@ describe('workflow run queries', () => {
   });
 
   describe('resolveJobStatusFromJobExecutions', () => {
-    function execution(status: 'succeeded' | 'failed' | 'cancelled'): JobExecution {
-      return {
-        id: crypto.randomUUID(),
-        jobId: crypto.randomUUID(),
-        sequence: 1,
-        name: 'build',
-        runner: null,
-        status,
-        statusReason: status === 'failed' ? 'step_failed' : null,
-        outputs: null,
-        triggerEvents: [],
-        version: 1,
-        createdAt: new Date('2026-01-01T00:00:00.000Z'),
-        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-        queuedAt: null,
-        startedAt: null,
-        finishedAt: null,
-        timedOutAt: null,
-      };
-    }
-
-    test('treats zero or cancelled listener executions as successful by default', () => {
-      const empty = evaluateJobSuccess({success: null, executions: []});
-      const cancelled = evaluateJobSuccess({success: null, executions: [execution('cancelled')]});
-
-      expect(empty).toMatchObject({status: 'succeeded', statusReason: null});
-      expect(cancelled).toMatchObject({status: 'succeeded', statusReason: null});
-      expect(empty.trace).toEqual([
-        {
-          expression: "!executions.exists(e, e.status == 'failed')",
-          roots: ['executions'],
-          fillTarget: 'job-resolution',
-          evaluatedAt: 'job-resolution',
-          value: 'true',
-          field: 'job.success',
-        },
-      ]);
-      expect(cancelled.trace).toEqual(empty.trace);
-    });
-
     test('fails closed when a job has no executions', async () => {
       const run = await createWorkflowRun({
         workspaceId,

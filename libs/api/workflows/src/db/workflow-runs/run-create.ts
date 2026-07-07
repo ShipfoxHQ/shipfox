@@ -17,17 +17,12 @@ import type {
   WorkflowSourceSnapshot,
 } from '#core/entities/workflow-run.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
-import {
-  assembleCreationContext,
-  assembleExecutionCreationContext,
-} from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
-import {
-  materializeJobRunner,
-  materializeWorkflowModel,
-} from '#core/step-config/materialize-workflow-model.js';
-import {resolveJobExecutionName} from '#core/step-config/resolve-job-execution-name.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
+import {
+  deriveInitialJobExecutionPlan,
+  materializeWorkflowRunJobs,
+} from '#core/workflow-run-creation.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
 import {db} from '../db.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
@@ -131,15 +126,12 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       projectId: params.projectId,
       definitionId: params.definitionId,
     });
-    const context = assembleCreationContext({
+    const materializedJobs = materializeWorkflowRunJobs({
       run,
+      model: params.model,
       triggerPayload: params.triggerPayload,
       inputs: params.inputs ?? null,
       vars,
-    });
-    const materializedJobs = materializeWorkflowModel({
-      model: params.model,
-      context,
       resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
       definitionId: params.definitionId,
       agentToolContext,
@@ -241,51 +233,27 @@ function materializeRunGraphJobs(params: {
       if (jobRow.mode === 'listening') return undefined;
 
       const fallbackName = `${jobRow.key} #1`;
-      const context = assembleExecutionCreationContext({
-        run: params.run,
-        triggerPayload: params.params.triggerPayload,
-        inputs: params.params.inputs ?? null,
-        vars: params.vars,
-        jobId: jobRow.id,
-        sequence: 1,
-        executionName: fallbackName,
-        status: 'pending',
-        triggerEvents: [],
-        priorExecutions: [],
-      });
-      const resolvedName = resolveJobExecutionName({
-        definitionId: params.params.definitionId,
-        job,
-        fallbackName,
-        context: context.values,
-      });
       const modelJob = params.params.model.jobs[jobIndex];
       if (!modelJob) return undefined;
-
-      const runnerContext = assembleExecutionCreationContext({
+      const executionPlan = deriveInitialJobExecutionPlan({
         run: params.run,
+        modelJob,
+        job,
+        jobId: jobRow.id,
+        sequence: 1,
+        fallbackName,
         triggerPayload: params.params.triggerPayload,
         inputs: params.params.inputs ?? null,
         vars: params.vars,
-        jobId: jobRow.id,
-        sequence: 1,
-        executionName: resolvedName.value,
-        status: 'pending',
-        triggerEvents: [],
-        priorExecutions: [],
-      });
-      const runner = materializeJobRunner({
-        job: modelJob,
-        context: runnerContext,
-        definitionId: params.params.definitionId,
       });
 
       return {
         sequence: 1,
-        name: resolvedName.value,
-        runner: [...runner],
+        name: executionPlan.name,
+        runner: [...executionPlan.runner],
         status: 'pending' as const,
-        evaluationTrace: resolvedName.trace.length === 0 ? null : resolvedName.trace,
+        evaluationTrace:
+          executionPlan.evaluationTrace?.length === 0 ? null : executionPlan.evaluationTrace,
       };
     },
     createSteps: () =>
