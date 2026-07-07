@@ -11,7 +11,7 @@ describe('listAnnotationsForRunAttempt', () => {
         workflowRunId,
         workflowRunAttempt: 2,
         jobExecutionId: crypto.randomUUID(),
-        context: 'second',
+        context: 'a-second',
         sequence: 2,
       }),
       annotationFactory.create({
@@ -19,7 +19,7 @@ describe('listAnnotationsForRunAttempt', () => {
         workflowRunId,
         workflowRunAttempt: 2,
         jobExecutionId: crypto.randomUUID(),
-        context: 'first',
+        context: 'z-first',
         sequence: 1,
       }),
     ]);
@@ -95,6 +95,36 @@ describe('listAnnotationsForRunAttempt', () => {
     });
 
     expect(result).toEqual([visible]);
+  });
+
+  it('limits returned annotations', async () => {
+    const workspaceId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
+    const [first] = await Promise.all([
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        jobExecutionId: crypto.randomUUID(),
+        context: 'first',
+        sequence: 1,
+      }),
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        jobExecutionId: crypto.randomUUID(),
+        context: 'second',
+        sequence: 2,
+      }),
+    ]);
+
+    const result = await listAnnotationsForRunAttempt({
+      workflowRunId,
+      workflowRunAttempt: 1,
+      workspaceIds: [workspaceId],
+      limit: 1,
+    });
+
+    expect(result).toEqual([first]);
   });
 
   it('returns an empty list when the user has no workspace memberships', async () => {

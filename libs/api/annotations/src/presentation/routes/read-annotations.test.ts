@@ -50,12 +50,14 @@ describe('GET /annotations', () => {
     workflowRunId: string;
     attempt: number;
     jobExecutionId?: string | undefined;
+    limit?: number | undefined;
   }) {
     const search = new URLSearchParams({
       workflow_run_id: params.workflowRunId,
       attempt: String(params.attempt),
     });
     if (params.jobExecutionId) search.set('job_execution_id', params.jobExecutionId);
+    if (params.limit !== undefined) search.set('limit', String(params.limit));
     return `/annotations?${search.toString()}`;
   }
 
@@ -157,10 +159,64 @@ describe('GET /annotations', () => {
     expect(res.json()).toEqual({annotations: []});
   });
 
+  it('limits the returned annotations when requested', async () => {
+    const workspaceId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
+    const first = await annotationFactory.create({
+      workspaceId,
+      workflowRunId,
+      jobExecutionId: crypto.randomUUID(),
+      context: 'first',
+      sequence: 1,
+    });
+    await annotationFactory.create({
+      workspaceId,
+      workflowRunId,
+      jobExecutionId: crypto.randomUUID(),
+      context: 'second',
+      sequence: 2,
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: readUrl({workflowRunId, attempt: 1, limit: 1}),
+      headers: {authorization: 'Bearer user', 'x-test-workspaces': workspaceId},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().annotations).toEqual([
+      expect.objectContaining({
+        id: first.id,
+        context: 'first',
+        sequence: 1,
+      }),
+    ]);
+  });
+
   it('rejects malformed query values', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/annotations?workflow_run_id=not-a-uuid&attempt=0',
+      headers: {authorization: 'Bearer user', 'x-test-workspaces': crypto.randomUUID()},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects attempts outside the database integer range', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: readUrl({workflowRunId: crypto.randomUUID(), attempt: 2_147_483_648}),
+      headers: {authorization: 'Bearer user', 'x-test-workspaces': crypto.randomUUID()},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects limits above the server response cap', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: readUrl({workflowRunId: crypto.randomUUID(), attempt: 1, limit: 501}),
       headers: {authorization: 'Bearer user', 'x-test-workspaces': crypto.randomUUID()},
     });
 
