@@ -1,5 +1,6 @@
 import {
   ANNOTATION_CONTEXT_MAX_LENGTH,
+  ANNOTATION_CONTEXT_TRIM_CODE_POINTS,
   leasedWriteAnnotationsBodySchema,
   readAnnotationsResponseSchema,
 } from './annotation.js';
@@ -61,6 +62,18 @@ describe('annotation schemas', () => {
 
     expect(body.annotations[0]?.context).toBe(maxLengthContext);
     expect(parseTooLong).toThrow();
+  });
+
+  it('keeps exported trim code points aligned with JavaScript trim', () => {
+    const javascriptTrimCodePoints: number[] = [];
+    for (let codePoint = 0; codePoint <= 0xffff; codePoint += 1) {
+      const character = String.fromCodePoint(codePoint);
+      if (`${character}deploy${character}`.trim() === 'deploy') {
+        javascriptTrimCodePoints.push(codePoint);
+      }
+    }
+
+    expect(ANNOTATION_CONTEXT_TRIM_CODE_POINTS).toEqual(javascriptTrimCodePoints);
   });
 
   it('accepts the read response annotation DTO shape', () => {

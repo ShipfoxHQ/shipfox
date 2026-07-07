@@ -2,6 +2,10 @@ import {z} from 'zod';
 
 export const ANNOTATION_STYLES = ['default', 'info', 'success', 'warning', 'error'] as const;
 export const ANNOTATION_CONTEXT_MAX_LENGTH = 255;
+export const ANNOTATION_CONTEXT_TRIM_CODE_POINTS = [
+  9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201,
+  8202, 8232, 8233, 8239, 8287, 12288, 65279,
+] as const;
 
 function hasMaxCodePoints(value: string, maxCodePoints: number): boolean {
   let count = 0;

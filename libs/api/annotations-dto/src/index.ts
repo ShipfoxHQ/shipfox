@@ -1,5 +1,6 @@
 export {
   ANNOTATION_CONTEXT_MAX_LENGTH,
+  ANNOTATION_CONTEXT_TRIM_CODE_POINTS,
   ANNOTATION_STYLES,
   type AnnotationDto,
   type AnnotationStyleDto,
