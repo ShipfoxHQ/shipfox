@@ -3,7 +3,10 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
-import type {AgentToolMaterializationContext} from './agent-tools.js';
+import type {
+  AgentToolMaterializationContext,
+  AgentToolMaterializationSnapshot,
+} from './agent-tools.js';
 import type {Job} from './entities/job.js';
 import type {
   JobExecution,
@@ -14,6 +17,7 @@ import type {PersistedEvaluationTraceEntry} from './entities/step.js';
 import type {WorkflowRun} from './entities/workflow-run.js';
 import {
   AgentConfigUnresolvableError,
+  AgentIntegrationMaterializationError,
   InterpolationUnresolvableError,
   InvalidJobRunnerLabelsError,
 } from './errors.js';
@@ -44,6 +48,7 @@ export interface MaterializeListenerExecutionParams {
   readonly priorExecutions: readonly JobExecution[];
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
+  readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }
 
 export interface MaterializedListenerExecution {
@@ -97,6 +102,7 @@ export function materializeListenerExecution(
       resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
       definitionId: params.run.definitionId,
       agentToolContext: params.agentToolContext,
+      agentToolSnapshot: params.agentToolSnapshot,
     });
   } catch (error) {
     if (!isPermanentListenerMaterializationError(error)) throw error;
@@ -150,6 +156,7 @@ function isPermanentListenerMaterializationError(error: unknown): boolean {
     error instanceof PermanentListenerMaterializationError ||
     error instanceof InterpolationUnresolvableError ||
     error instanceof InvalidJobRunnerLabelsError ||
-    error instanceof AgentConfigUnresolvableError
+    error instanceof AgentConfigUnresolvableError ||
+    error instanceof AgentIntegrationMaterializationError
   );
 }

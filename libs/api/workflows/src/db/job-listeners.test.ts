@@ -457,6 +457,97 @@ describe('drainListenerEventsIntoExecution', () => {
     expect(events.every((event) => event.consumedByExecutionId === executions[0]?.id)).toBe(true);
   });
 
+  it('uses the frozen agent tool materialization snapshot for listener executions', async () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              prompt: 'Review the pull request.',
+              integrations: [{include: ['issue_read.get'], allowWrite: false}],
+            },
+          ],
+        },
+      },
+    });
+    const modelJob = model.jobs[0];
+    const modelStep = modelJob?.steps[0];
+    if (modelJob === undefined || modelStep === undefined) throw new Error('Expected model step');
+    const job = await createListeningJobFromModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              prompt: 'Review the pull request.',
+              integrations: [{include: ['issue_read.get'], allowWrite: false}],
+            },
+          ],
+        },
+      },
+    });
+    const frozenIntegrations = [
+      {
+        connectionId: crypto.randomUUID(),
+        connectionSlug: 'github',
+        provider: 'github',
+        repos: ['github:shipfox/platform'],
+        requiredScope: [{permission: 'issues', access: 'read'}],
+        tools: [
+          {
+            id: 'issue_read',
+            sensitivity: 'read' as const,
+            sensitive: false,
+            requiredScope: [{permission: 'issues', access: 'read'}],
+            inputSchema: {type: 'object'},
+            methods: [
+              {
+                id: 'get',
+                token: 'issue_read.get',
+                sensitivity: 'read' as const,
+                sensitive: false,
+                requiredScope: [{permission: 'issues', access: 'read'}],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    await db()
+      .update(workflowRunAttempts)
+      .set({
+        agentToolMaterialization: {
+          steps: [{jobKey: modelJob.key, stepId: modelStep.id, integrations: frozenIntegrations}],
+        },
+      })
+      .where(eq(workflowRunAttempts.id, job.workflowRunAttemptId));
+    await bufferEvent(job.id);
+
+    const result = await drainListenerEventsIntoExecution({
+      jobId: job.id,
+      expectedSequence: 1,
+      resolveAgentDefaults: () => ({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      }),
+    });
+
+    const [execution] = await db()
+      .select()
+      .from(jobExecutions)
+      .where(and(eq(jobExecutions.jobId, job.id), eq(jobExecutions.sequence, 1)));
+    const executionSteps = await db()
+      .select()
+      .from(steps)
+      .where(eq(steps.jobExecutionId, execution?.id as string))
+      .orderBy(asc(steps.position));
+    expect(result).toMatchObject({kind: 'execution', status: 'pending'});
+    expect(executionSteps.find((step) => step.type === 'agent')?.config.integrations).toEqual(
+      frozenIntegrations,
+    );
+  });
+
   it('caps a drain at maxSize and leaves the remainder buffered for the next firing', async () => {
     const job = await createListeningJob({status: 'running', listenerStatus: 'listening'});
     for (let index = 0; index < 5; index += 1) {

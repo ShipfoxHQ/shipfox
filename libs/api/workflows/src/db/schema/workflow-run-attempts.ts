@@ -2,6 +2,7 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {check, integer, jsonb, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
 import {pgTable} from './common.js';
 import {workflowRunRerunModeEnum, workflowRunStatusEnum, workflowRuns} from './workflow-runs.js';
@@ -18,6 +19,9 @@ export const workflowRunAttempts = pgTable(
     rerunMode: workflowRunRerunModeEnum('rerun_mode'),
     rerunByUserId: uuid('rerun_by_user_id'),
     model: jsonb('model').$type<WorkflowModel>(),
+    agentToolMaterialization: jsonb(
+      'agent_tool_materialization',
+    ).$type<AgentToolMaterializationSnapshot>(),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -45,6 +49,7 @@ export function toWorkflowRunAttempt(row: WorkflowRunAttemptDb): WorkflowRunAtte
     rerunMode: row.rerunMode ?? null,
     rerunByUserId: row.rerunByUserId,
     model: row.model ?? null,
+    agentToolMaterialization: row.agentToolMaterialization ?? null,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -36,6 +36,16 @@ export interface AgentToolMaterializationContext {
   readonly defaultRepositoryId: string;
 }
 
+export interface AgentToolMaterializationSnapshot {
+  readonly steps: readonly AgentToolMaterializationSnapshotStep[];
+}
+
+export interface AgentToolMaterializationSnapshotStep {
+  readonly jobKey: string;
+  readonly stepId: string;
+  readonly integrations: readonly MaterializedAgentIntegrationConfigDto[];
+}
+
 interface SelectedToolState {
   readonly entry: AgentToolCatalogEntry;
   readonly methods: Map<string, AgentToolCatalogMethod>;
@@ -95,9 +105,14 @@ export async function loadAgentToolMaterializationContext(params: {
 }
 
 export function materializeAgentIntegrations(params: {
+  readonly jobKey: string;
+  readonly stepId: string;
   readonly integrations: readonly WorkflowModelStepIntegration[] | undefined;
   readonly context: AgentToolMaterializationContext | undefined;
+  readonly snapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }): MaterializedAgentIntegrationConfigDto[] | undefined {
+  const snapshot = findSnapshotStep(params);
+  if (snapshot !== undefined) return snapshot.integrations.map(copyMaterializedIntegration);
   if (params.integrations === undefined) return undefined;
   if (params.context === undefined) {
     throw new AgentIntegrationMaterializationError(
@@ -108,6 +123,45 @@ export function materializeAgentIntegrations(params: {
 
   return params.integrations.map((integration) =>
     materializeAgentIntegration({integration, context}),
+  );
+}
+
+export function createAgentToolMaterializationSnapshot(params: {
+  readonly model: WorkflowModel;
+  readonly context: AgentToolMaterializationContext | undefined;
+}): AgentToolMaterializationSnapshot | null {
+  if (params.context === undefined) return null;
+
+  const steps = params.model.jobs.flatMap((job) =>
+    job.steps.flatMap((step) => {
+      if (step.kind !== 'agent' || step.integrations === undefined) return [];
+      const integrations = materializeAgentIntegrations({
+        jobKey: job.key,
+        stepId: step.id,
+        integrations: step.integrations,
+        context: params.context,
+      });
+      if (integrations === undefined) return [];
+      return [
+        {
+          jobKey: job.key,
+          stepId: step.id,
+          integrations,
+        },
+      ];
+    }),
+  );
+
+  return steps.length === 0 ? null : {steps};
+}
+
+function findSnapshotStep(params: {
+  readonly jobKey: string;
+  readonly stepId: string;
+  readonly snapshot?: AgentToolMaterializationSnapshot | null | undefined;
+}): AgentToolMaterializationSnapshotStep | undefined {
+  return params.snapshot?.steps.find(
+    (step) => step.jobKey === params.jobKey && step.stepId === params.stepId,
   );
 }
 
@@ -137,6 +191,28 @@ function materializeAgentIntegration(params: {
     repos: [...(params.integration.repos ?? [params.context.defaultRepositoryId])],
     requiredScope,
     tools,
+  };
+}
+
+function copyMaterializedIntegration(
+  integration: MaterializedAgentIntegrationConfigDto,
+): MaterializedAgentIntegrationConfigDto {
+  return {
+    ...integration,
+    repos: [...integration.repos],
+    requiredScope: [...integration.requiredScope],
+    tools: integration.tools.map((tool) => ({
+      ...tool,
+      requiredScope: [...tool.requiredScope],
+      ...(tool.methods === undefined
+        ? {}
+        : {
+            methods: tool.methods.map((method) => ({
+              ...method,
+              requiredScope: [...method.requiredScope],
+            })),
+          }),
+    })),
   };
 }
 

@@ -10,6 +10,7 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
 import {
   type AgentToolMaterializationContext,
+  type AgentToolMaterializationSnapshot,
   materializeAgentIntegrations,
 } from '#core/agent-tools.js';
 import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
@@ -41,12 +42,14 @@ interface AgentFieldResolutions {
 }
 
 export interface ResolveAgentStepConfigParams {
+  readonly jobKey: string;
   readonly step: WorkflowModelAgentStep;
   readonly context: WorkflowEvaluationContext;
   readonly mode: StepConfigMode;
   readonly definitionId: string;
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
+  readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }
 
 export interface AgentStepConfig {
@@ -120,7 +123,7 @@ export function completeAgentConfig(params: {
   params.config.thinking = defaults.thinking;
   params.config.prompt = prompt;
   if (agent.tools !== undefined) params.config.tools = [...agent.tools];
-  if (agent.integrations !== undefined) params.config.integrations = agent.integrations;
+  if (agent.integrations !== undefined) params.config.integrations = [...agent.integrations];
 }
 
 function completeAgentField(args: {
@@ -248,7 +251,7 @@ function deferredAgentStepConfig(
         ...(step.harness === undefined ? {} : {harness: step.harness}),
         ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
         ...agentToolsConfig(step),
-        ...materializedAgentIntegrationsConfig(step, params.agentToolContext),
+        ...materializedAgentIntegrationsConfig(params),
       },
     },
     diagnostics: fields.diagnostics,
@@ -286,7 +289,7 @@ function agentStepConfigWithDefaults(
         agent: {
           prompt: dispatchPlanField(fields.prompt),
           ...agentToolsConfig(step),
-          ...materializedAgentIntegrationsConfig(step, params.agentToolContext),
+          ...materializedAgentIntegrationsConfig(params),
         },
       },
       diagnostics: fields.diagnostics,
@@ -303,7 +306,7 @@ function agentStepConfigWithDefaults(
       harness: resolved.harness,
       thinking: resolved.thinking,
       ...agentToolsConfig(step),
-      ...materializedAgentIntegrationsConfig(step, params.agentToolContext),
+      ...materializedAgentIntegrationsConfig(params),
       prompt: promptValue,
     },
     configPlan: null,
@@ -328,12 +331,17 @@ function authoredAgentIntegrationsConfig(
 }
 
 function materializedAgentIntegrationsConfig(
-  step: WorkflowModelAgentStep,
-  context: AgentToolMaterializationContext | undefined,
+  params: ResolveAgentStepConfigParams,
 ):
   | {readonly integrations: readonly MaterializedAgentIntegrationConfigDto[]}
   | Record<string, never> {
-  const integrations = materializeAgentIntegrations({integrations: step.integrations, context});
+  const integrations = materializeAgentIntegrations({
+    jobKey: params.jobKey,
+    stepId: params.step.id,
+    integrations: params.step.integrations,
+    context: params.agentToolContext,
+    snapshot: params.agentToolSnapshot,
+  });
   return integrations === undefined ? {} : {integrations};
 }
 

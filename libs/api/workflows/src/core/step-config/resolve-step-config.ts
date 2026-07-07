@@ -6,7 +6,10 @@ import {
   type EvaluationTraceLimitEntry,
   type WorkflowExpressionEvaluationContext,
 } from '@shipfox/expression';
-import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
+import type {
+  AgentToolMaterializationContext,
+  AgentToolMaterializationSnapshot,
+} from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {resolveAgentStepConfig} from './agent.js';
 import {
@@ -35,6 +38,7 @@ export interface ResolvedStepConfig {
 }
 
 export interface ResolveStepConfigParams {
+  readonly jobKey: string;
   readonly step: WorkflowModelStep;
   readonly workflowEnv: WorkflowModel['env'];
   readonly workflowEnvTemplates: WorkflowEnvTemplates | undefined;
@@ -45,6 +49,7 @@ export interface ResolveStepConfigParams {
   readonly resolveAgentDefaults: AgentDefaultsResolver;
   readonly definitionId: string;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
+  readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }
 
 type BuildStepConfigParams = ResolveStepConfigParams & {readonly mode: StepConfigMode};
