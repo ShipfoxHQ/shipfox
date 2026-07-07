@@ -1,3 +1,7 @@
+import {IntegrationProviderError} from '@shipfox/api-integration-core-dto';
+
+export class LinearIntegrationProviderError extends IntegrationProviderError {}
+
 export class LinearInstallationAlreadyLinkedError extends Error {
   constructor(organizationId: string) {
     super(`Linear organization is already linked to another Shipfox workspace: ${organizationId}`);
@@ -11,5 +15,26 @@ export class LinearConnectionAlreadyLinkedError extends Error {
       `Integration connection is already linked to another Linear organization: ${connectionId}`,
     );
     this.name = 'LinearConnectionAlreadyLinkedError';
+  }
+}
+
+export class LinearConnectionNotFoundError extends Error {
+  constructor(connectionId: string) {
+    super(`Linear integration connection was not found: ${connectionId}`);
+    this.name = 'LinearConnectionNotFoundError';
+  }
+}
+
+export class LinearAccessTokenMissingError extends Error {
+  constructor(connectionId: string) {
+    super(`Linear access token is missing for connection: ${connectionId}`);
+    this.name = 'LinearAccessTokenMissingError';
+  }
+}
+
+export class LinearTokenUnrefreshableError extends Error {
+  constructor(public readonly connectionId: string) {
+    super(`Linear token cannot be refreshed; reconnect is required: ${connectionId}`);
+    this.name = 'LinearTokenUnrefreshableError';
   }
 }

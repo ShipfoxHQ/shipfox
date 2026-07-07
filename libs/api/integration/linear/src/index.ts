@@ -5,6 +5,8 @@ import {getLinearInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 
 export type {LinearProvider} from '@shipfox/api-integration-linear-dto';
+export type {LinearApiClient, LinearAuthorization, LinearIdentity} from '#api/client.js';
+export {createLinearApiClient} from '#api/client.js';
 export type {
   LinearAgentToolCatalogEntry,
   LinearAgentToolCategory,
@@ -16,19 +18,38 @@ export {
   linearAgentToolSelectionCatalog,
 } from '#core/agent-tools.js';
 export {
+  LinearAccessTokenMissingError,
   LinearConnectionAlreadyLinkedError,
+  LinearConnectionNotFoundError,
   LinearInstallationAlreadyLinkedError,
+  LinearIntegrationProviderError,
+  LinearTokenUnrefreshableError,
 } from '#core/errors.js';
+export type {
+  CreateLinearTokenStoreParams,
+  GetLinearAccessTokenParams,
+  LinearConnectionResolverResult,
+  LinearSecretsStore,
+  LinearTokenStore,
+  StoreLinearTokensParams,
+} from '#core/tokens.js';
+export {
+  createLinearTokenStore,
+  linearSecretsNamespace,
+} from '#core/tokens.js';
 export type {
   LinearInstallation,
   LinearInstallationStatus,
+  UpdateLinearInstallationTokenExpiryParams,
   UpsertLinearInstallationParams,
 } from '#db/installations.js';
 export {
   getLinearInstallationByConnectionId,
   getLinearInstallationByOrganizationId,
   markLinearInstallationRevoked,
+  updateLinearInstallationTokenExpiry,
   upsertLinearInstallation,
+  withLinearRefreshLock,
 } from '#db/installations.js';
 export {closeDb, config, db, migrationsPath};
 

@@ -2017,18 +2017,27 @@ importers:
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../linear-dto
+      '@shipfox/api-secrets':
+        specifier: workspace:*
+        version: link:../../secrets
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../../shared/node/opentelemetry
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../../shared/node/postgres
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+      ky:
+        specifier: ^2.0.0
+        version: 2.0.2
       zod:
         specifier: ^4.4.3
         version: 4.4.3

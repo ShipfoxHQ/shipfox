@@ -1,3 +1,4 @@
+import {pgClient} from '@shipfox/node-postgres';
 import {eq} from 'drizzle-orm';
 import {
   LinearConnectionAlreadyLinkedError,
@@ -29,6 +30,12 @@ export interface UpsertLinearInstallationParams {
   scopes: string[];
   tokenExpiresAt?: Date | null | undefined;
   status: LinearInstallationStatus;
+}
+
+export interface UpdateLinearInstallationTokenExpiryParams {
+  connectionId: string;
+  tokenExpiresAt: Date | null;
+  scopes?: string[] | undefined;
 }
 
 type LinearDb = ReturnType<typeof db>;
@@ -128,6 +135,24 @@ export async function getLinearInstallationByOrganizationId(
   return toLinearInstallation(row);
 }
 
+export async function updateLinearInstallationTokenExpiry(
+  params: UpdateLinearInstallationTokenExpiryParams,
+  options: {tx?: unknown} = {},
+): Promise<LinearInstallation | undefined> {
+  const executor = (options.tx ?? db()) as LinearDb | LinearTx;
+  const [row] = await executor
+    .update(linearInstallations)
+    .set({
+      tokenExpiresAt: params.tokenExpiresAt,
+      ...(params.scopes === undefined ? {} : {scopes: params.scopes}),
+      updatedAt: new Date(),
+    })
+    .where(eq(linearInstallations.connectionId, params.connectionId))
+    .returning();
+  if (!row) return undefined;
+  return toLinearInstallation(row);
+}
+
 export async function markLinearInstallationRevoked(
   connectionId: string,
   options: {tx?: unknown} = {},
@@ -140,4 +165,40 @@ export async function markLinearInstallationRevoked(
     .returning();
   if (!row) return undefined;
   return toLinearInstallation(row);
+}
+
+export type LinearRefreshLockResult<T> = {acquired: true; value: T} | {acquired: false};
+
+export function withLinearRefreshLock<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<LinearRefreshLockResult<T>> {
+  return withLinearRefreshLockClient(connectionId, fn);
+}
+
+async function withLinearRefreshLockClient<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<LinearRefreshLockResult<T>> {
+  const client = await pgClient().connect();
+  let acquired = false;
+  try {
+    const lock = await client.query<{acquired: boolean}>(
+      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+      [connectionId],
+    );
+    acquired = lock.rows[0]?.acquired === true;
+    if (!acquired) return {acquired: false};
+
+    const value = await fn();
+    return {acquired: true, value};
+  } finally {
+    try {
+      if (acquired) {
+        await client.query('SELECT pg_advisory_unlock(hashtext($1))', [connectionId]);
+      }
+    } finally {
+      client.release();
+    }
+  }
 }
