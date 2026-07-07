@@ -1,9 +1,17 @@
 import {GithubIntegrationProviderError} from '#core/errors.js';
 import {createGithubInstallationTokenProvider} from './installation-token-provider.js';
 
-const {appOptions, createInstallationAccessTokenMock} = vi.hoisted(() => ({
+const {appOptions, createInstallationAccessTokenMock, RequestErrorMock} = vi.hoisted(() => ({
   appOptions: [] as unknown[],
   createInstallationAccessTokenMock: vi.fn(),
+  RequestErrorMock: class RequestError extends Error {
+    constructor(
+      message: string,
+      public readonly status: number,
+    ) {
+      super(message);
+    }
+  },
 }));
 
 vi.mock('octokit', () => ({
@@ -21,7 +29,7 @@ vi.mock('octokit', () => ({
       return {defaults: options};
     },
   },
-  RequestError: class RequestError extends Error {},
+  RequestError: RequestErrorMock,
 }));
 
 describe('GithubInstallationTokenProvider', () => {
@@ -134,6 +142,17 @@ describe('GithubInstallationTokenProvider', () => {
         },
       }),
     ]);
+  });
+
+  it('maps missing installations to an installation-not-found provider error', async () => {
+    createInstallationAccessTokenMock.mockRejectedValue(new RequestErrorMock('Not Found', 404));
+    const provider = createGithubInstallationTokenProvider();
+
+    const result = provider.getInstallationAccessToken(1);
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'installation-not-found',
+    });
   });
 
   it('rejects a response without a token', async () => {

@@ -36,10 +36,12 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
   private async mintInstallationAccessToken(
     installationId: number,
   ): Promise<GithubInstallationAccessToken> {
-    const response = await mapGithubError(() =>
-      this.getApp().octokit.rest.apps.createInstallationAccessToken({
-        installation_id: installationId,
-      }),
+    const response = await mapGithubError(
+      () =>
+        this.getApp().octokit.rest.apps.createInstallationAccessToken({
+          installation_id: installationId,
+        }),
+      'installation-not-found',
     );
 
     if (typeof response.data.token !== 'string') {
