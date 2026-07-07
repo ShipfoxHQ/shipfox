@@ -1,14 +1,17 @@
 import type {JobExecution} from '#core/entities/job-execution.js';
 import type {Step, StepAttempt} from '#core/entities/step.js';
 import {
+  applyListenerFilterSnapshots,
   assembleCreationContext,
   assembleExecutionCreationContext,
   assembleExecutionResolutionContext,
   assembleGateContext,
   assembleJobActivationContext,
   assembleJobResolutionContext,
+  assembleListenerSnapshotContext,
   assembleStepDispatchContext,
   assembleWorkflowRunContext,
+  planListenerFilterSnapshots,
 } from './assemble-run-context.js';
 
 const date = new Date('2026-06-30T12:00:00.000Z');
@@ -317,6 +320,179 @@ describe('assembleJobActivationContext', () => {
             executions: [],
           },
         ],
+      },
+    });
+  });
+});
+
+describe('listener filter snapshots', () => {
+  const run = {
+    id: 'run-1',
+    name: 'Build',
+    definitionId: 'def-1',
+    projectId: 'proj-1',
+    workspaceId: 'workspace-1',
+    createdAt: new Date('2026-06-30T12:00:00.000Z'),
+  };
+  const triggerPayload = {
+    source: 'github',
+    event: 'pull_request',
+    deliveryId: 'delivery-1',
+    data: {action: 'opened'},
+  } as const;
+
+  it('snapshots supported roots and exact referenced job keys', () => {
+    const plan = planListenerFilterSnapshots({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request',
+          filter:
+            'jobs.build.outputs.pr_number == event.pull_request.number && inputs.environment == "prod" && trigger.event == "pull_request" && run.id != "" && job.key == "await"',
+        },
+      ],
+      until: null,
+    });
+    const context = assembleListenerSnapshotContext({
+      job: {key: 'await'},
+      run,
+      triggerPayload,
+      inputs: {environment: 'prod'},
+      plan,
+      dependencyJobs: [
+        {
+          job: {key: 'build', status: 'succeeded', outputs: {pr_number: 42}},
+          executions: [jobExecution({id: 'exec-build', jobId: 'job-build'})],
+        },
+        {
+          job: {key: 'review', status: 'succeeded', outputs: {pr_number: 99}},
+          executions: [jobExecution({id: 'exec-review', jobId: 'job-review'})],
+        },
+      ],
+    });
+
+    const [matcher] = applyListenerFilterSnapshots(plan.on, context);
+
+    expect(matcher?.filter_snapshot).toEqual({
+      run: expect.objectContaining({id: 'run-1', name: 'Build'}),
+      trigger: {source: 'github', event: 'pull_request'},
+      inputs: {environment: 'prod'},
+      job: {key: 'await'},
+      jobs: {
+        build: expect.objectContaining({
+          key: 'build',
+          status: 'succeeded',
+          outputs: {pr_number: 42},
+          executions: expect.any(Array),
+        }),
+      },
+    });
+    expect(matcher?.filter_snapshot).not.toHaveProperty('event');
+    expect(matcher?.filter_snapshot?.jobs).not.toHaveProperty('review');
+  });
+
+  it('omits snapshots for event-only filters and malformed filters', () => {
+    const plan = planListenerFilterSnapshots({
+      on: [
+        {source: 'github', event: 'pull_request', filter: 'event.action == "closed"'},
+        {source: 'github', event: 'pull_request', filter: 'event.'},
+      ],
+      until: null,
+    });
+    const context = assembleListenerSnapshotContext({
+      job: {key: 'await'},
+      run,
+      triggerPayload,
+      plan,
+      dependencyJobs: [],
+    });
+
+    const matchers = applyListenerFilterSnapshots(plan.on, context);
+
+    expect(matchers).toEqual([
+      {source: 'github', event: 'pull_request', filter: 'event.action == "closed"'},
+      {source: 'github', event: 'pull_request', filter: 'event.'},
+    ]);
+  });
+
+  it('snapshots an empty jobs root when no referenced dependency is available', () => {
+    const plan = planListenerFilterSnapshots({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request',
+          filter: 'jobs.missing.outputs.pr_number == event.pull_request.number',
+        },
+      ],
+      until: null,
+    });
+    const context = assembleListenerSnapshotContext({
+      job: {key: 'await'},
+      run,
+      triggerPayload,
+      plan,
+      dependencyJobs: [
+        {
+          job: {key: 'build', status: 'succeeded', outputs: {pr_number: 42}},
+          executions: [jobExecution({id: 'exec-build', jobId: 'job-build'})],
+        },
+      ],
+    });
+
+    const [matcher] = applyListenerFilterSnapshots(plan.on, context);
+
+    expect(matcher).toEqual({
+      source: 'github',
+      event: 'pull_request',
+      filter: 'jobs.missing.outputs.pr_number == event.pull_request.number',
+      filter_snapshot: {jobs: {}},
+    });
+  });
+
+  it('snapshots all dependency jobs for dynamic jobs access', () => {
+    const plan = planListenerFilterSnapshots({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request',
+          filter: 'jobs[inputs.target].outputs.pr_number == event.pull_request.number',
+        },
+      ],
+      until: null,
+    });
+    const context = assembleListenerSnapshotContext({
+      job: {key: 'await'},
+      run,
+      triggerPayload,
+      inputs: {target: 'build'},
+      plan,
+      dependencyJobs: [
+        {
+          job: {key: 'build', status: 'succeeded', outputs: {pr_number: 42}},
+          executions: [jobExecution({id: 'exec-build', jobId: 'job-build'})],
+        },
+        {
+          job: {key: 'review', status: 'skipped', outputs: null},
+          executions: [],
+        },
+      ],
+    });
+
+    const [matcher] = applyListenerFilterSnapshots(plan.on, context);
+
+    expect(matcher?.filter_snapshot).toEqual({
+      inputs: {target: 'build'},
+      jobs: {
+        build: expect.objectContaining({
+          key: 'build',
+          status: 'succeeded',
+          outputs: {pr_number: 42},
+        }),
+        review: expect.objectContaining({
+          key: 'review',
+          status: 'skipped',
+          outputs: {},
+        }),
       },
     });
   });

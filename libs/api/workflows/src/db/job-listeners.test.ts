@@ -339,7 +339,7 @@ describe('activateJobListener', () => {
     expect(snapshot?.jobs).not.toHaveProperty('review');
   });
 
-  it('omits snapshots when referenced job keys are absent', async () => {
+  it('snapshots an empty jobs root when referenced job keys are absent', async () => {
     const job = await createListenerWithDependencies({
       on: [
         {
@@ -358,6 +358,7 @@ describe('activateJobListener', () => {
       source: 'github',
       event: 'pull_request',
       filter: 'jobs.missing.outputs.pr_number == event.pull_request.number',
+      filter_snapshot: {jobs: {}},
     });
   });
 
