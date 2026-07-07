@@ -25,12 +25,6 @@ export interface StepError {
   category: StepErrorCategory | undefined;
 }
 
-export interface AgentStepConfig {
-  provider: string | null;
-  model: string | null;
-  thinking: string | null;
-}
-
 export interface Step {
   id: string;
   jobExecutionId: string;

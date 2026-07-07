@@ -84,7 +84,7 @@ const withAgentSettingsRoute: Decorator = (Story) => {
 async function assertAgentConfigFailureCallout(ctx: StepListStoryContext) {
   const canvas = within(ctx.canvasElement);
 
-  await canvas.findByText('Configure credentials for anthropic');
+  await canvas.findByText('Configure credentials for the selected provider');
   await canvas.findByRole('link', {name: AGENTS_LINK_NAME});
 }
 
@@ -380,7 +380,6 @@ function renderAgentConfigFailureCallout() {
       renderExpandedStep={() => (
         <AgentConfigFailureCalloutView
           workspaceId={WORKSPACE_ID}
-          config={{provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high'}}
           error={{
             message: 'Model provider credentials are not configured',
             reason: 'agent_config_invalid',

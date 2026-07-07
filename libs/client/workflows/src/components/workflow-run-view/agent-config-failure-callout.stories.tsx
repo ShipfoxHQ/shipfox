@@ -9,17 +9,11 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {within} from 'storybook/test';
-import type {AgentStepConfig, StepError} from '#core/workflow-run.js';
+import type {StepError} from '#core/workflow-run.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 
 const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
 const AGENTS_LINK_NAME = 'Configure Agents';
-
-const config: AgentStepConfig = {
-  provider: 'anthropic',
-  model: 'claude-opus-4-8',
-  thinking: 'high',
-};
 
 const meta = {
   title: 'Workflows/RunView/AgentConfigFailureCallout',
@@ -55,7 +49,6 @@ const meta = {
   ],
   args: {
     workspaceId: WORKSPACE_ID,
-    config,
     error: makeError('provider_not_configured'),
   },
 } satisfies Meta<typeof AgentConfigFailureCallout>;
@@ -104,7 +97,7 @@ export const ErrorVariants: Story = {
 };
 
 export const TestProviderNotConfigured: Story = {
-  play: assertCallout('Configure credentials for anthropic', true),
+  play: assertCallout('Configure credentials for the selected provider', true),
 };
 
 export const TestProviderUnsupported: Story = {

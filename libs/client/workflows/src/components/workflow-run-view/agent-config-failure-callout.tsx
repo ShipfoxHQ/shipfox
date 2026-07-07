@@ -7,18 +7,16 @@ import {
 } from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
 import {Link} from '@tanstack/react-router';
-import type {AgentStepConfig, StepError} from '#core/workflow-run.js';
+import type {StepError} from '#core/workflow-run.js';
 
 export function AgentConfigFailureCallout({
   workspaceId,
-  config,
   error,
 }: {
   workspaceId: string;
-  config: AgentStepConfig | null;
   error: StepError | null;
 }) {
-  const copy = agentConfigFailureCopy(config, error);
+  const copy = agentConfigFailureCopy(error);
 
   return (
     <Alert variant="warning" animated={false} className="px-10 py-8">
@@ -39,12 +37,13 @@ export function AgentConfigFailureCallout({
   );
 }
 
-function agentConfigFailureCopy(
-  config: AgentStepConfig | null,
-  error: StepError | null,
-): {title: string; description: string; showProviderCta: boolean} {
-  const provider = configValue(config?.provider, 'the selected provider');
-  const model = configValue(config?.model, 'the selected model');
+function agentConfigFailureCopy(error: StepError | null): {
+  title: string;
+  description: string;
+  showProviderCta: boolean;
+} {
+  const provider = 'the selected provider';
+  const model = 'the selected model';
 
   switch (error?.agentConfigIssue) {
     case 'provider_not_configured':
@@ -86,8 +85,4 @@ function agentConfigFailureCopy(
         showProviderCta: true,
       };
   }
-}
-
-function configValue(value: string | null | undefined, fallback: string): string {
-  return value ?? fallback;
 }
