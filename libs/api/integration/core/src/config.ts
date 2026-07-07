@@ -13,6 +13,10 @@ export const config = createConfig({
     desc: 'Enables the GitHub integration provider so users can connect GitHub.',
     default: false,
   }),
+  INTEGRATIONS_ENABLE_LINEAR_PROVIDER: bool({
+    desc: 'Enables the Linear integration provider so users can connect Linear workspaces.',
+    default: false,
+  }),
   INTEGRATIONS_ENABLE_SENTRY_PROVIDER: bool({
     desc: 'Enables the Sentry integration provider so users can connect Sentry.',
     default: false,

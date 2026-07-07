@@ -10,6 +10,7 @@ describe('integration provider config', () => {
     const {config} = await import('#config.js');
 
     expect(config.INTEGRATIONS_ENABLE_CRON_PROVIDER).toBe(true);
+    expect(config.INTEGRATIONS_ENABLE_LINEAR_PROVIDER).toBe(false);
     expect(config.INTEGRATIONS_ENABLE_WEBHOOK_PROVIDER).toBe(true);
   });
 
