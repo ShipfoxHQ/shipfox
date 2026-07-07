@@ -11,7 +11,7 @@ import {
 import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
-import {secretsModule} from '@shipfox/api-secrets';
+import {deleteSecrets, secretsModule} from '@shipfox/api-secrets';
 import {triggersModule} from '@shipfox/api-triggers';
 import {setSourceControl, workflowsModule} from '@shipfox/api-workflows';
 import {workspacesModule} from '@shipfox/api-workspaces';
@@ -32,7 +32,7 @@ export async function run(): Promise<void> {
 
   createPostgresClient();
 
-  const integrations = await createIntegrationsContext();
+  const integrations = await createIntegrationsContext({secrets: {deleteSecrets}});
   const agentToolSelectionCatalogs = await buildAgentToolSelectionCatalogs(integrations.registry);
   const loadWorkspaceConnectionSnapshot = createWorkspaceConnectionSnapshotLoader(
     integrations.registry,

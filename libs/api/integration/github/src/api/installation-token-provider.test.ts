@@ -1,4 +1,7 @@
+import type {GetIntegrationConnectionByIdFn} from '@shipfox/api-integration-core-dto';
 import {GithubIntegrationProviderError} from '#core/errors.js';
+import {githubInstallationFactory} from '#test/index.js';
+import {encodeInstallationTokenEnvelope} from './installation-token-envelope.js';
 import {createGithubInstallationTokenProvider} from './installation-token-provider.js';
 
 const {appOptions, createInstallationAccessTokenMock, RequestErrorMock} = vi.hoisted(() => ({
@@ -119,6 +122,59 @@ describe('GithubInstallationTokenProvider', () => {
       {token: 'ghs_installationtoken', expiresAt: new Date('2026-06-10T12:00:00.000Z')},
       {token: 'ghs_installationtoken', expiresAt: new Date('2026-06-10T12:00:00.000Z')},
     ]);
+    expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('composes the RAM tier over the shared token cache', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T11:00:00.000Z'));
+    const installationId = Math.floor(Math.random() * 1_000_000_000);
+    const connectionId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    await githubInstallationFactory.create({installationId: String(installationId), connectionId});
+    const values = new Map<string, string>();
+    let lockCalls = 0;
+    function withLock<T>(_installationId: number, fn: () => Promise<T>) {
+      lockCalls += 1;
+      return fn().then((value) => ({acquired: true as const, value}));
+    }
+    const getIntegrationConnectionById: GetIntegrationConnectionByIdFn = () =>
+      Promise.resolve({
+        id: connectionId,
+        workspaceId,
+        provider: 'github',
+        externalAccountId: String(installationId),
+        slug: 'github_shipfox',
+        displayName: 'GitHub shipfox',
+        lifecycleStatus: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    createInstallationAccessTokenMock.mockResolvedValue({
+      data: {token: 'ghs_installationtoken', expires_at: '2026-06-10T12:00:00.000Z'},
+    });
+    const provider = createGithubInstallationTokenProvider({
+      getIntegrationConnectionById,
+      secretStore: {
+        read: (readWorkspaceId, readInstallationId) =>
+          Promise.resolve(values.get(`${readWorkspaceId}:${readInstallationId}`) ?? null),
+        write: (writeWorkspaceId, writeInstallationId, envelope) => {
+          values.set(
+            `${writeWorkspaceId}:${writeInstallationId}`,
+            encodeInstallationTokenEnvelope(envelope),
+          );
+          return Promise.resolve();
+        },
+      },
+      withLock,
+      now: () => new Date(),
+    });
+
+    const first = await provider.getInstallationAccessToken(installationId);
+    const second = await provider.getInstallationAccessToken(installationId);
+
+    expect(first).toEqual(second);
+    expect(lockCalls).toBe(1);
     expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(1);
   });
 

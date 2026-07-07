@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
     getIntegrationConnectionById: vi.fn(),
     createPostgresClient: vi.fn(),
     createProjectsModule: vi.fn(),
+    deleteSecrets: vi.fn(),
     apiConfig: {
       API_PORT: undefined as number | undefined,
       API_TRUST_PROXY: 'false',
@@ -57,7 +58,10 @@ vi.mock('@shipfox/api-integration-core', () => ({
 vi.mock('@shipfox/api-logs', () => ({logsModule: {name: 'logs'}}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
 vi.mock('@shipfox/api-runners', () => ({runnersModule: {name: 'runners'}}));
-vi.mock('@shipfox/api-secrets', () => ({secretsModule: {name: 'secrets'}}));
+vi.mock('@shipfox/api-secrets', () => ({
+  deleteSecrets: mocks.deleteSecrets,
+  secretsModule: {name: 'secrets'},
+}));
 vi.mock('@shipfox/api-triggers', () => ({triggersModule: {name: 'triggers'}}));
 vi.mock('@shipfox/api-workflows', () => ({
   setSourceControl: mocks.setSourceControl,
@@ -124,6 +128,7 @@ describe('run', () => {
     mocks.getIntegrationConnectionById.mockReset();
     mocks.createPostgresClient.mockReset();
     mocks.createProjectsModule.mockReset();
+    mocks.deleteSecrets.mockReset();
     mocks.apiConfig.API_PORT = undefined;
     mocks.apiConfig.API_TRUST_PROXY = 'false';
     mocks.apiConfig.E2E_ENABLED = false;

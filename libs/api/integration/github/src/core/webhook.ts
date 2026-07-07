@@ -30,6 +30,9 @@ export interface HandleGithubEventParams {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  deleteInstallationTokenSecret?:
+    | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
+    | undefined;
 }
 
 export type HandleGithubEventOutcome =
@@ -146,7 +149,7 @@ export async function handleGithubEvent(
   }
 
   const eventName = action ? `${params.event}.${action}` : params.event;
-  return publishGithubEnvelopeOnly({
+  const result = await publishGithubEnvelopeOnly({
     tx: params.tx,
     deliveryId: params.deliveryId,
     payload: params.payload,
@@ -154,6 +157,51 @@ export async function handleGithubEvent(
     connection,
     event: eventName,
   });
+  if (result.outcome === 'published-envelope') {
+    await deleteInstallationTokenSecretBestEffort({
+      deleteInstallationTokenSecret: params.deleteInstallationTokenSecret,
+      event: params.event,
+      action,
+      deliveryId: params.deliveryId,
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
+  }
+  return result;
+}
+
+function shouldDeleteInstallationTokenSecret(event: string, action: string | undefined): boolean {
+  return event === 'installation' && (action === 'deleted' || action === 'suspend');
+}
+
+async function deleteInstallationTokenSecretBestEffort(params: {
+  deleteInstallationTokenSecret:
+    | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
+    | undefined;
+  event: string;
+  action: string | undefined;
+  deliveryId: string;
+  workspaceId: string;
+  installationId: number;
+}): Promise<void> {
+  if (!shouldDeleteInstallationTokenSecret(params.event, params.action)) return;
+
+  try {
+    await params.deleteInstallationTokenSecret?.({
+      workspaceId: params.workspaceId,
+      installationId: params.installationId,
+    });
+  } catch (error) {
+    logger().warn(
+      {
+        deliveryId: params.deliveryId,
+        installationId: params.installationId,
+        workspaceId: params.workspaceId,
+        error,
+      },
+      'github webhook installation token cleanup failed',
+    );
+  }
 }
 
 async function publishGithubPush(params: {

@@ -6,6 +6,7 @@ import type {
 } from '@shipfox/api-integration-core-dto';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
+import {deleteGithubInstallationTokenSecret} from '#api/installation-token-provider.js';
 import {GithubAgentToolsProvider} from '#core/agent-tools.js';
 import {GithubSourceControlProvider} from '#core/source-control.js';
 import {closeDb, db} from '#db/db.js';
@@ -56,12 +57,16 @@ export interface CreateGithubIntegrationProviderOptions
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
   getGithubInstallationByConnectionId?: typeof getGithubInstallationByConnectionId | undefined;
+  deleteSecrets?:
+    | ((params: {workspaceId: string; namespace: string}) => Promise<number>)
+    | undefined;
 }
 
 export function createGithubIntegrationProvider(options: CreateGithubIntegrationProviderOptions) {
   const github = options.github ?? createGithubApiClient();
   const getInstallationByConnectionId =
     options.getGithubInstallationByConnectionId ?? getGithubInstallationByConnectionId;
+  const deleteSecrets = options.deleteSecrets;
 
   return {
     provider: 'github' as const,
@@ -92,6 +97,14 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
         publishSourcePush: options.publishSourcePush,
         recordDeliveryOnly: options.recordDeliveryOnly,
         getIntegrationConnectionById: options.getIntegrationConnectionById,
+        deleteInstallationTokenSecret: deleteSecrets
+          ? (params) =>
+              deleteGithubInstallationTokenSecret({
+                workspaceId: params.workspaceId,
+                installationId: params.installationId,
+                deleteSecrets,
+              })
+          : undefined,
       }),
     ],
   };
