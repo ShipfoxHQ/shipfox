@@ -1,4 +1,4 @@
-import {ApplicationFailure} from '@temporalio/common';
+import {ApplicationFailure, type Duration} from '@temporalio/common';
 import {condition, defineSignal, log, proxyActivities, setHandler} from '@temporalio/workflow';
 import {
   hasNoRequiredRunnerLabels,
@@ -155,7 +155,7 @@ async function markJobExecutionRunningAndEnqueue(
 // ordering), so callers must evaluate `finished` before `leaseExpired`.
 async function awaitJobOutcome(
   jobExecutionId: string,
-  timeout: string | number,
+  timeout: Duration,
 ): Promise<JobExecutionOutcomeSignals> {
   let finished: {status: RuntimeCompletionStatus; jobExecutionId?: string | undefined} | undefined;
   let leaseExpired = false;
