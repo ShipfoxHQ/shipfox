@@ -1,4 +1,4 @@
-trigger: push
+trigger: manual
 timeout_seconds: 180
 run:
   status: succeeded

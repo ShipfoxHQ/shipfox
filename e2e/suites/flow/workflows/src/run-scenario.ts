@@ -260,7 +260,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       });
       for (const log of fetchedLogs) await params.attach(log);
       if (runnerLogFile !== undefined) await attachLocalRunnerLog(params.attach, runnerLogFile);
-      await attachFakeModelProviderRequests({attach: params.attach, scenario, suite});
+      await attachFakeModelProviderRequestsBestEffort({attach: params.attach, scenario, suite});
       if (webhookDiagnostics !== undefined) {
         await attachWebhookTriggerDiagnostics({
           attach: params.attach,
@@ -293,7 +293,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       });
     }
     if (runnerLogFile !== undefined) await attachLocalRunnerLog(params.attach, runnerLogFile);
-    await attachFakeModelProviderRequests({attach: params.attach, scenario, suite});
+    await attachFakeModelProviderRequestsBestEffort({attach: params.attach, scenario, suite});
     throw error;
   } finally {
     if (runner !== undefined) {
@@ -302,6 +302,18 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       });
     }
   }
+}
+
+async function attachFakeModelProviderRequestsBestEffort(params: {
+  attach: (attachment: Attachment) => Promise<void>;
+  scenario: Scenario;
+  suite: SuiteContext;
+}): Promise<void> {
+  await attachFakeModelProviderRequests(params).catch((error: unknown) => {
+    process.stderr.write(
+      `platform-e2e: attachFakeModelProviderRequests failed: ${String(error)}\n`,
+    );
+  });
 }
 
 async function attachFakeModelProviderRequests(params: {
