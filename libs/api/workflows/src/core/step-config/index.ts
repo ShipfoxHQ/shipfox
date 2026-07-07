@@ -2,6 +2,7 @@ export {
   type AssembleExecutionCreationContextParams,
   type AssembleJobActivationContextParams,
   type AssembleWorkflowRunContextParams,
+  applyListenerFilterSnapshots,
   assembleCreationContext,
   assembleExecutionCreationContext,
   assembleExecutionResolutionContext,
@@ -9,9 +10,14 @@ export {
   assembleGateContext,
   assembleJobActivationContext,
   assembleJobResolutionContext,
+  assembleListenerSnapshotContext,
   assembleStepDispatchContext,
   assembleWorkflowRunContext,
   type JobContextInput,
+  type ListenerSnapshotPlan,
+  type ListenerTriggerWithSnapshot,
+  type MatcherSnapshotPlan,
+  planListenerFilterSnapshots,
 } from './assemble-run-context.js';
 export {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
 export {

@@ -1,35 +1,20 @@
-import {
-  type AgentDefaultsResolver,
-  catalogDefaultAgentResolver,
-} from '@shipfox/api-agent/core/resolve-agent-config';
+import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {
   WORKFLOWS_JOB_ACTIVATED,
   type WorkflowsJobActivatedEventDto,
 } from '@shipfox/api-workflows-dto';
-import {
-  analyzeContextRootKeyAccess,
-  extractExactContextRoots,
-  type WorkflowExpressionEvaluationContext,
-} from '@shipfox/expression';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
-import type {JobListeningTrigger, JobStatus, ResolutionReason} from '#core/entities/job.js';
+import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
 import {
-  AgentConfigUnresolvableError,
-  InterpolationUnresolvableError,
-  InvalidJobRunnerLabelsError,
-} from '#core/errors.js';
+  type MaterializedListenerExecution,
+  materializeListenerExecution,
+} from '#core/listener-execution-materialization.js';
 import {
-  assembleJobsContext,
-  assembleWorkflowRunContext,
-  type JobContextInput,
+  applyListenerFilterSnapshots,
+  assembleListenerSnapshotContext,
+  planListenerFilterSnapshots,
 } from '#core/step-config/assemble-run-context.js';
-import {
-  assembleExecutionCreationContext,
-  materializeJobExecutionSteps,
-  materializeJobRunner,
-  resolveJobExecutionName,
-} from '#core/step-config/index.js';
 import {
   recordListenerEventsCoalesced,
   recordWorkflowJobExecutionStatusChanged,
@@ -37,8 +22,8 @@ import {
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
 import {writeWorkflowsOutboxEvent} from './outbox-writes.js';
-import {jobExecutions, toJobExecution} from './schema/job-executions.js';
-import {jobListenerEvents} from './schema/job-listener-events.js';
+import {type JobExecutionDb, jobExecutions, toJobExecution} from './schema/job-executions.js';
+import {type JobListenerEventDb, jobListenerEvents} from './schema/job-listener-events.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {steps} from './schema/steps.js';
 import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
@@ -68,21 +53,6 @@ type JobActivatedListenerMatcher = Extract<
   WorkflowsJobActivatedEventDto,
   {mode: 'listening'}
 >['on'][number];
-
-type SnapshotRoot = 'run' | 'trigger' | 'inputs' | 'job' | 'jobs';
-
-interface MatcherSnapshotPlan {
-  readonly matcher: JobListeningTrigger;
-  readonly roots: ReadonlySet<SnapshotRoot>;
-  readonly jobKeys: ReadonlySet<string>;
-}
-
-interface ListenerSnapshotPlan {
-  readonly on: readonly MatcherSnapshotPlan[];
-  readonly until: readonly MatcherSnapshotPlan[];
-  readonly roots: ReadonlySet<SnapshotRoot>;
-  readonly jobKeys: ReadonlySet<string>;
-}
 
 export async function activateJobListener(
   params: ActivateJobListenerParams,
@@ -144,10 +114,17 @@ export async function activateJobListener(
         until: target.job.listeningUntil ?? null,
       };
       const snapshotPlan = planListenerFilterSnapshots(matchers);
-      const snapshotContext = await assembleListenerSnapshotContext(tx, {
+      const dependencyJobs =
+        snapshotPlan.jobKeys.size === 0
+          ? []
+          : await getDirectDependencyJobContexts(params.jobId, tx);
+      const snapshotContext = assembleListenerSnapshotContext({
         job: toJob(target.job),
         run: toWorkflowRun(target.run),
+        triggerPayload: target.run.triggerPayload,
+        inputs: target.run.inputs,
         plan: snapshotPlan,
+        dependencyJobs,
       });
 
       await writeWorkflowsOutboxEvent(tx, {
@@ -157,156 +134,23 @@ export async function activateJobListener(
           workflowRunId: target.run.id,
           workspaceId: target.run.workspaceId,
           mode: 'listening',
-          on: applyFilterSnapshots(snapshotPlan.on, snapshotContext),
+          on: applyListenerFilterSnapshots(
+            snapshotPlan.on,
+            snapshotContext,
+          ) as JobActivatedListenerMatcher[],
           until:
             matchers.until === null
               ? null
-              : applyFilterSnapshots(snapshotPlan.until, snapshotContext),
+              : (applyListenerFilterSnapshots(
+                  snapshotPlan.until,
+                  snapshotContext,
+                ) as JobActivatedListenerMatcher[]),
         },
       });
     }
 
     return {status: 'running', jobStatus: job.status, jobVersion: job.version, executionCount};
   });
-}
-
-function planListenerFilterSnapshots(params: {
-  readonly on: readonly JobListeningTrigger[];
-  readonly until: readonly JobListeningTrigger[] | null;
-}): ListenerSnapshotPlan {
-  const roots = new Set<SnapshotRoot>();
-  const jobKeys = new Set<string>();
-  const on = params.on.map((matcher) => planMatcherFilterSnapshot(matcher, roots, jobKeys));
-  const until = (params.until ?? []).map((matcher) =>
-    planMatcherFilterSnapshot(matcher, roots, jobKeys),
-  );
-  return {on, until, roots, jobKeys};
-}
-
-function planMatcherFilterSnapshot(
-  matcher: JobListeningTrigger,
-  allRoots: Set<SnapshotRoot>,
-  allJobKeys: Set<string>,
-): MatcherSnapshotPlan {
-  if (matcher.filter === undefined) return {matcher, roots: new Set(), jobKeys: new Set()};
-
-  let roots: SnapshotRoot[];
-  try {
-    roots = extractExactContextRoots(matcher.filter)
-      .filter((root) => root !== 'event')
-      .filter(isSnapshotRoot);
-  } catch {
-    return {matcher, roots: new Set(), jobKeys: new Set()};
-  }
-
-  if (roots.length === 0) return {matcher, roots: new Set(), jobKeys: new Set()};
-
-  const jobKeys =
-    roots.includes('jobs') && matcher.filter !== undefined
-      ? new Set(
-          analyzeContextRootKeyAccess(matcher.filter, ['jobs']).references.map(
-            (reference) => reference.key,
-          ),
-        )
-      : new Set<string>();
-  for (const root of roots) allRoots.add(root);
-  for (const key of jobKeys) allJobKeys.add(key);
-  return {matcher, roots: new Set(roots), jobKeys};
-}
-
-function isSnapshotRoot(root: string): root is SnapshotRoot {
-  return (
-    root === 'run' || root === 'trigger' || root === 'inputs' || root === 'job' || root === 'jobs'
-  );
-}
-
-async function assembleListenerSnapshotContext(
-  tx: Tx,
-  params: {
-    readonly job: ReturnType<typeof toJob>;
-    readonly run: ReturnType<typeof toWorkflowRun>;
-    readonly plan: ListenerSnapshotPlan;
-  },
-): Promise<WorkflowExpressionEvaluationContext> {
-  const context: Record<string, unknown> = {};
-  if (params.plan.roots.has('run') || params.plan.roots.has('trigger')) {
-    const runContext = assembleWorkflowRunContext({
-      run: params.run,
-      triggerPayload: params.run.triggerPayload,
-      inputs: params.run.inputs,
-    });
-    if (params.plan.roots.has('run')) context.run = runContext.run;
-    if (params.plan.roots.has('trigger')) context.trigger = runContext.trigger;
-  }
-
-  if (params.plan.roots.has('inputs')) {
-    context.inputs = params.run.inputs;
-  }
-  if (params.plan.roots.has('job')) {
-    context.job = {key: params.job.key};
-  }
-  if (params.plan.roots.has('jobs') && params.plan.jobKeys.size > 0) {
-    const dependencyJobs = await getDirectDependencyJobContexts(params.job.id, tx);
-    const jobsContext = requestedJobsContext(dependencyJobs, params.plan.jobKeys);
-    if (jobsContext !== undefined) context.jobs = jobsContext;
-  }
-
-  return context;
-}
-
-function requestedJobsContext(
-  dependencyJobs: readonly JobContextInput[],
-  jobKeys: ReadonlySet<string>,
-): unknown {
-  const filtered = dependencyJobs.filter(({job}) => jobKeys.has(job.key));
-  if (filtered.length === 0) return undefined;
-
-  return assembleJobsContext(filtered).jobs;
-}
-
-function applyFilterSnapshots(
-  plans: readonly MatcherSnapshotPlan[],
-  context: WorkflowExpressionEvaluationContext,
-): JobActivatedListenerMatcher[] {
-  return plans.map((plan) => {
-    const filterSnapshot = filterSnapshotForPlan(plan, context);
-    if (filterSnapshot === undefined) return plan.matcher;
-
-    return {...plan.matcher, filter_snapshot: filterSnapshot};
-  });
-}
-
-function filterSnapshotForPlan(
-  plan: MatcherSnapshotPlan,
-  context: WorkflowExpressionEvaluationContext,
-): Record<string, unknown> | undefined {
-  const snapshot: Record<string, unknown> = {};
-  for (const root of plan.roots) {
-    if (root === 'jobs') {
-      const jobsSnapshot = jobsSnapshotForPlan(plan, context);
-      if (jobsSnapshot !== undefined) snapshot.jobs = jobsSnapshot;
-      continue;
-    }
-
-    if (root in context) snapshot[root] = context[root];
-  }
-
-  return Object.keys(snapshot).length === 0 ? undefined : snapshot;
-}
-
-function jobsSnapshotForPlan(
-  plan: MatcherSnapshotPlan,
-  context: WorkflowExpressionEvaluationContext,
-): Record<string, unknown> | undefined {
-  if (plan.jobKeys.size === 0 || typeof context.jobs !== 'object' || context.jobs === null) {
-    return undefined;
-  }
-
-  const jobsContext = context.jobs as Record<string, unknown>;
-  const snapshot = Object.fromEntries(
-    [...plan.jobKeys].flatMap((key) => (key in jobsContext ? [[key, jobsContext[key]]] : [])),
-  );
-  return Object.keys(snapshot).length === 0 ? undefined : snapshot;
 }
 
 export type DrainListenerEventsResult =
@@ -335,165 +179,35 @@ export async function drainListenerEventsIntoExecution(
     const existing = await findExistingExecution(params, tx);
     if (existing) return {result: existing};
 
-    const [resolveEvent] = await tx
-      .select({id: jobListenerEvents.id})
-      .from(jobListenerEvents)
-      .where(
-        and(
-          eq(jobListenerEvents.jobId, params.jobId),
-          eq(jobListenerEvents.disposition, 'resolve'),
-          isNull(jobListenerEvents.consumedByExecutionId),
-        ),
-      )
-      .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
-      .limit(1)
-      .for('update');
-    if (resolveEvent) return {result: {kind: 'resolve-requested' as const}};
+    const resolveRequested = await hasPendingResolveEvent(params.jobId, tx);
+    if (resolveRequested) return {result: {kind: 'resolve-requested' as const}};
 
-    const bufferedQuery = tx
-      .select()
-      .from(jobListenerEvents)
-      .where(
-        and(
-          eq(jobListenerEvents.jobId, params.jobId),
-          eq(jobListenerEvents.disposition, 'fire'),
-          isNull(jobListenerEvents.consumedByExecutionId),
-        ),
-      )
-      .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id));
-    const bufferedEvents = await (params.maxSize === undefined
-      ? bufferedQuery
-      : bufferedQuery.limit(params.maxSize)
-    ).for('update');
+    const bufferedEvents = await lockBufferedFireEvents(params, tx);
     if (bufferedEvents.length === 0) return {result: {kind: 'empty' as const}};
 
     const target = await loadListenerMaterializationTarget(params.jobId, tx);
-    const triggerEvents = bufferedEvents.map(
-      (event): WorkflowExecutionEvent => ({
-        source: event.source,
-        event: event.event,
-        delivery_id: event.deliveryId,
-        received_at: event.receivedAt.toISOString(),
-        data: event.payload,
-      }),
-    );
+    const materialized = materializeListenerExecution({
+      model: target.attempt.model,
+      run: toWorkflowRun(target.run),
+      job: toJob(target.job),
+      sequence: params.expectedSequence,
+      triggerEvents: listenerTriggerEvents(bufferedEvents),
+      priorExecutions: target.priorExecutions,
+      resolveAgentDefaults: params.resolveAgentDefaults,
+    });
+    const execution = await persistMaterializedListenerExecution(tx, {
+      jobId: params.jobId,
+      sequence: params.expectedSequence,
+      bufferedEventIds: bufferedEvents.map((event) => event.id),
+      materialized,
+    });
 
-    const fallbackName = `${target.job.key} #${params.expectedSequence}`;
-    let executionName = fallbackName;
-    let executionNameTrace: ReturnType<typeof resolveJobExecutionName>['trace'] = [];
-    let status: JobExecutionStatus = 'pending';
-    let materializedSteps: ReturnType<typeof materializeJobExecutionSteps> = [];
-    let runner: readonly string[] = [];
-    try {
-      const model = target.attempt.model;
-      if (!model) throw new PermanentListenerMaterializationError('Run attempt has no model');
-      const modelJob = model.jobs.find((job) => job.key === target.job.key);
-      if (!modelJob) {
-        throw new PermanentListenerMaterializationError(
-          `Workflow model has no job key: ${target.job.key}`,
-        );
-      }
-
-      const nameContext = listenerExecutionContext({
-        run: toWorkflowRun(target.run),
-        jobId: params.jobId,
-        sequence: params.expectedSequence,
-        executionName,
-        status,
-        triggerEvents,
-        priorExecutions: target.priorExecutions,
-      });
-      const resolvedExecutionName = resolveJobExecutionName({
-        definitionId: target.run.definitionId,
-        job: modelJob,
-        fallbackName,
-        context: nameContext.values,
-      });
-      executionName = resolvedExecutionName.value;
-      executionNameTrace = resolvedExecutionName.trace;
-      const stepContext = listenerExecutionContext({
-        run: toWorkflowRun(target.run),
-        jobId: params.jobId,
-        sequence: params.expectedSequence,
-        executionName,
-        status,
-        triggerEvents,
-        priorExecutions: target.priorExecutions,
-      });
-      runner = materializeJobRunner({
-        job: modelJob,
-        context: stepContext,
-        definitionId: target.run.definitionId,
-      });
-      materializedSteps = materializeJobExecutionSteps({
-        model,
-        job: modelJob,
-        context: stepContext,
-        resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
-        definitionId: target.run.definitionId,
-      });
-    } catch (error) {
-      if (!isPermanentListenerMaterializationError(error)) throw error;
-      status = 'failed';
-    }
-
-    const [execution] = await tx
-      .insert(jobExecutions)
-      .values({
-        jobId: params.jobId,
-        sequence: params.expectedSequence,
-        name: executionName,
-        runner: runner.length === 0 ? null : [...runner],
-        status,
-        statusReason: status === 'failed' ? 'unknown' : null,
-        triggerEvents,
-        evaluationTrace: executionNameTrace.length === 0 ? null : executionNameTrace,
-        ...(status === 'failed' ? {finishedAt: sql`now()`} : {}),
-      })
-      .returning();
-    if (!execution) throw new Error('Insert returned no rows');
-
-    await tx
-      .update(jobListenerEvents)
-      .set({consumedByExecutionId: execution.id})
-      .where(
-        inArray(
-          jobListenerEvents.id,
-          bufferedEvents.map((event) => event.id),
-        ),
-      );
-
-    if (status === 'pending' && materializedSteps.length > 0) {
-      await tx.insert(steps).values(
-        materializedSteps.map((step) => ({
-          jobExecutionId: execution.id,
-          key: step.key,
-          name: step.name,
-          sourceLocation: step.sourceLocation,
-          status: step.status,
-          type: step.type,
-          config: step.config,
-          configPlan: step.configPlan ?? null,
-          authoredConfig: step.authoredConfig,
-          condition: step.condition ?? null,
-          position: step.position,
-        })),
-      );
-    }
-
-    if (status === 'failed') {
-      recordWorkflowJobExecutionStatusChanged(status);
+    if (materialized.status === 'failed') {
+      recordWorkflowJobExecutionStatusChanged(materialized.status);
     }
 
     return {
-      result: {
-        kind: 'execution' as const,
-        jobExecutionId: execution.id,
-        executionVersion: execution.version,
-        sequence: execution.sequence,
-        requiredLabels: execution.runner ?? [],
-        status: execution.status,
-      },
+      result: drainExecutionResult(execution),
       batchSize: bufferedEvents.length,
     };
   });
@@ -656,6 +370,120 @@ async function findExistingExecution(
   };
 }
 
+async function hasPendingResolveEvent(jobId: string, tx: Tx): Promise<boolean> {
+  const [resolveEvent] = await tx
+    .select({id: jobListenerEvents.id})
+    .from(jobListenerEvents)
+    .where(
+      and(
+        eq(jobListenerEvents.jobId, jobId),
+        eq(jobListenerEvents.disposition, 'resolve'),
+        isNull(jobListenerEvents.consumedByExecutionId),
+      ),
+    )
+    .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id))
+    .limit(1)
+    .for('update');
+  return resolveEvent !== undefined;
+}
+
+async function lockBufferedFireEvents(
+  params: DrainListenerEventsParams,
+  tx: Tx,
+): Promise<JobListenerEventDb[]> {
+  const bufferedQuery = tx
+    .select()
+    .from(jobListenerEvents)
+    .where(
+      and(
+        eq(jobListenerEvents.jobId, params.jobId),
+        eq(jobListenerEvents.disposition, 'fire'),
+        isNull(jobListenerEvents.consumedByExecutionId),
+      ),
+    )
+    .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id));
+  return await (params.maxSize === undefined
+    ? bufferedQuery
+    : bufferedQuery.limit(params.maxSize)
+  ).for('update');
+}
+
+function listenerTriggerEvents(
+  bufferedEvents: readonly JobListenerEventDb[],
+): WorkflowExecutionEvent[] {
+  return bufferedEvents.map((event) => ({
+    source: event.source,
+    event: event.event,
+    delivery_id: event.deliveryId,
+    received_at: event.receivedAt.toISOString(),
+    data: event.payload,
+  }));
+}
+
+async function persistMaterializedListenerExecution(
+  tx: Tx,
+  params: {
+    readonly jobId: string;
+    readonly sequence: number;
+    readonly bufferedEventIds: readonly string[];
+    readonly materialized: MaterializedListenerExecution;
+  },
+): Promise<JobExecutionDb> {
+  const [execution] = await tx
+    .insert(jobExecutions)
+    .values({
+      jobId: params.jobId,
+      sequence: params.sequence,
+      name: params.materialized.name,
+      runner: params.materialized.runner.length === 0 ? null : [...params.materialized.runner],
+      status: params.materialized.status,
+      statusReason: params.materialized.statusReason,
+      triggerEvents: [...params.materialized.triggerEvents],
+      evaluationTrace: params.materialized.evaluationTrace,
+      ...(params.materialized.status === 'failed' ? {finishedAt: sql`now()`} : {}),
+    })
+    .returning();
+  if (!execution) throw new Error('Insert returned no rows');
+
+  await tx
+    .update(jobListenerEvents)
+    .set({consumedByExecutionId: execution.id})
+    .where(inArray(jobListenerEvents.id, [...params.bufferedEventIds]));
+
+  if (params.materialized.status === 'pending' && params.materialized.steps.length > 0) {
+    await tx.insert(steps).values(
+      params.materialized.steps.map((step) => ({
+        jobExecutionId: execution.id,
+        key: step.key,
+        name: step.name,
+        sourceLocation: step.sourceLocation,
+        status: step.status,
+        type: step.type,
+        config: step.config,
+        configPlan: step.configPlan ?? null,
+        authoredConfig: step.authoredConfig,
+        condition: step.condition ?? null,
+        position: step.position,
+      })),
+    );
+  }
+
+  return execution;
+}
+
+function drainExecutionResult(
+  execution: JobExecutionDb,
+): Extract<DrainListenerEventsResult, {kind: 'execution'}> {
+  return {
+    kind: 'execution',
+    jobExecutionId: execution.id,
+    executionVersion: execution.version,
+    sequence: execution.sequence,
+    requiredLabels: execution.runner ?? [],
+    status: execution.status,
+  };
+}
+
 async function loadListenerMaterializationTarget(jobId: string, tx: Tx) {
   const [target] = await tx
     .select({job: jobs, attempt: workflowRunAttempts, run: workflowRuns})
@@ -673,42 +501,4 @@ async function loadListenerMaterializationTarget(jobId: string, tx: Tx) {
     .where(eq(jobExecutions.jobId, jobId))
     .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
   return {...target, priorExecutions: priorExecutions.map(toJobExecution)};
-}
-
-function listenerExecutionContext(params: {
-  run: ReturnType<typeof toWorkflowRun>;
-  jobId: string;
-  sequence: number;
-  executionName: string;
-  status: JobExecutionStatus;
-  triggerEvents: readonly WorkflowExecutionEvent[];
-  priorExecutions: ReturnType<typeof toJobExecution>[];
-}) {
-  return assembleExecutionCreationContext({
-    run: params.run,
-    triggerPayload: params.run.triggerPayload,
-    inputs: params.run.inputs,
-    jobId: params.jobId,
-    sequence: params.sequence,
-    executionName: params.executionName,
-    status: params.status,
-    triggerEvents: params.triggerEvents,
-    priorExecutions: params.priorExecutions,
-  });
-}
-
-class PermanentListenerMaterializationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'PermanentListenerMaterializationError';
-  }
-}
-
-function isPermanentListenerMaterializationError(error: unknown): boolean {
-  return (
-    error instanceof PermanentListenerMaterializationError ||
-    error instanceof InterpolationUnresolvableError ||
-    error instanceof InvalidJobRunnerLabelsError ||
-    error instanceof AgentConfigUnresolvableError
-  );
 }
