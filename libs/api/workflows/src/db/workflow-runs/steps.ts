@@ -60,7 +60,7 @@ export async function getStepsByJobExecutionId(jobExecutionId: string): Promise<
 
 export interface BulkUpdateStepStatusesParams {
   jobExecutionId: string;
-  status: StepStatus;
+  status: Extract<StepStatus, 'failed' | 'cancelled'>;
 }
 
 export async function bulkUpdateStepStatuses(
@@ -81,39 +81,32 @@ export async function bulkUpdateStepStatuses(
     })
     .where(and(eq(steps.jobExecutionId, params.jobExecutionId), NON_TERMINAL_STEP_STATUS_FILTER));
 
-  // Finalize any open attempt rows for the steps just terminalized, so a
-  // dispatched-then-timed-out/cancelled step never leaves a `running` audit row
-  // stranded (it would otherwise read as phantom in-flight work to gate/restart
-  // logic). The just-failed step on the normal report path is already terminal,
-  // so this only catches the bulk timeout/cancel sweeps.
-  // Only ever called with a terminal sweep status: cancelled on run cancellation,
-  // failed on timeout.
-  if (params.status === 'failed' || params.status === 'cancelled') {
-    const finalizedAttempts = await tx
-      .update(stepAttempts)
-      .set({status: params.status, logOutcome: 'abandoned', finishedAt: new Date()})
-      .from(steps)
-      .where(
-        and(
-          eq(stepAttempts.stepId, steps.id),
-          eq(steps.jobExecutionId, params.jobExecutionId),
-          eq(stepAttempts.status, 'running'),
-        ),
-      )
-      .returning({
-        stepId: stepAttempts.stepId,
-        attempt: stepAttempts.attempt,
-        logOutcome: stepAttempts.logOutcome,
-      });
+  // Finalize open attempt rows so a timed-out/cancelled sweep does not leave
+  // phantom in-flight work for gate and restart logic.
+  const finalizedAttempts = await tx
+    .update(stepAttempts)
+    .set({status: params.status, logOutcome: 'abandoned', finishedAt: new Date()})
+    .from(steps)
+    .where(
+      and(
+        eq(stepAttempts.stepId, steps.id),
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        eq(stepAttempts.status, 'running'),
+      ),
+    )
+    .returning({
+      stepId: stepAttempts.stepId,
+      attempt: stepAttempts.attempt,
+      logOutcome: stepAttempts.logOutcome,
+    });
 
-    if (finalizedAttempts.length > 0) {
-      for (const attempt of finalizedAttempts) {
-        await writeStepAttemptTerminatedOutbox(tx, {
-          stepId: attempt.stepId,
-          attempt: attempt.attempt,
-          logOutcome: attempt.logOutcome ?? 'abandoned',
-        });
-      }
+  if (finalizedAttempts.length > 0) {
+    for (const attempt of finalizedAttempts) {
+      await writeStepAttemptTerminatedOutbox(tx, {
+        stepId: attempt.stepId,
+        attempt: attempt.attempt,
+        logOutcome: attempt.logOutcome ?? 'abandoned',
+      });
     }
   }
 }

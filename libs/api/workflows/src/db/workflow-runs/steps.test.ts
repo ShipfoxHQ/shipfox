@@ -61,7 +61,7 @@ describe('workflow run queries', () => {
   });
 
   describe('bulkUpdateStepStatuses', () => {
-    test('updates all steps for a job to the given status', async () => {
+    test('updates all steps for a job to the given sweep status', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -81,12 +81,12 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByWorkflowRunId(run.id);
 
       const jobId = runJobs[0]?.id ?? '';
-      await bulkUpdateJobStepStatuses({jobId, status: 'succeeded'});
+      await bulkUpdateJobStepStatuses({jobId, status: 'failed'});
 
       const jobSteps = await getStepsByJobId(jobId);
       expect(jobSteps).toHaveLength(4);
       for (const step of jobSteps) {
-        expect(step.status).toBe('succeeded');
+        expect(step.status).toBe('failed');
       }
     });
 

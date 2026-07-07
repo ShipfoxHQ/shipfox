@@ -418,6 +418,13 @@ describe('workflow run queries', () => {
 
     test('failed mode carries succeeded jobs and resets every non-succeeded job', async () => {
       const source = await createTerminalSourceRun();
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      for (const job of sourceJobs) {
+        await db()
+          .update(jobs)
+          .set({outputs: {source: job.key}})
+          .where(eq(jobs.id, job.id));
+      }
 
       const rerun = await createRerunWorkflowRun({
         workflowRunId: source.id,
@@ -430,10 +437,14 @@ describe('workflow run queries', () => {
       const test = rerunJobs.find((job) => job.key === 'test');
       const deploy = rerunJobs.find((job) => job.key === 'deploy');
       const notify = rerunJobs.find((job) => job.key === 'notify');
-      expect(build).toMatchObject({status: 'succeeded', carriedOver: true});
-      expect(test).toMatchObject({status: 'pending', carriedOver: false});
-      expect(deploy).toMatchObject({status: 'pending', carriedOver: false});
-      expect(notify).toMatchObject({status: 'pending', carriedOver: false});
+      expect(build).toMatchObject({
+        status: 'succeeded',
+        carriedOver: true,
+        outputs: {source: 'build'},
+      });
+      expect(test).toMatchObject({status: 'pending', carriedOver: false, outputs: null});
+      expect(deploy).toMatchObject({status: 'pending', carriedOver: false, outputs: null});
+      expect(notify).toMatchObject({status: 'pending', carriedOver: false, outputs: null});
 
       const buildSteps = await getStepsByJobId(build?.id as string);
       expect(buildSteps.every((step) => step.status === 'succeeded')).toBe(true);

@@ -114,17 +114,18 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     // If resolution fails, the transaction rolls back the run, jobs, steps, and outbox event together.
     // Listening steps are resolved later when a job execution is created.
     const oneShotJobs = params.model.jobs.filter((job) => job.mode !== 'listening');
+    const vars = await loadReferencedVariables({
+      model: params.model,
+      jobs: oneShotJobs,
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+      definitionId: params.definitionId,
+    });
     const context = assembleCreationContext({
       run,
       triggerPayload: params.triggerPayload,
       inputs: params.inputs ?? null,
-      vars: await loadReferencedVariables({
-        model: params.model,
-        jobs: oneShotJobs,
-        workspaceId: params.workspaceId,
-        projectId: params.projectId,
-        definitionId: params.definitionId,
-      }),
+      vars,
     });
     const materializedJobs = materializeWorkflowModel({
       model: params.model,
@@ -175,6 +176,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         run,
         triggerPayload: params.triggerPayload,
         inputs: params.inputs ?? null,
+        vars,
         jobId: jobRow.id,
         sequence: 1,
         executionName: fallbackName,
@@ -194,6 +196,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         run,
         triggerPayload: params.triggerPayload,
         inputs: params.inputs ?? null,
+        vars,
         jobId: jobRow.id,
         sequence: 1,
         executionName: resolvedName.value,
@@ -329,6 +332,9 @@ function referencedVariables(
 
   for (const job of jobs) {
     collectFieldVariableReferences(job.name, references, {field: 'job.name'});
+    for (const template of job.runnerTemplates ?? []) {
+      collectFieldVariableReferences(template, references, {field: 'job.runner'});
+    }
     collectTemplateVariableReferences(job.outputs, references, {field: 'job.outputs'});
     collectTemplateVariableReferences(job.templates?.env, references);
 

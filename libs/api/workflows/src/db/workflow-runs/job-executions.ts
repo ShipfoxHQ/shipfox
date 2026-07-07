@@ -25,7 +25,11 @@ import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
 import {getDirectDependencyJobContexts} from './jobs.js';
 import {loadReferencedVariables} from './runs.js';
-import {optimisticLockRetry, TERMINAL_EXECUTION_STATUSES} from './shared.js';
+import {
+  getWorkflowContextForJob,
+  optimisticLockRetry,
+  TERMINAL_EXECUTION_STATUSES,
+} from './shared.js';
 import {bulkUpdateStepStatuses, getStepsByJobExecutionIdForUpdate} from './steps.js';
 
 export async function lockActiveJobExecutionLeaseForUpdate(
@@ -338,12 +342,13 @@ export async function failJobExecutionAsTimedOut(params: {
     });
 
     if (updated.changed) {
+      const identity = await getWorkflowContextForJob(updated.execution.jobId, tx);
       await writeWorkflowsOutboxEvent(tx, {
         type: WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
         payload: {
-          jobId: updated.execution.jobId,
+          jobId: identity.jobId,
           jobExecutionId: params.jobExecutionId,
-          workflowRunAttemptId: params.workflowRunAttemptId,
+          workflowRunAttemptId: identity.workflowRunAttemptId,
         },
       });
     }
@@ -387,11 +392,13 @@ export async function resolveJobExecutionAfterLeaseExpiry(params: {
         expectedVersion: params.expectedVersion,
         statusReason: 'runner_lost',
       });
-      changedJobExecution = updated?.changed ? updated.execution : null;
-      await bulkUpdateStepStatuses(
-        {jobExecutionId: params.jobExecutionId, status: 'cancelled'},
-        tx,
-      );
+      if (updated?.changed) {
+        changedJobExecution = updated.execution;
+        await bulkUpdateStepStatuses(
+          {jobExecutionId: params.jobExecutionId, status: 'cancelled'},
+          tx,
+        );
+      }
     }
 
     const jobExecutionRow = (

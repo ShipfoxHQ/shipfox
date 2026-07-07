@@ -1,5 +1,6 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
+import {setVariables} from '@shipfox/api-secrets';
 import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {InterpolationUnresolvableError} from '#core/errors.js';
@@ -118,6 +119,39 @@ describe('workflow run queries', () => {
       const [job] = await getJobsByWorkflowRunId(run.id);
       const executions = await getJobExecutionsByJobId(job?.id as string);
       expect(executions[0]?.runner).toEqual(['gpu', 'linux']);
+    });
+
+    test('loads variables referenced only by job runner templates', async () => {
+      await setVariables({
+        workspaceId,
+        projectId,
+        values: {RUNNER: 'GPU'},
+      });
+      const model = buildModel({
+        jobs: {
+          build: {
+            runnerTemplates: [template('vars.RUNNER')],
+            steps: [{run: 'echo hello'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      const executions = await getJobExecutionsByJobId(job?.id as string);
+      expect(executions[0]?.runner).toEqual(['gpu', 'ubuntu-latest']);
     });
 
     async function createJobOutputRun() {
@@ -641,6 +675,16 @@ describe('workflow run queries', () => {
             jobs: {fix: {steps: [{prompt: 'Fix it', provider: template('vars.REQUIRED')}]}},
           }),
         expected: {field: 'agent.provider', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'job.runner',
+        model: () =>
+          normalizeWorkflowDocument({
+            name: 'Missing runner var',
+            runner: 'ubuntu-latest',
+            jobs: {build: {runner: template('vars.REQUIRED'), steps: [{run: 'echo ok'}]}},
+          }),
+        expected: {field: 'job.runner', source: 'vars.REQUIRED'},
       },
       {
         field: 'step.name',

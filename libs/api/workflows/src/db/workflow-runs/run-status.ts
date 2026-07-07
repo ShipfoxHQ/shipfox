@@ -193,10 +193,10 @@ export async function failWorkflowRunAsTimedOut(
     const lockedRun = await lockWorkflowRun(lockedAttempt.workflowRunId, tx);
     if (!lockedRun) throw new WorkflowRunNotFoundError(lockedAttempt.workflowRunId);
     if (isWorkflowRunTerminal(lockedRun.status)) {
-      return {run: toWorkflowRun(lockedRun), changedJobs: []};
+      return {run: toWorkflowRun(lockedRun), changedJobs: [], changed: false};
     }
 
-    return terminateRunAttempt(tx, {
+    const result = await terminateRunAttempt(tx, {
       lockedRun,
       lockedAttempt,
       spec: {
@@ -206,9 +206,10 @@ export async function failWorkflowRunAsTimedOut(
         emitCancelledEvent: false,
       },
     });
+    return {...result, changed: true};
   });
 
-  recordWorkflowRunStatusChanged(result.run.status);
+  if (result.changed) recordWorkflowRunStatusChanged(result.run.status);
   for (const job of result.changedJobs) recordWorkflowJobStatusChanged(job.status);
   return result.run;
 }

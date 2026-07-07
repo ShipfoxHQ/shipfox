@@ -305,7 +305,6 @@ export async function getWorkflowRunDetail(
   const rows = await db()
     .select({
       run: workflowRuns,
-      attemptId: workflowRunAttempts.id,
       job: jobs,
       jobExecution: jobExecutions,
       step: steps,
@@ -375,7 +374,6 @@ export async function getJobExecutionDetail(
 function hydrateWorkflowRunDetail(
   rows: {
     run: typeof workflowRuns.$inferSelect;
-    attemptId: string;
     job: typeof jobs.$inferSelect | null;
     jobExecution: typeof jobExecutions.$inferSelect | null;
     step: typeof steps.$inferSelect | null;

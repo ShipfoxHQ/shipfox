@@ -178,7 +178,7 @@ export async function setJobExecutionStatus(params: {
 
 export async function bulkSetStepStatuses(params: {
   jobExecutionId: string;
-  status: StepStatus;
+  status: Extract<StepStatus, 'failed' | 'cancelled'>;
 }): Promise<void> {
   await bulkUpdateStepStatuses(params);
 }

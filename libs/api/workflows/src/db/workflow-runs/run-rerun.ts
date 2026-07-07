@@ -139,7 +139,7 @@ export async function createRerunWorkflowRun(
                   resolutionReason: null,
                   listeningOn: job.listeningOn ? [...job.listeningOn] : null,
                   listeningUntil: job.listeningUntil ? [...job.listeningUntil] : null,
-                  outputs: job.outputs ? {...job.outputs} : null,
+                  outputs: carriedOver && job.outputs ? {...job.outputs} : null,
                   dependencies: [...job.dependencies],
                   runner: job.runner ? [...job.runner] : null,
                   position: job.position,
