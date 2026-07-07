@@ -130,7 +130,7 @@ describe('agent e2e helper', () => {
       workspaceId,
       sessionToken,
       providerId: 'fake-openai-provider',
-      displayName: 'Deterministic Agent Provider',
+      displayName: 'Deterministic Model Provider',
       baseUrl: 'http://127.0.0.1:9000/scripts/run-1/v1',
       model: 'deterministic-output-agent',
       modelMetadata: {max_output_tokens: 512},
@@ -144,7 +144,7 @@ describe('agent e2e helper', () => {
       {
         json: {
           slug: 'fake-openai-provider',
-          display_name: 'Deterministic Agent Provider',
+          display_name: 'Deterministic Model Provider',
           api: 'openai-completions',
           base_url: 'http://127.0.0.1:9000/scripts/run-1/v1',
           models: [

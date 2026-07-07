@@ -1,9 +1,16 @@
 import {createApiClient, preflightCheck} from '@shipfox/e2e-core';
 import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
-import {createOllamaCustomProvider, deleteModelProviderConfig} from '@shipfox/e2e-setup-agent';
+import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
+import {
+  createOllamaCustomProvider,
+  createOpenAiCompatibleCustomProvider,
+  deleteModelProviderConfig,
+} from '@shipfox/e2e-setup-agent';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {resetSuiteRunDir, writeSuiteContext} from '#suite-context.js';
+
+const DETERMINISTIC_AGENT_MODEL = 'deterministic-output-agent';
 
 /**
  * Arranges the whole suite once over HTTP: user, session, workspace, a fresh gitea org
@@ -27,6 +34,35 @@ export default async function globalSetup(): Promise<void> {
       sessionToken: session.token,
     });
     cleanups.push(() => deleteOrg({org: org.org}).catch(() => undefined));
+
+    const fakeModelProvider = await startFakeOpenAiModelProvider({runId});
+    cleanups.push(() => fakeModelProvider.stop().catch(() => undefined));
+    const modelProviderScript = await fakeModelProvider.createScript({
+      id: `${runId}-agent-output-tool`,
+      model: DETERMINISTIC_AGENT_MODEL,
+      responses: [
+        message('ok'),
+        toolCall('set_output', {key: 'message', value: 'qwen-tool-output-ok'}),
+        message('done'),
+      ],
+      assertions: [{kind: 'model', equals: DETERMINISTIC_AGENT_MODEL}],
+    });
+    const modelProvider = await createOpenAiCompatibleCustomProvider({
+      workspaceId: workspace.id,
+      sessionToken: session.token,
+      providerId: `det-output-tool-${runId}`,
+      displayName: 'Deterministic Output Tool E2E',
+      baseUrl: modelProviderScript.modelProviderBaseUrl,
+      model: modelProviderScript.model,
+      modelMetadata: {max_output_tokens: 512},
+    });
+    cleanups.push(() =>
+      deleteModelProviderConfig({
+        workspaceId: workspace.id,
+        sessionToken: session.token,
+        providerId: modelProvider.provider_id,
+      }).catch(() => undefined),
+    );
 
     const ollamaProvider = await createOllamaCustomProvider({
       workspaceId: workspace.id,
@@ -54,6 +90,9 @@ export default async function globalSetup(): Promise<void> {
       org: org.org,
       connectionId: org.connection.id,
       connectionSlug: org.connection.slug,
+      modelProviderId: modelProvider.provider_id,
+      agentModel: modelProviderScript.model,
+      fakeModelProviderRunId: runId,
     });
   } catch (error) {
     for (const cleanup of cleanups.reverse()) {

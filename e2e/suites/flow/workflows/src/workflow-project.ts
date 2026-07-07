@@ -9,6 +9,8 @@ const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
 const GITEA_REPOSITORY_PLACEHOLDER = '__GITEA_REPOSITORY__';
 const WEBHOOK_SOURCE_PLACEHOLDER = '__WEBHOOK_SOURCE__';
 const RUNNER_LABEL_PLACEHOLDER = '__RUNNER_LABEL__';
+const MODEL_PROVIDER_PLACEHOLDER = '__MODEL_PROVIDER__';
+const AGENT_MODEL_PLACEHOLDER = '__AGENT_MODEL__';
 
 export interface WorkflowProjectFile {
   path: string;
@@ -36,7 +38,9 @@ export function renderWorkflowYaml(params: {
   let rendered = params.workflowYaml
     .replaceAll(GITEA_SOURCE_PLACEHOLDER, params.suite.connectionSlug)
     .replaceAll(GITEA_REPOSITORY_PLACEHOLDER, `${params.suite.org}/${params.repo}`)
-    .replaceAll(RUNNER_LABEL_PLACEHOLDER, params.runnerLabel);
+    .replaceAll(RUNNER_LABEL_PLACEHOLDER, params.runnerLabel)
+    .replaceAll(MODEL_PROVIDER_PLACEHOLDER, params.suite.modelProviderId)
+    .replaceAll(AGENT_MODEL_PLACEHOLDER, params.suite.agentModel);
   if (params.webhookSlug !== undefined) {
     rendered = rendered.replaceAll(WEBHOOK_SOURCE_PLACEHOLDER, params.webhookSlug);
   }

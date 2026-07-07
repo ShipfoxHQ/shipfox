@@ -3,18 +3,18 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
-  type FakeOpenAiProviderHandle,
+  type FakeOpenAiModelProviderHandle,
   message,
-  providerStateFile,
-  readFakeOpenAiProviderState,
-  startFakeOpenAiProvider,
-  stopFakeOpenAiProvider,
+  modelProviderStateFile,
+  readFakeOpenAiModelProviderState,
+  startFakeOpenAiModelProvider,
+  stopFakeOpenAiModelProvider,
   toolCall,
 } from './index.js';
 
-describe('fake OpenAI provider process', () => {
+describe('fake OpenAI model provider process', () => {
   let stateDirectory: string;
-  let provider: FakeOpenAiProviderHandle | undefined;
+  let provider: FakeOpenAiModelProviderHandle | undefined;
 
   beforeEach(async () => {
     stateDirectory = await mkdtemp(join(tmpdir(), 'shipfox-fake-provider-'));
@@ -27,7 +27,7 @@ describe('fake OpenAI provider process', () => {
   });
 
   it('starts a sidecar, serves a scripted OpenAI request, and cleans up state on stop', async () => {
-    provider = await startFakeOpenAiProvider({runId: 'lifecycle', stateDirectory});
+    provider = await startFakeOpenAiModelProvider({runId: 'lifecycle', stateDirectory});
     const {baseUrl} = provider;
     const script = await provider.createScript({
       id: 'scripted-request',
@@ -38,12 +38,12 @@ describe('fake OpenAI provider process', () => {
       ],
     });
 
-    const result = await fetch(`${script.providerBaseUrl}/chat/completions`, {
+    const result = await fetch(`${script.modelProviderBaseUrl}/chat/completions`, {
       method: 'POST',
       body: JSON.stringify(openAiRequest()),
     });
     const requests = await provider.getRequests(script.id);
-    const state = await readFakeOpenAiProviderState({runId: 'lifecycle', stateDirectory});
+    const state = await readFakeOpenAiModelProviderState({runId: 'lifecycle', stateDirectory});
     await provider.stop();
     provider = undefined;
     const stateAfterStop = await readStateFile('lifecycle');
@@ -88,11 +88,11 @@ describe('fake OpenAI provider process', () => {
   });
 
   it('stops a sidecar from the persisted run state', async () => {
-    provider = await startFakeOpenAiProvider({runId: 'teardown', stateDirectory});
+    provider = await startFakeOpenAiModelProvider({runId: 'teardown', stateDirectory});
     const {baseUrl} = provider;
-    const state = await readFakeOpenAiProviderState({runId: 'teardown', stateDirectory});
+    const state = await readFakeOpenAiModelProviderState({runId: 'teardown', stateDirectory});
 
-    await stopFakeOpenAiProvider({runId: 'teardown', stateDirectory});
+    await stopFakeOpenAiModelProvider({runId: 'teardown', stateDirectory});
     provider = undefined;
     const stateAfterStop = await readStateFile('teardown');
     const processAliveAfterStop = isProcessAlive(state.pid);
@@ -105,7 +105,7 @@ describe('fake OpenAI provider process', () => {
 
   async function readStateFile(runId: string): Promise<string | null> {
     try {
-      const path = providerStateFile({runId, stateDirectory});
+      const path = modelProviderStateFile({runId, stateDirectory});
       return await readFile(path, 'utf8');
     } catch {
       return null;

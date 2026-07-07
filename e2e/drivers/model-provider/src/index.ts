@@ -1,21 +1,24 @@
 export {
   buildChatCompletion,
+  buildChatCompletionChunks,
   buildOpenAiError,
   type OpenAiChatCompletion,
   type OpenAiChatCompletionChoice,
+  type OpenAiChatCompletionChunk,
+  type OpenAiChatCompletionChunkChoice,
   type OpenAiErrorBody,
 } from './openai.js';
 export {
-  type FakeOpenAiProviderHandle,
-  type FakeOpenAiProviderState,
+  type FakeOpenAiModelProviderHandle,
+  type FakeOpenAiModelProviderState,
   type FakeOpenAiScriptHandle,
   message,
-  providerStateFile,
-  readFakeOpenAiProviderState,
-  type StartFakeOpenAiProviderParams,
-  type StopFakeOpenAiProviderParams,
-  startFakeOpenAiProvider,
-  stopFakeOpenAiProvider,
+  modelProviderStateFile,
+  readFakeOpenAiModelProviderState,
+  type StartFakeOpenAiModelProviderParams,
+  type StopFakeOpenAiModelProviderParams,
+  startFakeOpenAiModelProvider,
+  stopFakeOpenAiModelProvider,
   toolCall,
 } from './process.js';
 export {
@@ -28,7 +31,7 @@ export {
   type ScriptRegistrationResult,
 } from './scripts.js';
 export {
-  type CreateFakeOpenAiProviderServerParams,
-  createFakeOpenAiProviderServer,
-  type FakeOpenAiProviderServer,
+  type CreateFakeOpenAiModelProviderServerParams,
+  createFakeOpenAiModelProviderServer,
+  type FakeOpenAiModelProviderServer,
 } from './server.js';

@@ -1,9 +1,9 @@
 import {
-  type FakeOpenAiProviderHandle,
+  type FakeOpenAiModelProviderHandle,
   type FakeOpenAiScriptHandle,
   message,
-  startFakeOpenAiProvider,
-} from '@shipfox/e2e-driver-agent-provider';
+  startFakeOpenAiModelProvider,
+} from '@shipfox/e2e-driver-model-provider';
 import type {AgentHelper} from '@shipfox/e2e-setup-agent';
 import {expect, test} from './test.js';
 
@@ -17,16 +17,16 @@ const DELETE_PROVIDER_ID = 'fake-openai-delete';
 const DELETE_PROVIDER_NAME = 'Fake OpenAI Delete';
 const PROVIDER_SAVE_TIMEOUT_MS = 75_000;
 
-let fakeProvider: FakeOpenAiProviderHandle | undefined;
+let fakeModelProvider: FakeOpenAiModelProviderHandle | undefined;
 
 test.beforeAll(async () => {
-  fakeProvider = await startFakeOpenAiProvider({
+  fakeModelProvider = await startFakeOpenAiModelProvider({
     runId: `client-agent-custom-model-provider-settings-${process.pid}-${crypto.randomUUID()}`,
   });
 });
 
 test.afterAll(async () => {
-  await fakeProvider?.stop();
+  await fakeModelProvider?.stop();
 });
 
 async function expectProviderInApi(params: {
@@ -57,7 +57,7 @@ test('creates a custom model provider backed by a fake OpenAI-compatible provide
   createReadyWorkspace,
 }) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
-    name: 'Agent Provider Create Workspace',
+    name: 'Model Provider Create Workspace',
   });
   const script = await createFakeProviderScript('create', 1);
 
@@ -67,7 +67,7 @@ test('creates a custom model provider backed by a fake OpenAI-compatible provide
   await customModelProviders.fillProviderIdentity(dialog, {
     displayName: CREATE_PROVIDER_NAME,
     providerId: CREATE_PROVIDER_ID,
-    baseUrl: script.providerBaseUrl,
+    baseUrl: script.modelProviderBaseUrl,
   });
   const discoveryResponse = page.waitForResponse(
     (response) =>
@@ -114,11 +114,11 @@ test('edits an existing custom model provider and validates the provider endpoin
   createReadyWorkspace,
 }) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
-    name: 'Agent Provider Edit Workspace',
+    name: 'Model Provider Edit Workspace',
   });
   const script = await createFakeProviderScript('edit', 2);
   await agent.createOpenAiCompatibleCustomProvider({
-    baseUrl: script.providerBaseUrl,
+    baseUrl: script.modelProviderBaseUrl,
     model: FAKE_MODEL_ID,
     workspaceId,
     sessionToken,
@@ -160,11 +160,11 @@ test('deletes an existing custom model provider', async ({
   createReadyWorkspace,
 }) => {
   const {workspaceId, sessionToken} = await createReadyWorkspace({
-    name: 'Agent Provider Delete Workspace',
+    name: 'Model Provider Delete Workspace',
   });
   const script = await createFakeProviderScript('delete', 1);
   await agent.createOpenAiCompatibleCustomProvider({
-    baseUrl: script.providerBaseUrl,
+    baseUrl: script.modelProviderBaseUrl,
     model: FAKE_MODEL_ID,
     workspaceId,
     sessionToken,
@@ -188,9 +188,9 @@ async function createFakeProviderScript(
   suffix: string,
   validationResponses: number,
 ): Promise<FakeOpenAiScriptHandle> {
-  if (!fakeProvider) throw new Error('Fake OpenAI provider did not start.');
+  if (!fakeModelProvider) throw new Error('Fake OpenAI model provider did not start.');
 
-  return await fakeProvider.createScript({
+  return await fakeModelProvider.createScript({
     id: `${suffix}-${crypto.randomUUID()}`,
     model: FAKE_MODEL_ID,
     responses: Array.from({length: validationResponses}, () => message('OK')),

@@ -11,20 +11,20 @@ const DEFAULT_SIGTERM_TIMEOUT_MS = 5_000;
 const HEALTHZ_REQUEST_TIMEOUT_MS = 500;
 const READY_EVENT = 'ready';
 
-export interface StartFakeOpenAiProviderParams {
+export interface StartFakeOpenAiModelProviderParams {
   runId?: string | undefined;
   readinessTimeoutMs?: number | undefined;
   stateDirectory?: string | undefined;
   entryPath?: string | undefined;
 }
 
-export interface StopFakeOpenAiProviderParams {
+export interface StopFakeOpenAiModelProviderParams {
   runId: string;
   sigtermTimeoutMs?: number | undefined;
   stateDirectory?: string | undefined;
 }
 
-export interface FakeOpenAiProviderState {
+export interface FakeOpenAiModelProviderState {
   runId: string;
   pid: number;
   baseUrl: string;
@@ -34,10 +34,10 @@ export interface FakeOpenAiProviderState {
 export interface FakeOpenAiScriptHandle {
   id: string;
   model: string;
-  providerBaseUrl: string;
+  modelProviderBaseUrl: string;
 }
 
-export interface FakeOpenAiProviderHandle {
+export interface FakeOpenAiModelProviderHandle {
   baseUrl: string;
   createScript(params: FakeOpenAiScript): Promise<FakeOpenAiScriptHandle>;
   resetScript(id: string): Promise<void>;
@@ -61,9 +61,9 @@ export function message(content: string): Extract<FakeOpenAiResponse, {kind: 'me
   return {kind: 'message', content};
 }
 
-export async function startFakeOpenAiProvider(
-  params: StartFakeOpenAiProviderParams = {},
-): Promise<FakeOpenAiProviderHandle> {
+export async function startFakeOpenAiModelProvider(
+  params: StartFakeOpenAiModelProviderParams = {},
+): Promise<FakeOpenAiModelProviderHandle> {
   const runId = params.runId ?? crypto.randomUUID();
   const adminToken = crypto.randomUUID();
   const {cwd, entry} = providerSidecarModule(params.entryPath);
@@ -79,7 +79,7 @@ export async function startFakeOpenAiProvider(
   const {pid} = child;
   if (pid === undefined) {
     child.kill('SIGKILL');
-    throw new Error('Fake OpenAI provider child process failed to start (no pid)');
+    throw new Error('Fake OpenAI model provider child process failed to start (no pid)');
   }
 
   let baseUrl: string;
@@ -99,7 +99,7 @@ export async function startFakeOpenAiProvider(
     throw error;
   }
 
-  const stateFile = providerStateFile({runId, stateDirectory: params.stateDirectory});
+  const stateFile = modelProviderStateFile({runId, stateDirectory: params.stateDirectory});
   try {
     await writeProviderState(stateFile, {runId, pid, baseUrl, adminToken});
   } catch (error) {
@@ -112,7 +112,7 @@ export async function startFakeOpenAiProvider(
     createScript: async (script) => {
       const body = await requestJson<{
         model: string;
-        provider_base_url: string;
+        model_provider_base_url: string;
         script_id: string;
       }>({
         adminToken,
@@ -123,7 +123,7 @@ export async function startFakeOpenAiProvider(
       return {
         id: body.script_id,
         model: body.model,
-        providerBaseUrl: body.provider_base_url,
+        modelProviderBaseUrl: body.model_provider_base_url,
       };
     },
     resetScript: async (id) => {
@@ -148,25 +148,29 @@ export async function startFakeOpenAiProvider(
   };
 }
 
-export function providerStateFile(params: {
+export function modelProviderStateFile(params: {
   runId: string;
   stateDirectory?: string | undefined;
 }): string {
   return join(params.stateDirectory ?? defaultStateDirectory(), `${params.runId}.json`);
 }
 
-export async function readFakeOpenAiProviderState(params: {
+export async function readFakeOpenAiModelProviderState(params: {
   runId: string;
   stateDirectory?: string | undefined;
-}): Promise<FakeOpenAiProviderState> {
-  return JSON.parse(await readFile(providerStateFile(params), 'utf8')) as FakeOpenAiProviderState;
+}): Promise<FakeOpenAiModelProviderState> {
+  return JSON.parse(
+    await readFile(modelProviderStateFile(params), 'utf8'),
+  ) as FakeOpenAiModelProviderState;
 }
 
-export async function stopFakeOpenAiProvider(params: StopFakeOpenAiProviderParams): Promise<void> {
-  const stateFile = providerStateFile(params);
-  let state: FakeOpenAiProviderState;
+export async function stopFakeOpenAiModelProvider(
+  params: StopFakeOpenAiModelProviderParams,
+): Promise<void> {
+  const stateFile = modelProviderStateFile(params);
+  let state: FakeOpenAiModelProviderState;
   try {
-    state = JSON.parse(await readFile(stateFile, 'utf8')) as FakeOpenAiProviderState;
+    state = JSON.parse(await readFile(stateFile, 'utf8')) as FakeOpenAiModelProviderState;
   } catch {
     return;
   }
@@ -175,7 +179,10 @@ export async function stopFakeOpenAiProvider(params: StopFakeOpenAiProviderParam
   await rm(stateFile, {force: true}).catch(() => undefined);
 }
 
-async function writeProviderState(path: string, state: FakeOpenAiProviderState): Promise<void> {
+async function writeProviderState(
+  path: string,
+  state: FakeOpenAiModelProviderState,
+): Promise<void> {
   await mkdir(dirname(path), {recursive: true});
   await writeFile(path, JSON.stringify(state, null, 2));
 }
@@ -206,7 +213,9 @@ function waitForReadyMessage(child: ChildProcess, timeoutMs: number): Promise<st
   return new Promise((resolveReady, rejectReady) => {
     const timer = setTimeout(() => {
       cleanup();
-      rejectReady(new Error(`Fake OpenAI provider did not report ready within ${timeoutMs}ms`));
+      rejectReady(
+        new Error(`Fake OpenAI model provider did not report ready within ${timeoutMs}ms`),
+      );
     }, timeoutMs);
 
     const cleanup = () => {
@@ -236,14 +245,14 @@ function waitForReadyMessage(child: ChildProcess, timeoutMs: number): Promise<st
       cleanup();
       rejectReady(
         new Error(
-          `Fake OpenAI provider exited before readiness (code ${code}, signal ${signal})${stderrTail(stderr)}`,
+          `Fake OpenAI model provider exited before readiness (code ${code}, signal ${signal})${stderrTail(stderr)}`,
         ),
       );
     };
 
     const onError = (error: Error) => {
       cleanup();
-      rejectReady(new Error(`Fake OpenAI provider process error: ${error.message}`));
+      rejectReady(new Error(`Fake OpenAI model provider process error: ${error.message}`));
     };
 
     child.stdout?.on('data', onStdout);
@@ -275,7 +284,7 @@ async function waitForHealthz(params: {
   while (Date.now() < deadline) {
     if (params.child.exitCode !== null || params.child.signalCode !== null) {
       throw new Error(
-        `Fake OpenAI provider exited before health check passed (code ${params.child.exitCode}, signal ${params.child.signalCode})`,
+        `Fake OpenAI model provider exited before health check passed (code ${params.child.exitCode}, signal ${params.child.signalCode})`,
       );
     }
 
@@ -294,7 +303,9 @@ async function waitForHealthz(params: {
     await sleep(50);
   }
 
-  throw new Error(`Fake OpenAI provider health check did not pass within ${params.timeoutMs}ms`);
+  throw new Error(
+    `Fake OpenAI model provider health check did not pass within ${params.timeoutMs}ms`,
+  );
 }
 
 async function requestJson<T>(params: {
@@ -346,7 +357,7 @@ async function fetchWithTimeout(
     return await fetch(url, {...requestInit, signal: abortController.signal});
   } catch (error) {
     if (abortController.signal.aborted) {
-      throw new Error(`Fake OpenAI provider request timed out after ${timeoutMs}ms: ${url}`);
+      throw new Error(`Fake OpenAI model provider request timed out after ${timeoutMs}ms: ${url}`);
     }
     throw error;
   } finally {
@@ -356,7 +367,7 @@ async function fetchWithTimeout(
 
 async function responseErrorMessage(response: Response): Promise<string> {
   const body = await response.text().catch(() => '');
-  return `Fake OpenAI provider request failed: ${response.status} ${response.statusText}${body ? ` ${body}` : ''}`;
+  return `Fake OpenAI model provider request failed: ${response.status} ${response.statusText}${body ? ` ${body}` : ''}`;
 }
 
 function terminate(child: ChildProcess, sigtermTimeoutMs: number): Promise<void> {
@@ -415,7 +426,7 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 }
 
 function defaultStateDirectory(): string {
-  return join(workspaceRoot(), '.context', 'e2e-agent-provider');
+  return join(workspaceRoot(), '.context', 'e2e-model-provider');
 }
 
 function workspaceRoot(): string {

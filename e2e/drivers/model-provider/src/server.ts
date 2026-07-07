@@ -1,16 +1,16 @@
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import type {AddressInfo} from 'node:net';
-import {buildOpenAiError, buildOpenAiModelList} from './openai.js';
+import {buildChatCompletionChunks, buildOpenAiError, buildOpenAiModelList} from './openai.js';
 import {type FakeOpenAiScript, FakeOpenAiScriptRegistry} from './scripts.js';
 
-export interface FakeOpenAiProviderServer {
+export interface FakeOpenAiModelProviderServer {
   adminToken: string;
   baseUrl: string;
   registry: FakeOpenAiScriptRegistry;
   stop(): Promise<void>;
 }
 
-export interface CreateFakeOpenAiProviderServerParams {
+export interface CreateFakeOpenAiModelProviderServerParams {
   adminToken?: string | undefined;
   registry?: FakeOpenAiScriptRegistry | undefined;
 }
@@ -22,9 +22,9 @@ const requestsPathRe = /^\/scripts\/([^/]+)\/requests$/u;
 const completionsPathRe = /^\/scripts\/([^/]+)\/v1\/chat\/completions$/u;
 const modelsPathRe = /^\/scripts\/([^/]+)\/v1\/models$/u;
 
-export async function createFakeOpenAiProviderServer(
-  params: CreateFakeOpenAiProviderServerParams = {},
-): Promise<FakeOpenAiProviderServer> {
+export async function createFakeOpenAiModelProviderServer(
+  params: CreateFakeOpenAiModelProviderServerParams = {},
+): Promise<FakeOpenAiModelProviderServer> {
   const adminToken = params.adminToken ?? crypto.randomUUID();
   const registry = params.registry ?? new FakeOpenAiScriptRegistry();
   const server = createServer((request, response) => {
@@ -34,7 +34,7 @@ export async function createFakeOpenAiProviderServer(
   await listen(server);
   const address = server.address();
   if (!address || typeof address === 'string')
-    throw new Error('Fake provider did not bind a TCP port.');
+    throw new Error('Fake model provider did not bind a TCP port.');
 
   return {
     adminToken,
@@ -79,7 +79,7 @@ async function routeRequest(params: {
       writeJson(params.response, 201, {
         script_id: result.scriptId,
         model: result.model,
-        provider_base_url: `${origin(url)}/scripts/${result.scriptId}/v1`,
+        model_provider_base_url: `${origin(url)}/scripts/${result.scriptId}/v1`,
       });
       return;
     }
@@ -117,6 +117,10 @@ async function routeRequest(params: {
       const scriptId = decodeURIComponent(completionsMatch[1] ?? '');
       const body = await readJson(params.request);
       const result = params.registry.advance(scriptId, {body, method, path: pathname});
+      if (result.status === 200 && isStreamRequest(body) && isChatCompletion(result.body)) {
+        writeEventStream(params.response, buildChatCompletionChunks(result.body));
+        return;
+      }
       writeJson(params.response, result.status, result.body);
       return;
     }
@@ -134,7 +138,7 @@ async function routeRequest(params: {
       buildOpenAiError('not_found', `Route not found: ${method} ${pathname}`),
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Fake provider request failed.';
+    const message = error instanceof Error ? error.message : 'Fake model provider request failed.';
     writeJson(params.response, 400, buildOpenAiError('bad_request', message));
   }
 }
@@ -154,6 +158,16 @@ function isAuthorized(request: IncomingMessage, adminToken: string): boolean {
 
 function writeUnauthorized(response: ServerResponse): void {
   writeJson(response, 401, buildOpenAiError('unauthorized', 'Missing or invalid admin token'));
+}
+
+function isStreamRequest(body: unknown): boolean {
+  return Boolean(body && typeof body === 'object' && (body as {stream?: unknown}).stream === true);
+}
+
+function isChatCompletion(body: unknown): body is Parameters<typeof buildChatCompletionChunks>[0] {
+  return Boolean(
+    body && typeof body === 'object' && (body as {object?: unknown}).object === 'chat.completion',
+  );
 }
 
 function validateScriptRegistration(script: FakeOpenAiScript): void {
@@ -188,6 +202,16 @@ function writeJson(response: ServerResponse, status: number, body: unknown): voi
   response.end(JSON.stringify(body));
 }
 
+function writeEventStream(response: ServerResponse, chunks: unknown[]): void {
+  response.statusCode = 200;
+  response.setHeader('content-type', 'text/event-stream; charset=utf-8');
+  response.setHeader('cache-control', 'no-cache');
+  for (const chunk of chunks) {
+    response.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  }
+  response.end('data: [DONE]\n\n');
+}
+
 async function listen(server: Server): Promise<AddressInfo> {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -199,7 +223,7 @@ async function listen(server: Server): Promise<AddressInfo> {
 
   const address = server.address();
   if (!address || typeof address === 'string')
-    throw new Error('Fake provider did not bind a TCP port.');
+    throw new Error('Fake model provider did not bind a TCP port.');
   return address;
 }
 

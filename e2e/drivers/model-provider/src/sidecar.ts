@@ -1,19 +1,21 @@
-import {createFakeOpenAiProviderServer, type FakeOpenAiProviderServer} from './server.js';
+import {createFakeOpenAiModelProviderServer, type FakeOpenAiModelProviderServer} from './server.js';
 
 const adminToken = process.env.SHIPFOX_FAKE_OPENAI_ADMIN_TOKEN;
 
 if (!adminToken) {
-  process.stderr.write('Fake OpenAI provider sidecar requires SHIPFOX_FAKE_OPENAI_ADMIN_TOKEN\n');
+  process.stderr.write(
+    'Fake OpenAI model provider sidecar requires SHIPFOX_FAKE_OPENAI_ADMIN_TOKEN\n',
+  );
   process.exit(1);
 }
 
-let server: FakeOpenAiProviderServer | undefined;
+let server: FakeOpenAiModelProviderServer | undefined;
 
 try {
-  server = await createFakeOpenAiProviderServer({adminToken});
+  server = await createFakeOpenAiModelProviderServer({adminToken});
   process.stdout.write(`${JSON.stringify({event: 'ready', baseUrl: server.baseUrl})}\n`);
 } catch (error) {
-  process.stderr.write(`Fake OpenAI provider sidecar failed to start: ${String(error)}\n`);
+  process.stderr.write(`Fake OpenAI model provider sidecar failed to start: ${String(error)}\n`);
   process.exit(1);
 }
 

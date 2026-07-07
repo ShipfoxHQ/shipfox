@@ -1,0 +1,24 @@
+name: __MODEL_PROVIDER__
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  fix:
+    steps:
+      - key: produce
+        harness: pi
+        provider: __MODEL_PROVIDER__
+        model: __AGENT_MODEL__
+        thinking: off
+        prompt: |
+          Set the message output.
+        outputs:
+          message: string
+      - key: consume
+        env:
+          MESSAGE: ${{ steps.produce.outputs.message }}
+        run: |
+          echo "agent_message=$MESSAGE"
