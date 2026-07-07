@@ -1,0 +1,11 @@
+process.env.POSTGRES_HOST ??= 'localhost';
+process.env.POSTGRES_PORT ??= '5432';
+process.env.POSTGRES_USERNAME ??= 'shipfox';
+process.env.POSTGRES_PASSWORD ??= 'password';
+process.env.POSTGRES_DATABASE = 'api_test';
+process.env.POSTGRES_MAX_CONNECTIONS ??= '5';
+process.env.TZ = 'UTC';
+process.env.LINEAR_OAUTH_CLIENT_ID = 'test-client-id';
+process.env.LINEAR_OAUTH_CLIENT_SECRET = 'test-client-secret';
+process.env.LINEAR_WEBHOOK_SIGNING_SECRET = 'test-webhook-secret';
+process.env.LINEAR_OAUTH_REDIRECT_URL = 'https://api.example.com/integrations/linear/callback/api';

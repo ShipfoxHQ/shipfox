@@ -110,6 +110,31 @@ describe('GET /integration-connections', () => {
     ]);
   });
 
+  it('advertises no capabilities on Linear connections before adapters exist', async () => {
+    const app = await createTestApp([{provider: 'linear', displayName: 'Linear', adapters: {}}]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'linear',
+      externalAccountId: 'org-1',
+      slug: 'linear_org_1',
+      displayName: 'Linear Org',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections).toMatchObject([
+      {
+        provider: 'linear',
+        capabilities: [],
+      },
+    ]);
+  });
+
   it('includes external_url when the provider resolves one', async () => {
     const app = await createTestApp([
       sourceProvider({
