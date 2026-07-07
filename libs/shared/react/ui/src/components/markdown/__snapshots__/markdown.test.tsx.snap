@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Markdown > sanitizes hostile input 1`] = `
+<div>
+  <div
+    class="min-w-0 [overflow-wrap:anywhere]"
+    dir="auto"
+  >
+    
+
+  </div>
+</div>
+`;
