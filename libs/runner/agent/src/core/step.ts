@@ -42,6 +42,16 @@ export function executeAgentStep(
       ),
     );
   }
+  const tools = toolsFromConfig(step.config.tools);
+  if (tools === 'invalid') {
+    return Promise.resolve(
+      agentFailure(
+        'Agent step config has invalid tools.',
+        'agent_config_invalid',
+        'step_config_invalid',
+      ),
+    );
+  }
 
   return runSelectedHarness({
     cwd: options.cwd ?? process.cwd(),
@@ -49,6 +59,7 @@ export function executeAgentStep(
     model: options.runtime.model,
     outputs: outputDeclarationsFromConfig(step.config.outputs),
     prompt,
+    tools,
     thinking: options.runtime.thinking,
     provider: options.runtime.provider,
     credentials: options.runtime.credentials,
@@ -65,6 +76,7 @@ async function runSelectedHarness(params: {
   model: string;
   outputs: OutputDeclarations | undefined;
   prompt: string;
+  tools: readonly string[] | undefined;
   thinking: string;
   provider: string;
   credentials: Record<string, string>;
@@ -79,6 +91,7 @@ async function runSelectedHarness(params: {
     model,
     outputs,
     prompt,
+    tools,
     thinking,
     provider,
     credentials,
@@ -97,6 +110,7 @@ async function runSelectedHarness(params: {
         provider,
         thinking,
         prompt,
+        ...(tools === undefined ? {} : {tools}),
         outputs,
         credentials,
         customProvider,
@@ -195,4 +209,11 @@ function outputDeclarationsFromConfig(value: unknown): OutputDeclarations | unde
     return undefined;
   }
   return value as OutputDeclarations;
+}
+
+function toolsFromConfig(value: unknown): readonly string[] | undefined | 'invalid' {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) return 'invalid';
+  if (value.some((tool) => typeof tool !== 'string' || tool === '')) return 'invalid';
+  return [...value];
 }

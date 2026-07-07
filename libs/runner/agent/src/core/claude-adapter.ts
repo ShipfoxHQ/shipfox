@@ -44,6 +44,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     provider,
     thinking,
     prompt,
+    tools,
     credentials,
     customProvider,
     gitConfigGlobal,
@@ -108,7 +109,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         thinking: {type: 'adaptive'},
         effort: thinking as EffortLevel,
         abortController: controller,
-        ...(override !== undefined ? {tools: []} : {}),
+        ...claudeToolsOption(tools, override),
         env: claudeEnvironment(auth, configDir, gitConfigGlobal, override),
         ...(useOutputTools
           ? {
@@ -164,6 +165,14 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
   }
 
   throw new Error('Claude agent did not emit a result message.');
+}
+
+function claudeToolsOption(
+  tools: readonly string[] | undefined,
+  override: ClaudeAnthropicOverride | undefined,
+): {readonly tools?: string[]} {
+  if (tools !== undefined) return {tools: [...tools]};
+  return override === undefined ? {} : {tools: []};
 }
 
 function setOutputTool(collector: OutputCollector) {

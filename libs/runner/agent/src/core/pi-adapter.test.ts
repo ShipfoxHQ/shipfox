@@ -189,6 +189,21 @@ describe('piHarnessAdapter', () => {
     );
   });
 
+  it('passes selected Pi tool names through unchanged', async () => {
+    await piHarnessAdapter.run(invocation({tools: ['read', 'web_search', 'fetch_content']}));
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({tools: ['read', 'web_search', 'fetch_content']}),
+    );
+  });
+
+  it('omits the Pi tools option when no tools are selected', async () => {
+    await piHarnessAdapter.run(invocation());
+
+    const options = createAgentSessionMock.mock.calls[0]?.[0];
+    expect(options).not.toHaveProperty('tools');
+  });
+
   it('preserves the final assistant response when required outputs stay missing', async () => {
     const model = {provider: 'anthropic', id: 'claude-opus-4-8'};
     findMock.mockReturnValue(model);

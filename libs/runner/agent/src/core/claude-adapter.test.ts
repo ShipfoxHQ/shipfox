@@ -363,6 +363,20 @@ describe('claudeHarnessAdapter', () => {
     });
     const env = lastQueryOptions().env;
     expect(env.CLAUDE_CONFIG_DIR).toMatch(`${testCwd}/logs/claude-config-`);
+    expect(lastQueryOptions()).not.toHaveProperty('tools');
+  });
+
+  it('passes selected Claude tool names through unchanged', async () => {
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+
+    await claudeHarnessAdapter.run(invocation({tools: ['Read', 'Grep', 'WebSearch']}));
+
+    expect(queryMock).toHaveBeenCalledWith({
+      prompt: expect.any(Object),
+      options: expect.objectContaining({
+        tools: ['Read', 'Grep', 'WebSearch'],
+      }),
+    });
   });
 
   it('does not spawn Claude when already aborted', async () => {

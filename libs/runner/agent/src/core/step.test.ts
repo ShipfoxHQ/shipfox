@@ -108,6 +108,18 @@ describe('executeAgentStep', () => {
     );
   });
 
+  it('forwards selected tools to the agent invocation unchanged', async () => {
+    runAgentMock.mockResolvedValue({});
+
+    await executeAgentStep(buildAgentStep({config: {prompt: 'p', tools: ['read', 'web_search']}}), {
+      runtime: RUNTIME,
+    });
+
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({tools: ['read', 'web_search']}),
+    );
+  });
+
   it('forwards custom provider runtime config to the agent invocation', async () => {
     runAgentMock.mockResolvedValue({});
     const customProvider = {
@@ -251,6 +263,26 @@ describe('executeAgentStep', () => {
     expect(result.success).toBe(false);
     expect(result.error?.reason).toBe('agent_config_invalid');
     expect(result.error?.agent_config_issue).toBe('step_config_invalid');
+    expect(runAgentMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['non-array tools', {prompt: 'p', tools: 'read'}],
+    ['empty tools', {prompt: 'p', tools: []}],
+    ['non-string tool', {prompt: 'p', tools: ['read', 1]}],
+    ['empty tool name', {prompt: 'p', tools: ['read', '']}],
+  ])('fails with agent_config_invalid for %s', async (_name, config) => {
+    const result = await executeAgentStep(buildAgentStep({config}), {runtime: RUNTIME});
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        message: 'Agent step config has invalid tools.',
+        reason: 'agent_config_invalid',
+        agent_config_issue: 'step_config_invalid',
+      },
+      exit_code: null,
+    });
     expect(runAgentMock).not.toHaveBeenCalled();
   });
 

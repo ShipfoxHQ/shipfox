@@ -9,6 +9,7 @@ export interface HarnessInvocation {
   readonly provider: string;
   readonly thinking: string;
   readonly prompt: string;
+  readonly tools?: readonly string[] | undefined;
   readonly outputs?: OutputDeclarations | undefined;
   readonly credentials: Record<string, string>;
   readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;
