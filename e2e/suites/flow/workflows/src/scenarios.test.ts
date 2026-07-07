@@ -56,6 +56,33 @@ describe('discoverScenarios', () => {
     }
   });
 
+  test('loads optional fake model provider script metadata', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(root, 'with-model-provider', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(
+        root,
+        'with-model-provider',
+        'workflow.yml',
+        'jobs:\n  build:\n    steps: []\n',
+      );
+      writeScenarioFile(
+        root,
+        'with-model-provider',
+        'model-provider.yaml',
+        'script_key: agent-output-tool\n',
+      );
+
+      const scenarios = discoverScenarios(root);
+
+      expect(scenarios[0]).toMatchObject({
+        fakeModelProviderScriptKey: 'agent-output-tool',
+      });
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
   test('loads directories that contain reject.yaml and workflow.yml', () => {
     const root = createTempScenariosRoot();
     try {

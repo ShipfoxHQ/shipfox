@@ -45,7 +45,10 @@ export default async function globalSetup(): Promise<void> {
         toolCall('set_output', {key: 'message', value: 'qwen-tool-output-ok'}),
         message('done'),
       ],
-      assertions: [{kind: 'model', equals: DETERMINISTIC_AGENT_MODEL}],
+      assertions: [
+        {kind: 'model', equals: DETERMINISTIC_AGENT_MODEL},
+        {kind: 'tool_present', name: 'set_output', minRequestIndex: 1},
+      ],
     });
     const modelProvider = await createOpenAiCompatibleCustomProvider({
       workspaceId: workspace.id,
@@ -93,6 +96,7 @@ export default async function globalSetup(): Promise<void> {
       modelProviderId: modelProvider.provider_id,
       agentModel: modelProviderScript.model,
       fakeModelProviderRunId: runId,
+      fakeModelProviderScripts: {'agent-output-tool': modelProviderScript.id},
     });
   } catch (error) {
     for (const cleanup of cleanups.reverse()) {

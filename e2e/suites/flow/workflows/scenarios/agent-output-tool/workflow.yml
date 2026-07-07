@@ -1,10 +1,9 @@
 name: __MODEL_PROVIDER__
 runner: __RUNNER_LABEL__
 triggers:
-  on_push:
-    source: __GITEA_SOURCE__
-    event: push
-    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+  manual:
+    source: manual
+    event: fire
 jobs:
   fix:
     steps:

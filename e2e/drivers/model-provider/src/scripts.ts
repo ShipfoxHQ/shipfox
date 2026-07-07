@@ -24,7 +24,7 @@ export type FakeOpenAiResponse =
       message: string;
     };
 
-export type FakeOpenAiRequestAssertion =
+export type FakeOpenAiRequestAssertion = (
   | {
       kind: 'model';
       equals: string;
@@ -32,7 +32,8 @@ export type FakeOpenAiRequestAssertion =
   | {
       kind: 'tool_present';
       name: string;
-    };
+    }
+) & {minRequestIndex?: number | undefined};
 
 export interface FakeOpenAiRecordedRequest {
   index: number;
@@ -108,7 +109,7 @@ export class FakeOpenAiScriptRegistry {
     const state = this.#scriptState(scriptId);
     const requestIndex = state.cursor;
     const summary = summarizeOpenAiRequest(request.body);
-    const assertionFailures = assertRequest(state.script.assertions ?? [], summary);
+    const assertionFailures = assertRequest(state.script.assertions ?? [], summary, requestIndex);
 
     if (assertionFailures.length > 0) {
       state.requests.push(
@@ -237,8 +238,13 @@ function messageRoles(messages: unknown): string[] {
 function assertRequest(
   assertions: FakeOpenAiRequestAssertion[],
   summary: OpenAiRequestSummary,
+  requestIndex: number,
 ): string[] {
   return assertions.flatMap((assertion) => {
+    if (assertion.minRequestIndex !== undefined && requestIndex < assertion.minRequestIndex) {
+      return [];
+    }
+
     if (assertion.kind === 'model' && summary.model !== assertion.equals) {
       return [`Expected model ${assertion.equals} but received ${summary.model ?? '<missing>'}`];
     }
