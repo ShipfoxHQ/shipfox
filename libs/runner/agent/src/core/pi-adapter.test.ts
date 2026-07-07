@@ -174,7 +174,7 @@ describe('piHarnessAdapter', () => {
     expect(result).toEqual({response: ''});
   });
 
-  it('loads pi-web-access through the Pi resource loader and keeps the output tool', async () => {
+  it('loads pi-web-access through the Pi resource loader without output tools by default', async () => {
     await piHarnessAdapter.run(invocation());
 
     expect(createAgentSessionServicesMock).toHaveBeenCalledWith(
@@ -182,6 +182,14 @@ describe('piHarnessAdapter', () => {
         resourceLoaderOptions: {additionalExtensionPaths: ['pi-web-access']},
       }),
     );
+    expect(createAgentSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('customTools');
+  });
+
+  it('registers the output tool for steps with declared outputs', async () => {
+    const result = piHarnessAdapter.run(invocation({outputs: {summary: {type: 'string'}}}));
+
+    await expect(result).rejects.toThrow('Agent step finished without required outputs: summary');
+
     expect(createAgentSessionMock.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         customTools: [expect.objectContaining({name: 'set_output'})],
@@ -202,6 +210,73 @@ describe('piHarnessAdapter', () => {
 
     const options = createAgentSessionMock.mock.calls[0]?.[0];
     expect(options).not.toHaveProperty('tools');
+  });
+
+  it('disables default Pi tools for custom providers unless tools are selected', async () => {
+    const model = {provider: 'local-ollama', id: 'llama'};
+    findMock.mockReturnValue(model);
+
+    await piHarnessAdapter.run(
+      invocation({
+        provider: 'local-ollama',
+        model: 'llama',
+        customProvider: customProvider({models: [{id: 'llama', label: 'Llama'}]}),
+      }),
+    );
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({model, noTools: 'builtin'}),
+    );
+  });
+
+  it('keeps output tools available for custom providers with declared outputs', async () => {
+    const model = {provider: 'local-ollama', id: 'llama'};
+    findMock.mockReturnValue(model);
+
+    const result = piHarnessAdapter.run(
+      invocation({
+        provider: 'local-ollama',
+        model: 'llama',
+        customProvider: customProvider({models: [{id: 'llama', label: 'Llama'}]}),
+        outputs: {message: {type: 'string'}},
+      }),
+    );
+
+    await expect(result).rejects.toThrow('Agent step finished without required outputs: message');
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model,
+        noTools: 'builtin',
+        customTools: [expect.objectContaining({name: 'set_output'})],
+      }),
+    );
+  });
+
+  it('fails when Pi records an assistant error message', async () => {
+    const messages = [
+      {
+        role: 'assistant',
+        stopReason: 'error',
+        errorMessage: '400 model does not support tools',
+      },
+    ];
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        prompt: promptMock,
+        abort: abortMock,
+        getLastAssistantText: getLastAssistantTextMock,
+        messages,
+      },
+    });
+    getLastAssistantTextMock.mockReturnValue('partial');
+
+    const result = piHarnessAdapter.run(invocation());
+
+    await expect(result).rejects.toMatchObject({
+      name: 'AgentInvocationError',
+      response: 'partial',
+      message: '400 model does not support tools',
+    });
   });
 
   it('preserves the final assistant response when required outputs stay missing', async () => {

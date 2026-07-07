@@ -62,6 +62,8 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     onSessionEntry,
   } = invocation;
   const collector = new OutputCollector(invocation.outputs);
+  const hasDeclaredOutputs =
+    invocation.outputs !== undefined && Object.keys(invocation.outputs).length > 0;
 
   // A listener added to an already-aborted signal never fires, so an abort that lands
   // before this point (or during the awaits below) would leave pi running and burning
@@ -104,8 +106,8 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     services,
     model,
     thinkingLevel: thinking as PiThinkingLevel,
-    ...(tools === undefined ? {} : {tools: [...tools]}),
-    customTools: [setOutputTool(collector)],
+    ...piToolsOption(tools, customProvider),
+    ...(hasDeclaredOutputs ? {customTools: [setOutputTool(collector)]} : {}),
     // Keep the session JSONL inside the job workspace so it forwards from a deterministic path
     // and is cleaned up with the workspace; pi's default lives under ~/.pi, outside it.
     sessionManager: SessionManager.create(cwd, join(cwd, 'logs', 'agent-sessions')),
@@ -141,9 +143,13 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     let response = '';
     await runOutputTurnLoop({
       signal,
-      prompt: withOutputGuidance(prompt, collector.guidanceText()),
+      prompt: hasDeclaredOutputs ? withOutputGuidance(prompt, collector.guidanceText()) : prompt,
       runTurn: async (message) => {
         await session.prompt(message);
+        const assistantError = lastAssistantError(session.messages);
+        if (assistantError !== undefined) {
+          throw new AgentInvocationError(assistantError, session.getLastAssistantText() ?? '');
+        }
         response = session.getLastAssistantText() ?? '';
       },
       missingRequired: () => collector.missingRequired(),
@@ -167,6 +173,33 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     signal.removeEventListener('abort', stopForwarder);
     signal.removeEventListener('abort', restoreGitConfigGlobal);
   }
+}
+
+function piToolsOption(
+  tools: readonly string[] | undefined,
+  customProvider: CustomModelProviderRuntimeConfigDto | undefined,
+): {tools: string[]} | {noTools: 'builtin'} | Record<string, never> {
+  if (tools !== undefined) return {tools: [...tools]};
+  return customProvider === undefined ? {} : {noTools: 'builtin'};
+}
+
+function lastAssistantError(messages: readonly unknown[]): string | undefined {
+  const message = [...messages].reverse().find(isAssistantMessage);
+  if (message === undefined || message.stopReason !== 'error') return undefined;
+  return message.errorMessage ?? 'Agent provider returned an error.';
+}
+
+function isAssistantMessage(message: unknown): message is {
+  readonly role: 'assistant';
+  readonly stopReason?: string;
+  readonly errorMessage?: string;
+} {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    'role' in message &&
+    message.role === 'assistant'
+  );
 }
 
 function setOutputTool(collector: OutputCollector) {

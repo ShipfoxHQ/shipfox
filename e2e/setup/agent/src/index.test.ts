@@ -217,4 +217,44 @@ describe('agent e2e helper', () => {
       },
     });
   });
+
+  it('creates an Anthropic fake-provider script and runner override env', async () => {
+    const createScript = vi.fn().mockResolvedValue({
+      id: 'claude-script',
+      model: 'deterministic-claude-agent',
+      anthropicBaseUrl: 'http://127.0.0.1:9000/scripts/claude-script',
+      modelProviderBaseUrl: 'http://127.0.0.1:9000/scripts/claude-script/v1',
+    });
+    const {createAnthropicFakeModelProviderConfig} = await import('./index.js');
+
+    const result = await createAnthropicFakeModelProviderConfig({
+      workspaceId,
+      fakeModelProvider: {createScript},
+      scriptId: 'claude-script',
+      responses: [{kind: 'message', content: 'done'}],
+      assertions: [{kind: 'model', equals: 'deterministic-claude-agent'}],
+      setAsDefault: true,
+    });
+
+    expect(createScript).toHaveBeenCalledWith({
+      id: 'claude-script',
+      model: 'deterministic-claude-agent',
+      responses: [{kind: 'message', content: 'done'}],
+      assertions: [{kind: 'model', equals: 'deterministic-claude-agent'}],
+    });
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/agent/model-provider', {
+      json: {
+        workspace_id: workspaceId,
+        provider_id: 'anthropic',
+        api_key: 'sk-e2e-anthropic-placeholder',
+        default_model: 'claude-opus-4-8',
+        set_as_default: true,
+      },
+    });
+    expect(result.runnerEnv).toEqual({
+      AGENT_CLAUDE_ANTHROPIC_BASE_URL: 'http://127.0.0.1:9000/scripts/claude-script',
+      AGENT_CLAUDE_ANTHROPIC_MODEL: 'deterministic-claude-agent',
+      AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL: 'deterministic-claude-agent-small-fast',
+    });
+  });
 });

@@ -1,9 +1,10 @@
 # Model Provider E2E Driver
 
-`@shipfox/e2e-driver-model-provider` provides a deterministic OpenAI-compatible
-provider for E2E tests. It is strict test infrastructure: suites register it as a
-normal custom model provider through product HTTP routes, while the fake model provider
-itself stays outside the API app.
+`@shipfox/e2e-driver-model-provider` provides deterministic OpenAI-compatible
+chat-completions and Anthropic Messages endpoints for E2E tests. It is strict
+test infrastructure: suites register it through product HTTP routes or point a
+runner harness override at it, while the fake model provider itself stays outside
+the API app.
 
 Use `startFakeOpenAiModelProvider()` for suites that need the provider to outlive
 Playwright `globalSetup` and serve worker-process jobs:
@@ -21,6 +22,8 @@ const script = await provider.createScript({
   ],
 });
 
+// OpenAI-compatible custom providers use script.modelProviderBaseUrl.
+// Claude's Anthropic override uses script.anthropicBaseUrl.
 await provider.stop();
 ```
 
@@ -44,9 +47,13 @@ require auth:
 
 ```text
 POST /scripts/:scriptId/v1/chat/completions
+POST /scripts/:scriptId/v1/messages
 ```
 
 Scripts advance one response per provider request. Exhausted scripts return
 `409 script_exhausted`; assertion failures return `422 script_assertion_failed`.
 Assertions can set `minRequestIndex` when setup probes should use the script before
 scenario-only request assertions apply.
+Anthropic Messages requests for a model other than the script's configured model
+return a benign non-consuming `end_turn` response, so Claude small-fast-model
+background calls do not disturb the scripted cursor.

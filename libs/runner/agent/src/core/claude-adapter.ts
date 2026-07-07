@@ -74,13 +74,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     override === undefined ? 'Claude Anthropic API endpoint' : 'Claude Anthropic base URL override';
   const hasDeclaredOutputs =
     invocation.outputs !== undefined && Object.keys(invocation.outputs).length > 0;
-  if (override !== undefined && hasDeclaredOutputs) {
-    throw new AgentConfigError(
-      'Claude Anthropic base URL override does not support declared step outputs.',
-      'provider_unsupported',
-    );
-  }
-  const useOutputTools = override === undefined;
+  const useOutputTools = hasDeclaredOutputs;
 
   await assertRunnerEgressAllowed(targetUrl, targetLabel);
 

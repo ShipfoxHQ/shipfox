@@ -2,7 +2,6 @@ import {createApiClient, preflightCheck} from '@shipfox/e2e-core';
 import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {
-  createOllamaCustomProvider,
   createOpenAiCompatibleCustomProvider,
   deleteModelProviderConfig,
 } from '@shipfox/e2e-setup-agent';
@@ -67,23 +66,32 @@ export default async function globalSetup(): Promise<void> {
       }).catch(() => undefined),
     );
 
-    const ollamaProvider = await createOllamaCustomProvider({
+    const defaultProviderScript = await fakeModelProvider.createScript({
+      id: `${runId}-default-agent`,
+      model: DETERMINISTIC_AGENT_MODEL,
+      responses: [message('ok')],
+      assertions: [{kind: 'model', equals: DETERMINISTIC_AGENT_MODEL}],
+    });
+    const defaultProvider = await createOpenAiCompatibleCustomProvider({
       workspaceId: workspace.id,
       sessionToken: session.token,
-      providerId: 'local-ollama-e2e',
-      displayName: 'Local Ollama E2E',
+      providerId: `det-default-${runId}`,
+      displayName: 'Deterministic Default Agent E2E',
+      baseUrl: defaultProviderScript.modelProviderBaseUrl,
+      model: defaultProviderScript.model,
+      modelMetadata: {max_output_tokens: 512},
     });
     cleanups.push(() =>
       deleteModelProviderConfig({
         workspaceId: workspace.id,
         sessionToken: session.token,
-        providerId: ollamaProvider.provider_id,
+        providerId: defaultProvider.provider_id,
       }).catch(() => undefined),
     );
     await setDefaultModelProvider({
       workspaceId: workspace.id,
       sessionToken: session.token,
-      providerId: ollamaProvider.provider_id,
+      providerId: defaultProvider.provider_id,
     });
 
     writeSuiteContext({

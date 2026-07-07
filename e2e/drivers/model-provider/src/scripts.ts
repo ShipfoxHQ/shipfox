@@ -1,3 +1,9 @@
+import {
+  type AnthropicErrorBody,
+  type AnthropicMessage,
+  buildAnthropicError,
+  buildAnthropicMessage,
+} from './anthropic.js';
 import {buildChatCompletion, buildOpenAiError, type OpenAiChatCompletion} from './openai.js';
 
 export interface FakeOpenAiScript {
@@ -62,6 +68,16 @@ export type ScriptAdvanceResult =
       body: ReturnType<typeof buildOpenAiError>;
     };
 
+export type AnthropicScriptAdvanceResult =
+  | {
+      status: 200;
+      body: AnthropicMessage;
+    }
+  | {
+      status: number;
+      body: AnthropicErrorBody;
+    };
+
 interface ScriptState {
   cursor: number;
   requests: FakeOpenAiRecordedRequest[];
@@ -108,7 +124,7 @@ export class FakeOpenAiScriptRegistry {
   ): ScriptAdvanceResult {
     const state = this.#scriptState(scriptId);
     const requestIndex = state.cursor;
-    const summary = summarizeOpenAiRequest(request.body);
+    const summary = summarizeModelProviderRequest(request.body);
     const assertionFailures = assertRequest(state.script.assertions ?? [], summary, requestIndex);
 
     if (assertionFailures.length > 0) {
@@ -182,6 +198,109 @@ export class FakeOpenAiScriptRegistry {
     };
   }
 
+  advanceAnthropic(
+    scriptId: string,
+    request: {body: unknown; method: string; path: string},
+  ): AnthropicScriptAdvanceResult {
+    const state = this.#scriptState(scriptId);
+    const requestIndex = state.cursor;
+    const summary = summarizeModelProviderRequest(request.body);
+
+    if (summary.model !== null && summary.model !== state.script.model) {
+      state.requests.push(
+        recordedRequest({
+          assertionFailures: [],
+          request,
+          requestIndex,
+          servedResponse: 'message:non_consuming_model',
+          summary,
+        }),
+      );
+
+      return {
+        status: 200,
+        body: buildAnthropicMessage({
+          model: summary.model,
+          response: {kind: 'message', content: ''},
+          responseIndex: requestIndex,
+          scriptId,
+        }),
+      };
+    }
+
+    const assertionFailures = assertRequest(state.script.assertions ?? [], summary, requestIndex);
+
+    if (assertionFailures.length > 0) {
+      state.requests.push(
+        recordedRequest({
+          assertionFailures,
+          request,
+          requestIndex,
+          servedResponse: null,
+          summary,
+        }),
+      );
+
+      return {
+        status: 422,
+        body: buildAnthropicError(
+          'script_assertion_failed',
+          assertionFailures[0] ?? 'Script assertion failed',
+        ),
+      };
+    }
+
+    const response = state.script.responses[requestIndex];
+    if (!response) {
+      state.requests.push(
+        recordedRequest({
+          assertionFailures,
+          request,
+          requestIndex,
+          servedResponse: 'error:script_exhausted',
+          summary,
+        }),
+      );
+
+      return {
+        status: 409,
+        body: buildAnthropicError(
+          'script_exhausted',
+          `Fake model provider script exhausted: ${scriptId}`,
+        ),
+      };
+    }
+
+    state.cursor += 1;
+    const servedResponse = describeResponse(response);
+    state.requests.push(
+      recordedRequest({
+        assertionFailures,
+        request,
+        requestIndex,
+        servedResponse,
+        summary,
+      }),
+    );
+
+    if (response.kind === 'error') {
+      return {
+        status: response.status,
+        body: buildAnthropicError('fake_provider_error', response.message),
+      };
+    }
+
+    return {
+      status: 200,
+      body: buildAnthropicMessage({
+        model: state.script.model,
+        response,
+        responseIndex: requestIndex,
+        scriptId,
+      }),
+    };
+  }
+
   #scriptState(scriptId: string): ScriptState {
     const state = this.#scripts.get(scriptId);
     if (!state) throw new Error(`Fake model provider script not found: ${scriptId}`);
@@ -189,13 +308,13 @@ export class FakeOpenAiScriptRegistry {
   }
 }
 
-interface OpenAiRequestSummary {
+interface ModelProviderRequestSummary {
   model: string | null;
   tools: string[];
   messageRoles: string[];
 }
 
-function summarizeOpenAiRequest(body: unknown): OpenAiRequestSummary {
+function summarizeModelProviderRequest(body: unknown): ModelProviderRequestSummary {
   if (!body || typeof body !== 'object') {
     return {model: null, tools: [], messageRoles: []};
   }
@@ -218,6 +337,9 @@ function toolNames(tools: unknown): string[] {
 
   return tools.flatMap((tool) => {
     if (!tool || typeof tool !== 'object') return [];
+    const topLevelName = (tool as {name?: unknown}).name;
+    if (typeof topLevelName === 'string') return [topLevelName];
+
     const functionTool = (tool as {function?: unknown}).function;
     if (!functionTool || typeof functionTool !== 'object') return [];
     const name = (functionTool as {name?: unknown}).name;
@@ -237,7 +359,7 @@ function messageRoles(messages: unknown): string[] {
 
 function assertRequest(
   assertions: FakeOpenAiRequestAssertion[],
-  summary: OpenAiRequestSummary,
+  summary: ModelProviderRequestSummary,
   requestIndex: number,
 ): string[] {
   return assertions.flatMap((assertion) => {
@@ -262,7 +384,7 @@ function recordedRequest(params: {
   request: {method: string; path: string};
   requestIndex: number;
   servedResponse: string | null;
-  summary: OpenAiRequestSummary;
+  summary: ModelProviderRequestSummary;
 }): FakeOpenAiRecordedRequest {
   return {
     index: params.requestIndex,

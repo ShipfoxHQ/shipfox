@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
+  buildAnthropicMessageStream,
   buildChatCompletionChunks,
   createFakeOpenAiModelProviderServer,
   type FakeOpenAiModelProviderServer,
@@ -28,6 +29,26 @@ describe('buildChatCompletionChunks', () => {
   });
 });
 
+describe('buildAnthropicMessageStream', () => {
+  it('rejects messages without content blocks', () => {
+    expect(() =>
+      buildAnthropicMessageStream({
+        id: 'msg_empty',
+        type: 'message',
+        role: 'assistant',
+        model: 'deterministic-output-agent',
+        content: [],
+        stop_reason: 'end_turn',
+        stop_sequence: null,
+        usage: {
+          input_tokens: 1,
+          output_tokens: 0,
+        },
+      }),
+    ).toThrow('Anthropic message msg_empty has no content.');
+  });
+});
+
 describe('fake OpenAI model provider server', () => {
   let server: FakeOpenAiModelProviderServer;
 
@@ -49,6 +70,7 @@ describe('fake OpenAI model provider server', () => {
       script_id: 'registration',
       model: 'deterministic-output-agent',
       model_provider_base_url: `${server.baseUrl}/scripts/registration/v1`,
+      anthropic_model_provider_base_url: `${server.baseUrl}/scripts/registration`,
     });
   });
 
@@ -235,6 +257,162 @@ describe('fake OpenAI model provider server', () => {
     });
   });
 
+  it('returns Anthropic messages payloads', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'anthropic-message',
+        responses: [{kind: 'message', content: 'done'}],
+        assertions: [{kind: 'model', equals: 'deterministic-output-agent'}],
+      }),
+    );
+
+    const result = await anthropicMessage(server, 'anthropic-message', anthropicRequest());
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual({
+      id: 'msg_fake_anthropic-message_0',
+      type: 'message',
+      role: 'assistant',
+      model: 'deterministic-output-agent',
+      content: [{type: 'text', text: 'done'}],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+      },
+    });
+  });
+
+  it('returns Anthropic message stream events for tool calls', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'anthropic-streaming-tool',
+        responses: [
+          {
+            kind: 'tool_call',
+            toolName: 'mcp__shipfox_outputs__set_output',
+            arguments: {key: 'message', value: 'qwen-tool-output-ok'},
+          },
+        ],
+        assertions: [{kind: 'tool_present', name: 'mcp__shipfox_outputs__set_output'}],
+      }),
+    );
+
+    const result = await anthropicMessage(server, 'anthropic-streaming-tool', {
+      ...anthropicRequest(),
+      stream: true,
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.headers.get('content-type')).toBe('text/event-stream; charset=utf-8');
+    expect(namedSseData(await result.text())).toEqual([
+      {
+        event: 'message_start',
+        data: expect.objectContaining({
+          type: 'message_start',
+          message: expect.objectContaining({
+            id: 'msg_fake_anthropic-streaming-tool_0',
+            content: [],
+            stop_reason: null,
+          }),
+        }),
+      },
+      {
+        event: 'content_block_start',
+        data: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'toolu_fake_1',
+            name: 'mcp__shipfox_outputs__set_output',
+            input: {},
+          },
+        },
+      },
+      {
+        event: 'content_block_delta',
+        data: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: '{"key":"message","value":"qwen-tool-output-ok"}',
+          },
+        },
+      },
+      {
+        event: 'content_block_stop',
+        data: {type: 'content_block_stop', index: 0},
+      },
+      {
+        event: 'message_delta',
+        data: {
+          type: 'message_delta',
+          delta: {stop_reason: 'tool_use', stop_sequence: null},
+          usage: {output_tokens: 1},
+        },
+      },
+      {
+        event: 'message_stop',
+        data: {type: 'message_stop'},
+      },
+    ]);
+  });
+
+  it('does not advance the Anthropic script cursor for a different model', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'anthropic-small-fast',
+        responses: [{kind: 'message', content: 'main-response'}],
+      }),
+    );
+
+    const smallFastResult = await anthropicMessage(
+      server,
+      'anthropic-small-fast',
+      anthropicRequest({model: 'claude-small-fast-sentinel'}),
+    );
+    const mainResult = await anthropicMessage(
+      server,
+      'anthropic-small-fast',
+      anthropicRequest({model: 'deterministic-output-agent'}),
+    );
+    const requestsResult = await fetch(`${server.baseUrl}/scripts/anthropic-small-fast/requests`, {
+      headers: adminHeaders(),
+    });
+
+    expect(smallFastResult.status).toBe(200);
+    await expect(smallFastResult.json()).resolves.toMatchObject({
+      model: 'claude-small-fast-sentinel',
+      content: [{type: 'text', text: ''}],
+      stop_reason: 'end_turn',
+    });
+    expect(mainResult.status).toBe(200);
+    await expect(mainResult.json()).resolves.toMatchObject({
+      model: 'deterministic-output-agent',
+      content: [{type: 'text', text: 'main-response'}],
+    });
+    await expect(requestsResult.json()).resolves.toMatchObject({
+      requests: [
+        {
+          index: 0,
+          model: 'claude-small-fast-sentinel',
+          served_response: 'message:non_consuming_model',
+        },
+        {
+          index: 0,
+          model: 'deterministic-output-agent',
+          served_response: 'message',
+        },
+      ],
+    });
+  });
+
   it('returns a deterministic 409 when a script is exhausted', async () => {
     await postScript(
       server,
@@ -407,6 +585,17 @@ async function chatCompletion(
   });
 }
 
+async function anthropicMessage(
+  server: FakeOpenAiModelProviderServer,
+  scriptId: string,
+  body: unknown,
+): Promise<Response> {
+  return await fetch(`${server.baseUrl}/scripts/${scriptId}/v1/messages`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 function adminHeaders(): Record<string, string> {
   return {
     authorization: `Bearer ${adminToken}`,
@@ -429,10 +618,46 @@ function openAiRequest(params: {roles?: string[] | undefined} = {}) {
   };
 }
 
+function anthropicRequest(params: {model?: string | undefined} = {}) {
+  return {
+    model: params.model ?? 'deterministic-output-agent',
+    max_tokens: 128,
+    messages: [{role: 'user', content: 'Set the output'}],
+    tools: [
+      {
+        name: 'mcp__shipfox_outputs__set_output',
+        description: 'Set output',
+        input_schema: {
+          type: 'object',
+          properties: {
+            key: {type: 'string'},
+            value: {type: 'string'},
+          },
+        },
+      },
+    ],
+  };
+}
+
 function sseData(text: string): unknown[] {
   return text
     .trim()
     .split('\n\n')
     .map((chunk) => chunk.replace(sseDataPrefixRe, ''))
     .map((data) => (data === '[DONE]' ? data : JSON.parse(data)));
+}
+
+function namedSseData(text: string): Array<{event: string; data: unknown}> {
+  return text
+    .trim()
+    .split('\n\n')
+    .map((chunk) => {
+      const lines = chunk.split('\n');
+      const event = lines.find((line) => line.startsWith('event: '))?.slice('event: '.length);
+      const data = lines.find((line) => line.startsWith('data: '))?.slice('data: '.length);
+      if (event === undefined || data === undefined) {
+        throw new Error(`Invalid named SSE chunk: ${chunk}`);
+      }
+      return {event, data: JSON.parse(data)};
+    });
 }
