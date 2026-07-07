@@ -95,6 +95,7 @@ export type LeasedWriteAnnotationsResponseDto = z.infer<
 
 export const readAnnotationsResponseSchema = z.object({
   annotations: z.array(annotationDtoSchema),
+  has_more: z.boolean(),
 });
 
 export type ReadAnnotationsResponseDto = z.infer<typeof readAnnotationsResponseSchema>;

@@ -30,7 +30,7 @@ describe('listAnnotationsForRunAttempt', () => {
       workspaceIds: [workspaceId],
     });
 
-    expect(result).toEqual([first, second]);
+    expect(result).toEqual({annotations: [first, second], hasMore: false});
   });
 
   it('excludes annotations from other run attempts, runs, and workspaces', async () => {
@@ -67,7 +67,7 @@ describe('listAnnotationsForRunAttempt', () => {
       workspaceIds: [workspaceId],
     });
 
-    expect(result).toEqual([visible]);
+    expect(result).toEqual({annotations: [visible], hasMore: false});
   });
 
   it('filters by job execution when provided', async () => {
@@ -94,10 +94,10 @@ describe('listAnnotationsForRunAttempt', () => {
       jobExecutionId,
     });
 
-    expect(result).toEqual([visible]);
+    expect(result).toEqual({annotations: [visible], hasMore: false});
   });
 
-  it('limits returned annotations', async () => {
+  it('limits returned annotations and reports more rows', async () => {
     const workspaceId = crypto.randomUUID();
     const workflowRunId = crypto.randomUUID();
     const [first] = await Promise.all([
@@ -124,7 +124,7 @@ describe('listAnnotationsForRunAttempt', () => {
       limit: 1,
     });
 
-    expect(result).toEqual([first]);
+    expect(result).toEqual({annotations: [first], hasMore: true});
   });
 
   it('returns an empty list when the user has no workspace memberships', async () => {
@@ -137,6 +137,6 @@ describe('listAnnotationsForRunAttempt', () => {
       workspaceIds: [],
     });
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({annotations: [], hasMore: false});
   });
 });

@@ -14,10 +14,17 @@ export interface ListAnnotationsForRunAttemptParams {
   limit?: number | undefined;
 }
 
+export interface ListAnnotationsForRunAttemptResult {
+  annotations: Annotation[];
+  hasMore: boolean;
+}
+
 export async function listAnnotationsForRunAttempt(
   params: ListAnnotationsForRunAttemptParams,
-): Promise<Annotation[]> {
-  if (params.workspaceIds.length === 0) return [];
+): Promise<ListAnnotationsForRunAttemptResult> {
+  if (params.workspaceIds.length === 0) return {annotations: [], hasMore: false};
+
+  const limit = params.limit ?? DEFAULT_ANNOTATIONS_READ_LIMIT;
 
   const conditions: SQL[] = [
     eq(annotations.workflowRunId, params.workflowRunId),
@@ -33,9 +40,12 @@ export async function listAnnotationsForRunAttempt(
     .from(annotations)
     .where(and(...conditions))
     .orderBy(asc(annotations.sequence), asc(annotations.id))
-    .limit(params.limit ?? DEFAULT_ANNOTATIONS_READ_LIMIT);
+    .limit(limit + 1);
 
-  return rows.map(toAnnotation);
+  return {
+    annotations: rows.slice(0, limit).map(toAnnotation),
+    hasMore: rows.length > limit,
+  };
 }
 
 export interface StoredAnnotation {

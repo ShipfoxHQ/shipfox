@@ -112,6 +112,7 @@ describe('GET /annotations', () => {
           body: 'Deployed **v42**',
         },
       ],
+      has_more: false,
     });
   });
 
@@ -123,7 +124,7 @@ describe('GET /annotations', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({annotations: []});
+    expect(res.json()).toEqual({annotations: [], has_more: false});
   });
 
   it('returns an empty list for annotations outside the user workspaces', async () => {
@@ -137,7 +138,7 @@ describe('GET /annotations', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({annotations: []});
+    expect(res.json()).toEqual({annotations: [], has_more: false});
   });
 
   it('returns an empty list when the job execution filter has no matches', async () => {
@@ -156,10 +157,10 @@ describe('GET /annotations', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({annotations: []});
+    expect(res.json()).toEqual({annotations: [], has_more: false});
   });
 
-  it('limits the returned annotations when requested', async () => {
+  it('limits the returned annotations and signals when more rows are available', async () => {
     const workspaceId = crypto.randomUUID();
     const workflowRunId = crypto.randomUUID();
     const first = await annotationFactory.create({
@@ -184,13 +185,16 @@ describe('GET /annotations', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().annotations).toEqual([
-      expect.objectContaining({
-        id: first.id,
-        context: 'first',
-        sequence: 1,
-      }),
-    ]);
+    expect(res.json()).toMatchObject({
+      annotations: [
+        {
+          id: first.id,
+          context: 'first',
+          sequence: 1,
+        },
+      ],
+      has_more: true,
+    });
   });
 
   it('rejects malformed query values', async () => {

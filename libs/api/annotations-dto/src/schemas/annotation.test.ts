@@ -91,8 +91,10 @@ describe('annotation schemas', () => {
           body: 'Deployed **v42**',
         },
       ],
+      has_more: false,
     });
 
     expect(response.annotations).toHaveLength(1);
+    expect(response.has_more).toBe(false);
   });
 });

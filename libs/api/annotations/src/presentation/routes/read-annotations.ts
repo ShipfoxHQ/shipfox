@@ -36,7 +36,7 @@ export const readAnnotationsRoute = defineRoute({
       limit,
     } = request.query;
     const workspaceIds = user.memberships.map((membership) => membership.workspaceId);
-    const annotations = await listAnnotationsForRunAttempt({
+    const result = await listAnnotationsForRunAttempt({
       workflowRunId,
       workflowRunAttempt: attempt,
       workspaceIds,
@@ -44,6 +44,6 @@ export const readAnnotationsRoute = defineRoute({
       limit,
     });
 
-    return {annotations: annotations.map(toAnnotationDto)};
+    return {annotations: result.annotations.map(toAnnotationDto), has_more: result.hasMore};
   },
 });
