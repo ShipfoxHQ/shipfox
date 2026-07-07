@@ -18,12 +18,14 @@ import {
   type SourceControlProvider,
 } from '@shipfox/api-integration-core-dto';
 import type {GithubApiClient, GithubRepository} from '#api/client.js';
+import {config} from '#config.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';
 import {GithubIntegrationProviderError} from './errors.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
 
 const GITHUB_PROVIDER = 'github';
+const GITHUB_APP_BOT_SUFFIX = '[bot]';
 const SEARCH_PAGE_SIZE = 100;
 const SEARCH_MAX_PAGES_PER_REQUEST = 5;
 
@@ -153,11 +155,13 @@ export class GithubSourceControlProvider
       repositoryId,
       permissions: input.permissions,
     });
+    const gitAuthor = githubAppGitAuthor();
 
     return {
       repositoryUrl: repository.cloneUrl,
       ref,
       credentials: {username: 'x-access-token', token, expiresAt},
+      ...(gitAuthor ? {gitAuthor} : {}),
     };
   }
 
@@ -172,6 +176,15 @@ export class GithubSourceControlProvider
 
     return Number.parseInt(installation.installationId, 10);
   }
+}
+
+function githubAppGitAuthor(): CheckoutSpec['gitAuthor'] {
+  const appUsername = config.GITHUB_APP_USERNAME.trim();
+  if (!appUsername) return undefined;
+  const name = appUsername.endsWith(GITHUB_APP_BOT_SUFFIX)
+    ? appUsername
+    : `${appUsername}${GITHUB_APP_BOT_SUFFIX}`;
+  return {name, email: `${config.GITHUB_APP_ID}+${name}@users.noreply.github.com`};
 }
 
 function toRepositorySnapshot(repository: GithubRepository): RepositorySnapshot {

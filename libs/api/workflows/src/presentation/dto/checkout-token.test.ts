@@ -6,6 +6,10 @@ describe('toCheckoutTokenDto', () => {
     const spec: CheckoutSpec = {
       repositoryUrl: 'https://github.com/acme/repo.git',
       ref: 'main',
+      gitAuthor: {
+        name: 'shipfox-test[bot]',
+        email: '1+shipfox-test[bot]@users.noreply.github.com',
+      },
       credentials: {
         username: 'x-access-token',
         token: 'ghs-token',
@@ -18,6 +22,10 @@ describe('toCheckoutTokenDto', () => {
     expect(dto).toEqual({
       repository_url: 'https://github.com/acme/repo.git',
       ref: 'main',
+      git_author: {
+        name: 'shipfox-test[bot]',
+        email: '1+shipfox-test[bot]@users.noreply.github.com',
+      },
       auth: {
         kind: 'basic',
         username: 'x-access-token',

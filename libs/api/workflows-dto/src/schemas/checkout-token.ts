@@ -6,6 +6,11 @@ const carryFields = {
   persist: z.boolean(),
 };
 
+const checkoutGitAuthorSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().min(1),
+});
+
 const checkoutTokenBasicAuthSchema = z.object({
   kind: z.literal('basic'),
   username: z.string().min(1),
@@ -31,6 +36,7 @@ export type CheckoutTokenAuthDto = z.infer<typeof checkoutTokenAuthSchema>;
 export const checkoutTokenResponseSchema = z.object({
   repository_url: z.string().min(1),
   ref: z.string().min(1),
+  git_author: checkoutGitAuthorSchema.optional(),
   // Optional: credential-free providers (e.g. the debug source control) return a
   // public clone URL with no auth material, so the runner clones without a token.
   auth: checkoutTokenAuthSchema.optional(),

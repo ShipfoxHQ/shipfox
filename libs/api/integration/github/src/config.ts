@@ -19,6 +19,10 @@ export const config = createConfig({
   GITHUB_APP_SLUG: str({
     desc: 'URL slug of the GitHub App, used to build install and callback links. Required.',
   }),
+  GITHUB_APP_USERNAME: str({
+    desc: 'GitHub App username used as the Git commit author when checkout credentials are persisted. Set this to the app username, such as my-app. The [bot] suffix is added automatically. Leave blank to keep Git author identity unset.',
+    default: '',
+  }),
   GITHUB_INSTALL_STATE_SECRET: str({
     desc: 'Secret used to sign the state token that protects the GitHub App install flow. Required.',
   }),

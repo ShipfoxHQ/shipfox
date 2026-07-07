@@ -417,6 +417,32 @@ describe('writeAmbientGitCredential', () => {
     expect(content).toContain(`extraHeader = "Authorization: Basic ${expected}"`);
   });
 
+  it('writes the configured Git author identity', async () => {
+    const configPath = join(root, 'git-cred.config');
+
+    await writeAmbientGitCredential({
+      configPath,
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      auth: {
+        kind: 'bearer',
+        token: 'tok-123',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+      },
+      gitAuthor: {
+        name: 'shipfox-test[bot]',
+        email: '1+shipfox-test[bot]@users.noreply.github.com',
+      },
+    });
+
+    const content = await readFile(configPath, 'utf8');
+    expect(content).toContain(
+      '[user]\n\tname = "shipfox-test[bot]"\n\temail = "1+shipfox-test[bot]@users.noreply.github.com"',
+    );
+  });
+
   it('does not fall back to home config when GIT_CONFIG_GLOBAL points to a missing file', async () => {
     const configPath = join(root, 'git-cred.config');
     process.env.GIT_CONFIG_GLOBAL = join(root, 'missing.gitconfig');

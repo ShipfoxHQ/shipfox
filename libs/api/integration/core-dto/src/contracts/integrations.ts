@@ -87,6 +87,11 @@ export interface CheckoutCredentials {
   expiresAt: Date;
 }
 
+export interface CheckoutGitAuthor {
+  name: string;
+  email: string;
+}
+
 export interface CheckoutPermissions {
   contents: 'read' | 'write';
 }
@@ -101,6 +106,7 @@ export interface CheckoutSpec {
   repositoryUrl: string;
   ref: string;
   credentials?: CheckoutCredentials | undefined;
+  gitAuthor?: CheckoutGitAuthor | undefined;
 }
 
 export interface CreateCheckoutSpecInput<
