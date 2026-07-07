@@ -753,6 +753,9 @@ function validateAgentStep(params: {
   if (providerId === undefined) return;
 
   const provider = getModelProviderEntry(providerId);
+  const harness = params.step.harness;
+  if (provider === undefined && harness === 'pi') return;
+
   if (provider === undefined || provider.support_status !== 'supported') {
     params.issues.push(
       issue({
@@ -765,7 +768,6 @@ function validateAgentStep(params: {
     return;
   }
 
-  const harness = params.step.harness;
   if (harness === undefined) return;
 
   const descriptor = getHarnessDescriptor(harness);

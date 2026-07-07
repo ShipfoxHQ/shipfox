@@ -165,6 +165,31 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('allows explicit custom providers for pi agent steps', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              provider: 'workspace-openai-compatible',
+              prompt: 'Fix it.',
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      harness: 'pi',
+      provider: 'workspace-openai-compatible',
+    });
+  });
+
   it('reports explicit harness/provider incompatibility', () => {
     const document: WorkflowDocument = {
       name: 'agent build',

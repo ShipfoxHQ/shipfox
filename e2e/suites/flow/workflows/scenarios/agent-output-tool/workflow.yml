@@ -10,7 +10,7 @@ jobs:
     steps:
       - key: produce
         harness: pi
-        provider: ${{ run.name }}
+        provider: __AGENT_PROVIDER__
         model: __AGENT_MODEL__
         thinking: off
         prompt: |
