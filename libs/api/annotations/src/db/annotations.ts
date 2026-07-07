@@ -1,10 +1,10 @@
-import type {AnnotationStyleDto} from '@shipfox/annotations-dto';
+import {type AnnotationStyleDto, READ_ANNOTATIONS_MAX_LIMIT} from '@shipfox/annotations-dto';
 import {and, asc, eq, inArray, type SQL, sql} from 'drizzle-orm';
 import type {Annotation} from '#core/entities/annotation.js';
 import {db} from './db.js';
 import {annotations, toAnnotation} from './schema/annotations.js';
 
-export const DEFAULT_ANNOTATIONS_READ_LIMIT = 500;
+export const DEFAULT_ANNOTATIONS_READ_LIMIT = READ_ANNOTATIONS_MAX_LIMIT;
 
 export interface ListAnnotationsForRunAttemptParams {
   workflowRunId: string;

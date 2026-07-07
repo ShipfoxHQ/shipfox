@@ -2,6 +2,7 @@ import {
   ANNOTATION_CONTEXT_MAX_LENGTH,
   ANNOTATION_CONTEXT_TRIM_CODE_POINTS,
   leasedWriteAnnotationsBodySchema,
+  readAnnotationsQuerySchema,
   readAnnotationsResponseSchema,
 } from './annotation.js';
 
@@ -96,5 +97,46 @@ describe('annotation schemas', () => {
 
     expect(response.annotations).toHaveLength(1);
     expect(response.has_more).toBe(false);
+  });
+
+  it('accepts and coerces the read annotations query shape', () => {
+    const workflowRunId = crypto.randomUUID();
+    const jobExecutionId = crypto.randomUUID();
+
+    const query = readAnnotationsQuerySchema.parse({
+      workflow_run_id: workflowRunId,
+      attempt: '2',
+      job_execution_id: jobExecutionId,
+      limit: '25',
+    });
+
+    expect(query).toEqual({
+      workflow_run_id: workflowRunId,
+      attempt: 2,
+      job_execution_id: jobExecutionId,
+      limit: 25,
+    });
+  });
+
+  it('defaults and bounds the read annotations query limit', () => {
+    const withDefaultLimit = readAnnotationsQuerySchema.parse({
+      workflow_run_id: crypto.randomUUID(),
+      attempt: '1',
+    });
+    const parseTooHighLimit = () =>
+      readAnnotationsQuerySchema.parse({
+        workflow_run_id: crypto.randomUUID(),
+        attempt: '1',
+        limit: '501',
+      });
+    const parseTooHighAttempt = () =>
+      readAnnotationsQuerySchema.parse({
+        workflow_run_id: crypto.randomUUID(),
+        attempt: '2147483648',
+      });
+
+    expect(withDefaultLimit.limit).toBe(500);
+    expect(parseTooHighLimit).toThrow();
+    expect(parseTooHighAttempt).toThrow();
   });
 });
