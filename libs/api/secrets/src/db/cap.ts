@@ -1,25 +1,27 @@
-import {sql} from 'drizzle-orm';
+import {and, count, eq, notLike, sql} from 'drizzle-orm';
 import {db, type Tx} from './db.js';
+import {secretValues} from './schema/values.js';
+import {secretVariables} from './schema/variables.js';
 
 export async function countWorkspaceEntries(workspaceId: string, tx?: Tx): Promise<number> {
   const executor = tx ?? db();
-  const result = await executor.execute<{count: string | number}>(sql`
-    SELECT
-      (
-        SELECT COUNT(*)
-        FROM secrets_values
-        WHERE workspace_id = ${workspaceId}
-          AND namespace NOT LIKE 'system/%'
-      ) +
-      (
-        SELECT COUNT(*)
-        FROM secrets_variables
-        WHERE workspace_id = ${workspaceId}
-          AND namespace NOT LIKE 'system/%'
-      ) AS count
-  `);
-  const count = result.rows[0]?.count ?? 0;
-  return Number(count);
+  const valueRows = await executor
+    .select({value: count()})
+    .from(secretValues)
+    .where(
+      and(eq(secretValues.workspaceId, workspaceId), notLike(secretValues.namespace, 'system/%')),
+    );
+  const variableRows = await executor
+    .select({value: count()})
+    .from(secretVariables)
+    .where(
+      and(
+        eq(secretVariables.workspaceId, workspaceId),
+        notLike(secretVariables.namespace, 'system/%'),
+      ),
+    );
+
+  return Number(valueRows[0]?.value ?? 0) + Number(variableRows[0]?.value ?? 0);
 }
 
 export async function lockWorkspaceEntries(workspaceId: string, tx: Tx): Promise<void> {
