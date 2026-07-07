@@ -6,7 +6,7 @@ const {runAgentMock, runClaudeMock} = vi.hoisted(() => ({
 vi.mock('#core/pi-adapter.js', () => ({piHarnessAdapter: {run: runAgentMock}}));
 vi.mock('#core/claude-adapter.js', () => ({claudeHarnessAdapter: {run: runClaudeMock}}));
 
-import type {StepDto} from '@shipfox/api-workflows-dto';
+import type {ExecutableStepDto} from '@shipfox/api-workflows-dto';
 import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessInvocation} from '#core/harness.js';
 import {executeAgentStep} from '#core/step.js';
@@ -19,7 +19,7 @@ const RUNTIME = {
   credentials: {api_key: 'sk-runtime-secret'},
 };
 
-function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
+function buildAgentStep(overrides: Partial<ExecutableStepDto> = {}): ExecutableStepDto {
   const name =
     typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'implement';
   return {

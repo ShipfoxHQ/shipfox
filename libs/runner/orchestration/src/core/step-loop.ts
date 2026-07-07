@@ -3,7 +3,11 @@ import {
   materializedSecretBindingSchema,
   type StepSecretDto,
 } from '@shipfox/api-secrets-dto';
-import type {LogOutcomeDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {
+  ExecutableStepDto,
+  LogOutcomeDto,
+  NextStepResponseDto,
+} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets} from '@shipfox/redact';
 import {executeAgentStep} from '@shipfox/runner-agent';
@@ -143,7 +147,7 @@ export async function runJobSteps(params: {
 }
 
 export interface PulledStep {
-  step: StepDto;
+  step: ExecutableStepDto;
   attempt: number;
   leaseToken: string;
 }
@@ -191,7 +195,7 @@ export interface StepExecution {
 // hang `running`. The log stream is returned even on a
 // throw, so the caller can still settle it.
 export async function executeStep(params: {
-  step: StepDto;
+  step: ExecutableStepDto;
   attempt: number;
   cwd: string;
   logsDir: string;
@@ -459,7 +463,7 @@ interface RunSecretMaterial {
 const runSecretBindingsSchema = materializedSecretBindingSchema.array();
 
 async function loadRunSecretMaterial(params: {
-  step: StepDto;
+  step: ExecutableStepDto;
   leaseClient: KyInstance;
   attempt: number;
   signal: AbortSignal;
@@ -642,7 +646,7 @@ function summarizeCommand(command: string): string {
 // Returns whether the server asked the loop to stop (job finished without full success).
 export async function reportStepResult(params: {
   leaseClient: KyInstance;
-  step: StepDto;
+  step: ExecutableStepDto;
   attempt: number;
   result: StepResult;
   logOutcome: LogOutcomeDto;

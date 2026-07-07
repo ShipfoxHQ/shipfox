@@ -1,4 +1,8 @@
-import type {AgentConfigIssueDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {
+  AgentConfigIssueDto,
+  ExecutableStepDto,
+  NextStepResponseDto,
+} from '@shipfox/api-workflows-dto';
 import {HTTPError} from 'ky';
 
 const {AgentRuntimeConfigRequestError, StepSecretsRequestError} = vi.hoisted(() => ({
@@ -1196,7 +1200,7 @@ describe('runJobSteps', () => {
     const sessionStream = makeFakeStream(agent.id);
     createSessionLogStreamMock.mockReturnValue(sessionStream);
     executeAgentStepMock.mockImplementation(
-      (_step: StepDto, opts: {onSessionEntry?: (line: string) => void}) => {
+      (_step: ExecutableStepDto, opts: {onSessionEntry?: (line: string) => void}) => {
         opts.onSessionEntry?.('{"type":"message","id":"a"}');
         return Promise.resolve({success: true, error: null, exit_code: 0});
       },
@@ -1387,7 +1391,7 @@ describe('runJobSteps', () => {
   });
 });
 
-function buildSetupStep(overrides: Partial<StepDto> = {}): StepDto {
+function buildSetupStep(overrides: Partial<ExecutableStepDto> = {}): ExecutableStepDto {
   return buildStep({
     id: '00000000-0000-0000-0000-0000000000b0',
     name: 'Set up job',
@@ -1398,11 +1402,11 @@ function buildSetupStep(overrides: Partial<StepDto> = {}): StepDto {
   });
 }
 
-function buildRunStep(overrides: Partial<StepDto> = {}): StepDto {
+function buildRunStep(overrides: Partial<ExecutableStepDto> = {}): ExecutableStepDto {
   return buildStep({position: 1, ...overrides});
 }
 
-function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
+function buildAgentStep(overrides: Partial<ExecutableStepDto> = {}): ExecutableStepDto {
   return buildStep({
     id: '00000000-0000-0000-0000-0000000000c0',
     name: 'implement',
@@ -1413,7 +1417,7 @@ function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
   });
 }
 
-function buildStep(overrides: Partial<StepDto> = {}): StepDto {
+function buildStep(overrides: Partial<ExecutableStepDto> = {}): ExecutableStepDto {
   const name =
     typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'test-step';
   return {
@@ -1435,7 +1439,7 @@ function buildStep(overrides: Partial<StepDto> = {}): StepDto {
 }
 
 function stepResponse(
-  step: StepDto,
+  step: ExecutableStepDto,
   attempt: number,
   leaseToken = `lease-${step.id}-${attempt}`,
 ): NextStepResponseDto {

@@ -1,7 +1,7 @@
 import type {CustomModelProviderRuntimeConfigDto, Harness} from '@shipfox/api-agent-dto';
 import type {
   AgentConfigIssueDto,
-  StepDto,
+  ExecutableStepDto,
   StepErrorDto,
   StepErrorReasonDto,
 } from '@shipfox/api-workflows-dto';
@@ -12,7 +12,7 @@ import type {HarnessAdapter} from '#core/harness.js';
 import {piHarnessAdapter} from '#core/pi-adapter.js';
 
 export function executeAgentStep(
-  step: StepDto,
+  step: ExecutableStepDto,
   options: {
     signal?: AbortSignal;
     cwd?: string;

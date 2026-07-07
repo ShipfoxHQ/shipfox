@@ -1,7 +1,7 @@
 import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
-import type {StepDto} from '@shipfox/api-workflows-dto';
+import type {ExecutableStepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
 import {MAX_OUTPUT_TOTAL_BYTES} from '#core/step-output.js';
@@ -639,8 +639,12 @@ describe('executeRunStep', () => {
 });
 
 function buildStep(
-  overrides: Partial<{type: string; name: string | null; config: Record<string, unknown>}> = {},
-): StepDto {
+  overrides: Partial<{
+    type: string;
+    name: string | null;
+    config: ExecutableStepDto['config'];
+  }> = {},
+): ExecutableStepDto {
   const name = overrides.name ?? 'test-step';
   return {
     id: '00000000-0000-0000-0000-000000000001',

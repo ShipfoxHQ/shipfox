@@ -40,7 +40,6 @@ function makeStep(overrides: Partial<WorkflowRunStepDetailDto> = {}): WorkflowRu
     source_location: null,
     status: 'succeeded',
     type: 'run',
-    config: {},
     error: null,
     position: 0,
     current_attempt: 1,
