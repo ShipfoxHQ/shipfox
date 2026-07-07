@@ -563,6 +563,74 @@ describe('drainListenerEventsIntoExecution', () => {
     expect(materialized[1]?.config).toEqual({run: 'echo review'});
   });
 
+  it('persists listener step config plans for dispatch-time templates', async () => {
+    const job = await createListeningJobFromModel({
+      jobs: {
+        deploy: {
+          steps: [
+            {key: 'build', run: 'echo build'},
+            {
+              key: 'deploy',
+              run: 'echo "$SHA"',
+              env: {SHA: template('steps.build.outputs.sha')},
+            },
+          ],
+        },
+      },
+    });
+    await bufferEvent(job.id);
+
+    const drained = await drainListenerEventsIntoExecution({jobId: job.id, expectedSequence: 1});
+
+    if (drained.kind !== 'execution') throw new Error('Expected listener execution');
+    const materialized = await db()
+      .select()
+      .from(steps)
+      .where(eq(steps.jobExecutionId, drained.jobExecutionId))
+      .orderBy(asc(steps.position));
+    expect(materialized[0]?.configPlan).toBeNull();
+    expect(materialized[2]?.configPlan).toMatchObject({
+      env: {
+        SHA: {
+          segments: [
+            {
+              kind: 'deferred',
+              roots: ['steps'],
+              fillTarget: 'step-dispatch',
+              expression: {source: 'steps.build.outputs.sha'},
+            },
+          ],
+        },
+      },
+    });
+
+    const setupStep = await nextStepForJob(job.id);
+    if (setupStep.kind !== 'step') throw new Error('Expected setup step');
+    await recordStepResult({
+      jobExecutionId: drained.jobExecutionId,
+      stepId: setupStep.step.id,
+      status: 'succeeded',
+    });
+    const buildStep = await nextStepForJob(job.id);
+    if (buildStep.kind !== 'step') throw new Error('Expected build step');
+    await recordStepResult({
+      jobExecutionId: drained.jobExecutionId,
+      stepId: buildStep.step.id,
+      status: 'succeeded',
+      output: {sha: 'abc123'},
+    });
+
+    const deployStep = await nextStepForJob(job.id);
+
+    expect(deployStep).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        key: 'deploy',
+        config: {run: 'echo "$SHA"', env: {SHA: 'abc123'}},
+      }),
+    });
+  });
+
   it('peeks the unconsumed listener buffer from DB state', async () => {
     const job = await createListeningJob({status: 'running', listenerStatus: 'listening'});
     await bufferEvent(job.id, 'fire', crypto.randomUUID(), new Date(Date.now() - 10_000));
