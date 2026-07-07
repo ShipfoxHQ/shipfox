@@ -1,9 +1,9 @@
 {
-  "name": "@shipfox/e2e-driver-agent-provider",
+  "name": "@shipfox/e2e-driver-model-provider",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "e2e/drivers/agent-provider"
+    "directory": "e2e/drivers/model-provider"
   },
   "license": "MIT",
   "private": true,

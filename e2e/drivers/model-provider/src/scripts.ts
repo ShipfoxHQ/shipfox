@@ -72,7 +72,7 @@ export class FakeOpenAiScriptRegistry {
 
   register(script: FakeOpenAiScript): ScriptRegistrationResult {
     if (script.responses.length === 0) {
-      throw new Error(`Fake provider script ${script.id} must define at least one response.`);
+      throw new Error(`Fake model provider script ${script.id} must define at least one response.`);
     }
 
     this.#scripts.set(script.id, {
@@ -144,7 +144,10 @@ export class FakeOpenAiScriptRegistry {
 
       return {
         status: 409,
-        body: buildOpenAiError('script_exhausted', `Fake provider script exhausted: ${scriptId}`),
+        body: buildOpenAiError(
+          'script_exhausted',
+          `Fake model provider script exhausted: ${scriptId}`,
+        ),
       };
     }
 
@@ -180,7 +183,7 @@ export class FakeOpenAiScriptRegistry {
 
   #scriptState(scriptId: string): ScriptState {
     const state = this.#scripts.get(scriptId);
-    if (!state) throw new Error(`Fake provider script not found: ${scriptId}`);
+    if (!state) throw new Error(`Fake model provider script not found: ${scriptId}`);
     return state;
   }
 }

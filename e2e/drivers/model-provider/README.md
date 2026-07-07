@@ -1,17 +1,17 @@
-# Agent Provider E2E Driver
+# Model Provider E2E Driver
 
-`@shipfox/e2e-driver-agent-provider` provides a deterministic OpenAI-compatible
+`@shipfox/e2e-driver-model-provider` provides a deterministic OpenAI-compatible
 provider for E2E tests. It is strict test infrastructure: suites register it as a
-normal custom model provider through product HTTP routes, while the fake provider
+normal custom model provider through product HTTP routes, while the fake model provider
 itself stays outside the API app.
 
-Use `startFakeOpenAiProvider()` for suites that need the provider to outlive
+Use `startFakeOpenAiModelProvider()` for suites that need the provider to outlive
 Playwright `globalSetup` and serve worker-process jobs:
 
 ```ts
-import {message, startFakeOpenAiProvider, toolCall} from '@shipfox/e2e-driver-agent-provider';
+import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 
-const provider = await startFakeOpenAiProvider({runId});
+const provider = await startFakeOpenAiModelProvider({runId});
 const script = await provider.createScript({
   id: `${runId}-agent-output-tool`,
   model: 'deterministic-output-agent',
@@ -24,9 +24,9 @@ const script = await provider.createScript({
 await provider.stop();
 ```
 
-The provider writes `.context/e2e-agent-provider/<runId>.json` with the child
+The provider writes `.context/e2e-model-provider/<runId>.json` with the child
 pid, base URL, and admin token. Global teardown can call
-`stopFakeOpenAiProvider({runId})` when the original handle is not available.
+`stopFakeOpenAiModelProvider({runId})` when the original handle is not available.
 
 ## HTTP Surface
 

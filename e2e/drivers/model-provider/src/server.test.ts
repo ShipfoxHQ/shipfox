@@ -1,8 +1,8 @@
 import {afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   buildChatCompletionChunks,
-  createFakeOpenAiProviderServer,
-  type FakeOpenAiProviderServer,
+  createFakeOpenAiModelProviderServer,
+  type FakeOpenAiModelProviderServer,
   type FakeOpenAiScript,
 } from './index.js';
 
@@ -28,11 +28,11 @@ describe('buildChatCompletionChunks', () => {
   });
 });
 
-describe('fake OpenAI provider server', () => {
-  let server: FakeOpenAiProviderServer;
+describe('fake OpenAI model provider server', () => {
+  let server: FakeOpenAiModelProviderServer;
 
   beforeEach(async () => {
-    server = await createFakeOpenAiProviderServer({adminToken});
+    server = await createFakeOpenAiModelProviderServer({adminToken});
   });
 
   afterEach(async () => {
@@ -48,7 +48,7 @@ describe('fake OpenAI provider server', () => {
     await expect(result.json()).resolves.toEqual({
       script_id: 'registration',
       model: 'deterministic-output-agent',
-      provider_base_url: `${server.baseUrl}/scripts/registration/v1`,
+      model_provider_base_url: `${server.baseUrl}/scripts/registration/v1`,
     });
   });
 
@@ -247,7 +247,7 @@ describe('fake OpenAI provider server', () => {
     expect(result.status).toBe(409);
     await expect(result.json()).resolves.toEqual({
       error: {
-        message: 'Fake provider script exhausted: exhausted',
+        message: 'Fake model provider script exhausted: exhausted',
         type: 'script_exhausted',
       },
     });
@@ -343,14 +343,14 @@ function fakeScript(params: Partial<FakeOpenAiScript>): FakeOpenAiScript {
 }
 
 async function postScript(
-  server: FakeOpenAiProviderServer,
+  server: FakeOpenAiModelProviderServer,
   script: FakeOpenAiScript,
 ): Promise<Response> {
   return await postRawScript(server, script);
 }
 
 async function postRawScript(
-  server: FakeOpenAiProviderServer,
+  server: FakeOpenAiModelProviderServer,
   body: unknown | undefined,
 ): Promise<Response> {
   const request = {
@@ -363,7 +363,7 @@ async function postRawScript(
 }
 
 async function chatCompletion(
-  server: FakeOpenAiProviderServer,
+  server: FakeOpenAiModelProviderServer,
   scriptId: string,
   body: unknown,
 ): Promise<Response> {

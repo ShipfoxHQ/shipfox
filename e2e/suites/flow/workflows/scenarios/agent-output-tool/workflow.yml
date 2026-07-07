@@ -1,4 +1,4 @@
-name: __AGENT_PROVIDER__
+name: __MODEL_PROVIDER__
 runner: __RUNNER_LABEL__
 triggers:
   on_push:
@@ -10,7 +10,7 @@ jobs:
     steps:
       - key: produce
         harness: pi
-        provider: __AGENT_PROVIDER__
+        provider: __MODEL_PROVIDER__
         model: __AGENT_MODEL__
         thinking: off
         prompt: |

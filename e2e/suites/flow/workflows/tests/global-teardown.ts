@@ -1,5 +1,5 @@
-import {stopFakeOpenAiProvider} from '@shipfox/e2e-driver-agent-provider';
 import {deleteOrg} from '@shipfox/e2e-driver-gitea';
+import {stopFakeOpenAiModelProvider} from '@shipfox/e2e-driver-model-provider';
 import {readSuiteContext, suiteFailed} from '#suite-context.js';
 
 export default async function globalTeardown(): Promise<void> {
@@ -11,11 +11,13 @@ export default async function globalTeardown(): Promise<void> {
     return;
   }
 
-  await stopFakeOpenAiProvider({runId: context.fakeProviderRunId}).catch((error: unknown) => {
-    process.stderr.write(
-      `platform-e2e teardown: stopFakeOpenAiProvider failed: ${String(error)}\n`,
-    );
-  });
+  await stopFakeOpenAiModelProvider({runId: context.fakeModelProviderRunId}).catch(
+    (error: unknown) => {
+      process.stderr.write(
+        `platform-e2e teardown: stopFakeOpenAiModelProvider failed: ${String(error)}\n`,
+      );
+    },
+  );
 
   // Keep gitea state on failure for inspection; a fully green run deletes its org,
   // which cascades to its repos. Leaked orgs are harmless: names are unique and a

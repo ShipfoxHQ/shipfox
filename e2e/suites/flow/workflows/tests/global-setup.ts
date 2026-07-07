@@ -1,6 +1,6 @@
 import {createApiClient, preflightCheck} from '@shipfox/e2e-core';
-import {message, startFakeOpenAiProvider, toolCall} from '@shipfox/e2e-driver-agent-provider';
 import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
+import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {
   createOllamaCustomProvider,
   createOpenAiCompatibleCustomProvider,
@@ -35,9 +35,9 @@ export default async function globalSetup(): Promise<void> {
     });
     cleanups.push(() => deleteOrg({org: org.org}).catch(() => undefined));
 
-    const fakeProvider = await startFakeOpenAiProvider({runId});
-    cleanups.push(() => fakeProvider.stop().catch(() => undefined));
-    const agentScript = await fakeProvider.createScript({
+    const fakeModelProvider = await startFakeOpenAiModelProvider({runId});
+    cleanups.push(() => fakeModelProvider.stop().catch(() => undefined));
+    const modelProviderScript = await fakeModelProvider.createScript({
       id: `${runId}-agent-output-tool`,
       model: DETERMINISTIC_AGENT_MODEL,
       responses: [
@@ -47,20 +47,20 @@ export default async function globalSetup(): Promise<void> {
       ],
       assertions: [{kind: 'model', equals: DETERMINISTIC_AGENT_MODEL}],
     });
-    const agentProvider = await createOpenAiCompatibleCustomProvider({
+    const modelProvider = await createOpenAiCompatibleCustomProvider({
       workspaceId: workspace.id,
       sessionToken: session.token,
       providerId: `det-output-tool-${runId}`,
       displayName: 'Deterministic Output Tool E2E',
-      baseUrl: agentScript.providerBaseUrl,
-      model: agentScript.model,
+      baseUrl: modelProviderScript.modelProviderBaseUrl,
+      model: modelProviderScript.model,
       modelMetadata: {max_output_tokens: 512},
     });
     cleanups.push(() =>
       deleteModelProviderConfig({
         workspaceId: workspace.id,
         sessionToken: session.token,
-        providerId: agentProvider.provider_id,
+        providerId: modelProvider.provider_id,
       }).catch(() => undefined),
     );
 
@@ -90,9 +90,9 @@ export default async function globalSetup(): Promise<void> {
       org: org.org,
       connectionId: org.connection.id,
       connectionSlug: org.connection.slug,
-      agentProviderId: agentProvider.provider_id,
-      agentModel: agentScript.model,
-      fakeProviderRunId: runId,
+      modelProviderId: modelProvider.provider_id,
+      agentModel: modelProviderScript.model,
+      fakeModelProviderRunId: runId,
     });
   } catch (error) {
     for (const cleanup of cleanups.reverse()) {

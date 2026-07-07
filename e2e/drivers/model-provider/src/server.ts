@@ -3,14 +3,14 @@ import type {AddressInfo} from 'node:net';
 import {buildChatCompletionChunks, buildOpenAiError, buildOpenAiModelList} from './openai.js';
 import {type FakeOpenAiScript, FakeOpenAiScriptRegistry} from './scripts.js';
 
-export interface FakeOpenAiProviderServer {
+export interface FakeOpenAiModelProviderServer {
   adminToken: string;
   baseUrl: string;
   registry: FakeOpenAiScriptRegistry;
   stop(): Promise<void>;
 }
 
-export interface CreateFakeOpenAiProviderServerParams {
+export interface CreateFakeOpenAiModelProviderServerParams {
   adminToken?: string | undefined;
   registry?: FakeOpenAiScriptRegistry | undefined;
 }
@@ -22,9 +22,9 @@ const requestsPathRe = /^\/scripts\/([^/]+)\/requests$/u;
 const completionsPathRe = /^\/scripts\/([^/]+)\/v1\/chat\/completions$/u;
 const modelsPathRe = /^\/scripts\/([^/]+)\/v1\/models$/u;
 
-export async function createFakeOpenAiProviderServer(
-  params: CreateFakeOpenAiProviderServerParams = {},
-): Promise<FakeOpenAiProviderServer> {
+export async function createFakeOpenAiModelProviderServer(
+  params: CreateFakeOpenAiModelProviderServerParams = {},
+): Promise<FakeOpenAiModelProviderServer> {
   const adminToken = params.adminToken ?? crypto.randomUUID();
   const registry = params.registry ?? new FakeOpenAiScriptRegistry();
   const server = createServer((request, response) => {
@@ -34,7 +34,7 @@ export async function createFakeOpenAiProviderServer(
   await listen(server);
   const address = server.address();
   if (!address || typeof address === 'string')
-    throw new Error('Fake provider did not bind a TCP port.');
+    throw new Error('Fake model provider did not bind a TCP port.');
 
   return {
     adminToken,
@@ -79,7 +79,7 @@ async function routeRequest(params: {
       writeJson(params.response, 201, {
         script_id: result.scriptId,
         model: result.model,
-        provider_base_url: `${origin(url)}/scripts/${result.scriptId}/v1`,
+        model_provider_base_url: `${origin(url)}/scripts/${result.scriptId}/v1`,
       });
       return;
     }
@@ -138,7 +138,7 @@ async function routeRequest(params: {
       buildOpenAiError('not_found', `Route not found: ${method} ${pathname}`),
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Fake provider request failed.';
+    const message = error instanceof Error ? error.message : 'Fake model provider request failed.';
     writeJson(params.response, 400, buildOpenAiError('bad_request', message));
   }
 }
@@ -223,7 +223,7 @@ async function listen(server: Server): Promise<AddressInfo> {
 
   const address = server.address();
   if (!address || typeof address === 'string')
-    throw new Error('Fake provider did not bind a TCP port.');
+    throw new Error('Fake model provider did not bind a TCP port.');
   return address;
 }
 

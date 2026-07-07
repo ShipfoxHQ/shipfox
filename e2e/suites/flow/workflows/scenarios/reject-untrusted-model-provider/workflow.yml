@@ -1,4 +1,4 @@
-name: Reject untrusted agent provider
+name: Reject untrusted model provider
 runner: __RUNNER_LABEL__
 triggers:
   on_push:
