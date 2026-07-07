@@ -8,16 +8,16 @@ import {
 import {createWorkflowExpression} from '@shipfox/expression';
 import {and, eq, sql} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
-import {workflowModel} from '#test/index.js';
-import {db} from '../db.js';
-import {workflowsOutbox} from '../schema/outbox.js';
-import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
+import {db} from '#db/db.js';
+import {workflowsOutbox} from '#db/schema/outbox.js';
+import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
 import {
   bulkUpdateStepStatuses,
   createWorkflowRun,
   getFirstJobExecutionByJobId,
   getJobsByWorkflowRunId,
-} from '../workflow-runs.js';
+} from '#db/workflow-runs.js';
+import {workflowModel} from '#test/index.js';
 
 export type TestWorkflowModelInput = Parameters<typeof workflowModel>[0];
 

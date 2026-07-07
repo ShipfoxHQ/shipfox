@@ -1,3 +1,4 @@
+import {buildModel, createTestRun} from '#test/helpers/workflow-runs.js';
 import {
   createRerunWorkflowRun,
   createWorkflowRun,
@@ -11,7 +12,6 @@ import {
   updateJobExecutionStatus,
   updateWorkflowRunStatus,
 } from '../workflow-runs.js';
-import {buildModel, createTestRun} from './workflow-runs.test-helpers.js';
 
 describe('workflow run queries', () => {
   let workspaceId: string;

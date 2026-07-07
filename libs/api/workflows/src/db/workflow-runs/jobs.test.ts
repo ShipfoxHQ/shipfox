@@ -1,13 +1,13 @@
 import {eq} from 'drizzle-orm';
-import {db} from '../db.js';
-import {jobs} from '../schema/jobs.js';
-import {createWorkflowRun, evaluateJobActivations, updateJobStatus} from '../workflow-runs.js';
 import {
   buildModel,
   conditionTrace,
   jobByKey,
   workflowRunAttemptId,
-} from './workflow-runs.test-helpers.js';
+} from '#test/helpers/workflow-runs.js';
+import {db} from '../db.js';
+import {jobs} from '../schema/jobs.js';
+import {createWorkflowRun, evaluateJobActivations, updateJobStatus} from '../workflow-runs.js';
 
 describe('evaluateJobActivations', () => {
   const scope = {

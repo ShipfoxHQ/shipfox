@@ -1,12 +1,10 @@
-export type {
-  CreateRerunWorkflowRunParams,
-  CreateWorkflowRunParams,
-} from './run-creation.js';
+export type {CreateWorkflowRunParams} from './run-create.js';
 export {
-  createRerunWorkflowRun,
   createWorkflowRun,
   loadReferencedVariables,
-} from './run-creation.js';
+} from './run-create.js';
+export type {CreateRerunWorkflowRunParams} from './run-rerun.js';
+export {createRerunWorkflowRun} from './run-rerun.js';
 export type {
   CancelWorkflowRunParams,
   FailWorkflowRunAsTimedOutParams,

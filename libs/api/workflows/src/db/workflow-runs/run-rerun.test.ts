@@ -3,6 +3,12 @@ import {eq, inArray} from 'drizzle-orm';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
+import {
+  buildModel,
+  runAttemptCreatedEvents,
+  stepOutputField,
+  template,
+} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobs} from '../schema/jobs.js';
@@ -19,12 +25,6 @@ import {
   listRunAttempts,
   updateWorkflowRunStatus,
 } from '../workflow-runs.js';
-import {
-  buildModel,
-  runAttemptCreatedEvents,
-  stepOutputField,
-  template,
-} from './workflow-runs.test-helpers.js';
 
 describe('workflow run queries', () => {
   let workspaceId: string;

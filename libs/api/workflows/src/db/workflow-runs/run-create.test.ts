@@ -4,6 +4,7 @@ import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto
 import {and, eq, sql} from 'drizzle-orm';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
+import {buildModel, expression, shellRef, template} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {workflowsOutbox} from '../schema/outbox.js';
 import {workflowRuns} from '../schema/workflow-runs.js';
@@ -19,7 +20,6 @@ import {
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
 } from '../workflow-runs.js';
-import {buildModel, expression, shellRef, template} from './workflow-runs.test-helpers.js';
 
 describe('workflow run queries', () => {
   let workspaceId: string;

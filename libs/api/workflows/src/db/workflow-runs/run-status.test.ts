@@ -1,6 +1,14 @@
 import {eq} from 'drizzle-orm';
 import {WorkflowRunNotCancellableError} from '#core/errors.js';
 import {nextStepForJob} from '#core/job-execution.js';
+import {
+  buildModel,
+  createTestRun,
+  jobTerminatedEvents,
+  runCancelledEvents,
+  runTerminatedEvents,
+  stepAttemptTerminatedEvents,
+} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {workflowRuns} from '../schema/workflow-runs.js';
@@ -15,14 +23,6 @@ import {
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '../workflow-runs.js';
-import {
-  buildModel,
-  createTestRun,
-  jobTerminatedEvents,
-  runCancelledEvents,
-  runTerminatedEvents,
-  stepAttemptTerminatedEvents,
-} from './workflow-runs.test-helpers.js';
 
 describe('workflow run queries', () => {
   let workspaceId: string;

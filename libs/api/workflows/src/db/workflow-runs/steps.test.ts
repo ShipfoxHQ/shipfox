@@ -1,6 +1,11 @@
 import {eq} from 'drizzle-orm';
 import {nextStepForJob} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
+import {
+  buildModel,
+  bulkUpdateJobStepStatuses,
+  stepAttemptTerminatedEvents,
+} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {stepAttempts as stepAttemptsTable} from '../schema/step-attempts.js';
 import {steps as stepsTable} from '../schema/steps.js';
@@ -10,11 +15,6 @@ import {
   getStepAttempts,
   getStepsByJobId,
 } from '../workflow-runs.js';
-import {
-  buildModel,
-  bulkUpdateJobStepStatuses,
-  stepAttemptTerminatedEvents,
-} from './workflow-runs.test-helpers.js';
 
 describe('workflow run queries', () => {
   let workspaceId: string;

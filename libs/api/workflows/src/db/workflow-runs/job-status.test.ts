@@ -1,5 +1,6 @@
 import {eq, sql} from 'drizzle-orm';
 import type {JobExecution} from '#core/entities/job-execution.js';
+import {buildModel, createTestRun, jobTerminatedEvents} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {jobs} from '../schema/jobs.js';
 import {
@@ -11,7 +12,6 @@ import {
   updateJobExecutionStatus,
   updateJobStatus,
 } from '../workflow-runs.js';
-import {buildModel, createTestRun, jobTerminatedEvents} from './workflow-runs.test-helpers.js';
 
 describe('workflow run queries', () => {
   let workspaceId: string;
