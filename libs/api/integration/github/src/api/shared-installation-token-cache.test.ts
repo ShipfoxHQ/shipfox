@@ -202,6 +202,35 @@ describe('SharedInstallationTokenCache', () => {
     expect(result).toEqual(token('ghs_existing', '2026-06-10T11:04:30.000Z'));
   });
 
+  it('does not serve stale when refresh minting fails with a terminal reason', async () => {
+    const store = createStore();
+    setEnvelope(store, token('ghs_existing', '2026-06-10T11:04:30.000Z'));
+    const shared = cache({store});
+
+    await expect(
+      shared.getOrMint(installationId, () =>
+        Promise.reject(new GithubIntegrationProviderError('access-denied', 'denied')),
+      ),
+    ).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('does not serve stale from active terminal backoff on a contended refresh', async () => {
+    const store = createStore();
+    setEnvelope(store, {
+      ...token('ghs_existing', '2026-06-10T11:04:30.000Z'),
+      backoffUntil: new Date('2026-06-10T11:15:00.000Z'),
+      backoffReason: 'installation-not-found',
+    });
+    const shared = cache({
+      store,
+      withLock: () => Promise.resolve({acquired: false}),
+    });
+
+    await expect(
+      shared.getOrMint(installationId, () => Promise.resolve(token('ghs_new'))),
+    ).rejects.toMatchObject({reason: 'installation-not-found'});
+  });
+
   it('returns a minted token when the cache write fails', async () => {
     const store = createStore();
     store.failWrites = true;

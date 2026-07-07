@@ -12,6 +12,7 @@ import {
   backoffMs,
   classifyMintError,
   type InstallationTokenEnvelope,
+  mintErrorClassForReason,
   parseInstallationTokenEnvelope,
   providerErrorFromBackoff,
   stillValid,
@@ -102,8 +103,8 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
       return tokenFromEnvelope(envelope);
     }
 
-    if (backoffActive(envelope, now)) {
-      if (envelope?.token && stillValid(envelope.expiresAt, now)) {
+    if (activeBackoff(envelope, now)) {
+      if (canServeStale(envelope, now)) {
         recordInstallationTokenLookup('served-stale');
         return tokenFromEnvelope(envelope);
       }
@@ -135,7 +136,11 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
         );
       });
 
-      if (envelope?.token && stillValid(envelope.expiresAt, this.now())) {
+      if (
+        classified.class === 'transient' &&
+        envelope?.token &&
+        stillValid(envelope.expiresAt, this.now())
+      ) {
         logger().warn(
           {
             installationId: params.installationId,
@@ -187,9 +192,17 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     installationId: number;
     envelope: InstallationTokenEnvelope | undefined;
   }): Promise<GithubInstallationAccessToken> {
-    if (params.envelope?.token && stillValid(params.envelope.expiresAt, this.now())) {
+    const initialNow = this.now();
+    if (canServeStale(params.envelope, initialNow)) {
       recordInstallationTokenLookup('served-stale');
       return tokenFromEnvelope(params.envelope);
+    }
+    if (activeBackoff(params.envelope, initialNow)) {
+      recordInstallationTokenLookup('backoff');
+      throw providerErrorFromBackoff(
+        params.envelope.backoffReason,
+        params.envelope.backoffUntil.getTime() - initialNow.getTime(),
+      );
     }
 
     for (const delayMs of this.pollDelaysMs) {
@@ -264,6 +277,38 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     });
     return workspaceId;
   }
+}
+
+type ActiveBackoffEnvelope = InstallationTokenEnvelope & {
+  backoffUntil: Date;
+  backoffReason: NonNullable<InstallationTokenEnvelope['backoffReason']>;
+};
+
+type TokenEnvelope = InstallationTokenEnvelope & {token: string; expiresAt: Date};
+
+function activeBackoff(
+  envelope: InstallationTokenEnvelope | undefined,
+  now: Date,
+): envelope is ActiveBackoffEnvelope {
+  return (
+    backoffActive(envelope, now) &&
+    envelope?.backoffUntil !== undefined &&
+    envelope.backoffReason !== undefined
+  );
+}
+
+function canServeStale(
+  envelope: InstallationTokenEnvelope | undefined,
+  now: Date,
+): envelope is TokenEnvelope {
+  const terminalBackoff =
+    activeBackoff(envelope, now) && mintErrorClassForReason(envelope.backoffReason) === 'terminal';
+  return (
+    envelope?.token !== undefined &&
+    envelope.expiresAt !== undefined &&
+    stillValid(envelope.expiresAt, now) &&
+    !terminalBackoff
+  );
 }
 
 function tokenFromEnvelope(envelope: InstallationTokenEnvelope): GithubInstallationAccessToken {

@@ -25,6 +25,11 @@ const providerErrorReasons = [
 ] as const satisfies readonly IntegrationProviderErrorReason[];
 
 const providerErrorReasonSchema = z.enum(providerErrorReasons);
+const terminalMintErrorReasons = new Set<IntegrationProviderErrorReason>([
+  'access-denied',
+  'installation-not-found',
+  'malformed-provider-response',
+]);
 
 type MissingProviderErrorReason = Exclude<
   IntegrationProviderErrorReason,
@@ -121,16 +126,15 @@ export function classifyMintError(error: unknown): ClassifiedMintError {
     return {
       reason: error.reason,
       retryAfterSeconds: error.retryAfterSeconds,
-      class:
-        error.reason === 'access-denied' ||
-        error.reason === 'installation-not-found' ||
-        error.reason === 'malformed-provider-response'
-          ? 'terminal'
-          : 'transient',
+      class: mintErrorClassForReason(error.reason),
     };
   }
 
   return {reason: 'provider-unavailable', class: 'transient'};
+}
+
+export function mintErrorClassForReason(reason: IntegrationProviderErrorReason): MintErrorClass {
+  return terminalMintErrorReasons.has(reason) ? 'terminal' : 'transient';
 }
 
 export function backoffMs(classified: ClassifiedMintError): number {

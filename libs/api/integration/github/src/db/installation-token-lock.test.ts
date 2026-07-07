@@ -24,6 +24,27 @@ describe('withInstallationTokenLock', () => {
     expect(winner).toEqual({acquired: true, value: 'winner'});
   });
 
+  it('does not collide installations that differ outside the 32-bit range', async () => {
+    let releaseLock: () => void = () => {
+      throw new Error('releaseLock was not initialized');
+    };
+    const holder = withInstallationTokenLock(
+      1,
+      () =>
+        new Promise<string>((resolve) => {
+          releaseLock = () => resolve('holder');
+        }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const different = await withInstallationTokenLock(1 + 2 ** 32, async () => 'different');
+    releaseLock();
+    const held = await holder;
+
+    expect(different).toEqual({acquired: true, value: 'different'});
+    expect(held).toEqual({acquired: true, value: 'holder'});
+  });
+
   it('does not exhaust a small pool when many contenders miss the try-lock', async () => {
     let releaseLock: () => void = () => {
       throw new Error('releaseLock was not initialized');
