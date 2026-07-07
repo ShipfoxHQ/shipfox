@@ -1231,9 +1231,18 @@ importers:
       '@shipfox/annotations-dto':
         specifier: workspace:*
         version: link:../annotations-dto
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../auth-context
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../shared/node/fastify
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../shared/node/module
@@ -1244,9 +1253,18 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
     devDependencies:
+      '@shipfox/api-auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@shipfox/api-auth-dto':
+        specifier: workspace:*
+        version: link:../auth-dto
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/node-jwt':
+        specifier: workspace:*
+        version: link:../../shared/node/jwt
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc

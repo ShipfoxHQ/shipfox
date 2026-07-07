@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('@shipfox/api-agent', () => ({agentModule: {name: 'agent'}}));
+vi.mock('@shipfox/annotations', () => ({annotationsModule: {name: 'annotations'}}));
 vi.mock('@shipfox/api-auth', () => ({authModule: {name: 'auth'}}));
 vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,
