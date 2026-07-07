@@ -1,10 +1,10 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {Context} from '@temporalio/activity';
-import {ApplicationFailure} from '@temporalio/common';
 import type {
   AgentToolSelectionCatalogs,
+  IntegrationSourceControlService,
   LoadWorkspaceConnectionSnapshot,
-} from '#core/entities/integration-context.js';
+} from '@shipfox/api-integration-core';
+import {Context} from '@temporalio/activity';
+import {ApplicationFailure} from '@temporalio/common';
 import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
 import {
   classifySyncFailure,

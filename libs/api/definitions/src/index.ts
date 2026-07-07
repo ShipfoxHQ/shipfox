@@ -6,8 +6,10 @@ import {
   definitionsEventSchemas,
 } from '@shipfox/api-definitions-dto';
 import type {
+  AgentToolSelectionCatalogs,
   GetIntegrationConnectionByIdFn,
   IntegrationSourceControlService,
+  LoadWorkspaceConnectionSnapshot,
 } from '@shipfox/api-integration-core';
 import {
   PROJECT_SOURCE_BOUND,
@@ -16,10 +18,6 @@ import {
 } from '@shipfox/api-projects-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
-import type {
-  AgentToolSelectionCatalogs,
-  LoadWorkspaceConnectionSnapshot,
-} from '#core/entities/integration-context.js';
 import {db, definitionsOutbox, migrationsPath} from '#db/index.js';
 import {createDefinitionRoutes} from '#presentation/index.js';
 import {

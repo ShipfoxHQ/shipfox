@@ -4,25 +4,18 @@ import type {
   IntegrationProviderKind,
 } from '@shipfox/api-integration-core-dto';
 
-export type AgentToolSelectionCatalogs = ReadonlyMap<
-  IntegrationProviderKind,
-  AgentToolSelectionCatalog
->;
-
-export interface WorkspaceConnectionSnapshotEntry {
-  readonly id: string;
-  readonly provider: IntegrationProviderKind;
-  readonly capabilities: readonly IntegrationCapability[];
-}
-
-export type WorkspaceConnectionSnapshot = ReadonlyMap<string, WorkspaceConnectionSnapshotEntry>;
-
 export interface IntegrationValidationContext {
-  readonly agentToolSelectionCatalogs: AgentToolSelectionCatalogs;
-  readonly workspaceConnectionSnapshot: WorkspaceConnectionSnapshot;
+  readonly agentToolSelectionCatalogs: ReadonlyMap<
+    IntegrationProviderKind,
+    AgentToolSelectionCatalog
+  >;
+  readonly workspaceConnectionSnapshot: ReadonlyMap<
+    string,
+    {
+      readonly id: string;
+      readonly provider: IntegrationProviderKind;
+      readonly capabilities: readonly IntegrationCapability[];
+    }
+  >;
   readonly defaultConnectionSlug?: string | undefined;
 }
-
-export type LoadWorkspaceConnectionSnapshot = (
-  workspaceId: string,
-) => Promise<WorkspaceConnectionSnapshot>;

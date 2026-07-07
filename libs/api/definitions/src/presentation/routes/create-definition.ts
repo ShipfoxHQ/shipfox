@@ -3,13 +3,14 @@ import {
   definitionResponseSchema,
   definitionValidationErrorSchema,
 } from '@shipfox/api-definitions-dto';
-import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
-import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import {z} from 'zod';
 import type {
   AgentToolSelectionCatalogs,
   LoadWorkspaceConnectionSnapshot,
-} from '#core/entities/integration-context.js';
+} from '@shipfox/api-integration-core';
+import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
+import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {z} from 'zod';
 import {DefinitionParseError} from '#core/errors.js';
 import {parseDefinition} from '#core/parse-definition.js';
 import {upsertDefinition} from '#db/definitions.js';
@@ -53,20 +54,21 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
       const {project_id: projectId, config_path, source, yaml: yamlString, sha, ref} = request.body;
       const {project} = await requireProjectAccess({request, projectId});
 
-      const integrationValidationContext =
-        options.agentToolSelectionCatalogs === undefined ||
-        options.loadWorkspaceConnectionSnapshot === undefined
-          ? undefined
-          : {
-              agentToolSelectionCatalogs: options.agentToolSelectionCatalogs,
-              workspaceConnectionSnapshot: await options.loadWorkspaceConnectionSnapshot(
-                project.workspaceId,
-              ),
-            };
+      const structurallyParsed = parseDefinition(yamlString);
+      const {agentToolSelectionCatalogs, loadWorkspaceConnectionSnapshot} = options;
       const parsed =
-        integrationValidationContext === undefined
-          ? parseDefinition(yamlString)
-          : parseDefinition(yamlString, {integrationValidationContext});
+        agentToolSelectionCatalogs !== undefined &&
+        loadWorkspaceConnectionSnapshot !== undefined &&
+        hasAgentStepIntegrations(structurallyParsed.document)
+          ? parseDefinition(yamlString, {
+              integrationValidationContext: {
+                agentToolSelectionCatalogs,
+                workspaceConnectionSnapshot: await loadWorkspaceConnectionSnapshot(
+                  project.workspaceId,
+                ),
+              },
+            })
+          : structurallyParsed;
 
       const definition = await upsertDefinition({
         projectId,
@@ -87,3 +89,9 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
 }
 
 export const createDefinitionRoute = buildCreateDefinitionRoute();
+
+function hasAgentStepIntegrations(document: WorkflowDocument): boolean {
+  return Object.values(document.jobs).some((job) =>
+    job.steps.some((step) => step.integrations !== undefined),
+  );
+}

@@ -2,7 +2,7 @@ import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {createDefinitionRoute} from './create-definition.js';
+import {buildCreateDefinitionRoute, createDefinitionRoute} from './create-definition.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
 
@@ -74,6 +74,45 @@ jobs:
     expect(body.sha).toBeNull();
     expect(body.ref).toBeNull();
     expect(body.fetched_at).toBeDefined();
+  });
+
+  test('skips connection snapshot loading when YAML has no integrations', async () => {
+    const loadWorkspaceConnectionSnapshot = vi.fn(() => Promise.resolve(new Map()));
+    const appWithOptions = Fastify();
+    appWithOptions.setValidatorCompiler(validatorCompiler);
+    appWithOptions.setSerializerCompiler(serializerCompiler);
+    appWithOptions.addHook('onRequest', (request, _reply, done) => {
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
+      done();
+    });
+    appWithOptions.post(
+      '/api/definitions',
+      buildCreateDefinitionRoute({
+        agentToolSelectionCatalogs: new Map(),
+        loadWorkspaceConnectionSnapshot,
+      }),
+    );
+    await appWithOptions.ready();
+
+    const res = await appWithOptions.inject({
+      method: 'POST',
+      url: '/api/definitions',
+      payload: {
+        project_id: projectId,
+        config_path: '.shipfox/workflows/test.yml',
+        yaml: validYaml,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(loadWorkspaceConnectionSnapshot).not.toHaveBeenCalled();
   });
 
   test('invalid YAML syntax returns 400', async () => {

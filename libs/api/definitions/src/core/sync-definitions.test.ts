@@ -6,6 +6,7 @@ import {
   type IntegrationSourceControlService,
 } from '@shipfox/api-integration-core';
 import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
+import type {IntegrationValidationContext} from './entities/integration-context.js';
 import {DefinitionSyncPermanentError} from './errors.js';
 import {
   classifySyncFailure,
@@ -22,6 +23,47 @@ jobs:
     steps:
       - run: pnpm test
 `;
+
+const validIntegrationYaml = `
+name: Agent CI
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - prompt: Fix the issue
+        integrations:
+          - connection: github-main
+            include: [issue_read]
+`;
+
+const invalidIntegrationYaml = `
+name: Agent CI
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - prompt: Fix the issue
+        integrations:
+          - connection: github-main
+            include: [issue_read.missing]
+`;
+
+const integrationValidationContext = {
+  agentToolSelectionCatalogs: new Map([
+    [
+      'github',
+      {
+        selectors: [
+          {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
+          {token: 'issue_read.get', kind: 'method', sensitivity: 'read', sensitive: false},
+        ],
+      },
+    ],
+  ]),
+  workspaceConnectionSnapshot: new Map([
+    ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+  ]),
+} satisfies IntegrationValidationContext;
 
 function sourceControl(
   overrides: Partial<IntegrationSourceControlService> = {},
@@ -221,6 +263,78 @@ describe('fetchAndParseWorkflows', () => {
     });
 
     expect(onProgress).toHaveBeenCalledWith('.shipfox/workflows/ci.yml');
+  });
+
+  it('does not load integration validation context when no workflow uses integrations', async () => {
+    const loadIntegrationValidationContext = vi.fn(() =>
+      Promise.resolve(integrationValidationContext),
+    );
+
+    const result = await fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/ci.yml'],
+      sourceControl: sourceControl(),
+      loadIntegrationValidationContext,
+    });
+
+    expect(loadIntegrationValidationContext).not.toHaveBeenCalled();
+    expect(result[0]).not.toHaveProperty('rawContent');
+  });
+
+  it('loads integration validation context once and reparses integration workflows', async () => {
+    const loadIntegrationValidationContext = vi.fn(() =>
+      Promise.resolve(integrationValidationContext),
+    );
+
+    const result = await fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/ci.yml', '.shipfox/workflows/agent.yml'],
+      sourceControl: sourceControl({
+        fetchFile: vi.fn(({path}) =>
+          Promise.resolve({
+            path,
+            ref: 'main',
+            content: path.endsWith('/agent.yml') ? validIntegrationYaml : validYaml,
+          }),
+        ),
+      }),
+      loadIntegrationValidationContext,
+    });
+
+    expect(loadIntegrationValidationContext).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(2);
+    expect(result[0]).not.toHaveProperty('rawContent');
+    expect(result[1]?.definition.model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      integrations: [{connection: 'github-main', include: ['issue_read']}],
+    });
+  });
+
+  it('rejects integration catalog issues after loading validation context', async () => {
+    const loadIntegrationValidationContext = vi.fn(() =>
+      Promise.resolve(integrationValidationContext),
+    );
+
+    const result = fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/agent.yml'],
+      sourceControl: sourceControl({
+        fetchFile: vi.fn(() =>
+          Promise.resolve({
+            path: '.shipfox/workflows/agent.yml',
+            ref: 'main',
+            content: invalidIntegrationYaml,
+          }),
+        ),
+      }),
+      loadIntegrationValidationContext,
+    });
+
+    await expect(result).rejects.toMatchObject({code: 'invalid-definition'});
+    expect(loadIntegrationValidationContext).toHaveBeenCalledTimes(1);
   });
 });
 
