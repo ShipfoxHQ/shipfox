@@ -12,6 +12,7 @@ import type {IntegrationValidationContext} from './entities/integration-context.
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
+import {hasAgentStepIntegrations} from './has-agent-step-integrations.js';
 import {parseDefinition} from './parse-definition.js';
 
 export const WORKFLOW_PREFIX = '.shipfox/workflows/';
@@ -120,7 +121,10 @@ export async function fetchAndParseWorkflows(
     {stopOnError: true},
   );
 
-  if (!params.loadIntegrationValidationContext || !parsed.some(hasAgentStepIntegrations)) {
+  if (
+    !params.loadIntegrationValidationContext ||
+    !parsed.some((entry) => hasAgentStepIntegrations(entry.definition.document))
+  ) {
     return parsed.map(({rawContent: _rawContent, ...entry}) => entry);
   }
 
@@ -157,12 +161,6 @@ function parseWorkflowSnapshot(params: {
     }
     throw error;
   }
-}
-
-function hasAgentStepIntegrations(entry: ParsedWorkflow): boolean {
-  return Object.values(entry.definition.document.jobs).some((job) =>
-    job.steps.some((step) => step.integrations !== undefined),
-  );
 }
 
 export interface SyncFailureClassification {

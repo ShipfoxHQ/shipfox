@@ -256,6 +256,40 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('anchors unknown integration tokens to authored selection indexes', () => {
+    const document: WorkflowDocument = {
+      name: 'bad integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [
+                {
+                  include: ['issue_read', 'issue_read', 'issue_read.missing'],
+                  exclude: ['issue_read.get', 'issue_read.get', 'list_issues.extra'],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues).toMatchObject([
+      {
+        code: 'unknown-integration-method',
+        path: ['jobs', 'fix', 'steps', 0, 'integrations', 0, 'include', 2],
+      },
+      {
+        code: 'unknown-integration-tool',
+        path: ['jobs', 'fix', 'steps', 0, 'integrations', 0, 'exclude', 2],
+      },
+    ]);
+  });
+
   it('requires allow_write for write-capable authored include tokens', () => {
     const document: WorkflowDocument = {
       name: 'write integrations',

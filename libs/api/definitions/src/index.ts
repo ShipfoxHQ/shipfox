@@ -76,7 +76,11 @@ export function createDefinitionsModule({
   return {
     name: 'definitions',
     database: {db, migrationsPath},
-    routes: createDefinitionRoutes({agentToolSelectionCatalogs, loadWorkspaceConnectionSnapshot}),
+    routes: createDefinitionRoutes({
+      agentToolSelectionCatalogs,
+      loadWorkspaceConnectionSnapshot,
+      getIntegrationConnectionById,
+    }),
     publishers: [
       {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
     ],

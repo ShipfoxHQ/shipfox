@@ -5,13 +5,14 @@ import {
 } from '@shipfox/api-definitions-dto';
 import type {
   AgentToolSelectionCatalogs,
+  GetIntegrationConnectionByIdFn,
   LoadWorkspaceConnectionSnapshot,
 } from '@shipfox/api-integration-core';
 import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {DefinitionParseError} from '#core/errors.js';
+import {hasAgentStepIntegrations} from '#core/has-agent-step-integrations.js';
 import {parseDefinition} from '#core/parse-definition.js';
 import {upsertDefinition} from '#db/definitions.js';
 import {toDefinitionDto} from '#presentation/dto/index.js';
@@ -19,6 +20,7 @@ import {toDefinitionDto} from '#presentation/dto/index.js';
 export interface CreateDefinitionRouteOptions {
   agentToolSelectionCatalogs?: AgentToolSelectionCatalogs | undefined;
   loadWorkspaceConnectionSnapshot?: LoadWorkspaceConnectionSnapshot | undefined;
+  getIntegrationConnectionById?: GetIntegrationConnectionByIdFn | undefined;
 }
 
 export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions = {}) {
@@ -55,7 +57,11 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
       const {project} = await requireProjectAccess({request, projectId});
 
       const structurallyParsed = parseDefinition(yamlString);
-      const {agentToolSelectionCatalogs, loadWorkspaceConnectionSnapshot} = options;
+      const {
+        agentToolSelectionCatalogs,
+        loadWorkspaceConnectionSnapshot,
+        getIntegrationConnectionById,
+      } = options;
       const parsed =
         agentToolSelectionCatalogs !== undefined &&
         loadWorkspaceConnectionSnapshot !== undefined &&
@@ -66,6 +72,10 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
                 workspaceConnectionSnapshot: await loadWorkspaceConnectionSnapshot(
                   project.workspaceId,
                 ),
+                defaultConnectionSlug:
+                  getIntegrationConnectionById === undefined
+                    ? undefined
+                    : (await getIntegrationConnectionById(project.sourceConnectionId))?.slug,
               },
             })
           : structurallyParsed;
@@ -89,9 +99,3 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
 }
 
 export const createDefinitionRoute = buildCreateDefinitionRoute();
-
-function hasAgentStepIntegrations(document: WorkflowDocument): boolean {
-  return Object.values(document.jobs).some((job) =>
-    job.steps.some((step) => step.integrations !== undefined),
-  );
-}

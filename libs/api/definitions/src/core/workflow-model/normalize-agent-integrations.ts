@@ -96,14 +96,14 @@ function validateIntegration(params: {
   validateSelection({
     ...params,
     field: 'include',
-    tokens: params.normalized.include,
+    tokens: params.integration.include,
     selectorsByToken,
   });
-  if (params.normalized.exclude !== undefined) {
+  if (params.integration.exclude !== undefined) {
     validateSelection({
       ...params,
       field: 'exclude',
-      tokens: params.normalized.exclude,
+      tokens: params.integration.exclude,
       selectorsByToken,
     });
   }
@@ -138,6 +138,7 @@ function validateSelection(params: {
 }
 
 function validateWriteSelection(params: {
+  integration: WorkflowDocumentStepIntegration;
   normalized: WorkflowModelStepIntegration;
   selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
   sourceName: string;
@@ -147,8 +148,10 @@ function validateWriteSelection(params: {
 }): void {
   if (params.normalized.allowWrite) return;
 
-  const writeTokens = params.normalized.include.filter(
-    (token) => params.selectorsByToken.get(token)?.sensitivity === 'write',
+  const writeTokens = dedupe(
+    params.integration.include.filter(
+      (token) => params.selectorsByToken.get(token)?.sensitivity === 'write',
+    ),
   );
   if (writeTokens.length === 0) return;
 
