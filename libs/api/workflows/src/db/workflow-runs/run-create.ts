@@ -8,6 +8,10 @@ import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto
 import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';
+import {
+  createAgentToolMaterializationSnapshot,
+  loadAgentToolMaterializationContext,
+} from '#core/agent-tools.js';
 import type {
   TriggerPayload,
   WorkflowRun,
@@ -57,6 +61,15 @@ export interface CreateWorkflowRunParams {
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
+  const agentToolContext = await loadAgentToolMaterializationContext({
+    model: params.model,
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+  });
+  const agentToolMaterialization = createAgentToolMaterializationSnapshot({
+    model: params.model,
+    context: agentToolContext,
+  });
   const result = await db().transaction(async (tx) => {
     const insertResult = await tx
       .insert(workflowRuns)
@@ -106,6 +119,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         attempt: 1,
         status: 'pending',
         model: params.model,
+        agentToolMaterialization,
       })
       .returning();
     if (!attemptRow) throw new Error('Insert returned no rows');
@@ -132,6 +146,8 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       context,
       resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
       definitionId: params.definitionId,
+      agentToolContext,
+      agentToolSnapshot: agentToolMaterialization,
     });
 
     let jobRows: (typeof jobs.$inferSelect)[] = [];

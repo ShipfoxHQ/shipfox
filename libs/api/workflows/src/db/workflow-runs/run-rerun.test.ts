@@ -1,5 +1,6 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {eq, inArray} from 'drizzle-orm';
+import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
@@ -13,6 +14,7 @@ import {db} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobs} from '../schema/jobs.js';
 import {steps as stepsTable} from '../schema/steps.js';
+import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {
   createRerunWorkflowRun,
   createWorkflowRun,
@@ -141,6 +143,60 @@ describe('workflow run queries', () => {
       const rerunAttempt = attempts.find((attempt) => attempt.attempt === 2);
       const reloadedRerunAttempt = await getWorkflowRunAttemptById(rerunAttempt?.id as string);
       expect(reloadedRerunAttempt?.model).toEqual(sourceAttempt?.model);
+    });
+
+    test('reruns clone the frozen agent tool materialization snapshot', async () => {
+      const source = await createTerminalSourceRun();
+      const [sourceAttempt] = await listRunAttempts({workflowRunId: source.id, projectId});
+      const snapshot: AgentToolMaterializationSnapshot = {
+        steps: [
+          {
+            jobKey: 'test',
+            stepId: 'test-step-1',
+            integrations: [
+              {
+                connectionId: crypto.randomUUID(),
+                connectionSlug: 'github',
+                provider: 'github',
+                repos: ['github:shipfox/platform'],
+                requiredScope: [{permission: 'issues', access: 'read'}],
+                tools: [
+                  {
+                    id: 'issue_read',
+                    sensitivity: 'read',
+                    sensitive: false,
+                    requiredScope: [{permission: 'issues', access: 'read'}],
+                    inputSchema: {type: 'object'},
+                    methods: [
+                      {
+                        id: 'get',
+                        token: 'issue_read.get',
+                        sensitivity: 'read',
+                        sensitive: false,
+                        requiredScope: [{permission: 'issues', access: 'read'}],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      await db()
+        .update(workflowRunAttempts)
+        .set({agentToolMaterialization: snapshot})
+        .where(eq(workflowRunAttempts.id, sourceAttempt?.id as string));
+
+      await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const attempts = await listRunAttempts({workflowRunId: source.id, projectId});
+      const rerunAttempt = attempts.find((attempt) => attempt.attempt === 2);
+      expect(rerunAttempt?.agentToolMaterialization).toEqual(snapshot);
     });
 
     test('reruns preserve each source job checkout policy', async () => {

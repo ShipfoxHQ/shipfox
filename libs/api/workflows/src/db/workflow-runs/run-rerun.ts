@@ -78,6 +78,7 @@ export async function createRerunWorkflowRun(
         rerunMode: params.mode,
         rerunByUserId: params.actorUserId,
         model: sourceAttemptRow.model,
+        agentToolMaterialization: sourceAttemptRow.agentToolMaterialization,
       })
       .returning();
     if (!newAttemptRow) throw new Error('Insert returned no rows');

@@ -31,12 +31,14 @@ export {
   parseProviderRepositoryId,
 } from '@shipfox/api-integration-core-dto';
 export type {
+  AgentToolCatalogs,
   AgentToolSelectionCatalogs,
   LoadWorkspaceConnectionSnapshot,
   WorkspaceConnectionSnapshot,
   WorkspaceConnectionSnapshotEntry,
 } from '#core/agent-tool-selection.js';
 export {
+  buildAgentToolCatalogs,
   buildAgentToolSelectionCatalogs,
   createWorkspaceConnectionSnapshotLoader,
 } from '#core/agent-tool-selection.js';
@@ -65,6 +67,7 @@ export {
 export type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
+  AgentToolCatalogMethod,
   AgentToolJsonSchema,
   AgentToolSensitivity,
   AgentToolSession,

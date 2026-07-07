@@ -129,6 +129,14 @@ export interface SourceControlProvider<
 export type AgentToolSensitivity = 'read' | 'write';
 export type AgentToolJsonSchema = Record<string, unknown>;
 
+export interface AgentToolCatalogMethod<RequiredScope = unknown> {
+  id: string;
+  description: string;
+  sensitivity: AgentToolSensitivity;
+  sensitive: boolean;
+  requiredScope: RequiredScope;
+}
+
 export interface AgentToolCatalogEntry<RequiredScope = unknown> {
   id: string;
   description: string;
@@ -137,6 +145,7 @@ export interface AgentToolCatalogEntry<RequiredScope = unknown> {
   requiredScope: RequiredScope;
   inputSchema: AgentToolJsonSchema;
   outputSchema?: AgentToolJsonSchema | undefined;
+  methods?: readonly AgentToolCatalogMethod<RequiredScope>[] | undefined;
 }
 
 export type AgentToolSelectorKind = 'family' | 'family_wildcard' | 'method' | 'standalone';

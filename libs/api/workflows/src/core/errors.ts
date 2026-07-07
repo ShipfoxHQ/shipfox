@@ -27,6 +27,13 @@ export class AgentConfigUnresolvableError extends Error {
   }
 }
 
+export class AgentIntegrationMaterializationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgentIntegrationMaterializationError';
+  }
+}
+
 export type InterpolationUnresolvableField =
   | 'run'
   | 'env'
@@ -84,6 +91,7 @@ export function isPermanentRunWorkflowError(error: unknown): boolean {
     error instanceof DefinitionNotFoundError ||
     error instanceof ProjectMismatchError ||
     error instanceof AgentConfigUnresolvableError ||
+    error instanceof AgentIntegrationMaterializationError ||
     error instanceof InterpolationUnresolvableError ||
     error instanceof InvalidJobRunnerLabelsError
   );

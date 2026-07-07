@@ -8,6 +8,50 @@ describe('materializedAgentStepConfigSchema', () => {
       model: 'claude-opus-4-8',
       thinking: 'high',
       tools: ['read', 'web_search'],
+      integrations: [
+        {
+          connectionId: 'connection-1',
+          connectionSlug: 'github-main',
+          provider: 'github',
+          repos: ['github:owner/repo'],
+          requiredScope: [{permission: 'issues', access: 'write'}],
+          tools: [
+            {
+              id: 'issue_read',
+              sensitivity: 'read',
+              sensitive: false,
+              requiredScope: [{permission: 'issues', access: 'read'}],
+              inputSchema: {type: 'object'},
+              methods: [
+                {
+                  id: 'get',
+                  token: 'issue_read.get',
+                  sensitivity: 'read',
+                  sensitive: false,
+                  requiredScope: [{permission: 'issues', access: 'read'}],
+                },
+              ],
+            },
+            {
+              id: 'issue_write',
+              sensitivity: 'write',
+              sensitive: false,
+              requiredScope: [{permission: 'issues', access: 'write'}],
+              inputSchema: {type: 'object'},
+              outputSchema: {type: 'object'},
+              methods: [
+                {
+                  id: 'create',
+                  token: 'issue_write.create',
+                  sensitivity: 'write',
+                  sensitive: false,
+                  requiredScope: [{permission: 'issues', access: 'write'}],
+                },
+              ],
+            },
+          ],
+        },
+      ],
       prompt: 'Fix the failing tests.',
     });
 
@@ -17,6 +61,50 @@ describe('materializedAgentStepConfigSchema', () => {
       model: 'claude-opus-4-8',
       thinking: 'high',
       tools: ['read', 'web_search'],
+      integrations: [
+        {
+          connectionId: 'connection-1',
+          connectionSlug: 'github-main',
+          provider: 'github',
+          repos: ['github:owner/repo'],
+          requiredScope: [{permission: 'issues', access: 'write'}],
+          tools: [
+            {
+              id: 'issue_read',
+              sensitivity: 'read',
+              sensitive: false,
+              requiredScope: [{permission: 'issues', access: 'read'}],
+              inputSchema: {type: 'object'},
+              methods: [
+                {
+                  id: 'get',
+                  token: 'issue_read.get',
+                  sensitivity: 'read',
+                  sensitive: false,
+                  requiredScope: [{permission: 'issues', access: 'read'}],
+                },
+              ],
+            },
+            {
+              id: 'issue_write',
+              sensitivity: 'write',
+              sensitive: false,
+              requiredScope: [{permission: 'issues', access: 'write'}],
+              inputSchema: {type: 'object'},
+              outputSchema: {type: 'object'},
+              methods: [
+                {
+                  id: 'create',
+                  token: 'issue_write.create',
+                  sensitivity: 'write',
+                  sensitive: false,
+                  requiredScope: [{permission: 'issues', access: 'write'}],
+                },
+              ],
+            },
+          ],
+        },
+      ],
       prompt: 'Fix the failing tests.',
     });
   });
@@ -79,6 +167,29 @@ describe('materializedAgentStepConfigSchema', () => {
         model: 'claude-opus-4-8',
         thinking: 'high',
         tools: [],
+        prompt: 'Fix the failing tests.',
+      });
+
+    expect(emptyTools).toThrow();
+  });
+
+  it('rejects malformed integrations', () => {
+    const emptyTools = () =>
+      materializedAgentStepConfigSchema.parse({
+        harness: 'pi',
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        integrations: [
+          {
+            connectionId: 'connection-1',
+            connectionSlug: 'github-main',
+            provider: 'github',
+            repos: ['github:owner/repo'],
+            requiredScope: [],
+            tools: [],
+          },
+        ],
         prompt: 'Fix the failing tests.',
       });
 

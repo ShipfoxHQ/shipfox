@@ -29,6 +29,10 @@ import {
 } from '#presentation/index.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
+export {
+  clearAgentToolMaterializationServices,
+  setAgentToolMaterializationServices,
+} from '#core/agent-tools.js';
 export type {
   Job,
   JobListenerEvent,

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
     createE2eAdminAuthMethod: vi.fn(),
     createE2eRouteGroup: vi.fn(),
     createIntegrationsContext: vi.fn(),
+    buildAgentToolCatalogs: vi.fn(),
     buildAgentToolSelectionCatalogs: vi.fn(),
     createWorkspaceConnectionSnapshotLoader: vi.fn(),
     getIntegrationConnectionById: vi.fn(),
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => {
     },
     parseApiTrustProxy: vi.fn(),
     registerModuleMetrics: vi.fn(),
+    setAgentToolMaterializationServices: vi.fn(),
     setSourceControl: vi.fn(),
     startModuleWorkers: vi.fn(),
     startServiceMetrics: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock('@shipfox/api-definitions', () => ({
 }));
 vi.mock('@shipfox/api-dispatcher', () => ({dispatcherModule: {name: 'dispatcher'}}));
 vi.mock('@shipfox/api-integration-core', () => ({
+  buildAgentToolCatalogs: mocks.buildAgentToolCatalogs,
   buildAgentToolSelectionCatalogs: mocks.buildAgentToolSelectionCatalogs,
   createIntegrationsContext: mocks.createIntegrationsContext,
   createWorkspaceConnectionSnapshotLoader: mocks.createWorkspaceConnectionSnapshotLoader,
@@ -65,6 +68,7 @@ vi.mock('@shipfox/api-secrets', () => ({
 }));
 vi.mock('@shipfox/api-triggers', () => ({triggersModule: {name: 'triggers'}}));
 vi.mock('@shipfox/api-workflows', () => ({
+  setAgentToolMaterializationServices: mocks.setAgentToolMaterializationServices,
   setSourceControl: mocks.setSourceControl,
   workflowsModule: {name: 'workflows'},
 }));
@@ -124,6 +128,7 @@ describe('run', () => {
     mocks.createE2eAdminAuthMethod.mockReset();
     mocks.createE2eRouteGroup.mockReset();
     mocks.createIntegrationsContext.mockReset();
+    mocks.buildAgentToolCatalogs.mockReset();
     mocks.buildAgentToolSelectionCatalogs.mockReset();
     mocks.createWorkspaceConnectionSnapshotLoader.mockReset();
     mocks.getIntegrationConnectionById.mockReset();
@@ -141,6 +146,7 @@ describe('run', () => {
     mocks.metricMeter.createCounter.mockReset();
     mocks.parseApiTrustProxy.mockReset();
     mocks.registerModuleMetrics.mockReset();
+    mocks.setAgentToolMaterializationServices.mockReset();
     mocks.setSourceControl.mockReset();
     mocks.startModuleWorkers.mockReset();
     mocks.startServiceMetrics.mockReset();
@@ -151,6 +157,7 @@ describe('run', () => {
       runStartupTasks: vi.fn().mockResolvedValue(undefined),
       sourceControl: {},
     });
+    mocks.buildAgentToolCatalogs.mockResolvedValue(new Map());
     mocks.buildAgentToolSelectionCatalogs.mockResolvedValue(new Map());
     mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
     mocks.createProjectsModule.mockReturnValue({name: 'projects'});

@@ -4,6 +4,10 @@ import {
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {WorkflowExpression} from '@shipfox/expression';
+import type {
+  AgentToolMaterializationContext,
+  AgentToolMaterializationSnapshot,
+} from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
@@ -34,6 +38,8 @@ export interface MaterializeJobExecutionStepsParams {
   readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId?: string | undefined;
+  readonly agentToolContext?: AgentToolMaterializationContext | undefined;
+  readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }
 
 // Synthetic "Set up job" step prepended when a job execution's steps are materialized.
@@ -60,6 +66,8 @@ export function materializeJobExecutionSteps(
     context,
     resolveAgentDefaults = catalogDefaultAgentResolver,
     definitionId = model.name,
+    agentToolContext,
+    agentToolSnapshot,
   } = params;
 
   return [
@@ -68,6 +76,7 @@ export function materializeJobExecutionSteps(
       // The trusted context exposes the stable job key; the authored display field remains `job.name`.
       const stepContext = {...context.values, job: {key: job.key}};
       const resolved = resolveStepConfig({
+        jobKey: job.key,
         step,
         workflowEnv: model.env,
         workflowEnvTemplates: model.templates?.env,
@@ -77,6 +86,8 @@ export function materializeJobExecutionSteps(
         site: context.site,
         resolveAgentDefaults,
         definitionId,
+        agentToolContext,
+        agentToolSnapshot,
       });
       return {
         key: step.key ?? null,

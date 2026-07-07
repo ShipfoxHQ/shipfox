@@ -4,6 +4,7 @@ import {
   type WorkflowsJobActivatedEventDto,
 } from '@shipfox/api-workflows-dto';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
+import {loadAgentToolMaterializationContext} from '#core/agent-tools.js';
 import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
 import {
@@ -189,6 +190,14 @@ export async function drainListenerEventsIntoExecution(
     if (bufferedEvents.length === 0) return {result: {kind: 'empty' as const}};
 
     const target = await loadListenerMaterializationTarget(params.jobId, tx);
+    const agentToolContext =
+      target.attempt.agentToolMaterialization === null
+        ? await loadAgentToolMaterializationContext({
+            model: target.attempt.model,
+            workspaceId: target.run.workspaceId,
+            projectId: target.run.projectId,
+          })
+        : undefined;
     const materialized = materializeListenerExecution({
       model: target.attempt.model,
       run: toWorkflowRun(target.run),
@@ -197,6 +206,8 @@ export async function drainListenerEventsIntoExecution(
       triggerEvents: listenerTriggerEvents(bufferedEvents),
       priorExecutions: target.priorExecutions,
       resolveAgentDefaults: params.resolveAgentDefaults,
+      agentToolContext,
+      agentToolSnapshot: target.attempt.agentToolMaterialization,
     });
     const execution = await persistMaterializedListenerExecution(tx, {
       jobId: params.jobId,

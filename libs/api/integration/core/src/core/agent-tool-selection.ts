@@ -1,4 +1,5 @@
 import type {
+  AgentToolCatalogEntry,
   AgentToolSelectionCatalog,
   IntegrationCapability,
   IntegrationProviderKind,
@@ -9,6 +10,10 @@ import {listIntegrationConnections} from '#db/connections.js';
 export type AgentToolSelectionCatalogs = ReadonlyMap<
   IntegrationProviderKind,
   AgentToolSelectionCatalog
+>;
+export type AgentToolCatalogs = ReadonlyMap<
+  IntegrationProviderKind,
+  readonly AgentToolCatalogEntry[]
 >;
 
 export interface WorkspaceConnectionSnapshotEntry {
@@ -32,6 +37,21 @@ export async function buildAgentToolSelectionCatalogs(
         throw new Error(`Integration provider "${provider.provider}" has no agent tools adapter`);
       }
       return [provider.provider, await adapter.selectionCatalog()] as const;
+    }),
+  );
+  return new Map(entries);
+}
+
+export async function buildAgentToolCatalogs(
+  registry: IntegrationProviderRegistry,
+): Promise<AgentToolCatalogs> {
+  const entries = await Promise.all(
+    registry.list('agent_tools').map(async (provider) => {
+      const adapter = provider.adapters.agent_tools;
+      if (adapter === undefined) {
+        throw new Error(`Integration provider "${provider.provider}" has no agent tools adapter`);
+      }
+      return [provider.provider, await adapter.catalog()] as const;
     }),
   );
   return new Map(entries);

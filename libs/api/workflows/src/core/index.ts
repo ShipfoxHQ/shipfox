@@ -12,6 +12,7 @@ export type {
 } from './entities/workflow-run.js';
 export {
   AgentConfigUnresolvableError,
+  AgentIntegrationMaterializationError,
   DefinitionNotFoundError,
   InterpolationUnresolvableError,
   isPermanentRunWorkflowError,
