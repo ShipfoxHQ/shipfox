@@ -3,12 +3,10 @@ import {createMDX} from 'fumadocs-mdx/next';
 
 const withMDX = createMDX();
 
-// In production the docs are served behind the cloud landing app at
-// www.shipfox.io/docs, so they build under the /docs basePath. Local `next dev`
-// has no proxy in front, so skip the basePath there and serve at localhost:3500/
-// directly. The value is exposed as NEXT_PUBLIC_BASE_PATH so app code (src/url.ts)
-// builds URLs with the same prefix.
-const basePath = process.env.NODE_ENV === 'development' ? '' : '/docs';
+// The production docs deployment is mounted behind the cloud landing app at
+// www.shipfox.io/docs. Vercel previews stay rooted at / so preview URLs work
+// directly from the generated deployment URL.
+const basePath = process.env.VERCEL_ENV === 'production' ? '/docs' : '';
 
 /** @type {import('next').NextConfig} */
 const config = {
