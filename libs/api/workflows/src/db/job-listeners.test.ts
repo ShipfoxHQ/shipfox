@@ -436,6 +436,7 @@ describe('resolveJobListener', () => {
     expect(result.status).toBe('succeeded');
     expect(stored?.status).toBe('succeeded');
     expect(stored?.listenerStatus).toBe('resolved');
+    expect(stored?.resolutionReason).toBe('until');
   });
 
   it('resolves a listener with zero firings under the default success rule', async () => {
