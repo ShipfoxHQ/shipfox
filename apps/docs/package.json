@@ -23,7 +23,7 @@
     "fumadocs-core": "16.7.10",
     "fumadocs-mdx": "14.2.11",
     "fumadocs-ui": "16.7.10",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.0.0",
     "next": "16.2.3",
     "posthog-js": "^1.256.2",
     "react": "^19.1.1",
@@ -36,12 +36,12 @@
     "@shipfox/biome": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@tailwindcss/postcss": "^4.1.11",
+    "@tailwindcss/postcss": "^4.1.13",
     "@types/mdx": "^2.0.13",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.11",
+    "tailwindcss": "^4.1.13",
     "tsx": "^4.21.0"
   }
 }
