@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => {
     registerModuleMetrics: vi.fn(),
     setAgentToolMaterializationServices: vi.fn(),
     setSourceControl: vi.fn(),
+    loadRunningLeasedStep: vi.fn(),
     startModuleWorkers: vi.fn(),
     startServiceMetrics: vi.fn(),
   };
@@ -72,6 +73,7 @@ vi.mock('@shipfox/api-secrets', () => ({
 }));
 vi.mock('@shipfox/api-triggers', () => ({triggersModule: {name: 'triggers'}}));
 vi.mock('@shipfox/api-workflows', () => ({
+  loadRunningLeasedStep: mocks.loadRunningLeasedStep,
   setAgentToolMaterializationServices: mocks.setAgentToolMaterializationServices,
   setSourceControl: mocks.setSourceControl,
   workflowsModule: {name: 'workflows'},
@@ -155,6 +157,7 @@ describe('run', () => {
     mocks.registerModuleMetrics.mockReset();
     mocks.setAgentToolMaterializationServices.mockReset();
     mocks.setSourceControl.mockReset();
+    mocks.loadRunningLeasedStep.mockReset();
     mocks.startModuleWorkers.mockReset();
     mocks.startServiceMetrics.mockReset();
 
@@ -221,6 +224,22 @@ describe('run', () => {
     await run();
 
     expect(mocks.listen).toHaveBeenCalledWith({port: 55_291});
+  });
+
+  it('injects the leased-step loader into integration routes', async () => {
+    await run();
+
+    expect(mocks.createIntegrationsContext).toHaveBeenCalledWith({
+      secrets: {
+        deleteSecrets: mocks.deleteSecrets,
+        linear: expect.objectContaining({
+          deleteSecrets: expect.any(Function),
+          getSecret: expect.any(Function),
+          setSecrets: expect.any(Function),
+        }),
+      },
+      agentTools: {loadLeasedAgentStep: mocks.loadRunningLeasedStep},
+    });
   });
 
   it('does not listen when module worker startup fails', async () => {
