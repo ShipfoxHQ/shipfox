@@ -131,8 +131,12 @@ export function completeAgentConfig(params: {
   params.config.thinking = defaults.thinking;
   params.config.prompt = prompt;
   if (agent.tools !== undefined) params.config.tools = [...agent.tools];
-  if (agent.integrations !== undefined) params.config.integrations = [...agent.integrations];
-  if (agent.mcpServers !== undefined) params.config.mcpServers = [...agent.mcpServers];
+  const integrations = agent.integrations === undefined ? undefined : [...agent.integrations];
+  if (integrations !== undefined) params.config.integrations = integrations;
+  const mcpServers =
+    agent.mcpServers ??
+    (integrations === undefined ? undefined : agentIntegrationMcpServers(integrations));
+  if (mcpServers !== undefined) params.config.mcpServers = [...mcpServers];
 }
 
 function completeAgentField(args: {
