@@ -8,6 +8,10 @@ import {
   type CreateLinearIntegrationRoutesOptions,
   createLinearIntegrationRoutes,
 } from '#presentation/routes/install.js';
+import {
+  type CreateLinearWebhookRoutesOptions,
+  createLinearWebhookRoutes,
+} from '#presentation/routes/webhooks.js';
 
 export type {LinearProvider} from '@shipfox/api-integration-linear-dto';
 export type {LinearApiClient, LinearAuthorization, LinearIdentity} from '#api/client.js';
@@ -59,6 +63,8 @@ export {
   createLinearTokenStore,
   linearSecretsNamespace,
 } from '#core/tokens.js';
+export type {HandleLinearWebhookOutcome, HandleLinearWebhookParams} from '#core/webhook.js';
+export {handleLinearWebhook} from '#core/webhook.js';
 export type {
   LinearInstallation,
   LinearInstallationStatus,
@@ -78,7 +84,10 @@ export {closeDb, config, db, migrationsPath};
 export interface CreateLinearIntegrationProviderOptions {
   linear?: LinearApiClient | undefined;
   getLinearInstallationByConnectionId?: typeof getLinearInstallationByConnectionId | undefined;
-  routes?: Omit<CreateLinearIntegrationRoutesOptions, 'linear'> | undefined;
+  routes?:
+    | (Omit<CreateLinearIntegrationRoutesOptions, 'linear'> &
+        Partial<CreateLinearWebhookRoutesOptions>)
+    | undefined;
 }
 
 export function createLinearIntegrationProvider(
@@ -87,6 +96,18 @@ export function createLinearIntegrationProvider(
   const linear = options.linear ?? createLinearApiClient();
   const getInstallationByConnectionId =
     options.getLinearInstallationByConnectionId ?? getLinearInstallationByConnectionId;
+
+  const routes = options.routes
+    ? [
+        createLinearIntegrationRoutes({
+          linear,
+          ...options.routes,
+        }),
+      ]
+    : [];
+  if (options.routes && hasLinearWebhookRoutesOptions(options.routes)) {
+    routes.push(createLinearWebhookRoutes(options.routes));
+  }
 
   return {
     provider: LINEAR_PROVIDER,
@@ -97,13 +118,17 @@ export function createLinearIntegrationProvider(
       if (!installation?.organizationUrlKey) return undefined;
       return `https://linear.app/${encodeURIComponent(installation.organizationUrlKey)}/settings`;
     },
-    routes: options.routes
-      ? [
-          createLinearIntegrationRoutes({
-            linear,
-            ...options.routes,
-          }),
-        ]
-      : [],
+    routes,
   };
+}
+
+function hasLinearWebhookRoutesOptions(
+  routes: Partial<CreateLinearWebhookRoutesOptions>,
+): routes is CreateLinearWebhookRoutesOptions {
+  return (
+    routes.coreDb !== undefined &&
+    routes.publishIntegrationEventReceived !== undefined &&
+    routes.recordDeliveryOnly !== undefined &&
+    routes.getIntegrationConnectionById !== undefined
+  );
 }

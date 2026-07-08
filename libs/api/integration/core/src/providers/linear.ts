@@ -14,6 +14,7 @@ import {
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
+import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
@@ -138,6 +139,10 @@ async function loadLinearModuleParts(
         getExistingLinearConnection,
         connectLinearInstallation,
         disconnectLinearInstallation,
+        publishIntegrationEventReceived,
+        recordDeliveryOnly,
+        getIntegrationConnectionById,
+        coreDb: db,
       },
     }),
     database: {

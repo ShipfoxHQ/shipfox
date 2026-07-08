@@ -1,8 +1,30 @@
 # Shipfox API Integration Linear
 
 Shipfox API Integration Linear provides the Linear provider foundation. It is
-currently enabled behind `INTEGRATIONS_ENABLE_LINEAR_PROVIDER`; follow-up work
-adds OAuth connect routes, webhook ingestion, and hosted MCP execution.
+currently enabled behind `INTEGRATIONS_ENABLE_LINEAR_PROVIDER`; it includes OAuth
+connect routes and signed webhook ingestion. Hosted MCP execution is follow-up
+work.
+
+## Webhooks
+
+Linear sends OAuth application webhooks to:
+
+```text
+POST /webhooks/integrations/linear
+```
+
+The receiver requires `LINEAR_WEBHOOK_SIGNING_SECRET` to match the signing secret
+configured on the Linear app. It verifies `Linear-Signature` against the raw
+request body before parsing JSON, rejects signed payloads whose
+`webhookTimestamp` is more than 60 seconds from the API server clock, and uses
+the `Linear-Delivery` header as the integration delivery id.
+
+Supported data webhook events are `Issue`, `Comment`, `IssueLabel`, `Project`,
+and `Cycle` with `create`, `update`, or `remove` actions. Supported deliveries
+publish `integrations.event.received` with `provider: "linear"`,
+`source: connection.slug`, and event names such as `Issue.create`. Signed but
+unsupported webhook shapes are recorded and dropped with a 200 response so
+Linear does not retry or disable the webhook endpoint.
 
 ## Agent Tool Catalog
 

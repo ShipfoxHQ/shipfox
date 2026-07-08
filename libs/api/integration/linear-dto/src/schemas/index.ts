@@ -5,6 +5,43 @@ export const LINEAR_PROVIDER = 'linear';
 
 export type LinearProvider = typeof LINEAR_PROVIDER;
 
+export const linearWebhookResourceTypes = [
+  'Issue',
+  'Comment',
+  'IssueLabel',
+  'Project',
+  'Cycle',
+] as const;
+export const linearWebhookActions = ['create', 'update', 'remove'] as const;
+
+export const linearWebhookEventNames = linearWebhookResourceTypes.flatMap((type) =>
+  linearWebhookActions.map((action) => `${type}.${action}` as const),
+);
+
+export type LinearWebhookResourceType = (typeof linearWebhookResourceTypes)[number];
+export type LinearWebhookAction = (typeof linearWebhookActions)[number];
+export type LinearWebhookEventName = (typeof linearWebhookEventNames)[number];
+
+const linearWebhookDataSchema = z.record(z.string(), z.unknown());
+
+export const linearWebhookEnvelopeSchema = z.object({
+  action: z.enum(linearWebhookActions),
+  type: z.enum(linearWebhookResourceTypes),
+  organizationId: z.string().min(1),
+  webhookTimestamp: z.number().int(),
+  data: linearWebhookDataSchema,
+});
+export type LinearWebhookEnvelopeDto = z.infer<typeof linearWebhookEnvelopeSchema>;
+
+export const linearWebhookBaseEnvelopeSchema = z.object({
+  action: z.string().min(1),
+  type: z.string().min(1),
+  organizationId: z.string().min(1),
+  webhookTimestamp: z.number().int(),
+  data: linearWebhookDataSchema,
+});
+export type LinearWebhookBaseEnvelopeDto = z.infer<typeof linearWebhookBaseEnvelopeSchema>;
+
 export const createLinearInstallBodySchema = z.object({
   workspace_id: z.string().uuid(),
 });
