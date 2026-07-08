@@ -28,6 +28,13 @@ import {
 } from '#db/index.js';
 import type {SecretVariable} from '#db/schema/variables.js';
 import {normalizedProjectId} from '#db/scope.js';
+import {
+  classifySecretsOperationError,
+  operationScope,
+  recordSecretsEntriesMutated,
+  recordSecretsOperation,
+  type SecretsMetricResource,
+} from '#metrics/instance.js';
 import type {DekManager} from './dek-manager.js';
 import {
   SecretBatchDuplicateKeyError,
@@ -63,124 +70,311 @@ export interface ManagementListParams extends StoreScope {
 
 export function createSecretsManagementApi(params: {dekManager: DekManager}) {
   return {
-    listSecrets: listSecretManagementRows,
-    listVariables: listVariableManagementRows,
+    async listSecrets(input: ManagementListParams) {
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        const result = await listSecretManagementRows(input);
+        recordSecretsOperation({
+          resource: 'secret',
+          operation: 'list',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+        return result;
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'secret',
+          operation: 'list',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
+    },
+    async listVariables(input: ManagementListParams) {
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        const result = await listVariableManagementRows(input);
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'list',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+        return result;
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'list',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
+    },
     async getVariable(
       input: StoreScope & {workspaceId: string; key: string},
     ): Promise<SecretVariable> {
-      validateSecretKeys([input.key]);
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        validateSecretKeys([input.key]);
 
-      const variable = await getVariableManagementRow(input);
-      if (!variable) throw new VariableNotFoundError(input.key);
-      return variable;
+        const variable = await getVariableManagementRow(input);
+        if (!variable) throw new VariableNotFoundError(input.key);
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'get',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+        return variable;
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'get',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
     },
     async setSecrets(input: ManagementWriteParams): Promise<SecretManagementRow[]> {
-      const entries = normalizeEntries(input.entries);
-      validateSecretKeys(entries.map((entry) => entry.key));
-      validateValueBytes(entries.map((entry) => entry.value));
-      if (entries.length === 0) return [];
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        const entries = normalizeEntries(input.entries);
+        validateSecretKeys(entries.map((entry) => entry.key));
+        validateValueBytes(entries.map((entry) => entry.value));
+        if (entries.length === 0) {
+          recordSecretsOperation({
+            resource: 'secret',
+            operation: 'set',
+            surface: 'management',
+            scope,
+            outcome: 'success',
+            durationMs: Date.now() - startedAt,
+          });
+          return [];
+        }
 
-      const projectId = normalizedProjectId(input);
-      const dek = await params.dekManager.getPlaintextDek(input.workspaceId);
-      return writeManagementEntries({
-        input,
-        keys: entries.map((entry) => entry.key),
-        listExistingKeys: listExistingSecretManagementKeys,
-        writeRows: async (tx) => {
-          await upsertSecretValueRows(
-            entries.map((entry) => ({
-              workspaceId: input.workspaceId,
-              projectId,
-              namespace: '',
-              key: entry.key,
-              ciphertext: encryptSecretValue({
-                dek,
+        const projectId = normalizedProjectId(input);
+        const dek = await params.dekManager.getPlaintextDek(input.workspaceId);
+        const rows = await writeManagementEntries({
+          resource: 'secret',
+          input,
+          keys: entries.map((entry) => entry.key),
+          listExistingKeys: listExistingSecretManagementKeys,
+          writeRows: async (tx) => {
+            await upsertSecretValueRows(
+              entries.map((entry) => ({
                 workspaceId: input.workspaceId,
-                scope: {projectId},
+                projectId,
+                namespace: '',
+                key: entry.key,
+                ciphertext: encryptSecretValue({
+                  dek,
+                  workspaceId: input.workspaceId,
+                  scope: {projectId},
+                  namespace: '',
+                  key: entry.key,
+                  value: entry.value,
+                }),
+                fingerprint: fingerprintSecretValue(entry.value, dek),
+                lastEditedBy: input.actorId,
+              })),
+              tx,
+            );
+            const rows = await Promise.all(
+              entries.map((entry) =>
+                getSecretManagementRow(
+                  {workspaceId: input.workspaceId, projectId, key: entry.key},
+                  tx,
+                ),
+              ),
+            );
+            return rows.map(assertFound);
+          },
+          eventTypes: {created: SECRET_CREATED, updated: SECRET_UPDATED},
+        });
+        recordSecretsOperation({
+          resource: 'secret',
+          operation: 'set',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+        return rows;
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'secret',
+          operation: 'set',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
+    },
+    async setVariables(input: ManagementWriteParams): Promise<SecretVariable[]> {
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        const entries = normalizeEntries(input.entries);
+        validateSecretKeys(entries.map((entry) => entry.key));
+        validateValueBytes(entries.map((entry) => entry.value));
+        if (entries.length === 0) {
+          recordSecretsOperation({
+            resource: 'variable',
+            operation: 'set',
+            surface: 'management',
+            scope,
+            outcome: 'success',
+            durationMs: Date.now() - startedAt,
+          });
+          return [];
+        }
+
+        const projectId = normalizedProjectId(input);
+        const rows = await writeManagementEntries({
+          resource: 'variable',
+          input,
+          keys: entries.map((entry) => entry.key),
+          listExistingKeys: listExistingVariableManagementKeys,
+          writeRows: async (tx) => {
+            await upsertSecretVariableRows(
+              entries.map((entry) => ({
+                workspaceId: input.workspaceId,
+                projectId,
                 namespace: '',
                 key: entry.key,
                 value: entry.value,
-              }),
-              fingerprint: fingerprintSecretValue(entry.value, dek),
-              lastEditedBy: input.actorId,
-            })),
-            tx,
-          );
-          const rows = await Promise.all(
-            entries.map((entry) =>
-              getSecretManagementRow(
-                {workspaceId: input.workspaceId, projectId, key: entry.key},
-                tx,
+                lastEditedBy: input.actorId,
+              })),
+              tx,
+            );
+            const rows = await Promise.all(
+              entries.map((entry) =>
+                getVariableManagementRow(
+                  {workspaceId: input.workspaceId, projectId, key: entry.key},
+                  tx,
+                ),
               ),
-            ),
-          );
-          return rows.map(assertFound);
-        },
-        eventTypes: {created: SECRET_CREATED, updated: SECRET_UPDATED},
-      });
-    },
-    setVariables(input: ManagementWriteParams): Promise<SecretVariable[]> {
-      const entries = normalizeEntries(input.entries);
-      validateSecretKeys(entries.map((entry) => entry.key));
-      validateValueBytes(entries.map((entry) => entry.value));
-      if (entries.length === 0) return Promise.resolve([]);
-
-      const projectId = normalizedProjectId(input);
-      return writeManagementEntries({
-        input,
-        keys: entries.map((entry) => entry.key),
-        listExistingKeys: listExistingVariableManagementKeys,
-        writeRows: async (tx) => {
-          await upsertSecretVariableRows(
-            entries.map((entry) => ({
-              workspaceId: input.workspaceId,
-              projectId,
-              namespace: '',
-              key: entry.key,
-              value: entry.value,
-              lastEditedBy: input.actorId,
-            })),
-            tx,
-          );
-          const rows = await Promise.all(
-            entries.map((entry) =>
-              getVariableManagementRow(
-                {workspaceId: input.workspaceId, projectId, key: entry.key},
-                tx,
-              ),
-            ),
-          );
-          return rows.map(assertFound);
-        },
-        eventTypes: {created: VARIABLE_CREATED, updated: VARIABLE_UPDATED},
-      });
+            );
+            return rows.map(assertFound);
+          },
+          eventTypes: {created: VARIABLE_CREATED, updated: VARIABLE_UPDATED},
+        });
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'set',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+        return rows;
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'set',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
     },
     async deleteSecret(input: ManagementKeyParams): Promise<void> {
-      validateSecretKeys([input.key]);
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        validateSecretKeys([input.key]);
 
-      const deleted = await deleteManagementEntries({
-        input,
-        keys: [input.key],
-        deleteRows: deleteSecretManagementRows,
-        eventType: SECRET_DELETED,
-      });
-      if (deleted === 0) throw new SecretNotFoundError(input.key);
+        const deleted = await deleteManagementEntries({
+          resource: 'secret',
+          input,
+          keys: [input.key],
+          deleteRows: deleteSecretManagementRows,
+          eventType: SECRET_DELETED,
+        });
+        if (deleted === 0) throw new SecretNotFoundError(input.key);
+        recordSecretsOperation({
+          resource: 'secret',
+          operation: 'delete',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'secret',
+          operation: 'delete',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
     },
     async deleteVariable(input: ManagementKeyParams): Promise<void> {
-      validateSecretKeys([input.key]);
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        validateSecretKeys([input.key]);
 
-      const deleted = await deleteManagementEntries({
-        input,
-        keys: [input.key],
-        deleteRows: deleteVariableManagementRows,
-        eventType: VARIABLE_DELETED,
-      });
-      if (deleted === 0) throw new VariableNotFoundError(input.key);
+        const deleted = await deleteManagementEntries({
+          resource: 'variable',
+          input,
+          keys: [input.key],
+          deleteRows: deleteVariableManagementRows,
+          eventType: VARIABLE_DELETED,
+        });
+        if (deleted === 0) throw new VariableNotFoundError(input.key);
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'delete',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'delete',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
     },
   };
 }
 
-function writeManagementEntries<Row extends {key: string}>(params: {
+async function writeManagementEntries<Row extends {key: string}>(params: {
+  resource: SecretsMetricResource;
   input: ManagementWriteParams;
   keys: string[];
   listExistingKeys: (
@@ -193,7 +387,9 @@ function writeManagementEntries<Row extends {key: string}>(params: {
     updated: typeof SECRET_UPDATED | typeof VARIABLE_UPDATED;
   };
 }): Promise<Row[]> {
-  return db().transaction(async (tx) => {
+  let createdCount = 0;
+  let updatedCount = 0;
+  const rows = await db().transaction(async (tx) => {
     await lockWorkspaceEntries(params.input.workspaceId, tx);
     const existingKeys = await params.listExistingKeys(
       {
@@ -203,10 +399,12 @@ function writeManagementEntries<Row extends {key: string}>(params: {
       },
       tx,
     );
+    createdCount = params.keys.length - existingKeys.size;
+    updatedCount = existingKeys.size;
     await assertWorkspaceCap({
       workspaceId: params.input.workspaceId,
       namespace: '',
-      incomingEntries: params.keys.length - existingKeys.size,
+      incomingEntries: createdCount,
       tx,
     });
 
@@ -221,9 +419,25 @@ function writeManagementEntries<Row extends {key: string}>(params: {
     );
     return rows;
   });
+  recordSecretsEntriesMutated({
+    resource: params.resource,
+    operation: 'set',
+    effect: 'created',
+    surface: 'management',
+    count: createdCount,
+  });
+  recordSecretsEntriesMutated({
+    resource: params.resource,
+    operation: 'set',
+    effect: 'updated',
+    surface: 'management',
+    count: updatedCount,
+  });
+  return rows;
 }
 
-function deleteManagementEntries<Row extends {key: string}>(params: {
+async function deleteManagementEntries<Row extends {key: string}>(params: {
+  resource: SecretsMetricResource;
   input: ManagementKeyParams;
   keys: string[];
   deleteRows: (
@@ -232,7 +446,7 @@ function deleteManagementEntries<Row extends {key: string}>(params: {
   ) => Promise<Row[]>;
   eventType: typeof SECRET_DELETED | typeof VARIABLE_DELETED;
 }): Promise<number> {
-  return db().transaction(async (tx) => {
+  const deleted = await db().transaction(async (tx) => {
     await lockWorkspaceEntries(params.input.workspaceId, tx);
     const rows = await params.deleteRows(
       {
@@ -252,6 +466,14 @@ function deleteManagementEntries<Row extends {key: string}>(params: {
     );
     return rows.length;
   });
+  recordSecretsEntriesMutated({
+    resource: params.resource,
+    operation: 'delete',
+    effect: 'deleted',
+    surface: 'management',
+    count: deleted,
+  });
+  return deleted;
 }
 
 function normalizeEntries(entries: ManagementEntry[]): ManagementEntry[] {
