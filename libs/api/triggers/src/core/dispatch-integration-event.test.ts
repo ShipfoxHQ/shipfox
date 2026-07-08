@@ -158,6 +158,52 @@ describe('dispatchIntegrationEvent', () => {
     );
   });
 
+  test('dispatches a Linear data webhook event to a matching trigger subscription', async () => {
+    const workspaceId = crypto.randomUUID();
+    const deliveryId = crypto.randomUUID();
+    const payload = {
+      action: 'create',
+      type: 'Issue',
+      organizationId: 'linear-org-id',
+      webhookTimestamp: Date.now(),
+      data: {
+        id: 'issue-id',
+        identifier: 'ENG-876',
+        title: 'Receive and verify Linear webhooks',
+      },
+    };
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'Linear_Acme',
+      event: 'Issue.create',
+      config: {},
+    });
+
+    await dispatch({
+      provider: 'linear',
+      workspaceId,
+      source: 'Linear_Acme',
+      event: 'Issue.create',
+      deliveryId,
+      payload,
+    });
+
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: subscription.projectId,
+        definitionId: subscription.workflowDefinitionId,
+        triggerPayload: {
+          provider: 'linear',
+          source: 'Linear_Acme',
+          event: 'Issue.create',
+          deliveryId,
+          data: payload,
+        },
+      }),
+    );
+  });
+
   test('routes webhook events only when workspace, source, and received event match', async () => {
     const workspaceId = crypto.randomUUID();
     const matching = await triggerSubscriptionFactory.create({
