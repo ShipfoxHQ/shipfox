@@ -1,4 +1,4 @@
-import {createHash, createHmac, randomUUID} from 'node:crypto';
+import {createHmac, randomUUID} from 'node:crypto';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
@@ -43,10 +43,6 @@ function signedHeaders(rawBody: string, event: string, deliveryId: string) {
     'linear-event': event,
     'linear-signature': signature,
   };
-}
-
-function signedBodyDeliveryId(rawBody: string) {
-  return createHash('sha256').update(rawBody).digest('hex');
 }
 
 interface TestApp {
@@ -127,13 +123,13 @@ describe('Linear webhook route', () => {
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
         connectionName: connection.displayName,
-        deliveryId: signedBodyDeliveryId(body),
+        deliveryId,
         payload: rawPayload,
       },
     });
   });
 
-  it('uses the signed body digest as the delivery dedup key', async () => {
+  it('uses the Linear-Delivery header as the delivery dedup key', async () => {
     const connection = fakeConnection();
     const {app, publishIntegrationEventReceived} = await createTestApp({connection});
     const rawPayload = linearPayload({organizationId: 'org-dedup'});
@@ -143,13 +139,13 @@ describe('Linear webhook route', () => {
     const first = await app.inject({
       method: 'POST',
       url: '/webhooks/integrations/linear',
-      headers: signedHeaders(body, 'Issue', 'unsigned-delivery-a'),
+      headers: signedHeaders(body, 'Issue', 'linear-delivery-a'),
       payload: body,
     });
     const second = await app.inject({
       method: 'POST',
       url: '/webhooks/integrations/linear',
-      headers: signedHeaders(body, 'Issue', 'unsigned-delivery-b'),
+      headers: signedHeaders(body, 'Issue', 'linear-delivery-b'),
       payload: body,
     });
 
@@ -157,7 +153,7 @@ describe('Linear webhook route', () => {
     expect(second.statusCode).toBe(200);
     expect(
       publishIntegrationEventReceived.mock.calls.map(([call]) => call.event.deliveryId),
-    ).toEqual([signedBodyDeliveryId(body), signedBodyDeliveryId(body)]);
+    ).toEqual(['linear-delivery-a', 'linear-delivery-b']);
   });
 
   it.each([
@@ -217,6 +213,33 @@ describe('Linear webhook route', () => {
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
+  it('records and drops signed JSON that does not match the base webhook envelope', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById} =
+      await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify({
+      action: 'create',
+      type: 'AppUserNotification',
+      organizationId: 'org-notification',
+      webhookTimestamp: Date.now(),
+      notification: {id: 'notification-1'},
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers: signedHeaders(body, 'AppUserNotification', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(getIntegrationConnectionById).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledWith(
+      expect.objectContaining({provider: 'linear', deliveryId}),
+    );
+  });
+
   it('rejects stale webhook timestamps before publishing or recording', async () => {
     const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
     const body = JSON.stringify(linearPayload({webhookTimestamp: Date.now() - 61_000}));
@@ -233,20 +256,39 @@ describe('Linear webhook route', () => {
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
-  it('rejects a Linear-Event header that disagrees with the signed payload type', async () => {
+  it('rejects future webhook timestamps before publishing or recording', async () => {
     const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const body = JSON.stringify(linearPayload({webhookTimestamp: Date.now() + 61_000}));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers: signedHeaders(body, 'Issue', randomUUID()),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('records and drops when the Linear-Event header disagrees with the signed payload type', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const deliveryId = randomUUID();
     const body = JSON.stringify(linearPayload({type: 'Issue'}));
 
     const res = await app.inject({
       method: 'POST',
       url: '/webhooks/integrations/linear',
-      headers: signedHeaders(body, 'Comment', randomUUID()),
+      headers: signedHeaders(body, 'Comment', deliveryId),
       payload: body,
     });
 
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(200);
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
-    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledWith(
+      expect.objectContaining({provider: 'linear', deliveryId}),
+    );
   });
 
   it('records and drops a signed webhook for an unknown organization', async () => {
@@ -266,7 +308,7 @@ describe('Linear webhook route', () => {
     expect(getIntegrationConnectionById).not.toHaveBeenCalled();
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledWith(
-      expect.objectContaining({provider: 'linear', deliveryId: signedBodyDeliveryId(body)}),
+      expect.objectContaining({provider: 'linear', deliveryId}),
     );
   });
 
@@ -289,7 +331,7 @@ describe('Linear webhook route', () => {
     expect(res.statusCode).toBe(200);
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledWith(
-      expect.objectContaining({provider: 'linear', deliveryId: signedBodyDeliveryId(body)}),
+      expect.objectContaining({provider: 'linear', deliveryId}),
     );
   });
 });

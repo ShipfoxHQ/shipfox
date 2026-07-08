@@ -1,11 +1,14 @@
 import {Buffer} from 'node:buffer';
-import {createHash} from 'node:crypto';
 import type {
   GetIntegrationConnectionByIdFn,
+  IntegrationTx,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-core-dto';
-import {linearWebhookBaseEnvelopeSchema} from '@shipfox/api-integration-linear-dto';
+import {
+  LINEAR_PROVIDER,
+  linearWebhookBaseEnvelopeSchema,
+} from '@shipfox/api-integration-linear-dto';
 import {
   defineRoute,
   type RouteGroup,
@@ -38,11 +41,11 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
     description: 'Linear webhook receiver.',
     options: {bodyLimit: WEBHOOK_BODY_LIMIT},
     handler: async (request, reply) => {
-      const deliveryId = request.headers[DELIVERY_HEADER];
+      const deliveryHeader = request.headers[DELIVERY_HEADER];
       const event = request.headers[EVENT_HEADER];
       const signature = request.headers[SIGNATURE_HEADER];
 
-      if (typeof deliveryId !== 'string' || !deliveryId) {
+      if (typeof deliveryHeader !== 'string' || !deliveryHeader) {
         reply.code(400);
         return {error: 'missing Linear-Delivery header'};
       }
@@ -77,7 +80,10 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
       try {
         parsedJson = JSON.parse(rawBody);
       } catch (error) {
-        logger().warn({deliveryId, err: error}, 'linear webhook payload JSON parse failed');
+        logger().warn(
+          {deliveryId: deliveryHeader, err: error},
+          'linear webhook payload JSON parse failed',
+        );
         reply.code(400);
         return {error: 'malformed JSON'};
       }
@@ -85,16 +91,12 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
       const payload = linearWebhookBaseEnvelopeSchema.safeParse(parsedJson);
       if (!payload.success) {
         logger().warn(
-          {deliveryId, issues: payload.error.issues},
+          {deliveryId: deliveryHeader, issues: payload.error.issues},
           'linear webhook envelope failed schema validation',
         );
-        reply.code(400);
-        return {error: 'malformed webhook payload'};
-      }
-
-      if (event !== payload.data.type) {
-        reply.code(400);
-        return {error: 'Linear-Event header does not match payload type'};
+        await recordSignedDeliveryOnly(options, deliveryHeader);
+        reply.code(200);
+        return null;
       }
 
       if (Math.abs(Date.now() - payload.data.webhookTimestamp) > WEBHOOK_REPLAY_WINDOW_MS) {
@@ -102,11 +104,21 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
         return {error: 'stale webhook timestamp'};
       }
 
-      const signedBodyDeliveryId = createHash('sha256').update(rawBody).digest('hex');
+      if (event !== payload.data.type) {
+        logger().warn(
+          {deliveryId: deliveryHeader, event, type: payload.data.type},
+          'linear webhook event header did not match payload type',
+        );
+        await recordSignedDeliveryOnly(options, deliveryHeader);
+        reply.code(200);
+        return null;
+      }
+
       await options.coreDb().transaction(async (tx) => {
         await handleLinearWebhook({
           tx,
-          deliveryId: signedBodyDeliveryId,
+          // Linear documents this header as the delivery UUID; the signed timestamp is per-send.
+          deliveryId: deliveryHeader,
           payload: payload.data,
           rawPayload: parsedJson,
           publishIntegrationEventReceived: options.publishIntegrationEventReceived,
@@ -126,4 +138,17 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
     plugins: [rawBodyPlugin],
     routes: [webhookRoute],
   };
+}
+
+async function recordSignedDeliveryOnly(
+  options: Pick<CreateLinearWebhookRoutesOptions, 'coreDb' | 'recordDeliveryOnly'>,
+  deliveryId: string,
+): Promise<void> {
+  await options.coreDb().transaction(async (tx: IntegrationTx) => {
+    await options.recordDeliveryOnly({
+      tx,
+      provider: LINEAR_PROVIDER,
+      deliveryId,
+    });
+  });
 }
