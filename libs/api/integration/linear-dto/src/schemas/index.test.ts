@@ -46,6 +46,22 @@ describe('linear webhook schemas', () => {
     ).toBe(false);
   });
 
+  it.each([
+    null,
+    'issue-1',
+    1,
+  ])('rejects non-object data payloads from supported events', (data) => {
+    const result = linearWebhookEnvelopeSchema.safeParse({
+      action: 'create',
+      type: 'Issue',
+      organizationId: 'org-1',
+      webhookTimestamp: 1_786_257_600_000,
+      data,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('accepts unsupported but routable base envelopes for record-and-drop handling', () => {
     const result = linearWebhookBaseEnvelopeSchema.parse({
       action: 'create',

@@ -22,14 +22,14 @@ export type LinearWebhookResourceType = (typeof linearWebhookResourceTypes)[numb
 export type LinearWebhookAction = (typeof linearWebhookActions)[number];
 export type LinearWebhookEventName = (typeof linearWebhookEventNames)[number];
 
-const requiredUnknownSchema = z.custom<unknown>((value) => value !== undefined);
+const linearWebhookDataSchema = z.record(z.string(), z.unknown());
 
 export const linearWebhookEnvelopeSchema = z.object({
   action: z.enum(linearWebhookActions),
   type: z.enum(linearWebhookResourceTypes),
   organizationId: z.string().min(1),
   webhookTimestamp: z.number().int(),
-  data: requiredUnknownSchema,
+  data: linearWebhookDataSchema,
 });
 export type LinearWebhookEnvelopeDto = z.infer<typeof linearWebhookEnvelopeSchema>;
 
@@ -38,7 +38,7 @@ export const linearWebhookBaseEnvelopeSchema = z.object({
   type: z.string().min(1),
   organizationId: z.string().min(1),
   webhookTimestamp: z.number().int(),
-  data: requiredUnknownSchema,
+  data: linearWebhookDataSchema,
 });
 export type LinearWebhookBaseEnvelopeDto = z.infer<typeof linearWebhookBaseEnvelopeSchema>;
 

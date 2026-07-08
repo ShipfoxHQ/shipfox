@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer';
+import {createHash} from 'node:crypto';
 import type {
   GetIntegrationConnectionByIdFn,
   PublishIntegrationEventReceivedFn,
@@ -101,10 +102,11 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
         return {error: 'stale webhook timestamp'};
       }
 
+      const signedBodyDeliveryId = createHash('sha256').update(rawBody).digest('hex');
       await options.coreDb().transaction(async (tx) => {
         await handleLinearWebhook({
           tx,
-          deliveryId,
+          deliveryId: signedBodyDeliveryId,
           payload: payload.data,
           rawPayload: parsedJson,
           publishIntegrationEventReceived: options.publishIntegrationEventReceived,

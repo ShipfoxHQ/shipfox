@@ -1,4 +1,4 @@
-import {createHmac, randomUUID} from 'node:crypto';
+import {createHash, createHmac, randomUUID} from 'node:crypto';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
@@ -43,6 +43,10 @@ function signedHeaders(rawBody: string, event: string, deliveryId: string) {
     'linear-event': event,
     'linear-signature': signature,
   };
+}
+
+function signedBodyDeliveryId(rawBody: string) {
+  return createHash('sha256').update(rawBody).digest('hex');
 }
 
 interface TestApp {
@@ -123,10 +127,37 @@ describe('Linear webhook route', () => {
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
         connectionName: connection.displayName,
-        deliveryId,
+        deliveryId: signedBodyDeliveryId(body),
         payload: rawPayload,
       },
     });
+  });
+
+  it('uses the signed body digest as the delivery dedup key', async () => {
+    const connection = fakeConnection();
+    const {app, publishIntegrationEventReceived} = await createTestApp({connection});
+    const rawPayload = linearPayload({organizationId: 'org-dedup'});
+    await seedInstallation({connectionId: connection.id, organizationId: 'org-dedup'});
+    const body = JSON.stringify(rawPayload);
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers: signedHeaders(body, 'Issue', 'unsigned-delivery-a'),
+      payload: body,
+    });
+    const second = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers: signedHeaders(body, 'Issue', 'unsigned-delivery-b'),
+      payload: body,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(
+      publishIntegrationEventReceived.mock.calls.map(([call]) => call.event.deliveryId),
+    ).toEqual([signedBodyDeliveryId(body), signedBodyDeliveryId(body)]);
   });
 
   it.each([
@@ -235,7 +266,7 @@ describe('Linear webhook route', () => {
     expect(getIntegrationConnectionById).not.toHaveBeenCalled();
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledWith(
-      expect.objectContaining({provider: 'linear', deliveryId}),
+      expect.objectContaining({provider: 'linear', deliveryId: signedBodyDeliveryId(body)}),
     );
   });
 
@@ -258,7 +289,7 @@ describe('Linear webhook route', () => {
     expect(res.statusCode).toBe(200);
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledWith(
-      expect.objectContaining({provider: 'linear', deliveryId}),
+      expect.objectContaining({provider: 'linear', deliveryId: signedBodyDeliveryId(body)}),
     );
   });
 });
