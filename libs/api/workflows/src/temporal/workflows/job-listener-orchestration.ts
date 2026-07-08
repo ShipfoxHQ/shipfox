@@ -11,10 +11,11 @@ import {
   workflowInfo,
 } from '@temporalio/workflow';
 import type {ResolutionReason} from '#core/entities/job.js';
-import {runtimeStatusForTerminalJobExecutionStatus} from '#core/job-execution-orchestration.js';
+import {runtimeStatusForTerminalJobExecutionStatus} from '#core/job-execution-outcome.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import type {createOrchestrationActivities} from '../activities/index.js';
 import {LISTENER_EVENTS_AVAILABLE_SIGNAL, LISTENER_RESOLVE_SIGNAL} from '../constants.js';
+import {deadlineReached, remainingMs} from './deadline.js';
 import {jobExecutionOrchestration} from './job-execution-orchestration.js';
 
 const {
@@ -486,12 +487,4 @@ async function waitForListenerWakeup(
     return true;
   }
   return await condition(predicate, remaining);
-}
-
-function deadlineReached(deadline: number | undefined): boolean {
-  return deadline !== undefined && Date.now() >= deadline;
-}
-
-function remainingMs(deadline: number | undefined): number | undefined {
-  return deadline === undefined ? undefined : Math.max(0, deadline - Date.now());
 }

@@ -5,7 +5,7 @@ import {
   type JobExecutionOutcomeSignals,
   jobExecutionStartOutcome,
   resolveJobExecutionOutcomeSignal,
-} from '#core/job-execution-orchestration.js';
+} from '#core/job-execution-outcome.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
