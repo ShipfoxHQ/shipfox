@@ -10,6 +10,12 @@ import {
 } from '#db/index.js';
 import {normalizedProjectId} from '#db/scope.js';
 import {
+  classifySecretsOperationError,
+  operationScope,
+  recordSecretsEntriesMutated,
+  recordSecretsOperation,
+} from '#metrics/instance.js';
+import {
   assertWorkspaceCap,
   validateNamespace,
   validateSecretKeys,
@@ -32,73 +38,195 @@ export interface DeleteVariablesParams extends StoreScope {
 export async function getVariable(
   input: StoreScope & {workspaceId: string; namespace?: string | undefined; key: string},
 ): Promise<string | null> {
-  const namespace = input.namespace ?? '';
-  validateNamespace(namespace);
-  validateSecretKeys([input.key]);
+  const startedAt = Date.now();
+  const scope = operationScope(input);
+  try {
+    const namespace = input.namespace ?? '';
+    validateNamespace(namespace);
+    validateSecretKeys([input.key]);
 
-  const row = await getSecretVariableRowWithPrecedence({...input, namespace});
-  return row?.value ?? null;
+    const row = await getSecretVariableRowWithPrecedence({...input, namespace});
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'get',
+      surface: 'internal',
+      scope,
+      outcome: row ? 'success' : 'not_found',
+      durationMs: Date.now() - startedAt,
+    });
+    return row?.value ?? null;
+  } catch (error) {
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'get',
+      surface: 'internal',
+      scope,
+      outcome: classifySecretsOperationError(error),
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 }
 
 export async function getVariablesByNamespace(
   input: StoreScope & {workspaceId: string; namespace?: string | undefined},
 ): Promise<Record<string, string>> {
-  const namespace = input.namespace ?? '';
-  validateNamespace(namespace);
+  const startedAt = Date.now();
+  const scope = operationScope(input);
+  try {
+    const namespace = input.namespace ?? '';
+    validateNamespace(namespace);
 
-  const rows = await listSecretVariableRowsByNamespace({...input, namespace});
-  return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    const rows = await listSecretVariableRowsByNamespace({...input, namespace});
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'get_namespace',
+      surface: 'internal',
+      scope,
+      outcome: 'success',
+      durationMs: Date.now() - startedAt,
+    });
+    return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  } catch (error) {
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'get_namespace',
+      surface: 'internal',
+      scope,
+      outcome: classifySecretsOperationError(error),
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 }
 
 export async function setVariables(input: SetVariablesParams): Promise<void> {
-  const namespace = input.namespace ?? '';
-  const entries = Object.entries(input.values);
-  validateNamespace(namespace);
-  validateSecretKeys(entries.map(([key]) => key));
-  validateValueBytes(entries.map(([, value]) => value));
-  if (entries.length === 0) return;
+  const startedAt = Date.now();
+  const scope = operationScope(input);
+  try {
+    const namespace = input.namespace ?? '';
+    const entries = Object.entries(input.values);
+    validateNamespace(namespace);
+    validateSecretKeys(entries.map(([key]) => key));
+    validateValueBytes(entries.map(([, value]) => value));
+    if (entries.length === 0) {
+      recordSecretsOperation({
+        resource: 'variable',
+        operation: 'set',
+        surface: 'internal',
+        scope,
+        outcome: 'success',
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
 
-  const projectId = normalizedProjectId(input);
-  await db().transaction(async (tx) => {
-    await lockWorkspaceEntries(input.workspaceId, tx);
-    const existingEntries = await countSecretVariableRows(
-      {
+    const projectId = normalizedProjectId(input);
+    let existingEntries = 0;
+    await db().transaction(async (tx) => {
+      await lockWorkspaceEntries(input.workspaceId, tx);
+      existingEntries = await countSecretVariableRows(
+        {
+          workspaceId: input.workspaceId,
+          projectId,
+          namespace,
+          keys: entries.map(([key]) => key),
+        },
+        tx,
+      );
+      await assertWorkspaceCap({
         workspaceId: input.workspaceId,
-        projectId,
         namespace,
-        keys: entries.map(([key]) => key),
-      },
-      tx,
-    );
-    await assertWorkspaceCap({
-      workspaceId: input.workspaceId,
-      namespace,
-      incomingEntries: entries.length - existingEntries,
-      tx,
+        incomingEntries: entries.length - existingEntries,
+        tx,
+      });
+      await upsertSecretVariableRows(
+        entries.map(([key, value]) => ({
+          workspaceId: input.workspaceId,
+          projectId,
+          namespace,
+          key,
+          value,
+          lastEditedBy: input.editedBy ?? null,
+        })),
+        tx,
+      );
     });
-    await upsertSecretVariableRows(
-      entries.map(([key, value]) => ({
-        workspaceId: input.workspaceId,
-        projectId,
-        namespace,
-        key,
-        value,
-        lastEditedBy: input.editedBy ?? null,
-      })),
-      tx,
-    );
-  });
+
+    recordSecretsEntriesMutated({
+      resource: 'variable',
+      operation: 'set',
+      effect: 'created',
+      surface: 'internal',
+      count: entries.length - existingEntries,
+    });
+    recordSecretsEntriesMutated({
+      resource: 'variable',
+      operation: 'set',
+      effect: 'updated',
+      surface: 'internal',
+      count: existingEntries,
+    });
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'set',
+      surface: 'internal',
+      scope,
+      outcome: 'success',
+      durationMs: Date.now() - startedAt,
+    });
+  } catch (error) {
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'set',
+      surface: 'internal',
+      scope,
+      outcome: classifySecretsOperationError(error),
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 }
 
-export function deleteVariables(input: DeleteVariablesParams): Promise<number> {
-  const namespace = input.namespace ?? '';
-  validateNamespace(namespace);
-  if (input.keys) validateSecretKeys(input.keys);
+export async function deleteVariables(input: DeleteVariablesParams): Promise<number> {
+  const startedAt = Date.now();
+  const scope = operationScope(input);
+  try {
+    const namespace = input.namespace ?? '';
+    validateNamespace(namespace);
+    if (input.keys) validateSecretKeys(input.keys);
 
-  return deleteSecretVariableRows({
-    workspaceId: input.workspaceId,
-    projectId: normalizedProjectId(input),
-    namespace,
-    keys: input.keys,
-  });
+    const deleted = await deleteSecretVariableRows({
+      workspaceId: input.workspaceId,
+      projectId: normalizedProjectId(input),
+      namespace,
+      keys: input.keys,
+    });
+    recordSecretsEntriesMutated({
+      resource: 'variable',
+      operation: 'delete',
+      effect: 'deleted',
+      surface: 'internal',
+      count: deleted,
+    });
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'delete',
+      surface: 'internal',
+      scope,
+      outcome: 'success',
+      durationMs: Date.now() - startedAt,
+    });
+    return deleted;
+  } catch (error) {
+    recordSecretsOperation({
+      resource: 'variable',
+      operation: 'delete',
+      surface: 'internal',
+      scope,
+      outcome: classifySecretsOperationError(error),
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 }

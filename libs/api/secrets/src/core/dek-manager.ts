@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {getDataKey, insertDataKeyIfAbsent} from '#db/index.js';
+import {classifyDekAccessError, recordSecretsDekAccess} from '#metrics/instance.js';
 import type {KeyProvider} from './key-provider.js';
 
 const DEK_BYTES = 32;
@@ -20,44 +21,60 @@ export class DekManager {
   }
 
   async getPlaintextDek(workspaceId: string): Promise<Buffer> {
-    const cached = this.#cache.get(workspaceId);
-    if (cached && cached.expiresAt > Date.now()) {
-      this.#cache.delete(workspaceId);
-      this.#cache.set(workspaceId, cached);
-      return Buffer.from(cached.dek);
-    }
-    if (cached) this.#cache.delete(workspaceId);
+    const startedAt = Date.now();
+    try {
+      const cached = this.#cache.get(workspaceId);
+      if (cached && cached.expiresAt > Date.now()) {
+        this.#cache.delete(workspaceId);
+        this.#cache.set(workspaceId, cached);
+        recordSecretsDekAccess({outcome: 'cache_hit', durationMs: Date.now() - startedAt});
+        return Buffer.from(cached.dek);
+      }
+      const hadExpiredCache = Boolean(cached);
+      if (cached) this.#cache.delete(workspaceId);
 
-    const existing = await getDataKey(workspaceId);
-    if (existing) {
+      const existing = await getDataKey(workspaceId);
+      if (existing) {
+        const dek = this.#keyProvider.unwrapDek(
+          workspaceId,
+          existing.wrappedDek,
+          existing.kekVersion,
+        );
+        this.#set(workspaceId, dek);
+        recordSecretsDekAccess({
+          outcome: hadExpiredCache ? 'cache_expired' : 'db_unwrapped',
+          durationMs: Date.now() - startedAt,
+        });
+        return Buffer.from(dek);
+      }
+
+      const generatedDek = crypto.randomBytes(DEK_BYTES);
+      const wrapped = this.#keyProvider.wrapDek(workspaceId, generatedDek);
+      await insertDataKeyIfAbsent({
+        workspaceId,
+        wrappedDek: wrapped.wrappedDek,
+        kekVersion: wrapped.kekVersion,
+      });
+
+      // The DEK row commits before value writes. If concurrent first-use inserts race,
+      // the primary key decides the winner and every caller re-reads the persisted row.
+      const persisted = await getDataKey(workspaceId);
+      if (!persisted) throw new Error(`Data key was not persisted for workspace ${workspaceId}`);
       const dek = this.#keyProvider.unwrapDek(
         workspaceId,
-        existing.wrappedDek,
-        existing.kekVersion,
+        persisted.wrappedDek,
+        persisted.kekVersion,
       );
       this.#set(workspaceId, dek);
+      recordSecretsDekAccess({outcome: 'generated', durationMs: Date.now() - startedAt});
       return Buffer.from(dek);
+    } catch (error) {
+      recordSecretsDekAccess({
+        outcome: classifyDekAccessError(error),
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
     }
-
-    const generatedDek = crypto.randomBytes(DEK_BYTES);
-    const wrapped = this.#keyProvider.wrapDek(workspaceId, generatedDek);
-    await insertDataKeyIfAbsent({
-      workspaceId,
-      wrappedDek: wrapped.wrappedDek,
-      kekVersion: wrapped.kekVersion,
-    });
-
-    // The DEK row commits before value writes. If concurrent first-use inserts race,
-    // the primary key decides the winner and every caller re-reads the persisted row.
-    const persisted = await getDataKey(workspaceId);
-    if (!persisted) throw new Error(`Data key was not persisted for workspace ${workspaceId}`);
-    const dek = this.#keyProvider.unwrapDek(
-      workspaceId,
-      persisted.wrappedDek,
-      persisted.kekVersion,
-    );
-    this.#set(workspaceId, dek);
-    return Buffer.from(dek);
   }
 
   invalidate(workspaceId: string): void {

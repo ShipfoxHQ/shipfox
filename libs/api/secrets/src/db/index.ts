@@ -1,7 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export {countWorkspaceEntries, lockWorkspaceEntries} from './cap.js';
+export {countPublicEntriesByResource, countWorkspaceEntries, lockWorkspaceEntries} from './cap.js';
 export {
   getDataKey,
   insertDataKeyIfAbsent,
