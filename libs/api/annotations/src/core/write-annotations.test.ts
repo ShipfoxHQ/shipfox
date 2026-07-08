@@ -18,6 +18,7 @@ describe('writeAnnotations', () => {
       workspaceId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workflowRunId: crypto.randomUUID(),
+      workflowRunAttempt: 1,
       workflowRunAttemptId: crypto.randomUUID(),
       jobId: crypto.randomUUID(),
       jobExecutionId: crypto.randomUUID(),

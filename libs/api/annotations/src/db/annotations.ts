@@ -1,7 +1,65 @@
-import type {AnnotationStyleDto} from '@shipfox/annotations-dto';
-import {and, eq, sql} from 'drizzle-orm';
+import {type AnnotationStyleDto, READ_ANNOTATIONS_MAX_LIMIT} from '@shipfox/annotations-dto';
+import {and, asc, eq, gt, inArray, or, type SQL, sql} from 'drizzle-orm';
+import type {Annotation} from '#core/entities/annotation.js';
 import {db} from './db.js';
-import {annotations} from './schema/annotations.js';
+import {annotations, toAnnotation} from './schema/annotations.js';
+
+export const DEFAULT_ANNOTATIONS_READ_LIMIT = READ_ANNOTATIONS_MAX_LIMIT;
+
+export interface ListAnnotationsForRunAttemptParams {
+  workflowRunId: string;
+  workflowRunAttempt: number;
+  workspaceIds: readonly string[];
+  jobExecutionId?: string | undefined;
+  after?: {sequence: number; id: string} | undefined;
+  limit?: number | undefined;
+}
+
+export interface ListAnnotationsForRunAttemptResult {
+  annotations: Annotation[];
+  hasMore: boolean;
+  nextCursor: {sequence: number; id: string} | null;
+}
+
+export async function listAnnotationsForRunAttempt(
+  params: ListAnnotationsForRunAttemptParams,
+): Promise<ListAnnotationsForRunAttemptResult> {
+  if (params.workspaceIds.length === 0) return {annotations: [], hasMore: false, nextCursor: null};
+
+  const limit = params.limit ?? DEFAULT_ANNOTATIONS_READ_LIMIT;
+
+  const conditions: SQL[] = [
+    eq(annotations.workflowRunId, params.workflowRunId),
+    eq(annotations.workflowRunAttempt, params.workflowRunAttempt),
+    inArray(annotations.workspaceId, [...params.workspaceIds]),
+  ];
+  if (params.jobExecutionId) {
+    conditions.push(eq(annotations.jobExecutionId, params.jobExecutionId));
+  }
+  if (params.after) {
+    const cursorCondition = or(
+      gt(annotations.sequence, params.after.sequence),
+      and(eq(annotations.sequence, params.after.sequence), gt(annotations.id, params.after.id)),
+    );
+    if (cursorCondition) conditions.push(cursorCondition);
+  }
+
+  const rows = await db()
+    .select()
+    .from(annotations)
+    .where(and(...conditions))
+    .orderBy(asc(annotations.sequence), asc(annotations.id))
+    .limit(limit + 1);
+
+  const pageRows = rows.slice(0, limit);
+  const last = pageRows.at(-1);
+
+  return {
+    annotations: pageRows.map(toAnnotation),
+    hasMore: rows.length > limit,
+    nextCursor: rows.length > limit && last ? {sequence: last.sequence, id: last.id} : null,
+  };
+}
 
 export interface StoredAnnotation {
   id: string;
@@ -16,6 +74,7 @@ export interface CreateAnnotationParams {
   workspaceId: string;
   projectId: string;
   workflowRunId: string;
+  workflowRunAttempt: number;
   workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;

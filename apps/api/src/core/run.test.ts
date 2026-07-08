@@ -80,6 +80,7 @@ vi.mock('@shipfox/node-error-monitoring', () => ({
 vi.mock('@shipfox/node-fastify', () => ({
   closeApp: mocks.closeApp,
   createApp: mocks.createApp,
+  defineRoute: (route: unknown) => route,
   listen: mocks.listen,
 }));
 vi.mock('@shipfox/node-module', () => ({

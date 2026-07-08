@@ -1,10 +1,11 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
+import {AUTH_LEASED_JOB} from '@shipfox/api-auth-context';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {annotations} from '#db/schema/annotations.js';
 import {mintLeaseToken} from '#test/index.js';
-import {annotationsRoutes} from './index.js';
+import {writeAnnotationsRoute} from './write-annotations.js';
 
 function annotationsUrl(): string {
   return '/runs/jobs/current/annotations';
@@ -31,7 +32,9 @@ describe('POST /runs/jobs/current/annotations', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: annotationsRoutes,
+      routes: [
+        {prefix: '/runs/jobs/current', auth: AUTH_LEASED_JOB, routes: [writeAnnotationsRoute]},
+      ],
       swagger: false,
     });
     await app.ready();

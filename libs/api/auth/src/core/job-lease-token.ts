@@ -41,6 +41,9 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
   const token = await signHs256({
     payload: {
       workflowRunId: claims.workflowRunId,
+      ...(claims.workflowRunAttempt === undefined
+        ? {}
+        : {workflowRunAttempt: claims.workflowRunAttempt}),
       workflowRunAttemptId: claims.workflowRunAttemptId,
       jobId: claims.jobId,
       jobExecutionId: claims.jobExecutionId,

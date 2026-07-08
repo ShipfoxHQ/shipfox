@@ -56,6 +56,7 @@ export const writeAnnotationsRoute = defineRoute({
       workspaceId: leasedJob.workspaceId,
       projectId: leasedJob.projectId,
       workflowRunId: leasedJob.workflowRunId,
+      workflowRunAttempt: leasedJob.workflowRunAttempt ?? 1,
       workflowRunAttemptId: leasedJob.workflowRunAttemptId,
       jobId: leasedJob.jobId,
       jobExecutionId: leasedJob.jobExecutionId,

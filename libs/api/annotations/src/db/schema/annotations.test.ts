@@ -12,6 +12,7 @@ describe('annotations schema', () => {
       workspaceId: '22222222-2222-4222-8222-222222222222',
       projectId: '33333333-3333-4333-8333-333333333333',
       workflowRunId: '44444444-4444-4444-8444-444444444444',
+      workflowRunAttempt: 4,
       workflowRunAttemptId: '55555555-5555-4555-8555-555555555555',
       jobId: '66666666-6666-4666-8666-666666666666',
       jobExecutionId: '77777777-7777-4777-8777-777777777777',
@@ -37,6 +38,12 @@ describe('annotations schema', () => {
     '\tdeploy\n',
   ])('rejects untrimmed context values at the database boundary: %s', async (context) => {
     const createAnnotation = annotationFactory.create({context});
+
+    await expect(createAnnotation).rejects.toThrow();
+  });
+
+  it('rejects non-positive workflow run attempts at the database boundary', async () => {
+    const createAnnotation = annotationFactory.create({workflowRunAttempt: 0});
 
     await expect(createAnnotation).rejects.toThrow();
   });

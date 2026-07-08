@@ -11,6 +11,7 @@ export interface WriteAnnotationsParams {
   workspaceId: string;
   projectId: string;
   workflowRunId: string;
+  workflowRunAttempt: number;
   workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;
@@ -72,6 +73,7 @@ export function writeAnnotations(params: WriteAnnotationsParams): Promise<WriteA
             workspaceId: params.workspaceId,
             projectId: params.projectId,
             workflowRunId: params.workflowRunId,
+            workflowRunAttempt: params.workflowRunAttempt,
             workflowRunAttemptId: params.workflowRunAttemptId,
             jobId: params.jobId,
             jobExecutionId: params.jobExecutionId,
