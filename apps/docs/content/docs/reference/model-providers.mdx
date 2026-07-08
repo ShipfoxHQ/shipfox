@@ -14,39 +14,41 @@ see the [Model Providers guide](/guides/model-providers).
 Each provider is configured per workspace with its credentials. The **default model**
 is used when an agent step names the provider but not a `model`.
 
+{/* generated:model-providers:start — do not edit by hand; run `pnpm --filter=@shipfox/docs generate` */}
 | Provider | `provider` ID | Default model |
 |---|---|---|
 | Anthropic | `anthropic` | `claude-opus-4-8` |
-| OpenAI | `openai` | `gpt-5.5-pro` |
+| Ant Ling | `ant-ling` | `Ring-2.6-1T` |
 | Azure OpenAI | `azure-openai-responses` | `gpt-5.5-pro` |
+| OpenAI | `openai` | `gpt-5.5-pro` |
 | DeepSeek | `deepseek` | `deepseek-v4-pro` |
+| NVIDIA | `nvidia` | `nvidia/nemotron-3-ultra-550b-a55b` |
 | Google AI Studio | `google` | `gemini-3.1-pro-preview` |
-| xAI | `xai` | `grok-4.3` |
 | Mistral | `mistral` | `mistral-large-latest` |
 | Groq | `groq` | `openai/gpt-oss-120b` |
 | Cerebras | `cerebras` | `gpt-oss-120b` |
-| OpenRouter | `openrouter` | `anthropic/claude-opus-4.8` |
-| Vercel AI Gateway | `vercel-ai-gateway` | `anthropic/claude-opus-4.8` |
 | Cloudflare AI Gateway | `cloudflare-ai-gateway` | `claude-opus-4-8` |
 | Cloudflare Workers AI | `cloudflare-workers-ai` | `@cf/moonshotai/kimi-k2.7-code` |
-| Hugging Face | `huggingface` | `deepseek-ai/DeepSeek-V4-Pro` |
-| Together AI | `together` | `deepseek-ai/DeepSeek-V4-Pro` |
-| Fireworks | `fireworks` | `accounts/fireworks/models/deepseek-v4-pro` |
-| NVIDIA | `nvidia` | `nvidia/nemotron-3-ultra-550b-a55b` |
-| Ant Ling | `ant-ling` | `Ring-2.6-1T` |
+| xAI | `xai` | `grok-4.3` |
+| OpenRouter | `openrouter` | `anthropic/claude-opus-4.8` |
+| Vercel AI Gateway | `vercel-ai-gateway` | `anthropic/claude-opus-4.8` |
+| Z.ai | `zai` | `glm-5.2` |
+| Z.ai Coding CN | `zai-coding-cn` | `glm-5.2` |
 | OpenCode | `opencode` | `claude-opus-4-8` |
 | OpenCode Go | `opencode-go` | `kimi-k2.7-code` |
-| Z.ai | `zai` | `glm-5.2` |
-| Z.ai Coding (CN) | `zai-coding-cn` | `glm-5.2` |
+| Hugging Face | `huggingface` | `deepseek-ai/DeepSeek-V4-Pro` |
+| Fireworks | `fireworks` | `accounts/fireworks/models/deepseek-v4-pro` |
+| Together AI | `together` | `deepseek-ai/DeepSeek-V4-Pro` |
 | Kimi Coding | `kimi-coding` | `k2p7` |
 | MiniMax | `minimax` | `MiniMax-M3` |
-| MiniMax (CN) | `minimax-cn` | `MiniMax-M3` |
+| MiniMax CN | `minimax-cn` | `MiniMax-M3` |
 | Moonshot AI | `moonshotai` | `kimi-k2.7-code` |
-| Moonshot AI (CN) | `moonshotai-cn` | `kimi-k2.7-code` |
+| Moonshot AI CN | `moonshotai-cn` | `kimi-k2.7-code` |
 | Xiaomi | `xiaomi` | `mimo-v2.5-pro` |
-| Xiaomi Token Plan (CN) | `xiaomi-token-plan-cn` | `mimo-v2.5-pro` |
-| Xiaomi Token Plan (AMS) | `xiaomi-token-plan-ams` | `mimo-v2.5-pro` |
-| Xiaomi Token Plan (SGP) | `xiaomi-token-plan-sgp` | `mimo-v2.5-pro` |
+| Xiaomi Token Plan CN | `xiaomi-token-plan-cn` | `mimo-v2.5-pro` |
+| Xiaomi Token Plan AMS | `xiaomi-token-plan-ams` | `mimo-v2.5-pro` |
+| Xiaomi Token Plan SGP | `xiaomi-token-plan-sgp` | `mimo-v2.5-pro` |
+{/* generated:model-providers:end */}
 
 <Callout type="info">
   Most providers need only an **API key**. Azure OpenAI also requires an endpoint;
