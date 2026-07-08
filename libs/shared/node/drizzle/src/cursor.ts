@@ -15,6 +15,11 @@ export interface StringIdCursor {
   id: string;
 }
 
+export interface NumberIdCursor {
+  value: number;
+  id: string;
+}
+
 export function encodeTimestampIdCursor(cursor: TimestampIdCursor): string {
   return encode({createdAt: cursor.createdAt.toISOString(), id: cursor.id});
 }
@@ -66,6 +71,20 @@ export function decodeStringIdCursor(cursor: string | undefined): StringIdCursor
   const {value, id} = parsed;
   if (typeof value !== 'string' || typeof id !== 'string' || !id) return undefined;
   return {value, id};
+}
+
+export function encodeNumberIdCursor(cursor: NumberIdCursor): string {
+  return encode({value: String(cursor.value), id: cursor.id});
+}
+
+export function decodeNumberIdCursor(cursor: string | undefined): NumberIdCursor | undefined {
+  const parsed = decode(cursor);
+  if (!parsed) return undefined;
+  const {value, id} = parsed;
+  if (typeof value !== 'string' || typeof id !== 'string' || !id) return undefined;
+  const numericValue = Number(value);
+  if (!Number.isInteger(numericValue) || numericValue < 1) return undefined;
+  return {value: numericValue, id};
 }
 
 function encode(payload: Record<string, string>): string {

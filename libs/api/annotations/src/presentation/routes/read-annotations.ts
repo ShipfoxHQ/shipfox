@@ -1,6 +1,7 @@
 import {readAnnotationsQuerySchema, readAnnotationsResponseSchema} from '@shipfox/annotations-dto';
 import {requireUserContext} from '@shipfox/api-auth-context';
-import {defineRoute} from '@shipfox/node-fastify';
+import {decodeNumberIdCursor, encodeNumberIdCursor} from '@shipfox/node-drizzle';
+import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {listAnnotationsForRunAttempt} from '#db/index.js';
 import {toAnnotationDto} from '#presentation/dto/index.js';
 
@@ -20,20 +21,21 @@ export const readAnnotationsRoute = defineRoute({
       workflow_run_id: workflowRunId,
       attempt,
       job_execution_id: jobExecutionId,
-      after_sequence: afterSequence,
-      after_id: afterId,
+      cursor,
       limit,
     } = request.query;
+    const decodedCursor = decodeNumberIdCursor(cursor);
+    if (cursor && !decodedCursor) {
+      throw new ClientError('Invalid cursor', 'invalid-cursor', {status: 400});
+    }
+
     const workspaceIds = user.memberships.map((membership) => membership.workspaceId);
     const result = await listAnnotationsForRunAttempt({
       workflowRunId,
       workflowRunAttempt: attempt,
       workspaceIds,
       jobExecutionId,
-      after:
-        afterSequence === undefined || afterId === undefined
-          ? undefined
-          : {sequence: afterSequence, id: afterId},
+      after: decodedCursor ? {sequence: decodedCursor.value, id: decodedCursor.id} : undefined,
       limit,
     });
 
@@ -41,7 +43,7 @@ export const readAnnotationsRoute = defineRoute({
       annotations: result.annotations.map(toAnnotationDto),
       has_more: result.hasMore,
       next_cursor: result.nextCursor
-        ? {sequence: result.nextCursor.sequence, id: result.nextCursor.id}
+        ? encodeNumberIdCursor({value: result.nextCursor.sequence, id: result.nextCursor.id})
         : null,
     };
   },

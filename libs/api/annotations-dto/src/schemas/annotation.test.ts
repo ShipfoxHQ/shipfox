@@ -109,8 +109,7 @@ describe('annotation schemas', () => {
       workflow_run_id: workflowRunId,
       attempt: '2',
       job_execution_id: jobExecutionId,
-      after_sequence: '7',
-      after_id: jobExecutionId,
+      cursor: 'eyJ2YWx1ZSI6IjciLCJpZCI6ImN1cnNvciJ9',
       limit: '25',
     });
 
@@ -118,8 +117,7 @@ describe('annotation schemas', () => {
       workflow_run_id: workflowRunId,
       attempt: 2,
       job_execution_id: jobExecutionId,
-      after_sequence: 7,
-      after_id: jobExecutionId,
+      cursor: 'eyJ2YWx1ZSI6IjciLCJpZCI6ImN1cnNvciJ9',
       limit: 25,
     });
   });
@@ -146,21 +144,15 @@ describe('annotation schemas', () => {
     expect(parseTooHighAttempt).toThrow();
   });
 
-  it('requires read annotation cursor fields together', () => {
-    const parseMissingAfterId = () =>
-      readAnnotationsQuerySchema.parse({
-        workflow_run_id: crypto.randomUUID(),
-        attempt: '1',
-        after_sequence: '7',
-      });
-    const parseMissingAfterSequence = () =>
-      readAnnotationsQuerySchema.parse({
-        workflow_run_id: crypto.randomUUID(),
-        attempt: '1',
-        after_id: crypto.randomUUID(),
-      });
+  it('accepts an opaque read response cursor', () => {
+    const nextCursor = 'eyJ2YWx1ZSI6IjciLCJpZCI6ImN1cnNvciJ9';
 
-    expect(parseMissingAfterId).toThrow();
-    expect(parseMissingAfterSequence).toThrow();
+    const response = readAnnotationsResponseSchema.parse({
+      annotations: [],
+      has_more: true,
+      next_cursor: nextCursor,
+    });
+
+    expect(response.next_cursor).toBe(nextCursor);
   });
 });

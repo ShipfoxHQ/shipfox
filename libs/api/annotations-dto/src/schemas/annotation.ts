@@ -95,41 +95,25 @@ export type LeasedWriteAnnotationsResponseDto = z.infer<
   typeof leasedWriteAnnotationsResponseSchema
 >;
 
-const readAnnotationsCursorSchema = z.object({
-  sequence: z.number().int().min(1),
-  id: z.string().uuid(),
+export const readAnnotationsQuerySchema = z.object({
+  workflow_run_id: z.string().uuid(),
+  attempt: z.coerce.number().int().min(1).max(WORKFLOW_RUN_ATTEMPT_MAX),
+  job_execution_id: z.string().uuid().optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(READ_ANNOTATIONS_MAX_LIMIT)
+    .default(READ_ANNOTATIONS_MAX_LIMIT),
 });
-
-export const readAnnotationsQuerySchema = z
-  .object({
-    workflow_run_id: z.string().uuid(),
-    attempt: z.coerce.number().int().min(1).max(WORKFLOW_RUN_ATTEMPT_MAX),
-    job_execution_id: z.string().uuid().optional(),
-    after_sequence: z.coerce.number().int().min(1).optional(),
-    after_id: z.string().uuid().optional(),
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(READ_ANNOTATIONS_MAX_LIMIT)
-      .default(READ_ANNOTATIONS_MAX_LIMIT),
-  })
-  .superRefine((query, ctx) => {
-    if ((query.after_sequence === undefined) !== (query.after_id === undefined)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'after_sequence and after_id must be provided together',
-        path: query.after_sequence === undefined ? ['after_sequence'] : ['after_id'],
-      });
-    }
-  });
 
 export type ReadAnnotationsQueryDto = z.infer<typeof readAnnotationsQuerySchema>;
 
 export const readAnnotationsResponseSchema = z.object({
   annotations: z.array(annotationDtoSchema),
   has_more: z.boolean(),
-  next_cursor: readAnnotationsCursorSchema.nullable(),
+  next_cursor: z.string().nullable(),
 });
 
 export type ReadAnnotationsResponseDto = z.infer<typeof readAnnotationsResponseSchema>;

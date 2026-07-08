@@ -196,6 +196,56 @@ describe('listAnnotationsForRunAttempt', () => {
     });
   });
 
+  it('uses id as the cursor tie-breaker for duplicate sequences', async () => {
+    const workspaceId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
+    const duplicates = await Promise.all([
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        jobExecutionId: crypto.randomUUID(),
+        context: 'same-sequence-a',
+        sequence: 1,
+      }),
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        jobExecutionId: crypto.randomUUID(),
+        context: 'same-sequence-b',
+        sequence: 1,
+      }),
+    ]);
+    const ordered = [...duplicates].sort((left, right) => left.id.localeCompare(right.id));
+    const first = ordered[0];
+    const second = ordered[1];
+    if (!first || !second) throw new Error('Expected duplicate annotation fixtures');
+
+    const firstPage = await listAnnotationsForRunAttempt({
+      workflowRunId,
+      workflowRunAttempt: 1,
+      workspaceIds: [workspaceId],
+      limit: 1,
+    });
+    const secondPage = await listAnnotationsForRunAttempt({
+      workflowRunId,
+      workflowRunAttempt: 1,
+      workspaceIds: [workspaceId],
+      after: firstPage.nextCursor ?? undefined,
+      limit: 1,
+    });
+
+    expect(firstPage).toEqual({
+      annotations: [first],
+      hasMore: true,
+      nextCursor: {sequence: first.sequence, id: first.id},
+    });
+    expect(secondPage).toEqual({
+      annotations: [second],
+      hasMore: false,
+      nextCursor: null,
+    });
+  });
+
   it('returns an empty list when the user has no workspace memberships', async () => {
     const workflowRunId = crypto.randomUUID();
     await annotationFactory.create({workflowRunId});
