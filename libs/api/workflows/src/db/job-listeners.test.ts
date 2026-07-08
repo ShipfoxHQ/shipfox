@@ -403,6 +403,41 @@ describe('resolveJobListener', () => {
     expect(stored?.resolutionReason).toBe('max_executions');
   });
 
+  it('resolves custom success expressions with direct dependency context', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: 'echo build'}],
+        },
+        listen: {
+          needs: 'build',
+          success: 'jobs.build.status == "succeeded" && jobs.build.outputs.release == "yes"',
+          steps: [{run: 'echo listen'}],
+        },
+      },
+    });
+    const run = await workflowRunFactory.create({}, {transient: {model}});
+    const [build, listener] = await getJobsByWorkflowRunId(run.id);
+    if (!build || !listener) throw new Error('Expected build and listener jobs');
+    await db()
+      .update(jobs)
+      .set({status: 'succeeded', outputs: {release: 'yes'}})
+      .where(eq(jobs.id, build.id));
+    await db()
+      .update(jobs)
+      .set({mode: 'listening', status: 'running', listenerStatus: 'listening'})
+      .where(eq(jobs.id, listener.id));
+    await db().delete(jobExecutions).where(eq(jobExecutions.jobId, listener.id));
+    await insertExecution(listener.id, 1, 'succeeded');
+
+    const result = await resolveJobListener({jobId: listener.id, reason: 'until'});
+
+    const stored = await readJob(listener.id);
+    expect(result.status).toBe('succeeded');
+    expect(stored?.status).toBe('succeeded');
+    expect(stored?.listenerStatus).toBe('resolved');
+  });
+
   it('resolves a listener with zero firings under the default success rule', async () => {
     const job = await createListeningJob({status: 'running', listenerStatus: 'listening'});
 

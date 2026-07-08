@@ -24,7 +24,7 @@ export interface DeriveJobSuccessResult {
 export function deriveJobSuccess(params: {
   success: string | null;
   executions: readonly JobExecution[];
-  jobs?: readonly JobContextInput[];
+  jobs: readonly JobContextInput[];
 }): DeriveJobSuccessResult {
   const expression = createWorkflowExpression({
     source: params.success ?? DEFAULT_JOB_SUCCESS,
@@ -32,7 +32,7 @@ export function deriveJobSuccess(params: {
   });
   const context = {
     ...assembleExecutionsContext(params.executions),
-    ...(params.jobs === undefined ? {} : assembleJobsContext(params.jobs)),
+    ...assembleJobsContext(params.jobs),
   };
   const outcome = evaluatePlannedPredicateAtSite({
     expression,

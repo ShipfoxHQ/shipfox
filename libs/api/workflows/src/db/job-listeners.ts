@@ -5,9 +5,9 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
 import {loadAgentToolMaterializationContext} from '#core/agent-tools.js';
-import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
+import {isJobTerminal, type JobStatus, type ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
-import {deriveJobSuccess} from '#core/job-transition/index.js';
+import {type DeriveJobSuccessResult, deriveJobSuccess} from '#core/job-transition/index.js';
 import {
   type MaterializedListenerExecution,
   materializeListenerExecution,
@@ -38,6 +38,7 @@ import {
 } from './workflow-runs.js';
 
 const TERMINAL_EXECUTION_STATUSES: JobExecutionStatus[] = ['succeeded', 'failed', 'cancelled'];
+const MAX_LISTENER_RESOLUTION_ATTEMPTS = 3;
 
 export interface ActivateJobListenerParams {
   jobId: string;
@@ -268,7 +269,66 @@ export async function resolveJobListener(params: {
   jobId: string;
   reason: ResolutionReason;
 }): Promise<{status: 'succeeded' | 'failed'; jobVersion: number}> {
-  const result = await db().transaction(async (tx) => {
+  let result: ApplyJobListenerResolutionResult | undefined;
+  for (let attempt = 0; attempt < MAX_LISTENER_RESOLUTION_ATTEMPTS; attempt += 1) {
+    const decision = await deriveJobListenerResolutionDecision(params.jobId);
+    result = await applyJobListenerResolution(params, decision);
+    if (result.kind === 'applied') break;
+  }
+
+  if (result?.kind !== 'applied') {
+    throw new Error(`Optimistic lock failure resolving listener job ${params.jobId}`);
+  }
+
+  if (result.changed) recordWorkflowListenerResolved(params.reason);
+  return {status: result.status, jobVersion: result.jobVersion};
+}
+
+type JobListenerResolutionDecision = DeriveJobSuccessResult & {
+  expectedVersion: number;
+};
+
+type ApplyJobListenerResolutionResult =
+  | {
+      kind: 'applied';
+      status: 'succeeded' | 'failed';
+      jobVersion: number;
+      changed: boolean;
+    }
+  | {kind: 'stale'};
+
+async function deriveJobListenerResolutionDecision(
+  jobId: string,
+): Promise<JobListenerResolutionDecision> {
+  const [jobRow] = await db().select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+  if (!jobRow) throw new Error(`Job not found: ${jobId}`);
+
+  const [executionRows, dependencyJobs] = await Promise.all([
+    db()
+      .select()
+      .from(jobExecutions)
+      .where(eq(jobExecutions.jobId, jobId))
+      .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id)),
+    getDirectDependencyJobContexts(jobId),
+  ]);
+  return {
+    expectedVersion: jobRow.version,
+    ...deriveJobSuccess({
+      success: jobRow.success,
+      executions: executionRows.map(toJobExecution),
+      jobs: dependencyJobs,
+    }),
+  };
+}
+
+async function applyJobListenerResolution(
+  params: {
+    jobId: string;
+    reason: ResolutionReason;
+  },
+  decision: JobListenerResolutionDecision,
+): Promise<ApplyJobListenerResolutionResult> {
+  return await db().transaction(async (tx) => {
     const [jobRow] = await tx
       .select()
       .from(jobs)
@@ -276,6 +336,10 @@ export async function resolveJobListener(params: {
       .limit(1)
       .for('update');
     if (!jobRow) throw new Error(`Job not found: ${params.jobId}`);
+
+    if (jobRow.version !== decision.expectedVersion && !isJobTerminal(jobRow.status)) {
+      return {kind: 'stale' as const};
+    }
 
     const listenerRows = await tx
       .update(jobs)
@@ -287,34 +351,23 @@ export async function resolveJobListener(params: {
       .where(and(eq(jobs.id, params.jobId), notInArray(jobs.listenerStatus, ['resolved'])))
       .returning({id: jobs.id});
 
-    const executionRows = await tx
-      .select()
-      .from(jobExecutions)
-      .where(eq(jobExecutions.jobId, params.jobId))
-      .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
-    const {status, statusReason, trace} = deriveJobSuccess({
-      success: jobRow.success,
-      executions: executionRows.map(toJobExecution),
-    });
     const updated = await updateJobStatusAtVersion(tx, {
       jobId: params.jobId,
-      status,
-      expectedVersion: jobRow.version,
-      statusReason,
-      evaluationTrace: trace,
+      status: decision.status,
+      expectedVersion: decision.expectedVersion,
+      statusReason: decision.statusReason,
+      evaluationTrace: decision.trace,
     });
     const job = updated?.job ?? toJob(jobRow);
     const resolvedStatus: 'succeeded' | 'failed' =
       job.status === 'succeeded' ? 'succeeded' : 'failed';
     return {
+      kind: 'applied' as const,
       status: resolvedStatus,
       jobVersion: job.version,
       changed: listenerRows.length > 0 || updated?.changed === true,
     };
   });
-
-  if (result.changed) recordWorkflowListenerResolved(params.reason);
-  return {status: result.status, jobVersion: result.jobVersion};
 }
 
 export async function settleListenerJobExecution(params: {

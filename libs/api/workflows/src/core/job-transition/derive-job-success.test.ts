@@ -4,10 +4,11 @@ import {deriveJobSuccess} from './derive-job-success.js';
 
 describe('deriveJobSuccess', () => {
   test('treats zero or cancelled listener executions as successful by default', () => {
-    const empty = deriveJobSuccess({success: null, executions: []});
+    const empty = deriveJobSuccess({success: null, executions: [], jobs: []});
     const cancelled = deriveJobSuccess({
       success: null,
       executions: [jobExecution({status: 'cancelled'})],
+      jobs: [],
     });
 
     expect(empty).toMatchObject({status: 'succeeded', statusReason: null});
@@ -29,6 +30,7 @@ describe('deriveJobSuccess', () => {
     const result = deriveJobSuccess({
       success: null,
       executions: [jobExecution({status: 'failed', statusReason: 'timed_out'})],
+      jobs: [],
     });
 
     expect(result).toMatchObject({status: 'failed', statusReason: 'timed_out'});
@@ -54,6 +56,7 @@ describe('deriveJobSuccess', () => {
     const result = deriveJobSuccess({
       success: 'executions.all(e, 1 / 0 == 0)',
       executions: [jobExecution({status: 'succeeded'})],
+      jobs: [],
     });
 
     expect(result).toMatchObject({
