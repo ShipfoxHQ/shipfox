@@ -441,12 +441,13 @@ describe('IntegrationGallery — installed section', () => {
     fireEvent.click(screen.getByRole('menuitem', {name: 'Delete integration'}));
 
     const dialog = await screen.findByRole('dialog', {name: 'Delete integration'});
-    const alert = within(dialog).getByRole('alert');
+    const integrationName = within(dialog).getByText('acme-corp');
 
-    expect(alert).toHaveTextContent(
+    expect(dialog).toHaveTextContent(
       'Are you sure you want to delete acme-corp? Once deleted, Shipfox will immediately stop processing events from this integration. This cannot be undone.',
     );
-    expect(within(alert).getByText('acme-corp')).toBeVisible();
+    expect(integrationName.tagName).toBe('STRONG');
+    expect(integrationName).toHaveClass('font-medium');
     expect(within(dialog).getByRole('button', {name: 'Delete integration'})).toBeVisible();
   });
 

@@ -1,6 +1,6 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
@@ -66,7 +66,11 @@ export function GiteaInstallPage() {
           void form.handleSubmit();
         }}
       >
-        {formError ? <Alert variant="error">{formError}</Alert> : null}
+        {formError ? (
+          <Callout role="alert" type="error">
+            {formError}
+          </Callout>
+        ) : null}
         <form.Field
           name="org"
           validators={{

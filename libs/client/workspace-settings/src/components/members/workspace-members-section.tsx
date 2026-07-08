@@ -2,9 +2,9 @@ import {createInvitationBodySchema, type MembershipWithUserDto} from '@shipfox/a
 import {ApiError} from '@shipfox/client-api';
 import {useAuthState} from '@shipfox/client-auth';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -383,7 +383,11 @@ function InviteMemberModal({
           <Text size="lg">Invite a member</Text>
         </ModalHeader>
         <ModalBody className="gap-16">
-          {formError ? <Alert variant="error">{formError}</Alert> : null}
+          {formError ? (
+            <Callout role="alert" type="error">
+              {formError}
+            </Callout>
+          ) : null}
           <form
             id="invite-member-form"
             className="flex flex-col gap-16"

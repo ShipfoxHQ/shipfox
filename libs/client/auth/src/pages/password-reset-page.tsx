@@ -2,8 +2,8 @@ import {
   passwordResetConfirmBodySchema,
   passwordResetRequestBodySchema,
 } from '@shipfox/api-auth-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {toast} from '@shipfox/react-ui/toast';
 import {Text} from '@shipfox/react-ui/typography';
@@ -72,9 +72,9 @@ function PasswordResetRequest() {
         title="Check your email"
         description={`We sent reset instructions to ${submittedEmail}.`}
       >
-        <Alert variant="success">
+        <Callout role="alert" type="success">
           If a Shipfox account exists for that email, the reset link will arrive shortly.
-        </Alert>
+        </Callout>
         <Button
           className="w-full"
           variant="secondary"
@@ -104,7 +104,11 @@ function PasswordResetRequest() {
           void form.handleSubmit();
         }}
       >
-        {formError ? <Alert variant="error">{formError}</Alert> : null}
+        {formError ? (
+          <Callout role="alert" type="error">
+            {formError}
+          </Callout>
+        ) : null}
         <form.Field
           name="email"
           validators={{
@@ -181,7 +185,11 @@ function PasswordResetConfirm({token}: {token: string}) {
           void form.handleSubmit();
         }}
       >
-        {formError ? <Alert variant="error">{formError}</Alert> : null}
+        {formError ? (
+          <Callout role="alert" type="error">
+            {formError}
+          </Callout>
+        ) : null}
         <form.Field
           name="new_password"
           validators={{

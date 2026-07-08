@@ -7,8 +7,8 @@ import {
   type ModelProviderCatalogEntryDto,
 } from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Modal, ModalContent, ModalHeader, ModalTitle} from '@shipfox/react-ui/modal';
@@ -178,14 +178,14 @@ export function ModelProviderOnboardingPage({
           ) : null}
           {defaultHarnessError ? (
             <div className="px-20 pb-8">
-              <Alert variant="error" animated={false}>
+              <Callout role="alert" type="error">
                 <div className="flex flex-col gap-8">
                   <Text size="sm" bold>
                     Could not save default harness
                   </Text>
                   <Text size="sm">{defaultHarnessError}</Text>
                 </div>
-              </Alert>
+              </Callout>
             </div>
           ) : null}
           {selectedEntry ? (

@@ -1,7 +1,7 @@
 import type {SentryConnectResponseDto} from '@shipfox/api-integration-sentry-dto';
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {Card} from '@shipfox/react-ui/card';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
@@ -79,12 +79,12 @@ export function SentryCallbackPage() {
   if (!params) {
     return (
       <CallbackColumn>
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           <Text size="sm">
             This Sentry link is missing required parameters. Start the install again from your
             workspace settings.
           </Text>
-        </Alert>
+        </Callout>
         <ButtonLink asChild variant="muted" className="w-fit">
           <Link to="/">Back to Shipfox</Link>
         </ButtonLink>
@@ -171,7 +171,7 @@ export function SentryCallbackPage() {
       </header>
 
       {failure ? (
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           <div className="flex flex-col gap-8">
             <Text size="sm">{failure.failure.message}</Text>
             {failure.failure.kind === 'retryable' ? (
@@ -193,7 +193,7 @@ export function SentryCallbackPage() {
               </Button>
             ) : null}
           </div>
-        </Alert>
+        </Callout>
       ) : null}
 
       <section className="flex flex-col gap-8" aria-label="Choose a workspace">
@@ -229,8 +229,10 @@ export function SentryCallbackPage() {
 
 function CallbackColumn({children}: {children: React.ReactNode}) {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[480px] flex-col justify-center gap-20 px-16 py-32">
-      {children}
-    </div>
+    <main className="flex min-h-screen bg-background-subtle-base px-16 py-32">
+      <div className="mx-auto flex w-full max-w-[480px] flex-col justify-center gap-20">
+        {children}
+      </div>
+    </main>
   );
 }

@@ -1,6 +1,6 @@
 import type {QueryLoadErrorQuery} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Text} from '@shipfox/react-ui/typography';
@@ -68,7 +68,7 @@ export function EventsListNoMatches({onClear}: {onClear: () => void}) {
 export function EventsListStaleError({query}: {query: QueryLoadErrorQuery}) {
   return (
     <div className="p-8">
-      <Alert variant="error" animated={false}>
+      <Callout role="alert" type="error">
         <div className="flex items-center justify-between gap-8">
           <Text size="xs">Could not refresh events.</Text>
           <Button
@@ -83,7 +83,7 @@ export function EventsListStaleError({query}: {query: QueryLoadErrorQuery}) {
             Retry
           </Button>
         </div>
-      </Alert>
+      </Callout>
     </div>
   );
 }

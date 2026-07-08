@@ -1,5 +1,5 @@
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {
   Modal,
   ModalBody,
@@ -38,9 +38,9 @@ export function DeleteEntryDialog({
             Workflows that reference <strong>{entryKey}</strong> will fail at their next run.
           </Text>
           {errorMessage ? (
-            <Alert variant="error" animated={false}>
+            <Callout role="alert" type="error">
               <Text size="sm">{errorMessage}</Text>
-            </Alert>
+            </Callout>
           ) : null}
         </ModalBody>
         <ModalFooter>

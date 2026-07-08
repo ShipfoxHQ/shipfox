@@ -4,8 +4,8 @@ import {
   LogViewSkeleton,
   useStepAttemptLogsQuery,
 } from '@shipfox/client-logs';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {Text} from '@shipfox/react-ui/typography';
 import {type UIEvent, useEffect, useRef} from 'react';
 
@@ -85,7 +85,7 @@ export function StepAttemptLogPanel({
   return (
     <div ref={panelRef} className="flex min-w-0 flex-col gap-8">
       {staleError ? (
-        <Alert variant="warning" animated={false} className="px-10 py-8">
+        <Callout role="alert" type="warning" className="px-10 py-8">
           <div className="flex min-w-0 flex-1 items-center justify-between gap-8">
             <Text size="xs">Could not refresh logs.</Text>
             <Button
@@ -98,7 +98,7 @@ export function StepAttemptLogPanel({
               Retry
             </Button>
           </div>
-        </Alert>
+        </Callout>
       ) : null}
       <LogView
         records={records}
@@ -140,13 +140,13 @@ function isTerminalAttemptStatus(status: string): boolean {
 
 function StepLogsError({retrying, onRetry}: {retrying: boolean; onRetry: () => void}) {
   return (
-    <Alert variant="error" animated={false} className="px-10 py-8">
+    <Callout role="alert" type="error" className="px-10 py-8">
       <div className="flex min-w-0 flex-1 items-center justify-between gap-8">
         <Text size="xs">Could not load logs.</Text>
         <Button type="button" size="2xs" variant="secondary" isLoading={retrying} onClick={onRetry}>
           Retry
         </Button>
       </div>
-    </Alert>
+    </Callout>
   );
 }

@@ -1,6 +1,6 @@
 import type {ModelProviderConfigDto} from '@shipfox/api-agent-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {fieldError} from '@shipfox/react-ui/form-field';
 import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
 import {Text} from '@shipfox/react-ui/typography';
@@ -80,14 +80,14 @@ export function ChangeDefaultModelForm({
           </form.Field>
         </form>
         {formError ? (
-          <Alert variant="error" animated={false}>
+          <Callout role="alert" type="error">
             <div className="flex flex-col gap-8">
               <Text size="sm" bold>
                 Could not save default model
               </Text>
               <Text size="sm">{formError}</Text>
             </div>
-          </Alert>
+          </Callout>
         ) : null}
       </ModalBody>
       <ModalFooter>

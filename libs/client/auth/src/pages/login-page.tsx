@@ -1,6 +1,6 @@
 import {loginBodySchema} from '@shipfox/api-auth-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Text} from '@shipfox/react-ui/typography';
@@ -103,7 +103,11 @@ export function LoginPage() {
           void form.handleSubmit();
         }}
       >
-        {formError ? <Alert variant="error">{formError}</Alert> : null}
+        {formError ? (
+          <Callout role="alert" type="error">
+            {formError}
+          </Callout>
+        ) : null}
         <form.Field
           name="email"
           validators={{onBlur: loginBodySchema.shape.email, onSubmit: loginBodySchema.shape.email}}

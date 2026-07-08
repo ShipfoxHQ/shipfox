@@ -1,7 +1,7 @@
 import {createWorkspaceBodySchema} from '@shipfox/api-workspaces-dto';
 import {displayNameFieldError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@shipfox/react-ui/card';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -94,7 +94,11 @@ export function WorkspaceOnboardingPage() {
                 <CardDescription>Give your team a place to collaborate.</CardDescription>
               </CardHeader>
 
-              {formError ? <Alert variant="error">{formError}</Alert> : null}
+              {formError ? (
+                <Callout role="alert" type="error">
+                  {formError}
+                </Callout>
+              ) : null}
 
               <CardContent className="flex flex-col gap-8">
                 <form.Field
