@@ -5,6 +5,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import {Ajv, type ValidateFunction} from 'ajv';
+import {INVALID_METHOD_LABEL, type IntegrationToolCallRecorder, NO_METHOD_LABEL} from './audit.js';
 import type {
   AuthorizedIntegrationTool,
   AuthorizedIntegrationToolMap,
@@ -23,6 +24,7 @@ export type IntegrationToolDispatcher = (
 export interface BuildAgentToolsMcpServerParams {
   authorizedTools: AuthorizedIntegrationToolMap;
   dispatch: IntegrationToolDispatcher;
+  recordCall?: IntegrationToolCallRecorder | undefined;
 }
 
 const ajv = new Ajv({strict: false, allErrors: true});
@@ -57,26 +59,85 @@ export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams)
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const authorizedTool = params.authorizedTools.get(request.params.name);
-    if (!authorizedTool) return toolError(`Unknown integration tool: ${request.params.name}`);
+    if (!authorizedTool) {
+      recordToolCall(params.recordCall, {
+        arguments: request.params.arguments ?? {},
+        method: NO_METHOD_LABEL,
+        outcome: 'invalid-request',
+      });
+      return toolError(`Unknown integration tool: ${request.params.name}`);
+    }
 
     const args = request.params.arguments ?? {};
-    if (!isRecord(args)) return toolError('Tool arguments must be an object');
+    if (!isRecord(args)) {
+      recordToolCall(params.recordCall, {
+        authorizedTool,
+        arguments: args,
+        method: NO_METHOD_LABEL,
+        outcome: 'invalid-request',
+      });
+      return toolError('Tool arguments must be an object');
+    }
 
     const methodValidation = validateMethod(authorizedTool, args);
-    if (methodValidation.kind === 'error') return toolError(methodValidation.message);
+    if (methodValidation.kind === 'error') {
+      recordToolCall(params.recordCall, {
+        authorizedTool,
+        arguments: args,
+        method: INVALID_METHOD_LABEL,
+        outcome: 'invalid-request',
+      });
+      return toolError(methodValidation.message);
+    }
+    const method = methodValidation.method ?? NO_METHOD_LABEL;
 
     const schemaError = validateToolInput(authorizedTool, args, validators);
-    if (schemaError) return toolError(schemaError);
+    if (schemaError) {
+      recordToolCall(params.recordCall, {
+        authorizedTool,
+        arguments: args,
+        method,
+        outcome: 'invalid-request',
+      });
+      return toolError(schemaError);
+    }
 
-    const result = await params.dispatch({
-      authorizedTool,
-      arguments: args,
-      method: methodValidation.method,
-    });
-    return result;
+    try {
+      const result = await params.dispatch({
+        authorizedTool,
+        arguments: args,
+        method: methodValidation.method,
+      });
+      recordToolCall(params.recordCall, {
+        authorizedTool,
+        arguments: args,
+        method,
+        outcome: result.isError === true ? 'tool-error' : 'success',
+      });
+      return result;
+    } catch (error) {
+      recordToolCall(params.recordCall, {
+        authorizedTool,
+        arguments: args,
+        method,
+        outcome: 'exception',
+      });
+      throw error;
+    }
   });
 
   return server;
+}
+
+function recordToolCall(
+  recordCall: IntegrationToolCallRecorder | undefined,
+  record: Parameters<IntegrationToolCallRecorder>[0],
+): void {
+  try {
+    recordCall?.(record);
+  } catch {
+    // Audit and metrics must not affect MCP responses.
+  }
 }
 
 function validateMethod(
