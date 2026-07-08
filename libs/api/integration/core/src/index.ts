@@ -16,7 +16,7 @@ import {getIntegrationConnectionById} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
-import {createIntegrationRoutes} from '#presentation/routes/index.js';
+import {createIntegrationRoutes, type LeasedAgentStepLoader} from '#presentation/routes/index.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
 import type {IntegrationModuleParts, IntegrationProviderSecrets} from '#providers/types.js';
 import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
@@ -118,6 +118,11 @@ export interface CreateIntegrationsModuleOptions {
    */
   parts?: IntegrationModuleParts[] | undefined;
   secrets?: IntegrationProviderSecrets | undefined;
+  agentTools?:
+    | {
+        loadLeasedAgentStep: LeasedAgentStepLoader;
+      }
+    | undefined;
 }
 
 export interface IntegrationsContext {
@@ -162,7 +167,14 @@ export async function createIntegrationsContext(
       {db, migrationsPath},
       ...parts.flatMap((part) => (part.database ? [part.database] : [])),
     ],
-    routes: createIntegrationRoutes(registry, sourceControl),
+    routes: createIntegrationRoutes(registry, sourceControl, {
+      agentTools: options.agentTools
+        ? {
+            loadLeasedAgentStep: options.agentTools.loadLeasedAgentStep,
+            getIntegrationConnectionById,
+          }
+        : undefined,
+    }),
     publishers: [
       {name: 'integrations', table: integrationsOutbox, db, eventSchemas: integrationsEventSchemas},
     ],

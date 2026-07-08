@@ -16,6 +16,7 @@ import {runnersModule} from '@shipfox/api-runners';
 import {deleteSecrets, getSecret, secretsModule, setSecrets} from '@shipfox/api-secrets';
 import {triggersModule} from '@shipfox/api-triggers';
 import {
+  loadRunningLeasedStep,
   setAgentToolMaterializationServices,
   setSourceControl,
   workflowsModule,
@@ -59,6 +60,7 @@ export async function run(): Promise<void> {
           }),
       },
     },
+    agentTools: {loadLeasedAgentStep: loadRunningLeasedStep},
   });
   const [agentToolSelectionCatalogs, agentToolCatalogs] = await Promise.all([
     buildAgentToolSelectionCatalogs(integrations.registry),
