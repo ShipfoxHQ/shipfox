@@ -1,17 +1,16 @@
-import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
 import {and, asc, eq, inArray, sql} from 'drizzle-orm';
 import {isWorkflowRunTerminal, type WorkflowRun} from '#core/entities/workflow-run.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
 import {assembleExecutionCreationContext} from '#core/step-config/assemble-run-context.js';
 import {materializeJobRunner} from '#core/step-config/materialize-workflow-model.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
-import {db} from '../db.js';
-import {writeWorkflowsOutboxEvent} from '../outbox-writes.js';
-import {jobExecutions} from '../schema/job-executions.js';
-import {jobs} from '../schema/jobs.js';
-import {steps} from '../schema/steps.js';
-import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
+import {db, type Tx} from '../db.js';
+import {type JobExecutionDb, jobExecutions} from '../schema/job-executions.js';
+import {type JobDb, jobs} from '../schema/jobs.js';
+import {type StepDb, steps} from '../schema/steps.js';
+import {type WorkflowRunAttemptDb, workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
+import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
 import {lockWorkflowRun} from './shared.js';
 
 export interface CreateRerunWorkflowRunParams {
@@ -83,163 +82,21 @@ export async function createRerunWorkflowRun(
       .returning();
     if (!newAttemptRow) throw new Error('Insert returned no rows');
 
-    const sourceJobIds = sourceJobs.map((job) => job.id);
-    const sourceJobExecutionRows =
-      sourceJobIds.length === 0
-        ? []
-        : await tx
-            .select()
-            .from(jobExecutions)
-            .where(inArray(jobExecutions.jobId, sourceJobIds))
-            .orderBy(asc(jobExecutions.jobId), asc(jobExecutions.sequence), asc(jobExecutions.id));
-    const sourceJobExecutionByJobId = new Map<string, (typeof sourceJobExecutionRows)[number]>();
-    for (const jobExecution of sourceJobExecutionRows) {
-      if (!sourceJobExecutionByJobId.has(jobExecution.jobId)) {
-        sourceJobExecutionByJobId.set(jobExecution.jobId, jobExecution);
-      }
-    }
-    const sourceJobExecutionIds = [...sourceJobExecutionByJobId.values()].map(
-      (jobExecution) => jobExecution.id,
-    );
-    const sourceSteps =
-      sourceJobExecutionIds.length === 0
-        ? []
-        : await tx
-            .select()
-            .from(steps)
-            .where(inArray(steps.jobExecutionId, sourceJobExecutionIds))
-            .orderBy(asc(steps.jobExecutionId), asc(steps.position), asc(steps.id));
+    const sourceGraph = await loadRerunSourceGraph(tx, sourceJobs);
 
-    const clonedJobRows =
-      sourceJobs.length === 0
-        ? []
-        : await tx
-            .insert(jobs)
-            .values(
-              sourceJobs.map((job) => {
-                const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
-                return {
-                  workflowRunAttemptId: newAttemptRow.id,
-                  key: job.key,
-                  name: job.name,
-                  mode: job.mode,
-                  status: carriedOver ? ('succeeded' as const) : ('pending' as const),
-                  statusReason: null,
-                  carriedOver,
-                  checkoutPersistCredentials: job.checkoutPersistCredentials,
-                  checkoutPermissionsContents: job.checkoutPermissionsContents,
-                  success: job.success,
-                  executionTimeoutMs: job.executionTimeoutMs,
-                  listeningTimeoutMs: job.listeningTimeoutMs,
-                  maxExecutions: job.maxExecutions,
-                  onResolve: job.onResolve,
-                  batchDebounceMs: job.batchDebounceMs,
-                  batchMaxSize: job.batchMaxSize,
-                  batchMaxWaitMs: job.batchMaxWaitMs,
-                  listenerStatus: 'inactive' as const,
-                  resolutionReason: null,
-                  listeningOn: job.listeningOn ? [...job.listeningOn] : null,
-                  listeningUntil: job.listeningUntil ? [...job.listeningUntil] : null,
-                  outputs: carriedOver && job.outputs ? {...job.outputs} : null,
-                  dependencies: [...job.dependencies],
-                  runner: job.runner ? [...job.runner] : null,
-                  position: job.position,
-                };
-              }),
-            )
-            .returning();
-
-    const sourceJobByPosition = new Map(sourceJobs.map((job) => [job.position, job]));
-    const sourceModelJobByKey = new Map(
-      (sourceAttemptRow.model?.jobs ?? []).map((job) => [job.key, job]),
-    );
-    const clonedJobExecutionValues = clonedJobRows.flatMap((job) => {
-      const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
-      const sourceJob = sourceJobByPosition.get(job.position);
-      const sourceExecution = sourceJob ? sourceJobExecutionByJobId.get(sourceJob.id) : undefined;
-      const modelJob = sourceModelJobByKey.get(job.key);
-      const executionName = sourceExecution?.name ?? `${job.key} #1`;
-      const runner =
-        carriedOver || modelJob === undefined
-          ? (sourceExecution?.runner ?? job.runner ?? null)
-          : materializeJobRunner({
-              job: modelJob,
-              context: assembleExecutionCreationContext({
-                run: toWorkflowRun(sourceRow),
-                triggerPayload: sourceRow.triggerPayload,
-                inputs: sourceRow.inputs,
-                jobId: job.id,
-                sequence: 1,
-                executionName,
-                status: 'pending',
-                triggerEvents: [],
-                priorExecutions: [],
-              }),
-              definitionId: sourceRow.definitionId,
-            });
-      return job.mode === 'listening'
-        ? []
-        : [
-            {
-              jobId: job.id,
-              sequence: 1,
-              name: executionName,
-              runner: runner ? [...runner] : null,
-              status: carriedOver ? ('succeeded' as const) : ('pending' as const),
-              statusReason: null,
-              outputs:
-                carriedOver && sourceExecution?.outputs ? {...sourceExecution.outputs} : null,
-              ...(carriedOver ? {finishedAt: sql`now()`} : {}),
-            },
-          ];
+    const sourceRun = toWorkflowRun(sourceRow);
+    const graphJobs = materializeRerunGraphJobs({
+      mode: params.mode,
+      sourceRun,
+      sourceAttempt: sourceAttemptRow,
+      sourceJobs,
+      ...sourceGraph,
     });
-    const clonedJobExecutionRows =
-      clonedJobExecutionValues.length === 0
-        ? []
-        : await tx.insert(jobExecutions).values(clonedJobExecutionValues).returning();
-
-    const sourceJobById = new Map(sourceJobs.map((job) => [job.id, job]));
-    const sourceJobByJobExecutionId = new Map(
-      [...sourceJobExecutionByJobId.entries()].flatMap(([jobId, jobExecution]) => {
-        const job = sourceJobById.get(jobId);
-        return job ? [[jobExecution.id, job] as const] : [];
-      }),
-    );
-    const clonedJobByPosition = new Map(clonedJobRows.map((job) => [job.position, job]));
-    const clonedJobExecutionByJobId = new Map(
-      clonedJobExecutionRows.map((jobExecution) => [jobExecution.jobId, jobExecution]),
-    );
-    const stepValues = sourceSteps.flatMap((step) => {
-      const sourceJob = sourceJobByJobExecutionId.get(step.jobExecutionId);
-      if (!sourceJob) return [];
-      const clonedJob = clonedJobByPosition.get(sourceJob.position);
-      if (!clonedJob) return [];
-      const clonedJobExecution = clonedJobExecutionByJobId.get(clonedJob.id);
-      if (!clonedJobExecution) return [];
-      const carriedOver = params.mode === 'failed' && sourceJob.status === 'succeeded';
-      return [
-        {
-          jobExecutionId: clonedJobExecution.id,
-          key: step.key,
-          name: step.name,
-          sourceLocation: step.sourceLocation,
-          status: carriedOver ? step.status : ('pending' as const),
-          statusReason: carriedOver ? step.statusReason : null,
-          type: step.type,
-          config: step.config,
-          condition: step.condition ?? null,
-          configPlan: step.configPlan,
-          authoredConfig: step.authoredConfig,
-          error: null,
-          position: step.position,
-          currentAttempt: 1,
-        },
-      ];
+    await persistMaterializedRunGraph(tx, {
+      run: sourceRun,
+      workflowRunAttempt: newAttemptRow,
+      materializedJobs: graphJobs,
     });
-
-    if (stepValues.length > 0) {
-      await tx.insert(steps).values(stepValues);
-    }
 
     const [newRunRow] = await tx
       .update(workflowRuns)
@@ -255,22 +112,163 @@ export async function createRerunWorkflowRun(
       .returning();
     if (!newRunRow) throw new Error(`Workflow run missing after rerun: ${sourceRow.id}`);
 
-    await writeWorkflowsOutboxEvent(tx, {
-      type: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
-      payload: {
-        workflowRunId: newRunRow.id,
-        workflowRunAttemptId: newAttemptRow.id,
-        attempt: newAttemptRow.attempt,
-        workspaceId: newRunRow.workspaceId,
-        projectId: newRunRow.projectId,
-        definitionId: newRunRow.definitionId,
-      },
-    });
-
     return toWorkflowRun(newRunRow);
   });
 
   recordWorkflowRunCreated(result.triggerPayload.provider ?? result.triggerSource);
 
   return result;
+}
+
+async function loadRerunSourceGraph(
+  tx: Tx,
+  sourceJobs: readonly JobDb[],
+): Promise<{
+  readonly sourceJobExecutionByJobId: ReadonlyMap<string, JobExecutionDb>;
+  readonly sourceJobByJobExecutionId: ReadonlyMap<string, JobDb>;
+  readonly sourceSteps: readonly StepDb[];
+}> {
+  const sourceJobIds = sourceJobs.map((job) => job.id);
+  const sourceJobExecutionRows =
+    sourceJobIds.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(jobExecutions)
+          .where(inArray(jobExecutions.jobId, sourceJobIds))
+          .orderBy(asc(jobExecutions.jobId), asc(jobExecutions.sequence), asc(jobExecutions.id));
+  const sourceJobExecutionByJobId = new Map<string, JobExecutionDb>();
+  for (const jobExecution of sourceJobExecutionRows) {
+    if (!sourceJobExecutionByJobId.has(jobExecution.jobId)) {
+      sourceJobExecutionByJobId.set(jobExecution.jobId, jobExecution);
+    }
+  }
+
+  const sourceJobExecutionIds = [...sourceJobExecutionByJobId.values()].map(
+    (jobExecution) => jobExecution.id,
+  );
+  const sourceSteps =
+    sourceJobExecutionIds.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(steps)
+          .where(inArray(steps.jobExecutionId, sourceJobExecutionIds))
+          .orderBy(asc(steps.jobExecutionId), asc(steps.position), asc(steps.id));
+
+  const sourceJobById = new Map(sourceJobs.map((job) => [job.id, job]));
+  const sourceJobByJobExecutionId = new Map(
+    [...sourceJobExecutionByJobId.entries()].flatMap(([jobId, jobExecution]) => {
+      const job = sourceJobById.get(jobId);
+      return job ? [[jobExecution.id, job] as const] : [];
+    }),
+  );
+
+  return {sourceJobExecutionByJobId, sourceJobByJobExecutionId, sourceSteps};
+}
+
+function materializeRerunGraphJobs(params: {
+  readonly mode: CreateRerunWorkflowRunParams['mode'];
+  readonly sourceRun: WorkflowRun;
+  readonly sourceAttempt: WorkflowRunAttemptDb;
+  readonly sourceJobs: readonly JobDb[];
+  readonly sourceJobExecutionByJobId: ReadonlyMap<string, JobExecutionDb>;
+  readonly sourceJobByJobExecutionId: ReadonlyMap<string, JobDb>;
+  readonly sourceSteps: readonly StepDb[];
+}): readonly MaterializedRunGraphJob[] {
+  const sourceModelJobByKey = new Map(
+    (params.sourceAttempt.model?.jobs ?? []).map((job) => [job.key, job]),
+  );
+  const sourceStepsByJobId = new Map<string, StepDb[]>();
+  for (const step of params.sourceSteps) {
+    const sourceJob = params.sourceJobByJobExecutionId.get(step.jobExecutionId);
+    if (!sourceJob) continue;
+    const sourceJobSteps = sourceStepsByJobId.get(sourceJob.id) ?? [];
+    sourceJobSteps.push(step);
+    sourceStepsByJobId.set(sourceJob.id, sourceJobSteps);
+  }
+
+  return params.sourceJobs.map((sourceJob) => {
+    const carriedOver = params.mode === 'failed' && sourceJob.status === 'succeeded';
+
+    return {
+      job: {
+        key: sourceJob.key,
+        name: sourceJob.name,
+        mode: sourceJob.mode,
+        status: carriedOver ? ('succeeded' as const) : ('pending' as const),
+        statusReason: null,
+        carriedOver,
+        checkoutPersistCredentials: sourceJob.checkoutPersistCredentials,
+        checkoutPermissionsContents: sourceJob.checkoutPermissionsContents,
+        success: sourceJob.success,
+        executionTimeoutMs: sourceJob.executionTimeoutMs,
+        listeningTimeoutMs: sourceJob.listeningTimeoutMs,
+        maxExecutions: sourceJob.maxExecutions,
+        onResolve: sourceJob.onResolve,
+        batchDebounceMs: sourceJob.batchDebounceMs,
+        batchMaxSize: sourceJob.batchMaxSize,
+        batchMaxWaitMs: sourceJob.batchMaxWaitMs,
+        listenerStatus: 'inactive' as const,
+        resolutionReason: null,
+        listeningOn: sourceJob.listeningOn ? [...sourceJob.listeningOn] : null,
+        listeningUntil: sourceJob.listeningUntil ? [...sourceJob.listeningUntil] : null,
+        outputs: carriedOver && sourceJob.outputs ? {...sourceJob.outputs} : null,
+        dependencies: [...sourceJob.dependencies],
+        runner: sourceJob.runner ? [...sourceJob.runner] : null,
+        position: sourceJob.position,
+      },
+      createExecution: (job) => {
+        if (job.mode === 'listening') return undefined;
+
+        const sourceExecution = params.sourceJobExecutionByJobId.get(sourceJob.id);
+        const modelJob = sourceModelJobByKey.get(job.key);
+        const executionName = sourceExecution?.name ?? `${job.key} #1`;
+        const runner =
+          carriedOver || modelJob === undefined
+            ? (sourceExecution?.runner ?? job.runner ?? null)
+            : materializeJobRunner({
+                job: modelJob,
+                context: assembleExecutionCreationContext({
+                  run: params.sourceRun,
+                  triggerPayload: params.sourceRun.triggerPayload,
+                  inputs: params.sourceRun.inputs,
+                  jobId: job.id,
+                  sequence: 1,
+                  executionName,
+                  status: 'pending',
+                  triggerEvents: [],
+                  priorExecutions: [],
+                }),
+                definitionId: params.sourceRun.definitionId,
+              });
+
+        return {
+          sequence: 1,
+          name: executionName,
+          runner: runner ? [...runner] : null,
+          status: carriedOver ? ('succeeded' as const) : ('pending' as const),
+          statusReason: null,
+          outputs: carriedOver && sourceExecution?.outputs ? {...sourceExecution.outputs} : null,
+          ...(carriedOver ? {finishedAt: sql`now()`} : {}),
+        };
+      },
+      createSteps: () =>
+        (sourceStepsByJobId.get(sourceJob.id) ?? []).map((step) => ({
+          key: step.key,
+          name: step.name,
+          sourceLocation: step.sourceLocation,
+          status: carriedOver ? step.status : ('pending' as const),
+          statusReason: carriedOver ? step.statusReason : null,
+          type: step.type,
+          config: step.config,
+          condition: step.condition ?? null,
+          configPlan: step.configPlan,
+          authoredConfig: step.authoredConfig,
+          error: null,
+          position: step.position,
+          currentAttempt: 1,
+        })),
+    };
+  });
 }

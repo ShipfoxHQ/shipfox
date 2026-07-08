@@ -4,7 +4,6 @@ import {
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {getVariablesByNamespace} from '@shipfox/api-secrets';
-import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
 import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';
@@ -31,12 +30,9 @@ import {resolveJobExecutionName} from '#core/step-config/resolve-job-execution-n
 import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
 import {db} from '../db.js';
-import {writeWorkflowsOutboxEvent} from '../outbox-writes.js';
-import {jobExecutions} from '../schema/job-executions.js';
-import {jobs} from '../schema/jobs.js';
-import {steps} from '../schema/steps.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
+import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
 
 export type WorkflowModelJob = WorkflowModel['jobs'][number];
 
@@ -150,139 +146,16 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       agentToolSnapshot: agentToolMaterialization,
     });
 
-    let jobRows: (typeof jobs.$inferSelect)[] = [];
-
-    if (materializedJobs.length > 0) {
-      jobRows = await tx
-        .insert(jobs)
-        .values(
-          materializedJobs.map((job) => ({
-            workflowRunAttemptId: attemptRow.id,
-            key: job.key,
-            mode: job.mode,
-            name: workflowTemplateSource(job.name),
-            status: 'pending' as const,
-            checkoutPersistCredentials: job.checkout.persistCredentials,
-            checkoutPermissionsContents: job.checkout.permissions.contents,
-            success: job.success ?? null,
-            executionTimeoutMs: job.executionTimeoutMs ?? null,
-            listeningTimeoutMs: job.listening?.timeoutMs ?? null,
-            maxExecutions: job.listening?.maxExecutions ?? null,
-            onResolve: job.listening?.onResolve ?? null,
-            batchDebounceMs: job.listening?.batch?.debounceMs ?? null,
-            batchMaxSize: job.listening?.batch?.maxSize ?? null,
-            batchMaxWaitMs: job.listening?.batch?.maxWaitMs ?? null,
-            listeningOn: job.listening?.on ? [...job.listening.on] : null,
-            listeningUntil: job.listening?.until ? [...job.listening.until] : null,
-            dependencies: [...job.dependencies],
-            runner: job.runner.length === 0 ? null : [...job.runner],
-            position: job.position,
-          })),
-        )
-        .returning();
-    }
-
-    const jobExecutionValues = jobRows.flatMap((jobRow, jobIndex) => {
-      if (jobRow.mode === 'listening') return [];
-      const job = materializedJobs[jobIndex];
-      if (!job) return [];
-
-      const fallbackName = `${jobRow.key} #1`;
-      const context = assembleExecutionCreationContext({
-        run,
-        triggerPayload: params.triggerPayload,
-        inputs: params.inputs ?? null,
-        vars,
-        jobId: jobRow.id,
-        sequence: 1,
-        executionName: fallbackName,
-        status: 'pending',
-        triggerEvents: [],
-        priorExecutions: [],
-      });
-      const resolvedName = resolveJobExecutionName({
-        definitionId: params.definitionId,
-        job,
-        fallbackName,
-        context: context.values,
-      });
-      const modelJob = params.model.jobs[jobIndex];
-      if (!modelJob) return [];
-      const runnerContext = assembleExecutionCreationContext({
-        run,
-        triggerPayload: params.triggerPayload,
-        inputs: params.inputs ?? null,
-        vars,
-        jobId: jobRow.id,
-        sequence: 1,
-        executionName: resolvedName.value,
-        status: 'pending',
-        triggerEvents: [],
-        priorExecutions: [],
-      });
-      const runner = materializeJobRunner({
-        job: modelJob,
-        context: runnerContext,
-        definitionId: params.definitionId,
-      });
-
-      return [
-        {
-          jobId: jobRow.id,
-          sequence: 1,
-          name: resolvedName.value,
-          runner: [...runner],
-          status: 'pending' as const,
-          evaluationTrace: resolvedName.trace.length === 0 ? null : resolvedName.trace,
-        },
-      ];
+    const graphJobs = materializeRunGraphJobs({
+      params,
+      run,
+      vars,
+      materializedJobs,
     });
-    const jobExecutionRows =
-      jobExecutionValues.length === 0
-        ? []
-        : await tx.insert(jobExecutions).values(jobExecutionValues).returning();
-
-    const jobExecutionByJobId = new Map(
-      jobExecutionRows.map((jobExecution) => [jobExecution.jobId, jobExecution]),
-    );
-
-    const stepValues: (typeof steps.$inferInsert)[] = [];
-    for (const [jobIndex, jobRow] of jobRows.entries()) {
-      const job = materializedJobs[jobIndex];
-      const jobExecution = jobExecutionByJobId.get(jobRow.id);
-      if (!jobExecution) continue;
-      if (!job) continue;
-      for (const step of job.steps) {
-        stepValues.push({
-          jobExecutionId: jobExecution.id,
-          key: step.key,
-          name: step.name,
-          sourceLocation: step.sourceLocation,
-          status: step.status,
-          type: step.type,
-          config: step.config,
-          condition: step.condition ?? null,
-          configPlan: step.configPlan ?? null,
-          authoredConfig: step.authoredConfig,
-          position: step.position,
-        });
-      }
-    }
-
-    if (stepValues.length > 0) {
-      await tx.insert(steps).values(stepValues);
-    }
-
-    await writeWorkflowsOutboxEvent(tx, {
-      type: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
-      payload: {
-        workflowRunId: runRow.id,
-        workflowRunAttemptId: attemptRow.id,
-        attempt: attemptRow.attempt,
-        workspaceId: runRow.workspaceId,
-        projectId: runRow.projectId,
-        definitionId: runRow.definitionId,
-      },
+    await persistMaterializedRunGraph(tx, {
+      run,
+      workflowRunAttempt: attemptRow,
+      materializedJobs: graphJobs,
     });
 
     logTemplateDiagnostics({
@@ -334,6 +207,101 @@ export async function loadReferencedVariables(params: {
   }
 
   return vars;
+}
+
+function materializeRunGraphJobs(params: {
+  readonly params: CreateWorkflowRunParams;
+  readonly run: WorkflowRun;
+  readonly vars: Record<string, string> | undefined;
+  readonly materializedJobs: readonly MaterializedWorkflowJob[];
+}): readonly MaterializedRunGraphJob[] {
+  return params.materializedJobs.map((job, jobIndex) => ({
+    job: {
+      key: job.key,
+      mode: job.mode,
+      name: workflowTemplateSource(job.name),
+      status: 'pending' as const,
+      checkoutPersistCredentials: job.checkout.persistCredentials,
+      checkoutPermissionsContents: job.checkout.permissions.contents,
+      success: job.success ?? null,
+      executionTimeoutMs: job.executionTimeoutMs ?? null,
+      listeningTimeoutMs: job.listening?.timeoutMs ?? null,
+      maxExecutions: job.listening?.maxExecutions ?? null,
+      onResolve: job.listening?.onResolve ?? null,
+      batchDebounceMs: job.listening?.batch?.debounceMs ?? null,
+      batchMaxSize: job.listening?.batch?.maxSize ?? null,
+      batchMaxWaitMs: job.listening?.batch?.maxWaitMs ?? null,
+      listeningOn: job.listening?.on ? [...job.listening.on] : null,
+      listeningUntil: job.listening?.until ? [...job.listening.until] : null,
+      dependencies: [...job.dependencies],
+      runner: job.runner.length === 0 ? null : [...job.runner],
+      position: job.position,
+    },
+    createExecution: (jobRow) => {
+      if (jobRow.mode === 'listening') return undefined;
+
+      const fallbackName = `${jobRow.key} #1`;
+      const context = assembleExecutionCreationContext({
+        run: params.run,
+        triggerPayload: params.params.triggerPayload,
+        inputs: params.params.inputs ?? null,
+        vars: params.vars,
+        jobId: jobRow.id,
+        sequence: 1,
+        executionName: fallbackName,
+        status: 'pending',
+        triggerEvents: [],
+        priorExecutions: [],
+      });
+      const resolvedName = resolveJobExecutionName({
+        definitionId: params.params.definitionId,
+        job,
+        fallbackName,
+        context: context.values,
+      });
+      const modelJob = params.params.model.jobs[jobIndex];
+      if (!modelJob) return undefined;
+
+      const runnerContext = assembleExecutionCreationContext({
+        run: params.run,
+        triggerPayload: params.params.triggerPayload,
+        inputs: params.params.inputs ?? null,
+        vars: params.vars,
+        jobId: jobRow.id,
+        sequence: 1,
+        executionName: resolvedName.value,
+        status: 'pending',
+        triggerEvents: [],
+        priorExecutions: [],
+      });
+      const runner = materializeJobRunner({
+        job: modelJob,
+        context: runnerContext,
+        definitionId: params.params.definitionId,
+      });
+
+      return {
+        sequence: 1,
+        name: resolvedName.value,
+        runner: [...runner],
+        status: 'pending' as const,
+        evaluationTrace: resolvedName.trace.length === 0 ? null : resolvedName.trace,
+      };
+    },
+    createSteps: () =>
+      job.steps.map((step) => ({
+        key: step.key,
+        name: step.name,
+        sourceLocation: step.sourceLocation,
+        status: step.status,
+        type: step.type,
+        config: step.config,
+        condition: step.condition ?? null,
+        configPlan: step.configPlan ?? null,
+        authoredConfig: step.authoredConfig,
+        position: step.position,
+      })),
+  }));
 }
 
 function referencedVariables(
