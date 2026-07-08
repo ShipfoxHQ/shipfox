@@ -1,4 +1,5 @@
 import type {GithubApiClient} from '#api/client.js';
+import {DEFAULT_JOB_LOG_TAIL_LINES} from '#core/actions-logs.js';
 import {
   GithubAgentToolsProvider,
   githubAgentToolCatalog,
@@ -258,6 +259,7 @@ describe('github agent tool catalog', () => {
     const updatePullRequestSchema = inputSchemaFor('update_pull_request');
     const addReplySchema = inputSchemaFor('add_reply_to_pull_request_comment');
     const actionsRunTriggerSchema = inputSchemaFor('actions_run_trigger');
+    const getJobLogsSchema = inputSchemaFor('get_job_logs');
 
     expect(listIssueTypesSchema.required).toEqual(['owner']);
     expect(updatePullRequestSchema.properties).not.toHaveProperty('draft');
@@ -277,6 +279,15 @@ describe('github agent tool catalog', () => {
       {properties: {method: {const: 'cancel_workflow_run'}}, required: ['run_id']},
       {properties: {method: {const: 'delete_workflow_run_logs'}}, required: ['run_id']},
     ]);
+    expect(getJobLogsSchema.properties?.return_content).toMatchObject({
+      type: 'boolean',
+    });
+    expect(getJobLogsSchema.properties?.job_id).toMatchObject({type: 'number'});
+    expect(getJobLogsSchema.properties?.run_id).toMatchObject({type: 'number'});
+    expect(getJobLogsSchema.properties?.tail_lines).toMatchObject({
+      type: 'number',
+      default: DEFAULT_JOB_LOG_TAIL_LINES,
+    });
   });
 
   it('exposes the catalog through the provider adapter', () => {
