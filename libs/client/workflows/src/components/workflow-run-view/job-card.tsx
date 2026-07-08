@@ -15,6 +15,7 @@ import {
   type Job,
   type JobExecution,
   type JobExecutionTime,
+  type RunAnnotation,
   type Step,
   type StepError,
   type StepSourceLocation,
@@ -24,8 +25,10 @@ import {
 } from '#core/workflow-run.js';
 import {type StepExpandedContext, StepList, type StepListEmptyState} from '../step-list/index.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
+import {JobAnnotations} from './job-annotations.js';
 import {JobExecutionSwitcher} from './job-execution-switcher.js';
 import {formatJobExecutionTime, JobExecutionTimeText} from './job-execution-time-text.js';
+import {StepAnnotations} from './step-annotations.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
@@ -49,6 +52,7 @@ export function JobCard({
   sourceAvailable,
   focusedSourceStepId,
   onOpenStepSource,
+  annotations = [],
 }: {
   workspaceId: string;
   job: Job;
@@ -63,6 +67,7 @@ export function JobCard({
   onOpenStepSource?:
     | ((stepId: string, location: StepSourceLocation, trigger: HTMLButtonElement | null) => void)
     | undefined;
+  annotations?: readonly RunAnnotation[] | undefined;
 }) {
   const titleId = useId();
   const sourceButtonRef = useRef<HTMLButtonElement>(null);
@@ -98,6 +103,7 @@ export function JobCard({
         attempt={attempt}
         attemptError={attemptError}
         attemptStatus={attemptStatus}
+        annotations={annotations}
       />
     );
 
@@ -174,6 +180,7 @@ export function JobCard({
         </div>
         <JobExecutionMetadata execution={selectedJobExecution} />
       </div>
+      <JobAnnotations annotations={annotations} jobExecutionId={selectedJobExecution?.id} />
       <div className="min-h-0 border-t border-border-neutral-strong">
         {selectedJobExecution ? (
           <StepList
@@ -374,6 +381,7 @@ function StepAttemptDetailPanel({
   attempt,
   attemptError,
   attemptStatus,
+  annotations,
 }: {
   workspaceId: string;
   step: Step;
@@ -381,6 +389,7 @@ function StepAttemptDetailPanel({
   attempt: number;
   attemptError: Record<string, unknown> | null;
   attemptStatus: string;
+  annotations: readonly RunAnnotation[];
 }) {
   const selectedAttemptError = toSelectedAttemptError(step, attemptError) ?? step.error;
 
@@ -393,6 +402,7 @@ function StepAttemptDetailPanel({
           error={selectedAttemptError}
         />
       ) : null}
+      <StepAnnotations annotations={annotations} stepId={stepId} attempt={attempt} />
       <StepAttemptLogPanel stepId={stepId} attempt={attempt} attemptStatus={attemptStatus} />
     </div>
   );
