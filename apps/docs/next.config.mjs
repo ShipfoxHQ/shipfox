@@ -33,9 +33,16 @@ const config = {
   // With a basePath, the deployment domain root (the URL Vercel puts in the PR
   // preview comment) would 404, so redirect it to /docs. basePath:false matches
   // the literal domain root, before the prefix is applied. Not needed in dev,
-  // where there is no basePath and the root already serves the docs.
+  // where there is no basePath and the root already serves the docs. In dev,
+  // redirect /docs-prefixed URLs back to the unprefixed route so production URLs
+  // copied into a local browser still work.
   redirects() {
-    if (!basePath) return [];
+    if (!basePath) {
+      return [
+        {source: '/docs', destination: '/', permanent: false},
+        {source: '/docs/:path*', destination: '/:path*', permanent: false},
+      ];
+    }
     return [{source: '/', destination: basePath, basePath: false, permanent: false}];
   },
 };
