@@ -206,6 +206,7 @@ describe('workflow run queries', () => {
           key: 'deploy',
           config: expect.objectContaining({env: {IMAGE_SHA: 'abc123'}}),
         }),
+        dispatched: true,
       });
     });
 

@@ -557,6 +557,40 @@ describe('claimPendingJobExecution', () => {
     expect(claimed?.jobId).toBe(created.jobId);
   });
 
+  it('claims by labels only when runner tool capabilities differ', async () => {
+    const matchingRunner = await runnerSessionFactory.create({
+      workspaceId,
+      labels: sessionLabels,
+      toolCapabilities: {harnesses: {pi: {tools: ['read']}}},
+    });
+    const underProvisionedRunner = await runnerSessionFactory.create({
+      workspaceId,
+      labels: sessionLabels,
+      toolCapabilities: {harnesses: {pi: {tools: []}}},
+    });
+    const firstJob = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['linux'],
+    });
+    const secondJob = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['linux'],
+    });
+
+    const firstClaim = await claimPendingJobExecution({
+      workspaceId,
+      runnerSessionId: underProvisionedRunner.id,
+    });
+    const secondClaim = await claimPendingJobExecution({
+      workspaceId,
+      runnerSessionId: matchingRunner.id,
+    });
+
+    expect([firstClaim?.jobId, secondClaim?.jobId].sort()).toEqual(
+      [firstJob.jobId, secondJob.jobId].sort(),
+    );
+  });
+
   it('skips an older incompatible job and claims the oldest compatible job', async () => {
     await pendingJobFactory.create({workspaceId, requiredLabels: ['macos']});
     const compatible = await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});

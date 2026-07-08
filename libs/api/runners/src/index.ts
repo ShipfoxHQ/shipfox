@@ -27,6 +27,11 @@ export {
   mintEphemeralRegistrationTokensBatch,
 } from '#core/ephemeral-registration-tokens.js';
 export {
+  type EffectiveRunnerToolCapabilitiesResult,
+  getEffectiveRunnerToolCapabilities,
+  unadvertisedRunnerTools,
+} from '#core/runner-tool-capabilities.js';
+export {
   cancelRunnerJobs,
   type EnqueueJobExecutionParams,
   enqueueJobExecution,

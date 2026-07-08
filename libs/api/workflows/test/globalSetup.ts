@@ -1,4 +1,5 @@
 import './env.js';
+import {annotationsModule} from '@shipfox/annotations';
 import {agentModule} from '@shipfox/api-agent';
 import {runnersModule} from '@shipfox/api-runners';
 import {secretsModule} from '@shipfox/api-secrets';
@@ -34,10 +35,19 @@ export async function setup() {
     secretsModule.database.migrationsPath,
     '__drizzle_migrations_secrets',
   );
+  if (!annotationsModule.database || Array.isArray(annotationsModule.database)) {
+    throw new Error('Annotations module database is not configured');
+  }
+  await runMigrations(
+    annotationsModule.database.db(),
+    annotationsModule.database.migrationsPath,
+    '__drizzle_migrations_annotations',
+  );
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_workflows');
   await db().execute(sql`TRUNCATE workflows_workflow_runs CASCADE`);
   await db().execute(sql`TRUNCATE workflows_job_listener_events CASCADE`);
   await db().execute(sql`TRUNCATE workflows_outbox CASCADE`);
+  await db().execute(sql`TRUNCATE annotations_annotations CASCADE`);
 
   closeDb();
   await closePostgresClient();
