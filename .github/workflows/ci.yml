@@ -106,11 +106,6 @@ jobs:
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
-      - name: Start Ollama
-        id: ollama
-        run: mise run ollama:up
-        background: true
-
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
 
@@ -122,8 +117,8 @@ jobs:
       - name: Build dev server dependencies
         run: turbo build --filter @shipfox/api --filter @shipfox/vite
 
-      - name: Wait for test services and Ollama
-        wait: [test-services, ollama]
+      - name: Wait for test services
+        wait: test-services
 
       - name: Run E2E tests
         id: e2e

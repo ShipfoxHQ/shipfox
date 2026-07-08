@@ -260,14 +260,6 @@ The equivalent service command is:
 node dev/worktree-services.mjs up
 ```
 
-Agent E2E tests that validate custom model providers also need the shared local
-Ollama service:
-
-```sh
-mise run ollama:up
-mise run e2e -- --filter=@shipfox/e2e-client-agent
-```
-
 If the API and client are already running, run the package directly:
 
 ```sh

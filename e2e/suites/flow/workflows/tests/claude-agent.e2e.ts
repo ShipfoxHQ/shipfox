@@ -12,6 +12,7 @@ import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const CLAUDE_AGENT_MODEL = 'deterministic-claude-agent';
+const TERMINAL_TIMEOUT_MS = 60_000;
 
 const SMOKE_WORKFLOW_YAML = `
 name: Claude deterministic agent
@@ -168,7 +169,10 @@ async function runClaudeWorkflow(params: {
     userToken: token,
     name: `E2E ${params.scenario} ${params.uniqueId}`,
     runnerLabel,
-    extraEnv: params.runnerEnv,
+    extraEnv: {
+      ...params.runnerEnv,
+      SHIPFOX_POLL_MAX_DURATION_MS: String(TERMINAL_TIMEOUT_MS),
+    },
   });
 
   try {
@@ -192,7 +196,7 @@ async function runClaudeWorkflow(params: {
     return await waitForRunTerminalOrFailedRunner({
       runId,
       token,
-      timeoutMs: 300_000,
+      timeoutMs: TERMINAL_TIMEOUT_MS,
       runner: localRunner.runner,
     });
   } finally {

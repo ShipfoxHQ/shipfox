@@ -1,12 +1,11 @@
 import type {WorkflowRunDetailResponseDto} from '@shipfox/api-workflows-dto';
 import {createApiClient} from '@shipfox/e2e-core';
+import {message, startFakeOpenAiModelProvider} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {
-  createAnthropicModelProviderConfig,
-  createOllamaCustomProvider,
+  createAnthropicFakeModelProviderConfig,
+  createOpenAiCompatibleCustomProvider,
   deleteModelProviderConfig,
-  type OllamaConfig,
-  requireOllamaModel,
 } from '@shipfox/e2e-setup-agent';
 import {attachLocalRunnerLog} from '#attachments.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
@@ -16,95 +15,120 @@ import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const CLAUDE_CONFIG_MODEL = 'claude-opus-4-8';
-const OLLAMA_SMOKE_MAX_OUTPUT_TOKENS = 64;
+const CLAUDE_FAKE_MODEL = 'deterministic-claude-smoke-agent';
+const OPENAI_FAKE_MODEL = 'deterministic-openai-smoke-agent';
+const OPENAI_SMOKE_MAX_OUTPUT_TOKENS = 64;
+const OPENAI_SMOKE_RESPONSE_COUNT = 4;
+const TERMINAL_TIMEOUT_MS = 60_000;
 
 test.describe.configure({mode: 'serial'});
 
-test('runs a Claude harness smoke workflow against local Ollama', async ({suite}, testInfo) => {
-  const ollama = await requireOllamaOrSkip();
-  if (ollama === undefined) return;
-
+test('runs a Claude harness smoke workflow against the fake Anthropic endpoint', async ({
+  suite,
+}, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
-  await createAnthropicModelProviderConfig({
-    workspaceId: suite.workspaceId,
-    defaultModel: CLAUDE_CONFIG_MODEL,
-  });
-
-  const terminal = await runLiveOllamaWorkflow({
-    suite,
-    testInfo,
-    uniqueId,
-    scenario: 'claude-ollama-agent',
-    workflowYaml: workflowYaml({
-      name: 'Claude Ollama agent',
-      harness: 'claude',
-      thinking: 'low',
-      provider: 'anthropic',
-      model: CLAUDE_CONFIG_MODEL,
-    }),
-    runnerEnv: {
-      AGENT_CLAUDE_ANTHROPIC_BASE_URL: ollama.baseUrl,
-      AGENT_CLAUDE_ANTHROPIC_MODEL: ollama.model,
-      AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL: ollama.model,
-    },
-  });
-
-  expect(terminal.status).toBe('succeeded');
-  expect(terminal.jobs.find((job) => job.key === 'fix')?.status).toBe('succeeded');
-  expect(stepResponse(terminal, 'fix', 'reply').trim().length).toBeGreaterThan(0);
-});
-
-test('runs a Pi harness smoke workflow against local Ollama', async ({suite}, testInfo) => {
-  const ollama = await requireOllamaOrSkip();
-  if (ollama === undefined) return;
-
-  const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
-  const provider = await createOllamaCustomProvider({
-    workspaceId: suite.workspaceId,
-    sessionToken: suite.sessionToken,
-    providerId: `local-ollama-smoke-${uniqueId}`,
-    displayName: `Local Ollama Smoke ${uniqueId}`,
-    baseUrl: ollama.baseUrl,
-    model: ollama.model,
-    modelMetadata: {max_output_tokens: OLLAMA_SMOKE_MAX_OUTPUT_TOKENS},
+  const fakeModelProvider = await startFakeOpenAiModelProvider({
+    runId: `${suite.runId}-claude-provider-smoke-${uniqueId}`,
   });
 
   try {
-    const terminal = await runLiveOllamaWorkflow({
+    const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
+      workspaceId: suite.workspaceId,
+      fakeModelProvider,
+      scriptId: `${suite.runId}-claude-provider-smoke-${uniqueId}`,
+      model: CLAUDE_FAKE_MODEL,
+      configDefaultModel: CLAUDE_CONFIG_MODEL,
+      responses: [message('ok')],
+      assertions: [{kind: 'model', equals: CLAUDE_FAKE_MODEL}],
+    });
+
+    const terminal = await runFakeModelProviderWorkflow({
       suite,
       testInfo,
       uniqueId,
-      scenario: 'pi-ollama-agent',
+      scenario: 'claude-fake-model-agent',
       workflowYaml: workflowYaml({
-        name: 'Pi Ollama agent',
+        name: 'Claude fake model agent',
+        harness: 'claude',
+        thinking: 'low',
+        provider: 'anthropic',
+        model: CLAUDE_CONFIG_MODEL,
+      }),
+      runnerEnv: fakeAnthropic.runnerEnv,
+    });
+
+    expect(terminal.status).toBe('succeeded');
+    expect(terminal.jobs.find((job) => job.key === 'fix')?.status).toBe('succeeded');
+    expect(stepResponse(terminal, 'fix', 'reply').trim()).toBe('ok');
+  } finally {
+    await fakeModelProvider.stop().catch((error: unknown) => {
+      process.stderr.write(
+        `claude-fake-model-agent-e2e: stopFakeOpenAiModelProvider failed: ${String(error)}\n`,
+      );
+    });
+  }
+});
+
+test('runs a Pi harness smoke workflow against the fake OpenAI-compatible endpoint', async ({
+  suite,
+}, testInfo) => {
+  const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+  const fakeModelProvider = await startFakeOpenAiModelProvider({
+    runId: `${suite.runId}-pi-provider-smoke-${uniqueId}`,
+  });
+
+  let providerId: string | undefined;
+  try {
+    const script = await fakeModelProvider.createScript({
+      id: `${suite.runId}-pi-provider-smoke-${uniqueId}`,
+      model: OPENAI_FAKE_MODEL,
+      responses: openAiSmokeResponses(),
+      assertions: [{kind: 'model', equals: OPENAI_FAKE_MODEL}],
+    });
+    const provider = await createOpenAiCompatibleCustomProvider({
+      workspaceId: suite.workspaceId,
+      sessionToken: suite.sessionToken,
+      providerId: `fake-openai-smoke-${uniqueId}`,
+      displayName: `Fake OpenAI Smoke ${uniqueId}`,
+      baseUrl: script.modelProviderBaseUrl,
+      model: script.model,
+      modelMetadata: {max_output_tokens: OPENAI_SMOKE_MAX_OUTPUT_TOKENS},
+    });
+    providerId = provider.provider_id;
+
+    const terminal = await runFakeModelProviderWorkflow({
+      suite,
+      testInfo,
+      uniqueId,
+      scenario: 'pi-fake-model-agent',
+      workflowYaml: workflowYaml({
+        name: 'Pi fake model agent',
         harness: 'pi',
         thinking: 'off',
         provider: provider.provider_id,
-        model: ollama.model,
+        model: script.model,
       }),
       runnerEnv: {},
     });
 
     expect(terminal.status).toBe('succeeded');
     expect(terminal.jobs.find((job) => job.key === 'fix')?.status).toBe('succeeded');
-    expect(stepResponse(terminal, 'fix', 'reply').trim().length).toBeGreaterThan(0);
+    expect(stepResponse(terminal, 'fix', 'reply').trim()).toBe('ok');
   } finally {
-    await deleteModelProviderConfig({
-      workspaceId: suite.workspaceId,
-      sessionToken: suite.sessionToken,
-      providerId: provider.provider_id,
-    }).catch(() => undefined);
+    if (providerId !== undefined) {
+      await deleteModelProviderConfig({
+        workspaceId: suite.workspaceId,
+        sessionToken: suite.sessionToken,
+        providerId,
+      }).catch(() => undefined);
+    }
+    await fakeModelProvider.stop().catch((error: unknown) => {
+      process.stderr.write(
+        `pi-fake-model-agent-e2e: stopFakeOpenAiModelProvider failed: ${String(error)}\n`,
+      );
+    });
   }
 });
-
-async function requireOllamaOrSkip(): Promise<OllamaConfig | undefined> {
-  try {
-    return await requireOllamaModel();
-  } catch (error) {
-    test.skip(true, error instanceof Error ? error.message : String(error));
-    return undefined;
-  }
-}
 
 function workflowYaml(params: {
   name: string;
@@ -134,7 +158,7 @@ jobs:
 `;
 }
 
-async function runLiveOllamaWorkflow(params: {
+async function runFakeModelProviderWorkflow(params: {
   suite: SuiteContext;
   testInfo: {
     attach: (name: string, options: {body: Buffer | string; contentType: string}) => Promise<void>;
@@ -153,7 +177,10 @@ async function runLiveOllamaWorkflow(params: {
     userToken: token,
     name: `E2E ${params.scenario} ${params.uniqueId}`,
     runnerLabel,
-    extraEnv: params.runnerEnv,
+    extraEnv: {
+      ...params.runnerEnv,
+      SHIPFOX_POLL_MAX_DURATION_MS: String(TERMINAL_TIMEOUT_MS),
+    },
   });
 
   try {
@@ -177,7 +204,7 @@ async function runLiveOllamaWorkflow(params: {
     return await waitForRunTerminalOrFailedRunner({
       runId,
       token,
-      timeoutMs: 300_000,
+      timeoutMs: TERMINAL_TIMEOUT_MS,
       runner: localRunner.runner,
     });
   } finally {
@@ -204,4 +231,8 @@ function stepResponse(run: WorkflowRunDetailResponseDto, jobKey: string, stepKey
   if (step.response === null)
     throw new Error(`Step ${jobKey}.${stepKey} did not record a response`);
   return step.response;
+}
+
+function openAiSmokeResponses() {
+  return Array.from({length: OPENAI_SMOKE_RESPONSE_COUNT}, () => message('ok'));
 }
