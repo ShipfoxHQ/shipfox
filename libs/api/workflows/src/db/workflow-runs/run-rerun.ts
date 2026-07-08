@@ -1,8 +1,7 @@
 import {and, asc, eq, inArray, sql} from 'drizzle-orm';
 import {isWorkflowRunTerminal, type WorkflowRun} from '#core/entities/workflow-run.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
-import {assembleExecutionCreationContext} from '#core/step-config/assemble-run-context.js';
-import {materializeJobRunner} from '#core/step-config/materialize-workflow-model.js';
+import {deriveJobExecutionRunner} from '#core/workflow-run-creation.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
 import {type JobExecutionDb, jobExecutions} from '../schema/job-executions.js';
@@ -227,20 +226,13 @@ function materializeRerunGraphJobs(params: {
         const runner =
           carriedOver || modelJob === undefined
             ? (sourceExecution?.runner ?? job.runner ?? null)
-            : materializeJobRunner({
-                job: modelJob,
-                context: assembleExecutionCreationContext({
-                  run: params.sourceRun,
-                  triggerPayload: params.sourceRun.triggerPayload,
-                  inputs: params.sourceRun.inputs,
-                  jobId: job.id,
-                  sequence: 1,
-                  executionName,
-                  status: 'pending',
-                  triggerEvents: [],
-                  priorExecutions: [],
-                }),
-                definitionId: params.sourceRun.definitionId,
+            : deriveJobExecutionRunner({
+                run: params.sourceRun,
+                modelJob,
+                jobId: job.id,
+                sequence: 1,
+                executionName,
+                status: 'pending',
               });
 
         return {

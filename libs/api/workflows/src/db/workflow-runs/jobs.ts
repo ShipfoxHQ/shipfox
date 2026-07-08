@@ -1,23 +1,16 @@
-import {DEFAULT_JOB_SUCCESS} from '@shipfox/api-definitions';
 import {WORKFLOWS_JOB_TERMINATED} from '@shipfox/api-workflows-dto';
-import {
-  capTraceEntries,
-  createWorkflowExpression,
-  evaluatePlannedPredicateAtSite,
-  predicateTraceEntry,
-} from '@shipfox/expression';
 import {and, asc, desc, eq, inArray, notInArray, sql} from 'drizzle-orm';
-import {explicitConditionTrace} from '#core/condition-trace.js';
 import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
 import type {JobExecution} from '#core/entities/job-execution.js';
 import type {PersistedEvaluationTraceEntry} from '#core/entities/step.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {
-  assembleExecutionsContext,
-  assembleJobActivationContext,
-  assembleJobsContext,
-  type JobContextInput,
-} from '#core/step-config/assemble-run-context.js';
+  type DeriveJobSuccessResult,
+  decideJobActivation,
+  deriveJobSuccess,
+  runtimeCompletionStatusForJob,
+} from '#core/job-transition/index.js';
+import type {JobContextInput} from '#core/step-config/assemble-run-context.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import {recordWorkflowJobStatusChanged} from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
@@ -168,61 +161,32 @@ export async function evaluateJobActivations(
       const target = targetsByJobId.get(input.jobId);
       if (!target) throw new Error(`Cannot evaluate missing activation job: ${input.jobId}`);
       const job = toJob(target.job);
-      if (isJobTerminal(job.status)) {
-        decisions.push({
-          kind: 'terminal-job',
-          jobId: job.id,
-          status: runtimeCompletionStatusForJob(job.status),
-          jobVersion: job.version,
-        });
-        continue;
-      }
-
       const modelJob = target.attempt.model?.jobs.find((item) => item.key === target.job.key);
-      if (modelJob?.if === undefined) {
-        decisions.push({kind: 'start-job', jobId: job.id});
-        continue;
-      }
-
-      const context = assembleJobActivationContext({
+      const decision = decideJobActivation({
         run: toWorkflowRun(target.run),
-        triggerPayload: target.run.triggerPayload,
-        inputs: target.run.inputs,
-        jobs: job.dependencies.flatMap((key) => {
+        job,
+        condition: modelJob?.if,
+        dependencies: job.dependencies.flatMap((key) => {
           const dependency = contextsByJobKey.get(key);
           return dependency === undefined ? [] : [dependency];
         }),
       });
-      const outcome = evaluatePlannedPredicateAtSite({
-        expression: modelJob.if,
-        field: 'job.if',
-        site: context.site,
-        context: context.values,
-      });
-      if (outcome.value) {
-        decisions.push({kind: 'start-job', jobId: job.id});
+
+      if (decision.kind === 'terminal-job' || decision.kind === 'start-job') {
+        decisions.push(decision);
         continue;
       }
 
-      const statusReason = outcome.evaluationFailed ? 'condition_errored' : 'condition_rejected';
-      const evaluationTrace = explicitConditionTrace({
-        expression: modelJob.if,
-        field: 'job.if',
-        route: outcome.route,
-        site: context.site,
-        value: outcome.value,
-        degraded: outcome.evaluationFailed,
-      });
       const expectedVersion = expectedVersions.get(job.id);
       if (expectedVersion === undefined) {
         throw new Error(`Missing expected version for activation job ${job.id}`);
       }
       const updated = await updateJobStatusAtVersion(tx, {
         jobId: job.id,
-        status: 'skipped',
+        status: decision.status,
         expectedVersion,
-        statusReason,
-        evaluationTrace,
+        statusReason: decision.statusReason,
+        evaluationTrace: decision.evaluationTrace,
       });
       if (updated) {
         decisions.push({
@@ -286,18 +250,6 @@ async function directDependencyContextsByJobKey(
   }
 
   return contextsByJobKey;
-}
-
-function runtimeCompletionStatusForJob(status: JobStatus): RuntimeCompletionStatus {
-  if (
-    status === 'succeeded' ||
-    status === 'failed' ||
-    status === 'cancelled' ||
-    status === 'skipped'
-  ) {
-    return status;
-  }
-  throw new Error(`Job status is not terminal: ${status}`);
 }
 
 export interface UpdateJobStatusAtVersionParams {
@@ -413,57 +365,8 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
   return result.job;
 }
 
-export interface EvaluateJobSuccessResult {
-  status: RuntimeCompletionStatus;
-  statusReason: JobStatusReason | null;
-  trace: readonly PersistedEvaluationTraceEntry[];
-}
-
-export function evaluateJobSuccess(params: {
-  success: string | null;
-  executions: readonly JobExecution[];
-  jobs?: readonly JobContextInput[];
-}): EvaluateJobSuccessResult {
-  const expression = createWorkflowExpression({
-    source: params.success ?? DEFAULT_JOB_SUCCESS,
-    check: {mode: 'syntax'},
-  });
-  const context = {
-    ...assembleExecutionsContext(params.executions),
-    ...(params.jobs === undefined ? {} : assembleJobsContext(params.jobs)),
-  };
-  const outcome = evaluatePlannedPredicateAtSite({
-    expression,
-    field: 'job.success',
-    site: 'job-resolution',
-    context,
-  });
-  const trace = capTraceEntries([
-    {
-      ...predicateTraceEntry({
-        expression: expression.source,
-        route: outcome.route,
-        site: 'job-resolution',
-        value: outcome.value,
-        degraded: outcome.evaluationFailed,
-      }),
-      field: 'job.success',
-    },
-  ]);
-  const passed = outcome.value;
-  const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
-  if (status === 'succeeded') return {status, statusReason: null, trace};
-
-  // A thrown predicate is a job-level failure, not evidence that any execution failed.
-  return {
-    status,
-    statusReason: outcome.evaluationFailed
-      ? 'unknown'
-      : (params.executions.find((execution) => execution.statusReason)?.statusReason ??
-        'step_failed'),
-    trace,
-  };
-}
+export type EvaluateJobSuccessResult = DeriveJobSuccessResult;
+export const evaluateJobSuccess = deriveJobSuccess;
 
 export async function resolveJobStatusFromJobExecutions(params: {
   jobId: string;

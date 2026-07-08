@@ -27,6 +27,14 @@ export {
 } from './errors.js';
 export type {NextStep, RecordStepResultOutcome, RecordStepResultParams} from './job-execution.js';
 export {nextStepForJob, recordStepResult} from './job-execution.js';
+export {
+  type DecideJobActivationInput,
+  type DeriveJobSuccessResult,
+  decideJobActivation,
+  deriveJobExecutionOutputs,
+  deriveJobSuccess,
+  type JobActivationDecision,
+} from './job-transition/index.js';
 export type {RunWorkflowParams} from './run-workflow.js';
 export {runWorkflow} from './run-workflow.js';
 export {
@@ -35,6 +43,11 @@ export {
   materializeWorkflowModel,
   modelHasAgentStep,
 } from './step-config/index.js';
+export {
+  deriveInitialJobExecutionPlan,
+  deriveJobExecutionRunner,
+  materializeWorkflowRunJobs,
+} from './workflow-run-creation.js';
 export {
   type ScheduleRuntimeDagInput,
   scheduleRuntimeDag,
