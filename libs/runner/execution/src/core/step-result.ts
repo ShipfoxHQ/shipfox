@@ -1,3 +1,4 @@
+import type {LeasedWriteAnnotationOperationDto} from '@shipfox/annotations-dto';
 import type {StepErrorDto} from '@shipfox/api-workflows-dto';
 
 export interface StepResult {
@@ -6,6 +7,8 @@ export interface StepResult {
   response?: string;
   // Step key/value outputs reported in the API report `output` field.
   outputs?: Record<string, string>;
+  // Run-step annotations posted before reporting the step result.
+  annotations?: LeasedWriteAnnotationOperationDto[];
   // Populated when success is false. Null on success.
   error: StepErrorDto;
   // 0 on success, the exit code on failure, null when signal-killed or never spawned.

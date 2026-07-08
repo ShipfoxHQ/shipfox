@@ -4859,6 +4859,9 @@ importers:
 
   libs/runner/execution:
     dependencies:
+      '@shipfox/annotations-dto':
+        specifier: workspace:*
+        version: link:../../api/annotations-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../api/workflows-dto
@@ -4877,6 +4880,9 @@ importers:
       ky:
         specifier: ^2.0.0
         version: 2.0.2
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -4988,6 +4994,9 @@ importers:
 
   libs/runner/protocol:
     dependencies:
+      '@shipfox/annotations-dto':
+        specifier: workspace:*
+        version: link:../../api/annotations-dto
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../../api/agent-dto

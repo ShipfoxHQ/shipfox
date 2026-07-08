@@ -1,4 +1,9 @@
 import {
+  type LeasedWriteAnnotationOperationDto,
+  leasedWriteAnnotationsBodySchema,
+  leasedWriteAnnotationsResponseSchema,
+} from '@shipfox/annotations-dto';
+import {
   type AgentRuntimeCredentialsResponseDto,
   agentRuntimeCredentialsResponseSchema,
 } from '@shipfox/api-agent-dto';
@@ -38,6 +43,13 @@ import {config} from '#config.js';
 
 /** Media type the append endpoint expects for the raw NDJSON request body. */
 const LOG_NDJSON_CONTENT_TYPE = 'application/x-ndjson';
+export const ANNOTATION_POST_TIMEOUT_MS = 2_500;
+
+const ANNOTATION_CAPPED_CODES = new Set([
+  'annotation-body-too-large',
+  'annotation-count-limit-exceeded',
+  'annotation-total-bytes-limit-exceeded',
+]);
 
 /**
  * The runner-facing result of one append, after the transport has interpreted the
@@ -50,6 +62,11 @@ export type LogAppendOutcome =
   | {status: 'committed'; committedLength: number; capped: boolean}
   | {status: 'conflict'; committedLength: number}
   | {status: 'stopped'};
+
+export type AnnotationWriteOutcome =
+  | {status: 'written'; annotationCount: number; totalBodyBytes: number}
+  | {status: 'capped'; code: string}
+  | {status: 'rejected'; statusCode: number; code?: string | undefined};
 
 /**
  * The append port the runner's uploader depends on. The caller binds the lease
@@ -422,6 +439,46 @@ export async function appendStepLogs(
   // 5xx, 408, 429, or any other unexpected status: throw so the uploader logs it and retries
   // on the next tick (throwHttpErrors disables ky's in-transport status-code retry).
   throw new Error(`Log append failed with status ${response.status}`);
+}
+
+export async function writeStepAnnotations(
+  leaseClient: KyInstance,
+  params: {
+    stepId: string;
+    attempt: number;
+    annotations: readonly LeasedWriteAnnotationOperationDto[];
+    signal?: AbortSignal;
+  },
+): Promise<AnnotationWriteOutcome> {
+  const body = leasedWriteAnnotationsBodySchema.parse({
+    step_id: params.stepId,
+    attempt: params.attempt,
+    annotations: params.annotations,
+  });
+
+  const response = await leaseClient.post('runs/jobs/current/annotations', {
+    json: body,
+    throwHttpErrors: false,
+    retry: 0,
+    timeout: ANNOTATION_POST_TIMEOUT_MS,
+    ...(params.signal ? {signal: params.signal} : {}),
+  });
+
+  if (response.ok) {
+    const parsed = leasedWriteAnnotationsResponseSchema.parse(await response.json());
+    return {
+      status: 'written',
+      annotationCount: parsed.accounting.annotation_count,
+      totalBodyBytes: parsed.accounting.total_body_bytes,
+    };
+  }
+
+  const code = await errorCode(response);
+  if (response.status === 413 && code !== undefined && ANNOTATION_CAPPED_CODES.has(code)) {
+    return {status: 'capped', code};
+  }
+
+  return {status: 'rejected', statusCode: response.status, ...(code ? {code} : {})};
 }
 
 export async function heartbeat(
