@@ -65,7 +65,7 @@ This page covers the most common issues teams encounter with Shipfox and how to 
     **Fix:**
     - Add a `key:` field to the step you want to restart from (`restart_from` matches keys, not `name:` labels).
     - Ensure the keyed step appears **before** the gate step in the same job.
-    - Use the exact `name` string — it's case-sensitive.
+    - Reference the exact `key` string — it's case-sensitive.
   </Accordion>
 
   <Accordion title="Sentry trigger not firing">
