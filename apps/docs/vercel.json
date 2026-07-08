@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "pnpm install",
-  "buildCommand": "turbo run build",
-  "devCommand": "turbo run dev",
+  "buildCommand": "turbo run build --filter=@shipfox/docs",
+  "devCommand": "turbo run dev --filter=@shipfox/docs",
   "regions": ["fra1", "iad1"],
   "trailingSlash": false,
   "headers": [

@@ -25,6 +25,13 @@ const config = {
       },
     ];
   },
+  // Everything lives under the basePath, so the deployment domain root (the URL
+  // Vercel puts in the PR preview comment) would 404. Redirect it to /docs.
+  // basePath:false matches the literal domain root, before the prefix is applied.
+  // In production only /docs/* is proxied from the landing app, so this never runs there.
+  redirects() {
+    return [{source: '/', destination: '/docs', basePath: false, permanent: false}];
+  },
 };
 
 export default withMDX(config);
