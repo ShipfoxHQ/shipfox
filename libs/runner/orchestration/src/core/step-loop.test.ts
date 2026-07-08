@@ -225,6 +225,10 @@ describe('runJobSteps', () => {
     });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('runs the setup step then a run step against the prepared cwd, reporting both', async () => {
     const setup = buildSetupStep();
     const run = buildRunStep();

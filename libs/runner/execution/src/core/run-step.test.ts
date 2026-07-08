@@ -265,8 +265,14 @@ describe('executeRunStep', () => {
     const result = await executeRunStep(step);
 
     expect(result.success).toBe(true);
-    await expect(access(result.outputs?.summary ?? '')).rejects.toThrow();
-    await expect(access(result.outputs?.dir ?? '')).rejects.toThrow();
+    expect(result.outputs?.summary).toMatch(SUMMARY_PATH_REGEX);
+    expect(result.outputs?.dir).toMatch(ANNOTATIONS_DIR_REGEX);
+    expect(result.outputs).toBeDefined();
+    if (!result.outputs) throw new Error('Expected annotation spool output paths');
+    const {summary, dir} = result.outputs;
+    if (!summary || !dir) throw new Error('Expected annotation spool output paths');
+    await expect(access(summary)).rejects.toThrow();
+    await expect(access(dir)).rejects.toThrow();
   });
 
   it('fails a succeeded step when emitted output exceeds the total byte cap', async () => {

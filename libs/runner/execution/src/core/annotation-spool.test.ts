@@ -1,9 +1,10 @@
-import {access, mkdir, mkdtemp, rm, stat, writeFile} from 'node:fs/promises';
+import {access, chmod, mkdir, mkdtemp, rm, stat, symlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   ANNOTATION_BODY_MAX_BYTES,
+  ANNOTATION_MAX_SPOOL_BYTES,
   type AnnotationSpool,
   collectAnnotationOperations,
   createAnnotationSpool,
@@ -96,6 +97,59 @@ describe('annotation spool', () => {
     expect(warn).toHaveBeenCalledWith(
       expect.objectContaining({limit: ANNOTATION_BODY_MAX_BYTES}),
       expect.stringContaining('exceeds the local read limit'),
+    );
+  });
+
+  it('skips symlinked annotation files', async () => {
+    const spool = await makeSpool();
+    const target = join(spool.annotationsDir, 'target');
+    await rm(spool.summaryPath);
+    await writeFile(target, 'secret');
+    await symlink(target, spool.summaryPath);
+
+    const operations = await collectAnnotationOperations(spool);
+
+    expect(operations).toEqual([]);
+  });
+
+  it('keeps valid operations when a single operation file cannot be read', async () => {
+    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+    const spool = await makeSpool();
+    const unreadablePath = join(spool.annotationsDir, '002-unreadable.json');
+    await writeFile(
+      join(spool.annotationsDir, '001-valid.json'),
+      JSON.stringify({context: 'deploy', op: 'append', body: 'body'}),
+    );
+    await writeFile(unreadablePath, JSON.stringify({context: 'deploy', op: 'append', body: 'bad'}));
+    await chmod(unreadablePath, 0o000);
+
+    const operations = await collectAnnotationOperations(spool);
+
+    expect(operations).toEqual([{context: 'deploy', style: 'default', op: 'append', body: 'body'}]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({path: unreadablePath}),
+      'Skipping unreadable annotation operation file',
+    );
+  });
+
+  it('counts skipped oversized operation files against the spool byte limit', async () => {
+    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+    const spool = await makeSpool();
+    await writeFile(
+      join(spool.annotationsDir, '001-oversized.json'),
+      Buffer.alloc(ANNOTATION_MAX_SPOOL_BYTES + 1, 'x'),
+    );
+    await writeFile(
+      join(spool.annotationsDir, '002-valid.json'),
+      JSON.stringify({context: 'deploy', op: 'append', body: 'body'}),
+    );
+
+    const operations = await collectAnnotationOperations(spool);
+
+    expect(operations).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({limit: ANNOTATION_MAX_SPOOL_BYTES}),
+      'Annotation operation spool byte limit exceeded; skipping remaining files',
     );
   });
 });
