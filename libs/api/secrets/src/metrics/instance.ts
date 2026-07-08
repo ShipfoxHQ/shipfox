@@ -38,7 +38,6 @@ export type SecretsDekAccessOutcome =
   | 'generated'
   | 'unwrap_failed'
   | 'wrap_failed'
-  | 'persist_failed'
   | 'failure';
 export type SecretsKekRotationOutcome =
   | 'rotated'
