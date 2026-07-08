@@ -52,6 +52,11 @@ export async function run(): Promise<void> {
             ...params,
             namespace: `system/integrations/linear/${params.namespace}`,
           }),
+        deleteSecrets: (params) =>
+          deleteSecrets({
+            ...params,
+            namespace: `system/integrations/linear/${params.namespace}`,
+          }),
       },
     },
   });

@@ -20,13 +20,16 @@ import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers
 const LINEAR_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_linear';
 const LINEAR_SECRETS_NAMESPACE_PREFIX = 'system/integrations/linear/';
 
+type IntegrationDb = ReturnType<typeof db>;
+type IntegrationTx = Parameters<Parameters<IntegrationDb['transaction']>[0]>[0];
+
 async function loadLinearModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
     createLinearTokenStore,
     createLinearIntegrationProvider,
-    deleteLinearInstallationByConnectionId,
+    disconnectLinearInstallation: disconnectLinearInstallationRecords,
     getLinearInstallationByOrganizationId,
     db: linearDb,
     migrationsPath: linearMigrationsPath,
@@ -91,9 +94,17 @@ async function loadLinearModuleParts(
   }
 
   async function disconnectLinearInstallation(input: {connectionId: string}): Promise<void> {
-    await db().transaction(async (tx) => {
-      await deleteLinearInstallationByConnectionId(input.connectionId, {tx});
-      await deleteIntegrationConnection({id: input.connectionId}, {tx});
+    await disconnectLinearInstallationRecords<IntegrationTx>({
+      connectionId: input.connectionId,
+      getConnection: getIntegrationConnectionById,
+      deleteSecrets: (params) =>
+        options.secrets?.linear?.deleteSecrets({
+          ...params,
+          namespace: linearNamespaceSuffix(params.namespace),
+        }) ?? Promise.resolve(0),
+      transaction: (fn) => db().transaction((tx) => fn(tx)),
+      deleteConnection: (params, options) =>
+        deleteIntegrationConnection({id: params.connectionId}, options),
     });
   }
 

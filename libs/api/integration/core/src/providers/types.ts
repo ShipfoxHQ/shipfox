@@ -45,4 +45,5 @@ export interface IntegrationProviderScopedSecrets {
     values: Record<string, string>;
     editedBy?: string | null | undefined;
   }): Promise<void>;
+  deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }

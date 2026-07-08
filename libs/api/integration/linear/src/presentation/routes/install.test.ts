@@ -113,7 +113,8 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
             }),
           ),
         ),
-      disconnectLinearInstallation: options.disconnectLinearInstallation,
+      disconnectLinearInstallation:
+        options.disconnectLinearInstallation ?? vi.fn(() => Promise.resolve()),
     },
   });
   const app = await createApp({
@@ -282,6 +283,33 @@ describe('Linear integration routes', () => {
     });
   });
 
+  it('revokes tokens when Linear identity lookup fails after authorization', async () => {
+    const revokeToken = vi.fn(() => Promise.resolve());
+    const app = await createTestApp({
+      linear: linearClient({
+        revokeToken,
+        getIdentity: vi.fn(() => Promise.reject(new Error('Linear unavailable'))),
+      }),
+    });
+    const state = await createInstallState(app, crypto.randomUUID());
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/linear/callback/api?code=code&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(500);
+    expect(revokeToken).toHaveBeenCalledWith({
+      token: 'linear-refresh-token',
+      tokenTypeHint: 'refresh_token',
+    });
+    expect(revokeToken).toHaveBeenCalledWith({
+      token: 'linear-access-token',
+      tokenTypeHint: 'access_token',
+    });
+  });
+
   it('rejects callbacks when Linear omits required scopes and revokes tokens', async () => {
     const revokeToken = vi.fn(() => Promise.resolve());
     const app = await createTestApp({
@@ -316,7 +344,9 @@ describe('Linear integration routes', () => {
   it('compensates a new connection when token storage fails', async () => {
     const connectionId = '00000000-0000-4000-8000-000000000003';
     const disconnectLinearInstallation = vi.fn(() => Promise.resolve());
+    const revokeToken = vi.fn(() => Promise.resolve());
     const app = await createTestApp({
+      linear: linearClient({revokeToken}),
       tokenStore: {storeTokens: vi.fn(() => Promise.reject(new Error('secret store down')))},
       connectLinearInstallation: vi.fn((input: ConnectLinearInstallationInput) =>
         Promise.resolve(
@@ -339,6 +369,7 @@ describe('Linear integration routes', () => {
     });
 
     expect(res.statusCode).toBe(500);
+    expect(revokeToken).toHaveBeenCalledTimes(2);
     expect(disconnectLinearInstallation).toHaveBeenCalledWith({connectionId});
   });
 

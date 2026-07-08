@@ -23,6 +23,10 @@ export {
   linearAgentToolSelectionCatalog,
 } from '#core/agent-tools.js';
 export {
+  type DisconnectLinearInstallationParams,
+  disconnectLinearInstallation,
+} from '#core/disconnect.js';
+export {
   LinearAccessTokenMissingError,
   LinearAuthorizationScopeMismatchError,
   LinearConnectionAlreadyLinkedError,
@@ -62,7 +66,6 @@ export type {
   UpsertLinearInstallationParams,
 } from '#db/installations.js';
 export {
-  deleteLinearInstallationByConnectionId,
   getLinearInstallationByConnectionId,
   getLinearInstallationByOrganizationId,
   markLinearInstallationRevoked,

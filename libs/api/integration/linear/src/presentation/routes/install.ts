@@ -31,7 +31,7 @@ export interface CreateLinearIntegrationRoutesOptions {
   connectLinearInstallation: (
     input: ConnectLinearInstallationInput,
   ) => Promise<IntegrationConnection<'linear'>>;
-  disconnectLinearInstallation?: ((input: {connectionId: string}) => Promise<void>) | undefined;
+  disconnectLinearInstallation: (input: {connectionId: string}) => Promise<void>;
 }
 
 export function createLinearIntegrationRoutes({

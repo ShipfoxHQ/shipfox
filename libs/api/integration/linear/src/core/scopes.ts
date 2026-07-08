@@ -1,6 +1,11 @@
 import {LinearAuthorizationScopeMismatchError} from './errors.js';
 
-export const LINEAR_OAUTH_SCOPES = ['read', 'write', 'app:assignable', 'app:mentionable'];
+export const LINEAR_OAUTH_SCOPES = Object.freeze([
+  'read',
+  'write',
+  'app:assignable',
+  'app:mentionable',
+]);
 
 export function formatLinearOAuthScopes(scopes = LINEAR_OAUTH_SCOPES): string {
   return scopes.join(',');

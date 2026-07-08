@@ -39,12 +39,16 @@ export interface HandleLinearCallbackParams {
   connectLinearInstallation: (
     input: ConnectLinearInstallationInput,
   ) => Promise<IntegrationConnection<'linear'>>;
-  disconnectLinearInstallation?: ((input: {connectionId: string}) => Promise<void>) | undefined;
+  disconnectLinearInstallation: (input: {connectionId: string}) => Promise<void>;
 }
 
 export async function handleLinearCallback(
   params: HandleLinearCallbackParams,
 ): Promise<IntegrationConnection<'linear'>> {
+  if (typeof params.disconnectLinearInstallation !== 'function') {
+    throw new Error('Linear installation cleanup is not configured');
+  }
+
   const claims = verifyLinearInstallState(params.state);
   if (claims.userId !== params.sessionUserId) {
     throw new LinearInstallStateActorMismatchError();
@@ -56,44 +60,45 @@ export async function handleLinearCallback(
   });
 
   const authorization = await params.linear.exchangeAuthorizationCode({code: params.code});
-  const identity = await params.linear.getIdentity({accessToken: authorization.accessToken});
-  const existing = await params.getExistingLinearConnection({
-    organizationId: identity.organizationId,
-  });
-  if (existing && existing.workspaceId !== claims.workspaceId) {
-    await bestEffortRevokeAuthorization(params.linear, authorization);
-    throw new LinearInstallationAlreadyLinkedError(identity.organizationId);
-  }
+  let connectedConnectionId: string | undefined;
+  let shouldDisconnectConnection = false;
   try {
+    const identity = await params.linear.getIdentity({accessToken: authorization.accessToken});
+    const existing = await params.getExistingLinearConnection({
+      organizationId: identity.organizationId,
+    });
+    if (existing && existing.workspaceId !== claims.workspaceId) {
+      throw new LinearInstallationAlreadyLinkedError(identity.organizationId);
+    }
+
     assertLinearAuthorizationScopes(authorization.scopes);
-  } catch (error) {
-    await bestEffortRevokeAuthorization(params.linear, authorization);
-    throw error;
-  }
 
-  const connection = await params.connectLinearInstallation({
-    workspaceId: claims.workspaceId,
-    organizationId: identity.organizationId,
-    organizationUrlKey: identity.organizationUrlKey,
-    appUserId: identity.appUserId,
-    scopes: authorization.scopes,
-    tokenExpiresAt: authorization.expiresAt ?? null,
-    displayName: `Linear ${identity.organizationName}`,
-  });
-
-  try {
+    const connection = await params.connectLinearInstallation({
+      workspaceId: claims.workspaceId,
+      organizationId: identity.organizationId,
+      organizationUrlKey: identity.organizationUrlKey,
+      appUserId: identity.appUserId,
+      scopes: authorization.scopes,
+      tokenExpiresAt: authorization.expiresAt ?? null,
+      displayName: `Linear ${identity.organizationName}`,
+    });
+    connectedConnectionId = connection.id;
+    shouldDisconnectConnection = !existing;
     await params.tokenStore.storeTokens({
       connectionId: connection.id,
       accessToken: authorization.accessToken,
       refreshToken: authorization.refreshToken,
       editedBy: claims.userId,
     });
+
+    return connection;
   } catch (error) {
-    if (!existing) await bestEffortDisconnectLinearInstallation(params, connection.id);
+    await bestEffortRevokeAuthorization(params.linear, authorization);
+    if (connectedConnectionId && shouldDisconnectConnection) {
+      await bestEffortDisconnectLinearInstallation(params, connectedConnectionId);
+    }
     throw error;
   }
-
-  return connection;
 }
 
 export async function handleLinearOAuthCallbackError(params: {
@@ -146,7 +151,6 @@ async function bestEffortDisconnectLinearInstallation(
   params: HandleLinearCallbackParams,
   connectionId: string,
 ): Promise<void> {
-  if (!params.disconnectLinearInstallation) return;
   try {
     await params.disconnectLinearInstallation({connectionId});
   } catch (error) {
