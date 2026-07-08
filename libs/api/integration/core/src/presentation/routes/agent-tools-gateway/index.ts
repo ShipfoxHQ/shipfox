@@ -1,9 +1,10 @@
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
-import {AUTH_LEASED_JOB} from '@shipfox/api-auth-context';
+import {AUTH_LEASED_JOB, requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
+import {createIntegrationToolCallRecorder} from './audit.js';
 import {dispatchIntegrationToolCall} from './dispatch-stub.js';
 import {buildAgentToolsMcpServer} from './mcp-server.js';
 import {
@@ -40,6 +41,7 @@ export function createAgentToolsGatewayRoutes(
           const server = buildAgentToolsMcpServer({
             authorizedTools,
             dispatch: dispatchIntegrationToolCall,
+            recordCall: createIntegrationToolCallRecorder(requireLeasedJobContext(request)),
           });
           const transport = new StreamableHTTPServerTransport();
 
