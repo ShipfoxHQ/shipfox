@@ -1,7 +1,7 @@
 import {signupBodySchema} from '@shipfox/api-auth-dto';
 import {displayNameFieldError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {Icon} from '@shipfox/react-ui/icon';
 import {toast} from '@shipfox/react-ui/toast';
@@ -180,10 +180,14 @@ export function SignupPage() {
         title="Check your email"
         description={`We sent a verification link to ${submittedEmail}.`}
       >
-        {resendError ? <Alert variant="error">{resendError}</Alert> : null}
-        <Alert variant="success">
+        {resendError ? (
+          <Callout role="alert" type="error">
+            {resendError}
+          </Callout>
+        ) : null}
+        <Callout role="alert" type="success">
           Click the verification link to activate your account, then come back to log in.
-        </Alert>
+        </Callout>
         <div className="flex flex-col gap-8">
           <Button
             aria-disabled={isResendCoolingDown ? true : undefined}
@@ -248,7 +252,11 @@ export function SignupPage() {
           void form.handleSubmit();
         }}
       >
-        {formError ? <Alert variant="error">{formError}</Alert> : null}
+        {formError ? (
+          <Callout role="alert" type="error">
+            {formError}
+          </Callout>
+        ) : null}
         <form.Field
           name="name"
           validators={{

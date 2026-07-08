@@ -14,8 +14,15 @@ const mocks = vi.hoisted(() => {
     createE2eAdminAuthMethod: vi.fn(),
     createE2eRouteGroup: vi.fn(),
     createIntegrationsContext: vi.fn(),
+    buildAgentToolCatalogs: vi.fn(),
+    buildAgentToolSelectionCatalogs: vi.fn(),
+    createWorkspaceConnectionSnapshotLoader: vi.fn(),
+    getIntegrationConnectionById: vi.fn(),
     createPostgresClient: vi.fn(),
     createProjectsModule: vi.fn(),
+    deleteSecrets: vi.fn(),
+    getSecret: vi.fn(),
+    setSecrets: vi.fn(),
     apiConfig: {
       API_PORT: undefined as number | undefined,
       API_TRUST_PROXY: 'false',
@@ -33,27 +40,41 @@ const mocks = vi.hoisted(() => {
     },
     parseApiTrustProxy: vi.fn(),
     registerModuleMetrics: vi.fn(),
+    setAgentToolMaterializationServices: vi.fn(),
     setSourceControl: vi.fn(),
+    loadRunningLeasedStep: vi.fn(),
     startModuleWorkers: vi.fn(),
     startServiceMetrics: vi.fn(),
   };
 });
 
 vi.mock('@shipfox/api-agent', () => ({agentModule: {name: 'agent'}}));
+vi.mock('@shipfox/annotations', () => ({annotationsModule: {name: 'annotations'}}));
 vi.mock('@shipfox/api-auth', () => ({authModule: {name: 'auth'}}));
 vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,
 }));
 vi.mock('@shipfox/api-dispatcher', () => ({dispatcherModule: {name: 'dispatcher'}}));
 vi.mock('@shipfox/api-integration-core', () => ({
+  buildAgentToolCatalogs: mocks.buildAgentToolCatalogs,
+  buildAgentToolSelectionCatalogs: mocks.buildAgentToolSelectionCatalogs,
   createIntegrationsContext: mocks.createIntegrationsContext,
+  createWorkspaceConnectionSnapshotLoader: mocks.createWorkspaceConnectionSnapshotLoader,
+  getIntegrationConnectionById: mocks.getIntegrationConnectionById,
 }));
 vi.mock('@shipfox/api-logs', () => ({logsModule: {name: 'logs'}}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
 vi.mock('@shipfox/api-runners', () => ({runnersModule: {name: 'runners'}}));
-vi.mock('@shipfox/api-secrets', () => ({secretsModule: {name: 'secrets'}}));
+vi.mock('@shipfox/api-secrets', () => ({
+  deleteSecrets: mocks.deleteSecrets,
+  getSecret: mocks.getSecret,
+  secretsModule: {name: 'secrets'},
+  setSecrets: mocks.setSecrets,
+}));
 vi.mock('@shipfox/api-triggers', () => ({triggersModule: {name: 'triggers'}}));
 vi.mock('@shipfox/api-workflows', () => ({
+  loadRunningLeasedStep: mocks.loadRunningLeasedStep,
+  setAgentToolMaterializationServices: mocks.setAgentToolMaterializationServices,
   setSourceControl: mocks.setSourceControl,
   workflowsModule: {name: 'workflows'},
 }));
@@ -65,6 +86,7 @@ vi.mock('@shipfox/node-error-monitoring', () => ({
 vi.mock('@shipfox/node-fastify', () => ({
   closeApp: mocks.closeApp,
   createApp: mocks.createApp,
+  defineRoute: (route: unknown) => route,
   listen: mocks.listen,
 }));
 vi.mock('@shipfox/node-module', () => ({
@@ -113,8 +135,15 @@ describe('run', () => {
     mocks.createE2eAdminAuthMethod.mockReset();
     mocks.createE2eRouteGroup.mockReset();
     mocks.createIntegrationsContext.mockReset();
+    mocks.buildAgentToolCatalogs.mockReset();
+    mocks.buildAgentToolSelectionCatalogs.mockReset();
+    mocks.createWorkspaceConnectionSnapshotLoader.mockReset();
+    mocks.getIntegrationConnectionById.mockReset();
     mocks.createPostgresClient.mockReset();
     mocks.createProjectsModule.mockReset();
+    mocks.deleteSecrets.mockReset();
+    mocks.getSecret.mockReset();
+    mocks.setSecrets.mockReset();
     mocks.apiConfig.API_PORT = undefined;
     mocks.apiConfig.API_TRUST_PROXY = 'false';
     mocks.apiConfig.E2E_ENABLED = false;
@@ -126,15 +155,21 @@ describe('run', () => {
     mocks.metricMeter.createCounter.mockReset();
     mocks.parseApiTrustProxy.mockReset();
     mocks.registerModuleMetrics.mockReset();
+    mocks.setAgentToolMaterializationServices.mockReset();
     mocks.setSourceControl.mockReset();
+    mocks.loadRunningLeasedStep.mockReset();
     mocks.startModuleWorkers.mockReset();
     mocks.startServiceMetrics.mockReset();
 
     mocks.createIntegrationsContext.mockResolvedValue({
       module: {name: 'integrations'},
+      registry: {},
       runStartupTasks: vi.fn().mockResolvedValue(undefined),
       sourceControl: {},
     });
+    mocks.buildAgentToolCatalogs.mockResolvedValue(new Map());
+    mocks.buildAgentToolSelectionCatalogs.mockResolvedValue(new Map());
+    mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
     mocks.createProjectsModule.mockReturnValue({name: 'projects'});
     mocks.createDefinitionsModule.mockReturnValue({name: 'definitions'});
     mocks.initializeModules.mockResolvedValue({
@@ -189,6 +224,22 @@ describe('run', () => {
     await run();
 
     expect(mocks.listen).toHaveBeenCalledWith({port: 55_291});
+  });
+
+  it('injects the leased-step loader into integration routes', async () => {
+    await run();
+
+    expect(mocks.createIntegrationsContext).toHaveBeenCalledWith({
+      secrets: {
+        deleteSecrets: mocks.deleteSecrets,
+        linear: expect.objectContaining({
+          deleteSecrets: expect.any(Function),
+          getSecret: expect.any(Function),
+          setSecrets: expect.any(Function),
+        }),
+      },
+      agentTools: {loadLeasedAgentStep: mocks.loadRunningLeasedStep},
+    });
   });
 
   it('does not listen when module worker startup fails', async () => {

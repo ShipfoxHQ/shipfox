@@ -5,7 +5,7 @@ export type SecretsFormField = 'key';
 /**
  * Classifies a management error into either a field-level message (routed to
  * the `key` field via `errorMap.onServer`) or a form-level message (rendered
- * in an `<Alert>`). Shared by the secret and variable forms because both hit
+ * in an `<Callout role="alert"`). Shared by the secret and variable forms because both hit
  * the same management routes / `ClientError` codes.
  */
 export type SecretsFormErrorMapping =

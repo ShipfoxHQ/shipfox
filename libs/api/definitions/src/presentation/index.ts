@@ -1,1 +1,1 @@
-export {definitionRoutes as routes} from './routes/index.js';
+export {createDefinitionRoutes, definitionRoutes as routes} from './routes/index.js';

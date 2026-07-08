@@ -1,4 +1,5 @@
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import type {WorkflowRunStatus} from './workflow-run.js';
 
 export type RerunMode = 'all' | 'failed';
@@ -11,6 +12,7 @@ export interface WorkflowRunAttempt {
   rerunMode: RerunMode | null;
   rerunByUserId: string | null;
   model: WorkflowModel | null;
+  agentToolMaterialization: AgentToolMaterializationSnapshot | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;

@@ -22,6 +22,7 @@ import {scheduleRuntimeDag} from '#core/workflow-scheduling/schedule-runtime-dag
 import type {createOrchestrationActivities} from '../activities/index.js';
 import type {DagJob, RunDag} from '../activities/orchestration-activities.js';
 import {RUN_CANCEL_SIGNAL} from '../constants.js';
+import {deadlineReached, remainingMs} from './deadline.js';
 import {jobExecutionOrchestration} from './job-execution-orchestration.js';
 import {jobListenerOrchestration} from './job-listener-orchestration.js';
 
@@ -262,7 +263,7 @@ async function waitForNextSettlement(
 ): Promise<
   {kind: 'settled'; job: DagJob; result: LaunchResult} | {kind: 'cancelled'} | {kind: 'timed-out'}
 > {
-  const remaining = Math.max(0, runDeadline - Date.now());
+  const remaining = remainingMs(runDeadline) ?? 0;
   const childSettled = Promise.race([...inFlight.values()]).then((settled) => ({
     kind: 'settled' as const,
     ...settled,
@@ -279,8 +280,4 @@ async function cancelNonCompletedRunnerJobs(
 ): Promise<void> {
   const jobIds = nonCompletedRuntimeJobIds(dag.jobs, progress);
   await cancelRunnerJobsActivity({jobIds});
-}
-
-function deadlineReached(deadline: number): boolean {
-  return Date.now() >= deadline;
 }

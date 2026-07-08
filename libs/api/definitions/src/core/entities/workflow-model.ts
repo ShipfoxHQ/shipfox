@@ -113,6 +113,7 @@ export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly provider?: string;
   readonly thinking?: AgentThinking;
   readonly tools?: readonly string[];
+  readonly integrations?: readonly WorkflowModelStepIntegration[];
   readonly prompt: string;
   readonly templates?: {
     readonly prompt?: WorkflowFieldTemplate;
@@ -120,6 +121,14 @@ export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
     readonly provider?: WorkflowFieldTemplate;
     readonly name?: WorkflowFieldTemplate;
   };
+}
+
+export interface WorkflowModelStepIntegration {
+  readonly connection?: string;
+  readonly include: readonly string[];
+  readonly exclude?: readonly string[];
+  readonly allowWrite: boolean;
+  readonly repos?: readonly string[];
 }
 
 export interface WorkflowSourceLocation {

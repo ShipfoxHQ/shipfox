@@ -7,8 +7,8 @@ import {
 } from '@shipfox/client-agent';
 import {ApiError} from '@shipfox/client-api';
 import {integrationsQueryKeys, listSourceConnections} from '@shipfox/client-integrations';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import type {QueryClient} from '@tanstack/react-query';
@@ -123,7 +123,7 @@ function WorkspaceSetupError({message, onRetry}: {message: string; onRetry: () =
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
       <div className="mx-auto flex w-full max-w-[640px] flex-col gap-24">
         <Header variant="h1">Workspace setup</Header>
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           <div className="flex flex-col gap-8">
             <Text size="sm" bold>
               Could not load workspace setup
@@ -133,7 +133,7 @@ function WorkspaceSetupError({message, onRetry}: {message: string; onRetry: () =
               Retry
             </Button>
           </div>
-        </Alert>
+        </Callout>
       </div>
     </main>
   );
@@ -150,7 +150,7 @@ function WorkspaceRouteError({message, onRetry}: {message: string; onRetry: () =
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
       <div className="mx-auto flex w-full max-w-[640px] flex-col gap-24">
         <Header variant="h1">Workspace</Header>
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           <div className="flex flex-col gap-8">
             <Text size="sm" bold>
               Could not load workspace
@@ -160,7 +160,7 @@ function WorkspaceRouteError({message, onRetry}: {message: string; onRetry: () =
               Retry
             </Button>
           </div>
-        </Alert>
+        </Callout>
       </div>
     </main>
   );

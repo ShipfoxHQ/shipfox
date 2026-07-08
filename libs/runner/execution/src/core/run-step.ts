@@ -8,6 +8,12 @@ import {TextDecoder} from 'node:util';
 import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets, safeRedactionPrefixLength, secretWireForms} from '@shipfox/redact';
+import {
+  type AnnotationSpool,
+  collectAnnotationOperations,
+  createAnnotationSpool,
+  disposeAnnotationSpool,
+} from '#core/annotation-spool.js';
 import {MAX_OUTPUT_TOTAL_BYTES, parseStepOutput, StepOutputError} from '#core/step-output.js';
 import type {StepResult} from '#core/step-result.js';
 
@@ -73,13 +79,29 @@ async function runShellCommand(
   const outputPath = join(tmpdir(), `shipfox-output-${randomUUID()}`);
   const metadata = commandStartMetadata({command, scriptPath, cwd: options.cwd});
   notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(metadata));
+  let annotationSpool: AnnotationSpool | undefined;
 
   try {
     await writeFile(scriptPath, command, {mode: 0o700});
     await writeFile(outputPath, '', {mode: 0o600});
-    const result = await spawnAndCapture(metadata, stepEnv, outputPath, options);
-    return await finalizeStepOutput(result, outputPath);
+    try {
+      annotationSpool = await createAnnotationSpool();
+    } catch (error) {
+      logger().warn(
+        {err: error},
+        'Failed to create annotation spool; running step without annotation collection',
+      );
+    }
+
+    const result = await spawnAndCapture(metadata, stepEnv, outputPath, annotationSpool, options);
+    const outputResult = await finalizeStepOutput(result, outputPath);
+    if (!annotationSpool) return outputResult;
+
+    const annotations = await collectAnnotationOperations(annotationSpool);
+    if (annotations.length === 0) return outputResult;
+    return {...outputResult, annotations};
   } finally {
+    if (annotationSpool) await disposeAnnotationSpool(annotationSpool);
     await unlink(scriptPath).catch(() => undefined);
     await unlink(outputPath).catch(() => undefined);
   }
@@ -89,6 +111,7 @@ function spawnAndCapture(
   metadata: CommandStartMetadata,
   stepEnv: Readonly<Record<string, string>>,
   outputPath: string,
+  annotationSpool: AnnotationSpool | undefined,
   options: RunStepOptions,
 ): Promise<StepResult> {
   return new Promise((resolve) => {
@@ -104,7 +127,12 @@ function spawnAndCapture(
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
       cwd: options.cwd,
-      env: {...process.env, ...stepEnv, SHIPFOX_OUTPUT: outputPath},
+      env: {
+        ...process.env,
+        ...stepEnv,
+        SHIPFOX_OUTPUT: outputPath,
+        ...(annotationSpool?.env ?? {}),
+      },
     });
 
     // stdout and stderr are two separate pipes, so the sink sees them merged by

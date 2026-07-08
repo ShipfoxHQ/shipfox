@@ -118,6 +118,56 @@ describe('secret store', () => {
     );
   });
 
+  it('does not count system namespace entries against the workspace cap', async () => {
+    const workspaceId = crypto.randomUUID();
+    await db()
+      .insert(secretValues)
+      .values(
+        Array.from({length: 10_000}, (_, index) => ({
+          workspaceId,
+          projectId: null,
+          namespace: 'system/github/installation-token/1',
+          key: `KEY_${index}`,
+          ciphertext: 'v1:test',
+          fingerprint: null,
+        })),
+      );
+
+    await setSecrets({workspaceId, values: {TOKEN: 'user-value'}});
+    const value = await getSecret({workspaceId, key: 'TOKEN'});
+
+    expect(value).toBe('user-value');
+  });
+
+  it('allows system namespace writes when user entries are at the workspace cap', async () => {
+    const workspaceId = crypto.randomUUID();
+    await db()
+      .insert(secretValues)
+      .values(
+        Array.from({length: 10_000}, (_, index) => ({
+          workspaceId,
+          projectId: null,
+          namespace: '',
+          key: `KEY_${index}`,
+          ciphertext: 'v1:test',
+          fingerprint: null,
+        })),
+      );
+
+    await setSecrets({
+      workspaceId,
+      namespace: 'system/github/installation-token/1',
+      values: {TOKEN: 'system-value'},
+    });
+    const value = await getSecret({
+      workspaceId,
+      namespace: 'system/github/installation-token/1',
+      key: 'TOKEN',
+    });
+
+    expect(value).toBe('system-value');
+  });
+
   it('allows updating an existing secret at the workspace cap', async () => {
     const workspaceId = crypto.randomUUID();
     await setSecrets({workspaceId, values: {TOKEN: 'old-value'}});

@@ -36,9 +36,10 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
-    "@shipfox/regex": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
+    "@shipfox/regex": "workspace:*",
     "@swc/helpers": "^0.5.17"
   },
   "peerDependencies": {

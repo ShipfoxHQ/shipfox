@@ -1,23 +1,38 @@
+import type {GetIntegrationConnectionByIdFn} from '@shipfox/api-integration-core-dto';
 import {App, Octokit} from 'octokit';
 import {config, normalizedGithubPrivateKey} from '#config.js';
 import {GithubIntegrationProviderError} from '#core/errors.js';
+import {withInstallationTokenLock} from '#db/installation-token-lock.js';
+import {getGithubInstallationByInstallationId} from '#db/installations.js';
+import {recordInstallationTokenLookup} from '#metrics/index.js';
 import {type GithubInstallationAccessToken, mapGithubError} from './client.js';
-
-const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+import {
+  githubInstallationTokenNamespace,
+  TOKEN_REFRESH_MARGIN_MS,
+} from './installation-token-envelope.js';
+import {
+  type InstallationTokenCache,
+  type InstallationTokenSecretStore,
+  SharedInstallationTokenCache,
+  type SharedInstallationTokenCacheOptions,
+} from './shared-installation-token-cache.js';
 
 export interface GithubInstallationTokenProvider {
   getInstallationAccessToken(installationId: number): Promise<GithubInstallationAccessToken>;
 }
 
-interface InstallationTokenCache {
-  getOrMint(
-    installationId: number,
-    mint: () => Promise<GithubInstallationAccessToken>,
-  ): Promise<GithubInstallationAccessToken>;
+export interface GithubInstallationTokenProviderOptions {
+  cache?: InstallationTokenCache | undefined;
+  getIntegrationConnectionById?: GetIntegrationConnectionByIdFn | undefined;
+  secretStore?: InstallationTokenSecretStore | undefined;
+  withLock?: SharedInstallationTokenCacheOptions['withLock'] | undefined;
+  now?: (() => Date) | undefined;
 }
 
-export function createGithubInstallationTokenProvider(): GithubInstallationTokenProvider {
-  return new OctokitGithubInstallationTokenProvider();
+export function createGithubInstallationTokenProvider(
+  options: GithubInstallationTokenProviderOptions = {},
+): GithubInstallationTokenProvider {
+  return new OctokitGithubInstallationTokenProvider(createInstallationTokenCache(options));
 }
 
 class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenProvider {
@@ -112,6 +127,7 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
   ): Promise<GithubInstallationAccessToken> {
     const cached = this.tokens.get(installationId);
     if (cached && !this.isInsideRefreshMargin(cached.expiresAt)) {
+      recordInstallationTokenLookup('ram-hit');
       return Promise.resolve(cached);
     }
 
@@ -133,4 +149,74 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
   private isInsideRefreshMargin(expiresAt: Date): boolean {
     return expiresAt.getTime() <= this.options.now().getTime() + this.options.refreshMarginMs;
   }
+}
+
+class TieredInstallationTokenCache implements InstallationTokenCache {
+  constructor(
+    private readonly ram: InstallationTokenCache,
+    private readonly shared: InstallationTokenCache,
+  ) {}
+
+  getOrMint(
+    installationId: number,
+    mint: () => Promise<GithubInstallationAccessToken>,
+  ): Promise<GithubInstallationAccessToken> {
+    return this.ram.getOrMint(installationId, () => this.shared.getOrMint(installationId, mint));
+  }
+}
+
+function createInstallationTokenCache(
+  options: GithubInstallationTokenProviderOptions,
+): InstallationTokenCache {
+  if (options.cache) return options.cache;
+
+  const ram = new InMemoryInstallationTokenCache({
+    refreshMarginMs: TOKEN_REFRESH_MARGIN_MS,
+    now: options.now ?? (() => new Date()),
+  });
+  if (!options.getIntegrationConnectionById || !options.secretStore) return ram;
+
+  const shared = new SharedInstallationTokenCache({
+    secretStore: options.secretStore,
+    withLock: options.withLock ?? withInstallationTokenLock,
+    resolveWorkspaceId: createGithubInstallationWorkspaceResolver(
+      options.getIntegrationConnectionById,
+    ),
+    now: options.now,
+  });
+  return new TieredInstallationTokenCache(ram, shared);
+}
+
+function createGithubInstallationWorkspaceResolver(
+  getIntegrationConnectionById: GetIntegrationConnectionByIdFn,
+) {
+  return async (installationId: number): Promise<string> => {
+    const installation = await getGithubInstallationByInstallationId(String(installationId));
+    if (!installation) {
+      throw new GithubIntegrationProviderError(
+        'installation-not-found',
+        `GitHub installation not found: ${installationId}`,
+      );
+    }
+
+    const connection = await getIntegrationConnectionById(installation.connectionId);
+    if (!connection) {
+      throw new GithubIntegrationProviderError(
+        'installation-not-found',
+        `GitHub installation connection not found: ${installation.connectionId}`,
+      );
+    }
+    return connection.workspaceId;
+  };
+}
+
+export function deleteGithubInstallationTokenSecret(params: {
+  workspaceId: string;
+  installationId: number;
+  deleteSecrets: (params: {workspaceId: string; namespace: string}) => Promise<number>;
+}): Promise<number> {
+  return params.deleteSecrets({
+    workspaceId: params.workspaceId,
+    namespace: githubInstallationTokenNamespace(params.installationId),
+  });
 }

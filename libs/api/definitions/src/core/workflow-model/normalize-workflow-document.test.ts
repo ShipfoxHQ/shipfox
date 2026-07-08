@@ -1,4 +1,5 @@
 import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import {InvalidWorkflowModelError} from './invalid-workflow-model-error.js';
 import {DEFAULT_JOB_CHECKOUT} from './normalize-job-checkout.js';
 import {normalizeWorkflowDocument as normalizeWorkflowDocumentBase} from './normalize-workflow-document.js';
@@ -28,6 +29,35 @@ function interpolation(source: string): string {
 }
 
 const workflowInterpolation = interpolation;
+
+const integrationValidationContext = {
+  agentToolSelectionCatalogs: new Map([
+    [
+      'github',
+      {
+        selectors: [
+          {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
+          {token: 'issue_read.*', kind: 'family_wildcard', sensitivity: 'read', sensitive: false},
+          {token: 'issue_read.get', kind: 'method', sensitivity: 'read', sensitive: false},
+          {token: 'issue_write', kind: 'family', sensitivity: 'write', sensitive: false},
+          {token: 'issue_write.create', kind: 'method', sensitivity: 'write', sensitive: false},
+          {token: 'list_issues', kind: 'standalone', sensitivity: 'read', sensitive: false},
+          {
+            token: 'merge_pull_request',
+            kind: 'standalone',
+            sensitivity: 'write',
+            sensitive: true,
+          },
+        ],
+      },
+    ],
+  ]),
+  workspaceConnectionSnapshot: new Map([
+    ['github-main', {id: 'conn_1', provider: 'github', capabilities: ['agent_tools']}],
+    ['sentry-main', {id: 'conn_2', provider: 'sentry', capabilities: []}],
+  ]),
+  defaultConnectionSlug: 'github-main',
+} satisfies IntegrationValidationContext;
 
 describe('normalizeWorkflowDocument', () => {
   it('normalizes a workflow document into a WorkflowModel', () => {
@@ -141,6 +171,244 @@ describe('normalizeWorkflowDocument', () => {
       thinking: 'low',
       gate: {onFailure: {restartFrom: 'implement'}},
     });
+  });
+
+  it('normalizes agent step integrations after catalog validation', () => {
+    const document: WorkflowDocument = {
+      name: 'agent integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix the issue.',
+              integrations: [
+                {
+                  include: [
+                    'issue_read',
+                    'issue_read',
+                    'issue_read.*',
+                    'issue_read.get',
+                    'list_issues',
+                  ],
+                  exclude: ['issue_read.get', 'issue_read.get'],
+                  repos: ['ShipfoxHQ/shipfox', 'ShipfoxHQ/shipfox'],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      integrations: [
+        {
+          include: ['issue_read', 'issue_read.*', 'issue_read.get', 'list_issues'],
+          exclude: ['issue_read.get'],
+          allowWrite: false,
+          repos: ['ShipfoxHQ/shipfox'],
+        },
+      ],
+    });
+  });
+
+  it('skips integration catalog and connection checks when no context is injected', () => {
+    const document: WorkflowDocument = {
+      name: 'validate only',
+      jobs: {
+        fix: {
+          steps: [{prompt: 'Fix.', integrations: [{include: ['unknown.write']}]}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      integrations: [{include: ['unknown.write'], allowWrite: false}],
+    });
+  });
+
+  it('classifies unknown integration tools and methods', () => {
+    const document: WorkflowDocument = {
+      name: 'bad integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [{include: ['issue_read.missing', 'list_issues.extra']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues.map((issue) => issue.code)).toEqual([
+      'unknown-integration-method',
+      'unknown-integration-tool',
+    ]);
+  });
+
+  it('anchors unknown integration tokens to authored selection indexes', () => {
+    const document: WorkflowDocument = {
+      name: 'bad integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [
+                {
+                  include: ['issue_read', 'issue_read', 'issue_read.missing'],
+                  exclude: ['issue_read.get', 'issue_read.get', 'list_issues.extra'],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues).toMatchObject([
+      {
+        code: 'unknown-integration-method',
+        path: ['jobs', 'fix', 'steps', 0, 'integrations', 0, 'include', 2],
+      },
+      {
+        code: 'unknown-integration-tool',
+        path: ['jobs', 'fix', 'steps', 0, 'integrations', 0, 'exclude', 2],
+      },
+    ]);
+  });
+
+  it('requires allow_write for write-capable authored include tokens', () => {
+    const document: WorkflowDocument = {
+      name: 'write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [{include: ['issue_write', 'merge_pull_request']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues).toMatchObject([
+      {
+        code: 'integration-write-not-allowed',
+        details: {tokens: ['issue_write', 'merge_pull_request']},
+      },
+    ]);
+  });
+
+  it('does not let exclude mask a write-capable include token', () => {
+    const document: WorkflowDocument = {
+      name: 'write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [{include: ['issue_write'], exclude: ['issue_write']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues.map((issue) => issue.code)).toEqual(['integration-write-not-allowed']);
+  });
+
+  it('accepts write-capable include tokens when allow_write is true', () => {
+    const document: WorkflowDocument = {
+      name: 'write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [{include: ['issue_write.create'], allow_write: true}],
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      integrations: [{include: ['issue_write.create'], allowWrite: true}],
+    });
+  });
+
+  it('reports connection failures before token checks', () => {
+    const document: WorkflowDocument = {
+      name: 'missing connection',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [{connection: 'missing', include: ['bad.token']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues.map((issue) => issue.code)).toEqual(['integration-connection-not-found']);
+  });
+
+  it('requires an explicit connection when no default exists', () => {
+    const document: WorkflowDocument = {
+      name: 'missing default',
+      jobs: {
+        fix: {
+          steps: [{prompt: 'Fix.', integrations: [{include: ['issue_read']}]}],
+        },
+      },
+    };
+    const context = {...integrationValidationContext, defaultConnectionSlug: undefined};
+
+    const error = expectInvalid(document, {integrationValidationContext: context});
+
+    expect(error.issues.map((issue) => issue.code)).toEqual(['missing-connection-for-integration']);
+  });
+
+  it('rejects connections whose provider has no agent tools catalog', () => {
+    const document: WorkflowDocument = {
+      name: 'non-capable connection',
+      jobs: {
+        fix: {
+          steps: [
+            {prompt: 'Fix.', integrations: [{connection: 'sentry-main', include: ['issue_read']}]},
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues.map((issue) => issue.code)).toEqual(['integration-connection-not-capable']);
   });
 
   it('reports unsupported explicit providers', () => {

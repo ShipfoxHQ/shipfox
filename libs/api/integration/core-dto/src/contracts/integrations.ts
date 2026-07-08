@@ -129,6 +129,14 @@ export interface SourceControlProvider<
 export type AgentToolSensitivity = 'read' | 'write';
 export type AgentToolJsonSchema = Record<string, unknown>;
 
+export interface AgentToolCatalogMethod<RequiredScope = unknown> {
+  id: string;
+  description: string;
+  sensitivity: AgentToolSensitivity;
+  sensitive: boolean;
+  requiredScope: RequiredScope;
+}
+
 export interface AgentToolCatalogEntry<RequiredScope = unknown> {
   id: string;
   description: string;
@@ -137,6 +145,20 @@ export interface AgentToolCatalogEntry<RequiredScope = unknown> {
   requiredScope: RequiredScope;
   inputSchema: AgentToolJsonSchema;
   outputSchema?: AgentToolJsonSchema | undefined;
+  methods?: readonly AgentToolCatalogMethod<RequiredScope>[] | undefined;
+}
+
+export type AgentToolSelectorKind = 'family' | 'family_wildcard' | 'method' | 'standalone';
+
+export interface AgentToolSelector {
+  readonly token: string;
+  readonly kind: AgentToolSelectorKind;
+  readonly sensitivity: AgentToolSensitivity;
+  readonly sensitive: boolean;
+}
+
+export interface AgentToolSelectionCatalog {
+  readonly selectors: readonly AgentToolSelector[];
 }
 
 export interface AgentToolCallInput {
@@ -171,6 +193,7 @@ export interface AgentToolsProvider<
   catalog():
     | readonly AgentToolCatalogEntry<RequiredScope>[]
     | Promise<readonly AgentToolCatalogEntry<RequiredScope>[]>;
+  selectionCatalog(): AgentToolSelectionCatalog | Promise<AgentToolSelectionCatalog>;
   openSession(
     input: OpenAgentToolsSessionInput<Connection, RequiredScope, ProviderScope, ScopedToken>,
   ): Promise<AgentToolSession<CallResult>>;

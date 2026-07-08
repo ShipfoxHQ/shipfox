@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {eq} from 'drizzle-orm';
-import {db, secretDataKeys} from '#db/index.js';
+import {db, insertDataKeyIfAbsent, secretDataKeys} from '#db/index.js';
 import {DekManager} from './dek-manager.js';
 import {createLocalKeyProvider} from './key-provider.js';
 
@@ -24,6 +24,27 @@ describe('DekManager', () => {
 
     expect(rows).toHaveLength(1);
     expect(first.equals(second)).toBe(true);
+  });
+
+  it('reports whether a first-use data key insert won the race', async () => {
+    const workspaceId = crypto.randomUUID();
+    const keyProvider = createLocalKeyProvider({currentKek: crypto.randomBytes(32)});
+    const first = keyProvider.wrapDek(workspaceId, crypto.randomBytes(32));
+    const second = keyProvider.wrapDek(workspaceId, crypto.randomBytes(32));
+
+    const inserted = await insertDataKeyIfAbsent({
+      workspaceId,
+      wrappedDek: first.wrappedDek,
+      kekVersion: first.kekVersion,
+    });
+    const skipped = await insertDataKeyIfAbsent({
+      workspaceId,
+      wrappedDek: second.wrappedDek,
+      kekVersion: second.kekVersion,
+    });
+
+    expect(inserted).toBe(true);
+    expect(skipped).toBe(false);
   });
 
   it('re-reads persisted data keys on cold start', async () => {

@@ -5,8 +5,8 @@ import type {
   ModelProviderConfigResponseDto,
 } from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button, IconButton} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -553,9 +553,9 @@ function ConfiguredProviderRow({
         </DropdownMenu>
       </div>
       {defaultError ? (
-        <Alert variant="error" animated={false}>
+        <Callout role="alert" type="error">
           <Text size="sm">{defaultError}</Text>
-        </Alert>
+        </Callout>
       ) : null}
       <DeleteModelProviderDialog
         open={deleteOpen}
@@ -595,9 +595,9 @@ function DeleteModelProviderDialog({
             until it is configured again.
           </Text>
           {errorMessage ? (
-            <Alert variant="error" animated={false}>
+            <Callout role="alert" type="error">
               <Text size="sm">{errorMessage}</Text>
-            </Alert>
+            </Callout>
           ) : null}
         </ModalBody>
         <ModalFooter>

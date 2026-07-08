@@ -16,9 +16,9 @@ import {getIntegrationConnectionById} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
-import {createIntegrationRoutes} from '#presentation/routes/index.js';
+import {createIntegrationRoutes, type LeasedAgentStepLoader} from '#presentation/routes/index.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
-import type {IntegrationModuleParts} from '#providers/types.js';
+import type {IntegrationModuleParts, IntegrationProviderSecrets} from '#providers/types.js';
 import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
 import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
@@ -30,6 +30,18 @@ export {
   MAX_REPOSITORY_FILE_BYTES,
   parseProviderRepositoryId,
 } from '@shipfox/api-integration-core-dto';
+export type {
+  AgentToolCatalogs,
+  AgentToolSelectionCatalogs,
+  LoadWorkspaceConnectionSnapshot,
+  WorkspaceConnectionSnapshot,
+  WorkspaceConnectionSnapshotEntry,
+} from '#core/agent-tool-selection.js';
+export {
+  buildAgentToolCatalogs,
+  buildAgentToolSelectionCatalogs,
+  createWorkspaceConnectionSnapshotLoader,
+} from '#core/agent-tool-selection.js';
 export type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
@@ -55,6 +67,7 @@ export {
 export type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
+  AgentToolCatalogMethod,
   AgentToolJsonSchema,
   AgentToolSensitivity,
   AgentToolSession,
@@ -83,6 +96,7 @@ export type {
 export type {IntegrationSourceControlService} from '#core/source-control-service.js';
 export {createSourceControlIntegrationService} from '#core/source-control-service.js';
 export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
+export {getIntegrationConnectionById} from '#db/connections.js';
 export type {
   PublishIntegrationEventReceivedFn,
   PublishIntegrationEventReceivedParams,
@@ -103,6 +117,12 @@ export interface CreateIntegrationsModuleOptions {
    * precedence over `providers`.
    */
   parts?: IntegrationModuleParts[] | undefined;
+  secrets?: IntegrationProviderSecrets | undefined;
+  agentTools?:
+    | {
+        loadLeasedAgentStep: LeasedAgentStepLoader;
+      }
+    | undefined;
 }
 
 export interface IntegrationsContext {
@@ -133,7 +153,7 @@ export async function createIntegrationsContext(
     options.parts ??
     (options.providers
       ? options.providers.map((provider) => ({provider}))
-      : await loadEnabledProviderModules());
+      : await loadEnabledProviderModules({secrets: options.secrets}));
 
   const registry = createIntegrationProviderRegistry(parts.map((part) => part.provider));
   const sourceControl = createSourceControlIntegrationService({
@@ -147,7 +167,14 @@ export async function createIntegrationsContext(
       {db, migrationsPath},
       ...parts.flatMap((part) => (part.database ? [part.database] : [])),
     ],
-    routes: createIntegrationRoutes(registry, sourceControl),
+    routes: createIntegrationRoutes(registry, sourceControl, {
+      agentTools: options.agentTools
+        ? {
+            loadLeasedAgentStep: options.agentTools.loadLeasedAgentStep,
+            getIntegrationConnectionById,
+          }
+        : undefined,
+    }),
     publishers: [
       {name: 'integrations', table: integrationsOutbox, db, eventSchemas: integrationsEventSchemas},
     ],

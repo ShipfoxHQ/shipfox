@@ -13,8 +13,8 @@ import {
   useSourceConnectionsQuery,
 } from '@shipfox/client-integrations';
 import {displayNameFieldError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
@@ -185,7 +185,7 @@ export function CreateProjectPage() {
       <ModelProviderReminderBanner workspaceId={workspace.id} />
 
       {connectionsQuery.isError ? (
-        <Alert variant="error">
+        <Callout role="alert" type="error">
           <div className="flex w-full flex-wrap items-center justify-between gap-12">
             <Text size="sm" className="min-w-[240px] flex-1">
               Could not load source integrations. Refresh the integrations list to continue.
@@ -199,7 +199,7 @@ export function CreateProjectPage() {
               Refresh integrations
             </Button>
           </div>
-        </Alert>
+        </Callout>
       ) : null}
 
       <form
@@ -275,11 +275,11 @@ export function CreateProjectPage() {
             </div>
 
             {formError ? (
-              <Alert variant="error" animated={false}>
+              <Callout role="alert" type="error">
                 <div ref={errorRef} tabIndex={-1}>
                   {formError}
                 </div>
-              </Alert>
+              </Callout>
             ) : null}
 
             <ProjectSummary

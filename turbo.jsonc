@@ -3,6 +3,7 @@
   "globalDependencies": ["mise.toml", "biome.json", "compose.yml"],
   "globalPassThroughEnv": [
     "GITHUB_*",
+    "LINEAR_*",
     "ACTIONS_*",
     "LOG_*",
     "E2E_*",

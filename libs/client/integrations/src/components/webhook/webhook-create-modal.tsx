@@ -6,8 +6,8 @@ import {
   webhookSlugSchema,
 } from '@shipfox/api-integration-webhook-dto';
 import {displayNameFieldError} from '@shipfox/client-ui';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {
   Modal,
@@ -102,7 +102,11 @@ export function WebhookCreateModal({
             <Text size="sm" className="text-foreground-neutral-muted">
               Create a named inbound webhook URL for this workspace.
             </Text>
-            {formError ? <Alert variant="error">{formError}</Alert> : null}
+            {formError ? (
+              <Callout role="alert" type="error">
+                {formError}
+              </Callout>
+            ) : null}
             <form.Field
               name="name"
               validators={{

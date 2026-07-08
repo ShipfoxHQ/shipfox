@@ -29,6 +29,10 @@ import {
 } from '#presentation/index.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
+export {
+  clearAgentToolMaterializationServices,
+  setAgentToolMaterializationServices,
+} from '#core/agent-tools.js';
 export type {
   Job,
   JobListenerEvent,
@@ -60,6 +64,7 @@ export {
   workflowsOutbox,
 } from '#db/index.js';
 export {routes} from '#presentation/index.js';
+export {loadRunningLeasedStep} from '#presentation/routes/leased-step.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');

@@ -1,4 +1,9 @@
-import type {AgentThinking, Harness} from '@shipfox/api-agent-dto';
+import type {
+  AgentIntegrationMcpServerConfigDto,
+  AgentThinking,
+  Harness,
+  MaterializedAgentIntegrationConfigDto,
+} from '@shipfox/api-agent-dto';
 import type {
   EvaluationTraceEntry,
   EvaluationTraceLimitEntry,
@@ -66,6 +71,8 @@ export interface StepConfigDispatchPlan {
     harness?: Harness;
     thinking?: AgentThinking;
     tools?: readonly string[];
+    integrations?: readonly MaterializedAgentIntegrationConfigDto[];
+    mcpServers?: readonly AgentIntegrationMcpServerConfigDto[];
   };
   trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }

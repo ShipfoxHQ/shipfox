@@ -23,6 +23,7 @@ import {
   requestStepSecrets,
   requireRunnerLabels,
   StepSecretsRequestError,
+  writeStepAnnotations,
 } from '#api-client.js';
 import {config} from '#config.js';
 
@@ -651,6 +652,77 @@ describe('appendStepLogs', () => {
 
     await expect(append).rejects.toThrow();
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('writeStepAnnotations', () => {
+  it('posts annotations to the lease-authed endpoint and parses accounting', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        annotations: [{context: 'default', id: crypto.randomUUID()}],
+        accounting: {annotation_count: 1, total_body_bytes: 7},
+      }),
+    );
+    const leaseClient = createLeaseClient('lease-annotations');
+
+    const outcome = await writeStepAnnotations(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+    });
+
+    expect(outcome).toEqual({status: 'written', annotationCount: 1, totalBodyBytes: 7});
+    expect(calls[0]?.url).toContain('runs/jobs/current/annotations');
+    expect(calls[0]?.authorization).toBe('Bearer lease-annotations');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      step_id: STEP_ID,
+      attempt: 2,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+    });
+  });
+
+  it.each([
+    'annotation-body-too-large',
+    'annotation-count-limit-exceeded',
+    'annotation-total-bytes-limit-exceeded',
+  ])('maps capped 413 code %s', async (code) => {
+    stubFetch(() => jsonResponse({code}, 413));
+    const leaseClient = createLeaseClient('lease-annotations');
+
+    const outcome = await writeStepAnnotations(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+    });
+
+    expect(outcome).toEqual({status: 'capped', code});
+  });
+
+  it('maps non-cap errors to rejected and does not retry the POST', async () => {
+    stubFetch(() => jsonResponse({code: 'server-error'}, 500));
+    const leaseClient = createLeaseClient('lease-annotations');
+
+    const outcome = await writeStepAnnotations(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+    });
+
+    expect(outcome).toEqual({status: 'rejected', statusCode: 500, code: 'server-error'});
+    expect(calls).toHaveLength(1);
+  });
+
+  it('maps unknown 413 codes to rejected', async () => {
+    stubFetch(() => jsonResponse({code: 'other-limit'}, 413));
+    const leaseClient = createLeaseClient('lease-annotations');
+
+    const outcome = await writeStepAnnotations(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+    });
+
+    expect(outcome).toEqual({status: 'rejected', statusCode: 413, code: 'other-limit'});
   });
 });
 

@@ -25,5 +25,25 @@ export interface IntegrationModuleParts {
 export interface IntegrationProviderModule {
   id: string;
   enabled: boolean;
-  load(): Promise<IntegrationModuleParts>;
+  load(options?: IntegrationProviderModuleLoadOptions): Promise<IntegrationModuleParts>;
+}
+
+export interface IntegrationProviderModuleLoadOptions {
+  secrets?: IntegrationProviderSecrets | undefined;
+}
+
+export interface IntegrationProviderSecrets {
+  linear?: IntegrationProviderScopedSecrets | undefined;
+  deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
+}
+
+export interface IntegrationProviderScopedSecrets {
+  getSecret(params: {workspaceId: string; namespace: string; key: string}): Promise<string | null>;
+  setSecrets(params: {
+    workspaceId: string;
+    namespace: string;
+    values: Record<string, string>;
+    editedBy?: string | null | undefined;
+  }): Promise<void>;
+  deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }

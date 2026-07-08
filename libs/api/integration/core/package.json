@@ -37,10 +37,13 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-gitea": "workspace:*",
     "@shipfox/api-integration-github": "workspace:*",
+    "@shipfox/api-integration-linear": "workspace:*",
     "@shipfox/api-integration-sentry": "workspace:*",
     "@shipfox/api-integration-webhook": "workspace:*",
     "@shipfox/config": "workspace:*",
@@ -54,6 +57,7 @@
     "@shipfox/regex": "workspace:*",
     "@shipfox/redact": "workspace:*",
     "@temporalio/workflow": "^1.16.1",
+    "ajv": "^8.20.0",
     "drizzle-orm": "^0.45.2",
     "zod": "^4.4.3"
   },

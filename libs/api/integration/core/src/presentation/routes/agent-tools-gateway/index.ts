@@ -1,0 +1,60 @@
+import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
+import {AUTH_LEASED_JOB, requireLeasedJobContext} from '@shipfox/api-auth-context';
+import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
+import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
+import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
+import {createIntegrationToolCallRecorder} from './audit.js';
+import {dispatchIntegrationToolCall} from './dispatch-stub.js';
+import {buildAgentToolsMcpServer} from './mcp-server.js';
+import {
+  type LeasedAgentStepLoader,
+  resolveAuthorizedIntegrationTools,
+} from './resolve-authorized-tools.js';
+
+export type {LeasedAgentStepLoader} from './resolve-authorized-tools.js';
+
+export interface CreateAgentToolsGatewayRoutesParams {
+  loadLeasedAgentStep: LeasedAgentStepLoader;
+  registry: IntegrationProviderRegistry;
+  getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+}
+
+export function createAgentToolsGatewayRoutes(
+  params: CreateAgentToolsGatewayRoutesParams,
+): RouteGroup {
+  return {
+    prefix: '/runs/jobs/current/integration-tools',
+    auth: AUTH_LEASED_JOB,
+    routes: [
+      defineRoute({
+        method: 'POST',
+        path: '/mcp',
+        description: 'Gateway MCP endpoint for integration-backed agent tools',
+        handler: async (request, reply) => {
+          const authorizedTools = await resolveAuthorizedIntegrationTools({
+            request,
+            loadLeasedAgentStep: params.loadLeasedAgentStep,
+            registry: params.registry,
+            getIntegrationConnectionById: params.getIntegrationConnectionById,
+          });
+          const server = buildAgentToolsMcpServer({
+            authorizedTools,
+            dispatch: dispatchIntegrationToolCall,
+            recordCall: createIntegrationToolCallRecorder(requireLeasedJobContext(request)),
+          });
+          const transport = new StreamableHTTPServerTransport();
+
+          await server.connect(transport as unknown as Transport);
+          reply.raw.on('close', () => {
+            void transport.close();
+            void server.close();
+          });
+
+          reply.hijack();
+          await transport.handleRequest(request.raw, reply.raw, request.body);
+        },
+      }),
+    ],
+  };
+}

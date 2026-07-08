@@ -32,6 +32,7 @@ interface TestAgentStep extends TestWorkflowStepBase {
   readonly prompt: string;
   readonly thinking?: AgentThinking | undefined;
   readonly tools?: readonly string[] | undefined;
+  readonly integrations?: Extract<ModelStep, {kind: 'agent'}>['integrations'] | undefined;
 }
 
 type TestWorkflowStep = TestRunStep | TestAgentStep;
@@ -141,6 +142,7 @@ function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number)
         ...(step.provider === undefined ? {} : {provider: step.provider}),
         ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
         ...(step.tools === undefined ? {} : {tools: step.tools}),
+        ...(step.integrations === undefined ? {} : {integrations: step.integrations}),
         prompt: step.prompt,
         ...optionalAgentTemplates(step),
       };

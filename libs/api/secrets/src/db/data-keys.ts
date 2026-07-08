@@ -16,11 +16,16 @@ export async function getDataKey(workspaceId: string, tx?: Tx): Promise<DataKey 
 export async function insertDataKeyIfAbsent(
   dataKey: {workspaceId: string; wrappedDek: string; kekVersion: string},
   tx?: Tx,
-): Promise<void> {
+): Promise<boolean> {
   const executor = tx ?? db();
-  await executor.insert(secretDataKeys).values(dataKey).onConflictDoNothing({
-    target: secretDataKeys.workspaceId,
-  });
+  const rows = await executor
+    .insert(secretDataKeys)
+    .values(dataKey)
+    .onConflictDoNothing({
+      target: secretDataKeys.workspaceId,
+    })
+    .returning({workspaceId: secretDataKeys.workspaceId});
+  return rows.length > 0;
 }
 
 export async function updateDataKeyWrapCas(

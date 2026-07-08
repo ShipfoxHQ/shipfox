@@ -5,7 +5,7 @@ import {
   type JobExecutionOutcomeSignals,
   jobExecutionStartOutcome,
   resolveJobExecutionOutcomeSignal,
-} from '#core/job-execution-orchestration.js';
+} from '#core/job-execution-outcome.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
@@ -56,7 +56,7 @@ const {releaseLeaseActivity} = proxyActivities<ReturnType<typeof createOrchestra
   retry: {maximumAttempts: 5},
 });
 
-const DEFAULT_EXECUTION_MAX_DURATION = '6 hours';
+const DEFAULT_EXECUTION_MAX_DURATION_MS = 6 * 60 * 60 * 1000;
 
 export const jobFinishedSignal =
   defineSignal<[{status: RuntimeCompletionStatus; jobExecutionId?: string | undefined}]>(
@@ -155,7 +155,7 @@ async function markJobExecutionRunningAndEnqueue(
 // ordering), so callers must evaluate `finished` before `leaseExpired`.
 async function awaitJobOutcome(
   jobExecutionId: string,
-  timeout: string | number,
+  timeoutMs: number,
 ): Promise<JobExecutionOutcomeSignals> {
   let finished: {status: RuntimeCompletionStatus; jobExecutionId?: string | undefined} | undefined;
   let leaseExpired = false;
@@ -168,7 +168,7 @@ async function awaitJobOutcome(
     leaseExpired = true;
   });
 
-  await condition(() => finished !== undefined || leaseExpired, timeout);
+  await condition(() => finished !== undefined || leaseExpired, timeoutMs);
 
   return {finished, leaseExpired};
 }
@@ -295,8 +295,8 @@ export async function jobExecutionOrchestration(
   }
   const {runningVersion} = running;
 
-  const timeout = input.executionTimeoutMs ?? DEFAULT_EXECUTION_MAX_DURATION;
-  const signals = await awaitJobOutcome(input.jobExecutionId, timeout);
+  const timeoutMs = input.executionTimeoutMs ?? DEFAULT_EXECUTION_MAX_DURATION_MS;
+  const signals = await awaitJobOutcome(input.jobExecutionId, timeoutMs);
 
   // Precedence ladder: a genuinely-finished job is never flipped to failed by a
   // late lease-expiry, so `finished` wins over `leaseExpired`.

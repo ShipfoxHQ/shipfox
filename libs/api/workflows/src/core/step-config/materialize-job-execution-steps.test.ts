@@ -3,6 +3,14 @@ import {
   UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import {
+  AGENT_INTEGRATION_MCP_AUTH,
+  AGENT_INTEGRATION_MCP_ENDPOINT,
+  AGENT_INTEGRATION_MCP_SERVER_NAME,
+  AGENT_INTEGRATION_MCP_TRANSPORT,
+} from '@shipfox/api-agent-dto';
+import type {AgentToolCatalogEntry} from '@shipfox/api-integration-core';
+import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {workflowModel} from '#test/index.js';
 import {materializeJobExecutionSteps} from './materialize-job-execution-steps.js';
@@ -59,6 +67,87 @@ function jobExecutionContext(): WorkflowEvaluationContext {
       ],
     },
   };
+}
+
+function githubAgentToolContext(
+  catalog: readonly AgentToolCatalogEntry[] = githubAgentToolCatalog(),
+): AgentToolMaterializationContext {
+  return {
+    catalogs: new Map([['github', catalog]]),
+    workspaceConnectionSnapshot: new Map([
+      [
+        'github-main',
+        {
+          id: 'connection-1',
+          provider: 'github',
+          capabilities: ['agent_tools'],
+        },
+      ],
+    ]),
+    defaultConnection: {
+      id: 'connection-1',
+      slug: 'github-main',
+      provider: 'github',
+    },
+    defaultRepositoryId: 'github:owner/repo',
+  };
+}
+
+function githubAgentToolCatalog(): readonly AgentToolCatalogEntry[] {
+  return [
+    {
+      id: 'issue_read',
+      description: 'Read issues.',
+      sensitivity: 'read',
+      sensitive: false,
+      requiredScope: [{permission: 'issues', access: 'read'}],
+      inputSchema: {type: 'object'},
+      methods: [
+        {
+          id: 'get',
+          description: 'Get issue.',
+          sensitivity: 'read',
+          sensitive: false,
+          requiredScope: [{permission: 'issues', access: 'read'}],
+        },
+        {
+          id: 'get_comments',
+          description: 'Get issue comments.',
+          sensitivity: 'read',
+          sensitive: false,
+          requiredScope: [{permission: 'issues', access: 'read'}],
+        },
+      ],
+    },
+    {
+      id: 'issue_write',
+      description: 'Write issues.',
+      sensitivity: 'write',
+      sensitive: false,
+      requiredScope: [{permission: 'issues', access: 'write'}],
+      inputSchema: {type: 'object'},
+      methods: [
+        {
+          id: 'create',
+          description: 'Create issue.',
+          sensitivity: 'write',
+          sensitive: false,
+          requiredScope: [{permission: 'issues', access: 'write'}],
+        },
+      ],
+    },
+    {
+      id: 'merge_pull_request',
+      description: 'Merge a pull request.',
+      sensitivity: 'write',
+      sensitive: true,
+      requiredScope: [
+        {permission: 'pull_requests', access: 'write'},
+        {permission: 'contents', access: 'write'},
+      ],
+      inputSchema: {type: 'object'},
+    },
+  ];
 }
 
 describe('materializeJobExecutionSteps', () => {
@@ -139,6 +228,187 @@ describe('materializeJobExecutionSteps', () => {
           ],
         },
         position: 1,
+      },
+    ]);
+  });
+
+  it('freezes resolved agent integration tools with default connection, repo, and token scope', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              provider: 'anthropic',
+              model: 'claude-opus-4-8',
+              thinking: 'high',
+              prompt: 'Fix it.',
+              integrations: [
+                {
+                  include: ['issue_read.get', 'issue_write.create', 'merge_pull_request'],
+                  allowWrite: true,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = materializeJobExecutionSteps({
+      model,
+      job,
+      context: jobExecutionContext(),
+      agentToolContext: githubAgentToolContext(),
+    });
+    const integrations = steps[1]?.config.integrations;
+
+    expect(integrations).toEqual([
+      {
+        connectionId: 'connection-1',
+        connectionSlug: 'github-main',
+        provider: 'github',
+        repos: ['github:owner/repo'],
+        requiredScope: [
+          {permission: 'issues', access: 'write'},
+          {permission: 'pull_requests', access: 'write'},
+          {permission: 'contents', access: 'write'},
+        ],
+        tools: [
+          {
+            id: 'issue_read',
+            sensitivity: 'read',
+            sensitive: false,
+            requiredScope: [{permission: 'issues', access: 'read'}],
+            inputSchema: {type: 'object'},
+            methods: [
+              {
+                id: 'get',
+                token: 'issue_read.get',
+                sensitivity: 'read',
+                sensitive: false,
+                requiredScope: [{permission: 'issues', access: 'read'}],
+              },
+            ],
+          },
+          {
+            id: 'issue_write',
+            sensitivity: 'write',
+            sensitive: false,
+            requiredScope: [{permission: 'issues', access: 'write'}],
+            inputSchema: {type: 'object'},
+            methods: [
+              {
+                id: 'create',
+                token: 'issue_write.create',
+                sensitivity: 'write',
+                sensitive: false,
+                requiredScope: [{permission: 'issues', access: 'write'}],
+              },
+            ],
+          },
+          {
+            id: 'merge_pull_request',
+            sensitivity: 'write',
+            sensitive: true,
+            requiredScope: [
+              {permission: 'pull_requests', access: 'write'},
+              {permission: 'contents', access: 'write'},
+            ],
+            inputSchema: {type: 'object'},
+          },
+        ],
+      },
+    ]);
+    expect(steps[1]?.config.mcpServers).toEqual([
+      {
+        name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+        transport: AGENT_INTEGRATION_MCP_TRANSPORT,
+        endpoint: AGENT_INTEGRATION_MCP_ENDPOINT,
+        auth: AGENT_INTEGRATION_MCP_AUTH,
+        integrations,
+      },
+    ]);
+  });
+
+  it('carries frozen integrations through the agent dispatch plan when prompt is deferred', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              provider: 'anthropic',
+              model: 'claude-opus-4-8',
+              thinking: 'high',
+              prompt: `Fix ${template('steps.build.outputs.summary')}`,
+              integrations: [
+                {
+                  connection: 'github-main',
+                  include: ['issue_read'],
+                  exclude: ['issue_read.get_comments'],
+                  allowWrite: false,
+                  repos: ['github:owner/explicit'],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = materializeJobExecutionSteps({
+      model,
+      job,
+      context: jobExecutionContext(),
+      agentToolContext: githubAgentToolContext(),
+    });
+
+    expect(steps[1]?.config).toEqual({
+      harness: 'pi',
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+    });
+    const integrations = steps[1]?.configPlan?.agent?.integrations;
+    expect(integrations).toEqual([
+      {
+        connectionId: 'connection-1',
+        connectionSlug: 'github-main',
+        provider: 'github',
+        repos: ['github:owner/explicit'],
+        requiredScope: [{permission: 'issues', access: 'read'}],
+        tools: [
+          {
+            id: 'issue_read',
+            sensitivity: 'read',
+            sensitive: false,
+            requiredScope: [{permission: 'issues', access: 'read'}],
+            inputSchema: {type: 'object'},
+            methods: [
+              {
+                id: 'get',
+                token: 'issue_read.get',
+                sensitivity: 'read',
+                sensitive: false,
+                requiredScope: [{permission: 'issues', access: 'read'}],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(steps[1]?.configPlan?.agent?.mcpServers).toEqual([
+      {
+        name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+        transport: AGENT_INTEGRATION_MCP_TRANSPORT,
+        endpoint: AGENT_INTEGRATION_MCP_ENDPOINT,
+        auth: AGENT_INTEGRATION_MCP_AUTH,
+        integrations,
       },
     ]);
   });

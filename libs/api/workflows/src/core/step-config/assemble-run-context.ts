@@ -1,5 +1,9 @@
-import type {WorkflowExpressionEvaluationContext} from '@shipfox/expression';
-import type {Job} from '#core/entities/job.js';
+import {
+  analyzeContextRootKeyAccess,
+  extractExactContextRoots,
+  type WorkflowExpressionEvaluationContext,
+} from '@shipfox/expression';
+import type {Job, JobListeningTrigger} from '#core/entities/job.js';
 import type {JobExecution} from '#core/entities/job-execution.js';
 import type {Step, StepAttempt, StepStatus} from '#core/entities/step.js';
 import type {TriggerPayload, WorkflowRun} from '#core/entities/workflow-run.js';
@@ -119,7 +123,7 @@ function assembleExecutionContext(execution: JobExecution, index: number): Recor
 
 export function assembleJobsContext(
   jobs: readonly JobContextInput[],
-): WorkflowExpressionEvaluationContext {
+): WorkflowExpressionEvaluationContext & {readonly jobs: Record<string, unknown>} {
   return {
     jobs: Object.fromEntries(jobs.map((input) => [input.job.key, assembleJobContext(input)])),
   };
@@ -140,6 +144,167 @@ export function assembleJobActivationContext(
       needs: params.jobs.map(assembleJobContext),
     },
   };
+}
+
+type ListenerSnapshotRoot = 'run' | 'trigger' | 'inputs' | 'job' | 'jobs';
+
+export interface MatcherSnapshotPlan {
+  readonly matcher: JobListeningTrigger;
+  readonly roots: ReadonlySet<ListenerSnapshotRoot>;
+  readonly jobKeys: ReadonlySet<string>;
+}
+
+export interface ListenerSnapshotPlan {
+  readonly on: readonly MatcherSnapshotPlan[];
+  readonly until: readonly MatcherSnapshotPlan[];
+  readonly roots: ReadonlySet<ListenerSnapshotRoot>;
+  readonly jobKeys: ReadonlySet<string>;
+}
+
+export function planListenerFilterSnapshots(params: {
+  readonly on: readonly JobListeningTrigger[];
+  readonly until: readonly JobListeningTrigger[] | null;
+}): ListenerSnapshotPlan {
+  const roots = new Set<ListenerSnapshotRoot>();
+  const jobKeys = new Set<string>();
+  const on = params.on.map((matcher) => planMatcherFilterSnapshot(matcher, roots, jobKeys));
+  const until = (params.until ?? []).map((matcher) =>
+    planMatcherFilterSnapshot(matcher, roots, jobKeys),
+  );
+  return {on, until, roots, jobKeys};
+}
+
+function planMatcherFilterSnapshot(
+  matcher: JobListeningTrigger,
+  allRoots: Set<ListenerSnapshotRoot>,
+  allJobKeys: Set<string>,
+): MatcherSnapshotPlan {
+  if (matcher.filter === undefined) return {matcher, roots: new Set(), jobKeys: new Set()};
+
+  let roots: ListenerSnapshotRoot[];
+  try {
+    roots = extractExactContextRoots(matcher.filter)
+      .filter((root) => root !== 'event')
+      .filter(isListenerSnapshotRoot);
+  } catch {
+    return {matcher, roots: new Set(), jobKeys: new Set()};
+  }
+
+  if (roots.length === 0) return {matcher, roots: new Set(), jobKeys: new Set()};
+
+  const jobKeys =
+    roots.includes('jobs') && matcher.filter !== undefined
+      ? new Set(
+          analyzeContextRootKeyAccess(matcher.filter, ['jobs']).references.map(
+            (reference) => reference.key,
+          ),
+        )
+      : new Set<string>();
+  for (const root of roots) allRoots.add(root);
+  for (const key of jobKeys) allJobKeys.add(key);
+  return {matcher, roots: new Set(roots), jobKeys};
+}
+
+function isListenerSnapshotRoot(root: string): root is ListenerSnapshotRoot {
+  return (
+    root === 'run' || root === 'trigger' || root === 'inputs' || root === 'job' || root === 'jobs'
+  );
+}
+
+export function assembleListenerSnapshotContext(params: {
+  readonly job: Pick<Job, 'key'>;
+  readonly run: AssembleWorkflowRunContextParams['run'];
+  readonly triggerPayload: TriggerPayload;
+  readonly inputs?: Record<string, unknown> | null | undefined;
+  readonly plan: ListenerSnapshotPlan;
+  readonly dependencyJobs: readonly JobContextInput[];
+}): WorkflowExpressionEvaluationContext {
+  const context: Record<string, unknown> = {};
+  if (params.plan.roots.has('run') || params.plan.roots.has('trigger')) {
+    const runContext = assembleWorkflowRunContext({
+      run: params.run,
+      triggerPayload: params.triggerPayload,
+      inputs: params.inputs,
+    });
+    if (params.plan.roots.has('run')) context.run = runContext.run;
+    if (params.plan.roots.has('trigger')) context.trigger = runContext.trigger;
+  }
+
+  if (params.plan.roots.has('inputs')) {
+    context.inputs = params.inputs ?? null;
+  }
+  if (params.plan.roots.has('job')) {
+    context.job = {key: params.job.key};
+  }
+  if (params.plan.roots.has('jobs')) {
+    context.jobs = requestedJobsContext(params.dependencyJobs, params.plan.jobKeys);
+  }
+
+  return context;
+}
+
+function requestedJobsContext(
+  dependencyJobs: readonly JobContextInput[],
+  jobKeys: ReadonlySet<string>,
+): Record<string, unknown> {
+  if (jobKeys.size === 0) return assembleJobsContext(dependencyJobs).jobs;
+
+  const filtered = dependencyJobs.filter(({job}) => jobKeys.has(job.key));
+
+  return assembleJobsContext(filtered).jobs;
+}
+
+export type ListenerTriggerWithSnapshot = JobListeningTrigger & {
+  readonly filter_snapshot?: Record<string, unknown>;
+};
+
+export function applyListenerFilterSnapshots(
+  plans: readonly MatcherSnapshotPlan[],
+  context: WorkflowExpressionEvaluationContext,
+): ListenerTriggerWithSnapshot[] {
+  return plans.map((plan) => {
+    const filterSnapshot = filterSnapshotForPlan(plan, context);
+    if (filterSnapshot === undefined) return plan.matcher;
+
+    return {...plan.matcher, filter_snapshot: filterSnapshot};
+  });
+}
+
+function filterSnapshotForPlan(
+  plan: MatcherSnapshotPlan,
+  context: WorkflowExpressionEvaluationContext,
+): Record<string, unknown> | undefined {
+  const snapshot: Record<string, unknown> = {};
+  for (const root of plan.roots) {
+    if (root === 'jobs') {
+      const jobsSnapshot = jobsSnapshotForPlan(plan, context);
+      if (jobsSnapshot !== undefined) snapshot.jobs = jobsSnapshot;
+      continue;
+    }
+
+    if (root in context) snapshot[root] = context[root];
+  }
+
+  return Object.keys(snapshot).length === 0 ? undefined : snapshot;
+}
+
+function jobsSnapshotForPlan(
+  plan: MatcherSnapshotPlan,
+  context: WorkflowExpressionEvaluationContext,
+): Record<string, unknown> | undefined {
+  if (typeof context.jobs !== 'object' || context.jobs === null) {
+    return undefined;
+  }
+
+  const jobsContext = context.jobs as Record<string, unknown>;
+  if (plan.jobKeys.size === 0) return {...jobsContext};
+
+  const snapshot = Object.fromEntries(
+    [...plan.jobKeys].flatMap((key) =>
+      Object.hasOwn(jobsContext, key) ? [[key, jobsContext[key]]] : [],
+    ),
+  );
+  return snapshot;
 }
 
 function assembleJobContext({job, executions}: JobContextInput): Record<string, unknown> {

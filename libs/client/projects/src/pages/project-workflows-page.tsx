@@ -2,8 +2,8 @@ import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definit
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {useFireManualWorkflowMutation} from '@shipfox/client-workflows';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import {LoadErrorState} from '@shipfox/react-ui/load-error-state';
@@ -314,14 +314,14 @@ function WorkflowDefinitionsList({
       </div>
 
       {isFetchNextPageError ? (
-        <Alert variant="error" animated={false}>
+        <Callout role="alert" type="error">
           <div className="flex items-center justify-between gap-12">
             <Text size="sm">Could not load more workflows.</Text>
             <Button size="sm" variant="secondary" onClick={onLoadMore}>
               Retry
             </Button>
           </div>
-        </Alert>
+        </Callout>
       ) : null}
 
       {hasNextPage ? (
@@ -358,7 +358,7 @@ function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummaryDto | null | unde
   if (sync?.status !== 'failed') return null;
 
   return (
-    <Alert variant="error" animated={false}>
+    <Callout role="alert" type="error">
       <div className="flex flex-col gap-4">
         <Text size="sm" bold>
           Workflow sync failed
@@ -367,7 +367,7 @@ function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummaryDto | null | unde
           {sync.last_error_message ?? 'The latest workflow sync failed before definitions updated.'}
         </Text>
       </div>
-    </Alert>
+    </Callout>
   );
 }
 

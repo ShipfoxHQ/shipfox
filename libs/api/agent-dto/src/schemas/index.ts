@@ -80,7 +80,17 @@ export {
   parsePiEnabledToolPackages,
 } from './harness.js';
 export {
+  AGENT_INTEGRATION_MCP_AUTH,
+  AGENT_INTEGRATION_MCP_ENDPOINT,
+  AGENT_INTEGRATION_MCP_SERVER_NAME,
+  AGENT_INTEGRATION_MCP_TRANSPORT,
+  type AgentIntegrationMcpServerConfigDto,
+  agentIntegrationMcpServerSchema,
+  type MaterializedAgentIntegrationConfigDto,
+  type MaterializedAgentIntegrationToolConfigDto,
   type MaterializedAgentStepConfigDto,
+  materializedAgentIntegrationSchema,
+  materializedAgentIntegrationToolSchema,
   materializedAgentStepConfigSchema,
 } from './materialized-agent-step-config.js';
 export {

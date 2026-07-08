@@ -1,4 +1,5 @@
 import {giteaProviderModule} from '#providers/gitea.js';
+import {linearProviderModule} from '#providers/linear.js';
 import {createTestApp, sourceProvider, useIntegrationRouteTest} from '#test/route-utils.js';
 
 describe('GET /integration-providers', () => {
@@ -45,6 +46,7 @@ describe('GET /integration-providers', () => {
         adapters: {
           agent_tools: {
             catalog: () => [],
+            selectionCatalog: () => ({selectors: []}),
             openSession: async () => {
               await Promise.resolve();
               return {
@@ -89,5 +91,23 @@ describe('GET /integration-providers', () => {
     expect(res.json().providers.map((entry: {provider: string}) => entry.provider)).toContain(
       'gitea',
     );
+  });
+
+  it('surfaces the Linear provider with no capabilities once its module is registered', async () => {
+    const {provider} = await linearProviderModule.load();
+    const app = await createTestApp([provider]);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/integration-providers',
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().providers).toContainEqual({
+      provider: 'linear',
+      display_name: 'Linear',
+      capabilities: [],
+    });
   });
 });

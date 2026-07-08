@@ -5,7 +5,12 @@ import {
   type DefinitionsEventMap,
   definitionsEventSchemas,
 } from '@shipfox/api-definitions-dto';
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import type {
+  AgentToolSelectionCatalogs,
+  GetIntegrationConnectionByIdFn,
+  IntegrationSourceControlService,
+  LoadWorkspaceConnectionSnapshot,
+} from '@shipfox/api-integration-core';
 import {
   PROJECT_SOURCE_BOUND,
   PROJECT_SOURCE_COMMIT_OBSERVED,
@@ -14,7 +19,7 @@ import {
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {db, definitionsOutbox, migrationsPath} from '#db/index.js';
-import {routes} from '#presentation/index.js';
+import {createDefinitionRoutes} from '#presentation/index.js';
 import {
   onProjectSourceBound,
   onProjectSourceCommitObserved,
@@ -46,15 +51,36 @@ const subscriber = subscriberFactory<DefinitionsEventMap & ProjectsEventMap>();
 
 export interface CreateDefinitionsModuleOptions {
   sourceControl: IntegrationSourceControlService;
+  agentToolSelectionCatalogs?: AgentToolSelectionCatalogs | undefined;
+  loadWorkspaceConnectionSnapshot?: LoadWorkspaceConnectionSnapshot | undefined;
+  getIntegrationConnectionById?: GetIntegrationConnectionByIdFn | undefined;
 }
 
 export function createDefinitionsModule({
   sourceControl,
+  agentToolSelectionCatalogs,
+  loadWorkspaceConnectionSnapshot,
+  getIntegrationConnectionById,
 }: CreateDefinitionsModuleOptions): ShipfoxModule {
+  const integrationValidation =
+    agentToolSelectionCatalogs === undefined ||
+    loadWorkspaceConnectionSnapshot === undefined ||
+    getIntegrationConnectionById === undefined
+      ? undefined
+      : {
+          agentToolSelectionCatalogs,
+          loadWorkspaceConnectionSnapshot,
+          getIntegrationConnectionById,
+        };
+
   return {
     name: 'definitions',
     database: {db, migrationsPath},
-    routes,
+    routes: createDefinitionRoutes({
+      agentToolSelectionCatalogs,
+      loadWorkspaceConnectionSnapshot,
+      getIntegrationConnectionById,
+    }),
     publishers: [
       {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
     ],
@@ -70,7 +96,7 @@ export function createDefinitionsModule({
       {
         taskQueue: DEFINITIONS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createDefinitionSyncActivities(sourceControl),
+        activities: () => createDefinitionSyncActivities(sourceControl, integrationValidation),
         workflows: [],
       },
     ],

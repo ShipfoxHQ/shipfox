@@ -262,7 +262,7 @@ Buttons are `rounded-6`. Status pills are `rounded-4` or `rounded-full`. Cards a
 
 The system ships with batteries — use them. The `@shipfox/react-ui` package in this workspace exports the full inventory below. Reach for these before building anything new.
 
-`accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`, `card`, `code-block`, `collapsible`, `combobox`, `command`, `date-picker`, `date-range-picker`, `dot`, `dropdown-menu`, `empty-state`, `form-field`, `icon`, `inline-tips`, `input`, `kbd`, `label`, `load-error-state`, `loader`, `log`, `logo`, `modal`, `popover`, `radio-group`, `relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `skeleton`, `table`, `tabs`, `theme`, `toast`, `tooltip`, `typography`.
+`accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`, `callout`, `card`, `code-block`, `collapsible`, `combobox`, `command`, `date-picker`, `date-range-picker`, `dot`, `dropdown-menu`, `empty-state`, `form-field`, `icon`, `input`, `kbd`, `label`, `load-error-state`, `loader`, `log`, `logo`, `markdown`, `modal`, `popover`, `radio-group`, `relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `skeleton`, `table`, `tabs`, `theme`, `toast`, `tooltip`, `typography`.
 
 Still absent from this package and living only in the broader external catalog: `button-group`, `checkbox`, `confetti`, `count-up`, `dashboard`, `dot-grid`, `dynamic-item`, `form`, `interval-selector`, `item`, `moving-border`, `shipql-editor`, `slider`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
 
@@ -294,6 +294,12 @@ Use `lucide-react` for stylistically-warm icons in marketing, `@remixicon/react`
 ### Loader
 
 `ShipfoxLoader` is the brand spinner. Use it for page-level loads and meaningful blocking states. Use the lightweight spinner icon (`Icon name="spinner"`) inside buttons and small inline spots.
+
+### Notices
+
+`Callout` is the canonical static notice. It uses a quiet neutral surface with a saturated status side-line or leading glyph, supports `default`, `info`, `success`, `warning`, and `error`, and should be used for inline guidance, form/server errors, empty/error copy, and authored annotation cards that are page content. Keep it passive by default; opt in to `role="alert"` or `aria-live="polite"` only when the notice must be announced.
+
+`Alert` is reserved for dismissible or animated notices. Static `Alert` usages should migrate to `Callout`; once that sweep is complete, `Alert` should compose `Callout` rather than owning a second static notice style.
 
 ### Top-nav layout components
 
@@ -407,7 +413,7 @@ When showing multi-line code/log/YAML content:
 - Always `font-code`, `text-sm`, on a contrast surface (`bg-background-contrast-base`) regardless of theme — code reads better on near-black even in light mode.
 - Default to no-wrap with horizontal scroll. Engineers will reach for "soft wrap" if they want it.
 - Show line numbers in `text-foreground-neutral-muted`.
-- Inline validation errors get an `Alert` above the block with file + line; don't rely on color alone.
+- Inline validation errors get a `Callout` above the block with file + line; don't rely on color alone.
 
 ### Empty states
 
@@ -476,3 +482,4 @@ Tags / pills have their own token family because they need distinct background +
 | 2026-06-23 | Job/run/step state uses icon-in-circle status glyphs (`WorkflowStatusIcon` in client-workflows) in dense node/row surfaces, not a color-only `Dot` | The muted dark `--tag-*-text` palette rendered `pending` and `cancelled` as identical dots and leaned on color alone (WCAG 1.4.1). A shape per state plus the saturated `--tag-*-icon` tone fixes both; running keeps the existing ripple halo (no spinner), and pending is a bold masked ring (not a thin dotted outline). The component lives in the feature package, composing shared `Icon`/`Dot`, so the design system stays generic (no new react-ui export). The glyph carries the status as `role="img"`/`aria-label` + a hover tooltip. The run-header status pill is color + word only - no leading icon/dot inside the pill (too many surfaces). |
 | 2026-06-28 | Trigger labels show source icon + event name, with full `source · event` in a tooltip | The source icon already names the source visually, so repeating the source text in dense rows adds noise. The tooltip keeps the full source/event identity available where the event name alone is ambiguous. |
 | 2026-06-29 | Job graph nodes show one bare duration in mono, muted, tabular text | Dense graph nodes already carry state through `WorkflowStatusIcon`, so the duration must not repeat the verb/state. Live queue/run durations and final run spans render as numbers only; accessible labels include the verb for screen readers. Missing duration anchors render nothing rather than a placeholder. Live timers must avoid layout jitter and respect reduced-motion settings. |
+| 2026-07-07 | `Callout` replaces `InlineTips` as the canonical static notice; `Markdown` joins react-ui for sanitized authored content | `InlineTips` already had the quiet neutral surface and 4px status edge that matches §13.5 and the no-tinted-card guidance in §10. `Callout` keeps that base, adds `warning`, and uses Remix status glyphs as an optional shape channel while leaving `Alert` for dismissible/animated notices. `Markdown` centralizes sanitized rendering for untrusted customer-authored annotation bodies. |

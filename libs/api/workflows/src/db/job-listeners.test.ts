@@ -339,7 +339,7 @@ describe('activateJobListener', () => {
     expect(snapshot?.jobs).not.toHaveProperty('review');
   });
 
-  it('omits snapshots when referenced job keys are absent', async () => {
+  it('snapshots an empty jobs root when referenced job keys are absent', async () => {
     const job = await createListenerWithDependencies({
       on: [
         {
@@ -358,6 +358,7 @@ describe('activateJobListener', () => {
       source: 'github',
       event: 'pull_request',
       filter: 'jobs.missing.outputs.pr_number == event.pull_request.number',
+      filter_snapshot: {jobs: {}},
     });
   });
 
@@ -400,6 +401,42 @@ describe('resolveJobListener', () => {
     expect(result.status).toBe('failed');
     expect(stored?.status).toBe('failed');
     expect(stored?.resolutionReason).toBe('max_executions');
+  });
+
+  it('resolves custom success expressions with direct dependency context', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: 'echo build'}],
+        },
+        listen: {
+          needs: 'build',
+          success: 'jobs.build.status == "succeeded" && jobs.build.outputs.release == "yes"',
+          steps: [{run: 'echo listen'}],
+        },
+      },
+    });
+    const run = await workflowRunFactory.create({}, {transient: {model}});
+    const [build, listener] = await getJobsByWorkflowRunId(run.id);
+    if (!build || !listener) throw new Error('Expected build and listener jobs');
+    await db()
+      .update(jobs)
+      .set({status: 'succeeded', outputs: {release: 'yes'}})
+      .where(eq(jobs.id, build.id));
+    await db()
+      .update(jobs)
+      .set({mode: 'listening', status: 'running', listenerStatus: 'listening'})
+      .where(eq(jobs.id, listener.id));
+    await db().delete(jobExecutions).where(eq(jobExecutions.jobId, listener.id));
+    await insertExecution(listener.id, 1, 'succeeded');
+
+    const result = await resolveJobListener({jobId: listener.id, reason: 'until'});
+
+    const stored = await readJob(listener.id);
+    expect(result.status).toBe('succeeded');
+    expect(stored?.status).toBe('succeeded');
+    expect(stored?.listenerStatus).toBe('resolved');
+    expect(stored?.resolutionReason).toBe('until');
   });
 
   it('resolves a listener with zero firings under the default success rule', async () => {
@@ -454,6 +491,97 @@ describe('drainListenerEventsIntoExecution', () => {
     expect(result).toMatchObject({kind: 'execution', sequence: 1, status: 'pending'});
     expect(executions).toHaveLength(1);
     expect(events.every((event) => event.consumedByExecutionId === executions[0]?.id)).toBe(true);
+  });
+
+  it('uses the frozen agent tool materialization snapshot for listener executions', async () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              prompt: 'Review the pull request.',
+              integrations: [{include: ['issue_read.get'], allowWrite: false}],
+            },
+          ],
+        },
+      },
+    });
+    const modelJob = model.jobs[0];
+    const modelStep = modelJob?.steps[0];
+    if (modelJob === undefined || modelStep === undefined) throw new Error('Expected model step');
+    const job = await createListeningJobFromModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              prompt: 'Review the pull request.',
+              integrations: [{include: ['issue_read.get'], allowWrite: false}],
+            },
+          ],
+        },
+      },
+    });
+    const frozenIntegrations = [
+      {
+        connectionId: crypto.randomUUID(),
+        connectionSlug: 'github',
+        provider: 'github',
+        repos: ['github:shipfox/platform'],
+        requiredScope: [{permission: 'issues', access: 'read'}],
+        tools: [
+          {
+            id: 'issue_read',
+            sensitivity: 'read' as const,
+            sensitive: false,
+            requiredScope: [{permission: 'issues', access: 'read'}],
+            inputSchema: {type: 'object'},
+            methods: [
+              {
+                id: 'get',
+                token: 'issue_read.get',
+                sensitivity: 'read' as const,
+                sensitive: false,
+                requiredScope: [{permission: 'issues', access: 'read'}],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    await db()
+      .update(workflowRunAttempts)
+      .set({
+        agentToolMaterialization: {
+          steps: [{jobKey: modelJob.key, stepId: modelStep.id, integrations: frozenIntegrations}],
+        },
+      })
+      .where(eq(workflowRunAttempts.id, job.workflowRunAttemptId));
+    await bufferEvent(job.id);
+
+    const result = await drainListenerEventsIntoExecution({
+      jobId: job.id,
+      expectedSequence: 1,
+      resolveAgentDefaults: () => ({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      }),
+    });
+
+    const [execution] = await db()
+      .select()
+      .from(jobExecutions)
+      .where(and(eq(jobExecutions.jobId, job.id), eq(jobExecutions.sequence, 1)));
+    const executionSteps = await db()
+      .select()
+      .from(steps)
+      .where(eq(steps.jobExecutionId, execution?.id as string))
+      .orderBy(asc(steps.position));
+    expect(result).toMatchObject({kind: 'execution', status: 'pending'});
+    expect(executionSteps.find((step) => step.type === 'agent')?.config.integrations).toEqual(
+      frozenIntegrations,
+    );
   });
 
   it('caps a drain at maxSize and leaves the remainder buffered for the next firing', async () => {

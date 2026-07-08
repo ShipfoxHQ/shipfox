@@ -1,14 +1,8 @@
 import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
-import {Alert} from '@shipfox/react-ui/alert';
 import {Button} from '@shipfox/react-ui/button';
+import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
-import {
-  InlineTips,
-  InlineTipsContent,
-  InlineTipsDescription,
-  InlineTipsTitle,
-} from '@shipfox/react-ui/inline-tips';
 import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
@@ -124,14 +118,14 @@ export function CreateManualRegistrationTokenForm({
           </form.Subscribe>
         </form>
         {formError ? (
-          <Alert variant="error" animated={false}>
+          <Callout role="alert" type="error">
             <div className="flex flex-col gap-8">
               <Text size="sm" bold>
                 Could not create token
               </Text>
               <Text size="sm">{formError}</Text>
             </div>
-          </Alert>
+          </Callout>
         ) : null}
       </ModalBody>
       <ModalFooter>
@@ -171,13 +165,13 @@ export function CreatedManualRegistrationTokenPanel({
   }
 
   return (
-    <InlineTips type="success" variant="secondary" className="items-start">
-      <InlineTipsContent className="flex flex-col gap-12">
+    <Callout type="success" variant="secondary" icon={null}>
+      <CalloutContent className="flex flex-col gap-12">
         <div className="flex flex-col gap-2">
-          <InlineTipsTitle className="mb-0">Token created</InlineTipsTitle>
-          <InlineTipsDescription>
+          <CalloutTitle className="mb-0">Token created</CalloutTitle>
+          <CalloutDescription>
             Copy this registration token now. It will not be shown again.
-          </InlineTipsDescription>
+          </CalloutDescription>
         </div>
         <div className="flex items-center gap-8 max-[640px]:flex-col max-[640px]:items-stretch">
           <Code variant="paragraph" className="min-w-0 flex-1 break-all">
@@ -197,7 +191,7 @@ export function CreatedManualRegistrationTokenPanel({
             Copy failed: select and copy manually.
           </Text>
         ) : null}
-      </InlineTipsContent>
-    </InlineTips>
+      </CalloutContent>
+    </Callout>
   );
 }

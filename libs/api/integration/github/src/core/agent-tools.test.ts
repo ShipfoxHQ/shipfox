@@ -1,5 +1,9 @@
 import type {GithubApiClient} from '#api/client.js';
-import {GithubAgentToolsProvider, githubAgentToolCatalog} from '#core/agent-tools.js';
+import {
+  GithubAgentToolsProvider,
+  githubAgentToolCatalog,
+  githubAgentToolSelectionCatalog,
+} from '#core/agent-tools.js';
 import {createGithubIntegrationProvider} from '#index.js';
 
 const expectedCatalogRows = [
@@ -278,9 +282,11 @@ describe('github agent tool catalog', () => {
   it('exposes the catalog through the provider adapter', () => {
     const provider = createProvider();
     const catalog = provider.adapters.agent_tools?.catalog();
+    const selectionCatalog = provider.adapters.agent_tools?.selectionCatalog();
 
     expect(provider.adapters.agent_tools).toBeDefined();
     expect(catalog).toBe(githubAgentToolCatalog);
+    expect(selectionCatalog).toBe(githubAgentToolSelectionCatalog);
   });
 
   it('fails closed for execution until dispatch is implemented', async () => {
