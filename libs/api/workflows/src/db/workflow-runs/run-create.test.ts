@@ -1,6 +1,5 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
-import {setVariables} from '@shipfox/api-secrets';
 import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {InterpolationUnresolvableError} from '#core/errors.js';
@@ -89,69 +88,6 @@ describe('workflow run queries', () => {
         config: {},
       });
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
-    });
-
-    test('materializes a templated runner on the one-shot job execution', async () => {
-      const model = buildModel({
-        jobs: {
-          build: {
-            runner: ['linux'],
-            runnerTemplates: [template('inputs.runner')],
-            steps: [{run: 'echo hello'}],
-          },
-        },
-      });
-
-      const run = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model,
-        triggerPayload: {
-          source: 'manual',
-          event: 'fire',
-          subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
-        },
-        inputs: {runner: 'GPU'},
-      });
-
-      const [job] = await getJobsByWorkflowRunId(run.id);
-      const executions = await getJobExecutionsByJobId(job?.id as string);
-      expect(executions[0]?.runner).toEqual(['gpu', 'linux']);
-    });
-
-    test('loads variables referenced only by job runner templates', async () => {
-      await setVariables({
-        workspaceId,
-        projectId,
-        values: {RUNNER: 'GPU'},
-      });
-      const model = buildModel({
-        jobs: {
-          build: {
-            runnerTemplates: [template('vars.RUNNER')],
-            steps: [{run: 'echo hello'}],
-          },
-        },
-      });
-
-      const run = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model,
-        triggerPayload: {
-          source: 'manual',
-          event: 'fire',
-          subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
-        },
-      });
-
-      const [job] = await getJobsByWorkflowRunId(run.id);
-      const executions = await getJobExecutionsByJobId(job?.id as string);
-      expect(executions[0]?.runner).toEqual(['gpu', 'ubuntu-latest']);
     });
 
     async function createJobOutputRun() {
@@ -271,89 +207,6 @@ describe('workflow run queries', () => {
           config: expect.objectContaining({env: {IMAGE_SHA: 'abc123'}}),
         }),
       });
-    });
-
-    test('persists the resolved one-shot job execution name', async () => {
-      const model = buildModel({
-        jobs: {
-          deploy: {
-            name: `Deploy ${template('inputs.environment')}`,
-            steps: [{run: 'echo deploy'}],
-          },
-        },
-      });
-
-      const run = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model,
-        triggerPayload: {
-          source: 'manual',
-          event: 'fire',
-          subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
-        },
-        inputs: {environment: 'prod'},
-      });
-
-      const [job] = await getJobsByWorkflowRunId(run.id);
-      if (!job) throw new Error('Missing deploy job');
-      const executions = await getJobExecutionsByJobId(job.id);
-      expect(executions[0]?.name).toBe('Deploy prod');
-    });
-
-    test('falls back to the job key and sequence for unnamed one-shot executions', async () => {
-      const run = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model: buildModel({
-          jobs: {
-            deploy: {
-              steps: [{run: 'echo deploy'}],
-            },
-          },
-        }),
-        triggerPayload: {
-          source: 'manual',
-          event: 'fire',
-          subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
-        },
-      });
-
-      const [job] = await getJobsByWorkflowRunId(run.id);
-      if (!job) throw new Error('Missing deploy job');
-      const executions = await getJobExecutionsByJobId(job.id);
-      expect(executions[0]?.name).toBe('deploy #1');
-    });
-
-    test('uses the fallback name for execution-name self references', async () => {
-      const run = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model: buildModel({
-          jobs: {
-            deploy: {
-              name: `Current ${template('execution.name')}`,
-              steps: [{run: 'echo deploy'}],
-            },
-          },
-        }),
-        triggerPayload: {
-          source: 'manual',
-          event: 'fire',
-          subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
-        },
-      });
-
-      const [job] = await getJobsByWorkflowRunId(run.id);
-      if (!job) throw new Error('Missing deploy job');
-      const executions = await getJobExecutionsByJobId(job.id);
-      expect(executions[0]?.name).toBe('Current deploy #1');
     });
 
     test('persists the parsed model on the run attempt', async () => {
