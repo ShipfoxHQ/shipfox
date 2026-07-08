@@ -25,3 +25,7 @@ fi
 command = "SHIPFOX_CLIENT_OPEN=1 mise exec -- turbo dev --filter=@shipfox/api --filter=@shipfox/client"
 default = true
 icon = "play"
+
+[scripts.run.docs]
+command = "mise exec -- pnpm --filter=@shipfox/docs dev"
+icon = "book-open"
