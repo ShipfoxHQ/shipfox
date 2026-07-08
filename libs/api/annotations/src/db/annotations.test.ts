@@ -30,7 +30,7 @@ describe('listAnnotationsForRunAttempt', () => {
       workspaceIds: [workspaceId],
     });
 
-    expect(result).toEqual({annotations: [first, second], hasMore: false});
+    expect(result).toEqual({annotations: [first, second], hasMore: false, nextCursor: null});
   });
 
   it('excludes annotations from other run attempts, runs, and workspaces', async () => {
@@ -67,7 +67,7 @@ describe('listAnnotationsForRunAttempt', () => {
       workspaceIds: [workspaceId],
     });
 
-    expect(result).toEqual({annotations: [visible], hasMore: false});
+    expect(result).toEqual({annotations: [visible], hasMore: false, nextCursor: null});
   });
 
   it('filters by job execution when provided', async () => {
@@ -94,7 +94,7 @@ describe('listAnnotationsForRunAttempt', () => {
       jobExecutionId,
     });
 
-    expect(result).toEqual({annotations: [visible], hasMore: false});
+    expect(result).toEqual({annotations: [visible], hasMore: false, nextCursor: null});
   });
 
   it('limits returned annotations and reports more rows', async () => {
@@ -124,7 +124,76 @@ describe('listAnnotationsForRunAttempt', () => {
       limit: 1,
     });
 
-    expect(result).toEqual({annotations: [first], hasMore: true});
+    expect(result).toEqual({
+      annotations: [first],
+      hasMore: true,
+      nextCursor: {sequence: first.sequence, id: first.id},
+    });
+  });
+
+  it('continues listing after the sequence and id cursor', async () => {
+    const workspaceId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
+    const [first, second, third] = await Promise.all([
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        jobExecutionId: crypto.randomUUID(),
+        context: 'first',
+        sequence: 1,
+      }),
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        jobExecutionId: crypto.randomUUID(),
+        context: 'second',
+        sequence: 2,
+      }),
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        jobExecutionId: crypto.randomUUID(),
+        context: 'third',
+        sequence: 3,
+      }),
+    ]);
+
+    const firstPage = await listAnnotationsForRunAttempt({
+      workflowRunId,
+      workflowRunAttempt: 1,
+      workspaceIds: [workspaceId],
+      limit: 1,
+    });
+    const secondPage = await listAnnotationsForRunAttempt({
+      workflowRunId,
+      workflowRunAttempt: 1,
+      workspaceIds: [workspaceId],
+      after: firstPage.nextCursor ?? undefined,
+      limit: 1,
+    });
+    const thirdPage = await listAnnotationsForRunAttempt({
+      workflowRunId,
+      workflowRunAttempt: 1,
+      workspaceIds: [workspaceId],
+      after: secondPage.nextCursor ?? undefined,
+      limit: 1,
+    });
+
+    expect(firstPage).toEqual({
+      annotations: [first],
+      hasMore: true,
+      nextCursor: {sequence: first.sequence, id: first.id},
+    });
+    expect(secondPage).toEqual({
+      annotations: [second],
+      hasMore: true,
+      nextCursor: {sequence: second.sequence, id: second.id},
+    });
+    expect(thirdPage).toEqual({
+      annotations: [third],
+      hasMore: false,
+      nextCursor: null,
+    });
   });
 
   it('returns an empty list when the user has no workspace memberships', async () => {
@@ -137,6 +206,6 @@ describe('listAnnotationsForRunAttempt', () => {
       workspaceIds: [],
     });
 
-    expect(result).toEqual({annotations: [], hasMore: false});
+    expect(result).toEqual({annotations: [], hasMore: false, nextCursor: null});
   });
 });

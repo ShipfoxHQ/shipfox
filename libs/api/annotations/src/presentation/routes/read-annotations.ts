@@ -20,6 +20,8 @@ export const readAnnotationsRoute = defineRoute({
       workflow_run_id: workflowRunId,
       attempt,
       job_execution_id: jobExecutionId,
+      after_sequence: afterSequence,
+      after_id: afterId,
       limit,
     } = request.query;
     const workspaceIds = user.memberships.map((membership) => membership.workspaceId);
@@ -28,9 +30,19 @@ export const readAnnotationsRoute = defineRoute({
       workflowRunAttempt: attempt,
       workspaceIds,
       jobExecutionId,
+      after:
+        afterSequence === undefined || afterId === undefined
+          ? undefined
+          : {sequence: afterSequence, id: afterId},
       limit,
     });
 
-    return {annotations: result.annotations.map(toAnnotationDto), has_more: result.hasMore};
+    return {
+      annotations: result.annotations.map(toAnnotationDto),
+      has_more: result.hasMore,
+      next_cursor: result.nextCursor
+        ? {sequence: result.nextCursor.sequence, id: result.nextCursor.id}
+        : null,
+    };
   },
 });

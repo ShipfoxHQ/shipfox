@@ -93,10 +93,12 @@ describe('annotation schemas', () => {
         },
       ],
       has_more: false,
+      next_cursor: null,
     });
 
     expect(response.annotations).toHaveLength(1);
     expect(response.has_more).toBe(false);
+    expect(response.next_cursor).toBeNull();
   });
 
   it('accepts and coerces the read annotations query shape', () => {
@@ -107,6 +109,8 @@ describe('annotation schemas', () => {
       workflow_run_id: workflowRunId,
       attempt: '2',
       job_execution_id: jobExecutionId,
+      after_sequence: '7',
+      after_id: jobExecutionId,
       limit: '25',
     });
 
@@ -114,6 +118,8 @@ describe('annotation schemas', () => {
       workflow_run_id: workflowRunId,
       attempt: 2,
       job_execution_id: jobExecutionId,
+      after_sequence: 7,
+      after_id: jobExecutionId,
       limit: 25,
     });
   });
@@ -138,5 +144,23 @@ describe('annotation schemas', () => {
     expect(withDefaultLimit.limit).toBe(500);
     expect(parseTooHighLimit).toThrow();
     expect(parseTooHighAttempt).toThrow();
+  });
+
+  it('requires read annotation cursor fields together', () => {
+    const parseMissingAfterId = () =>
+      readAnnotationsQuerySchema.parse({
+        workflow_run_id: crypto.randomUUID(),
+        attempt: '1',
+        after_sequence: '7',
+      });
+    const parseMissingAfterSequence = () =>
+      readAnnotationsQuerySchema.parse({
+        workflow_run_id: crypto.randomUUID(),
+        attempt: '1',
+        after_id: crypto.randomUUID(),
+      });
+
+    expect(parseMissingAfterId).toThrow();
+    expect(parseMissingAfterSequence).toThrow();
   });
 });

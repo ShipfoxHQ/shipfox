@@ -1,5 +1,5 @@
 import {type AnnotationStyleDto, READ_ANNOTATIONS_MAX_LIMIT} from '@shipfox/annotations-dto';
-import {and, asc, eq, inArray, type SQL, sql} from 'drizzle-orm';
+import {and, asc, eq, gt, inArray, or, type SQL, sql} from 'drizzle-orm';
 import type {Annotation} from '#core/entities/annotation.js';
 import {db} from './db.js';
 import {annotations, toAnnotation} from './schema/annotations.js';
@@ -11,18 +11,20 @@ export interface ListAnnotationsForRunAttemptParams {
   workflowRunAttempt: number;
   workspaceIds: readonly string[];
   jobExecutionId?: string | undefined;
+  after?: {sequence: number; id: string} | undefined;
   limit?: number | undefined;
 }
 
 export interface ListAnnotationsForRunAttemptResult {
   annotations: Annotation[];
   hasMore: boolean;
+  nextCursor: {sequence: number; id: string} | null;
 }
 
 export async function listAnnotationsForRunAttempt(
   params: ListAnnotationsForRunAttemptParams,
 ): Promise<ListAnnotationsForRunAttemptResult> {
-  if (params.workspaceIds.length === 0) return {annotations: [], hasMore: false};
+  if (params.workspaceIds.length === 0) return {annotations: [], hasMore: false, nextCursor: null};
 
   const limit = params.limit ?? DEFAULT_ANNOTATIONS_READ_LIMIT;
 
@@ -34,6 +36,13 @@ export async function listAnnotationsForRunAttempt(
   if (params.jobExecutionId) {
     conditions.push(eq(annotations.jobExecutionId, params.jobExecutionId));
   }
+  if (params.after) {
+    const cursorCondition = or(
+      gt(annotations.sequence, params.after.sequence),
+      and(eq(annotations.sequence, params.after.sequence), gt(annotations.id, params.after.id)),
+    );
+    if (cursorCondition) conditions.push(cursorCondition);
+  }
 
   const rows = await db()
     .select()
@@ -42,9 +51,13 @@ export async function listAnnotationsForRunAttempt(
     .orderBy(asc(annotations.sequence), asc(annotations.id))
     .limit(limit + 1);
 
+  const pageRows = rows.slice(0, limit);
+  const last = pageRows.at(-1);
+
   return {
-    annotations: rows.slice(0, limit).map(toAnnotation),
+    annotations: pageRows.map(toAnnotation),
     hasMore: rows.length > limit,
+    nextCursor: rows.length > limit && last ? {sequence: last.sequence, id: last.id} : null,
   };
 }
 

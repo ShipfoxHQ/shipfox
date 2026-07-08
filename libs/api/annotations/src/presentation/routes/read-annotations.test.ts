@@ -50,6 +50,8 @@ describe('GET /annotations', () => {
     workflowRunId: string;
     attempt: number;
     jobExecutionId?: string | undefined;
+    afterSequence?: number | undefined;
+    afterId?: string | undefined;
     limit?: number | undefined;
   }) {
     const search = new URLSearchParams({
@@ -57,6 +59,9 @@ describe('GET /annotations', () => {
       attempt: String(params.attempt),
     });
     if (params.jobExecutionId) search.set('job_execution_id', params.jobExecutionId);
+    if (params.afterSequence !== undefined)
+      search.set('after_sequence', String(params.afterSequence));
+    if (params.afterId) search.set('after_id', params.afterId);
     if (params.limit !== undefined) search.set('limit', String(params.limit));
     return `/annotations?${search.toString()}`;
   }
@@ -113,6 +118,7 @@ describe('GET /annotations', () => {
         },
       ],
       has_more: false,
+      next_cursor: null,
     });
   });
 
@@ -124,7 +130,7 @@ describe('GET /annotations', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({annotations: [], has_more: false});
+    expect(res.json()).toEqual({annotations: [], has_more: false, next_cursor: null});
   });
 
   it('returns an empty list for annotations outside the user workspaces', async () => {
@@ -138,7 +144,7 @@ describe('GET /annotations', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({annotations: [], has_more: false});
+    expect(res.json()).toEqual({annotations: [], has_more: false, next_cursor: null});
   });
 
   it('returns an empty list when the job execution filter has no matches', async () => {
@@ -157,10 +163,10 @@ describe('GET /annotations', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({annotations: [], has_more: false});
+    expect(res.json()).toEqual({annotations: [], has_more: false, next_cursor: null});
   });
 
-  it('limits the returned annotations and signals when more rows are available', async () => {
+  it('limits the returned annotations and returns a continuation cursor', async () => {
     const workspaceId = crypto.randomUUID();
     const workflowRunId = crypto.randomUUID();
     const first = await annotationFactory.create({
@@ -170,7 +176,7 @@ describe('GET /annotations', () => {
       context: 'first',
       sequence: 1,
     });
-    await annotationFactory.create({
+    const second = await annotationFactory.create({
       workspaceId,
       workflowRunId,
       jobExecutionId: crypto.randomUUID(),
@@ -178,14 +184,25 @@ describe('GET /annotations', () => {
       sequence: 2,
     });
 
-    const res = await app.inject({
+    const firstPage = await app.inject({
       method: 'GET',
       url: readUrl({workflowRunId, attempt: 1, limit: 1}),
       headers: {authorization: 'Bearer user', 'x-test-workspaces': workspaceId},
     });
+    const secondPage = await app.inject({
+      method: 'GET',
+      url: readUrl({
+        workflowRunId,
+        attempt: 1,
+        afterSequence: first.sequence,
+        afterId: first.id,
+        limit: 1,
+      }),
+      headers: {authorization: 'Bearer user', 'x-test-workspaces': workspaceId},
+    });
 
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({
+    expect(firstPage.statusCode).toBe(200);
+    expect(firstPage.json()).toMatchObject({
       annotations: [
         {
           id: first.id,
@@ -194,6 +211,19 @@ describe('GET /annotations', () => {
         },
       ],
       has_more: true,
+      next_cursor: {sequence: first.sequence, id: first.id},
+    });
+    expect(secondPage.statusCode).toBe(200);
+    expect(secondPage.json()).toMatchObject({
+      annotations: [
+        {
+          id: second.id,
+          context: 'second',
+          sequence: 2,
+        },
+      ],
+      has_more: false,
+      next_cursor: null,
     });
   });
 
@@ -221,6 +251,16 @@ describe('GET /annotations', () => {
     const res = await app.inject({
       method: 'GET',
       url: readUrl({workflowRunId: crypto.randomUUID(), attempt: 1, limit: 501}),
+      headers: {authorization: 'Bearer user', 'x-test-workspaces': crypto.randomUUID()},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects incomplete continuation cursors', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `${readUrl({workflowRunId: crypto.randomUUID(), attempt: 1})}&after_sequence=1`,
       headers: {authorization: 'Bearer user', 'x-test-workspaces': crypto.randomUUID()},
     });
 

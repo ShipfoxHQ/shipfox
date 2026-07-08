@@ -3,4 +3,4 @@
 "@shipfox/annotations-dto": patch
 ---
 
-Adds the user-authenticated annotations read route with workspace-scoped run-attempt filtering, DTO conversion, and a truncation signal.
+Adds the user-authenticated annotations read route with workspace-scoped run-attempt filtering, DTO conversion, and a continuation cursor.
