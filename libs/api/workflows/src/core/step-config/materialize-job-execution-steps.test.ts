@@ -3,6 +3,12 @@ import {
   UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import {
+  AGENT_INTEGRATION_MCP_AUTH,
+  AGENT_INTEGRATION_MCP_ENDPOINT,
+  AGENT_INTEGRATION_MCP_SERVER_NAME,
+  AGENT_INTEGRATION_MCP_TRANSPORT,
+} from '@shipfox/api-agent-dto';
 import type {AgentToolCatalogEntry} from '@shipfox/api-integration-core';
 import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
@@ -257,8 +263,9 @@ describe('materializeJobExecutionSteps', () => {
       context: jobExecutionContext(),
       agentToolContext: githubAgentToolContext(),
     });
+    const integrations = steps[1]?.config.integrations;
 
-    expect(steps[1]?.config.integrations).toEqual([
+    expect(integrations).toEqual([
       {
         connectionId: 'connection-1',
         connectionSlug: 'github-main',
@@ -315,6 +322,15 @@ describe('materializeJobExecutionSteps', () => {
         ],
       },
     ]);
+    expect(steps[1]?.config.mcpServers).toEqual([
+      {
+        name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+        transport: AGENT_INTEGRATION_MCP_TRANSPORT,
+        endpoint: AGENT_INTEGRATION_MCP_ENDPOINT,
+        auth: AGENT_INTEGRATION_MCP_AUTH,
+        integrations,
+      },
+    ]);
   });
 
   it('carries frozen integrations through the agent dispatch plan when prompt is deferred', () => {
@@ -358,7 +374,8 @@ describe('materializeJobExecutionSteps', () => {
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
-    expect(steps[1]?.configPlan?.agent?.integrations).toEqual([
+    const integrations = steps[1]?.configPlan?.agent?.integrations;
+    expect(integrations).toEqual([
       {
         connectionId: 'connection-1',
         connectionSlug: 'github-main',
@@ -383,6 +400,15 @@ describe('materializeJobExecutionSteps', () => {
             ],
           },
         ],
+      },
+    ]);
+    expect(steps[1]?.configPlan?.agent?.mcpServers).toEqual([
+      {
+        name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+        transport: AGENT_INTEGRATION_MCP_TRANSPORT,
+        endpoint: AGENT_INTEGRATION_MCP_ENDPOINT,
+        auth: AGENT_INTEGRATION_MCP_AUTH,
+        integrations,
       },
     ]);
   });

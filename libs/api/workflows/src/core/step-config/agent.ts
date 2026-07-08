@@ -5,7 +5,15 @@ import {
   UnsupportedModelProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {AgentThinking, MaterializedAgentIntegrationConfigDto} from '@shipfox/api-agent-dto';
+import {
+  AGENT_INTEGRATION_MCP_AUTH,
+  AGENT_INTEGRATION_MCP_ENDPOINT,
+  AGENT_INTEGRATION_MCP_SERVER_NAME,
+  AGENT_INTEGRATION_MCP_TRANSPORT,
+  type AgentIntegrationMcpServerConfigDto,
+  type AgentThinking,
+  type MaterializedAgentIntegrationConfigDto,
+} from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
 import {
@@ -123,7 +131,12 @@ export function completeAgentConfig(params: {
   params.config.thinking = defaults.thinking;
   params.config.prompt = prompt;
   if (agent.tools !== undefined) params.config.tools = [...agent.tools];
-  if (agent.integrations !== undefined) params.config.integrations = [...agent.integrations];
+  const integrations = agent.integrations === undefined ? undefined : [...agent.integrations];
+  if (integrations !== undefined) params.config.integrations = integrations;
+  const mcpServers =
+    agent.mcpServers ??
+    (integrations === undefined ? undefined : agentIntegrationMcpServers(integrations));
+  if (mcpServers !== undefined) params.config.mcpServers = [...mcpServers];
 }
 
 function completeAgentField(args: {
@@ -330,10 +343,11 @@ function authoredAgentIntegrationsConfig(
   return step.integrations === undefined ? {} : {integrations: step.integrations};
 }
 
-function materializedAgentIntegrationsConfig(
-  params: ResolveAgentStepConfigParams,
-):
-  | {readonly integrations: readonly MaterializedAgentIntegrationConfigDto[]}
+function materializedAgentIntegrationsConfig(params: ResolveAgentStepConfigParams):
+  | {
+      readonly integrations: readonly MaterializedAgentIntegrationConfigDto[];
+      readonly mcpServers: readonly AgentIntegrationMcpServerConfigDto[];
+    }
   | Record<string, never> {
   const integrations = materializeAgentIntegrations({
     jobKey: params.jobKey,
@@ -342,7 +356,23 @@ function materializedAgentIntegrationsConfig(
     context: params.agentToolContext,
     snapshot: params.agentToolSnapshot,
   });
-  return integrations === undefined ? {} : {integrations};
+  return integrations === undefined
+    ? {}
+    : {integrations, mcpServers: agentIntegrationMcpServers(integrations)};
+}
+
+function agentIntegrationMcpServers(
+  integrations: readonly MaterializedAgentIntegrationConfigDto[],
+): readonly AgentIntegrationMcpServerConfigDto[] {
+  return [
+    {
+      name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+      transport: AGENT_INTEGRATION_MCP_TRANSPORT,
+      endpoint: AGENT_INTEGRATION_MCP_ENDPOINT,
+      auth: AGENT_INTEGRATION_MCP_AUTH,
+      integrations: [...integrations],
+    },
+  ];
 }
 
 function dispatchPlanField(field: FieldResolution): ResolvedField {

@@ -1,4 +1,5 @@
 import type {
+  AgentIntegrationMcpServerConfigDto,
   AgentThinking,
   Harness,
   MaterializedAgentIntegrationConfigDto,
@@ -71,6 +72,7 @@ export interface StepConfigDispatchPlan {
     thinking?: AgentThinking;
     tools?: readonly string[];
     integrations?: readonly MaterializedAgentIntegrationConfigDto[];
+    mcpServers?: readonly AgentIntegrationMcpServerConfigDto[];
   };
   trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }
