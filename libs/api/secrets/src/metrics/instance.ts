@@ -38,11 +38,13 @@ export type SecretsDekAccessOutcome =
   | 'generated'
   | 'unwrap_failed'
   | 'wrap_failed'
-  | 'persist_failed';
+  | 'persist_failed'
+  | 'failure';
 export type SecretsKekRotationOutcome =
   | 'rotated'
   | 'skipped_current'
   | 'skipped_race'
+  | 'none'
   | 'stranded'
   | 'failure';
 
@@ -192,7 +194,7 @@ export function recordSecretsDekAccess(params: {
 export function classifyDekAccessError(error: unknown): SecretsDekAccessOutcome {
   if (error instanceof DekUnwrapError) return 'unwrap_failed';
   if (error instanceof DekWrapError) return 'wrap_failed';
-  return 'persist_failed';
+  return 'failure';
 }
 
 export function recordSecretsKekRotation(params: {

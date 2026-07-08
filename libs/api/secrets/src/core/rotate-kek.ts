@@ -95,5 +95,6 @@ function rotationDurationOutcome(params: {
 }) {
   if (params.rotated > 0) return 'rotated';
   if (params.skippedRace > 0) return 'skipped_race';
+  if (params.skippedCurrent === 0) return 'none';
   return 'skipped_current';
 }

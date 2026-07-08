@@ -50,7 +50,7 @@ export class DekManager {
 
       const generatedDek = crypto.randomBytes(DEK_BYTES);
       const wrapped = this.#keyProvider.wrapDek(workspaceId, generatedDek);
-      await insertDataKeyIfAbsent({
+      const inserted = await insertDataKeyIfAbsent({
         workspaceId,
         wrappedDek: wrapped.wrappedDek,
         kekVersion: wrapped.kekVersion,
@@ -66,7 +66,10 @@ export class DekManager {
         persisted.kekVersion,
       );
       this.#set(workspaceId, dek);
-      recordSecretsDekAccess({outcome: 'generated', durationMs: Date.now() - startedAt});
+      recordSecretsDekAccess({
+        outcome: inserted ? 'generated' : 'db_unwrapped',
+        durationMs: Date.now() - startedAt,
+      });
       return Buffer.from(dek);
     } catch (error) {
       recordSecretsDekAccess({
