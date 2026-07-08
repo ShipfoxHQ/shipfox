@@ -14,7 +14,6 @@ import {
 let secrets: LinearSecretsStore;
 
 beforeAll(async () => {
-  // @ts-expect-error @shipfox/api-secrets is a peer supplied by the composing API app.
   secrets = await import('@shipfox/api-secrets');
 });
 
@@ -32,6 +31,7 @@ function createConnectionContext() {
       exchangeAuthorizationCode: vi.fn(),
       getIdentity: vi.fn(),
       refreshAccessToken,
+      revokeToken: vi.fn(),
     },
   });
 

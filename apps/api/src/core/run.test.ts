@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => {
     createPostgresClient: vi.fn(),
     createProjectsModule: vi.fn(),
     deleteSecrets: vi.fn(),
+    getSecret: vi.fn(),
+    setSecrets: vi.fn(),
     apiConfig: {
       API_PORT: undefined as number | undefined,
       API_TRUST_PROXY: 'false',
@@ -64,7 +66,9 @@ vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProje
 vi.mock('@shipfox/api-runners', () => ({runnersModule: {name: 'runners'}}));
 vi.mock('@shipfox/api-secrets', () => ({
   deleteSecrets: mocks.deleteSecrets,
+  getSecret: mocks.getSecret,
   secretsModule: {name: 'secrets'},
+  setSecrets: mocks.setSecrets,
 }));
 vi.mock('@shipfox/api-triggers', () => ({triggersModule: {name: 'triggers'}}));
 vi.mock('@shipfox/api-workflows', () => ({
@@ -136,6 +140,8 @@ describe('run', () => {
     mocks.createPostgresClient.mockReset();
     mocks.createProjectsModule.mockReset();
     mocks.deleteSecrets.mockReset();
+    mocks.getSecret.mockReset();
+    mocks.setSecrets.mockReset();
     mocks.apiConfig.API_PORT = undefined;
     mocks.apiConfig.API_TRUST_PROXY = 'false';
     mocks.apiConfig.E2E_ENABLED = false;

@@ -4,6 +4,7 @@ import {config} from '#config.js';
 import {LinearIntegrationProviderError} from '#core/errors.js';
 
 const LINEAR_OAUTH_TOKEN_URL = 'https://api.linear.app/oauth/token';
+const LINEAR_OAUTH_REVOKE_URL = 'https://api.linear.app/oauth/revoke';
 const LINEAR_GRAPHQL_URL = 'https://api.linear.app/graphql';
 const LINEAR_API_TIMEOUT_MS = 10_000;
 const SCOPE_SEPARATOR_RE = /[,\s]+/;
@@ -38,6 +39,10 @@ export interface LinearIdentity {
 export interface LinearApiClient {
   exchangeAuthorizationCode(input: {code: string}): Promise<LinearAuthorization>;
   refreshAccessToken(input: {refreshToken: string}): Promise<LinearAuthorization>;
+  revokeToken(input: {
+    token: string;
+    tokenTypeHint: 'access_token' | 'refresh_token';
+  }): Promise<void>;
   getIdentity(input: {accessToken: string}): Promise<LinearIdentity>;
 }
 
@@ -103,6 +108,20 @@ export function createLinearApiClient(): LinearApiClient {
       );
 
       return parseTokenResponse(body);
+    },
+
+    async revokeToken(input) {
+      await mapLinearError('revoke-token', async () => {
+        await ky.post(LINEAR_OAUTH_REVOKE_URL, {
+          body: new URLSearchParams({
+            client_id: config.LINEAR_OAUTH_CLIENT_ID,
+            client_secret: config.LINEAR_OAUTH_CLIENT_SECRET,
+            token: input.token,
+            token_type_hint: input.tokenTypeHint,
+          }),
+          timeout: LINEAR_API_TIMEOUT_MS,
+        });
+      });
     },
 
     async getIdentity(input) {

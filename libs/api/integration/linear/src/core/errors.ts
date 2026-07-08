@@ -2,6 +2,37 @@ import {IntegrationProviderError} from '@shipfox/api-integration-core-dto';
 
 export class LinearIntegrationProviderError extends IntegrationProviderError {}
 
+export class LinearInstallStateError extends Error {
+  constructor(message = 'Invalid Linear install state') {
+    super(message);
+    this.name = 'LinearInstallStateError';
+  }
+}
+
+export class LinearInstallStateActorMismatchError extends Error {
+  constructor() {
+    super('Linear install state was created by a different user');
+    this.name = 'LinearInstallStateActorMismatchError';
+  }
+}
+
+export class LinearOAuthCallbackError extends Error {
+  constructor(
+    public readonly providerError: string,
+    public readonly providerDescription: string | undefined,
+  ) {
+    super(providerDescription ?? `Linear OAuth callback failed: ${providerError}`);
+    this.name = 'LinearOAuthCallbackError';
+  }
+}
+
+export class LinearAuthorizationScopeMismatchError extends Error {
+  constructor(public readonly missingScopes: string[]) {
+    super(`Linear authorization is missing required scopes: ${missingScopes.join(', ')}`);
+    this.name = 'LinearAuthorizationScopeMismatchError';
+  }
+}
+
 export class LinearInstallationAlreadyLinkedError extends Error {
   constructor(organizationId: string) {
     super(`Linear organization is already linked to another Shipfox workspace: ${organizationId}`);
