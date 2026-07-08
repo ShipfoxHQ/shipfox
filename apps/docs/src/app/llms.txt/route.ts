@@ -29,7 +29,7 @@ const SECTION_LABELS: Record<(typeof SECTION_ORDER)[number], string> = {
 // else buckets by its first path segment. Keep this exhaustive so no page is
 // dropped from llms.txt.
 function sectionOf(url: string): (typeof SECTION_ORDER)[number] {
-  if (url === '/' || url === '/introduction' || url === '/getting-started') return 'get-started';
+  if (url === '/' || url === '/getting-started') return 'get-started';
   if (url === '/troubleshooting' || url === '/faq') return 'help';
   const segment = url.split('/').filter(Boolean)[0];
   return (SECTION_ORDER as readonly string[]).includes(segment ?? '')
