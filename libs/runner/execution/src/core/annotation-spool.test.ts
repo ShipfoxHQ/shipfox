@@ -102,10 +102,16 @@ describe('annotation spool', () => {
 
   it('skips symlinked annotation files', async () => {
     const spool = await makeSpool();
-    const target = join(spool.annotationsDir, 'target');
+    const summaryTarget = `${spool.summaryPath}-target`;
+    const operationTarget = `${spool.summaryPath}-operation-target`;
     await rm(spool.summaryPath);
-    await writeFile(target, 'secret');
-    await symlink(target, spool.summaryPath);
+    await writeFile(summaryTarget, 'summary-secret');
+    await writeFile(
+      operationTarget,
+      JSON.stringify({context: 'deploy', op: 'append', body: 'operation-secret'}),
+    );
+    await symlink(summaryTarget, spool.summaryPath);
+    await symlink(operationTarget, join(spool.annotationsDir, '001-symlink.json'));
 
     const operations = await collectAnnotationOperations(spool);
 
