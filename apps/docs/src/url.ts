@@ -15,11 +15,11 @@ if (process.env.NEXT_PUBLIC_VERCEL_ENV) {
 
 export const url = `${protocol}://${host}`;
 
-// Keep in sync with `basePath` in next.config.mjs. The app is served behind the
-// cloud landing app at /docs, so every absolute URL we emit for external consumers
+// Set from `basePath` in next.config.mjs (via NEXT_PUBLIC_BASE_PATH): `/docs` in
+// production, empty in local dev. Every absolute URL we emit for external consumers
 // (llms.txt, sitemap, robots, OG metadata) must carry the prefix; Next only applies
 // basePath to in-app routing, not to strings we build ourselves.
-export const basePath = '/docs';
+export const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
 export const toUrl = (path: string) => {
   const suffix = path === '/' ? '' : path;

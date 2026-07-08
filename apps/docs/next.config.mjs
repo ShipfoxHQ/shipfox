@@ -3,11 +3,18 @@ import {createMDX} from 'fumadocs-mdx/next';
 
 const withMDX = createMDX();
 
+// In production the docs are served behind the cloud landing app at
+// www.shipfox.io/docs, so they build under the /docs basePath. Local `next dev`
+// has no proxy in front, so skip the basePath there and serve at localhost:3500/
+// directly. The value is exposed as NEXT_PUBLIC_BASE_PATH so app code (src/url.ts)
+// builds URLs with the same prefix.
+const basePath = process.env.NODE_ENV === 'development' ? '' : '/docs';
+
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
-  // Served behind the cloud landing app at www.shipfox.io/docs.
-  basePath: '/docs',
+  basePath: basePath || undefined,
+  env: {NEXT_PUBLIC_BASE_PATH: basePath},
   // Pin the workspace root so Turbopack does not misinfer it from sibling lockfiles
   // (git worktrees expose more than one pnpm-workspace.yaml).
   turbopack: {
@@ -25,12 +32,13 @@ const config = {
       },
     ];
   },
-  // Everything lives under the basePath, so the deployment domain root (the URL
-  // Vercel puts in the PR preview comment) would 404. Redirect it to /docs.
-  // basePath:false matches the literal domain root, before the prefix is applied.
-  // In production only /docs/* is proxied from the landing app, so this never runs there.
+  // With a basePath, the deployment domain root (the URL Vercel puts in the PR
+  // preview comment) would 404, so redirect it to /docs. basePath:false matches
+  // the literal domain root, before the prefix is applied. Not needed in dev,
+  // where there is no basePath and the root already serves the docs.
   redirects() {
-    return [{source: '/', destination: '/docs', basePath: false, permanent: false}];
+    if (!basePath) return [];
+    return [{source: '/', destination: basePath, basePath: false, permanent: false}];
   },
 };
 
