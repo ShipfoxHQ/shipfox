@@ -37,8 +37,36 @@ function sectionOf(url: string): (typeof SECTION_ORDER)[number] {
     : 'get-started';
 }
 
+interface TreePage {
+  type: 'page';
+  url: string;
+}
+interface TreeFolder {
+  type: 'folder';
+  index?: TreePage;
+  children: TreeNode[];
+}
+type TreeNode = TreePage | TreeFolder | {type: 'separator'};
+
+// Flatten the sidebar tree (which honours each folder's meta.json order) into an
+// ordered list of URLs, so llms.txt reads in the same order as the docs nav
+// rather than alphabetically.
+function collectNavOrder(nodes: TreeNode[], acc: string[]): string[] {
+  for (const node of nodes) {
+    if (node.type === 'page') acc.push(node.url);
+    else if (node.type === 'folder') {
+      if (node.index) acc.push(node.index.url);
+      collectNavOrder(node.children, acc);
+    }
+  }
+  return acc;
+}
+
 export function GET() {
   const pages = source.getPages();
+
+  const navOrder = collectNavOrder(source.pageTree.children as unknown as TreeNode[], []);
+  const orderIndex = new Map(navOrder.map((url, index) => [url, index]));
 
   const sections = new Map<string, typeof pages>();
   for (const section of SECTION_ORDER) {
@@ -50,15 +78,9 @@ export function GET() {
   }
 
   for (const [, sectionPages] of sections) {
-    sectionPages.sort((a, b) => {
-      const aSegments = a.url.split('/').filter(Boolean);
-      const bSegments = b.url.split('/').filter(Boolean);
-      const aIsIndex = aSegments.length <= 1;
-      const bIsIndex = bSegments.length <= 1;
-      if (aIsIndex && !bIsIndex) return -1;
-      if (!aIsIndex && bIsIndex) return 1;
-      return a.url.localeCompare(b.url);
-    });
+    sectionPages.sort(
+      (a, b) => (orderIndex.get(a.url) ?? Infinity) - (orderIndex.get(b.url) ?? Infinity),
+    );
   }
 
   const lines: string[] = [
