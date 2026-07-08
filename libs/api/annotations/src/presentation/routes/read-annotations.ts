@@ -25,7 +25,7 @@ export const readAnnotationsRoute = defineRoute({
       limit,
     } = request.query;
     const decodedCursor = decodeNumberIdCursor(cursor);
-    if (cursor && !decodedCursor) {
+    if (cursor !== undefined && !decodedCursor) {
       throw new ClientError('Invalid cursor', 'invalid-cursor', {status: 400});
     }
 

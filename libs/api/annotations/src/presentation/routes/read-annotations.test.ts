@@ -265,4 +265,15 @@ describe('GET /annotations', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('invalid-cursor');
   });
+
+  it('rejects empty continuation cursors', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `${readUrl({workflowRunId: crypto.randomUUID(), attempt: 1})}&cursor=`,
+      headers: {authorization: 'Bearer user', 'x-test-workspaces': crypto.randomUUID()},
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('invalid-cursor');
+  });
 });
