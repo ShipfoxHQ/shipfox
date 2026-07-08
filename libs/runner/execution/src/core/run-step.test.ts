@@ -1,4 +1,4 @@
-import {mkdtemp, rm, writeFile} from 'node:fs/promises';
+import {access, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
@@ -12,6 +12,8 @@ const ESRCH_REGEX = /ESRCH/;
 const SHELL_EXECUTABLE_REGEX = /(?:^|\/)(bash|sh)$/;
 const SCRIPT_PATH_REGEX = /shipfox-runner-.*\.sh$/;
 const OUTPUT_PATH_REGEX = /shipfox-output-/;
+const SUMMARY_PATH_REGEX = /shipfox-step-summary-/;
+const ANNOTATIONS_DIR_REGEX = /shipfox-annotations-/;
 const PROCESS_TEST_WAIT_TIMEOUT_MS = 4_000;
 
 function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
@@ -179,6 +181,98 @@ describe('executeRunStep', () => {
     expect(result.success).toBe(true);
     expect(result.outputs?.path).toMatch(OUTPUT_PATH_REGEX);
     expect(result.outputs?.path).not.toBe('/tmp/user-output');
+  });
+
+  it('collects SHIPFOX_STEP_SUMMARY as a default annotation', async () => {
+    const step = buildStep({
+      config: {run: 'echo "### Summary" >> "$SHIPFOX_STEP_SUMMARY"'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.annotations).toEqual([
+      {context: 'default', style: 'default', op: 'replace', body: '### Summary\n'},
+    ]);
+  });
+
+  it('collects JSON operation files from SHIPFOX_ANNOTATIONS_DIR', async () => {
+    const operation = JSON.stringify({
+      context: 'deploy',
+      style: 'success',
+      op: 'replace',
+      body: 'deployed',
+    });
+    const step = buildStep({
+      config: {
+        run: `printf '%s' ${JSON.stringify(operation)} > "$SHIPFOX_ANNOTATIONS_DIR/001-op.json"`,
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.annotations).toEqual([
+      {context: 'deploy', style: 'success', op: 'replace', body: 'deployed'},
+    ]);
+  });
+
+  it('exposes annotation env to the child and overrides user env', async () => {
+    const step = buildStep({
+      config: {
+        run: [
+          'echo "summary=$SHIPFOX_STEP_SUMMARY" >> "$SHIPFOX_OUTPUT"',
+          'echo "dir=$SHIPFOX_ANNOTATIONS_DIR" >> "$SHIPFOX_OUTPUT"',
+        ].join('\n'),
+        env: {
+          SHIPFOX_STEP_SUMMARY: '/tmp/user-summary',
+          SHIPFOX_ANNOTATIONS_DIR: '/tmp/user-annotations',
+        },
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.outputs?.summary).toMatch(SUMMARY_PATH_REGEX);
+    expect(result.outputs?.dir).toMatch(ANNOTATIONS_DIR_REGEX);
+    expect(result.outputs?.summary).not.toBe('/tmp/user-summary');
+    expect(result.outputs?.dir).not.toBe('/tmp/user-annotations');
+  });
+
+  it('does not fail a passing step when the annotation spool is malformed', async () => {
+    const step = buildStep({
+      config: {run: 'echo "{" > "$SHIPFOX_ANNOTATIONS_DIR/001-bad.json"'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.annotations).toBeUndefined();
+  });
+
+  it('removes annotation spool files after collection', async () => {
+    const step = buildStep({
+      config: {
+        run: [
+          'echo "summary=$SHIPFOX_STEP_SUMMARY" >> "$SHIPFOX_OUTPUT"',
+          'echo "dir=$SHIPFOX_ANNOTATIONS_DIR" >> "$SHIPFOX_OUTPUT"',
+          'echo "body" >> "$SHIPFOX_STEP_SUMMARY"',
+        ].join('\n'),
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.outputs?.summary).toMatch(SUMMARY_PATH_REGEX);
+    expect(result.outputs?.dir).toMatch(ANNOTATIONS_DIR_REGEX);
+    expect(result.outputs).toBeDefined();
+    if (!result.outputs) throw new Error('Expected annotation spool output paths');
+    const {summary, dir} = result.outputs;
+    if (!summary || !dir) throw new Error('Expected annotation spool output paths');
+    await expect(access(summary)).rejects.toThrow();
+    await expect(access(dir)).rejects.toThrow();
   });
 
   it('fails a succeeded step when emitted output exceeds the total byte cap', async () => {

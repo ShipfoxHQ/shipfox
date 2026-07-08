@@ -37,6 +37,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",

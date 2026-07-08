@@ -1,4 +1,5 @@
 import type {AgentConfigIssueDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {HTTPError} from 'ky';
 
 const {AgentRuntimeConfigRequestError, StepSecretsRequestError} = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ const requestAgentRuntimeConfigMock = vi.fn();
 const requestStepSecretsMock = vi.fn();
 const reportStepMock = vi.fn();
 const appendStepLogsMock = vi.fn();
+const writeStepAnnotationsMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeSetupStepMock = vi.fn();
 const createStepLogStreamMock = vi.fn();
@@ -48,6 +50,7 @@ vi.mock('@shipfox/runner-protocol', () => ({
   requestStepSecrets: (...args: unknown[]) => requestStepSecretsMock(...args),
   reportStep: (...args: unknown[]) => reportStepMock(...args),
   appendStepLogs: (...args: unknown[]) => appendStepLogsMock(...args),
+  writeStepAnnotations: (...args: unknown[]) => writeStepAnnotationsMock(...args),
   AgentRuntimeConfigRequestError,
   StepSecretsRequestError,
   HTTPError,
@@ -72,9 +75,8 @@ vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 
-const {executeStep, pullNextStep, reportStepResult, runJobSteps} = await import(
-  '#core/step-loop.js'
-);
+const {executeStep, pullNextStep, publishStepAnnotations, reportStepResult, runJobSteps} =
+  await import('#core/step-loop.js');
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
@@ -187,6 +189,7 @@ describe('runJobSteps', () => {
     requestStepSecretsMock.mockReset();
     reportStepMock.mockReset();
     appendStepLogsMock.mockReset();
+    writeStepAnnotationsMock.mockReset();
     executeRunStepMock.mockReset();
     executeSetupStepMock.mockReset();
     createStepLogStreamMock.mockReset();
@@ -203,6 +206,11 @@ describe('runJobSteps', () => {
     events = [];
     createdStreams = new Map();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
+    writeStepAnnotationsMock.mockResolvedValue({
+      status: 'written',
+      annotationCount: 1,
+      totalBodyBytes: 7,
+    });
     // Setup succeeds by default; tests that exercise setup failure override it.
     executeSetupStepMock.mockResolvedValue({
       result: {success: true, error: null, exit_code: 0},
@@ -215,6 +223,10 @@ describe('runJobSteps', () => {
       events.push(`create:${opts.stepId}`);
       return makeFakeStream(opts.stepId);
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('runs the setup step then a run step against the prepared cwd, reporting both', async () => {
@@ -671,6 +683,104 @@ describe('runJobSteps', () => {
     );
   });
 
+  it('publishes run step annotations after log drain and before reporting the step', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({
+      success: true,
+      error: null,
+      exit_code: 0,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+    });
+    writeStepAnnotationsMock.mockImplementation(() => {
+      events.push(`annotations:${run.id}`);
+      return Promise.resolve({status: 'written', annotationCount: 1, totalBodyBytes: 7});
+    });
+    reportStepMock.mockImplementation((_client, params: {stepId: string}) => {
+      events.push(`report:${params.stepId}`);
+      return Promise.resolve({ok: true, cancel: false});
+    });
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(writeStepAnnotationsMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+      signal: ac.signal,
+    });
+    expect(events.indexOf(`drain:${run.id}`)).toBeLessThan(events.indexOf(`annotations:${run.id}`));
+    expect(events.indexOf(`annotations:${run.id}`)).toBeLessThan(
+      events.indexOf(`report:${run.id}`),
+    );
+  });
+
+  it('does not publish when a result has no annotations', async () => {
+    const run = buildRunStep();
+    const ac = new AbortController();
+
+    await publishStepAnnotations({
+      leaseClient,
+      step: run,
+      attempt: 1,
+      annotations: undefined,
+      jobId: JOB_ID,
+      signal: ac.signal,
+    });
+
+    expect(writeStepAnnotationsMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{status: 'capped', code: 'annotation-body-too-large'}],
+    [{status: 'rejected', statusCode: 503, code: 'server-error'}],
+  ])('warns and continues when annotation publishing returns %j', async (outcome) => {
+    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+    const run = buildRunStep();
+    const ac = new AbortController();
+    writeStepAnnotationsMock.mockResolvedValueOnce(outcome);
+
+    await publishStepAnnotations({
+      leaseClient,
+      step: run,
+      attempt: 1,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+      jobId: JOB_ID,
+      signal: ac.signal,
+    });
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({outcome}),
+      'Step annotations were not written; continuing step report',
+    );
+  });
+
+  it('warns and continues when annotation publishing throws', async () => {
+    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+    const run = buildRunStep();
+    const ac = new AbortController();
+    writeStepAnnotationsMock.mockRejectedValueOnce(new Error('timeout'));
+
+    await publishStepAnnotations({
+      leaseClient,
+      step: run,
+      attempt: 1,
+      annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
+      jobId: JOB_ID,
+      signal: ac.signal,
+    });
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({jobId: JOB_ID, stepId: run.id, attempt: 1}),
+      'Failed to publish step annotations; continuing step report',
+    );
+  });
+
   it('drains and disposes the prior attempt stream before opening the next', async () => {
     const setup = buildSetupStep();
     const run1 = buildRunStep({id: '00000000-0000-0000-0000-0000000000c1', position: 1});
@@ -878,6 +988,40 @@ describe('runJobSteps', () => {
       expect.objectContaining({
         stepId: run.id,
         outputs: {token: '***'},
+      }),
+    );
+  });
+
+  it('masks run step annotation bodies with the full secret set before publishing', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    executeRunStepMock.mockResolvedValueOnce({
+      success: true,
+      error: null,
+      exit_code: 0,
+      annotations: [
+        {context: 'default', style: 'default', op: 'replace', body: 'checkout-secret'},
+        {context: 'old', style: 'default', op: 'remove'},
+      ],
+    });
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, secrets: ['checkout-secret']});
+
+    expect(writeStepAnnotationsMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: run.id,
+        annotations: [
+          {context: 'default', style: 'default', op: 'replace', body: '***'},
+          {context: 'old', style: 'default', op: 'remove'},
+        ],
       }),
     );
   });

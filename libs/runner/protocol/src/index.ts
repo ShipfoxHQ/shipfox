@@ -1,5 +1,7 @@
 export {
   AgentRuntimeConfigRequestError,
+  ANNOTATION_POST_TIMEOUT_MS,
+  type AnnotationWriteOutcome,
   appendStepLogs,
   configuredRunnerLabels,
   createLeaseClient,
@@ -19,4 +21,5 @@ export {
   requireRunnerLabels,
   runnerRegistrationToken,
   StepSecretsRequestError,
+  writeStepAnnotations,
 } from '#api-client.js';

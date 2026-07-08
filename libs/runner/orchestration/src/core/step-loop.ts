@@ -25,6 +25,7 @@ import {
 } from '@shipfox/runner-logs';
 import {
   AgentRuntimeConfigRequestError,
+  type AnnotationWriteOutcome,
   appendStepLogs,
   HTTPError,
   type LogAppendFn,
@@ -33,6 +34,7 @@ import {
   requestNextStep,
   requestStepSecrets,
   StepSecretsRequestError,
+  writeStepAnnotations,
 } from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
 
@@ -116,6 +118,15 @@ export async function runJobSteps(params: {
       const logOutcome =
         (await settleStream({stream: activeStream, signal})) ?? execution.logOutcome ?? 'drained';
       activeStream = undefined;
+
+      await publishStepAnnotations({
+        leaseClient,
+        step,
+        attempt,
+        annotations: execution.result.annotations,
+        jobId,
+        signal,
+      });
 
       const {cancel} = await reportStepResult({
         leaseClient,
@@ -562,6 +573,7 @@ function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepR
     result.outputs === undefined
       ? result.outputs
       : redactOutputValues(result.outputs, secretVariants);
+  const annotations = redactAnnotationBodies(result.annotations, secretVariants);
   const error =
     result.success || result.error === null || result.error === undefined
       ? result.error
@@ -569,8 +581,20 @@ function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepR
   return {
     ...result,
     ...(outputs === undefined ? {} : {outputs}),
+    ...(annotations === undefined ? {} : {annotations}),
     error,
   };
+}
+
+function redactAnnotationBodies(
+  annotations: StepResult['annotations'],
+  secretVariants: string[],
+): StepResult['annotations'] {
+  if (annotations === undefined) return undefined;
+  return annotations.map((annotation) => {
+    if (annotation.op === 'remove') return annotation;
+    return {...annotation, body: redactSecrets(annotation.body, secretVariants)};
+  });
 }
 
 function redactOutputValues(
@@ -603,6 +627,46 @@ function agentRuntimeConfigFailure(error: unknown): StepResult {
     error: {message: error instanceof Error ? error.message : String(error)},
     exit_code: null,
   };
+}
+
+export async function publishStepAnnotations(params: {
+  leaseClient: KyInstance;
+  step: StepDto;
+  attempt: number;
+  annotations: StepResult['annotations'];
+  jobId: string;
+  signal: AbortSignal;
+}): Promise<void> {
+  const annotations = params.annotations ?? [];
+  if (annotations.length === 0) return;
+
+  let outcome: AnnotationWriteOutcome;
+  try {
+    outcome = await writeStepAnnotations(params.leaseClient, {
+      stepId: params.step.id,
+      attempt: params.attempt,
+      annotations,
+      signal: params.signal,
+    });
+  } catch (error) {
+    logger().warn(
+      {err: error, jobId: params.jobId, stepId: params.step.id, attempt: params.attempt},
+      'Failed to publish step annotations; continuing step report',
+    );
+    return;
+  }
+
+  if (outcome.status === 'written') return;
+
+  logger().warn(
+    {
+      jobId: params.jobId,
+      stepId: params.step.id,
+      attempt: params.attempt,
+      outcome,
+    },
+    'Step annotations were not written; continuing step report',
+  );
 }
 
 function writeCommandMetadata(
