@@ -9,31 +9,43 @@ single-job runner containers** to meet that demand — then lets them exit. It's
 alternative to [manually starting runners](/concepts/runners): instead of keeping a
 fleet online at idle, you run one provisioner and it scales runners to the work.
 
-<Note>
+<Callout type="info">
   Today Shipfox ships a **Docker** provisioner. The provisioner core is
   provider-agnostic, so other backends (Kubernetes, cloud VMs) can follow — those
   are roadmap.
-</Note>
+</Callout>
 
 ## How it works
 
 The provisioner runs a continuous control loop against the Shipfox API:
 
 <Steps>
-  <Step title="Advertise capacity">
+  <Step>
+
+    **Advertise capacity**
+
     For each template it can start, the provisioner reports free slots
     (`max_concurrency` minus what's already running).
   </Step>
-  <Step title="Poll for demand">
+  <Step>
+
+    **Poll for demand**
+
     It long-polls the API. When jobs are waiting for labels a template provides, the
     API grants reservations.
   </Step>
-  <Step title="Mint ephemeral tokens">
+  <Step>
+
+    **Mint ephemeral tokens**
+
     For each reservation, the provisioner mints a single-use **ephemeral
     registration token** (`sf_ert_…`, distinct from the long-lived `sf_mrt_…`
     manual token) that the new runner uses to register once.
   </Step>
-  <Step title="Launch and reconcile">
+  <Step>
+
+    **Launch and reconcile**
+
     It starts a container per reservation, injecting the API URL, the ephemeral
     token, and the template's labels. It reports each container's lifecycle and
     reconciles against Docker on startup, reaping containers that never registered.
@@ -102,11 +114,11 @@ shutdown signal, at which point it stops claiming new work and exits cleanly.
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Runners" icon="server" href="/concepts/runners">
+<Cards>
+  <Card title="Runners" href="/concepts/runners">
     Manually started runners, labels, and registration.
   </Card>
-  <Card title="Installation" icon="download" href="/installation">
+  <Card title="Installation" href="/installation">
     Standing up the API, storage, and your first runner.
   </Card>
-</CardGroup>
+</Cards>

@@ -27,25 +27,13 @@ jobs:                      # required — at least one job
 
 Each top-level field is described below.
 
-<ParamField path="name" type="string" required>
-  Human-readable name shown in the dashboard. Must be at least one character.
-</ParamField>
-
-<ParamField path="runner" type="string | string[]">
-  Default runner label or list of labels for all jobs in this workflow. Each job can override this value with its own `runner:` field. If omitted, jobs must specify their own runner.
-</ParamField>
-
-<ParamField path="env" type="object">
-  Environment variables available to `run` steps across all jobs. Keys must follow POSIX-style variable naming (`[A-Za-z_][A-Za-z0-9_]*`). Values can be strings, numbers, or booleans — the runtime stringifies numbers and booleans before execution. Not applied to agent steps.
-</ParamField>
-
-<ParamField path="triggers" type="object">
-  Named triggers that start a workflow run. Each entry is a named key with a `source` and `event`. A workflow with no `triggers` block can only be started manually via the API or dashboard. See [Triggers](/concepts/triggers) for the full schema.
-</ParamField>
-
-<ParamField path="jobs" type="object" required>
-  Named jobs that make up the workflow. At least one job is required. Job names are used as identifiers in `needs` references and in the dashboard run view.
-</ParamField>
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | **Required.** Human-readable name shown in the dashboard. Must be at least one character. |
+| `runner` | `string \| string[]` | Default runner label or list of labels for all jobs in this workflow. Each job can override this value with its own `runner:` field. If omitted, jobs must specify their own runner. |
+| `env` | `object` | Environment variables available to `run` steps across all jobs. Keys must follow POSIX-style variable naming (`[A-Za-z_][A-Za-z0-9_]*`). Values can be strings, numbers, or booleans — the runtime stringifies numbers and booleans before execution. Not applied to agent steps. |
+| `triggers` | `object` | Named triggers that start a workflow run. Each entry is a named key with a `source` and `event`. A workflow with no `triggers` block can only be started manually via the API or dashboard. See [Triggers](/concepts/triggers) for the full schema. |
+| `jobs` | `object` | **Required.** Named jobs that make up the workflow. At least one job is required. Job names are used as identifiers in `needs` references and in the dashboard run view. |
 
 ## Where workflow files live
 
@@ -76,20 +64,20 @@ The nearest scope wins. A step-level declaration always beats a job or workflow 
 
 ## Roadmap
 
-<Note>
+<Callout type="info">
   `filter` evaluation, `loop`, `matrix`, and `branch` are roadmap features. `${{ }}` template interpolation is supported today — see [Expressions](/reference/expressions).
-</Note>
+</Callout>
 
 ## Related pages
 
-<CardGroup cols={3}>
-  <Card title="Jobs & Steps" icon="list-check" href="/concepts/jobs-steps">
+<Cards>
+  <Card title="Jobs & Steps" href="/concepts/jobs-steps">
     How jobs and steps are structured and executed inside a workflow run.
   </Card>
-  <Card title="Triggers" icon="bolt" href="/concepts/triggers">
+  <Card title="Triggers" href="/concepts/triggers">
     The full trigger schema and which sources are supported today.
   </Card>
-  <Card title="Runners" icon="server" href="/concepts/runners">
+  <Card title="Runners" href="/concepts/runners">
     Where jobs execute and how to register your own runner.
   </Card>
-</CardGroup>
+</Cards>

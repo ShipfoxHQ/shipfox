@@ -11,15 +11,24 @@ for example, kicking off an agent to investigate a newly created issue.
 ## Setup
 
 <Steps>
-  <Step title="Start the connection">
+  <Step>
+
+    **Start the connection**
+
     In your workspace's integration settings, choose **Sentry** and start the
     connection. Shipfox sends you to Sentry to install its App.
   </Step>
-  <Step title="Install the Sentry App">
+  <Step>
+
+    **Install the Sentry App**
+
     On Sentry, pick the organization and authorize the App. Sentry redirects you
     back to Shipfox, which verifies the installation.
   </Step>
-  <Step title="Copy the connection slug">
+  <Step>
+
+    **Copy the connection slug**
+
     Shipfox creates a **connection** whose slug defaults to `sentry_<org>` — for
     example `sentry_acme`. Use this slug in a trigger's `source` field.
   </Step>
@@ -46,7 +55,7 @@ Shipfox triggers on Sentry **issue** events: `issue.created`, `issue.resolved`,
 action fires and the payload it carries, use Sentry's reference rather than a copy
 here:
 
-<Card title="Sentry issue webhooks" icon="bug" href="https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/">
+<Card title="Sentry issue webhooks" href="https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/">
   When each issue action fires and the payload Sentry sends.
 </Card>
 
@@ -70,13 +79,13 @@ triggers:
     filter: event.projectUrl.contains("/backend")
 ```
 
-<Warning>
+<Callout type="warn">
   `filter` is **parsed but not evaluated yet** (see
   [Expressions](/reference/expressions)), so today it does not stop the run. Until it
   ships, scope inside the workflow: read `${{ event.projectUrl }}` in a `run` step or
   agent `prompt` and act only on the projects you care about. Sentry's issue payload
   has no team field, so filter a team by the set of projects it owns.
-</Warning>
+</Callout>
 
 For example, pass the project and issue straight into an agent so it only triages
 what you point it at:
@@ -93,14 +102,14 @@ jobs:
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Triage Sentry issues" icon="bug" href="/guides/triage-sentry-issues">
+<Cards>
+  <Card title="Triage Sentry issues" href="/guides/triage-sentry-issues">
     A worked guide: fire on an issue and hand it to an agent that investigates.
   </Card>
-  <Card title="Agent steps" icon="robot" href="/guides/agent-steps">
+  <Card title="Agent steps" href="/guides/agent-steps">
     Have an agent triage or fix the issue that triggered the run.
   </Card>
-  <Card title="Triggers" icon="bolt" href="/concepts/triggers">
+  <Card title="Triggers" href="/concepts/triggers">
     The trigger schema and how sources and events fit together.
   </Card>
-</CardGroup>
+</Cards>

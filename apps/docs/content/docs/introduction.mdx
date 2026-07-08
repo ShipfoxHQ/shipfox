@@ -34,19 +34,34 @@ If you've written GitHub Actions, you already know how to read this file — tha
 ## How it works
 
 <Steps>
-  <Step title="Define a workflow">
+  <Step>
+
+    **Define a workflow**
+
     Write a YAML file under `.shipfox/workflows/` in your repository. Commit and push — Shipfox picks it up automatically without any manual import step.
   </Step>
-  <Step title="Configure a trigger">
+  <Step>
+
+    **Configure a trigger**
+
     Choose when the workflow runs: on a GitHub push, a Sentry issue, a webhook from any system, or on demand from the dashboard — with more integrations on the way. Each trigger is a named entry under the `triggers` key in your workflow YAML.
   </Step>
-  <Step title="Jobs run on your runners">
+  <Step>
+
+    **Jobs run on your runners**
+
     Each job executes on a runner you register with Shipfox. Jobs are fully isolated — each one re-clones the repository before executing, so no state bleeds between runs.
   </Step>
-  <Step title="Steps: commands or agents">
+  <Step>
+
+    **Steps: commands or agents**
+
     Each job contains one or more steps. A step runs a shell command (`run`) **or an AI agent** — specify a `model` and a `prompt` and it reads your repo, runs tools, and acts. Agent steps are first-class: same lifecycle as shell steps, so they stream output, report status, and can be gated and retried until the result is correct.
   </Step>
-  <Step title="Watch it live">
+  <Step>
+
+    **Watch it live**
+
     Open the Shipfox dashboard to stream logs for every run, job, and step in real time. Drill into any step to see its full output, duration, and exit status.
   </Step>
 </Steps>
@@ -55,32 +70,32 @@ The same flow as one picture — note that the runner **polls outbound** (nothin
 
 {/* Source: images/diagrams/run-execution-flow.mmd — regenerate with:
     npx -y @mermaid-js/mermaid-cli -b white -i images/diagrams/run-execution-flow.mmd -s 3 -o images/diagrams/run-execution-flow.png */}
-<Frame caption="How a run executes — click to enlarge.">
-  <img src="/img/diagrams/run-execution-flow.png" alt="Run execution flow: event sources match a trigger in the Shipfox control plane, a run is created with event data resolved into prompts, jobs are scheduled as a needs DAG, a runner on your compute polls outbound and claims the job, then executes run and agent steps with a gate looping back on failure while logs and agent sessions stream live to the dashboard" />
-</Frame>
+<img src="/img/diagrams/run-execution-flow.png" alt="Run execution flow: event sources match a trigger in the Shipfox control plane, a run is created with event data resolved into prompts, jobs are scheduled as a needs DAG, a runner on your compute polls outbound and claims the job, then executes run and agent steps with a gate looping back on failure while logs and agent sessions stream live to the dashboard" />
+
+*How a run executes — click to enlarge.*
 
 ## Core concepts
 
-<CardGroup cols={2}>
-  <Card title="Workflows" icon="code-branch" href="/concepts/workflows">
+<Cards>
+  <Card title="Workflows" href="/concepts/workflows">
     The YAML files that define your automation — name, triggers, jobs, steps, and environment variables.
   </Card>
-  <Card title="Jobs, Steps & Agents" icon="layer-group" href="/concepts/jobs-steps">
+  <Card title="Jobs, Steps & Agents" href="/concepts/jobs-steps">
     How work is structured and executed inside a workflow, including shell steps, agent steps, and gate conditions.
   </Card>
-  <Card title="Triggers" icon="bolt" href="/concepts/triggers">
+  <Card title="Triggers" href="/concepts/triggers">
     What starts a run — GitHub pushes, Sentry issues, webhooks from any system, manual fires — with more integrations on the way.
   </Card>
-  <Card title="Runners" icon="server" href="/concepts/runners">
+  <Card title="Runners" href="/concepts/runners">
     The processes you register on your own compute that execute jobs. Runners poll Shipfox and are matched to jobs by label.
   </Card>
-</CardGroup>
+</Cards>
 
 ## Shipped vs. roadmap
 
 Features listed as roadmap are not yet available and should not be relied upon in production workflows.
 
-<AccordionGroup>
+<Accordions type="single">
 <Accordion title="The current state of Shipfox, feature by feature">
 | Feature | Status |
 |---|---|
@@ -98,21 +113,21 @@ Features listed as roadmap are not yet available and should not be relied upon i
 | `loop`, `matrix`, `branch` step kinds | 🔜 Roadmap |
 | GitLab push triggers | 🔜 Roadmap |
 </Accordion>
-</AccordionGroup>
+</Accordions>
 
 ## What you can build
 
-<CardGroup cols={2}>
-  <Card title="Checks on every push" icon="circle-check" href="/guides/checks-on-push">
+<Cards>
+  <Card title="Checks on every push" href="/guides/checks-on-push">
     Run tests, lint, and get an AI review on every commit — automatically, in one workflow that lives with your code.
   </Card>
-  <Card title="Agent-powered fixes" icon="wand-magic-sparkles" href="/guides/agent-steps">
+  <Card title="Agent-powered fixes" href="/guides/agent-steps">
     Let an agent read your codebase and propose or apply a fix directly from a Sentry issue or a failing test.
   </Card>
-  <Card title="Gate and retry loops" icon="rotate" href="/guides/gate-and-retry">
+  <Card title="Gate and retry loops" href="/guides/gate-and-retry">
     Retry a step until tests pass using `gate` with `success_if` and `on_failure.restart_from` — no custom scripting needed.
   </Card>
-  <Card title="Agents that answer reviews" icon="satellite-dish" href="/concepts/listening-jobs">
+  <Card title="Agents that answer reviews" href="/concepts/listening-jobs">
     Coming soon: a job that listens for PR review comments and runs an agent per batch until the PR merges.
   </Card>
-</CardGroup>
+</Cards>

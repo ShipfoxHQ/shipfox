@@ -12,13 +12,19 @@ systems, monitoring, internal services, or anything that can send an HTTP reques
 ## Setup
 
 <Steps>
-  <Step title="Create a webhook connection">
+  <Step>
+
+    **Create a webhook connection**
+
     Create a webhook connection in your workspace. You choose its **slug** — a
     lowercase identifier matching `^[a-z0-9]+(?:[_-][a-z0-9]+)*$`, unique within
     the workspace (for example `deploy_hook`). Shipfox returns a unique **ingest
     URL** for the connection.
   </Step>
-  <Step title="Send events to the URL">
+  <Step>
+
+    **Send events to the URL**
+
     Point any system at the ingest URL with an HTTP `POST`. The body can be JSON,
     form-encoded, or plain text. An optional `X-Delivery-ID` header lets you
     deduplicate retries; Shipfox generates one if you omit it.
@@ -31,7 +37,10 @@ systems, monitoring, internal services, or anything that can send an HTTP reques
 
     Shipfox responds `202 Accepted` with a `delivery_id`.
   </Step>
-  <Step title="Trigger a workflow">
+  <Step>
+
+    **Trigger a workflow**
+
     Author a trigger using the connection slug as `source` and `received`
     as `event`.
   </Step>
@@ -60,19 +69,19 @@ Shipfox passes the request to the run as structured data:
 | `query` | Parsed query-string parameters |
 | `body` | Parsed JSON, or the raw body when it isn't JSON |
 
-<Note>
+<Callout type="info">
   A `filter` CEL expression can reference `event.headers`, `event.query`, and
   `event.body`, but filters are **parsed and not yet evaluated** — every request
   fires the trigger today.
-</Note>
+</Callout>
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Triggers" icon="bolt" href="/concepts/triggers">
+<Cards>
+  <Card title="Triggers" href="/concepts/triggers">
     The trigger schema shared by every source.
   </Card>
-  <Card title="Integrations overview" icon="plug" href="/integrations/overview">
+  <Card title="Integrations overview" href="/integrations/overview">
     Connections, slugs, and the other available integrations.
   </Card>
-</CardGroup>
+</Cards>

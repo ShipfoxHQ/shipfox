@@ -55,9 +55,9 @@ More CEL variables (stdout content, step duration, etc.) are planned for future 
 
 ## Rules for restart_from
 
-<Warning>
+<Callout type="warn">
   The step referenced by `restart_from` must appear **before** the gate step in the same job. Forward references are not allowed.
-</Warning>
+</Callout>
 
 - The target step must have a `key:` field — `restart_from` matches keys, not display names. (`name:` is a separate, display-only label.)
 - The reference is matched by step key, not by position — reordering steps changes which step is targeted.

@@ -46,12 +46,12 @@ jobs:
       - run: ./scripts/deploy.sh
 ```
 
-<Warning>
+<Callout type="warn">
   **Jobs do not share a filesystem.** Each job re-clones the repository from
   scratch into a fresh environment. Every job that needs dependencies must run
   `npm ci` (or your equivalent install step) independently — there is no shared
   `node_modules` or build cache between jobs.
-</Warning>
+</Callout>
 
 `needs` accepts either a single string or a list of strings (see fan-in below).
 
@@ -78,12 +78,12 @@ jobs:
 
 ## Job isolation reminder
 
-<Note>
+<Callout type="info">
   Each job re-clones the repository from scratch. There is no shared volume
   between jobs. If you need to pass artifacts between jobs — for example, a
   compiled binary or a test report — upload them to external storage (e.g., S3,
   a storage bucket) in one job and download them in the next.
-</Note>
+</Callout>
 
 This isolation is intentional: it ensures reproducibility and prevents one job's side-effects from contaminating another. Design your jobs so that each one sets up everything it needs independently.
 

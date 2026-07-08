@@ -48,11 +48,11 @@ is used when an agent step names the provider but not a `model`.
 | Xiaomi Token Plan (AMS) | `xiaomi-token-plan-ams` | `mimo-v2.5-pro` |
 | Xiaomi Token Plan (SGP) | `xiaomi-token-plan-sgp` | `mimo-v2.5-pro` |
 
-<Note>
+<Callout type="info">
   Most providers need only an **API key**. Azure OpenAI also requires an endpoint;
   Cloudflare providers require an account ID (and a gateway ID for the AI Gateway).
   The configuration form shows the fields each provider needs.
-</Note>
+</Callout>
 
 ### Selecting a model
 
@@ -86,20 +86,20 @@ default model; naming a `provider` but no `model` uses that provider's default m
 
 ## Unsupported providers
 
-<Note>
+<Callout type="info">
   **Amazon Bedrock**, **Google Vertex AI**, **OpenAI Codex**, and **GitHub Copilot**
   appear in the catalog but are **not yet supported** — they require cloud IAM
   credentials or OAuth flows that API-key configuration can't provide. Support is
   planned for a future release.
-</Note>
+</Callout>
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Model Providers guide" icon="robot" href="/guides/model-providers">
+<Cards>
+  <Card title="Model Providers guide" href="/guides/model-providers">
     Configure a provider and use it in a workflow, step by step.
   </Card>
-  <Card title="Agent steps" icon="wand-magic-sparkles" href="/guides/agent-steps">
+  <Card title="Agent steps" href="/guides/agent-steps">
     Models, thinking levels, and providers on an agent step.
   </Card>
-</CardGroup>
+</Cards>

@@ -6,7 +6,7 @@ description: "Answers to common questions about Shipfox: workflow YAML, runners,
 
 Quick answers to the most common questions about Shipfox. For more depth on any topic, follow the links to the relevant guide or reference page.
 
-<AccordionGroup>
+<Accordions type="single">
   <Accordion title="Can I use GitLab or Bitbucket as a trigger source?">
     Only GitHub push triggers are supported today. GitLab and Bitbucket are on the roadmap. For non-GitHub repositories, use `source: manual, event: fire` to trigger runs on demand.
   </Accordion>
@@ -50,4 +50,4 @@ Quick answers to the most common questions about Shipfox. For more depth on any 
   <Accordion title="Why is my run showing `exit_code != 0` on an agent step?">
     Agent steps that fail to connect to the provider or encounter an API error may surface a non-zero exit code. Check the step log for the specific error, verify your API key is set on the runner, and confirm the model and provider IDs are valid.
   </Accordion>
-</AccordionGroup>
+</Accordions>

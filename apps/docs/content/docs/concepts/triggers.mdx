@@ -23,37 +23,19 @@ triggers:
     with: {}             # optional extra config
 ```
 
-<ParamField path="source" type="string" required>
-  Where the event comes from. For an integration (GitHub, Sentry, a custom
-  webhook), this is the **connection slug** you get after connecting it — for
-  example `github_acme` — **not** the bare provider name. For on-demand runs it is
-  the literal string `manual`. See [Integrations](/integrations/overview) for how
-  slugs work.
-</ParamField>
+| Field | Type | Description |
+| --- | --- | --- |
+| `source` | `string` | **Required.** Where the event comes from. For an integration (GitHub, Sentry, a custom webhook), this is the **connection slug** you get after connecting it — for example `github_acme` — **not** the bare provider name. For on-demand runs it is the literal string `manual`. See [Integrations](/integrations/overview) for how slugs work. |
+| `event` | `string` | **Required.** The specific event from that source (for example `push`, `issue.created`, `received`, or `fire`). Must be at least one character. Each integration page lists the events it emits. |
+| `filter` | `string` | A CEL expression that is parsed but **not yet evaluated**. Reserved for future filtering (for example `event.ref == "refs/heads/main"`). Today the trigger fires on every matching `(source, event)` pair regardless of this field. |
+| `with` | `object` | Optional extra configuration passed to the trigger source. Contents are source-specific and may be omitted for most sources. |
 
-<ParamField path="event" type="string" required>
-  The specific event from that source (for example `push`, `issue.created`,
-  `received`, or `fire`). Must be at least one character. Each integration
-  page lists the events it emits.
-</ParamField>
-
-<ParamField path="filter" type="string">
-  A CEL expression that is parsed but **not yet evaluated**. Reserved for future
-  filtering (for example `event.ref == "refs/heads/main"`). Today the trigger fires on every
-  matching `(source, event)` pair regardless of this field.
-</ParamField>
-
-<ParamField path="with" type="object">
-  Optional extra configuration passed to the trigger source. Contents are
-  source-specific and may be omitted for most sources.
-</ParamField>
-
-<Warning>
+<Callout type="warn">
   The `source` of an integration trigger is the **connection slug**, not the
   provider name. If it doesn't match an existing connection's slug, the trigger is
   stored but never fires. The slug is `<provider>_<account>`, lowercase — see
   [Finding your connection slug](/integrations/overview#finding-your-connection-slug).
-</Warning>
+</Callout>
 
 ## Manual trigger
 
@@ -87,31 +69,31 @@ triggers:
 
 Setup steps and the full event list for each source live on its integration page:
 
-<CardGroup cols={3}>
-  <Card title="GitHub" icon="github" href="/integrations/github">
+<Cards>
+  <Card title="GitHub" href="/integrations/github">
     Pushes and other repository events.
   </Card>
-  <Card title="Sentry" icon="bug" href="/integrations/sentry">
+  <Card title="Sentry" href="/integrations/sentry">
     Issue lifecycle events.
   </Card>
-  <Card title="Custom webhook" icon="webhook" href="/integrations/webhooks">
+  <Card title="Custom webhook" href="/integrations/webhooks">
     Any system that can POST.
   </Card>
-</CardGroup>
+</Cards>
 
 ## Notes
 
-<Note>
+<Callout type="info">
   `event.ref` on a push is the **full Git ref** (for example `refs/heads/main`),
   exactly as the provider sends it — not the bare branch name.
-</Note>
+</Callout>
 
-<Note>
+<Callout type="info">
   `filter` is parsed but not evaluated — a trigger fires on every matching
   `(source, event)` pair regardless of the filter expression. This changes in a
   future release when CEL filter evaluation is enabled. GitLab triggers are on the
   roadmap.
-</Note>
+</Callout>
 
 ## Coming soon
 
@@ -139,11 +121,11 @@ run. See [Listening Jobs](/concepts/listening-jobs).
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Integrations" icon="plug" href="/integrations/overview">
+<Cards>
+  <Card title="Integrations" href="/integrations/overview">
     Connections, slugs, and every available integration.
   </Card>
-  <Card title="Trigger sources reference" icon="book" href="/reference/trigger-sources">
+  <Card title="Trigger sources reference" href="/reference/trigger-sources">
     Sources and events at a glance.
   </Card>
-</CardGroup>
+</Cards>

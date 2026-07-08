@@ -6,20 +6,20 @@ description: "Shipfox is a continuous shipping platform. Define YAML workflows i
 
 Shipfox is a continuous shipping platform where **any step in a workflow can be an AI agent** — one that reads your repository, runs tools, and acts, with its reasoning streamed live — right beside the shell commands, triggers, and runners you'd expect. Workflows are YAML in your repo, and agent steps share the same lifecycle as shell steps: they stream output, report status, and can be gated and retried until the result is correct. This documentation covers everything from connecting your first project to authoring agentic pipelines that fix code and verify themselves.
 
-<CardGroup cols={2}>
-  <Card title="Get Started" icon="rocket" href="/getting-started">
+<Cards>
+  <Card title="Get Started" href="/getting-started">
     Connect your first project and run a workflow in minutes.
   </Card>
-  <Card title="Core Concepts" icon="book" href="/concepts/workflows">
+  <Card title="Core Concepts" href="/concepts/workflows">
     Understand workflows, jobs, steps, triggers, and runners.
   </Card>
-  <Card title="Guides" icon="map" href="/guides/checks-on-push">
+  <Card title="Guides" href="/guides/checks-on-push">
     Step-by-step recipes for common agentic workflow patterns.
   </Card>
-  <Card title="AI Assistance" icon="robot" href="/ai/overview">
+  <Card title="AI Assistance" href="/ai/overview">
     Let your coding agent author Shipfox workflows for you.
   </Card>
-</CardGroup>
+</Cards>
 
 ## What is Shipfox?
 
@@ -49,40 +49,46 @@ jobs:
 
 ## Key features
 
-<CardGroup cols={2}>
-  <Card title="YAML Workflows in Your Repo" icon="code-branch" href="/concepts/workflows">
+<Cards>
+  <Card title="YAML Workflows in Your Repo" href="/concepts/workflows">
     Workflows live under `.shipfox/workflows/`, versioned and reviewed like any code.
   </Card>
-  <Card title="AI Agent Steps" icon="robot" href="/concepts/jobs-steps">
+  <Card title="AI Agent Steps" href="/concepts/jobs-steps">
     Any step can run an AI agent: pick a model, write a prompt, and Shipfox does the rest.
   </Card>
-  <Card title="Gates & Retry Loops" icon="rotate" href="/concepts/gates">
+  <Card title="Gates & Retry Loops" href="/concepts/gates">
     Gate a step on its exit code and `restart_from` an earlier step — bounded loops, no scripting.
   </Card>
-  <Card title="Live & Agent Logs" icon="terminal" href="/concepts/logging">
+  <Card title="Live & Agent Logs" href="/concepts/logging">
     Tail every step live; agent steps show messages, thinking, and tool calls as structured events.
   </Card>
-  <Card title="Your Own Runners" icon="server" href="/concepts/runners">
+  <Card title="Your Own Runners" href="/concepts/runners">
     Jobs execute on runners you register and control — no vendor lock-in on compute.
   </Card>
-  <Card title="Autoscaling Provisioners" icon="layer-group" href="/concepts/runner-provisioners">
+  <Card title="Autoscaling Provisioners" href="/concepts/runner-provisioners">
     A provisioner starts ephemeral, single-job runners on demand and lets them exit when idle.
   </Card>
-  <Card title="Smart Triggers" icon="bolt" href="/integrations/overview">
+  <Card title="Smart Triggers" href="/integrations/overview">
     GitHub pushes, Sentry issues, webhooks from any system, or on-demand fire — with more integrations on the way.
   </Card>
-  <Card title="30+ Model Providers" icon="sparkles" href="/reference/model-providers">
+  <Card title="30+ Model Providers" href="/reference/model-providers">
     Anthropic, OpenAI, DeepSeek, xAI, Google, Mistral, and more.
   </Card>
-</CardGroup>
+</Cards>
 
 ## Quickstart
 
 <Steps>
-  <Step title="Connect your project">
+  <Step>
+
+    **Connect your project**
+
     In your workspace, create a project and connect a Git repository. Shipfox will watch the repo for the triggers you configure in your workflow files.
   </Step>
-  <Step title="Add a workflow file">
+  <Step>
+
+    **Add a workflow file**
+
     Create `.shipfox/workflows/hello.yml` in your repository with the following minimal workflow:
 
     ```yaml
@@ -98,14 +104,20 @@ jobs:
           - run: echo "hello world"
     ```
   </Step>
-  <Step title="Register a runner">
+  <Step>
+
+    **Register a runner**
+
     Generate a registration token in the Shipfox dashboard, then start a runner on your own infrastructure using the matching label. The runner will connect and begin polling for jobs.
   </Step>
-  <Step title="Fire your first run">
+  <Step>
+
+    **Fire your first run**
+
     Trigger the workflow by clicking **Run** next to it in the dashboard, or push a commit to your connected repository. Watch the run execute live in the Shipfox UI.
   </Step>
 </Steps>
 
-<Note>
+<Callout type="info">
   These docs are AI-ingestible — every page is available as Markdown. See [AI Assistance](/ai/overview) to let your coding agent author workflows for you.
-</Note>
+</Callout>

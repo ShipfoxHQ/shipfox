@@ -27,28 +27,18 @@ steps:
         output: "Integration check failed; restarting from tests"
 ```
 
-<ParamField path="gate.success_if" type="string">
-  A CEL expression that decides success. The only variable available is
-  `exit_code` — the step's process exit code. Examples: `exit_code == 0`,
-  `exit_code < 5`. Required unless `on_failure` is present.
-</ParamField>
+| Field | Type | Description |
+| --- | --- | --- |
+| `gate.success_if` | `string` | A CEL expression that decides success. The only variable available is `exit_code` — the step's process exit code. Examples: `exit_code == 0`, `exit_code < 5`. Required unless `on_failure` is present. |
+| `gate.on_failure.restart_from` | `string` | The `key` of an earlier step in the same job to restart from when the gate fails (set `key:` on the target step). Execution resumes at that step. |
+| `gate.on_failure.output` | `string` | An optional message recorded with the restart decision, shown in the run timeline. |
 
-<ParamField path="gate.on_failure.restart_from" type="string">
-  The `key` of an earlier step in the same job to restart from when the gate
-  fails (set `key:` on the target step). Execution resumes at that step.
-</ParamField>
-
-<ParamField path="gate.on_failure.output" type="string">
-  An optional message recorded with the restart decision, shown in the run
-  timeline.
-</ParamField>
-
-<Note>
+<Callout type="info">
   Gates are valid on **both run steps and agent steps** — `success_if` always
   evaluates the step's `exit_code`. The most reliable loop still puts the gate on a
   `run` step that objectively verifies the agent's work (tests, a linter), with
   `restart_from` pointing back at the agent.
-</Note>
+</Callout>
 
 ## How a gate is evaluated
 
@@ -78,11 +68,11 @@ budget to spend.
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Gate and retry guide" icon="rotate" href="/guides/gate-and-retry">
+<Cards>
+  <Card title="Gate and retry guide" href="/guides/gate-and-retry">
     A worked example that retries a step until it passes.
   </Card>
-  <Card title="Jobs & Steps" icon="layer-group" href="/concepts/jobs-steps">
+  <Card title="Jobs & Steps" href="/concepts/jobs-steps">
     Step kinds, job isolation, and `execution_timeout`.
   </Card>
-</CardGroup>
+</Cards>

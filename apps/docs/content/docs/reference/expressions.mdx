@@ -76,12 +76,12 @@ Interpolation is supported in **`run` commands**, **`env` values**, and **agent
 | `event` | The trigger's raw event payload (open shape — e.g. `event.ref`, `event.action`, `event.body`) | Untrusted |
 | `inputs` | Values passed through a trigger's `with` block (open shape) | Untrusted |
 
-<Note>
+<Callout type="info">
   **Untrusted context can't select infrastructure.** `event` and `inputs` carry
   data from outside your workspace, so they may be used in `env`, `run`, and
   `prompt` values but **not** to choose an agent's `model` or `provider`, which
   accept trusted context only.
-</Note>
+</Callout>
 
 ### Interpolation inside `run` commands
 
@@ -110,11 +110,11 @@ step or interpolate the value and check it there.
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Gates" icon="rotate" href="/concepts/gates">
+<Cards>
+  <Card title="Gates" href="/concepts/gates">
     Where `success_if` decides a step outcome.
   </Card>
-  <Card title="Workflow schema" icon="code" href="/reference/workflow-schema">
+  <Card title="Workflow schema" href="/reference/workflow-schema">
     The full YAML schema these expressions live in.
   </Card>
-</CardGroup>
+</Cards>

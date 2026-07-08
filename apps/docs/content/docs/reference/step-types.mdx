@@ -10,25 +10,13 @@ Every Shipfox step is one of two kinds: a **run step** executes a shell command 
 
 A run step executes a shell command on the job's runner. It has access to environment variables from the workflow, job, and step scopes.
 
-<ParamField body="run" type="string" required>
-  The shell command to execute. Must be at least one character.
-</ParamField>
-
-<ParamField body="name" type="string">
-  Displayed in the dashboard log. Display-only — a step referenced by `restart_from` needs a `key:`, not a `name:`.
-</ParamField>
-
-<ParamField body="env" type="object">
-  Environment variables for this step. Merged with job-level and workflow-level env; step-level values take the highest precedence. Keys must follow POSIX-style naming (`[A-Za-z_][A-Za-z0-9_]*`). Values may be strings, numbers, or booleans.
-</ParamField>
-
-<ParamField body="key" type="string">
-  Optional stable identifier for this step. Useful for referencing the step programmatically. Must be at least one character.
-</ParamField>
-
-<ParamField body="gate" type="object">
-  Gate and retry configuration evaluated after the step completes. See [Gate block](#gate-block) below.
-</ParamField>
+| Field | Type | Description |
+| --- | --- | --- |
+| `run` | `string` | **Required.** The shell command to execute. Must be at least one character. |
+| `name` | `string` | Displayed in the dashboard log. Display-only — a step referenced by `restart_from` needs a `key:`, not a `name:`. |
+| `env` | `object` | Environment variables for this step. Merged with job-level and workflow-level env; step-level values take the highest precedence. Keys must follow POSIX-style naming (`[A-Za-z_][A-Za-z0-9_]*`). Values may be strings, numbers, or booleans. |
+| `key` | `string` | Optional stable identifier for this step. Useful for referencing the step programmatically. Must be at least one character. |
+| `gate` | `object` | Gate and retry configuration evaluated after the step completes. See [Gate block](#gate-block) below. |
 
 ```yaml
 - key: test
@@ -45,33 +33,15 @@ A run step executes a shell command on the job's runner. It has access to enviro
 
 An agent step invokes an AI model with a text prompt. The model reads the repository context and executes the instruction. The recommended pattern is an agent step that produces a change, followed by a run step whose gate judges the result.
 
-<ParamField body="prompt" type="string" required>
-  The instruction given to the model. Must be at least one character. Required on any step that also sets `model`, `thinking`, or `provider`.
-</ParamField>
-
-<ParamField body="model" type="string">
-  Model ID to use (e.g., `claude-opus-4-8`, `gpt-5.5-pro`). Uses the workspace default if omitted. Model catalog checks are performed at runtime, not at parse time.
-</ParamField>
-
-<ParamField body="provider" type="string">
-  Provider ID for the model (e.g., `anthropic`, `openai`, `deepseek`). Pairing `provider` with `model` lets a step target a specific non-default provider/model combination. Uses the workspace default if omitted.
-</ParamField>
-
-<ParamField body="thinking" type="string">
-  Reasoning depth for the model. Controls how many tokens the model spends on internal reasoning before producing a response. Accepted values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. Default: `high`.
-</ParamField>
-
-<ParamField body="name" type="string">
-  Optional step name, displayed in the dashboard log.
-</ParamField>
-
-<ParamField body="key" type="string">
-  Optional stable identifier for this step. Must be at least one character.
-</ParamField>
-
-<ParamField body="gate" type="object">
-  Gate and retry configuration. See [Gate block](#gate-block) below.
-</ParamField>
+| Field | Type | Description |
+| --- | --- | --- |
+| `prompt` | `string` | **Required.** The instruction given to the model. Must be at least one character. Required on any step that also sets `model`, `thinking`, or `provider`. |
+| `model` | `string` | Model ID to use (e.g., `claude-opus-4-8`, `gpt-5.5-pro`). Uses the workspace default if omitted. Model catalog checks are performed at runtime, not at parse time. |
+| `provider` | `string` | Provider ID for the model (e.g., `anthropic`, `openai`, `deepseek`). Pairing `provider` with `model` lets a step target a specific non-default provider/model combination. Uses the workspace default if omitted. |
+| `thinking` | `string` | Reasoning depth for the model. Controls how many tokens the model spends on internal reasoning before producing a response. Accepted values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. Default: `high`. |
+| `name` | `string` | Optional step name, displayed in the dashboard log. |
+| `key` | `string` | Optional stable identifier for this step. Must be at least one character. |
+| `gate` | `object` | Gate and retry configuration. See [Gate block](#gate-block) below. |
 
 ```yaml
 - name: review
@@ -85,17 +55,11 @@ An agent step invokes an AI model with a text prompt. The model reads the reposi
 
 A gate block is optional on both run steps and agent steps. It must contain at least one of `success_if` or `on_failure`.
 
-<ParamField body="success_if" type="string">
-  A CEL expression evaluated after the step completes. The variable `exit_code` (integer) is available. Example: `exit_code == 0`. When omitted, the step's default exit behaviour applies.
-</ParamField>
-
-<ParamField body="on_failure.restart_from" type="string">
-  The `key` of an earlier step in the same job to restart from when this step fails. The referenced step must have a `key:` and appear before the current step in the job's step list (`name:` is display-only and cannot be referenced).
-</ParamField>
-
-<ParamField body="on_failure.output" type="string">
-  A message to surface in the run log when this step is considered failed.
-</ParamField>
+| Field | Type | Description |
+| --- | --- | --- |
+| `success_if` | `string` | A CEL expression evaluated after the step completes. The variable `exit_code` (integer) is available. Example: `exit_code == 0`. When omitted, the step's default exit behaviour applies. |
+| `on_failure.restart_from` | `string` | The `key` of an earlier step in the same job to restart from when this step fails. The referenced step must have a `key:` and appear before the current step in the job's step list (`name:` is display-only and cannot be referenced). |
+| `on_failure.output` | `string` | A message to surface in the run log when this step is considered failed. |
 
 ## Constraints table
 
@@ -113,6 +77,6 @@ The following table summarises which fields are valid on each step kind. Mixing 
 | `key` | ✅ Optional | ✅ Optional |
 | `gate` | ✅ Optional | ✅ Optional |
 
-<Warning>
+<Callout type="warn">
   The `agent:` key is reserved for a future step kind. Using it today results in a validation error with a clear message. It is not a valid alias or shorthand for an agent step — use `prompt` instead.
-</Warning>
+</Callout>

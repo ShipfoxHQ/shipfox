@@ -26,9 +26,9 @@ model messages, thinking, and tool calls are captured as structured events.
   </Tab>
 </Tabs>
 
-<Frame caption="An expanded step log on the run page: numbered lines, exact output, and per-step line/byte/duration counts.">
-  <img src="/img/step-logs.png" alt="A run detail page with a step's log expanded, showing numbered log lines and end-of-log metadata" />
-</Frame>
+<img src="/img/step-logs.png" alt="A run detail page with a step's log expanded, showing numbered log lines and end-of-log metadata" />
+
+*An expanded step log on the run page: numbered lines, exact output, and per-step line/byte/duration counts.*
 
 ## Grouping output
 
@@ -99,18 +99,18 @@ Logs are bounded so a runaway step can't produce unbounded storage or cost:
   a runner died mid-step — the stream is flagged truncated so you know the logs are
   incomplete.
 
-<Note>
+<Callout type="info">
   The budget, retention window, and storage bucket are configurable when you
   self-host. See [Self-Hosting](/installation/self-hosting) for the object-storage setup.
-</Note>
+</Callout>
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Jobs & Steps" icon="layer-group" href="/concepts/jobs-steps">
+<Cards>
+  <Card title="Jobs & Steps" href="/concepts/jobs-steps">
     Where run and agent steps are defined.
   </Card>
-  <Card title="Model Providers" icon="robot" href="/reference/model-providers">
+  <Card title="Model Providers" href="/reference/model-providers">
     Providers, models, and how agent-step config is resolved.
   </Card>
-</CardGroup>
+</Cards>

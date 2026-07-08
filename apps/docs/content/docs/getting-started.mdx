@@ -6,19 +6,25 @@ description: "Connect a project, add your first workflow YAML, register a runner
 
 This guide walks you through connecting a repository to Shipfox, writing your first workflow, registering a runner, and firing a run — from zero to a live streaming log in under ten minutes. You'll need access to a Shipfox workspace, a Git repository you can connect, and at least one runner online. If you hit a snag at any point, see [Troubleshooting](/troubleshooting).
 
-<Info>
+<Callout type="info">
   This guide assumes Shipfox is already running for your team — most product engineers join an instance a platform or DevEx team set up. If you need to stand Shipfox up yourself, see [Installation](/installation).
-</Info>
+</Callout>
 
 ## Connect your project
 
 A project connects one repository to Shipfox and is the container for all workflows, runs, and settings related to that repo.
 
 <Steps>
-  <Step title="Create a project">
+  <Step>
+
+    **Create a project**
+
     Open your Shipfox workspace dashboard and create a project. Pick the source connection, then the repository — the project name is pre-filled from the repository and can be edited.
   </Step>
-  <Step title="Connect the repository">
+  <Step>
+
+    **Connect the repository**
+
     Shipfox reads workflow files from `.shipfox/workflows/` in the default branch. No extra configuration is needed — any `.yaml` or `.yml` file in that directory is treated as a workflow definition.
   </Step>
 </Steps>
@@ -53,9 +59,9 @@ The fields at a glance:
 | `jobs` | A map of named jobs. Each job has a `steps` list and optionally a `needs` dependency on other jobs. |
 | `steps` | An ordered list of steps. Each step is either a `run` command or an agent step (`model` + `prompt`). |
 
-<Note>
+<Callout type="info">
   `filter` is roadmap — the `on_push` trigger fires on every push today; branch or path filtering is not yet evaluated. Push triggers require GitHub; GitLab support is on the roadmap. Use a manual trigger (`source: manual, event: fire`) in the meantime if your repository is not on GitHub.
-</Note>
+</Callout>
 
 Commit and push the file to your connected repository. Shipfox detects the new workflow file automatically — no manual import is required.
 
@@ -73,13 +79,13 @@ build · echo "hello world"
 hello world
 ```
 
-<Frame caption="A run detail page: status, the job graph, and every step with its duration.">
-  <img src="/img/run-detail.png" alt="Shipfox run detail page showing a succeeded run with its job graph and step list" />
-</Frame>
+<img src="/img/run-detail.png" alt="Shipfox run detail page showing a succeeded run with its job graph and step list" />
 
-<Note>
+*A run detail page: status, the job graph, and every step with its duration.*
+
+<Callout type="info">
   A run stuck in `pending` usually means no registered runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online and connected. See [Troubleshooting](/troubleshooting) for steps to diagnose runner connectivity.
-</Note>
+</Callout>
 
 ## Add an agent step
 
@@ -114,17 +120,17 @@ You can use a coding agent to generate and iterate on Shipfox workflows directly
 
 ## Next steps
 
-<CardGroup cols={2}>
-  <Card title="Multi-job pipelines" icon="diagram-project" href="/guides/multi-job-pipeline">
+<Cards>
+  <Card title="Multi-job pipelines" href="/guides/multi-job-pipeline">
     Use `needs` to chain jobs together and build fan-out / fan-in DAGs for parallel test execution and staged deploys.
   </Card>
-  <Card title="Gate & retry" icon="rotate" href="/guides/gate-and-retry">
+  <Card title="Gate & retry" href="/guides/gate-and-retry">
     Configure `gate.success_if` and `gate.on_failure.restart_from` to retry a step until a condition is met.
   </Card>
-  <Card title="Core concepts" icon="book-open" href="/concepts/workflows">
+  <Card title="Core concepts" href="/concepts/workflows">
     Deep-dive into the full workflow schema — triggers, jobs, steps, env, and gate conditions.
   </Card>
-  <Card title="Troubleshooting" icon="wrench" href="/troubleshooting">
+  <Card title="Troubleshooting" href="/troubleshooting">
     Common issues: pending runs, runner registration errors, and agent step failures.
   </Card>
-</CardGroup>
+</Cards>

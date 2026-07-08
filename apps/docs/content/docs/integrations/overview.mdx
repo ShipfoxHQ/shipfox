@@ -22,13 +22,13 @@ triggers:
     event: push
 ```
 
-<Warning>
+<Callout type="warn">
   A trigger's `source` is the **connection slug**, not the provider name. Writing
   `source: github` only works if a connection is literally named `github`. Use the
   slug shown for your connection after you connect it (for GitHub this defaults to
   `github_<account>`, for example `github_acme`). If the `source` doesn't match a
   connection slug, the trigger is stored but never fires.
-</Warning>
+</Callout>
 
 Slugs also let one workspace hold **several connections of the same provider** —
 for example a `github_acme` org connection and a `github_acme-labs` connection —
@@ -54,24 +54,12 @@ its schema.
 Every integration trigger shares the same two required fields, plus two optional
 ones:
 
-<ParamField path="source" type="string" required>
-  The **connection slug** the event must come from (for example `github_acme`).
-</ParamField>
-
-<ParamField path="event" type="string" required>
-  The event name from that source (for example `push` or `issue.created`). The
-  event names each integration emits are listed on its page.
-</ParamField>
-
-<ParamField path="filter" type="string">
-  A CEL expression intended to narrow which events fire the trigger. **Parsed but
-  not yet evaluated** — today every event matching `(source, event)` fires,
-  regardless of the filter. Authoring one now is safe and forward-compatible.
-</ParamField>
-
-<ParamField path="with" type="object">
-  Optional source-specific configuration. May be omitted for most sources.
-</ParamField>
+| Field | Type | Description |
+| --- | --- | --- |
+| `source` | `string` | **Required.** The **connection slug** the event must come from (for example `github_acme`). |
+| `event` | `string` | **Required.** The event name from that source (for example `push` or `issue.created`). The event names each integration emits are listed on its page. |
+| `filter` | `string` | A CEL expression intended to narrow which events fire the trigger. **Parsed but not yet evaluated** — today every event matching `(source, event)` fires, regardless of the filter. Authoring one now is safe and forward-compatible. |
+| `with` | `object` | Optional source-specific configuration. May be omitted for most sources. |
 
 ## Finding your connection slug
 
@@ -83,9 +71,9 @@ page records every event a connection delivers; an event that shows **No
 workflows triggered** usually means the `source` in your workflow does not match
 the connection's slug.
 
-<Frame caption="Settings → Events: every received event, whether it matched, and its raw payload. 'No workflows triggered' usually means a source/slug mismatch.">
-  <img src="/img/events-journal.png" alt="The Events journal listing received trigger events with their match results and payload" />
-</Frame>
+<img src="/img/events-journal.png" alt="The Events journal listing received trigger events with their match results and payload" />
+
+*Settings → Events: every received event, whether it matched, and its raw payload. 'No workflows triggered' usually means a source/slug mismatch.*
 
 ## Webhook payloads
 
@@ -96,14 +84,14 @@ raw event to the run so your steps can read whatever the provider sent.
 
 ## Related pages
 
-<CardGroup cols={3}>
-  <Card title="GitHub" icon="github" href="/integrations/github">
+<Cards>
+  <Card title="GitHub" href="/integrations/github">
     Connect a repository and trigger on pushes and other events.
   </Card>
-  <Card title="Sentry" icon="bug" href="/integrations/sentry">
+  <Card title="Sentry" href="/integrations/sentry">
     Trigger workflows when Sentry issues change state.
   </Card>
-  <Card title="Custom webhook" icon="webhook" href="/integrations/webhooks">
+  <Card title="Custom webhook" href="/integrations/webhooks">
     Trigger from any system that can send an HTTP POST.
   </Card>
-</CardGroup>
+</Cards>

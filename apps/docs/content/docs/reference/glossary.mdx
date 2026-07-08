@@ -6,7 +6,7 @@ description: "Definitions for every Shipfox term: workspace, project, workflow, 
 
 This glossary defines the core terms used in Shipfox documentation and in the product UI. When a concept is introduced elsewhere in the docs, it links back here.
 
-<AccordionGroup>
+<Accordions type="single">
 
   <Accordion title="Agent step">
     A workflow step that invokes an AI model. Defined with `prompt` (required), plus optional `model`, `thinking`, and `provider` fields. The model reads the repository context and executes the prompt. Agent steps cannot carry `env` — use a run step for environment-dependent shell work. See the [Step Types reference](/reference/step-types#agent-step).
@@ -76,4 +76,4 @@ This glossary defines the core terms used in Shipfox documentation and in the pr
     The top-level organisational unit in Shipfox. Contains projects, runner settings, AI provider configurations, and members. Provider API keys and default model selections are configured at the workspace level and resolved at run time when not specified in a workflow step.
   </Accordion>
 
-</AccordionGroup>
+</Accordions>

@@ -43,16 +43,28 @@ evaluated yet. event.ref on a push is the full Git ref (e.g. "refs/heads/main").
 ## How to use it
 
 <Steps>
-  <Step title="Copy the prompt">
+  <Step>
+
+    **Copy the prompt**
+
     Click the copy button on the prompt above to copy the full schema cheat sheet to your clipboard.
   </Step>
-  <Step title="Paste into your session">
+  <Step>
+
+    **Paste into your session**
+
     Paste at the start of a new conversation in Claude, ChatGPT, Cursor, or your preferred coding agent tool.
   </Step>
-  <Step title="Ask for your workflow">
+  <Step>
+
+    **Ask for your workflow**
+
     Describe what you want — for example: "Add a Shipfox workflow that runs my tests on every GitHub push and then asks Claude to review the results."
   </Step>
-  <Step title="Place the output">
+  <Step>
+
+    **Place the output**
+
     Save the YAML to `.shipfox/workflows/<name>.yml` in your repo and commit it.
   </Step>
 </Steps>
@@ -69,9 +81,9 @@ The prompt is deliberately compact but complete. It covers every dimension of th
 - **Hard rules** — no `loop`/`matrix`/`branch`, `env` is run-only, at most one manual trigger
 - **The today/roadmap boundary** — an explicit list of features not to use, so the agent doesn't hallucinate roadmap keys
 
-<Tip>
+<Callout type="info">
   For ongoing workflow authoring, install the skills package (`npx skills add shipfox/agent-skills`) so your agent always has the latest schema — no pasting required. See [Skills Package](/ai/skills-package).
-</Tip>
+</Callout>
 
 ## Example exchange
 

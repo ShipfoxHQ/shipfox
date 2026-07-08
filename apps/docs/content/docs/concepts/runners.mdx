@@ -38,20 +38,20 @@ Registering a new runner takes three steps:
 
 **Settings → Runners** lists the registration tokens you created, with their prefix and expiry. A view of connected runners and their labels is not in the dashboard yet — confirm a runner is connected from its own log.
 
-<Note>
+<Callout type="info">
   Prefer not to hand-start runners? A [runner provisioner](/concepts/runner-provisioners)
   starts ephemeral, single-job runners automatically based on demand, then lets them
   exit when idle.
-</Note>
+</Callout>
 
 ## Agent step requirements
 
-<Note>
+<Callout type="info">
   Runner processes that execute agent steps need network access to the AI provider's API. Set `ANTHROPIC_API_KEY` (or the appropriate provider key, such as `OPENAI_API_KEY`) in the runner's environment before starting it. Without the key, agent steps will fail at execution time.
-</Note>
+</Callout>
 
 ## Pending runs
 
-<Tip>
+<Callout type="info">
   A run stuck in `pending` state usually means no online runner matches the job's `runner:` label. Check the runner's terminal for `Runner session registered`, and confirm its `SHIPFOX_RUNNER_LABELS` includes the label the workflow asks for. Start a matching runner and the pending job is dispatched automatically.
-</Tip>
+</Callout>

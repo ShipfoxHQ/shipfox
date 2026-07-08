@@ -45,11 +45,11 @@ Follow these steps to get the workflow running:
 2. Paste the YAML above, replacing `sentry_acme` with your Sentry connection slug.
 3. Commit the file and push. The workflow appears in the dashboard and fires on the next matching issue.
 
-<Note>
+<Callout type="info">
   `source` is your **Sentry connection slug** — shown in your integration settings
   after you connect Sentry (for example `sentry_<org>`), not the literal word
   `sentry`. Connecting Sentry requires the [Sentry integration](/integrations/sentry).
-</Note>
+</Callout>
 
 ## Scope to a project
 
@@ -62,11 +62,11 @@ Shipfox delivers `issue.created` for **every** project in your connected Sentry 
           "${{ event.title }}". Summarize the likely cause.
 ```
 
-<Note>
+<Callout type="info">
   Server-side filtering by project or team — `filter: event.projectUrl.contains("...")` —
   is on the roadmap; the `filter` field is parsed but not evaluated yet. Until then,
   scope inside the workflow. See [Expressions](/reference/expressions).
-</Note>
+</Callout>
 
 ## Going further
 
@@ -75,10 +75,10 @@ Turn triage into action by combining it with the other guides:
 - **Auto-fix and verify** — follow the agent with a shell step and a gate so it retries until tests pass. See [Gate & Retry](/guides/gate-and-retry).
 - **Open a PR or notify** — add a `run` step that calls `gh pr create` or posts to your chat tool.
 
-<Note>
+<Callout type="info">
   Branching on a structured agent decision (auto-fix vs. escalate) and structured
   agent `output` are on the roadmap. Today, act with `run` steps and gates.
-</Note>
+</Callout>
 
 ## Next steps
 

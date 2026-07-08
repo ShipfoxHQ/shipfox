@@ -82,14 +82,14 @@ On each iteration, the agent reads the updated codebase and attempts another fix
 
 ## Agent step rules
 
-<Warning>
+<Callout type="warn">
   Keep these constraints in mind when authoring agent steps:
 
   - `env` is not valid on agent steps — it is supported only on `run` steps.
   - `run` and any of `prompt`, `model`, `thinking`, or `provider` cannot appear on the same step.
   - `prompt` is required on every agent step — a step with `model` but no `prompt` will be rejected.
   - The `agent:` key is reserved and will be rejected with an explicit error message.
-</Warning>
+</Callout>
 
 ## Next steps
 

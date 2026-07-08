@@ -6,7 +6,7 @@ description: "Fix common Shipfox issues: pending runs, runner connection problem
 
 This page covers the most common issues teams encounter with Shipfox and how to resolve them quickly. For each symptom, you'll find the likely cause and the steps to fix it.
 
-<AccordionGroup>
+<Accordions type="single">
   <Accordion title="Run is stuck in `pending`">
     **Cause:** No online runner with a matching label.
 
@@ -75,8 +75,8 @@ This page covers the most common issues teams encounter with Shipfox and how to 
     - Go to **Settings → Integrations → Sentry** and complete the setup.
     - Verify the `event` value is one of: `issue.created`, `issue.resolved`, `issue.assigned`, `issue.archived`, `issue.unresolved`.
   </Accordion>
-</AccordionGroup>
+</Accordions>
 
-<Note>
+<Callout type="info">
   If you're still stuck, check the run's step log in the dashboard — it often contains the exact error message. Still need help? Reach out to the Shipfox team.
-</Note>
+</Callout>

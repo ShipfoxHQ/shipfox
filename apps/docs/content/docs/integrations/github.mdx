@@ -11,15 +11,24 @@ App is subscribed to — can trigger workflow runs.
 ## Setup
 
 <Steps>
-  <Step title="Start the connection">
+  <Step>
+
+    **Start the connection**
+
     In your workspace's integration settings, choose **GitHub** and start the
     connection. Shipfox sends you to GitHub to install its App.
   </Step>
-  <Step title="Install the GitHub App">
+  <Step>
+
+    **Install the GitHub App**
+
     On GitHub, pick the account or organization and grant the App access to the
     repositories you want Shipfox to watch. GitHub redirects you back to Shipfox.
   </Step>
-  <Step title="Copy the connection slug">
+  <Step>
+
+    **Copy the connection slug**
+
     Shipfox creates a **connection** for the installation. Its slug defaults to
     `github_<account>` — for example `github_acme`. This slug is the value you put
     in a trigger's `source` field.
@@ -58,7 +67,7 @@ Shipfox forwards any GitHub webhook event the App is subscribed to, named
 Rather than duplicate GitHub's catalog here, use GitHub's own reference for the full
 list of events and their payload shapes:
 
-<Card title="GitHub webhook events and payloads" icon="github" href="https://docs.github.com/en/webhooks/webhook-events-and-payloads">
+<Card title="GitHub webhook events and payloads" href="https://docs.github.com/en/webhooks/webhook-events-and-payloads">
   The authoritative list of every GitHub webhook event and the payload it delivers.
 </Card>
 
@@ -83,20 +92,20 @@ triggers:
     filter: event.ref == "refs/heads/main"
 ```
 
-<Note>
+<Callout type="info">
   `filter` is parsed but **not yet evaluated** — the trigger fires on every `push`
   regardless of the expression. Authoring a filter now is safe and takes effect
   once evaluation ships. To gate behavior on the branch today, branch inside a
   `run` step.
-</Note>
+</Callout>
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Checks on push" icon="circle-check" href="/guides/checks-on-push">
+<Cards>
+  <Card title="Checks on push" href="/guides/checks-on-push">
     A worked example that runs tests and an AI review on every push.
   </Card>
-  <Card title="Triggers" icon="bolt" href="/concepts/triggers">
+  <Card title="Triggers" href="/concepts/triggers">
     The trigger schema and how sources and events fit together.
   </Card>
-</CardGroup>
+</Cards>
