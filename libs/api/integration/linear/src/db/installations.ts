@@ -167,6 +167,17 @@ export async function markLinearInstallationRevoked(
   return toLinearInstallation(row);
 }
 
+export async function deleteLinearInstallationByConnectionId(
+  connectionId: string,
+  options: {tx?: unknown} = {},
+): Promise<boolean> {
+  const executor = (options.tx ?? db()) as LinearDb | LinearTx;
+  const result = await executor
+    .delete(linearInstallations)
+    .where(eq(linearInstallations.connectionId, connectionId));
+  return (result.rowCount ?? 0) > 0;
+}
+
 export type LinearRefreshLockResult<T> = {acquired: true; value: T} | {acquired: false};
 
 export function withLinearRefreshLock<T>(

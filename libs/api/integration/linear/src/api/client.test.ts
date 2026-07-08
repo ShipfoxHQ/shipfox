@@ -217,6 +217,47 @@ describe('createLinearApiClient.refreshAccessToken', () => {
   });
 });
 
+describe('createLinearApiClient.revokeToken', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('posts an OAuth token revocation request', async () => {
+    mocks.post.mockResolvedValue(undefined);
+    const client = createLinearApiClient();
+
+    await client.revokeToken({token: 'access-token', tokenTypeHint: 'access_token'});
+
+    const firstCall = mocks.post.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const [url, options] = firstCall as [string, {body: URLSearchParams}];
+    const body = options.body as URLSearchParams;
+    expect(url).toBe('https://api.linear.app/oauth/revoke');
+    expect(body.get('client_id')).toBe('test-client-id');
+    expect(body.get('client_secret')).toBe('test-client-secret');
+    expect(body.get('token')).toBe('access-token');
+    expect(body.get('token_type_hint')).toBe('access_token');
+  });
+
+  it('maps a rejected revocation without logging the token', async () => {
+    mocks.post.mockRejectedValue(httpError(400));
+    const client = createLinearApiClient();
+
+    const error = await client
+      .revokeToken({token: 'secret-token', tokenTypeHint: 'refresh_token'})
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toMatchObject({reason: 'access-denied'});
+    const serialized = [
+      (error as Error).message,
+      JSON.stringify(error),
+      JSON.stringify(mocks.warn.mock.calls),
+    ].join(' ');
+    expect(serialized).not.toContain('secret-token');
+  });
+});
+
 describe('createLinearApiClient.getIdentity', () => {
   beforeEach(() => {
     vi.useRealTimers();

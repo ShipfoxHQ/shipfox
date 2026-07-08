@@ -39,7 +39,21 @@ export async function run(): Promise<void> {
   createPostgresClient();
 
   const integrations = await createIntegrationsContext({
-    secrets: {deleteSecrets, getSecret, setSecrets},
+    secrets: {
+      deleteSecrets,
+      linear: {
+        getSecret: (params) =>
+          getSecret({
+            ...params,
+            namespace: `system/integrations/linear/${params.namespace}`,
+          }),
+        setSecrets: (params) =>
+          setSecrets({
+            ...params,
+            namespace: `system/integrations/linear/${params.namespace}`,
+          }),
+      },
+    },
   });
   const [agentToolSelectionCatalogs, agentToolCatalogs] = await Promise.all([
     buildAgentToolSelectionCatalogs(integrations.registry),

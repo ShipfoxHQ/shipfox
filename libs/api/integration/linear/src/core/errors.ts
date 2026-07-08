@@ -16,6 +16,23 @@ export class LinearInstallStateActorMismatchError extends Error {
   }
 }
 
+export class LinearOAuthCallbackError extends Error {
+  constructor(
+    public readonly providerError: string,
+    public readonly providerDescription: string | undefined,
+  ) {
+    super(providerDescription ?? `Linear OAuth callback failed: ${providerError}`);
+    this.name = 'LinearOAuthCallbackError';
+  }
+}
+
+export class LinearAuthorizationScopeMismatchError extends Error {
+  constructor(public readonly missingScopes: string[]) {
+    super(`Linear authorization is missing required scopes: ${missingScopes.join(', ')}`);
+    this.name = 'LinearAuthorizationScopeMismatchError';
+  }
+}
+
 export class LinearInstallationAlreadyLinkedError extends Error {
   constructor(organizationId: string) {
     super(`Linear organization is already linked to another Shipfox workspace: ${organizationId}`);

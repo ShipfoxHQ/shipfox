@@ -24,16 +24,23 @@ export {
 } from '#core/agent-tools.js';
 export {
   LinearAccessTokenMissingError,
+  LinearAuthorizationScopeMismatchError,
   LinearConnectionAlreadyLinkedError,
   LinearConnectionNotFoundError,
   LinearInstallationAlreadyLinkedError,
   LinearInstallStateActorMismatchError,
   LinearInstallStateError,
   LinearIntegrationProviderError,
+  LinearOAuthCallbackError,
   LinearTokenUnrefreshableError,
 } from '#core/errors.js';
 export type {ConnectLinearInstallationInput, HandleLinearCallbackParams} from '#core/install.js';
-export {handleLinearCallback} from '#core/install.js';
+export {handleLinearCallback, handleLinearOAuthCallbackError} from '#core/install.js';
+export {
+  assertLinearAuthorizationScopes,
+  formatLinearOAuthScopes,
+  LINEAR_OAUTH_SCOPES,
+} from '#core/scopes.js';
 export type {LinearInstallStateClaims} from '#core/state.js';
 export {signLinearInstallState, verifyLinearInstallState} from '#core/state.js';
 export type {
@@ -55,6 +62,7 @@ export type {
   UpsertLinearInstallationParams,
 } from '#db/installations.js';
 export {
+  deleteLinearInstallationByConnectionId,
   getLinearInstallationByConnectionId,
   getLinearInstallationByOrganizationId,
   markLinearInstallationRevoked,

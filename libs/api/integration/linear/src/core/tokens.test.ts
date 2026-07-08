@@ -31,6 +31,7 @@ function createConnectionContext() {
       exchangeAuthorizationCode: vi.fn(),
       getIdentity: vi.fn(),
       refreshAccessToken,
+      revokeToken: vi.fn(),
     },
   });
 

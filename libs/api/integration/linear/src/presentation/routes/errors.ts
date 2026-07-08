@@ -4,11 +4,13 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import {
+  LinearAuthorizationScopeMismatchError,
   LinearConnectionAlreadyLinkedError,
   LinearInstallationAlreadyLinkedError,
   LinearInstallStateActorMismatchError,
   LinearInstallStateError,
   LinearIntegrationProviderError,
+  LinearOAuthCallbackError,
 } from '#core/errors.js';
 
 function providerStatus(reason: IntegrationProviderErrorReason): number {
@@ -29,6 +31,21 @@ export function linearRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof LinearConnectionAlreadyLinkedError) {
     throw new ClientError(error.message, 'linear-connection-already-linked', {status: 409});
+  }
+  if (error instanceof LinearAuthorizationScopeMismatchError) {
+    throw new ClientError(error.message, 'linear-authorization-scope-mismatch', {
+      status: 422,
+      details: {missing_scopes: error.missingScopes},
+    });
+  }
+  if (error instanceof LinearOAuthCallbackError) {
+    throw new ClientError(error.message, 'linear-oauth-callback-error', {
+      status: 422,
+      details: {
+        error: error.providerError,
+        ...(error.providerDescription ? {error_description: error.providerDescription} : {}),
+      },
+    });
   }
   if (error instanceof ConnectionSlugConflictError) {
     throw new ClientError(error.message, 'slug-conflict', {status: 409});

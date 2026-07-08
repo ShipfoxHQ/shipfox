@@ -56,6 +56,7 @@ function linearClient(overrides: Partial<LinearApiClient> = {}): LinearApiClient
     refreshAccessToken: vi.fn(() => {
       throw new Error('not used');
     }),
+    revokeToken: vi.fn(() => Promise.resolve()),
     getIdentity: vi.fn(() =>
       Promise.resolve({
         appUserId: 'app-user-id',
@@ -90,6 +91,7 @@ interface CreateTestAppOptions {
   connectLinearInstallation?:
     | ((input: ConnectLinearInstallationInput) => Promise<IntegrationConnection<'linear'>>)
     | undefined;
+  disconnectLinearInstallation?: ((input: {connectionId: string}) => Promise<void>) | undefined;
 }
 
 async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
@@ -111,6 +113,7 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
             }),
           ),
         ),
+      disconnectLinearInstallation: options.disconnectLinearInstallation,
     },
   });
   const app = await createApp({
@@ -156,7 +159,7 @@ describe('Linear integration routes', () => {
     );
     expect(installUrl.searchParams.get('response_type')).toBe('code');
     expect(installUrl.searchParams.get('actor')).toBe('app');
-    expect(installUrl.searchParams.get('scope')).toBe('read write app:assignable app:mentionable');
+    expect(installUrl.searchParams.get('scope')).toBe('read,write,app:assignable,app:mentionable');
     expect(claims.workspaceId).toBe(workspaceId);
     expect(claims.userId).toBe('user-1');
   });
@@ -229,8 +232,33 @@ describe('Linear integration routes', () => {
     expect(res.json().code).toBe('invalid-linear-install-state');
   });
 
-  it('rejects callbacks for a Linear organization linked to another workspace', async () => {
+  it('handles Linear OAuth error callbacks after validating state', async () => {
+    const app = await createTestApp();
+    const workspaceId = crypto.randomUUID();
+    const state = await createInstallState(app, workspaceId);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/linear/callback/api?error=access_denied&error_description=Denied&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'linear-oauth-callback-error',
+      details: {error: 'access_denied', error_description: 'Denied'},
+    });
+    expect(requireWorkspaceMembershipMock).toHaveBeenCalledWith({
+      workspaceId,
+      userId: 'user-1',
+      memberships: [{workspaceId, role: 'admin'}],
+    });
+  });
+
+  it('rejects callbacks for a Linear organization linked to another workspace and revokes tokens', async () => {
+    const revokeToken = vi.fn(() => Promise.resolve());
     const app = await createTestApp({
+      linear: linearClient({revokeToken}),
       existingConnection: connection({workspaceId: crypto.randomUUID()}),
     });
     const workspaceId = crypto.randomUUID();
@@ -244,6 +272,74 @@ describe('Linear integration routes', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('linear-installation-already-linked');
+    expect(revokeToken).toHaveBeenCalledWith({
+      token: 'linear-refresh-token',
+      tokenTypeHint: 'refresh_token',
+    });
+    expect(revokeToken).toHaveBeenCalledWith({
+      token: 'linear-access-token',
+      tokenTypeHint: 'access_token',
+    });
+  });
+
+  it('rejects callbacks when Linear omits required scopes and revokes tokens', async () => {
+    const revokeToken = vi.fn(() => Promise.resolve());
+    const app = await createTestApp({
+      linear: linearClient({
+        revokeToken,
+        exchangeAuthorizationCode: vi.fn(() =>
+          Promise.resolve({
+            accessToken: 'linear-access-token',
+            refreshToken: 'linear-refresh-token',
+            expiresAt: new Date('2026-07-07T13:00:00.000Z'),
+            scopes: ['read'],
+          }),
+        ),
+      }),
+    });
+    const state = await createInstallState(app, crypto.randomUUID());
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/linear/callback/api?code=code&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'linear-authorization-scope-mismatch',
+      details: {missing_scopes: ['write', 'app:assignable', 'app:mentionable']},
+    });
+    expect(revokeToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('compensates a new connection when token storage fails', async () => {
+    const connectionId = '00000000-0000-4000-8000-000000000003';
+    const disconnectLinearInstallation = vi.fn(() => Promise.resolve());
+    const app = await createTestApp({
+      tokenStore: {storeTokens: vi.fn(() => Promise.reject(new Error('secret store down')))},
+      connectLinearInstallation: vi.fn((input: ConnectLinearInstallationInput) =>
+        Promise.resolve(
+          connection({
+            id: connectionId,
+            workspaceId: input.workspaceId,
+            externalAccountId: input.organizationId,
+            displayName: input.displayName,
+          }),
+        ),
+      ),
+      disconnectLinearInstallation,
+    });
+    const state = await createInstallState(app, crypto.randomUUID());
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/linear/callback/api?code=code&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(500);
+    expect(disconnectLinearInstallation).toHaveBeenCalledWith({connectionId});
   });
 
   it('reconnects an existing workspace connection and refreshes stored tokens', async () => {

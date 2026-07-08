@@ -33,6 +33,11 @@ export interface IntegrationProviderModuleLoadOptions {
 }
 
 export interface IntegrationProviderSecrets {
+  linear?: IntegrationProviderScopedSecrets | undefined;
+  deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
+}
+
+export interface IntegrationProviderScopedSecrets {
   getSecret(params: {workspaceId: string; namespace: string; key: string}): Promise<string | null>;
   setSecrets(params: {
     workspaceId: string;
@@ -40,5 +45,4 @@ export interface IntegrationProviderSecrets {
     values: Record<string, string>;
     editedBy?: string | null | undefined;
   }): Promise<void>;
-  deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }

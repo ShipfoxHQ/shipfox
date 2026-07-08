@@ -15,10 +15,17 @@ export const createLinearInstallResponseSchema = z.object({
 });
 export type CreateLinearInstallResponseDto = z.infer<typeof createLinearInstallResponseSchema>;
 
-export const linearCallbackQuerySchema = z.object({
-  code: z.string().min(1),
-  state: z.string().min(1),
-});
+export const linearCallbackQuerySchema = z.union([
+  z.object({
+    code: z.string().min(1),
+    state: z.string().min(1),
+  }),
+  z.object({
+    error: z.string().min(1),
+    error_description: z.string().min(1).optional(),
+    state: z.string().min(1),
+  }),
+]);
 export type LinearCallbackQueryDto = z.infer<typeof linearCallbackQuerySchema>;
 
 export const linearCallbackResponseSchema = integrationConnectionDtoSchema;

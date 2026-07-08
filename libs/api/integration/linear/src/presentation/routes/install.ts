@@ -3,6 +3,7 @@ import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createLinearInstallBodySchema,
   createLinearInstallResponseSchema,
+  type LinearCallbackQueryDto,
   linearCallbackQuerySchema,
   linearCallbackResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
@@ -10,13 +11,16 @@ import {requireWorkspaceMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {LinearApiClient} from '#api/client.js';
 import {config} from '#config.js';
-import {type ConnectLinearInstallationInput, handleLinearCallback} from '#core/install.js';
+import {
+  type ConnectLinearInstallationInput,
+  handleLinearCallback,
+  handleLinearOAuthCallbackError,
+} from '#core/install.js';
+import {formatLinearOAuthScopes} from '#core/scopes.js';
 import {signLinearInstallState} from '#core/state.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 import {linearRouteErrorHandler} from './errors.js';
-
-const LINEAR_OAUTH_SCOPES = ['read', 'write', 'app:assignable', 'app:mentionable'];
 
 export interface CreateLinearIntegrationRoutesOptions {
   linear: LinearApiClient;
@@ -27,6 +31,7 @@ export interface CreateLinearIntegrationRoutesOptions {
   connectLinearInstallation: (
     input: ConnectLinearInstallationInput,
   ) => Promise<IntegrationConnection<'linear'>>;
+  disconnectLinearInstallation?: ((input: {connectionId: string}) => Promise<void>) | undefined;
 }
 
 export function createLinearIntegrationRoutes({
@@ -34,6 +39,7 @@ export function createLinearIntegrationRoutes({
   tokenStore,
   getExistingLinearConnection,
   connectLinearInstallation,
+  disconnectLinearInstallation,
 }: CreateLinearIntegrationRoutesOptions): RouteGroup {
   const createInstallRoute = defineRoute({
     method: 'POST',
@@ -59,7 +65,7 @@ export function createLinearIntegrationRoutes({
       installUrl.searchParams.set('response_type', 'code');
       installUrl.searchParams.set('state', state);
       installUrl.searchParams.set('actor', 'app');
-      installUrl.searchParams.set('scope', LINEAR_OAUTH_SCOPES.join(' '));
+      installUrl.searchParams.set('scope', formatLinearOAuthScopes());
 
       return {install_url: installUrl.toString()};
     },
@@ -79,16 +85,28 @@ export function createLinearIntegrationRoutes({
     errorHandler: linearRouteErrorHandler,
     handler: async (request) => {
       const actor = requireUserContext(request);
+      const query = request.query;
+      if (isLinearOAuthErrorCallback(query)) {
+        return await handleLinearOAuthCallbackError({
+          state: query.state,
+          error: query.error,
+          errorDescription: query.error_description,
+          sessionUserId: actor.userId,
+          sessionMemberships: actor.memberships,
+          requireWorkspaceMembership,
+        });
+      }
       const connection = await handleLinearCallback({
         linear,
         tokenStore,
-        code: request.query.code,
-        state: request.query.state,
+        code: query.code,
+        state: query.state,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
         requireWorkspaceMembership,
         getExistingLinearConnection,
         connectLinearInstallation,
+        disconnectLinearInstallation,
       });
 
       return toIntegrationConnectionDto(connection);
@@ -99,4 +117,14 @@ export function createLinearIntegrationRoutes({
     prefix: '/integrations/linear',
     routes: [createInstallRoute, callbackApiRoute],
   };
+}
+
+function isLinearOAuthErrorCallback(
+  query: LinearCallbackQueryDto,
+): query is LinearCallbackQueryDto & {
+  error: string;
+  error_description?: string | undefined;
+  state: string;
+} {
+  return 'error' in query && typeof query.error === 'string';
 }

@@ -8,6 +8,7 @@ import type {
 } from '@shipfox/api-integration-linear';
 import {config} from '#config.js';
 import {
+  deleteIntegrationConnection,
   getIntegrationConnectionById,
   resolveUniqueConnectionSlug,
   upsertIntegrationConnection,
@@ -17,6 +18,7 @@ import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 const LINEAR_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_linear';
+const LINEAR_SECRETS_NAMESPACE_PREFIX = 'system/integrations/linear/';
 
 async function loadLinearModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
@@ -24,6 +26,7 @@ async function loadLinearModuleParts(
   const {
     createLinearTokenStore,
     createLinearIntegrationProvider,
+    deleteLinearInstallationByConnectionId,
     getLinearInstallationByOrganizationId,
     db: linearDb,
     migrationsPath: linearMigrationsPath,
@@ -87,11 +90,31 @@ async function loadLinearModuleParts(
     );
   }
 
+  async function disconnectLinearInstallation(input: {connectionId: string}): Promise<void> {
+    await db().transaction(async (tx) => {
+      await deleteLinearInstallationByConnectionId(input.connectionId, {tx});
+      await deleteIntegrationConnection({id: input.connectionId}, {tx});
+    });
+  }
+
   const fallbackSecrets: LinearSecretsStore = {
     getSecret: () => Promise.resolve(null),
     setSecrets: () => Promise.reject(new Error('Linear token storage is not configured')),
   };
-  const secrets = options.secrets ?? fallbackSecrets;
+  const secrets: LinearSecretsStore = options.secrets?.linear
+    ? {
+        getSecret: (params: Parameters<LinearSecretsStore['getSecret']>[0]) =>
+          options.secrets?.linear?.getSecret({
+            ...params,
+            namespace: linearNamespaceSuffix(params.namespace),
+          }) ?? Promise.resolve(null),
+        setSecrets: (params: Parameters<LinearSecretsStore['setSecrets']>[0]) =>
+          options.secrets?.linear?.setSecrets({
+            ...params,
+            namespace: linearNamespaceSuffix(params.namespace),
+          }) ?? Promise.resolve(),
+      }
+    : fallbackSecrets;
   const tokenStore = createLinearTokenStore({
     resolveConnection: async (connectionId) => getIntegrationConnectionById(connectionId),
     secrets,
@@ -103,6 +126,7 @@ async function loadLinearModuleParts(
         tokenStore,
         getExistingLinearConnection,
         connectLinearInstallation,
+        disconnectLinearInstallation,
       },
     }),
     database: {
@@ -118,3 +142,10 @@ export const linearProviderModule: IntegrationProviderModule = {
   enabled: config.INTEGRATIONS_ENABLE_LINEAR_PROVIDER,
   load: loadLinearModuleParts,
 };
+
+function linearNamespaceSuffix(namespace: string): string {
+  if (!namespace.startsWith(LINEAR_SECRETS_NAMESPACE_PREFIX)) {
+    throw new Error('Linear provider attempted to access an unscoped secret namespace');
+  }
+  return namespace.slice(LINEAR_SECRETS_NAMESPACE_PREFIX.length);
+}
