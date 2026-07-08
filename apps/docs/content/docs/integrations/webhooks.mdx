@@ -1,0 +1,87 @@
+---
+title: "Custom Webhooks: Trigger Workflows from Any System"
+sidebarTitle: "Custom webhook"
+description: "Create a Shipfox webhook connection, point any system at its URL, and trigger workflows on the received event. The connection slug is your trigger source."
+---
+
+A **custom webhook** connection gives you a unique URL that any system can POST to.
+Every request that arrives fires the `received` event, which your workflows
+can trigger on. Use it for tools Shipfox doesn't integrate with directly — CI
+systems, monitoring, internal services, or anything that can send an HTTP request.
+
+## Setup
+
+<Steps>
+  <Step>
+
+    **Create a webhook connection**
+
+    Create a webhook connection in your workspace. You choose its **slug** — a
+    lowercase identifier matching `^[a-z0-9]+(?:[_-][a-z0-9]+)*$`, unique within
+    the workspace (for example `deploy_hook`). Shipfox returns a unique **ingest
+    URL** for the connection.
+  </Step>
+  <Step>
+
+    **Send events to the URL**
+
+    Point any system at the ingest URL with an HTTP `POST`. The body can be JSON,
+    form-encoded, or plain text. An optional `X-Delivery-ID` header lets you
+    deduplicate retries; Shipfox generates one if you omit it.
+
+    ```bash
+    curl -X POST https://<your-shipfox>/webhook/<connection-id> \
+      -H "Content-Type: application/json" \
+      -d '{"environment": "production", "version": "1.4.2"}'
+    ```
+
+    Shipfox responds `202 Accepted` with a `delivery_id`.
+  </Step>
+  <Step>
+
+    **Trigger a workflow**
+
+    Author a trigger using the connection slug as `source` and `received`
+    as `event`.
+  </Step>
+</Steps>
+
+## Triggering a workflow
+
+```yaml
+triggers:
+  on_webhook:
+    source: deploy_hook       # your webhook connection slug
+    event: received
+```
+
+`received` is the only event a custom webhook emits — every request to the
+ingest URL fires it.
+
+## Event payload
+
+Shipfox passes the request to the run as structured data:
+
+| Field | Contents |
+|---|---|
+| `method` | The HTTP method (typically `POST`) |
+| `headers` | Request headers, with sensitive ones (authorization, bearer tokens) removed |
+| `query` | Parsed query-string parameters |
+| `body` | Parsed JSON, or the raw body when it isn't JSON |
+
+<Callout type="info">
+  A `filter` CEL expression can reference `event.headers`, `event.query`, and
+  `event.body`, but filters are **parsed and not yet evaluated** — every request
+  fires the trigger today.
+</Callout>
+
+## Related pages
+
+<Cards>
+  <Card title="Triggers" href="/concepts/triggers">
+    The trigger schema shared by every source.
+  </Card>
+  <Card title="Integrations overview" href="/integrations/overview">
+    Connections, slugs, and the other available integrations.
+  </Card>
+</Cards>

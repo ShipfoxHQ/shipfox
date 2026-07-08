@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "---Get Started---",
+    "index",
+    "introduction",
+    "getting-started",
+    "concepts",
+    "integrations",
+    "guides",
+    "ai",
+    "reference",
+    "installation",
+    "---Help---",
+    "troubleshooting",
+    "faq"
+  ]
+}

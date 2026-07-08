@@ -5,6 +5,7 @@ minimumReleaseAge: 2880
 allowBuilds:
   '@google/genai': true
   '@swc/core': true
+  core-js: false
   cpu-features: true
   esbuild: true
   protobufjs: true

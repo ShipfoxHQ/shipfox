@@ -1,0 +1,132 @@
+---
+title: "Workflow YAML Schema Reference for Shipfox"
+sidebarTitle: "Workflow Schema"
+description: "Complete reference for the Shipfox workflow YAML schema: top-level fields, job fields, step kinds, gate blocks, env variables, and validation rules."
+---
+
+This page is the authoritative reference for the Shipfox workflow YAML schema. Workflow files live at `.shipfox/workflows/*.yml`. The schema is strict — unknown keys are rejected everywhere. Use this reference when authoring or debugging workflow files.
+
+## Top-level fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | **Required.** Human-readable workflow name. Must be at least one character. |
+| `runner` | `string \| string[]` | Default runner label or list of labels for all jobs in this workflow. Individual jobs can override this value with their own `runner` field. |
+| `env` | `object` | Environment variables applied to `run` steps across the entire workflow. Keys must follow POSIX-style naming (`[A-Za-z_][A-Za-z0-9_]*`). Values may be a string, number, or boolean. Numbers and booleans are stringified before a run is saved. This field is applied to run steps only — it has no effect on agent steps. |
+| `triggers` | `object` | Named trigger entries that define when this workflow runs. Each key is a user-chosen trigger name; each value is a trigger object (see [Trigger fields](#trigger-fields) below). If present, at least one entry is required. |
+| `jobs` | `object` | **Required.** Named job entries that define the work to perform. Each key is a user-chosen job name; each value is a job object (see [Job fields](#job-fields) below). At least one entry is required. |
+
+## Trigger fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `source` | `string` | **Required.** Where the event comes from. For an integration this is the **connection slug** (e.g., `github_acme`, `sentry_acme`) — not the bare provider name; a `source` that matches no connection slug is stored but never fires. For on-demand runs it is the literal string `manual`. See the [Trigger Sources reference](/reference/trigger-sources). |
+| `event` | `string` | **Required.** The event name from the named source (e.g., `push`, `issue.created`, `fire`). |
+| `filter` | `string` | A CEL expression that narrows which events fire this trigger (e.g., `event.ref == "refs/heads/main"`). The expression is parsed and stored but **not yet evaluated** — the trigger fires on every matching `(source, event)` pair regardless of filter content. |
+| `with` | `object` | Extra source-specific configuration. The shape is source-defined; Shipfox stores it verbatim and passes it to the integration. |
+
+## Job fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `steps` | `array` | **Required.** The ordered list of steps this job executes. At least one step is required. Each step is either a run step or an agent step — see [Step fields](#step-fields) below. |
+| `needs` | `string \| string[]` | Name(s) of other jobs that must complete successfully before this job starts. Jobs without `needs` run in parallel by default. |
+| `runner` | `string \| string[]` | Runner label(s) for this specific job. Overrides the workflow-level `runner` if set. |
+| `env` | `object` | Environment variables scoped to this job's run steps. Merged with workflow-level `env`; job-level values take precedence over workflow-level values for the same key. |
+| `execution_timeout` | `string` | Maximum duration allowed for this job before it is cancelled (e.g., `"30m"`, `"2h"`). |
+| `success` | `string` | A CEL expression that decides whether the job succeeded once all its executions settle, with `executions` (a list of `{index, status}`) in scope. Defaults to all executions succeeding. See [Expressions](/reference/expressions#job-success--success). |
+| `checkout` | `object` | Declares the job's repository-checkout intent: `permissions.contents` (`read` or `write`, default `read`) and `persist-credentials` (boolean, default `true` — keep the checkout credential available to later steps). Omit the block for a read-only checkout with persisted credentials. |
+| `listening` | `object` | Turns the job into a [listening job](/concepts/listening-jobs) that reacts to events inside the run (🚧 coming soon — the field parses and validates, but listening jobs do not execute yet). |
+| `name` | `string` | Optional display name for this job, shown in the dashboard run view. |
+
+## Step fields
+
+A step is either a **run step** or an **agent step**. The two kinds share one strict object so unknown keys are always rejected. See [Constraints](#validation-rules) for which keys are mutually exclusive.
+
+### Run step fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `run` | `string` | **Required.** The shell command to execute on the runner. Must be at least one character. |
+| `name` | `string` | Displayed in the dashboard log. Display-only — to reference a step from `restart_from`, give it a `key:`. |
+| `key` | `string` | Optional stable identifier for this step. Useful for referencing the step programmatically. Must be at least one character. |
+| `env` | `object` | Step-level environment variables. Merged with job and workflow env; step-level values take the highest precedence. |
+| `gate` | `object` | Gate and retry configuration. See [Gate fields](#gate-fields) below. |
+
+### Agent step fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `prompt` | `string` | **Required.** The instruction given to the AI model. Must be at least one character. Required on any step that also sets `model`, `thinking`, or `provider`. |
+| `model` | `string` | Model ID to use for this step (e.g., `claude-opus-4-8`, `gpt-5.5-pro`). Uses the workspace default if omitted. |
+| `thinking` | `string` | Reasoning depth for the model. Accepted values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. Default: `high`. |
+| `provider` | `string` | Provider ID for the model (e.g., `anthropic`, `openai`, `deepseek`). Uses the workspace default if omitted. See the [Provider IDs reference](/reference/workflow-schema#provider-ids) for all supported values. |
+| `name` | `string` | Optional step name, displayed in the dashboard log. |
+| `key` | `string` | Optional stable identifier for this step. Must be at least one character. |
+| `gate` | `object` | Gate and retry configuration. See [Gate fields](#gate-fields) below. |
+
+## Gate fields
+
+A gate block must contain at least one of `success_if` or `on_failure`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `success_if` | `string` | A CEL expression evaluated after the step completes. The variable `exit_code` (integer) is available. Example: `exit_code == 0`. |
+| `on_failure.restart_from` | `string` | The `key` of an earlier step in the same job to restart from when this step fails. The referenced step must have a `key:` and appear before this step in the job's step list (`name:` is display-only and cannot be referenced). |
+| `on_failure.output` | `string` | A message to surface in the run log when the step fails. |
+
+## Validation rules
+
+<Callout type="warn">
+  The schema is strict. Every one of these rules is enforced at parse time — violating any of them produces a typed validation error.
+
+  - **Unknown keys are rejected everywhere.** The schema is strict; any unrecognised key is an error.
+  - **A step must define `run` OR `prompt` — never both, never neither.** A step with none of `run`, `prompt`, `model`, `thinking`, or `provider` is invalid.
+  - **`model`, `thinking`, and `provider` are invalid on a run step.** They may only appear alongside `prompt`.
+  - **`env` is invalid on an agent step.** Workflow-level and job-level env is not applied to agent steps either.
+  - **`prompt` is required on any step that sets `model`, `thinking`, or `provider`.** Declaring those fields without `prompt` is a validation error.
+  - **At most one `manual` trigger per workflow.** Multiple `source: manual` entries are not permitted.
+  - **`restart_from` must reference an earlier keyed step in the same job.** The referenced step must appear before the gate-bearing step in the step list and must have a `key`.
+  - **The `agent:` key is reserved and rejected.** Using `agent:` on a step produces a clear error message. It is not a valid alias for an agent step.
+  - **`jobs` and `triggers` objects must have at least one entry.** An empty object for either field is invalid.
+</Callout>
+
+## Provider IDs
+
+The following provider IDs are supported in the `provider` field of an agent step:
+
+`anthropic`, `ant-ling`, `azure-openai-responses`, `openai`, `deepseek`, `nvidia`, `google`, `mistral`, `groq`, `cerebras`, `cloudflare-ai-gateway`, `cloudflare-workers-ai`, `xai`, `openrouter`, `vercel-ai-gateway`, `zai`, `zai-coding-cn`, `opencode`, `opencode-go`, `huggingface`, `fireworks`, `together`, `kimi-coding`, `minimax`, `minimax-cn`, `moonshotai`, `moonshotai-cn`, `xiaomi`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-sgp`
+
+The following IDs are recognised but not currently supported: `amazon-bedrock`, `google-vertex`, `openai-codex`, `github-copilot`.
+
+## Full example
+
+```yaml
+name: Full example
+runner: ubuntu-latest
+env:
+  NODE_ENV: test
+triggers:
+  on_push:
+    source: github_acme
+    event: push
+  on_demand:
+    source: manual
+    event: fire
+jobs:
+  test:
+    steps:
+      - key: install
+        run: npm ci
+      - run: npm test
+        gate:
+          success_if: exit_code == 0
+          on_failure:
+            restart_from: install
+  review:
+    needs: test
+    steps:
+      - model: claude-opus-4-8
+        thinking: high
+        prompt: Summarize the test results and suggest improvements.
+```

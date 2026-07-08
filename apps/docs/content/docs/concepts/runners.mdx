@@ -1,0 +1,57 @@
+---
+title: "Runners: Deploy and Register Your Own Shipfox Runner"
+sidebarTitle: "Runners"
+description: "Runners are processes you deploy on your own infrastructure. They poll Shipfox for jobs matching their labels and execute steps on your machines."
+---
+
+A **runner** is a process you deploy on any machine — a VM, a container, a laptop, or a Kubernetes pod. Runners poll Shipfox for jobs that match their labels, check out the repo, and execute each step. You own the compute; Shipfox owns the orchestration.
+
+## How runners work
+
+The lifecycle of a runner from registration to job execution follows these steps:
+
+1. **Register the runner.** Generate a registration token in the dashboard and start the runner process with that token.
+2. **The runner authenticates and announces its labels** to Shipfox. Its log prints `Runner session registered` and it starts polling for jobs.
+3. **When a workflow run starts a job,** Shipfox dispatches it to any available runner whose labels match the job's `runner:` label.
+4. **The runner re-clones the repository,** then executes each step in the job in order.
+5. **Logs stream back to the dashboard** in real time as each step runs.
+
+## Runner labels
+
+Labels are how Shipfox matches jobs to runners. A runner can carry multiple labels, and a workflow job's `runner:` field specifies which label (or labels) are required.
+
+- A job is dispatched to a runner only if the runner has **all** of the required labels.
+- Labels are set when you start the runner process, as the comma-separated `SHIPFOX_RUNNER_LABELS` environment variable.
+- A single machine can run multiple runner processes with different label sets.
+
+**Example:** A workflow with `runner: ubuntu-latest` is dispatched to any online runner that has the `ubuntu-latest` label. A workflow with `runner: [ubuntu-latest, gpu]` requires a runner that carries both labels simultaneously.
+
+Choose label names that describe the environment the runner provides — OS, architecture, available hardware, or team ownership are common schemes.
+
+## Registration
+
+Registering a new runner takes three steps:
+
+1. In the dashboard, go to **Settings → Runners**.
+2. Click **Create token**, name the token, and copy its value — it is shown only once. Treat it like a secret; it authenticates the runner to your workspace.
+3. Start the runner process with the token. The runner registers itself on first start and begins polling for jobs immediately.
+
+**Settings → Runners** lists the registration tokens you created, with their prefix and expiry. A view of connected runners and their labels is not in the dashboard yet — confirm a runner is connected from its own log.
+
+<Callout type="info">
+  Prefer not to hand-start runners? A [runner provisioner](/concepts/runner-provisioners)
+  starts ephemeral, single-job runners automatically based on demand, then lets them
+  exit when idle.
+</Callout>
+
+## Agent step requirements
+
+<Callout type="info">
+  Runner processes that execute agent steps need network access to the AI provider's API. Set `ANTHROPIC_API_KEY` (or the appropriate provider key, such as `OPENAI_API_KEY`) in the runner's environment before starting it. Without the key, agent steps will fail at execution time.
+</Callout>
+
+## Pending runs
+
+<Callout type="info">
+  A run stuck in `pending` state usually means no online runner matches the job's `runner:` label. Check the runner's terminal for `Runner session registered`, and confirm its `SHIPFOX_RUNNER_LABELS` includes the label the workflow asks for. Start a matching runner and the pending job is dispatched automatically.
+</Callout>

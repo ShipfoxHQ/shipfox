@@ -1,0 +1,36 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@theme {
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-commit-mono), "Commit Mono", ui-monospace, monospace;
+}
+
+/* Shipfox brand. The docs render dark only (the theme switch is disabled and
+   <html> is pinned to .dark), matching the product and landing surfaces. Values
+   come from the @shipfox/react-ui neutral scale (neutral-1000 #030303 →
+   neutral-50 #fafafa) with primary-400 #ff4b00 as the accent. Per DESIGN.md,
+   orange is the link / focus-ring / "you are here" highlight, not a CTA fill. */
+.dark {
+  --color-fd-background: #030303;
+  --color-fd-foreground: #fafafa;
+  --color-fd-muted: #131314;
+  --color-fd-muted-foreground: #a1a1aa;
+  --color-fd-popover: #0f0f10;
+  --color-fd-popover-foreground: #fafafa;
+  --color-fd-card: #0f0f10;
+  --color-fd-card-foreground: #fafafa;
+  --color-fd-border: #27272a;
+  --color-fd-primary: #ff4b00;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #1a1a1b;
+  --color-fd-secondary-foreground: #fafafa;
+  --color-fd-accent: #1a1a1b;
+  --color-fd-accent-foreground: #fafafa;
+  --color-fd-ring: #ff4b00;
+}
+
+body {
+  font-family: var(--font-sans);
+}

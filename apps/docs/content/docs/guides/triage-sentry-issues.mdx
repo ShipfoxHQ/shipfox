@@ -1,0 +1,87 @@
+---
+title: "Triage Sentry Issues with an AI Agent in Shipfox"
+sidebarTitle: "Triage Sentry Issues"
+description: "Fire a Shipfox workflow when a Sentry issue is created and hand the issue to an AI agent that investigates your repository and reports the likely cause."
+---
+
+When Sentry reports a new issue, you can fire a Shipfox workflow that hands the issue to an AI agent, which reads your repository and reports the likely cause — turning an alert into a first-pass investigation automatically. This guide sets up a Sentry-triggered workflow with a single agent step that receives the issue details through template interpolation.
+
+## What you'll build
+
+A workflow triggered by the Sentry `issue.created` event. A `triage` job runs one agent step whose prompt embeds the specific issue — its title, culprit, and level — using `${{ event.* }}` interpolation. The agent has your repository checked out, so it can investigate the code behind the error and summarize what a developer should check.
+
+## The workflow file
+
+Create the following file at `.shipfox/workflows/triage-sentry.yml` in your repository:
+
+```yaml
+name: Triage Sentry issues
+runner: ubuntu-latest
+triggers:
+  on_issue:
+    source: sentry_acme
+    event: issue.created
+jobs:
+  triage:
+    steps:
+      - model: claude-opus-4-8
+        thinking: high
+        prompt: |
+          A new Sentry issue was reported for this project:
+          "${{ event.title }}" — culprit ${{ event.culprit }} (level ${{ event.level }}).
+          ${{ event.webUrl }}
+
+          Investigate the repository for the likely cause and summarize what a
+          developer should check first. Be concise.
+```
+
+Each matching Sentry issue starts a run. Shipfox resolves the `${{ event.* }}` expressions when the run is created, so the agent receives the actual issue — its `title`, `culprit`, `level`, and a link back to Sentry (`webUrl`). The agent's summary streams to the step log.
+
+## Deploy it
+
+Follow these steps to get the workflow running:
+
+1. Create the file `.shipfox/workflows/triage-sentry.yml` in your repository.
+2. Paste the YAML above, replacing `sentry_acme` with your Sentry connection slug.
+3. Commit the file and push. The workflow appears in the dashboard and fires on the next matching issue.
+
+<Callout type="info">
+  `source` is your **Sentry connection slug** — shown in your integration settings
+  after you connect Sentry (for example `sentry_<org>`), not the literal word
+  `sentry`. Connecting Sentry requires the [Sentry integration](/integrations/sentry).
+</Callout>
+
+## Scope to a project
+
+Shipfox delivers `issue.created` for **every** project in your connected Sentry organization. The event exposes the issue's project as `event.projectUrl`, so you can point the agent at only what you care about — or name the project in the prompt:
+
+```yaml
+      - model: claude-opus-4-8
+        prompt: |
+          Triage this Sentry issue in ${{ event.projectUrl }}:
+          "${{ event.title }}". Summarize the likely cause.
+```
+
+<Callout type="info">
+  Server-side filtering by project or team — `filter: event.projectUrl.contains("...")` —
+  is on the roadmap; the `filter` field is parsed but not evaluated yet. Until then,
+  scope inside the workflow. See [Expressions](/reference/expressions).
+</Callout>
+
+## Going further
+
+Turn triage into action by combining it with the other guides:
+
+- **Auto-fix and verify** — follow the agent with a shell step and a gate so it retries until tests pass. See [Gate & Retry](/guides/gate-and-retry).
+- **Open a PR or notify** — add a `run` step that calls `gh pr create` or posts to your chat tool.
+
+<Callout type="info">
+  Branching on a structured agent decision (auto-fix vs. escalate) and structured
+  agent `output` are on the roadmap. Today, act with `run` steps and gates.
+</Callout>
+
+## Next steps
+
+- [Sentry integration](/integrations/sentry) — connect Sentry and see every issue event.
+- [Agent Steps](/guides/agent-steps) — configure models, thinking levels, and providers.
+- [Expressions](/reference/expressions) — the `${{ }}` context available to prompts.

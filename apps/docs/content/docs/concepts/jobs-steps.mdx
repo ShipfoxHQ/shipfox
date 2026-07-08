@@ -1,0 +1,134 @@
+---
+title: "Jobs and Steps: Execution Model Inside a Workflow Run"
+sidebarTitle: "Jobs, Steps & Agents"
+description: "Jobs group steps into isolated work units. Steps are shell commands or AI agent calls. Learn how Shipfox executes both inside a workflow run."
+---
+
+Every Shipfox workflow run is a directed acyclic graph of **jobs**. A job is a group of **steps** that run in order on a single runner. Steps are either `run` steps (shell commands) or agent steps (AI model invocations). Jobs run in parallel by default; use `needs` to sequence them.
+
+## Job schema
+
+A job lives under the `jobs:` map in your workflow file, keyed by a unique name. Here is a complete example of a job with all supported fields:
+
+```yaml
+jobs:
+  test:
+    runner: ubuntu-latest     # overrides workflow-level runner
+    needs: [lint]             # wait for the lint job
+    env:
+      NODE_ENV: test
+    steps:
+      - run: npm ci
+      - run: npm test
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `steps` | `array` | **Required.** List of steps to execute in order. At least one step is required. Steps run sequentially on the same runner instance. |
+| `needs` | `string \| string[]` | Job name or list of job names this job depends on. The job will not start until all listed jobs have completed successfully. Use this to sequence jobs in a pipeline. |
+| `runner` | `string \| string[]` | Runner label or list of labels for this job. Overrides the workflow-level `runner:` value. Shipfox dispatches the job to any online runner whose labels include all required labels. |
+| `env` | `object` | Environment variables for `run` steps in this job. Merged with workflow-level `env`; a step-level `env` declaration takes the highest precedence. Not applied to agent steps. |
+| `execution_timeout` | `string` | Maximum duration allowed for the entire job (e.g., `"30m"`, `"2h"`). If the job has not finished by this deadline, Shipfox cancels it. |
+
+## Job isolation
+
+<Callout type="warn">
+  Each job **re-clones the repository** at the start of its execution. Jobs do not share a filesystem — if job A installs dependencies, job B must install them again. Use `needs` to order jobs, not to pass files between them.
+</Callout>
+
+This isolation is intentional. It keeps each job's environment clean and reproducible, and it allows jobs to run on different runners without any shared-state assumptions.
+
+## Run steps
+
+A `run` step executes a shell command on the runner. This is the primary way to run build tools, test suites, linters, and any other CLI-driven work.
+
+```yaml
+steps:
+  - key: install           # optional — identifies the step for restart_from
+    run: npm ci
+    env:
+      CI: "true"
+    gate:
+      success_if: exit_code == 0
+      on_failure:
+        restart_from: install
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `run` | `string` | **Required.** The shell command to execute. Runs in a POSIX-compatible shell on the runner machine. |
+| `name` | `string` | A human-readable name for the step, shown in the dashboard. Display-only — to reference this step from `gate.on_failure.restart_from`, give it a `key:`. |
+| `key` | `string` | A stable identifier for the step. This is what `gate.on_failure.restart_from` matches against — if you want a gate to restart from this step, it must have a `key`. |
+| `env` | `object` | Environment variables scoped to this step. Merged with job-level and workflow-level `env`; step-level values take highest precedence. |
+| `gate` | `object` | Optional gate block that controls success evaluation and retry behaviour. See the [Gate schema](#gate-schema) section below. |
+
+## Agent steps
+
+An agent step invokes an AI model. Instead of `run`, you provide a `prompt`. The model reads the repository context and produces output — edits, reports, suggestions — depending on the prompt.
+
+```yaml
+steps:
+  - key: review
+    model: claude-opus-4-8
+    prompt: Review the latest diff and summarize any issues.
+    thinking: high
+    provider: anthropic
+    gate:
+      success_if: exit_code == 0
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `prompt` | `string` | **Required.** The instruction sent to the AI model. Supports `${{ }}` interpolation from run and trigger context — see [Expressions](/reference/expressions). |
+| `model` | `string` | The model identifier to use (e.g., `claude-opus-4-8`, `gpt-5.5-pro`). Defaults to the workspace default model when omitted. |
+| `thinking` | `string` | Agent reasoning depth. Accepted values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. Defaults to `high`. Higher levels use more tokens and take longer but produce more thorough reasoning. |
+| `provider` | `string` | Provider identifier (e.g., `anthropic`, `openai`). Pairing `provider` with `model` lets a step target a non-default provider and model combination. Defaults to the workspace default provider when omitted. |
+| `name` | `string` | Human-readable name for the step, shown in the dashboard. Display-only. |
+| `key` | `string` | A stable identifier for the step, matched against `gate.on_failure.restart_from`. |
+| `gate` | `object` | Optional gate block. See the [Gate schema](#gate-schema) section below. |
+
+<Callout type="warn">
+  `env` is not valid on agent steps — the field is rejected by the schema validator. Workflow-level and job-level `env` does not apply to agent steps either.
+</Callout>
+
+## Gate schema
+
+A gate block lets a step evaluate its own success and optionally restart the job from an earlier keyed step on failure.
+
+```yaml
+gate:
+  success_if: exit_code == 0          # CEL expression
+  on_failure:
+    restart_from: install             # must reference an earlier keyed step in the same job
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `success_if` | `string` | A CEL expression evaluated after the step completes. The most common value is `exit_code == 0`. Either `success_if` or `on_failure` (or both) must be present. |
+| `on_failure.restart_from` | `string` | The `key` of an earlier step in the same job to restart from when this step's gate is not satisfied. The referenced step must appear before the current step in the `steps` list and must have a `key` field (`name:` is display-only and cannot be referenced). |
+| `on_failure.output` | `string` | Optional output annotation attached when the gate triggers a restart. |
+
+The recommended pattern is to pair an agent step with a `run` step that validates the result, using `gate` on the `run` step to drive retries:
+
+```yaml
+steps:
+  - key: fix
+    prompt: Fix the failing tests.
+  - key: verify
+    run: npm test
+    gate:
+      success_if: exit_code == 0
+      on_failure:
+        restart_from: fix
+```
+
+## Related guides
+
+<Cards>
+  <Card title="Gate & Retry" href="/guides/gate-and-retry">
+    Deep dive into writing gate expressions and configuring restart targets.
+  </Card>
+  <Card title="Model Providers" href="/guides/model-providers">
+    How to configure provider and model defaults at the workspace level.
+  </Card>
+</Cards>

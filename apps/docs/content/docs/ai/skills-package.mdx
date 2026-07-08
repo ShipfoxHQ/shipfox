@@ -1,0 +1,57 @@
+---
+title: "Install the Shipfox Agent Skills Package for Coding Agents"
+sidebarTitle: "Skills Package"
+description: "Install the Shipfox skills package to give Claude Code, Cursor, Codex, and 18+ other coding agents the full workflow schema, hard rules, and examples."
+---
+
+The Shipfox skills package encodes the complete workflow YAML schema, the hard validation rules, the shipped-vs-roadmap boundary, and correct examples into your AI coding tool. Install it once and your agent will author valid Shipfox workflows without a copy/paste prompt.
+
+## Install
+
+```bash
+npx skills add shipfox/agent-skills
+```
+
+This installs the skill via [skills.sh](https://skills.sh) and makes it available to Claude Code, Cursor, Codex, and 18+ other agent frameworks automatically — no manual configuration required per tool.
+
+## What the skill includes
+
+Once installed, the skill gives your agent immediate access to:
+
+- The complete shipped workflow YAML schema in compact, agent-optimized form
+- Hard validation rules — strict key allowlists, step kind constraints, `env` restrictions, and the one-manual-trigger limit
+- The today/roadmap boundary — what NOT to use (`loop`, `matrix`, `branch`, trigger `filter` evaluation) and what IS shipped, like `${{ }}` interpolation
+- Two correct examples: a push-triggered checks pipeline and an agent fix-until-green loop
+
+## Usage
+
+Once the skill is installed, just ask your agent in plain language. No schema pasting, no special syntax:
+
+- "Add a Shipfox workflow that runs tests on every push."
+- "Create a Shipfox workflow that triages Sentry issues with an agent."
+- "Add a gate to my workflow that retries until the tests pass."
+
+The skill activates automatically whenever the agent detects a Shipfox context — such as a `.shipfox/` directory in the repo — or whenever you mention Shipfox workflows explicitly.
+
+## Supported tools
+
+<Callout type="info">
+  The skills package works with any tool supported by skills.sh, including Claude Code, Cursor, Codex, Grok, Copilot, and 15+ others.
+</Callout>
+
+## Skills vs. copy/paste prompt
+
+Both options give your agent the full Shipfox schema. The right choice depends on how often you work with Shipfox workflows.
+
+| | Skills Package | Copy/Paste Prompt |
+|---|---|---|
+| **Installation** | One `npx` command | Manual paste per session |
+| **Stays current** | Re-run install for latest | Must re-paste after schema changes |
+| **Tool support** | 18+ agents via skills.sh | Any agent that accepts a system prompt |
+| **Best for** | Regular Shipfox users | Quick one-off sessions |
+
+<Callout type="info">
+  The skills package is generated from the Shipfox workflow schema source. When you re-run the install command, you get the latest version aligned with the current schema.
+</Callout>
+
+If you prefer not to install the skills package, the [Authoring Prompt](/ai/authoring-prompt) page has a single copy/paste block with the full schema cheat sheet — paste it once at the start of any session.

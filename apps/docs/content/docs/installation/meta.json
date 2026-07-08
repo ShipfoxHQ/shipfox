@@ -1,0 +1,4 @@
+{
+  "title": "Installation",
+  "pages": ["index", "local", "self-hosting", "aws", "kubernetes", "cloud"]
+}
