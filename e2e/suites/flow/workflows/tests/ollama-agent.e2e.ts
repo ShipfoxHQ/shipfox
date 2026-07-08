@@ -16,6 +16,9 @@ import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const CLAUDE_CONFIG_MODEL = 'claude-opus-4-8';
+const OLLAMA_SMOKE_MAX_OUTPUT_TOKENS = 64;
+
+test.describe.configure({mode: 'serial'});
 
 test('runs a Claude harness smoke workflow against local Ollama', async ({suite}, testInfo) => {
   const ollama = await requireOllamaOrSkip();
@@ -63,6 +66,7 @@ test('runs a Pi harness smoke workflow against local Ollama', async ({suite}, te
     displayName: `Local Ollama Smoke ${uniqueId}`,
     baseUrl: ollama.baseUrl,
     model: ollama.model,
+    modelMetadata: {max_output_tokens: OLLAMA_SMOKE_MAX_OUTPUT_TOKENS},
   });
 
   try {
@@ -125,7 +129,8 @@ jobs:
         model: ${params.model}
         thinking: ${params.thinking}
         prompt: |
-          Return a final assistant response with one short sentence.
+          Reply with exactly the word: ok
+          Do not include any other text.
 `;
 }
 

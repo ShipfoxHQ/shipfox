@@ -1,8 +1,9 @@
-import {setTimeout as delay} from 'node:timers/promises';
 import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
-import {type createApiClient, E2eApiError} from '@shipfox/e2e-core';
+import {type createApiClient, E2eApiError, pollUntil} from '@shipfox/e2e-core';
 import {commitFiles} from '@shipfox/e2e-driver-gitea';
 import {waitForRunByCommit} from '@shipfox/e2e-observe-workflows';
+
+const MANUAL_TRIGGER_TIMEOUT_MS = 60_000;
 
 export async function triggerPushAndAwaitRun(params: {
   org: string;
@@ -49,26 +50,39 @@ export async function fireManualAndAwaitRun(params: {
   definitionId: string;
   inputs: Record<string, unknown>;
   scenario: string;
+  timeoutMs?: number | undefined;
 }): Promise<string> {
-  const maxAttempts = 8;
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const response = await params.client.requestJson<FireManualTriggerResponseDto>(
-        'post',
-        `/workflow-definitions/${params.definitionId}/fire-manual`,
-        {json: {inputs: params.inputs}},
-      );
-      return response.workflow_run_id;
-    } catch (error) {
-      if (!(error instanceof E2eApiError) || error.status !== 404) throw error;
-      lastError = error;
-      await delay(500);
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(
-        `Manual trigger for ${params.scenario} was not ready after ${maxAttempts} attempts`,
-      );
+  let lastNotFound: E2eApiError | undefined;
+  const response = await pollUntil<FireManualTriggerResponseDto>(
+    {
+      timeoutMs: params.timeoutMs ?? MANUAL_TRIGGER_TIMEOUT_MS,
+      intervalMs: 250,
+      maxIntervalMs: 4_000,
+      backoffFactor: 1.5,
+      describe: () =>
+        `manual trigger for ${params.scenario}: definitionId=${params.definitionId}${formatLastNotFound(
+          lastNotFound,
+        )}`,
+    },
+    async () => {
+      try {
+        return await params.client.requestJson<FireManualTriggerResponseDto>(
+          'post',
+          `/workflow-definitions/${params.definitionId}/fire-manual`,
+          {json: {inputs: params.inputs}},
+        );
+      } catch (error) {
+        if (!(error instanceof E2eApiError) || error.status !== 404) throw error;
+        lastNotFound = error;
+        return null;
+      }
+    },
+  );
+
+  return response.workflow_run_id;
+}
+
+function formatLastNotFound(error: E2eApiError | undefined): string {
+  if (error === undefined) return '';
+  return ` last404=${JSON.stringify(error.details)}`;
 }
