@@ -3,6 +3,10 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {
+  AgentToolMaterializationContext,
+  AgentToolMaterializationSnapshot,
+} from './agent-tools.js';
 import type {JobExecution} from './entities/job-execution.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
 import {
@@ -24,6 +28,8 @@ export function materializeWorkflowRunJobs(params: {
   vars?: Record<string, string> | undefined;
   resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   definitionId: string;
+  agentToolContext?: AgentToolMaterializationContext | undefined;
+  agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }): readonly MaterializedWorkflowJob[] {
   const context = assembleCreationContext({
     run: params.run,
@@ -36,6 +42,8 @@ export function materializeWorkflowRunJobs(params: {
     context,
     resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
     definitionId: params.definitionId,
+    agentToolContext: params.agentToolContext,
+    agentToolSnapshot: params.agentToolSnapshot,
   });
 }
 
