@@ -23,6 +23,7 @@ const materializedIntegration = {
         {
           id: 'get',
           token: 'issue_read.get',
+          description: 'Get issue.',
           sensitivity: 'read',
           sensitive: false,
           requiredScope: [{permission: 'issues', access: 'read'}],
@@ -40,6 +41,7 @@ const materializedIntegration = {
         {
           id: 'create',
           token: 'issue_write.create',
+          description: 'Create issue.',
           sensitivity: 'write',
           sensitive: false,
           requiredScope: [{permission: 'issues', access: 'write'}],

@@ -9,6 +9,7 @@ const agentToolRequiredScopeSchema = z.array(z.unknown());
 export const materializedAgentIntegrationToolMethodSchema = z.strictObject({
   id: z.string().min(1),
   token: z.string().min(1),
+  description: z.string().min(1).optional(),
   sensitivity: agentToolSensitivitySchema,
   sensitive: z.boolean(),
   requiredScope: agentToolRequiredScopeSchema,

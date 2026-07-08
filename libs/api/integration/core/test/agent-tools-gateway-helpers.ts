@@ -1,3 +1,4 @@
+import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import type {
   MaterializedAgentIntegrationConfigDto,
   MaterializedAgentIntegrationToolConfigDto,
@@ -73,6 +74,7 @@ export function materializedTool(
       {
         id: 'get',
         token: 'issue_read.get',
+        description: 'Get one issue.',
         sensitivity: 'read',
         sensitive: false,
         requiredScope: [],
@@ -80,6 +82,7 @@ export function materializedTool(
       {
         id: 'get_comments',
         token: 'issue_read.get_comments',
+        description: 'Get issue comments.',
         sensitivity: 'read',
         sensitive: false,
         requiredScope: [],
@@ -144,27 +147,64 @@ export function catalogTool(overrides: Partial<AgentToolCatalogEntry> = {}): Age
   };
 }
 
+export interface AgentToolsProviderOptions {
+  result?: CallToolResult | undefined;
+  openSessionError?: unknown;
+  callError?: unknown;
+  onOpenSession?(input: {
+    connection: IntegrationConnection;
+    tools: readonly AgentToolCatalogEntry[];
+  }): void;
+  onCall?(input: {toolId: string; arguments: Record<string, unknown>}): void;
+  onClose?(): void;
+}
+
 export function agentToolsProvider(
   catalog: readonly AgentToolCatalogEntry[] = [catalogTool()],
+  options: AgentToolsProviderOptions = {},
 ): AgentToolsProvider {
   return {
     catalog: () => catalog,
     selectionCatalog: () => ({selectors: []}),
-    openSession: async () => ({
-      call: async () => ({}),
-    }),
+    openSession: (input) => {
+      if (options.openSessionError) return Promise.reject(options.openSessionError);
+      options.onOpenSession?.({connection: input.connection, tools: input.tools});
+      return Promise.resolve({
+        call: (call) => {
+          options.onCall?.(call);
+          if (options.callError) return Promise.reject(options.callError);
+          return Promise.resolve(
+            options.result ?? {
+              content: [{type: 'text', text: 'dispatched'}],
+              structuredContent: {
+                status: 'dispatched',
+                provider: input.connection.provider,
+                connection_id: input.connection.id,
+                tool_id: call.toolId,
+                method: call.arguments.method,
+              },
+            },
+          );
+        },
+        close: () => {
+          options.onClose?.();
+          return Promise.resolve();
+        },
+      });
+    },
   };
 }
 
 export function registryWithAgentTools(
   catalog: readonly AgentToolCatalogEntry[] = [catalogTool()],
+  options: AgentToolsProviderOptions = {},
 ) {
   return createIntegrationProviderRegistry([
     {
       provider: 'github',
       displayName: 'GitHub',
       adapters: {
-        agent_tools: agentToolsProvider(catalog),
+        agent_tools: agentToolsProvider(catalog, options),
       },
     },
   ]);

@@ -87,6 +87,7 @@ function connection(input: Partial<IntegrationConnection<'linear'>> = {}) {
 interface CreateTestAppOptions {
   linear?: LinearApiClient;
   tokenStore?: Pick<LinearTokenStore, 'storeTokens'> | undefined;
+  agentTools?: boolean | undefined;
   existingConnection?: IntegrationConnection<'linear'> | undefined;
   connectLinearInstallation?:
     | ((input: ConnectLinearInstallationInput) => Promise<IntegrationConnection<'linear'>>)
@@ -95,8 +96,12 @@ interface CreateTestAppOptions {
 }
 
 async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
+  const agentTools = options.agentTools ?? true;
   const provider = createLinearIntegrationProvider({
     linear: options.linear ?? linearClient(),
+    ...(agentTools
+      ? {agentTools: {tokenStore: {getAccessToken: vi.fn(() => Promise.resolve('linear-token'))}}}
+      : {}),
     routes: {
       tokenStore: options.tokenStore ?? {
         storeTokens: vi.fn(() => Promise.resolve()),
@@ -195,6 +200,7 @@ describe('Linear integration routes', () => {
       external_account_id: 'org-id',
       display_name: 'Linear Acme',
       lifecycle_status: 'active',
+      capabilities: ['agent_tools'],
     });
     expect(connectLinearInstallation).toHaveBeenCalledWith({
       workspaceId,
@@ -215,6 +221,24 @@ describe('Linear integration routes', () => {
       workspaceId,
       userId: 'user-1',
       memberships: [{workspaceId, role: 'admin'}],
+    });
+  });
+
+  it('omits agent tools capability from callback connections when the adapter is not wired', async () => {
+    const app = await createTestApp({agentTools: false});
+    const workspaceId = crypto.randomUUID();
+    const state = await createInstallState(app, workspaceId);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/linear/callback/api?code=code&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      provider: 'linear',
+      capabilities: [],
     });
   });
 

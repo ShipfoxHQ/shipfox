@@ -287,6 +287,7 @@ describe('materializeJobExecutionSteps', () => {
               {
                 id: 'get',
                 token: 'issue_read.get',
+                description: 'Get issue.',
                 sensitivity: 'read',
                 sensitive: false,
                 requiredScope: [{permission: 'issues', access: 'read'}],
@@ -303,6 +304,7 @@ describe('materializeJobExecutionSteps', () => {
               {
                 id: 'create',
                 token: 'issue_write.create',
+                description: 'Create issue.',
                 sensitivity: 'write',
                 sensitive: false,
                 requiredScope: [{permission: 'issues', access: 'write'}],
@@ -393,6 +395,7 @@ describe('materializeJobExecutionSteps', () => {
               {
                 id: 'get',
                 token: 'issue_read.get',
+                description: 'Get issue.',
                 sensitivity: 'read',
                 sensitive: false,
                 requiredScope: [{permission: 'issues', access: 'read'}],

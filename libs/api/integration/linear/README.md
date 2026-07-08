@@ -1,9 +1,8 @@
 # Shipfox API Integration Linear
 
-Shipfox API Integration Linear provides the Linear provider foundation. It is
-currently enabled behind `INTEGRATIONS_ENABLE_LINEAR_PROVIDER`; it includes OAuth
-connect routes and signed webhook ingestion. Hosted MCP execution is follow-up
-work.
+Shipfox API Integration Linear provides the Linear provider foundation, OAuth
+routes, signed webhook ingestion, hosted MCP adapter, and agent tool catalog. It
+is currently enabled behind `INTEGRATIONS_ENABLE_LINEAR_PROVIDER`.
 
 ## Webhooks
 
@@ -25,7 +24,6 @@ publish `integrations.event.received` with `provider: "linear"`,
 `source: connection.slug`, and event names such as `Issue.create`. Signed but
 unsupported webhook shapes are recorded and dropped with a 200 response so
 Linear does not retry or disable the webhook endpoint.
-
 ## Agent Tool Catalog
 
 The v1 Linear agent tool catalog is a broad workspace catalog over Linear's
@@ -37,8 +35,8 @@ release, release note, label, status update, comment, and attachment mutation.
 
 Tool ids intentionally match Linear's hosted MCP server exactly. The catalog is
 the local source of truth for authoring validation, write-safety metadata, and
-future audit behavior; the provider does not advertise `agent_tools` until the
-hosted-MCP proxy adapter is implemented.
+future audit behavior; the provider advertises `agent_tools` and proxies calls
+to Linear's hosted MCP server with the connection's stored Linear token.
 
 Sensitivity policy:
 

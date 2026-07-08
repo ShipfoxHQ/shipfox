@@ -11,6 +11,7 @@ import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-f
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {
   agentStepConfig,
+  catalogTool,
   connection,
   leaseContext,
   materializedIntegration,
@@ -79,8 +80,16 @@ describe('agent tools gateway route', () => {
   it('serves MCP over stateless Streamable HTTP after resolving server-side state', async () => {
     const lease = leaseContext({workspaceId: 'workspace-1'});
     const integration = materializedIntegration({connectionId: 'connection-1'});
+    const calls: unknown[] = [];
+    const sessionTools: unknown[] = [];
+    const close = vi.fn();
     leases.set('valid-lease', lease);
     const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {
+        onOpenSession: (input) => sessionTools.push(...input.tools),
+        onCall: (call) => calls.push(call),
+        onClose: close,
+      }),
       loadLeasedAgentStep: async () => ({
         workspaceId: lease.workspaceId,
         step: {type: 'agent', config: agentStepConfig([integration])},
@@ -117,11 +126,198 @@ describe('agent tools gateway route', () => {
     expect(tools.tools.map((tool) => tool.name)).toEqual(['github_main__issue_read']);
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toMatchObject({
-      status: 'stubbed',
+      status: 'dispatched',
       provider: 'github',
       connection_id: 'connection-1',
       tool_id: 'issue_read',
       method: 'get',
+    });
+    expect(calls).toEqual([
+      {
+        toolId: 'issue_read',
+        arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+      },
+    ]);
+    expect(sessionTools).toMatchObject([
+      {
+        methods: [
+          {id: 'get', description: 'Get one issue.'},
+          {id: 'get_comments', description: 'Get issue comments.'},
+        ],
+      },
+    ]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns bounded MCP errors when provider dispatch times out', async () => {
+    const lease = leaseContext({workspaceId: 'workspace-1'});
+    const integration = materializedIntegration({connectionId: 'connection-1'});
+    const timeout = new Error('request timeout after 30s');
+    timeout.name = 'TimeoutError';
+    const close = vi.fn();
+    leases.set('timeout-lease', lease);
+    const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {callError: timeout, onClose: close}),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: integration.connectionId,
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(
+      new URL('/runs/jobs/current/integration-tools/mcp', address),
+      {
+        requestInit: {
+          headers: {authorization: 'Bearer timeout-lease'},
+        },
+      },
+    );
+
+    await client.connect(transport as unknown as Transport);
+    const result = await client.callTool(
+      {
+        name: 'github_main__issue_read',
+        arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+      },
+      CallToolResultSchema,
+    );
+    await client.close();
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'Integration provider timed out'}],
+      structuredContent: {code: 'provider-timeout'},
+    });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies the MCP SDK request timeout shape as a provider timeout', async () => {
+    const lease = leaseContext({workspaceId: 'workspace-1'});
+    const integration = materializedIntegration({connectionId: 'connection-1'});
+    const timeout = new Error('MCP error -32001: Request timed out');
+    timeout.name = 'McpError';
+    leases.set('mcp-timeout-lease', lease);
+    const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {callError: timeout}),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: integration.connectionId,
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+    });
+
+    const result = await callIssueReadTool(app, 'mcp-timeout-lease');
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'Integration provider timed out'}],
+      structuredContent: {code: 'provider-timeout'},
+    });
+  });
+
+  it('returns bounded MCP errors when provider dispatch fails', async () => {
+    const lease = leaseContext({workspaceId: 'workspace-1'});
+    const integration = materializedIntegration({connectionId: 'connection-1'});
+    leases.set('provider-error-lease', lease);
+    const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {
+        callError: new Error('remote provider leaked implementation detail'),
+      }),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: integration.connectionId,
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(
+      new URL('/runs/jobs/current/integration-tools/mcp', address),
+      {
+        requestInit: {
+          headers: {authorization: 'Bearer provider-error-lease'},
+        },
+      },
+    );
+
+    await client.connect(transport as unknown as Transport);
+    const result = await client.callTool(
+      {
+        name: 'github_main__issue_read',
+        arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+      },
+      CallToolResultSchema,
+    );
+    await client.close();
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'Integration provider call failed'}],
+      structuredContent: {code: 'provider-unavailable'},
+    });
+  });
+
+  it('returns bounded MCP errors when provider credentials are unavailable', async () => {
+    const lease = leaseContext({workspaceId: 'workspace-1'});
+    const integration = materializedIntegration({connectionId: 'connection-1'});
+    const tokenError = new Error('missing token for connection-1');
+    tokenError.name = 'LinearAccessTokenMissingError';
+    leases.set('credential-error-lease', lease);
+    const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {openSessionError: tokenError}),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: integration.connectionId,
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(
+      new URL('/runs/jobs/current/integration-tools/mcp', address),
+      {
+        requestInit: {
+          headers: {authorization: 'Bearer credential-error-lease'},
+        },
+      },
+    );
+
+    await client.connect(transport as unknown as Transport);
+    const result = await client.callTool(
+      {
+        name: 'github_main__issue_read',
+        arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+      },
+      CallToolResultSchema,
+    );
+    await client.close();
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'Integration provider credentials are unavailable'}],
+      structuredContent: {code: 'credentials-unavailable'},
     });
   });
 });
@@ -147,4 +343,29 @@ async function createGatewayApp(
   });
   await app.ready();
   return app;
+}
+
+async function callIssueReadTool(app: FastifyInstance, leaseToken: string) {
+  const address = await app.listen({port: 0, host: '127.0.0.1'});
+  const client = new Client({name: 'test-http-client', version: '0.0.0'});
+  const transport = new StreamableHTTPClientTransport(
+    new URL('/runs/jobs/current/integration-tools/mcp', address),
+    {
+      requestInit: {
+        headers: {authorization: `Bearer ${leaseToken}`},
+      },
+    },
+  );
+
+  await client.connect(transport as unknown as Transport);
+  const result = await client.callTool(
+    {
+      name: 'github_main__issue_read',
+      arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+    },
+    CallToolResultSchema,
+  );
+  await client.close();
+
+  return result;
 }

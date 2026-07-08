@@ -51,10 +51,20 @@ const integrationValidationContext = {
         ],
       },
     ],
+    [
+      'linear',
+      {
+        selectors: [
+          {token: 'get_issue', kind: 'standalone', sensitivity: 'read', sensitive: false},
+          {token: 'save_comment', kind: 'standalone', sensitivity: 'write', sensitive: false},
+        ],
+      },
+    ],
   ]),
   workspaceConnectionSnapshot: new Map([
     ['github-main', {id: 'conn_1', provider: 'github', capabilities: ['agent_tools']}],
     ['sentry-main', {id: 'conn_2', provider: 'sentry', capabilities: []}],
+    ['linear-main', {id: 'conn_3', provider: 'linear', capabilities: ['agent_tools']}],
   ]),
   defaultConnectionSlug: 'github-main',
 } satisfies IntegrationValidationContext;
@@ -215,6 +225,35 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  it('validates authored Linear integration selections against the Linear catalog', () => {
+    const document: WorkflowDocument = {
+      name: 'linear integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Use Linear context.',
+              integrations: [{connection: 'linear-main', include: ['get_issue']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      integrations: [
+        {
+          connection: 'linear-main',
+          include: ['get_issue'],
+          allowWrite: false,
+        },
+      ],
+    });
+  });
+
   it('skips integration catalog and connection checks when no context is injected', () => {
     const document: WorkflowDocument = {
       name: 'validate only',
@@ -355,6 +394,56 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs[0]?.steps[0]).toMatchObject({
       kind: 'agent',
       integrations: [{include: ['issue_write.create'], allowWrite: true}],
+    });
+  });
+
+  it('requires allow_write for Linear write tools', () => {
+    const document: WorkflowDocument = {
+      name: 'linear write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Comment on the issue.',
+              integrations: [{connection: 'linear-main', include: ['save_comment']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues).toMatchObject([
+      {
+        code: 'integration-write-not-allowed',
+        details: {tokens: ['save_comment']},
+      },
+    ]);
+  });
+
+  it('accepts Linear write tools when allow_write is true', () => {
+    const document: WorkflowDocument = {
+      name: 'linear write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Comment on the issue.',
+              integrations: [
+                {connection: 'linear-main', include: ['save_comment'], allow_write: true},
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      integrations: [{connection: 'linear-main', include: ['save_comment'], allowWrite: true}],
     });
   });
 

@@ -134,6 +134,7 @@ async function loadLinearModuleParts(
 
   return {
     provider: createLinearIntegrationProvider({
+      agentTools: {tokenStore},
       routes: {
         tokenStore,
         getExistingLinearConnection,
