@@ -75,24 +75,31 @@ export const stepSourceLocationSchema = z
 
 export type StepSourceLocationDto = z.infer<typeof stepSourceLocationSchema>;
 
-export const stepDtoSchema = z.object({
-  id: z.string().uuid(),
-  job_execution_id: z.string().uuid(),
-  key: z.string().nullable(),
-  name: z.string(),
-  source_location: stepSourceLocationSchema.nullable(),
-  status: z.string(),
-  type: z.string(),
-  config: z.record(z.string(), z.unknown()),
-  error: stepErrorDtoSchema,
-  position: z.number(),
-  // Execution-attempt identity of the current projection (>1 after a restart).
-  current_attempt: z.number().int(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
+export const stepDtoSchema = z
+  .object({
+    id: z.string().uuid(),
+    job_execution_id: z.string().uuid(),
+    key: z.string().nullable(),
+    name: z.string(),
+    source_location: stepSourceLocationSchema.nullable(),
+    status: z.string(),
+    type: z.string(),
+    error: stepErrorDtoSchema,
+    position: z.number(),
+    // Execution-attempt identity of the current projection (>1 after a restart).
+    current_attempt: z.number().int(),
+    created_at: z.string(),
+    updated_at: z.string(),
+  })
+  .strict();
 
 export type StepDto = z.infer<typeof stepDtoSchema>;
+
+export const executableStepDtoSchema = stepDtoSchema.extend({
+  config: z.record(z.string(), z.unknown()),
+});
+
+export type ExecutableStepDto = z.infer<typeof executableStepDtoSchema>;
 
 export const stepGateResultDtoSchema = z
   .discriminatedUnion('kind', [

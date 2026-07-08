@@ -1,5 +1,6 @@
 import {
   agentConfigIssueSchema,
+  type ExecutableStepDto,
   type StepAttemptDto,
   type StepDto,
   type StepErrorCategoryDto,
@@ -9,6 +10,39 @@ import {
 } from '@shipfox/api-workflows-dto';
 import type {Step, StepAttempt} from '#core/entities/step.js';
 import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.js';
+
+type StepDtoInput = Pick<
+  Step,
+  | 'id'
+  | 'jobExecutionId'
+  | 'key'
+  | 'name'
+  | 'sourceLocation'
+  | 'status'
+  | 'type'
+  | 'error'
+  | 'position'
+  | 'currentAttempt'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+type StepAttemptDtoInput = Pick<
+  StepAttempt,
+  | 'id'
+  | 'stepId'
+  | 'attempt'
+  | 'executionOrder'
+  | 'status'
+  | 'output'
+  | 'response'
+  | 'error'
+  | 'exitCode'
+  | 'gateResult'
+  | 'restartFeedback'
+  | 'startedAt'
+  | 'finishedAt'
+>;
 
 // Domain `error` is loosely typed (jsonb), so narrow it to the fixed runner
 // contract rather than trusting whatever shape the row happens to hold. `category`
@@ -97,7 +131,7 @@ function toStepGateResultDto(
   return {kind: 'unknown', data: gateResult};
 }
 
-export function toStepDto(step: Step): StepDto {
+export function toStepDto(step: StepDtoInput): StepDto {
   return {
     id: step.id,
     job_execution_id: step.jobExecutionId,
@@ -106,12 +140,18 @@ export function toStepDto(step: Step): StepDto {
     source_location: toStepSourceLocationDto(step.sourceLocation),
     status: step.status,
     type: step.type,
-    config: step.config,
     error: toStepErrorDto(step.error, step.type === 'setup' ? 'setup' : 'user'),
     position: step.position,
     current_attempt: step.currentAttempt,
     created_at: step.createdAt.toISOString(),
     updated_at: step.updatedAt.toISOString(),
+  };
+}
+
+export function toExecutableStepDto(step: Step): ExecutableStepDto {
+  return {
+    ...toStepDto(step),
+    config: step.config,
   };
 }
 
@@ -125,7 +165,7 @@ function toStepSourceLocationDto(
   };
 }
 
-export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
+export function toStepAttemptDto(attempt: StepAttemptDtoInput): StepAttemptDto {
   return {
     id: attempt.id,
     step_id: attempt.stepId,

@@ -4,7 +4,7 @@ import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {JobLeaseNotActiveError, JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
-import {toStepDto} from '#presentation/dto/step.js';
+import {toExecutableStepDto} from '#presentation/dto/step.js';
 
 export const nextStepRoute = defineRoute({
   method: 'POST',
@@ -45,7 +45,7 @@ export const nextStepRoute = defineRoute({
       // attempt is ignored.
       return {
         kind: 'step' as const,
-        step: toStepDto(next.step),
+        step: toExecutableStepDto(next.step),
         attempt: next.step.currentAttempt,
         lease_token: leaseToken,
       };

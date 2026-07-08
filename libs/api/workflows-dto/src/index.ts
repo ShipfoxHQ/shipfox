@@ -9,6 +9,8 @@ export {
   checkoutIntentSchema,
   checkoutTokenAuthSchema,
   checkoutTokenResponseSchema,
+  type ExecutableStepDto,
+  executableStepDtoSchema,
   type JobDto,
   type JobExecutionDto,
   type JobListeningDto,

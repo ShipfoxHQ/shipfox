@@ -5,7 +5,7 @@ import {open, unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
 import {TextDecoder} from 'node:util';
-import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
+import type {ExecutableStepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets, safeRedactionPrefixLength, secretWireForms} from '@shipfox/redact';
 import {MAX_OUTPUT_TOTAL_BYTES, parseStepOutput, StepOutputError} from '#core/step-output.js';
@@ -43,7 +43,10 @@ interface RunStepOptions {
   onCommandStart?: CommandStartSink;
 }
 
-export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Promise<StepResult> {
+export function executeRunStep(
+  step: ExecutableStepDto,
+  options: RunStepOptions = {},
+): Promise<StepResult> {
   if (step.type !== 'run') {
     return Promise.resolve({
       success: false,
@@ -358,7 +361,7 @@ function signalExitCode(signal: NodeJS.Signals): number | undefined {
   return undefined;
 }
 
-function readStepEnv(step: StepDto): Readonly<Record<string, string>> {
+function readStepEnv(step: ExecutableStepDto): Readonly<Record<string, string>> {
   const rawEnv = step.config.env;
   if (
     rawEnv === undefined ||

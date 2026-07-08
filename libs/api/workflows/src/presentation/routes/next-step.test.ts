@@ -143,6 +143,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(body.kind).toBe('step');
     expect(body.step.id).toBe(steps[0]?.id);
     expect(body.step.status).toBe('running');
+    expect(body.step.config).toEqual(steps[0]?.config);
     expect(body.lease_token).toEqual(expect.any(String));
     const scopedLease = await verifyJobLeaseToken(body.lease_token);
     expect(scopedLease).toMatchObject({

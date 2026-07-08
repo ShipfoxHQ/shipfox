@@ -25,12 +25,6 @@ export interface StepError {
   category: StepErrorCategory | undefined;
 }
 
-export interface AgentStepConfig {
-  provider: string | null;
-  model: string | null;
-  thinking: string | null;
-}
-
 export interface Step {
   id: string;
   jobExecutionId: string;
@@ -39,8 +33,6 @@ export interface Step {
   sourceLocation: StepSourceLocation | null;
   status: string;
   type: string;
-  config: Record<string, unknown>;
-  agentConfig: AgentStepConfig | null;
   error: StepError | null;
   position: number;
   currentAttempt: number;
@@ -58,8 +50,6 @@ export function toStep(dto: WorkflowRunStepDetailDto): Step {
     sourceLocation: dto.source_location ? toStepSourceLocation(dto.source_location) : null,
     status: dto.status,
     type: dto.type,
-    config: dto.config,
-    agentConfig: toAgentStepConfig(dto),
     error: dto.error ? toStepError(dto.error) : null,
     position: dto.position,
     currentAttempt: dto.current_attempt,
@@ -85,21 +75,4 @@ function toStepError(dto: NonNullable<WorkflowRunStepDetailDto['error']>): StepE
     agentConfigIssue: dto.agent_config_issue,
     category: dto.category,
   };
-}
-
-function toAgentStepConfig(dto: WorkflowRunStepDetailDto): AgentStepConfig | null {
-  if (dto.type !== 'agent') return null;
-
-  return {
-    provider: stringConfigValue(dto.config.provider),
-    model: stringConfigValue(dto.config.model),
-    thinking: stringConfigValue(dto.config.thinking),
-  };
-}
-
-function stringConfigValue(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-
-  const trimmedValue = value.trim();
-  return trimmedValue ? trimmedValue : null;
 }

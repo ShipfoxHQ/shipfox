@@ -83,8 +83,49 @@ export interface JobExecutionDetail extends JobExecution {
   steps: StepDetail[];
 }
 
+export interface WorkflowRunStepAttemptDetail
+  extends Pick<
+    StepAttempt,
+    | 'id'
+    | 'stepId'
+    | 'attempt'
+    | 'executionOrder'
+    | 'status'
+    | 'output'
+    | 'response'
+    | 'error'
+    | 'exitCode'
+    | 'gateResult'
+    | 'restartFeedback'
+    | 'startedAt'
+    | 'finishedAt'
+  > {}
+
+export interface WorkflowRunStepDetail
+  extends Pick<
+    Step,
+    | 'id'
+    | 'jobExecutionId'
+    | 'key'
+    | 'name'
+    | 'sourceLocation'
+    | 'status'
+    | 'type'
+    | 'error'
+    | 'position'
+    | 'currentAttempt'
+    | 'createdAt'
+    | 'updatedAt'
+  > {
+  attempts: WorkflowRunStepAttemptDetail[];
+}
+
+export interface WorkflowRunJobExecutionDetail extends JobExecution {
+  steps: WorkflowRunStepDetail[];
+}
+
 export interface WorkflowJobDetail extends Job {
-  jobExecutions: JobExecutionDetail[];
+  jobExecutions: WorkflowRunJobExecutionDetail[];
 }
 
 export interface WorkflowRunDetail extends WorkflowRun {

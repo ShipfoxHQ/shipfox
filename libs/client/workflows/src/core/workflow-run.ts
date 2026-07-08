@@ -23,7 +23,6 @@ export type {
 export {JobExecution, toJobExecution} from './entities/job-execution.js';
 export type {
   AgentConfigIssue,
-  AgentStepConfig,
   Step,
   StepError,
   StepErrorCategory,

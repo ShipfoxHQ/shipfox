@@ -1,5 +1,5 @@
 import type {Step, StepAttempt} from '#core/entities/step.js';
-import {fromStepErrorDto, toStepAttemptDto, toStepDto} from './step.js';
+import {fromStepErrorDto, toExecutableStepDto, toStepAttemptDto, toStepDto} from './step.js';
 
 function step(overrides: Partial<Step> & {type: string}): Step {
   return {
@@ -166,6 +166,18 @@ describe('toStepDto error category', () => {
     const dto = toStepDto(step({type: 'setup', sourceLocation: null, error: null}));
 
     expect(dto.source_location).toBeNull();
+  });
+
+  it('omits executable config from read step DTOs', () => {
+    const dto = toStepDto(step({type: 'run', config: {run: 'echo hello'}, error: null}));
+
+    expect(dto).not.toHaveProperty('config');
+  });
+
+  it('keeps executable config on runner step DTOs', () => {
+    const dto = toExecutableStepDto(step({type: 'run', config: {run: 'echo hello'}, error: null}));
+
+    expect(dto.config).toEqual({run: 'echo hello'});
   });
 });
 
