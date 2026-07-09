@@ -9,6 +9,7 @@ import {TypeTable} from 'fumadocs-ui/components/type-table';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type {MDXComponents} from 'mdx/types';
 import type {ComponentProps} from 'react';
+import {DocsVideo} from '@/app/components/docs-video';
 import {basePath} from '@/url';
 
 // Root-relative image sources stay clean `/img/...` in the MDX; the app is served
@@ -27,6 +28,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     ...defaultMdxComponents,
     Card,
     Cards,
+    DocsVideo,
     Callout,
     Steps,
     Step,

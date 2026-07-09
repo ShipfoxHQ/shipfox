@@ -30,20 +30,25 @@ const config = {
       },
     ];
   },
-  // With a basePath, the deployment domain root (the URL Vercel puts in the PR
-  // preview comment) would 404, so redirect it to /docs. basePath:false matches
-  // the literal domain root, before the prefix is applied. Not needed in dev,
-  // where there is no basePath and the root already serves the docs. In dev,
-  // redirect /docs-prefixed URLs back to the unprefixed route so production URLs
-  // copied into a local browser still work.
   redirects() {
+    // The old Introduction page merged into the docs root. Redirect it in both
+    // environments; Next prefixes the basePath, so in production this matches
+    // /docs/introduction -> /docs.
+    const rules = [{source: '/introduction', destination: '/', permanent: true}];
     if (!basePath) {
-      return [
+      // In dev there is no basePath, so redirect /docs-prefixed URLs back to the
+      // unprefixed route so production URLs copied into a local browser still work.
+      rules.push(
         {source: '/docs', destination: '/', permanent: false},
         {source: '/docs/:path*', destination: '/:path*', permanent: false},
-      ];
+      );
+    } else {
+      // With a basePath, the deployment domain root (the URL Vercel puts in the PR
+      // preview comment) would 404, so redirect it to /docs. basePath:false matches
+      // the literal domain root, before the prefix is applied.
+      rules.push({source: '/', destination: basePath, basePath: false, permanent: false});
     }
-    return [{source: '/', destination: basePath, basePath: false, permanent: false}];
+    return rules;
   },
 };
 
