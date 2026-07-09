@@ -1,6 +1,5 @@
 import {DocsLayout} from 'fumadocs-ui/layouts/docs';
 import type {ReactNode} from 'react';
-import {SidebarFooter} from '@/app/components/sidebar-footer';
 import {baseOptions} from '@/app/layout.config';
 import {source} from '@/lib/source';
 
@@ -9,13 +8,7 @@ import {source} from '@/lib/source';
 
 export default function Layout({children}: {children: ReactNode}) {
   return (
-    <DocsLayout
-      tree={source.pageTree}
-      sidebar={{
-        footer: <SidebarFooter />,
-      }}
-      {...baseOptions}
-    >
+    <DocsLayout tree={source.pageTree} {...baseOptions}>
       {/* @ts-ignore: fuma-docs and monorepo react versions seem to be incompatible */}
       {children}
     </DocsLayout>
