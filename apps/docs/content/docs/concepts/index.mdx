@@ -1,0 +1,57 @@
+---
+title: "How Shipfox Works: The Run Model in One Page"
+sidebarTitle: "How Shipfox Works"
+description: "The whole Shipfox run model in one page: workflows, triggers, jobs and steps, agents, gates, logging, and runners — with links to go deeper on each."
+---
+
+Shipfox turns YAML files in your repository into agentic automation. A **trigger** (a push, an alert, a manual fire) creates a **run**, and the run schedules **jobs** as a dependency graph. Each job executes **steps** on a **runner**; a step is a shell command or an AI agent. **Gates** loop an agent back until its work passes a check, and everything streams live to the dashboard.
+
+![Run execution flow: event sources match a trigger in the Shipfox control plane, a run is created, jobs are scheduled as a needs DAG, a runner on your compute claims the job and executes run and agent steps with a gate looping back on failure while logs stream live](/img/diagrams/run-execution-flow.png)
+
+**[Workflows](/concepts/workflows)** are YAML files under `.shipfox/workflows/` in your repository — one file, one workflow. They are versioned, diff-able, and reviewed like any other code, and Shipfox picks up changes on push.
+
+**[Triggers](/concepts/triggers)** decide when a run starts. Each trigger names a `source` (an integration connection or `manual`) and an `event` (like `push` or `issue.created`). Any tool that can send an event can start a run.
+
+**[Jobs and steps](/concepts/jobs-steps)** define the work. Jobs run in parallel by default and sequence with `needs`. Each job is an isolated unit that clones the repo fresh. A step is either a `run` shell command or an **agent step**: a model and a prompt, executing with your repository checked out.
+
+**[Gates](/concepts/gates)** make agents iterate. A gate checks a step's outcome with a CEL expression and can restart the job from an earlier step when the check fails. The agent edits, a shell step verifies, and the loop closes when the check passes, within bounded attempts.
+
+**[Logging](/concepts/logging)** shows you everything, live. Run steps stream their output. Agent steps stream structured sessions: messages, thinking, tool calls, token usage, and cost. Everything is persisted for later.
+
+**[Runners](/operations/runners)** execute the jobs. Labels route each job to matching compute. You can bring your own runners for special hardware, private networks, or cost control, and a [provisioner](/operations/runner-provisioners) can autoscale ephemeral runners to demand. Both live in the [Operate](/operations/runners) section.
+
+**[Listening jobs](/concepts/listening-jobs)** (coming soon) extend the model: a job that waits for events inside a run and reacts to each batch, like an agent answering PR review comments until the PR merges.
+
+## Go deeper
+
+<Cards>
+  <Card title="Workflows" href="/concepts/workflows">
+    Versioned YAML automation in your repo.
+  </Card>
+  <Card title="Triggers" href="/concepts/triggers">
+    What starts a run, and how sources map to connections.
+  </Card>
+  <Card title="Jobs, Steps & Agents" href="/concepts/jobs-steps">
+    The execution model inside a run.
+  </Card>
+  <Card title="Gates & Retry Loops" href="/concepts/gates">
+    Conditional success and automatic restart.
+  </Card>
+  <Card title="Logs & Agent Sessions" href="/concepts/logging">
+    Live and persisted output for every step.
+  </Card>
+  <Card title="Listening Jobs" href="/concepts/listening-jobs">
+    Jobs that react to events inside a run. Coming soon.
+  </Card>
+</Cards>
+
+## Start building
+
+<Cards>
+  <Card title="Quick Start" href="/getting-started">
+    Connect a repo and run your first workflow in minutes.
+  </Card>
+  <Card title="Workflow Schema reference" href="/reference/workflow-schema">
+    Every field, accepted value, and validation rule.
+  </Card>
+</Cards>

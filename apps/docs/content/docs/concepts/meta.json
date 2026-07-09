@@ -1,4 +1,4 @@
 {
   "title": "Core Concepts",
-  "pages": ["workflows", "jobs-steps", "gates", "logging", "triggers", "runners", "runner-provisioners", "listening-jobs"]
+  "pages": ["index", "workflows", "triggers", "jobs-steps", "gates", "logging", "listening-jobs"]
 }

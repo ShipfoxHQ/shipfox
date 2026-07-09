@@ -21,14 +21,15 @@ functions and no side effects.
 
 ## Predicates
 
-### Gate success — `gate.success_if`
+### Gate success — `gate.success`
 
-Evaluated on a gated step the moment it finishes. The only variable in scope is
-`exit_code` (an integer). See [Gates](/concepts/gates) for the full gate model.
+Evaluated on a gated step the moment it finishes. In scope: `step.exit_code`
+(an integer) and `step.status` (a string). See [Gates](/concepts/gates) for the
+full gate model.
 
 ```yaml
 gate:
-  success_if: "exit_code == 0"
+  success: "step.exit_code == 0"
 ```
 
 ### Job success — `success`
@@ -102,7 +103,7 @@ step or interpolate the value and check it there.
 
 | Feature | Status |
 |---|---|
-| `gate.success_if` (CEL over `exit_code`) | ✅ Shipped |
+| `gate.success` (CEL over `step.exit_code`) | ✅ Shipped |
 | Job `success` (CEL over `executions`) | ✅ Shipped |
 | `${{ }}` interpolation in `run`, `env`, `prompt` | ✅ Shipped |
 | Trigger `filter` evaluation | 🔜 Roadmap |
@@ -112,7 +113,7 @@ step or interpolate the value and check it there.
 
 <Cards>
   <Card title="Gates" href="/concepts/gates">
-    Where `success_if` decides a step outcome.
+    Where `gate.success` decides a step outcome.
   </Card>
   <Card title="Workflow schema" href="/reference/workflow-schema">
     The full YAML schema these expressions live in.

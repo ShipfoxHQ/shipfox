@@ -10,8 +10,8 @@ const SECTION_ORDER = [
   'guides',
   'ai',
   'reference',
+  'operations',
   'installation',
-  'help',
 ] as const;
 
 const SECTION_LABELS: Record<(typeof SECTION_ORDER)[number], string> = {
@@ -21,8 +21,8 @@ const SECTION_LABELS: Record<(typeof SECTION_ORDER)[number], string> = {
   guides: 'Guides',
   ai: 'AI Assistance',
   reference: 'Reference',
+  operations: 'Operations',
   installation: 'Installation',
-  help: 'Help',
 };
 
 // Root-level pages have no folder segment, so map them explicitly; everything
@@ -30,7 +30,6 @@ const SECTION_LABELS: Record<(typeof SECTION_ORDER)[number], string> = {
 // dropped from llms.txt.
 function sectionOf(url: string): (typeof SECTION_ORDER)[number] {
   if (url === '/' || url === '/getting-started') return 'get-started';
-  if (url === '/troubleshooting' || url === '/faq') return 'help';
   const segment = url.split('/').filter(Boolean)[0];
   return (SECTION_ORDER as readonly string[]).includes(segment ?? '')
     ? (segment as (typeof SECTION_ORDER)[number])

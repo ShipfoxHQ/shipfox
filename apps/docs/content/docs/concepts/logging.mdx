@@ -61,8 +61,9 @@ echo "::endgroup::"
 echo "::endgroup::"
 ```
 
-Nesting is capped at **32 levels deep**; past the cap a group is flattened into plain
-output rather than adding another level. Group names are limited to 1 KiB.
+Nesting is capped; past the cap a group is flattened into plain output rather than
+adding another level. The nesting and group-name caps are listed in
+[Limits](/reference/limits#logs).
 
 ## Live tail, then persisted
 
@@ -90,14 +91,17 @@ was unavailable, or credentials were invalid. See
 
 Logs are bounded so a runaway step can't produce unbounded storage or cost:
 
-- **Per-job budget.** Each job has a log budget (32 MiB, growing over time). Past
-  it, further output is dropped and the step is marked truncated rather than failing
-  the run.
-- **Retention.** Persisted logs are kept for a default of 90 days, then deleted from
+- **Per-job budget.** Each job has a log budget that grows with the job's runtime.
+  Past it, further output is dropped and the step is marked truncated rather than
+  failing the run.
+- **Retention.** Persisted logs are kept for a bounded window, then deleted from
   both the database and object storage.
 - **Truncation is explicit.** If output was dropped — because the budget was hit or
   a runner died mid-step — the stream is flagged truncated so you know the logs are
   incomplete.
+
+The budget, retention window, and every other number live in
+[Limits](/reference/limits#logs).
 
 <Callout type="info">
   The budget, retention window, and storage bucket are configurable when you
@@ -107,6 +111,9 @@ Logs are bounded so a runaway step can't produce unbounded storage or cost:
 ## Related pages
 
 <Cards>
+  <Card title="Limits" href="/reference/limits">
+    Log budgets, retention, and grouping caps.
+  </Card>
   <Card title="Jobs & Steps" href="/concepts/jobs-steps">
     Where run and agent steps are defined.
   </Card>

@@ -6,9 +6,9 @@ description: "Runners are processes you deploy on your own infrastructure. They 
 
 A **runner** is a process you deploy on any machine — a VM, a container, a laptop, or a Kubernetes pod. Runners poll Shipfox for jobs that match their labels, check out the repo, and execute each step. You own the compute; Shipfox owns the orchestration.
 
-## How runners work
+You can mix managed and self-hosted capacity: register your own runners for special hardware, private networks, or cost control, and route jobs to them with labels.
 
-The lifecycle of a runner from registration to job execution follows these steps:
+## How it works
 
 1. **Register the runner.** Generate a registration token in the dashboard and start the runner process with that token.
 2. **The runner authenticates and announces its labels** to Shipfox. Its log prints `Runner session registered` and it starts polling for jobs.
@@ -21,7 +21,7 @@ The lifecycle of a runner from registration to job execution follows these steps
 Labels are how Shipfox matches jobs to runners. A runner can carry multiple labels, and a workflow job's `runner:` field specifies which label (or labels) are required.
 
 - A job is dispatched to a runner only if the runner has **all** of the required labels.
-- Labels are set when you start the runner process, as the comma-separated `SHIPFOX_RUNNER_LABELS` environment variable.
+- Labels are set when you start the runner process — see the [Runner reference](/reference/runner).
 - A single machine can run multiple runner processes with different label sets.
 
 **Example:** A workflow with `runner: ubuntu-latest` is dispatched to any online runner that has the `ubuntu-latest` label. A workflow with `runner: [ubuntu-latest, gpu]` requires a runner that carries both labels simultaneously.
@@ -30,28 +30,34 @@ Choose label names that describe the environment the runner provides — OS, arc
 
 ## Registration
 
-Registering a new runner takes three steps:
-
-1. In the dashboard, go to **Settings → Runners**.
-2. Click **Create token**, name the token, and copy its value — it is shown only once. Treat it like a secret; it authenticates the runner to your workspace.
-3. Start the runner process with the token. The runner registers itself on first start and begins polling for jobs immediately.
+Create a registration token in **Settings → Runners**. The value is shown once; treat it like a secret. Start the runner process with the token and your labels. The required and optional variables are in the [Runner reference](/reference/runner), and the [Installation](/installation) pages show complete start commands per environment.
 
 **Settings → Runners** lists the registration tokens you created, with their prefix and expiry. A view of connected runners and their labels is not in the dashboard yet — confirm a runner is connected from its own log.
 
 <Callout type="info">
-  Prefer not to hand-start runners? A [runner provisioner](/concepts/runner-provisioners)
+  Prefer not to hand-start runners? A [runner provisioner](/operations/runner-provisioners)
   starts ephemeral, single-job runners automatically based on demand, then lets them
   exit when idle.
 </Callout>
 
 ## Agent step requirements
 
-<Callout type="info">
-  Runner processes that execute agent steps need network access to the AI provider's API. Set `ANTHROPIC_API_KEY` (or the appropriate provider key, such as `OPENAI_API_KEY`) in the runner's environment before starting it. Without the key, agent steps will fail at execution time.
-</Callout>
+Model provider credentials are configured per workspace and delivered to the runner by the API — you do not put provider API keys in the runner's environment. The runner machine does need **outbound network access** to the resolved provider's endpoint. See [Model Providers](/reference/model-providers).
 
 ## Pending runs
 
-<Callout type="info">
-  A run stuck in `pending` state usually means no online runner matches the job's `runner:` label. Check the runner's terminal for `Runner session registered`, and confirm its `SHIPFOX_RUNNER_LABELS` includes the label the workflow asks for. Start a matching runner and the pending job is dispatched automatically.
-</Callout>
+A run stuck in `pending` state usually means no online runner matches the job's `runner:` label. Check the runner's terminal for `Runner session registered`, and confirm its labels include the label the workflow asks for. Start a matching runner and the pending job is dispatched automatically.
+
+## Related pages
+
+<Cards>
+  <Card title="Runner reference" href="/reference/runner">
+    Every environment variable, token type, and default.
+  </Card>
+  <Card title="Runner Provisioners" href="/operations/runner-provisioners">
+    Autoscale ephemeral runners instead of hand-starting them.
+  </Card>
+  <Card title="Installation" href="/installation">
+    Start a runner locally or on your own infrastructure.
+  </Card>
+</Cards>

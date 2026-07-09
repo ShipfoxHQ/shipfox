@@ -12,12 +12,13 @@ A gate block sits directly on a step and supports two fields:
 
 ```yaml
 gate:
-  success_if: exit_code == 0   # CEL expression evaluated against the step outcome
+  success: step.exit_code == 0   # CEL expression evaluated against the step outcome
   on_failure:
-    restart_from: install      # must reference an earlier step that has a `key:` field
+    restart_from: install        # must reference an earlier step that has a `key:` field
+    feedback: Check failed; retrying.   # optional message recorded with the restart
 ```
 
-`success_if` and `on_failure` are both optional individually, but at least one must be present. A gate with only `success_if` marks the step as failed without retrying. A gate with only `on_failure` always retries. Use both together for a conditional retry loop.
+`success` and `on_failure` are both optional individually, but at least one must be present. A gate with only `success` marks the step as failed without retrying. A gate with only `on_failure` always retries. Use both together for a conditional retry loop. The exact field rules live in the [Gate fields reference](/reference/workflow-schema#gate-fields).
 
 ## Basic retry loop
 
@@ -33,25 +34,25 @@ jobs:
         prompt: Fix the failing tests in the repository.
       - run: npm test
         gate:
-          success_if: exit_code == 0
+          success: step.exit_code == 0
           on_failure:
             restart_from: install
 ```
 
-On each iteration, the agent reads the updated codebase and attempts another fix. The loop continues until `npm test` exits `0`. The loop is **bounded automatically**: a gating step gets 3 attempts by default before its restart budget is exhausted and the job stops. The job-level `execution_timeout` adds a second, outer bound — see [Loop bounds](/concepts/gates#loop-bounds).
+On each iteration, the agent reads the updated codebase and attempts another fix. The loop continues until `npm test` exits `0`. The loop is **bounded automatically**: a gating step gets a limited number of attempts (3 by default — see [Limits](/reference/limits)) before its restart budget is exhausted and the job stops. The job-level `execution_timeout` adds a second, outer bound — see [Loop bounds](/concepts/gates#loop-bounds).
 
-## success_if expressions
+## success expressions
 
-The `success_if` field accepts a [CEL (Common Expression Language)](https://cel.dev) expression that is evaluated after the step completes. The only variable available today is `exit_code`, which holds the integer exit code of the step's shell command.
+The `success` field accepts a [CEL (Common Expression Language)](https://cel.dev) expression that is evaluated after the step completes. In scope: `step.exit_code`, the integer exit code of the step, and `step.status`, its status string.
 
 Common patterns:
 
 | Expression | Meaning |
 |---|---|
-| `exit_code == 0` | Step succeeded (standard Unix convention) |
-| `exit_code != 1` | Any exit code except a hard failure |
+| `step.exit_code == 0` | Step succeeded (standard Unix convention) |
+| `step.exit_code != 1` | Any exit code except a hard failure |
 
-More CEL variables (stdout content, step duration, etc.) are planned for future releases.
+See [Expressions](/reference/expressions) for the full engine description.
 
 ## Rules for restart_from
 
@@ -65,7 +66,7 @@ More CEL variables (stdout content, step duration, etc.) are planned for future 
 
 ## Job execution timeout
 
-A gating step already stops after a bounded number of restarts (3 by default). On top of that, `execution_timeout` sets an **outer wall-clock bound** on the whole job — useful when steps are slow and even a few attempts could run long:
+A gating step already stops after a bounded number of restarts. On top of that, `execution_timeout` sets an **outer wall-clock bound** on the whole job — useful when steps are slow and even a few attempts could run long:
 
 ```yaml
 jobs:
@@ -78,7 +79,7 @@ jobs:
         prompt: Fix the failing tests in the repository.
       - run: npm test
         gate:
-          success_if: exit_code == 0
+          success: step.exit_code == 0
           on_failure:
             restart_from: install
 ```
@@ -87,5 +88,5 @@ The value is a duration string. When the timeout is reached, the job is cancelle
 
 ## Next steps
 
-- [Jobs & Steps](/guides/multi-job-pipeline) — understand job isolation, `needs`, and parallel execution.
+- [Gates & Retry Loops](/concepts/gates) — how a gate is evaluated and why loops stay bounded.
 - [Agent Steps](/guides/agent-steps) — configure the model, thinking level, and provider for agent steps.

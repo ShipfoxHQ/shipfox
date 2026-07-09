@@ -2,6 +2,7 @@ import {createRelativeLink} from 'fumadocs-ui/mdx';
 import {DocsBody, DocsDescription, DocsPage, DocsTitle} from 'fumadocs-ui/page';
 import type {Metadata} from 'next';
 import {notFound} from 'next/navigation';
+import {PageFeedback} from '@/app/components/page-feedback';
 import {source} from '@/lib/source';
 import {getMDXComponents} from '@/mdx-components';
 import {toUrl, url} from '@/url';
@@ -23,6 +24,7 @@ export default async function Page(props: {params: Promise<{slug?: string[]}>}) 
             a: createRelativeLink(source, page),
           })}
         />
+        <PageFeedback pageUrl={page.url} filePath={page.path} />
       </DocsBody>
     </DocsPage>
   );

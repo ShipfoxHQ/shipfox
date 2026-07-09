@@ -1,73 +1,36 @@
 ---
 title: "Triggers: How and When Shipfox Workflow Runs Start"
 sidebarTitle: "Triggers"
-description: "Triggers define when a Shipfox workflow runs — on a push, a Sentry issue, a custom webhook, or on demand. Learn the trigger schema and how sources map to connections."
+description: "Triggers define when a Shipfox workflow runs — on a push, a Sentry issue, a custom webhook, or on demand. Learn how sources map to connections."
 ---
 
-A **trigger** tells Shipfox when to start a workflow run. Triggers are defined in
-your workflow YAML under the `triggers:` key. You can declare multiple triggers;
-each is a named entry with a `source` and an `event`.
+A **trigger** tells Shipfox when to start a workflow run. Triggers are defined in your workflow YAML under the `triggers:` key. You can declare several. Each is a named entry with a `source` (where the event comes from) and an `event` (which event from that source).
 
-## Trigger schema
+For an integration, `source` is the **connection slug** you get after connecting it, not the bare provider name. For on-demand runs it is the literal string `manual`.
 
-Every trigger is a named entry inside the `triggers:` map. The name is an arbitrary
-key you choose — it appears in logs and the dashboard to identify which trigger
-fired a run.
+## How it works
+
+When an event arrives from a connected integration, Shipfox matches its `(source, event)` pair against every trigger of every workflow in the project. Each match creates one run. The trigger's name (the YAML key you chose) appears in the dashboard and logs, so you can tell which trigger fired a run.
 
 ```yaml
 triggers:
-  <name>:              # any unique name
-    source: github_acme  # a connection slug, or "manual"
-    event: push          # an event from that source
-    filter: ""           # optional CEL expression — NOT enforced yet
-    with: {}             # optional extra config
+  on_demand:               # any unique name you choose
+    source: manual         # the built-in on-demand source
+    event: fire
+  on_push:
+    source: github_acme    # your GitHub connection slug
+    event: push
 ```
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `source` | `string` | **Required.** Where the event comes from. For an integration (GitHub, Sentry, a custom webhook), this is the **connection slug** you get after connecting it — for example `github_acme` — **not** the bare provider name. For on-demand runs it is the literal string `manual`. See [Integrations](/integrations/overview) for how slugs work. |
-| `event` | `string` | **Required.** The specific event from that source (for example `push`, `issue.created`, `received`, or `fire`). Must be at least one character. Each integration page lists the events it emits. |
-| `filter` | `string` | A CEL expression that is parsed but **not yet evaluated**. Reserved for future filtering (for example `event.ref == "refs/heads/main"`). Today the trigger fires on every matching `(source, event)` pair regardless of this field. |
-| `with` | `object` | Optional extra configuration passed to the trigger source. Contents are source-specific and may be omitted for most sources. |
-
-<Callout type="warn">
-  The `source` of an integration trigger is the **connection slug**, not the
-  provider name. If it doesn't match an existing connection's slug, the trigger is
-  stored but never fires. The slug is `<provider>_<account>`, lowercase — see
-  [Finding your connection slug](/integrations/overview#finding-your-connection-slug).
-</Callout>
+All trigger fields, including the parsed-but-not-yet-evaluated `filter`, are in the [Trigger fields reference](/reference/workflow-schema#trigger-fields). A `source` that matches no connection slug is stored but never fires — see [Trigger Sources](/reference/trigger-sources) for where slugs come from.
 
 ## Manual trigger
 
-The simplest trigger needs no integration. It fires when you click **Run** in the
-dashboard or call the API. Its source is the literal string `manual`.
-
-```yaml
-triggers:
-  on_demand:
-    source: manual
-    event: fire
-```
-
-A workflow can have **at most one** manual trigger. Use it for release workflows or
-one-off automation where you want full control over when the run happens.
+The simplest trigger needs no integration. It fires when you click **Run** in the dashboard or call the API. A workflow can have at most one manual trigger. Use it for release workflows or one-off automation where you control when the run happens.
 
 ## Integration triggers
 
-Integration triggers start a run from an external system's events. Connect the
-integration once, then reference its connection slug:
-
-```yaml
-triggers:
-  on_push:
-    source: github_acme      # GitHub connection slug
-    event: push
-  on_new_issue:
-    source: sentry_acme      # Sentry connection slug
-    event: issue.created
-```
-
-Setup steps and the full event list for each source live on its integration page:
+Integration triggers start a run from an external system's events. Connect the integration once, then reference its connection slug. Setup steps and the full event list for each source live on its integration page:
 
 <Cards>
   <Card title="GitHub" href="/integrations/github">
@@ -81,51 +44,32 @@ Setup steps and the full event list for each source live on its integration page
   </Card>
 </Cards>
 
-## Notes
-
-<Callout type="info">
-  `event.ref` on a push is the **full Git ref** (for example `refs/heads/main`),
-  exactly as the provider sends it — not the bare branch name.
-</Callout>
-
-<Callout type="info">
-  `filter` is parsed but not evaluated — a trigger fires on every matching
-  `(source, event)` pair regardless of the filter expression. This changes in a
-  future release when CEL filter evaluation is enabled. GitLab triggers are on the
-  roadmap.
-</Callout>
-
 ## Coming soon
 
 Two trigger capabilities are under active development:
 
-**Cron triggers** — run a workflow on a recurring schedule, declared in the YAML
-like any other trigger. The design: `source: cron`, `event: tick`, a raw 5-field
-cron `schedule` (minute granularity), and an optional IANA `timezone` (UTC by
-default). A tick fires the latest definition on the default branch; missed ticks
-are skipped, not backfilled.
+**Cron triggers** — run a workflow on a recurring schedule, declared like any other trigger: `source: cron`, `event: tick`, and a `config` block carrying a 5-field cron `schedule` (minute granularity) and an optional IANA `timezone` (UTC by default). A tick fires the latest definition on the default branch; missed ticks are skipped, not backfilled.
 
 ```yaml
-# Coming soon — syntax may still evolve before release.
+# Illustrative — coming soon; syntax may still evolve before release.
 triggers:
   nightly:
     source: cron
     event: tick
-    schedule: "0 2 * * *"
-    timezone: "Europe/Paris"
+    config:
+      schedule: "0 2 * * *"
+      timezone: "Europe/Paris"
 ```
 
-**Job-level listening** — the same `{source, event}` selector shape, used on a job
-(`listening.on` / `listening.until`) so it reacts to events repeatedly inside one
-run. See [Listening Jobs](/concepts/listening-jobs).
+**Job-level listening** — the same `{source, event}` selector shape, used on a job (`listening.on` / `listening.until`) so it reacts to events repeatedly inside one run. See [Listening Jobs](/concepts/listening-jobs).
 
 ## Related pages
 
 <Cards>
+  <Card title="Trigger Sources reference" href="/reference/trigger-sources">
+    Every source, its events, and the filter status.
+  </Card>
   <Card title="Integrations" href="/integrations/overview">
     Connections, slugs, and every available integration.
-  </Card>
-  <Card title="Trigger sources reference" href="/reference/trigger-sources">
-    Sources and events at a glance.
   </Card>
 </Cards>

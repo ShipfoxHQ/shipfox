@@ -1,13 +1,13 @@
 ---
 title: "Getting Started with Shipfox: Run Your First Workflow"
 sidebarTitle: "Quick Start"
-description: "Connect a project, add your first workflow YAML, register a runner, and fire your first run — all in under 10 minutes with Shipfox."
+description: "Connect a project, add your first workflow YAML, fire a run, and watch an agent fix code in a self-correcting loop — all in a few minutes with Shipfox."
 ---
 
-This guide walks you through connecting a repository to Shipfox, writing your first workflow, registering a runner, and firing a run — from zero to a live streaming log in under ten minutes. You'll need access to a Shipfox workspace, a Git repository you can connect, and at least one runner online. If you hit a snag at any point, see [Troubleshooting](/troubleshooting).
+This guide walks you through connecting a repository to Shipfox, writing your first workflow, firing a run, and ending with an agent that fixes code in a self-correcting loop.
 
 <Callout type="info">
-  This guide assumes Shipfox is already running for your team — most product engineers join an instance a platform or DevEx team set up. If you need to stand Shipfox up yourself, see [Installation](/installation).
+  This guide assumes Shipfox is already set up for your team: you can sign in to a workspace and at least one runner is online. If you need to stand Shipfox up yourself first, see [Installation](/installation); to add runners, see [Operations](/operations/runners).
 </Callout>
 
 ## Connect your project
@@ -35,42 +35,24 @@ A workflow is a YAML file that tells Shipfox when to run (`triggers`), where to 
 
 ```yaml
 name: Hello world
-runner: ubuntu-latest
+runner: ubuntu-latest      # label of the runner that executes the jobs
 triggers:
   on_demand:
-    source: manual
+    source: manual         # fires when you click Run in the dashboard
     event: fire
-  on_push:
-    source: github_acme
-    event: push
 jobs:
   build:
     steps:
       - run: echo "hello world"
 ```
 
-The fields at a glance:
-
-| Field | What it does |
-|---|---|
-| `name` | Human-readable name shown in the dashboard and run history. |
-| `runner` | Label of the runner that should execute the jobs. Must match a registered runner. |
-| `triggers` | A map of named trigger definitions. Each entry has a `source` and an `event`. |
-| `jobs` | A map of named jobs. Each job has a `steps` list and optionally a `needs` dependency on other jobs. |
-| `steps` | An ordered list of steps. Each step is either a `run` command or an agent step (`model` + `prompt`). |
-
-<Callout type="info">
-  `filter` is roadmap — the `on_push` trigger fires on every push today; branch or path filtering is not yet evaluated. Push triggers require GitHub; GitLab support is on the roadmap. Use a manual trigger (`source: manual, event: fire`) in the meantime if your repository is not on GitHub.
-</Callout>
+The manual trigger works in every workspace with no further setup. Every field is described in the [Workflow Schema reference](/reference/workflow-schema).
 
 Commit and push the file to your connected repository. Shipfox detects the new workflow file automatically — no manual import is required.
 
 ## Run it
 
-A run is one execution of a workflow. You can start a run in two ways:
-
-- **On demand**: Open the project's **Workflows** page, find the workflow, and click **Run**.
-- **On push**: Push a commit to the connected repository — the `on_push` trigger fires automatically.
+A run is one execution of a workflow. Open the project's **Workflows** page, find the workflow, and click **Run**.
 
 Once the run starts, click into it to stream live output. For the workflow above you should see:
 
@@ -84,26 +66,48 @@ hello world
 *A run detail page: status, the job graph, and every step with its duration.*
 
 <Callout type="info">
-  A run stuck in `pending` usually means no registered runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online and connected. See [Troubleshooting](/troubleshooting) for steps to diagnose runner connectivity.
+  A run stuck in `pending` means no online runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online — see [Runners](/operations/runners#pending-runs).
+</Callout>
+
+## Make it automatic
+
+To fire the workflow on every push, add a second trigger whose `source` is your GitHub **connection slug**, not the provider name. Find your slugs on the [integrations settings page](/integrations/overview#finding-your-connection-slug); they look like `github_<org>`.
+
+```yaml
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+  on_push:
+    source: github_acme    # replace with YOUR connection slug
+    event: push
+```
+
+<Callout type="info">
+  Push triggers require GitHub today; GitLab is on the roadmap. Branch filtering (`filter`) is parsed but not evaluated yet — the trigger fires on every push.
 </Callout>
 
 ## Add an agent step
 
-Shipfox treats AI agents as first-class steps. Add an agent step to your workflow by specifying a `model` and a `prompt` alongside your existing `run` step:
+Shipfox treats AI agents as first-class steps. Instead of `run`, give a step a `prompt` (and optionally a `model`).
+
+<Callout type="warn">
+  Agent steps use your workspace's configured [model provider](/reference/model-providers). Configure one first (**Settings → Model Providers** — an API key is enough), or the step fails at execution time.
+</Callout>
 
 ```yaml
 jobs:
   build:
     steps:
       - run: echo "hello world"
-      - name: explain
+      - key: explain
         model: claude-opus-4-8
         prompt: >
           Read this repository and explain in two sentences what it does
           and how you would run its tests.
 ```
 
-Push the updated file. Fire another run and you should see output similar to:
+Push the updated file and fire another run. You should see output similar to:
 
 ```text
 explain · claude-opus-4-8
@@ -112,25 +116,43 @@ This repository is a small demo service... To run its tests, ...
 
 The agent had your repository checked out — it read real files to answer. Open the step in the dashboard to see the full **agent session**: every message, thinking block, and tool call, plus token usage and cost. Output varies between runs; the step still succeeds or fails based on whether the call completes.
 
-To make the agent *act on your code* — fix failing tests, review a diff — give it a repo-aware prompt and pair it with a [gate](/concepts/gates) so it retries until a check passes. Agent steps use your workspace's configured [model provider](/reference/model-providers), so configure one before running them.
+## Watch it fix itself
+
+The step above only reads. The pattern that makes Shipfox different: pair an agent that **acts** with a `run` step that **verifies**, and a [gate](/concepts/gates) that loops back until the check passes. Add this job (it assumes an `npm test` project; adapt the check to your stack):
+
+```yaml
+jobs:
+  fix:
+    steps:
+      - key: edit
+        model: claude-opus-4-8
+        prompt: The tests are failing. Edit the source code to fix them.
+      - run: npm test
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: edit   # the agent tries again until tests pass
+```
+
+Fire the run and watch the loop. The agent edits, `npm test` judges, and the gate restarts the agent until the tests go green (bounded automatically; see [Limits](/reference/limits)). You just built a self-correcting workflow with twelve lines of YAML.
 
 ## Let your agent write workflows
 
-You can use a coding agent to generate and iterate on Shipfox workflows directly in your repository. Because every Shipfox documentation page is available as plain Markdown, your agent can fetch the schema reference and author workflow YAML without any special plugin. Point your agent at the [AI overview](/ai/overview) page or simply describe what you want in natural language — for example, "add a Shipfox workflow that runs tests on every push and posts a summary". The agent understands the workflow schema and Shipfox conventions from the docs. See the [AI overview](/ai/overview) for full details on available prompting patterns and context files.
+You can use a coding agent to generate and iterate on Shipfox workflows directly in your repository. Because every Shipfox documentation page is available as plain Markdown, your agent can fetch the schema reference and author workflow YAML without any special plugin. Point your agent at the [AI overview](/ai/overview) page or simply describe what you want in natural language — for example, "add a Shipfox workflow that runs tests on every push and posts a summary".
 
 ## Next steps
 
 <Cards>
+  <Card title="How Shipfox works" href="/concepts">
+    The run model in one page: workflows, triggers, jobs, gates, and runners.
+  </Card>
   <Card title="Multi-job pipelines" href="/guides/multi-job-pipeline">
-    Use `needs` to chain jobs together and build fan-out / fan-in DAGs for parallel test execution and staged deploys.
+    Use `needs` to chain jobs together and build fan-out / fan-in DAGs.
   </Card>
   <Card title="Gate & retry" href="/guides/gate-and-retry">
-    Configure `gate.success_if` and `gate.on_failure.restart_from` to retry a step until a condition is met.
+    Go deeper on the self-correcting loop you just built.
   </Card>
-  <Card title="Core concepts" href="/concepts/workflows">
-    Deep-dive into the full workflow schema — triggers, jobs, steps, env, and gate conditions.
-  </Card>
-  <Card title="Troubleshooting" href="/troubleshooting">
-    Common issues: pending runs, runner registration errors, and agent step failures.
+  <Card title="Agent steps" href="/guides/agent-steps">
+    Models, thinking levels, and providers in practice.
   </Card>
 </Cards>

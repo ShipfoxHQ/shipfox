@@ -1,0 +1,42 @@
+---
+title: "Limits and Defaults Reference"
+sidebarTitle: "Limits"
+description: "Every Shipfox operational number in one table: gate attempt caps, job timeouts, log budgets and retention, output grouping caps, and env size limits."
+---
+
+This page is the canonical home for every operational number in Shipfox. Other pages describe the behavior; the numbers live here. Self-hosted deployments can change the values marked configurable.
+
+## Workflow execution
+
+| Limit | Default | Configurable | Details |
+| --- | --- | --- | --- |
+| Gate attempts per gating step | 3 (one initial run + two restarts) | No | When the cap is exhausted and the gate still fails, the step is marked failed and the job stops. See [Gates](/concepts/gates#loop-bounds). |
+| Job `execution_timeout` | 6 hours | Per job, in YAML | Wall-clock bound on the whole job, including gate retries. See [Job fields](/reference/workflow-schema#job-fields). |
+| Manual triggers per workflow | 1 | No | See [Validation rules](/reference/workflow-schema#validation-rules). |
+
+## Workflow document
+
+| Limit | Default | Configurable | Details |
+| --- | --- | --- | --- |
+| `env` entries per map | 128 | No | Applies to each of the workflow, job, and step `env` maps. See [Environment variables](/reference/workflow-schema#environment-variables). |
+| `env` serialized size | 32 KiB | No | The JSON-serialized size of one `env` map. |
+
+## Logs
+
+| Limit | Default | Configurable | Details |
+| --- | --- | --- | --- |
+| Per-job log budget | 32 MiB + 1 MiB per minute | Self-host: `LOG_BUDGET_BASE_BYTES`, `LOG_BUDGET_RATE_BYTES_PER_MINUTE` | Past the budget, further output is dropped and the stream is flagged truncated. See [Logging](/concepts/logging#limits-and-retention). |
+| Log retention | 90 days | Self-host: `LOG_RETENTION_DAYS` | Persisted logs are deleted from the database and object storage after this window. |
+| Output group nesting | 32 levels | No | Past the cap a group is flattened into plain output. See [Logging](/concepts/logging#grouping-output). |
+| Output group name | 1 KiB | No | Longer group names are rejected at the record level. |
+
+## Related pages
+
+<Cards>
+  <Card title="Workflow schema" href="/reference/workflow-schema">
+    The fields these limits apply to.
+  </Card>
+  <Card title="Logging" href="/concepts/logging">
+    How log streaming, grouping, and truncation behave.
+  </Card>
+</Cards>

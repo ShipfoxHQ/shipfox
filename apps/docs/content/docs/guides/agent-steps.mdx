@@ -14,12 +14,12 @@ At a minimum, an agent step requires a `prompt`. When no `model` or `provider` i
 jobs:
   fix:
     steps:
-      - name: ask-claude
+      - key: ask-claude
         model: claude-opus-4-8
         prompt: Read the repository and summarize what it does in three sentences.
 ```
 
-The optional `name` field labels the step in the dashboard. To reference a step from a `restart_from` gate, give it a `key:` — keys identify steps; names are display-only.
+The `key` field identifies the step — in the dashboard and as the target of a `restart_from` gate. Use it on any step you may want to reference.
 
 ## Choosing a model
 
@@ -47,9 +47,9 @@ See the [Model Providers](/guides/model-providers) guide for the complete list o
 
 ## Thinking level
 
-The `thinking` field controls the model's reasoning depth before it produces output. Valid values are `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`. The default is `high`.
+The `thinking` field controls the model's reasoning depth before it produces output. The accepted values depend on the step's harness, and the default is `xhigh` — see the [agent step fields reference](/reference/workflow-schema#agent-step-fields).
 
-Higher thinking levels increase reasoning depth and token usage. Use `low` for straightforward summarization or simple generation tasks. Use `high` or `xhigh` for complex code review, multi-file debugging, or any task where accuracy matters more than speed.
+Higher thinking levels increase reasoning depth and token usage. Use `low` for straightforward summarization or simple generation tasks. Use `high` or above for complex code review, multi-file debugging, or any task where accuracy matters more than speed.
 
 ```yaml
 - model: claude-opus-4-8
@@ -73,7 +73,7 @@ jobs:
         prompt: The tests are failing. Edit the source code to fix them.
       - run: npm test
         gate:
-          success_if: exit_code == 0
+          success: step.exit_code == 0
           on_failure:
             restart_from: install
 ```
@@ -86,7 +86,7 @@ On each iteration, the agent reads the updated codebase and attempts another fix
   Keep these constraints in mind when authoring agent steps:
 
   - `env` is not valid on agent steps — it is supported only on `run` steps.
-  - `run` and any of `prompt`, `model`, `thinking`, or `provider` cannot appear on the same step.
+  - `run` and any of `prompt`, `model`, `harness`, `thinking`, or `provider` cannot appear on the same step.
   - `prompt` is required on every agent step — a step with `model` but no `prompt` will be rejected.
   - The `agent:` key is reserved and will be rejected with an explicit error message.
 </Callout>

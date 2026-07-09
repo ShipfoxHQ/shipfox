@@ -27,12 +27,16 @@ Job { steps (>=1), needs?, runner?, env? }. Jobs run in parallel; each is isolat
 and re-clones the repo (install deps per job).
 
 Step is a run step { run, key?, name?, env?, gate? } OR an agent step
-{ model, prompt, thinking?, provider?, key?, name?, gate? } — never both; agent
-requires prompt; env is run-only. key identifies a step; name is display-only.
+{ prompt, model?, harness?, thinking?, provider?, key?, name?, gate? } — never
+both; agent requires prompt; env is run-only. key identifies a step; name is
+display-only. harness is "pi" (default) or "claude". thinking depends on the
+harness — pi: off|minimal|low|medium|high|xhigh; claude: low|medium|high|xhigh|
+max; default xhigh.
 
-gate (run or agent steps) { success_if: "<CEL over exit_code>", on_failure: {
-restart_from: "<earlier step's key — NOT its name>", output?: "<message>" } }.
-Restarts are capped (3 attempts per gating step) before the job fails.
+gate (run or agent steps) { success: "<CEL over step.exit_code>", on_failure: {
+restart_from: "<earlier step's key — NOT its name>", feedback?: "<message>" } }.
+Example: success: step.exit_code == 0. Restarts are capped (3 attempts per
+gating step) before the job fails.
 
 ${{ }} interpolation IS supported in run/env/prompt, resolved at run creation from
 run/trigger/event/inputs context (e.g. ${{ trigger.source }}). Do NOT use (not
@@ -77,7 +81,7 @@ The prompt is deliberately compact but complete. It covers every dimension of th
 - **Trigger sources (shipped today)** — `manual`, plus integration connection slugs for GitHub (`push`), Sentry (`issue.*`), and custom webhooks (`received`)
 - **Job isolation and `needs` ordering** — parallel execution, repo re-cloning, and dependency chaining
 - **Step kinds: run vs. agent** — the two mutually exclusive step shapes and their allowed fields
-- **Gate / restart_from rules** — CEL expressions over `exit_code` and how to wire restart targets
+- **Gate / restart_from rules** — CEL expressions over `step.exit_code` and how to wire restart targets
 - **Hard rules** — no `loop`/`matrix`/`branch`, `env` is run-only, at most one manual trigger
 - **The today/roadmap boundary** — an explicit list of features not to use, so the agent doesn't hallucinate roadmap keys
 

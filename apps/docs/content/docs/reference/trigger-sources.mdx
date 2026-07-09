@@ -51,6 +51,11 @@ triggers:
 See the [Integrations](/integrations/overview) section for setup, the full event
 list per source, and payload details.
 
+<Callout type="info">
+  `event.ref` on a push is the **full Git ref** (for example `refs/heads/main`),
+  exactly as the provider sends it — not the bare branch name.
+</Callout>
+
 ## filter (not enforced)
 
 The `filter` field accepts a CEL expression intended to narrow which events fire a
