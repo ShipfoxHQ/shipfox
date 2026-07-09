@@ -1,0 +1,66 @@
+---
+title: "Workflows and runs"
+sidebarTitle: "Workflows & Runs"
+description: "A workflow defines reusable work in your repository. A run records one use of that definition from start to finish."
+---
+
+A **workflow** is a reusable definition of work. It says what can start the
+work, which jobs and steps should run, and where agents or checks fit.
+
+A **run** is one use of that workflow. It keeps the starting event, progress,
+logs, agent activity, outputs, and final result.
+
+You change the workflow. You inspect each run.
+
+## Workflows are definitions
+
+Workflows are YAML files under `.shipfox/workflows/` in a connected repository.
+Keeping them with the code means changes can go through pull requests, appear
+in diffs, and roll back with a revert.
+
+Shipfox syncs each `.yml` or `.yaml` file into a workflow definition. A sync
+changes what the next run can do. It does not start a run by itself.
+
+The sync reads the repository's default branch. It moves through pending,
+syncing, succeeded, or failed states. A failed sync creates no replacement
+definition. The Workflows page shows the failure so you can correct the file or
+connection. See [Troubleshoot workflow sync](/how-to/run-and-troubleshoot/workflow-sync)
+for the recovery path.
+
+The exact file shape lives in the
+[workflow schema](/reference/workflow-schema).
+
+## A trigger creates a run
+
+An [event trigger](/understand/events-and-triggers) creates a run when its source,
+event name, and optional filter match. A manual start also uses a trigger whose
+source is `manual`. A workflow without that trigger cannot be started manually.
+
+The run uses the definition that was current when it began. Editing the YAML
+affects the next run, not one already in progress. Each old run keeps its own
+history.
+
+## A run is the record
+
+A run has its own status and outcome. It also keeps the context that made the
+work start, such as the event payload and manual inputs.
+
+While the run is active, its detail shows which job or step is waiting,
+running, retrying, skipped, or done. After it finishes, the same page keeps the
+process logs, agent sessions, outputs, and result for later review.
+
+Retention and size rules live in [Limits](/reference/limits#logs).
+
+## Cancellation and later attempts
+
+An active run can be cancelled. Shipfox stops work that has not finished and
+keeps the attempt in the run history instead of deleting it.
+
+A terminal run can start another attempt. Re-running all jobs starts the graph
+again. Re-running failed jobs carries successful jobs and their outputs forward,
+then starts every job that did not succeed. Every attempt stays available from
+the same run.
+
+The new attempt uses the materialized definition from the run, not newer YAML
+that may have synced since the run began. Start a new run when you need the latest
+workflow definition. See [Cancel or re-run a workflow](/how-to/run-and-troubleshoot/cancel-and-rerun).

@@ -1,0 +1,35 @@
+---
+title: "Troubleshoot Events That Do Not Start a Shipfox Run"
+sidebarTitle: "Event Routing"
+description: "Use the workspace event journal to separate delivery failures, source mismatches, filter results, and run-creation errors."
+---
+
+Use this guide when an external event should have started a workflow but no run
+appeared.
+
+## Find the delivered event
+
+Open **Settings → Events** in the workspace. Filter by source, event name, time,
+or result, then select the event.
+
+If the event is absent, verify the integration or webhook delivery before
+changing workflow YAML. Shipfox cannot route a signal it did not receive.
+
+## Read the routing result
+
+- **Triggered** links to every run the event created.
+- **No workflows triggered** means delivery succeeded but no current trigger
+  matched.
+- **Failed** means Shipfox received the event but could not finish evaluating or
+  creating matched work.
+- **Evaluating** means routing has not reached a final result yet.
+
+For a no-match result, compare the event detail with the workflow trigger:
+
+1. `source` must equal the connection slug shown on the event.
+2. `event` must equal the delivered event name.
+3. `filter`, when present, must evaluate to true for the displayed payload.
+4. The workflow definition must have synced before the event arrived.
+
+Correct the trigger, push it, wait for a successful sync, then send a new event.
+Events are not replayed automatically after a workflow changes.

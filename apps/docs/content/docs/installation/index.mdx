@@ -4,9 +4,9 @@ sidebarTitle: "Overview"
 description: "How to run Shipfox: evaluate locally, self-host on your own infrastructure, or use managed cloud. An overview of the components and the setup paths."
 ---
 
-Shipfox has two parts to stand up: a **control plane** — the API and dashboard, backed
-by PostgreSQL, Temporal, and S3-compatible object storage — and one or more **runners**
-that execute jobs on compute you own. This section is for whoever operates that
+Shipfox has two parts to stand up: a **control plane** and one or more **runners**.
+The control plane contains the API and dashboard, backed by PostgreSQL, Temporal,
+and S3-compatible object storage. Runners execute jobs on compute you own. This section is for whoever operates that
 infrastructure, typically a platform, DevEx, or SRE team.
 
 <Callout type="info">
@@ -22,7 +22,7 @@ infrastructure, typically a platform, DevEx, or SRE team.
 | PostgreSQL | Primary datastore for Shipfox state |
 | Temporal | Workflow orchestration engine used internally |
 | Object storage | S3-compatible storage for step-log artifacts |
-| Runners | Processes on your compute that execute jobs — see [Runners](/operations/runners) |
+| Runners | Processes on your compute that execute jobs. See [Runners](/operations/runners). |
 
 ## Choose a path
 
@@ -40,6 +40,6 @@ infrastructure, typically a platform, DevEx, or SRE team.
     Deploy on a Kubernetes cluster. Coming soon.
   </Card>
   <Card title="Managed cloud" href="/installation/cloud">
-    Shipfox runs the control plane; you only configure and connect runners. Coming soon.
+    Shipfox runs the control plane. You only configure and connect runners. Coming soon.
   </Card>
 </Cards>

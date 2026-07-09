@@ -1,0 +1,37 @@
+---
+title: "Inspect and Group Shipfox Step Logs"
+sidebarTitle: "Inspect Logs"
+description: "Follow live command output and agent sessions, group long logs, and recognize truncated output."
+---
+
+Open a run, select a job execution, then select a step. Run steps show stdout and
+stderr. Agent steps show messages, tool calls, tool results, token use, cost, and
+the final response.
+
+## Group long command output
+
+Print group markers on their own lines from a run step:
+
+```bash
+echo "::group::Install dependencies"
+npm ci
+echo "::endgroup::"
+
+echo "::group::Run tests"
+npm test
+echo "::endgroup::"
+```
+
+The run detail renders each group as a collapsible section. Groups can nest when
+one pair of markers appears inside another.
+
+## Check attempts and truncation
+
+When a feedback loop restarts a step, use the step-attempt selector to compare
+the old failure with the latest attempt. When a workflow is re-run, use the run
+attempt selector near the run title.
+
+Shipfox marks a log stream as truncated when output exceeds its budget or the
+runner cannot finish draining it. A truncated stream is incomplete. It does not
+by itself change the step result. Exact budgets and retention live in
+[Limits](/reference/limits#logs).

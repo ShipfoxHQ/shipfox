@@ -1,43 +1,88 @@
 ---
 title: "Expressions and Interpolation (CEL)"
 sidebarTitle: "Expressions (CEL)"
-description: "Shipfox evaluates CEL expressions in gates and job success, and resolves ${{ }} template interpolation in run commands, env, and prompts using run and trigger context."
+description: "Shipfox evaluates CEL in trigger filters, if conditionals, gates, and job success, and resolves ${{ }} templates in commands, env, prompts, and outputs from staged run context."
 ---
 
-Shipfox uses [CEL (Common Expression Language)](https://cel.dev) in two places:
-**predicates** that decide an outcome (a gate, a job's success), and **template
-interpolation** — the `${{ }}` syntax that injects run and trigger context into your
-step values. Both are evaluated by the same read-only CEL engine: expressions can
-compute over the data in scope, but they cannot read secrets, the database, the
-network, or the filesystem.
+Shipfox uses [CEL (Common Expression Language)](https://cel.dev) in two roles.
+**Predicates** decide an outcome: does this event fire the trigger, does this
+job or step run, did a gated step succeed. **Templates** produce strings: the
+`${{ }}` syntax fills run context into prompts, commands, env values, names,
+and outputs. Both roles use the same read-only engine: expressions compute
+over the data in scope, and they cannot reach the database, the network, or
+the filesystem.
+
+One rule separates the two roles. **Templates may read your configuration, but
+predicates read run state only.** A template can inject `${{ vars.API_URL }}`
+into a prompt, and a run step can bind `${{ secrets.NPM_TOKEN }}` into its
+env. A predicate (`filter`, `if`, `gate.success`, job `success`) can see the
+event, step results, and outputs, but never a variable or a secret. This keeps
+decisions reproducible from run state and keeps secret values out of every
+evaluation path.
 
 ## The CEL engine
 
-Expressions support CEL's standard value types — integers, strings, booleans, lists,
-and maps — and its standard operators (`==`, `!=`, `<`, `>`, `&&`, `||`, `!`, `in`,
-arithmetic) and macros (`.map()`, `.filter()`, `.all()`, `.exists()`) plus string
-helpers like `.contains()`, `.startsWith()`, and `.endsWith()`. There are no custom
-functions and no side effects.
+Expressions support CEL's standard value types (integers, strings, booleans,
+lists, maps), its standard operators (`==`, `!=`, `<`, `>`, `&&`, `||`, `!`,
+`in`, arithmetic) and macros (`.map()`, `.filter()`, `.all()`, `.exists()`),
+plus string helpers like `.contains()`, `.startsWith()`, and `.endsWith()`.
+There are no custom functions and no side effects.
 
 ## Predicates
 
-### Gate success — `gate.success`
+### Trigger filters
 
-Evaluated on a gated step the moment it finishes. In scope: `step.exit_code`
-(an integer) and `step.status` (a string). See [Gates](/concepts/gates) for the
-full gate model.
+A trigger's `filter` runs when the event arrives, before any run is created.
+In scope: `event` (the payload) and `trigger` (`source` and `event`). A false
+result skips the event. An expression error **fails closed**: the trigger does
+not fire. The same filter shape applies to a listening job's `on` and `until`
+entries.
+
+```yaml
+triggers:
+  on_main_push:
+    source: github_acme
+    event: push
+    filter: event.ref == "refs/heads/main"
+```
+
+### Conditionals: `if`
+
+Jobs and steps accept an `if:` field holding exactly one `${{ }}`-wrapped CEL
+boolean. When it is false, the job or step is marked **skipped**, not failed.
+An evaluation error also skips, recorded with a distinct reason.
+
+```yaml
+jobs:
+  deploy:
+    if: ${{ event.ref == "refs/heads/main" }}
+    steps:
+      - key: build
+        run: ./build.sh
+        outputs:
+          artifact_count: number
+      - run: ./deploy.sh
+        if: ${{ steps.build.outputs.artifact_count > 0 }}
+```
+
+### Gate success: `gate.success`
+
+Evaluated the moment a gated step finishes. In scope: `step.exit_code` (an
+integer), `step.status` (a string), and `step.outputs` (the step's declared
+outputs). See [Feedback loops](/understand/feedback-loops) for the full gate
+model.
 
 ```yaml
 gate:
-  success: "step.exit_code == 0"
+  success: step.exit_code == 0
 ```
 
-### Job success — `success`
+### Job success: `success`
 
-A job's optional `success` expression decides whether the job succeeded once all its
-step executions have settled. In scope is `executions` — a list of
-`{index, status}` — so you can express partial-success rules. The default, applied
-when you omit `success`, is:
+A job's optional `success` expression decides whether the job succeeded once
+all its executions settle. In scope is `executions`, a list where each element
+carries `index`, `name`, `status`, `failed`, `outputs`, and timing fields. The
+default, applied when you omit `success`, is:
 
 ```yaml
 jobs:
@@ -47,75 +92,99 @@ jobs:
       - run: ./maybe-flaky.sh
 ```
 
-## Template interpolation — `${{ }}`
+## Templates: `${{ }}`
 
-Interpolation injects run and trigger context into step values. Expressions are
-resolved **when a run is created**, before any runner sees the step, and the
-resolved values are what execute.
+Interpolation fills run context into string values. It works in:
+
+- `run` commands and `env` values (run steps)
+- agent `prompt`, `model`, and `provider`
+- job `runner`, `name`, and `outputs`
+- step `name` and gate `on_failure.feedback`
+
+To write a literal `${{`, escape it as `$${{`.
+
+**Resolution is staged.** Each reference resolves at the moment its data
+exists: `event`, `inputs`, and `vars` when the run is created, `needs` and
+`jobs` when the job starts, `steps.*` and `step.*` when the step is
+dispatched, and gate `feedback` when the gate fails. You just write the reference.
+Shipfox fills it as late as needed. A reference that cannot resolve fails the
+run or step with a typed error instead of passing empty text through.
 
 ```yaml
 jobs:
   build:
     env:
-      RUN_ID: "${{ run.id }}"
       SOURCE: "${{ trigger.source }}"
     steps:
       - run: echo "Building for ${{ trigger.event }}"
       - prompt: "Investigate the event that triggered this run: ${{ event.title }}"
 ```
 
-Interpolation is supported in **`run` commands**, **`env` values**, and **agent
-`prompt`s**. To write a literal `${{`, escape it as `$${{`.
-
 ### Context available
 
-| Context | Fields | Trust |
-|---|---|---|
-| `run` | `id`, `name`, `definition_id`, `project_id`, `workspace_id`, `created_at` | Trusted |
-| `trigger` | `source`, `event` | Trusted |
-| `job` | `name` | Trusted |
-| `event` | The trigger's raw event payload (open shape — e.g. `event.ref`, `event.action`, `event.body`) | Untrusted |
-| `inputs` | Values passed through a trigger's `with` block (open shape) | Untrusted |
+| Root | Holds | Trust | Available from |
+|---|---|---|---|
+| `run` | `id`, `name`, `definition_id`, `project_id`, `workspace_id`, `created_at` | Trusted | Run creation |
+| `trigger` | `source`, `event` | Trusted | Run creation |
+| `event` | The trigger's raw event payload (open shape, e.g. `event.ref`, `event.title`) | Untrusted | Run creation |
+| `inputs` | Values from the trigger's `with` block (open shape) | Untrusted | Run creation |
+| `vars` | Workspace/project [variables](/reference/secrets-variables), literal keys only | Trusted | Run creation |
+| `needs` | List of direct dependency jobs with their status and outputs | Untrusted | Job start |
+| `jobs` | Named upstream jobs with their status and outputs | Untrusted | Job start |
+| `execution` | Current job execution metadata and its listening-job events | Trusted (event data untrusted) | Job execution |
+| `steps.<key>` | Earlier steps' `status`, `exit_code`, `outputs`, `attempts` | Trusted (outputs untrusted) | Step dispatch |
+| `step` | `attempt`, `is_retry`, `restart.from`, `restart.feedback` | Trusted | Step dispatch |
+| `secrets` | Workspace/project [secrets](/reference/secrets-variables), literal keys only | Runner-only | Run-step `run` and `env` values only |
 
 <Callout type="info">
-  **Untrusted context can't select infrastructure.** `event` and `inputs` carry
-  data from outside your workspace, so they may be used in `env`, `run`, and
-  `prompt` values but **not** to choose an agent's `model` or `provider`, which
-  accept trusted context only.
+  **Untrusted context can't select infrastructure.** `event`, `inputs`,
+  `execution.events`, and outputs carry data from outside your control. They may
+  flow into `env` and `prompt` values, but **not** directly into `run` commands
+  or into an agent's `model`, `provider`, or `thinking` fields. Bind outside data
+  to `env` before using it in a shell command.
 </Callout>
 
-### Interpolation inside `run` commands
+### Secrets and variables
 
-For safety, values interpolated into a `run` command are passed to the shell through
-generated environment variables rather than spliced into the command text. You write
-`echo "${{ run.id }}"` as normal; Shipfox rewrites it to reference a generated
-variable holding the resolved value, so event-derived data can't inject shell syntax.
+`${{ vars.KEY }}` resolves server-side when the run is created and works in
+every template site. `${{ secrets.KEY }}` never resolves on the server: it is
+allowed only in a run step's `run` command or `env` values, and the runner
+pulls the value just before the step executes. Neither works in predicates.
+The full model lives in [Secrets and variables](/reference/secrets-variables).
 
-## Trigger filters are not evaluated yet
+### Inside `run` commands
 
-A trigger's `filter` also accepts a CEL expression (over the event, e.g.
-`event.ref == "refs/heads/main"`), but it is **parsed and stored, not evaluated** — every
-matching `(source, event)` fires the trigger today. See
-[Triggers](/concepts/triggers). To gate on event data now, branch inside a `run`
-step or interpolate the value and check it there.
+Trusted values can be interpolated into a `run` command. Untrusted values from
+events, inputs, listening events, or outputs are rejected there. Bind an
+untrusted value to `env`, then quote the shell variable in the command. This
+keeps outside data separate from shell code.
+
+### Outputs
+
+Steps declare typed outputs and later steps or jobs read them through
+`steps.<key>.outputs` and `needs`/`jobs`. The authored shape and the runtime
+mechanics live in [Step outputs](/reference/workflow-schema#step-outputs). The
+mental model lives in [Data and templating](/understand/data-and-templating).
 
 ## Shipped vs. roadmap
 
 | Feature | Status |
 |---|---|
-| `gate.success` (CEL over `step.exit_code`) | ✅ Shipped |
-| Job `success` (CEL over `executions`) | ✅ Shipped |
-| `${{ }}` interpolation in `run`, `env`, `prompt` | ✅ Shipped |
-| Trigger `filter` evaluation | 🔜 Roadmap |
+| Trigger `filter` evaluation | ✅ Shipped |
+| `if` conditionals on jobs and steps | ✅ Shipped |
+| `gate.success` (exit code, status, outputs) and job `success` | ✅ Shipped |
+| `${{ }}` templates in commands, env, prompts, names, outputs, feedback | ✅ Shipped |
+| Step and job `outputs` | ✅ Shipped |
+| `${{ vars.* }}` and `${{ secrets.* }}` | ✅ Shipped |
 | `loop`, `matrix`, `branch` | 🔜 Roadmap |
 
 ## Related pages
 
 <Cards>
-  <Card title="Gates" href="/concepts/gates">
-    Where `gate.success` decides a step outcome.
-  </Card>
   <Card title="Workflow schema" href="/reference/workflow-schema">
     The full YAML schema these expressions live in.
+  </Card>
+  <Card title="Data and templating" href="/understand/data-and-templating">
+    The mental model: what data flows through a run, and why the rules exist.
   </Card>
 </Cards>

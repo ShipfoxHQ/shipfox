@@ -4,15 +4,15 @@ sidebarTitle: "Overview"
 description: "Connect GitHub, Sentry, and custom webhooks to Shipfox so their events can trigger workflows. Each connection has a slug you reference as a trigger source."
 ---
 
-An **integration** connects an external system — GitHub, Sentry, or a custom
-webhook endpoint — to your Shipfox workspace so its events can start workflow
+An **integration** connects an external system, such as GitHub, Sentry, or a custom
+webhook endpoint, to your Shipfox workspace so its events can start workflow
 runs. You connect an integration once in your workspace, and every project in that
 workspace can trigger workflows from it.
 
 ## Connections and slugs
 
 Connecting an integration creates a **connection**. Each connection has a **slug**
-— a short, stable identifier that you put in a trigger's `source` field. The slug
+- a short, stable identifier that you put in a trigger's `source` field. The slug
 is how a workflow says *which* connection an event must come from.
 
 ```yaml
@@ -30,8 +30,8 @@ triggers:
   connection slug, the trigger is stored but never fires.
 </Callout>
 
-Slugs also let one workspace hold **several connections of the same provider** —
-for example a `github_acme` org connection and a `github_acme-labs` connection —
+Slugs also let one workspace hold **several connections of the same provider** -
+for example a `github_acme` org connection and a `github_acme-labs` connection -
 and target each independently from different workflows.
 
 ## Available integrations
@@ -41,13 +41,13 @@ and target each independently from different workflows.
 | [GitHub](/integrations/github) | ✅ Shipped | `push` and other repository events |
 | [Sentry](/integrations/sentry) | ✅ Shipped | `issue.created`, `issue.resolved`, `issue.assigned`, `issue.archived`, `issue.unresolved` |
 | [Custom webhook](/integrations/webhooks) | ✅ Shipped | `received` |
-| [Linear](/integrations/linear) | 🚧 Coming soon | — |
-| [Slack](/integrations/slack) | 🚧 Coming soon | — |
-| GitLab | 🔜 Roadmap | — |
+| [Linear](/integrations/linear) | 🚧 Coming soon | Not available |
+| [Slack](/integrations/slack) | 🚧 Coming soon | Not available |
+| GitLab | 🔜 Roadmap | Not available |
 
-The built-in **`manual`** source needs no integration — it fires when you click
-**Run** in the dashboard or call the API. See [Triggers](/concepts/triggers) for
-its schema.
+The built-in **`manual`** source needs no integration. It fires when you click
+**Run** in the dashboard or call the API. See
+[Events and triggers](/understand/events-and-triggers) for its schema.
 
 ## The trigger contract
 
@@ -58,16 +58,16 @@ ones:
 | --- | --- | --- |
 | `source` | `string` | **Required.** The **connection slug** the event must come from (for example `github_acme`). |
 | `event` | `string` | **Required.** The event name from that source (for example `push` or `issue.created`). The event names each integration emits are listed on its page. |
-| `filter` | `string` | A CEL expression intended to narrow which events fire the trigger. **Parsed but not yet evaluated** — today every event matching `(source, event)` fires, regardless of the filter. Authoring one now is safe and forward-compatible. |
-| `with` | `object` | Optional source-specific configuration. May be omitted for most sources. |
+| `filter` | `string` | A CEL expression that narrows which events fire the trigger, evaluated when the event arrives. A false result skips the event; an expression error fails closed (no run). See [Expressions](/reference/expressions#trigger-filters). |
+| `with` | `object` | Fixed inputs recorded on every run created by this trigger. Steps read them through `inputs`. |
 
 ## Finding your connection slug
 
 The slug is `<provider>_<account>`, lowercase: connecting the GitHub account
 `acme` creates `github_acme`. Your workspace's integration settings
-(**Settings → Integrations**) show each connection's display name — for example
+(**Settings → Integrations**) show each connection's display name, for example
 "GitHub acme" for the slug `github_acme`. The workspace's **Settings → Events**
-page records every event a connection delivers; an event that shows **No
+page records every event a connection delivers. An event that shows **No
 workflows triggered** usually means the `source` in your workflow does not match
 the connection's slug.
 
@@ -77,7 +77,7 @@ the connection's slug.
 
 ## Webhook payloads
 
-Shipfox does not maintain a reference for each provider's webhook payload shape —
+Shipfox does not maintain a reference for each provider's webhook payload shape -
 those are owned by the provider and can change. Each integration page links to the
 provider's own webhook documentation for the full payload. Shipfox forwards the
 raw event to the run so your steps can read whatever the provider sent.

@@ -1,0 +1,81 @@
+---
+title: "How Shipfox works"
+sidebarTitle: "How Shipfox Works"
+description: "Learn how Shipfox turns events into visible, repeatable work with workflows, jobs, commands, and coding agents."
+---
+
+Shipfox automates engineering work with **workflows** stored in your
+repository. An event starts a run, jobs divide the work, and each job runs
+ordered steps on a matching runner.
+
+If you have used GitHub Actions, much of this model is familiar. Shipfox adds
+three things:
+
+- A step can ask a coding agent to do work that needs judgment.
+- A feedback loop can send work back until a real check passes.
+- A listening job can react to outside input without creating another run.
+
+This workflow shows the common path. A Sentry issue starts a run, an agent fixes
+the code, and the test suite decides whether the work is ready:
+
+```yaml
+name: Fix a Sentry issue
+runner: ubuntu-latest
+
+triggers:
+  on_issue:
+    source: sentry_acme # Replace with your Sentry connection slug.
+    event: issue.created
+
+jobs:
+  fix:
+    steps:
+      - key: fix
+        prompt: >
+          Sentry reported "${{ event.title }}". Reproduce the error in this
+          repository and fix the cause.
+
+      - run: npm test
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: fix
+```
+
+Read it from top to bottom:
+
+- The **trigger** matches an issue from the `sentry_acme` connection and creates
+  one run.
+- The **job** groups the work and sends it to a runner with the
+  `ubuntu-latest` label.
+- The **agent step** gets the issue title, the checked-out repository, and a
+  goal.
+- The **run step** executes the project test command.
+- The **gate** checks the exit code. A failed check restarts the agent step. A
+  passing check lets the job finish.
+
+## The model at a glance
+
+Read the first five pages to learn the base model. The last three show how work
+can use judgment, try again, and wait for people.
+
+| Concept | What it answers |
+| --- | --- |
+| [Workspaces and projects](/understand/workspaces-and-projects) | What is shared by a team, and what stays tied to one repository? |
+| [Workflows and runs](/understand/workflows-and-runs) | What is defined in the repository, and what is recorded each time it runs? |
+| [Events and triggers](/understand/events-and-triggers) | What outside signal creates a run? |
+| [Jobs and steps](/understand/jobs-and-steps) | How is work divided, ordered, isolated, and placed on runners? |
+| [Data and templating](/understand/data-and-templating) | How does context enter, and how do results move forward? |
+| [Agents](/understand/agents) | When should a step use judgment instead of a fixed command? |
+| [Feedback loops](/understand/feedback-loops) | How can a real check send unfinished work back? |
+| [Listening jobs](/understand/listening-jobs) | How can the same run react when outside input arrives later? |
+
+Each run keeps the status, logs, agent sessions, outputs, and final result from
+that piece of work. The dashboard uses the same shape as the workflow. You can
+see what is waiting, running, trying again, or done.
+
+<Cards>
+  <Card title="Run a workflow" href="/getting-started">
+    Connect a repository and start your first run.
+  </Card>
+</Cards>

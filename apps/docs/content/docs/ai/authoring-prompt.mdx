@@ -4,7 +4,7 @@ sidebarTitle: "Authoring Prompt"
 description: "Copy and paste this compact Shipfox workflow schema cheat sheet into Claude, ChatGPT, Cursor, or any coding agent to get valid workflow YAML every time."
 ---
 
-No matter which coding agent you use, you can get valid Shipfox workflow YAML by pasting this prompt into your session. It contains the complete shipped schema, the hard validation rules, the today/roadmap boundary, and two correct examples — the same content as the skills package, in a single paste.
+No matter which coding agent you use, you can get valid Shipfox workflow YAML by pasting this prompt into your session. It contains the complete shipped schema, the hard validation rules, the today/roadmap boundary, and two correct examples; the same content as the skills package, in a single paste.
 
 ## The prompt
 
@@ -19,29 +19,47 @@ jobs (required). Unknown keys are rejected.
 Trigger { source, event, filter?, with? }. For integrations, source is the
 CONNECTION SLUG (e.g. github_<org>, sentry_<org>, or your webhook slug), not the
 bare provider name; for on-demand runs it is literally "manual". Shipped events:
-manual/fire, github push (+ other GitHub events), sentry issue.(created|resolved|
-assigned|archived|unresolved), custom-webhook/received. At most one manual
-trigger.
+manual/fire, github push plus any other GitHub webhook as <event>.<action>
+(e.g. pull_request_review_comment.created), sentry issue.(created|resolved|
+assigned|archived|unresolved), custom-webhook/received. filter is CEL over the
+event payload, evaluated when the event arrives (false skips it; an error fails
+closed). At most one manual trigger, and manual triggers cannot have filter.
+with values surface to steps as ${{ inputs.* }}.
 
-Job { steps (>=1), needs?, runner?, env? }. Jobs run in parallel; each is isolated
-and re-clones the repo (install deps per job).
+Job { steps (>=1), needs?, runner?, env?, if?, outputs?, execution_timeout?,
+listening?, name? }. Jobs run in parallel; each is isolated and re-clones the
+repo (install deps per job). if is exactly one ${{ }}-wrapped CEL boolean;
+false marks the job skipped. Job outputs values are ${{ }} templates over
+steps.<key>.outputs. listening { on (trigger[]), until? (trigger[]), timeout?,
+max_executions?, batch? {debounce, max_size, max_wait}, on_resolve?
+(finish|cancel) } makes the job fire one execution per matching event batch;
+it must declare at least one of until/timeout/max_executions.
 
-Step is a run step { run, key?, name?, env?, gate? } OR an agent step
-{ prompt, model?, harness?, thinking?, provider?, key?, name?, gate? } — never
-both; agent requires prompt; env is run-only. key identifies a step; name is
-display-only. harness is "pi" (default) or "claude". thinking depends on the
-harness — pi: off|minimal|low|medium|high|xhigh; claude: low|medium|high|xhigh|
-max; default xhigh.
+Step is a run step { run, key?, name?, if?, env?, outputs?, gate? } OR an agent
+step { prompt, model?, harness?, thinking?, provider?, key?, name?, if?,
+outputs?, gate? }; never both; agent requires prompt; env is run-only. key
+identifies a step; name is display-only. harness is "pi" (default) or "claude".
+thinking depends on the harness (pi: off|minimal|low|medium|high|xhigh; claude:
+low|medium|high|xhigh|max; default xhigh).
 
-gate (run or agent steps) { success: "<CEL over step.exit_code>", on_failure: {
-restart_from: "<earlier step's key — NOT its name>", feedback?: "<message>" } }.
-Example: success: step.exit_code == 0. Restarts are capped (3 attempts per
-gating step) before the job fails.
+outputs declares typed values, e.g. outputs: { count: number, report: json }.
+A run step emits key=value lines to the file named by $SHIPFOX_OUTPUT; an agent
+step calls its set_output tool. Later expressions read
+${{ steps.<key>.outputs.<name> }} and ${{ needs.<job>.outputs.<name> }}.
 
-${{ }} interpolation IS supported in run/env/prompt, resolved at run creation from
-run/trigger/event/inputs context (e.g. ${{ trigger.source }}). Do NOT use (not
-shipped): loop, matrix, branch, structured output, reusable agents. filter isn't
-evaluated yet. event.ref on a push is the full Git ref (e.g. "refs/heads/main").
+gate (run or agent steps) { success?: "<CEL over step.exit_code, step.status,
+step.outputs>", on_failure?: { restart_from: "<earlier step's key, NOT its
+name>", feedback?: "<message, may use ${{ }}>" } }. Example: success:
+step.exit_code == 0. The restarted step reads ${{ step.restart.feedback }}.
+Restarts are capped (3 attempts per gating step) before the job fails.
+
+${{ }} templates work in run/env values/prompt/model/provider/names/job
+outputs/gate feedback, filled from run/trigger/event/inputs/vars/steps/needs
+context as each becomes available. ${{ vars.KEY }} is workspace config, usable
+in any template site. ${{ secrets.KEY }} is usable ONLY in a run step's run or
+env; never in prompts or predicates. Predicates (filter/if/gate.success/job
+success) cannot read vars or secrets. Do NOT use (not shipped): loop, matrix,
+branch. event.ref on a push is the full Git ref (e.g. "refs/heads/main").
 ```
 
 ## How to use it
@@ -63,7 +81,7 @@ evaluated yet. event.ref on a push is the full Git ref (e.g. "refs/heads/main").
 
     **Ask for your workflow**
 
-    Describe what you want — for example: "Add a Shipfox workflow that runs my tests on every GitHub push and then asks Claude to review the results."
+    Describe what you want, for example: "Add a Shipfox workflow that runs my tests on every GitHub push and then asks Claude to review the results."
   </Step>
   <Step>
 
@@ -77,16 +95,17 @@ evaluated yet. event.ref on a push is the full Git ref (e.g. "refs/heads/main").
 
 The prompt is deliberately compact but complete. It covers every dimension of the shipped schema:
 
-- **Top-level schema fields** — `name`, `runner`, `env`, `triggers`, `jobs`, and which keys are rejected
-- **Trigger sources (shipped today)** — `manual`, plus integration connection slugs for GitHub (`push`), Sentry (`issue.*`), and custom webhooks (`received`)
-- **Job isolation and `needs` ordering** — parallel execution, repo re-cloning, and dependency chaining
-- **Step kinds: run vs. agent** — the two mutually exclusive step shapes and their allowed fields
-- **Gate / restart_from rules** — CEL expressions over `step.exit_code` and how to wire restart targets
-- **Hard rules** — no `loop`/`matrix`/`branch`, `env` is run-only, at most one manual trigger
-- **The today/roadmap boundary** — an explicit list of features not to use, so the agent doesn't hallucinate roadmap keys
+- **Top-level schema fields**: `name`, `runner`, `env`, `triggers`, `jobs`, and which keys are rejected
+- **Trigger sources (shipped today)**: `manual`, plus integration connection slugs for GitHub (`push` and other events), Sentry (`issue.*`), and custom webhooks (`received`), with evaluated CEL `filter`s
+- **Job isolation, `needs`, `if`, and `outputs`**: parallel execution, repo re-cloning, conditionals, and data passing
+- **Listening jobs**: the `listening` block that fires one execution per event batch until resolved
+- **Step kinds: run vs. agent**: the two mutually exclusive step shapes, their allowed fields, and typed step `outputs`
+- **Gate / restart_from rules**: CEL over exit code, status, and outputs, plus restart feedback
+- **Data rules**: `${{ vars.* }}` everywhere, `${{ secrets.* }}` in run-step run/env only, no vars or secrets in predicates
+- **The today/roadmap boundary**: an explicit list of features not to use (`loop`, `matrix`, `branch`), so the agent doesn't hallucinate roadmap keys
 
 <Callout type="info">
-  For ongoing workflow authoring, install the skills package (`npx skills add shipfox/agent-skills`) so your agent always has the latest schema — no pasting required. See [Skills Package](/ai/skills-package).
+  For ongoing workflow authoring, install the skills package (`npx skills add shipfox/agent-skills`) so your agent always has the latest schema; no pasting required. See [Skills Package](/ai/skills-package).
 </Callout>
 
 ## Example exchange

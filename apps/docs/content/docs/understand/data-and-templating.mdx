@@ -1,0 +1,149 @@
+---
+title: "Data and templating"
+sidebarTitle: "Data & Templating"
+description: "Learn where run data comes from, how one step or job passes a result to the next, and where credentials are safe to use."
+---
+
+A workflow does not have one shared bag of values. Everything has a source, a
+time when it becomes available, and places where it is safe to use.
+
+Before you connect one part of a workflow to another, ask two questions. Where
+did this come from? Is it safe to use here? The first answer shows what to read.
+The second shows where you may put it. Shipfox checks source and trust rules
+when it syncs the workflow. Values that become available later resolve only
+when the run reaches the step or job that needs them.
+
+Data follows three paths through a run:
+
+- **Context comes in.** Events, manual inputs, and variables describe the work.
+- **Results move forward.** A step or job can pass its result to later work.
+- **Secrets stay at the runner.** Credentials reach only the command that needs
+  them.
+
+Jobs do not share a filesystem or process environment. When later work needs
+something, pass it as an output rather than relying on files or shell state
+left by an earlier job.
+
+## Choose the right source
+
+Start with what you need. That tells you which source to read.
+
+| You need | Read from |
+| --- | --- |
+| The event that started the run | `event` |
+| Values supplied by the trigger or manual start | `inputs` |
+| Workspace or project configuration | `vars` |
+| Events that woke a listening job | `execution.events` |
+| A result from an earlier step in the same job | `steps.<key>.outputs` |
+| A result published by an upstream job | `jobs.<job>.outputs` |
+| A password, token, or private key | `secrets` |
+
+These choices are not interchangeable. A variable holds settings, not a result
+from earlier work. A secret grants access, not general storage. An output
+records what the run produced.
+
+## Templates carry values
+
+A `${{ }}` template fills part of a workflow. It can add an event title to a
+prompt, bind a job output to an environment variable, or use a workspace
+variable in a display name.
+
+Templates resolve in stages. The starting event exists when the run is created.
+An upstream result exists only after that job finishes. A step result exists
+only after the step reports it. Shipfox fills each template when its source is
+ready.
+
+The [expressions reference](/reference/expressions#context-available) lists the
+context available at each stage and every field that accepts a template.
+
+## Predicates make decisions
+
+A template produces text. A **predicate** produces `true` or `false` and
+controls what the workflow does.
+
+| | Template | Predicate |
+| --- | --- | --- |
+| Purpose | Fill in text or settings | Decide whether something happens or passes |
+| Example | Put an issue title in a prompt | Run a job only for the default branch |
+| Workspace settings | Can read variables where allowed | Cannot read variables or secrets |
+
+Filters, `if` conditions, gates, and job success rules are predicates. They
+read recorded run state, such as an event or step result. Keeping workspace
+configuration out of decisions means the same recorded state leads to the same
+outcome.
+
+## Outputs move results forward
+
+This is an explicit contract between pieces of work. A step declares the name
+and type of what it produces. A job can publish what it made to any job that
+depends on it.
+
+```yaml
+name: Pass a version between jobs
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  package:
+    outputs:
+      version: ${{ steps.read_version.outputs.version }}
+    steps:
+      - key: read_version
+        run: echo "version=$(git describe --tags --always)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          version: string
+
+  publish:
+    needs: package
+    steps:
+      - env:
+          VERSION: "${{ jobs.package.outputs.version }}"
+        run: printf 'Publishing version %s\n' "$VERSION"
+```
+
+The `read_version` step declares `version` and writes it to `$SHIPFOX_OUTPUT`.
+The `package` job publishes it. The `publish` job reads it through `jobs` after
+its `needs` dependency finishes.
+
+This is the main reason to declare outputs. A reader can see what crosses the
+job boundary, and Shipfox can wait for the right work to finish. Nothing
+depends on a file that may not be there or an environment variable that only
+existed in another process.
+
+The publish step binds the output to `env` before using it in the command. The
+result may come from code, tools, or a model, so it stays untrusted after its
+type is checked. A type proves its shape. It does not prove that the result is
+safe to place directly into shell code.
+
+A run step writes each declared output to `$SHIPFOX_OUTPUT`. An agent step
+receives a `set_output` tool for each declared key. Use this path for small
+scalar or JSON results, not files. Put build artifacts in external storage.
+Exact types and size limits live in the
+[step outputs reference](/reference/workflow-schema#step-outputs).
+
+## Trust controls where data can go
+
+Events, inputs, listener input, and what earlier work made can come from outside
+the workflow. They can guide a prompt or be bound to an environment variable. They
+cannot be placed directly in a `run` command or choose an agent model,
+provider, or thinking level.
+
+For shell commands, bind outside data to `env` and quote the shell variable, as
+the example does with `VERSION`. This keeps data separate from command text.
+
+Variables are trusted because workspace members control them. Use
+`${{ vars.KEY }}` for a non-sensitive target URL, environment name, or feature
+flag. They are readable and resolve on the server. Trusted does not mean
+shell-escaped. Quote them when a shell command uses them.
+
+Secrets are runner-only credentials. Use `${{ secrets.KEY }}` only in a run
+step's `run` or `env` field. A secret never enters an agent prompt or a
+predicate. Give agents supported external capabilities through scoped
+integration tools. Use a run step when a shell command needs the secret itself.
+
+The full storage, masking, and resolution rules live in
+[Secrets and variables](/reference/secrets-variables).

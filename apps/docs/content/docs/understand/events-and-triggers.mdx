@@ -1,0 +1,87 @@
+---
+title: "Events and triggers"
+sidebarTitle: "Events & Triggers"
+description: "Events are signals from connected tools. Triggers match those signals and create workflow runs."
+---
+
+An **event** is a signal from a connected tool. A push lands, an issue opens,
+or a webhook arrives.
+
+A **trigger** is the workflow rule that decides which of those signals should
+create a run. Use one when outside activity should start new work.
+
+The source answers where the signal came from. The event name answers what
+happened. The trigger joins the two and says whether to start work.
+
+This gives each rule one clear job. It can answer yes or no and leave the event
+as it is.
+
+## A source identifies the connection
+
+For an integration, `source` is the connection slug, not the provider name. A
+GitHub connection might be `github_acme`, while a Sentry connection might be
+`sentry_prod`.
+
+The distinction matters because one workspace can connect several accounts
+from the same provider. The source selects the exact connection whose events
+may start the workflow.
+
+The [trigger sources reference](/reference/trigger-sources) lists the available
+sources and event names. [Integrations](/integrations/overview) explains how to
+create a connection and find its slug.
+
+## A match creates one run
+
+This workflow creates a run for each new issue received from one Sentry
+connection:
+
+```yaml
+name: Triage a Sentry issue
+runner: ubuntu-latest
+
+triggers:
+  on_issue:
+    source: sentry_prod # Replace with your Sentry connection slug.
+    event: issue.created
+
+jobs:
+  triage:
+    steps:
+      - prompt: >
+          Investigate "${{ event.title }}" and report the likely cause.
+```
+
+When a signal arrives, Shipfox matches its source and event name against each
+trigger. Every match creates a separate run and stores the trigger name, event
+payload, and inputs with that run.
+
+The rule is simple. An event may match no trigger, one trigger, or more than
+one. No match means no run. Two matches mean two runs.
+
+The workspace event journal keeps that routing decision. It shows whether an
+event is still being evaluated, triggered workflows, matched no workflow, or
+failed before routing. This separates delivery problems from filter and source
+problems. See [Troubleshoot event routing](/how-to/run-and-troubleshoot/event-routing).
+
+The event can guide prompts, environment values, and outputs. Bind outside data
+to `env` before using it in a shell command. [Data and
+templating](/understand/data-and-templating) explains that trust boundary.
+
+## Narrow or label the match
+
+A `filter` predicate can reject an event before it creates a run. Use it when a
+source sends many kinds of event but this workflow should handle only some of
+them, such as pushes to the default branch.
+
+The `with` block adds fixed inputs to every run from that trigger. It labels the
+work with values chosen in the workflow rather than values supplied by the
+outside event.
+
+Filter syntax and failure behavior live in
+[Expressions](/reference/expressions#trigger-filters).
+
+## Events can also continue a run
+
+A workflow trigger uses an event to create a new run. A
+[listening job](/understand/listening-jobs) uses the same source and event model to
+continue work inside a run that already exists.

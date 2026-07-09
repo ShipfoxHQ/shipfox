@@ -1,10 +1,10 @@
 ---
 title: "AI-Friendly Docs: How Shipfox Supports Coding Agents"
 sidebarTitle: "AI Overview"
-description: "Shipfox workflows are YAML that coding agents write. These docs are AI-ingestible — every page is available as Markdown for agents to browse and cite."
+description: "Shipfox workflows are YAML that coding agents write. These docs are AI-ingestible, and every page is available as Markdown for agents to browse and cite."
 ---
 
-Shipfox is built for AI-forward engineering teams — the workflow YAML your agents write IS the product. These docs are designed to be as useful to a coding agent (Claude Code, Cursor, Codex, etc.) as to a human engineer. Every page is available as Markdown, and a dedicated skills package encodes the workflow schema so your agent always emits valid YAML.
+Shipfox is built for AI-forward engineering teams. The workflow YAML your agents write is the product. These docs are designed to be as useful to a coding agent (Claude Code, Cursor, Codex, etc.) as to a human engineer. Every page is available as Markdown, and a dedicated skills package encodes the workflow schema so your agent always emits valid YAML.
 
 ## Three ways to use Shipfox with AI
 
@@ -22,18 +22,18 @@ Shipfox is built for AI-forward engineering teams — the workflow YAML your age
 
 ## Why this matters for Shipfox
 
-The most common mistake when writing Shipfox YAML is using roadmap-only keys (`loop`, `matrix`, `branch`), writing `{{ }}` instead of `${{ }}` for interpolation, mixing `run` and `prompt` on one step, or setting `env` on an agent step. These errors are easy to make when working from memory or incomplete documentation — and they all result in rejected workflows at validation time.
+The most common mistake when writing Shipfox YAML is using roadmap-only keys (`loop`, `matrix`, `branch`), writing `{{ }}` instead of `${{ }}` for interpolation, mixing `run` and `prompt` on one step, or setting `env` on an agent step. These errors are easy to make when working from memory or incomplete documentation, and they all result in rejected workflows at validation time.
 
-An agent with the Shipfox skill or the copy/paste prompt avoids all of these pitfalls before the YAML ever reaches your repo. The skill encodes the verified schema, the hard validation rules, the today/roadmap boundary, and correct examples — giving your agent a precise, authoritative reference rather than a best guess.
+An agent with the Shipfox skill or the copy/paste prompt avoids all of these pitfalls before the YAML ever reaches your repo. The skill encodes the verified schema, the hard validation rules, the today/roadmap boundary, and correct examples. This gives your agent a precise, authoritative reference rather than a best guess.
 
 ## AI-ingestible docs
 
-Every docs page in this site is available as Markdown. To access the Markdown version of any page, append `.md` to the URL — for example, `/ai/overview.md`. Coding agents can browse these URLs directly, cite specific pages, and pull in schema details on demand without needing a separate API.
+Every docs page in this site is available as Markdown. To access the Markdown version of any page, append `.md` to the URL, for example, `/ai/overview.md`. Coding agents can browse these URLs directly, cite specific pages, and pull in schema details on demand without needing a separate API.
 
 The `llms.txt` file at the root of this site lists all pages with short summaries, following the [llms.txt convention](https://llmstxt.org/) for AI indexing. Drop the URL of `llms.txt` into any agent that supports context URLs and it will have a complete map of the Shipfox docs in seconds.
 
 ## Roadmap
 
 <Callout type="info">
-  A Shipfox plugin for Claude Code, Cursor, and Codex is planned — with slash commands (`/shipfox:new-workflow`, `/shipfox:validate`, `/shipfox:run`), specialist sub-agents, and session activation for repos with `.shipfox/`. An MCP server is also on the roadmap. Ship the skills package today; the plugin and MCP land when the YAML surface stabilizes.
+  A Shipfox plugin for Claude Code, Cursor, and Codex is planned with slash commands (`/shipfox:new-workflow`, `/shipfox:validate`, `/shipfox:run`), specialist sub-agents, and session activation for repos with `.shipfox/`. An MCP server is also on the roadmap. Use the skills package today. The plugin and MCP will follow when the YAML surface stabilizes.
 </Callout>

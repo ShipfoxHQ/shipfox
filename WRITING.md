@@ -47,16 +47,17 @@ Most readers skim. Write so a skimmer still gets the point.
 
 ## Punctuation
 
-**No em dashes (`—`), ever.** This is a strict rule for all produced content:
-docs, READMEs, commit messages, PR descriptions. Replace an em dash with
-whichever of these fits:
+**No Unicode em dash (U+2014), ever.** This is an absolute rule for all produced
+content: docs, READMEs, code comments, generated copy, commit messages, and PR
+descriptions. Do not type or paste the character, even when explaining this
+rule. Rewrite the sentence with whichever form fits:
 
 | Instead of | Use |
 | --- | --- |
-| `the value — shown once — expires` | parentheses: `the value (shown once) expires` |
-| `labels route jobs — see Runners` | a semicolon or parenthesis: `labels route jobs; see Runners` |
-| `one rule matters — cardinality` | a colon: `one rule matters: cardinality` |
-| `the agent edits — the gate loops` | two sentences: `The agent edits. The gate loops.` |
+| A parenthetical aside | Parentheses: `the value (shown once) expires` |
+| Two closely related clauses | A semicolon: `labels route jobs; see Runners` |
+| A clause that introduces an explanation | A colon: `one rule matters: cardinality` |
+| Two complete thoughts | Two sentences: `The agent edits. The gate loops.` |
 
 Regular hyphens in compound words (`single-job`, `read-only`) are fine.
 

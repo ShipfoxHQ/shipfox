@@ -6,7 +6,7 @@ description: "Create a Shipfox webhook connection, point any system at its URL, 
 
 A **custom webhook** connection gives you a unique URL that any system can POST to.
 Every request that arrives fires the `received` event, which your workflows
-can trigger on. Use it for tools Shipfox doesn't integrate with directly — CI
+can trigger on. Use it for tools Shipfox does not integrate with directly, such as CI
 systems, monitoring, internal services, or anything that can send an HTTP request.
 
 ## Setup
@@ -16,7 +16,7 @@ systems, monitoring, internal services, or anything that can send an HTTP reques
 
     **Create a webhook connection**
 
-    Create a webhook connection in your workspace. You choose its **slug** — a
+    Create a webhook connection in your workspace. You choose its **slug**: a
     lowercase identifier matching `^[a-z0-9]+(?:[_-][a-z0-9]+)*$`, unique within
     the workspace (for example `deploy_hook`). Shipfox returns a unique **ingest
     URL** for the connection.
@@ -27,7 +27,7 @@ systems, monitoring, internal services, or anything that can send an HTTP reques
 
     Point any system at the ingest URL with an HTTP `POST`. The body can be JSON,
     form-encoded, or plain text. An optional `X-Delivery-ID` header lets you
-    deduplicate retries; Shipfox generates one if you omit it.
+    deduplicate retries. Shipfox generates one if you omit it.
 
     ```bash
     curl -X POST https://<your-shipfox>/webhook/<connection-id> \
@@ -55,7 +55,7 @@ triggers:
     event: received
 ```
 
-`received` is the only event a custom webhook emits — every request to the
+`received` is the only event a custom webhook emits. Every request to the
 ingest URL fires it.
 
 ## Event payload
@@ -71,14 +71,14 @@ Shipfox passes the request to the run as structured data:
 
 <Callout type="info">
   A `filter` CEL expression can reference `event.headers`, `event.query`, and
-  `event.body`, but filters are **parsed and not yet evaluated** — every request
-  fires the trigger today.
+  `event.body`. It is evaluated when the request arrives. A request that does
+  not match starts no run.
 </Callout>
 
 ## Related pages
 
 <Cards>
-  <Card title="Triggers" href="/concepts/triggers">
+  <Card title="Events & Triggers" href="/understand/events-and-triggers">
     The trigger schema shared by every source.
   </Card>
   <Card title="Integrations overview" href="/integrations/overview">

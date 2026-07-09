@@ -1,0 +1,10 @@
+{
+  "title": "Author Workflows",
+  "pages": [
+    "add-agent-steps",
+    "use-integration-tools",
+    "pass-outputs",
+    "build-feedback-loop",
+    "respond-to-pull-request-feedback"
+  ]
+}

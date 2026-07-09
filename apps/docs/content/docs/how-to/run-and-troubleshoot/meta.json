@@ -1,0 +1,4 @@
+{
+  "title": "Run and Troubleshoot",
+  "pages": ["workflow-sync", "event-routing", "pending-jobs", "inspect-logs", "cancel-and-rerun"]
+}

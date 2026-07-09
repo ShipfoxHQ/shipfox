@@ -1,0 +1,128 @@
+---
+title: "Jobs and steps"
+sidebarTitle: "Jobs & Steps"
+description: "Jobs group ordered steps, share one working checkout, form a dependency graph, and run in isolated repository clones."
+---
+
+A **job** is a unit of work inside a run. It contains ordered steps and runs on
+one matching runner.
+
+Jobs let a workflow split work into clear parts. One job might lint code,
+another might run tests, and another might ask an agent to review a change.
+
+Jobs without dependencies can start at the same time. Add a dependency when
+one job needs another job to succeed first.
+
+## Steps share the job checkout
+
+A **step** is one ordered action inside a job. A run step executes a known shell
+command. An agent step asks a coding agent to choose how to reach a goal.
+
+Steps in one job share the same working checkout. A package installed by one run
+step is available to the next step. A file changed by an agent can be tested by a
+later command. Feedback loops rely on this shared state when they send execution
+back to an earlier step.
+
+The sharing stops at the job boundary. Another job receives a fresh checkout,
+even when `needs` makes it wait for this job.
+
+## The dependency graph
+
+The `needs` field connects jobs into a dependency graph. It supports three
+common shapes:
+
+- **Parallel work:** independent jobs start when runners are available.
+- **Fan-in:** one job waits for several jobs.
+- **Ordered work:** each job waits for the one before it.
+
+```yaml
+name: Check and review a change
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  lint:
+    steps:
+      - run: npm ci && npm run lint
+
+  test:
+    steps:
+      - run: npm ci && npm test
+
+  review:
+    needs: [lint, test]
+    steps:
+      - prompt: Review the current change and report any remaining risk.
+```
+
+`lint` and `test` can run in parallel. `review` starts only after both succeed.
+The [multi-job workflow guide](/how-to/patterns/multi-job-workflows) covers larger graphs.
+
+## Isolation is the point
+
+Each job gets a fresh clone of the repository. Jobs do not share installed
+packages, process environment, or files created while another job ran.
+
+This makes each result depend on the commit and that job's own steps. A job
+cannot pass only because an earlier job left a useful file behind.
+
+Use declared [outputs](/understand/data-and-templating) to pass small values to a
+later job. Put build artifacts in external storage.
+
+## Checkout permissions are separate
+
+The checkout is read-only by default. A job can request write access when a step
+must push repository changes. It can also decide whether the checkout credential
+remains available to later steps.
+
+Checkout permission controls Git repository contents. It does not grant an agent
+access to issues, pull requests, or other integrations. Those capabilities are
+selected separately on the agent step. See [Use integration tools](/how-to/author-workflows/use-integration-tools).
+
+## Where a job runs
+
+A job resolves to one or more runner labels. Set them on the job, inherit them
+from the workflow, or use the Shipfox instance default. An online
+[runner](/operations/runners) with every required label can claim the job.
+
+Labels make placement clear. Work that needs a large machine, private network,
+or special toolchain can ask for a runner that provides it.
+
+## Skipped work
+
+An `if` predicate can decide whether a job or step should run. A false result
+marks that work as **skipped**, not failed.
+
+```yaml
+name: Deploy the default branch
+runner: ubuntu-latest
+
+triggers:
+  on_push:
+    source: github_acme # Replace with your GitHub connection slug.
+    event: push
+
+jobs:
+  test:
+    steps:
+      - run: npm test
+
+  deploy:
+    needs: test
+    if: ${{ event.ref == "refs/heads/main" }}
+    steps:
+      - run: ./deploy.sh # Replace with your deploy command.
+```
+
+Every push runs the tests. The deploy job runs only for `main`. The full
+predicate syntax lives in [Expressions](/reference/expressions#conditionals-if).
+
+## Jobs that react more than once
+
+Most jobs make one pass through their steps. A
+[listening job](/understand/listening-jobs) is different: it waits inside the run
+and starts another execution when matching outside events arrive.

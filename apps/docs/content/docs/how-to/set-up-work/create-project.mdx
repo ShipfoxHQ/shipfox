@@ -1,0 +1,48 @@
+---
+title: "Create a Shipfox Project from a Repository"
+sidebarTitle: "Create a Project"
+description: "Connect one repository to a Shipfox workspace and verify that its workflow definitions sync."
+---
+
+A project connects one repository to Shipfox. Before you begin, connect a source
+service that can read the repository.
+
+## Create the project
+
+<Steps>
+  <Step>
+
+    **Open the project form**
+
+    Open your workspace, select **Projects**, then select **New project**.
+  </Step>
+  <Step>
+
+    **Choose the source connection**
+
+    Select the connection that can read the repository. If it is missing, install
+    or repair the connection first.
+  </Step>
+  <Step>
+
+    **Choose the repository**
+
+    Select one repository from the connection. Shipfox finds workflows there.
+    Jobs in this project also check out that repository.
+  </Step>
+  <Step>
+
+    **Name and create the project**
+
+    Keep the suggested name or enter a clearer one. Select **Create project**.
+  </Step>
+</Steps>
+
+## Verify workflow discovery
+
+Add a `.yml` or `.yaml` file under `.shipfox/workflows/`. Put it on the
+repository's default branch and push the commit. Open the project's **Workflows**
+tab.
+
+A successful sync lists the workflow. If the sync badge reports a failure, use
+[Troubleshoot workflow sync](/how-to/run-and-troubleshoot/workflow-sync).

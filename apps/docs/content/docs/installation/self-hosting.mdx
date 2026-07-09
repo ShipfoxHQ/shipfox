@@ -12,15 +12,15 @@ specific platform, see [AWS](/installation/aws) or [Kubernetes](/installation/ku
 
 ## What you run, and what talks to what
 
-{/* Source: images/diagrams/deployment-topology.mmd — regenerate with:
+{/* Source: images/diagrams/deployment-topology.mmd; regenerate with:
     npx -y @mermaid-js/mermaid-cli -b white -i images/diagrams/deployment-topology.mmd -s 3 -o images/diagrams/deployment-topology.png */}
 ![Deployment topology: event sources send webhooks into the Shipfox API; the control plane containers connect to PostgreSQL, Temporal, and S3-compatible object storage; runners and an optional provisioner on your compute connect outbound only, clone the repository, and call model providers with your API keys](/img/diagrams/deployment-topology.png)
 
-*Deployment topology — click to enlarge.*
+*Deployment topology. Click to enlarge.*
 
-Two directions matter: **runners only connect outward** — you never open an inbound
-port into your compute — and **agent traffic to model providers leaves from your
-runners**, with your API keys, not from the control plane.
+Two directions matter. **Runners only connect outward**, so you never open an inbound
+port into your compute. **Agent traffic to model providers leaves from your
+runners**, using your API keys rather than the control plane.
 
 ## External services
 
@@ -34,20 +34,20 @@ Provision and connect the following:
 
 The Shipfox API and dashboard are stateless processes that can be deployed as
 containers on any compute platform (Kubernetes, ECS, Fly.io, bare VMs). The runner is
-a separate process you deploy on the compute where jobs should execute — it does not
+a separate process you deploy on the compute where jobs should execute. It does not
 need to be co-located with the API.
 
 ## Runner registration
 
-A runner is a lightweight process you start on any machine — a VM, a bare-metal
+A runner is a lightweight process you start on any machine, such as a VM, a bare-metal
 server, or a container. Runners poll Shipfox for jobs that match their labels and
 execute them locally, streaming logs back to the API in real time.
 
 To register a new runner:
 
 1. In the Shipfox dashboard, create a **registration token** in the runner settings.
-2. Copy the generated token — it is shown only once.
-3. Start the runner on your target machine. The runner ships as a Docker image and is configured entirely through environment variables — the API URL, the registration token, and the labels this runner advertises:
+2. Copy the generated token. It is shown only once.
+3. Start the runner on your target machine. The runner ships as a Docker image and is configured entirely through environment variables. Set the API URL, registration token, and labels that this runner advertises:
 
 ```bash
 docker run --rm \
@@ -60,14 +60,14 @@ docker run --rm \
 `SHIPFOX_RUNNER_LABELS` is a comma-separated list (e.g. `linux,x64,self-hosted`). A job
 is dispatched to a runner only when the runner has **all** the labels listed in the
 workflow's `runner:` field. Make sure your runner's labels match exactly what your
-workflows declare — a mismatch is the most common cause of runs sticking in `pending`.
+workflows declare. A mismatch is the most common cause of runs sticking in `pending`.
 
 By default a runner exits after an idle window. For a long-lived runner that keeps
 polling, set `SHIPFOX_POLL_MAX_DURATION_MS=0` in its environment.
 
 <Callout type="info">
   To scale runners automatically instead of starting each one by hand, run a
-  [runner provisioner](/operations/runner-provisioners) — it starts ephemeral,
+  [runner provisioner](/operations/runner-provisioners). It starts ephemeral,
   single-job runners on demand and lets them exit when idle.
 </Callout>
 

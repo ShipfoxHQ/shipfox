@@ -1,0 +1,131 @@
+---
+title: "Build Multi-Job Workflows with Shipfox"
+sidebarTitle: "Multi-Job Workflows"
+description: "Sequence or parallelize Shipfox jobs with needs. Each job re-clones the repository and has no shared filesystem. Learn fan-out, fan-in, and isolation patterns."
+---
+
+A workflow can hold many jobs. They run in parallel by default. Use `needs` to
+set their order. Each job checks out the repository again and has its own
+environment. This guide shows parallel jobs, ordered jobs, and jobs that wait
+for many checks.
+
+## Parallel jobs (default)
+
+Without `needs`, all jobs start at the same time. Use this for checks that do not
+depend on each other:
+
+```yaml
+jobs:
+  lint:
+    steps:
+      - run: npm ci && npm run lint
+  test:
+    steps:
+      - run: npm ci && npm test
+  type-check:
+    steps:
+      - run: npm ci && npx tsc --noEmit
+```
+
+All three jobs run at once. The workflow finishes when the last one ends.
+
+## Sequential jobs with `needs`
+
+Use `needs` when a job must wait for another job to pass:
+
+```yaml
+jobs:
+  lint:
+    steps:
+      - run: npm ci
+      - run: npm run lint
+  test:
+    steps:
+      - run: npm ci
+      - run: npm test
+  deploy:
+    needs: test
+    steps:
+      - run: npm ci
+      - run: ./scripts/deploy.sh
+```
+
+<Callout type="warn">
+  **Jobs do not share a filesystem.** Each job re-clones the repository from
+  scratch into a fresh environment. Every job that needs dependencies must run
+  `npm ci` (or your equivalent install step) independently. There is no shared
+  `node_modules` or build cache between jobs.
+</Callout>
+
+`needs` accepts either a single string or a list of strings (see fan-in below).
+
+## Fan-out / fan-in pattern
+
+Run several jobs at once. Add one later job that waits for all of them:
+
+```yaml
+jobs:
+  lint:
+    steps:
+      - run: npm ci && npm run lint
+  test:
+    steps:
+      - run: npm ci && npm test
+  review:
+    needs: [lint, test]   # waits for BOTH to finish
+    steps:
+      - model: claude-opus-4-8
+        prompt: Summarize the lint and test results.
+```
+
+`review` starts after both `lint` and `test` pass. If either job fails, Shipfox
+skips `review`.
+
+## Job isolation reminder
+
+<Callout type="info">
+  Each job re-clones the repository from scratch. There is no shared volume
+  between jobs. If you need to pass artifacts between jobs, such as a compiled
+  binary or test report, upload them to external storage (for example, S3 or
+  a storage bucket) in one job and download them in the next.
+</Callout>
+
+This boundary keeps one job from changing another. Make each job set up what it
+needs.
+
+## Example: full CI workflow
+
+This example combines parallel lint and test jobs with a fan-in agent review,
+all triggered by a push:
+
+```yaml
+name: CI workflow
+runner: ubuntu-latest
+triggers:
+  on_push:
+    source: github_acme
+    event: push
+jobs:
+  lint:
+    steps:
+      - run: npm ci
+      - run: npm run lint
+  test:
+    steps:
+      - run: npm ci
+      - run: npm test
+  review:
+    needs: [lint, test]
+    steps:
+      - model: claude-opus-4-8
+        thinking: high
+        prompt: Review the repository. Summarize the top 3 issues found.
+```
+
+Lint and test run in parallel on every push. The agent review runs only when
+both pass, so it does not spend model time on a broken build.
+
+## Next steps
+
+- [Checks on Push](/how-to/patterns/checks-on-push) applies the graph to a complete push-triggered workflow.
+- [Agent Steps](/how-to/author-workflows/add-agent-steps) configures the model, thinking level, and provider.

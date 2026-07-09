@@ -2,10 +2,10 @@ flowchart TB
   subgraph SRC["Event sources"]
     GH2["GitHub"]
     SEN2["Sentry"]
-    WH2["Any system — webhook"]
-    SOON2["Slack, Linear, GitLab, ... — coming soon"]
+    WH2["Any system (webhook)"]
+    SOON2["Slack, Linear, GitLab, ... (coming soon)"]
   end
-  subgraph CP2["Shipfox control plane — stateless containers you deploy"]
+  subgraph CP2["Shipfox control plane (stateless containers you deploy)"]
     API["API"]
     DASH["Dashboard"]
   end
@@ -14,11 +14,11 @@ flowchart TB
     TMP["Temporal"]
     OBJ[("S3-compatible object storage")]
   end
-  subgraph YC["Your compute — where jobs run"]
+  subgraph YC["Your compute (where jobs run)"]
     RN["Runners"]
-    PV["Provisioner — optional autoscaling"]
+    PV["Provisioner (optional autoscaling)"]
   end
-  MP["Model providers — Anthropic, OpenAI, 30+"]
+  MP["Model providers: Anthropic, OpenAI, 30+"]
   GH2 -->|webhooks| API
   SEN2 -->|webhooks| API
   WH2 -->|POST| API
@@ -27,7 +27,7 @@ flowchart TB
   API --> PG
   API --> TMP
   API --> OBJ
-  RN -->|"outbound poll — no inbound access to your infra"| API
+  RN -->|"outbound poll (no inbound access to your infra)"| API
   PV -->|"polls demand"| API
   PV -->|"starts ephemeral runners"| RN
   RN -->|"clones the repository"| GH2

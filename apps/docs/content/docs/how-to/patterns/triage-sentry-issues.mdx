@@ -1,0 +1,98 @@
+---
+title: "Triage Sentry Issues with an AI Agent in Shipfox"
+sidebarTitle: "Triage Sentry Issues"
+description: "Fire a Shipfox workflow when a Sentry issue is created and hand the issue to an AI agent that investigates your repository and reports the likely cause."
+---
+
+When Sentry reports a new issue, a Shipfox workflow can hand it to an agent that
+reads the repository and reports the likely cause. This guide creates a
+Sentry-triggered workflow whose agent receives issue details through templates.
+
+## What you'll build
+
+The Sentry `issue.created` event starts the workflow. A `triage` job runs one
+agent step. Its prompt gets the issue title, culprit, and level from
+`${{ event.* }}` templates. The agent reads the repository and reports what a
+developer should check.
+
+## The workflow file
+
+Create `.shipfox/workflows/triage-sentry.yml` in your repository:
+
+```yaml
+name: Triage Sentry issues
+runner: ubuntu-latest
+triggers:
+  on_issue:
+    source: sentry_acme
+    event: issue.created
+jobs:
+  triage:
+    steps:
+      - model: claude-opus-4-8
+        thinking: high
+        prompt: |
+          A new Sentry issue was reported for this project:
+          "${{ event.title }}", culprit ${{ event.culprit }} (level ${{ event.level }}).
+          ${{ event.webUrl }}
+
+          Investigate the repository for the likely cause and summarize what a
+          developer should check first. Be concise.
+```
+
+Each matching Sentry issue starts a run. Shipfox fills the `${{ event.* }}`
+values when it creates the run. The agent gets the issue title, culprit, level,
+and a link to Sentry (`webUrl`). Its summary streams to the step log.
+
+## Deploy it
+
+Follow these steps to get the workflow running:
+
+1. Create the file `.shipfox/workflows/triage-sentry.yml` in your repository.
+2. Paste the YAML above, replacing `sentry_acme` with your Sentry connection slug.
+3. Commit and push the file. The workflow appears in the dashboard. The next
+   matching issue starts it.
+
+<Callout type="info">
+  `source` is your **Sentry connection slug**, shown in your integration settings
+  after you connect Sentry (for example `sentry_<org>`), not the literal word
+  `sentry`. Connecting Sentry requires the [Sentry integration](/integrations/sentry).
+</Callout>
+
+## Scope to a project
+
+Shipfox delivers `issue.created` for every project in the connected Sentry
+organization. The event exposes the project as `event.projectUrl`, so you can
+name it in the prompt:
+
+```yaml
+      - model: claude-opus-4-8
+        prompt: |
+          Triage this Sentry issue in ${{ event.projectUrl }}:
+          "${{ event.title }}". Summarize the likely cause.
+```
+
+<Callout type="info">
+  To triage only some projects, add `filter: event.projectUrl.contains("/backend")`
+  to the trigger. The filter runs when the event arrives, so other issues start
+  no run. See [Expressions](/reference/expressions#trigger-filters).
+</Callout>
+
+## Going further
+
+Turn triage into action by combining it with the other guides:
+
+- **Auto-fix and verify:** follow the agent with a shell step and a gate so it retries until tests pass. See [Build a feedback loop](/how-to/author-workflows/build-feedback-loop).
+- **Open a PR or notify:** grant the required checkout or integration access, then ask the agent or a run step to perform the action.
+
+<Callout type="info">
+  To branch on a structured agent decision (auto-fix vs. escalate), declare
+  typed `outputs` on the agent step and check them with `if` on later steps or
+  a gate. See [Data and templating](/understand/data-and-templating).
+</Callout>
+
+## Next steps
+
+- [Sentry integration](/integrations/sentry) connects Sentry and lists its issue events.
+- [Agent Steps](/how-to/author-workflows/add-agent-steps) configures models, thinking levels, and providers.
+- [Expressions](/reference/expressions) lists the `${{ }}` context available to prompts.

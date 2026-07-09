@@ -48,7 +48,7 @@ jobs:
 
 The manual trigger works in every workspace with no further setup. Every field is described in the [Workflow Schema reference](/reference/workflow-schema).
 
-Commit and push the file to your connected repository. Shipfox detects the new workflow file automatically; no manual import is required.
+Commit and push the file to your connected repository. Shipfox detects the new workflow file automatically. No manual import is required.
 
 ## Run it
 
@@ -66,7 +66,7 @@ hello world
 *A run detail page: status, the job graph, and every step with its duration.*
 
 <Callout type="info">
-  A run stuck in `pending` means no online runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online; see [Runners](/operations/runners#pending-runs).
+  A run stuck in `pending` means no online runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online. See [Runners](/operations/runners#pending-runs).
 </Callout>
 
 ## Make it automatic
@@ -84,7 +84,9 @@ triggers:
 ```
 
 <Callout type="info">
-  Push triggers require GitHub today; GitLab is on the roadmap. Branch filtering (`filter`) is parsed but not evaluated yet, so the trigger fires on every push.
+  Push triggers require GitHub today. GitLab is on the roadmap. To run only on
+  some branches, add a `filter` such as `event.ref == "refs/heads/main"`. See
+  [Trigger Sources](/reference/trigger-sources#filter).
 </Callout>
 
 ## Add an agent step
@@ -92,7 +94,7 @@ triggers:
 Shipfox treats AI agents as first-class steps. Instead of `run`, give a step a `prompt` (and optionally a `model`).
 
 <Callout type="warn">
-  Agent steps use your workspace's configured [model provider](/reference/model-providers). Configure one first (**Settings → Model Providers**; an API key is enough), or the step fails at execution time.
+  Agent steps use your workspace's configured [model provider](/reference/model-providers). Configure one first in **Settings → Agents**. An API key is enough. Without a configured provider, the step fails at execution time.
 </Callout>
 
 ```yaml
@@ -114,11 +116,11 @@ explain · claude-opus-4-8
 This repository is a small demo service... To run its tests, ...
 ```
 
-The agent had your repository checked out; it read real files to answer. Open the step in the dashboard to see the full **agent session**: every message, thinking block, and tool call, plus token usage and cost. Output varies between runs; the step still succeeds or fails based on whether the call completes.
+The agent had your repository checked out and read real files to answer. Open the step in the dashboard to see the full **agent session**: every message, thinking block, and tool call, plus token usage and cost. Output varies between runs. The step still succeeds or fails based on whether the call completes.
 
 ## Watch it fix itself
 
-The step above only reads. The pattern that makes Shipfox different: pair an agent that **acts** with a `run` step that **verifies**, and a [gate](/concepts/gates) that loops back until the check passes. Add this job (it assumes an `npm test` project; adapt the check to your stack):
+The step above only reads. The pattern that makes Shipfox different: pair an agent that **acts** with a `run` step that **verifies**, and a [feedback loop](/understand/feedback-loops) that sends the agent back until the check passes. Add this job (it assumes an `npm test` project; adapt the check to your stack):
 
 ```yaml
 jobs:
@@ -143,16 +145,16 @@ You can use a coding agent to generate and iterate on Shipfox workflows directly
 ## Next steps
 
 <Cards>
-  <Card title="How Shipfox works" href="/concepts">
-    The run model in one page: workflows, triggers, jobs, gates, and runners.
+  <Card title="How Shipfox works" href="/understand">
+    The mental model in one page: events, jobs, agents, and feedback loops.
   </Card>
-  <Card title="Multi-job pipelines" href="/guides/multi-job-pipeline">
+  <Card title="Multi-job workflows" href="/how-to/patterns/multi-job-workflows">
     Use `needs` to chain jobs together and build fan-out / fan-in DAGs.
   </Card>
-  <Card title="Gate & retry" href="/guides/gate-and-retry">
+  <Card title="Gate & retry" href="/how-to/author-workflows/build-feedback-loop">
     Go deeper on the self-correcting loop you just built.
   </Card>
-  <Card title="Agent steps" href="/guides/agent-steps">
+  <Card title="Agent steps" href="/how-to/author-workflows/add-agent-steps">
     Models, thinking levels, and providers in practice.
   </Card>
 </Cards>

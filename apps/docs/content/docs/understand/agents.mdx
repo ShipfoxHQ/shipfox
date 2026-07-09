@@ -1,0 +1,110 @@
+---
+title: "Agents"
+sidebarTitle: "Agents"
+description: "An agent step uses a coding agent for work that needs judgment, with the repository checked out and the full session recorded."
+---
+
+An **agent step** asks a coding agent to work inside a job. The step receives a
+goal, the checked-out repository, and tools for reading files, changing code,
+and running commands.
+
+It is part of the workflow, not a separate chat. Its work sits beside fixed
+commands and checks, so later steps can inspect, test, or use the result.
+
+## Agent step or run step?
+
+Choose the step from the kind of work, not from how complex the command looks.
+
+| Use | When the work needs |
+| --- | --- |
+| Run step | A known command with a predictable procedure |
+| Agent step | Investigation, judgment, explanation, or a change whose exact steps are not known in advance |
+
+Use the least open-ended step that can do the work. A command is easier to
+repeat and costs less to run. An agent is worth it when the path cannot be
+written down in advance.
+
+When in doubt, start with a run step. Move to an agent step only when the work
+needs a choice that code cannot make ahead of time.
+
+Use a run step for `npm test`, a build script, or a deploy command. Use an agent
+step to trace an error, review a change, update code, or write a test.
+
+## It works from run context
+
+The prompt can include the event that created the run:
+
+```yaml
+name: Review a pull request
+runner: ubuntu-latest
+
+triggers:
+  on_pull_request:
+    source: github_acme # Replace with your GitHub connection slug.
+    event: pull_request.opened
+
+jobs:
+  review:
+    steps:
+      - prompt: >
+          Review pull request "${{ event.pull_request.title }}" in this
+          repository. Report correctness risks and missing tests.
+```
+
+The event gives the step the reason for the run. The checkout gives it the
+code needed to investigate. The full YAML contract lives in the
+[agent step reference](/reference/workflow-schema#agent-step-fields).
+
+## The workflow stays in control
+
+The workflow or workspace chooses the agent runtime, model, and tools. The
+model does not choose those controls from event data.
+
+Repository instructions and supported skill packages can guide the work.
+Connected integrations can expose approved tools through Model Context
+Protocol (MCP) without placing raw integration keys in the prompt. Model and
+provider choices live in [Model Providers](/reference/model-providers).
+
+Harness tools and integration tools are separate. Harness tools work inside the
+job, such as reading files or running commands. Integration tools act through a
+workspace connection, such as reading an issue or commenting on a pull request.
+The workflow selects both sets explicitly.
+
+## The run keeps the session
+
+The step produces a visible session rather than one opaque log. The run
+keeps its messages, tool calls, tool results, token use, cost, and final
+response. You can follow the work while it runs and review it later.
+
+The final response is written for people. When later work needs a value, the
+agent step should declare a typed output and set it with the provided tool.
+[Data and templating](/understand/data-and-templating) explains how that output
+moves to another step or job.
+
+## Checks make agent work reliable
+
+Its response is a proposed result, not proof that the task is complete.
+Pair important work with a command or another step that can check it. Tests,
+type checks, and linters are stronger checks than asking the same agent whether
+its own work is correct.
+
+A feedback loop can send failed work back to the agent with new evidence until
+the check passes or the retry bound is reached.
+
+## The trust boundary
+
+The step sees the checkout, its tools, the prompt, and any context placed in
+that prompt. Workflow and job `env` values do not flow into it. Secrets never
+enter its prompt.
+
+An agent never receives a raw secret. For a supported external action, give the
+step a narrowly selected integration tool. Shipfox keeps the connection
+credential behind the tool boundary. For a shell action that needs a secret,
+use a run step in the same job. The server, not the model, decides step and run
+status.
+
+<Cards>
+  <Card title="Use integration tools" href="/how-to/author-workflows/use-integration-tools">
+    Give an agent scoped access to connected systems without exposing raw keys.
+  </Card>
+</Cards>

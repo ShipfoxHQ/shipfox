@@ -1,0 +1,54 @@
+---
+title: "Configure an AI Model Provider for Shipfox"
+sidebarTitle: "Model Providers"
+description: "Add a provider credential, choose workspace defaults, and run an agent step with the configured model provider."
+---
+
+Add a model provider in workspace settings. Any project in that workspace can
+then use it. You need the provider's API key. The form shows any other values it
+needs.
+
+## Configure the provider
+
+1. Open **Settings → Agents** in the workspace.
+2. Find the provider and select **Configure**.
+3. Enter its API key and any additional required values.
+4. Select **Save**.
+5. Optionally, select **Set as default**.
+
+The [Model Providers reference](/reference/model-providers) lists each provider
+ID, default model, and required key.
+
+## Use the workspace default
+
+An agent step with only a prompt uses the workspace default provider and model:
+
+```yaml
+jobs:
+  review:
+    steps:
+      - prompt: Review the repository for correctness risks.
+```
+
+## Select a provider and model
+
+Set both fields when the step must use a non-default provider:
+
+```yaml
+jobs:
+  review:
+    steps:
+      - provider: openai
+        model: gpt-5.5-pro
+        prompt: Review the repository for correctness risks.
+```
+
+Commit and push the workflow. Wait for a successful sync, then start it. Open
+the agent step in the run detail. Check that Shipfox used the provider and model
+you chose.
+
+<Cards>
+  <Card title="Add an agent step" href="/how-to/author-workflows/add-agent-steps">
+    Combine the configured model with prompts, checks, and outputs.
+  </Card>
+</Cards>

@@ -12,16 +12,16 @@ The Shipfox skills package encodes the complete workflow YAML schema, the hard v
 npx skills add shipfox/agent-skills
 ```
 
-This installs the skill via [skills.sh](https://skills.sh) and makes it available to Claude Code, Cursor, Codex, and 18+ other agent frameworks automatically — no manual configuration required per tool.
+This installs the skill via [skills.sh](https://skills.sh) and makes it available to Claude Code, Cursor, Codex, and 18+ other agent frameworks automatically. No manual configuration is required for each tool.
 
 ## What the skill includes
 
 Once installed, the skill gives your agent immediate access to:
 
 - The complete shipped workflow YAML schema in compact, agent-optimized form
-- Hard validation rules — strict key allowlists, step kind constraints, `env` restrictions, and the one-manual-trigger limit
-- The today/roadmap boundary — what NOT to use (`loop`, `matrix`, `branch`, trigger `filter` evaluation) and what IS shipped, like `${{ }}` interpolation
-- Two correct examples: a push-triggered checks pipeline and an agent fix-until-green loop
+- Hard validation rules: strict key allowlists, step kind constraints, `env` restrictions, and the one-manual-trigger limit
+- The today/roadmap boundary: what not to use (`loop`, `matrix`, `branch`) and what is shipped, such as `${{ }}` interpolation and trigger `filter` evaluation
+- Two correct examples: a push-triggered checks workflow and an agent fix-until-green loop
 
 ## Usage
 
@@ -31,7 +31,7 @@ Once the skill is installed, just ask your agent in plain language. No schema pa
 - "Create a Shipfox workflow that triages Sentry issues with an agent."
 - "Add a gate to my workflow that retries until the tests pass."
 
-The skill activates automatically whenever the agent detects a Shipfox context — such as a `.shipfox/` directory in the repo — or whenever you mention Shipfox workflows explicitly.
+The skill activates automatically when the agent detects a Shipfox context, such as a `.shipfox/` directory in the repository, or when you mention Shipfox workflows explicitly.
 
 ## Supported tools
 
@@ -54,4 +54,4 @@ Both options give your agent the full Shipfox schema. The right choice depends o
   The skills package is generated from the Shipfox workflow schema source. When you re-run the install command, you get the latest version aligned with the current schema.
 </Callout>
 
-If you prefer not to install the skills package, the [Authoring Prompt](/ai/authoring-prompt) page has a single copy/paste block with the full schema cheat sheet — paste it once at the start of any session.
+If you prefer not to install the skills package, the [Authoring Prompt](/ai/authoring-prompt) page has a single copy/paste block with the full schema cheat sheet. Paste it once at the start of any session.

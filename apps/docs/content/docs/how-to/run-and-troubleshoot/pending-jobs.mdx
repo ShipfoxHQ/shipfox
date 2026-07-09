@@ -1,0 +1,23 @@
+---
+title: "Resolve Pending Shipfox Jobs"
+sidebarTitle: "Pending Jobs"
+description: "Match workflow runner labels with an online runner and dispatch work that remains pending."
+---
+
+A pending job is ready to run but has not been claimed by a compatible runner.
+
+## Compare the required labels
+
+Open the run, select the pending job, and note its runner labels. The job may
+inherit labels from the workflow or the Shipfox instance default.
+
+Check the runner process that should claim it:
+
+1. Confirm the runner is online and polling the same workspace.
+2. Confirm its configured labels include every label required by the job.
+3. Confirm the runner has capacity for another job.
+4. Check its log for registration, authentication, or polling errors.
+
+Start or repair a matching runner. The pending job is claimed automatically.
+you do not need to start another run. See [Runners](/operations/runners) for
+registration and label configuration.

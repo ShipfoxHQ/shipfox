@@ -6,7 +6,7 @@ description: "Every Shipfox trigger source and its events at a glance: manual fi
 
 A trigger has a `source` and an `event`. This page lists every source and its
 events at a glance. For **integration** sources, the `source` you write is the
-**connection slug** (for example `github_acme`), not the provider name — see
+**connection slug** (for example `github_acme`), not the provider name. See
 [Integrations](/integrations/overview). Setup and payloads live on each
 integration page.
 
@@ -14,14 +14,14 @@ integration page.
 
 | Source | `source` value | Events | Setup |
 |---|---|---|---|
-| Manual | `manual` (literal) | `fire` | None — [Triggers](/concepts/triggers#manual-trigger) |
+| Manual | `manual` (literal) | `fire` | [Events and triggers](/understand/events-and-triggers) |
 | GitHub | connection slug, e.g. `github_acme` | `push` and other repository events | [GitHub](/integrations/github) |
 | Sentry | connection slug, e.g. `sentry_acme` | `issue.created`, `issue.resolved`, `issue.assigned`, `issue.archived`, `issue.unresolved` | [Sentry](/integrations/sentry) |
 | Custom webhook | connection slug you choose | `received` | [Custom webhook](/integrations/webhooks) |
-| Cron | 🚧 Coming soon — `cron` (literal) | `tick` | [Triggers](/concepts/triggers#coming-soon) |
-| Linear | 🚧 Coming soon | — | [Linear](/integrations/linear) |
-| Slack | 🚧 Coming soon | — | [Slack](/integrations/slack) |
-| GitLab | 🔜 Roadmap | — | — |
+| Cron | 🚧 Coming soon (`cron` literal) | `tick` | [Events and triggers](/understand/events-and-triggers) |
+| Linear | 🚧 Coming soon | Not available | [Linear](/integrations/linear) |
+| Slack | 🚧 Coming soon | Not available | [Slack](/integrations/slack) |
+| GitLab | 🔜 Roadmap | Not available | Not available |
 
 ## manual
 
@@ -53,13 +53,24 @@ list per source, and payload details.
 
 <Callout type="info">
   `event.ref` on a push is the **full Git ref** (for example `refs/heads/main`),
-  exactly as the provider sends it — not the bare branch name.
+  exactly as the provider sends it, not the bare branch name.
 </Callout>
 
-## filter (not enforced)
+## filter
 
-The `filter` field accepts a CEL expression intended to narrow which events fire a
-trigger — for example `event.ref == "refs/heads/main"` on a GitHub push. Today `filter` is
-parsed and stored but **not evaluated**: the trigger fires on every matching
-`(source, event)` pair regardless of the expression. Authoring a filter is safe and
-takes effect once evaluation is enabled — no schema change will be required.
+The `filter` field accepts a CEL expression that narrows which events fire a
+trigger. It is evaluated when the event arrives, before any run is created. In
+scope: `event` (the payload) and `trigger` (`source` and `event`). A false
+result skips the event. An expression error **fails closed**: the trigger does
+not fire.
+
+```yaml
+triggers:
+  on_main_push:
+    source: github_acme
+    event: push
+    filter: event.ref == "refs/heads/main"
+```
+
+See [Expressions](/reference/expressions#trigger-filters) for the engine and
+the exact scope.

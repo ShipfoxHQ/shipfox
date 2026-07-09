@@ -1,0 +1,14 @@
+{
+  "title": "Understand",
+  "pages": [
+    "index",
+    "workspaces-and-projects",
+    "workflows-and-runs",
+    "events-and-triggers",
+    "jobs-and-steps",
+    "data-and-templating",
+    "agents",
+    "feedback-loops",
+    "listening-jobs"
+  ]
+}

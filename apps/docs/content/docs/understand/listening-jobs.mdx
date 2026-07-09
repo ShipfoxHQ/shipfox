@@ -1,0 +1,60 @@
+---
+title: "Listening jobs"
+sidebarTitle: "Listening Jobs"
+description: "Listening jobs let an active workflow run react to later events, such as review comments or approvals, without starting a new run."
+---
+
+A **listening job** lets an active workflow run react to events that arrive
+later. Use one when outside input continues the same piece of work, such as
+review comments on a pull request or approval for a pending action.
+
+A [workflow trigger](/understand/events-and-triggers) creates a new run. A
+listening job stays inside the current run. It waits for its dependencies. It
+runs its steps when matching events arrive. It stops when an ending condition
+is met.
+
+This keeps the original work, later feedback, each review round, and the final
+outcome in one run.
+
+## Choose the right event model
+
+| Mechanism | Use it when | What happens |
+| --- | --- | --- |
+| Workflow trigger | An event begins independent work | Shipfox creates a new run |
+| [Feedback loop](/understand/feedback-loops) | A check asks the current work to try again | Earlier steps repeat inside the job |
+| Listening job | An outside event continues work already in progress | Response steps run inside the existing run |
+
+Use a trigger when each event should stand on its own. Use a listening job when
+the event belongs to work that the run already started. It will stay in the same
+history.
+
+## How it works
+
+1. **The job becomes active.** It starts waiting after its `needs` jobs succeed.
+   Without dependencies, it starts waiting when the run begins.
+2. **Matching events are collected.** The entries under `listening.on` select
+   events that cause a response. Shipfox can group events that arrive close
+   together into one batch.
+3. **The job responds.** Each event batch runs the steps once. The steps read
+   the events through `execution.events`. A later batch can run the steps again.
+4. **The job resolves.** An ending condition stops the listener. Downstream
+   jobs can start after it resolves, and the run can finish.
+
+The exact event selectors, batching options, and ending conditions live in the
+[listening fields reference](/reference/workflow-schema#listening-fields).
+
+## Correlation keeps events with the right work
+
+A listener should filter response and ending events to the object that started
+the run. For example, a pull request listener records the pull request number as
+an output. It compares later comments and close events with that value.
+
+Without correlation, a comment or close event from another pull request could
+affect the wrong run. The listener filter keeps each conversation attached to
+its original work.
+
+<Cards>
+  <Card title="Respond to pull request feedback" href="/how-to/author-workflows/respond-to-pull-request-feedback">
+    Build a complete listener that follows one pull request until it closes.
+  </Card>
+</Cards>
