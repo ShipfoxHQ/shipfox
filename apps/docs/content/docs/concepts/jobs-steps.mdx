@@ -11,7 +11,7 @@ Every Shipfox workflow run is a directed acyclic graph of **jobs**. A job is a g
 When a run starts, every job without unmet `needs` is dispatched to a runner whose labels match the job's `runner:` field. The runner clones the repository, executes the steps in order, and streams output back (see [Logging](/concepts/logging)).
 
 <Callout type="warn">
-  Each job **re-clones the repository** at the start of its execution. Jobs do not share a filesystem — if job A installs dependencies, job B must install them again. Use `needs` to order jobs, not to pass files between them.
+  Each job **re-clones the repository** at the start of its execution. Jobs do not share a filesystem: if job A installs dependencies, job B must install them again. Use `needs` to order jobs, not to pass files between them.
 </Callout>
 
 This isolation is intentional. It keeps each job's environment clean and reproducible, and it lets jobs run on different runners without shared-state assumptions.
@@ -20,7 +20,7 @@ A job fails when a step fails, and a job-level `execution_timeout` bounds its to
 
 ## Run steps
 
-A `run` step executes a shell command on the runner — build tools, test suites, linters, any CLI-driven work.
+A `run` step executes a shell command on the runner: build tools, test suites, linters, any CLI-driven work.
 
 ```yaml
 jobs:
@@ -34,7 +34,7 @@ jobs:
 
 ## Agent steps
 
-An agent step invokes an AI model. Instead of `run`, you provide a `prompt`. The model reads the repository context and produces output — edits, reports, suggestions — depending on the prompt.
+An agent step invokes an AI model. Instead of `run`, you provide a `prompt`. The model reads the repository context and produces output (edits, reports, suggestions) depending on the prompt.
 
 ```yaml
 jobs:

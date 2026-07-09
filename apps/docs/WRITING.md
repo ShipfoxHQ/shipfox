@@ -1,7 +1,9 @@
 # Docs writing guide
 
-Rules for every page under `content/docs/`. They keep the docs easy to read,
-easy to maintain, and safe for AI agents that ingest them as Markdown.
+Rules specific to the docs app (`content/docs/`). They sit on top of the
+repo-wide [WRITING.md](../../WRITING.md), which owns the general structure,
+sentence, word, and punctuation rules (including the strict no-em-dash rule)
+and the language-level targets. Read that first.
 
 ## Page types
 
@@ -43,11 +45,11 @@ repeating the fact. If you copy a table, you created a future bug.
 
 1. **Definition.** One to three short paragraphs, no heading. Bold the term.
    A reader who stops here knows what the thing is and why it exists.
-2. `## How it works` — lifecycle, rules, evaluation semantics. Steps,
+2. `## How it works`: lifecycle, rules, evaluation semantics. Steps,
    diagrams, and Tabs are welcome.
 3. One minimal annotated YAML example. Not field-exhaustive.
 4. Optional: one roadmap callout.
-5. `## Related pages` — Cards: the reference page first, then the most
+5. `## Related pages` Cards: the reference page first, then the most
    relevant guide, then adjacent concepts.
 
 For unreleased features (`status: "soon"` in frontmatter): open with a warning
@@ -65,7 +67,7 @@ not for docs visibility.
 ## Example rules
 
 - Steps referenced by `restart_from` use `key:`. Never use step-level `name:`
-  in examples — `key` is the canonical identifier.
+  in examples; `key` is the canonical identifier.
 - Gate syntax is `gate.success` with `step.exit_code`, and
   `gate.on_failure.{restart_from, feedback}`.
 - Examples never enumerate accepted values; the reference page does.
@@ -75,46 +77,31 @@ not for docs visibility.
   comment saying what to replace.
 - "Workflow" is the product term. Do not write "pipeline" except when quoting.
 
-## Style
+## Docs-app specifics
 
-- Lists over prose connectives. Tables for conditions and properties.
-- Generous headings: they create anchors for linking and skimming.
-- Bold the key point of a paragraph; most readers skim.
-- Prefer code with comments over long prose explanations.
-- Diagrams for architecture; the `public/img/diagrams/*.mmd` + rendered `.png`
-  pattern. Reference the PNG only after it is rendered.
 - Use the `Steps` component so each step gets a meaningful heading.
-- Link a name the first time it appears on a page.
-- Cut filler: "you can", "please", "you may try", "simply".
-- Put the subject first in a sentence. Keep paragraphs under ~5 lines.
-- Never write "first... then..." chains; readers read top to bottom.
-- Define acronyms on first use; the glossary holds the canonical definitions.
+- Diagrams follow the `public/img/diagrams/*.mmd` + rendered `.png` pattern.
+  Reference the PNG only after it is rendered.
 - Prefer generated content over hand-maintained tables
   (`scripts/generate.mjs` regions, checked by `turbo test`).
 - Put expert or debugging detail in `Accordions`, not inline.
 
 ## Language level
 
-- One idea per sentence. Split any sentence with two comma-joined clauses.
-- Plain words: "uses" not "leverages", "checks" not "validates".
-- Active voice, present tense.
-- No marketing adjectives ("powerful", "seamless", "robust").
-- Say "you" only when instructing.
-
-Check prose pages (concepts, guides, getting-started, index) with:
+Check prose pages (concepts, guides, getting-started, index) with the
+readability script, from the repo root:
 
 ```sh
-node ../../.agents/skills/readme-writer/scripts/readability.mjs <page.mdx>
+node .agents/skills/readme-writer/scripts/readability.mjs apps/docs/content/docs/<page>.mdx
 ```
 
-Targets: Flesch-Kincaid grade <= 9, top-1000 vocabulary >= 60%. Reference
-pages are exempt from the vocabulary floor (field names skew the count).
-Treat the output as guidance, not a gate — keep domain terms like CEL,
-idempotent, or Drizzle when they carry meaning.
+Targets and interpretation live in the root [WRITING.md](../../WRITING.md).
+Reference pages are exempt from the vocabulary floor; field names skew the
+count.
 
 ## Frontmatter
 
-- `title` — long, SEO-facing; becomes the H1.
-- `sidebarTitle` — short sidebar label.
-- `status: "soon"` — renders the sidebar badge for unreleased features.
-- `description` — one or two sentences; shows in search and social cards.
+- `title`: long, SEO-facing; becomes the H1.
+- `sidebarTitle`: short sidebar label.
+- `status: "soon"`: renders the sidebar badge for unreleased features.
+- `description`: one or two sentences; shows in search and social cards.

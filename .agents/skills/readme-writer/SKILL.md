@@ -148,7 +148,10 @@ MIT
 
 ## Voice rules
 
-These are what separate a Shipfox README from a generic one:
+The repo-wide [WRITING.md](../../../WRITING.md) owns the general style,
+punctuation (strictly no em dashes), and language-level rules; follow it in
+every README. These are what additionally separate a Shipfox README from a
+generic one:
 
 1. **One idea per sentence.** If a sentence has more than one comma-joined
    clause, split it. The audit script flags this indirectly via the

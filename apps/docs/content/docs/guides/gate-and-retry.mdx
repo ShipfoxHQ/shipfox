@@ -4,7 +4,7 @@ sidebarTitle: "Gate & Retry"
 description: "Use Shipfox gate blocks to evaluate step success with CEL expressions and automatically retry from an earlier keyed step when a condition fails."
 ---
 
-A **gate** block on a step lets you define a success condition and a retry strategy. When the condition fails, Shipfox restarts execution from an earlier keyed step in the same job — creating a loop that continues until the condition is met or the job times out. Pair it with an agent step and the loop does real work: the agent edits code, a shell step verifies it, and the gate loops back — no scripting.
+A **gate** block on a step lets you define a success condition and a retry strategy. When the condition fails, Shipfox restarts execution from an earlier keyed step in the same job, creating a loop that continues until the condition is met or the job times out. Pair it with an agent step and the loop does real work: the agent edits code, a shell step verifies it, and the gate loops back. No scripting.
 
 ## Gate schema
 
@@ -39,7 +39,7 @@ jobs:
             restart_from: install
 ```
 
-On each iteration, the agent reads the updated codebase and attempts another fix. The loop continues until `npm test` exits `0`. The loop is **bounded automatically**: a gating step gets a limited number of attempts (3 by default — see [Limits](/reference/limits)) before its restart budget is exhausted and the job stops. The job-level `execution_timeout` adds a second, outer bound — see [Loop bounds](/concepts/gates#loop-bounds).
+On each iteration, the agent reads the updated codebase and attempts another fix. The loop continues until `npm test` exits `0`. The loop is **bounded automatically**: a gating step gets a limited number of attempts (3 by default; see [Limits](/reference/limits)) before its restart budget is exhausted and the job stops. The job-level `execution_timeout` adds a second, outer bound; see [Loop bounds](/concepts/gates#loop-bounds).
 
 ## success expressions
 
@@ -60,13 +60,13 @@ See [Expressions](/reference/expressions) for the full engine description.
   The step referenced by `restart_from` must appear **before** the gate step in the same job. Forward references are not allowed.
 </Callout>
 
-- The target step must have a `key:` field — `restart_from` matches keys, not display names. (`name:` is a separate, display-only label.)
-- The reference is matched by step key, not by position — reordering steps changes which step is targeted.
+- The target step must have a `key:` field; `restart_from` matches keys, not display names. (`name:` is a separate, display-only label.)
+- The reference is matched by step key, not by position, so reordering steps changes which step is targeted.
 - `restart_from` must reference a step within the **same job**. Cross-job retries are not supported; use `needs` to express job dependencies instead.
 
 ## Job execution timeout
 
-A gating step already stops after a bounded number of restarts. On top of that, `execution_timeout` sets an **outer wall-clock bound** on the whole job — useful when steps are slow and even a few attempts could run long:
+A gating step already stops after a bounded number of restarts. On top of that, `execution_timeout` sets an **outer wall-clock bound** on the whole job, useful when steps are slow and even a few attempts could run long:
 
 ```yaml
 jobs:
@@ -88,5 +88,5 @@ The value is a duration string. When the timeout is reached, the job is cancelle
 
 ## Next steps
 
-- [Gates & Retry Loops](/concepts/gates) — how a gate is evaluated and why loops stay bounded.
-- [Agent Steps](/guides/agent-steps) — configure the model, thinking level, and provider for agent steps.
+- [Gates & Retry Loops](/concepts/gates): how a gate is evaluated and why loops stay bounded.
+- [Agent Steps](/guides/agent-steps): configure the model, thinking level, and provider for agent steps.

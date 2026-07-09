@@ -11,7 +11,7 @@ This page is the canonical reference for configuring a Shipfox runner process. F
 | Variable | Purpose |
 | --- | --- |
 | `SHIPFOX_API_URL` | Base URL of the Shipfox API the runner connects to, such as `https://api.shipfox.io`. |
-| `SHIPFOX_RUNNER_REGISTRATION_TOKEN` | Registration token the runner exchanges for a short-lived session token at startup. Accepts `sf_mrt_…` (manual) or `sf_ert_…` (ephemeral) tokens — see [Token types](#token-types). |
+| `SHIPFOX_RUNNER_REGISTRATION_TOKEN` | Registration token the runner exchanges for a short-lived session token at startup. Accepts `sf_mrt_…` (manual) or `sf_ert_…` (ephemeral) tokens; see [Token types](#token-types). |
 | `SHIPFOX_RUNNER_LABELS` | Comma-separated labels this runner registers with, such as `linux,x64,self-hosted`. |
 
 ## Label matching
@@ -48,7 +48,7 @@ A job is dispatched to a runner only when the runner's labels include **all** la
 
 ## Agent steps
 
-Model provider credentials are **workspace configuration**, delivered to the runner per step by the API — do not put provider API keys in the runner's environment. The runner machine needs outbound network access to the resolved provider's endpoint. See [Model Providers](/reference/model-providers).
+Model provider credentials are **workspace configuration**, delivered to the runner per step by the API. Do not put provider API keys in the runner's environment. The runner machine needs outbound network access to the resolved provider's endpoint. See [Model Providers](/reference/model-providers).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

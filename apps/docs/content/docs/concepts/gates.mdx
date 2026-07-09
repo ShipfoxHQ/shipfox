@@ -1,7 +1,7 @@
 ---
 title: "Gates: Conditional Success and Automatic Restart"
 sidebarTitle: "Gates & Retry Loops"
-description: "A gate decides whether a step succeeded and can restart the job from an earlier step when it fails — building bounded retry loops with no external scripting."
+description: "A gate decides whether a step succeeded and can restart the job from an earlier step when it fails, building bounded retry loops with no external scripting."
 ---
 
 A **gate** turns a step's outcome into a decision: did this step succeed, and
@@ -20,7 +20,7 @@ After a gated step finishes, Shipfox evaluates the gate's `success` expression
 |---|---|---|
 | **Passed** | `success` evaluates true | The step succeeds; the job continues |
 | **Failed** | `success` is false | Restart from `restart_from` if the budget allows; otherwise the job fails |
-| **Uncheckable** | No exit code, or the CEL expression errors | The job fails immediately — never restarts |
+| **Uncheckable** | No exit code, or the CEL expression errors | The job fails immediately; never restarts |
 
 Gates are valid on **both run steps and agent steps**. The most reliable loop
 still puts the gate on a `run` step that objectively verifies the agent's work

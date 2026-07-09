@@ -118,6 +118,14 @@ mise exec -- node dev/worktree-services.mjs destroy
 `destroy` removes the worktree Docker volumes and generated local-service state.
 The shared Ollama service is intentionally not stopped during workspace archive.
 
+## Writing Documentation
+
+All technical writing (docs pages, package READMEs, guides) follows
+[WRITING.md](WRITING.md): structure for skimming, sentence and word rules, a
+strict no-em-dash rule, and language-level targets with a readability script.
+Docs-app pages additionally follow
+[apps/docs/WRITING.md](apps/docs/WRITING.md).
+
 ## Directory Structure
 
 ```

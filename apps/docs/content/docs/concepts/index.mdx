@@ -1,14 +1,14 @@
 ---
 title: "How Shipfox Works: The Run Model in One Page"
 sidebarTitle: "How Shipfox Works"
-description: "The whole Shipfox run model in one page: workflows, triggers, jobs and steps, agents, gates, logging, and runners — with links to go deeper on each."
+description: "The whole Shipfox run model in one page: workflows, triggers, jobs and steps, agents, gates, logging, and runners, with links to go deeper on each."
 ---
 
 Shipfox turns YAML files in your repository into agentic automation. A **trigger** (a push, an alert, a manual fire) creates a **run**, and the run schedules **jobs** as a dependency graph. Each job executes **steps** on a **runner**; a step is a shell command or an AI agent. **Gates** loop an agent back until its work passes a check, and everything streams live to the dashboard.
 
 ![Run execution flow: event sources match a trigger in the Shipfox control plane, a run is created, jobs are scheduled as a needs DAG, a runner on your compute claims the job and executes run and agent steps with a gate looping back on failure while logs stream live](/img/diagrams/run-execution-flow.png)
 
-**[Workflows](/concepts/workflows)** are YAML files under `.shipfox/workflows/` in your repository — one file, one workflow. They are versioned, diff-able, and reviewed like any other code, and Shipfox picks up changes on push.
+**[Workflows](/concepts/workflows)** are YAML files under `.shipfox/workflows/` in your repository: one file, one workflow. They are versioned, diff-able, and reviewed like any other code, and Shipfox picks up changes on push.
 
 **[Triggers](/concepts/triggers)** decide when a run starts. Each trigger names a `source` (an integration connection or `manual`) and an `event` (like `push` or `issue.created`). Any tool that can send an event can start a run.
 

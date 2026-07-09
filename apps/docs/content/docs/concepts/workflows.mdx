@@ -10,7 +10,7 @@ A workflow has four moving parts. [Triggers](/concepts/triggers) decide when a r
 
 ## How it works
 
-Shipfox scans `.shipfox/workflows/` in your connected repository for workflow definitions. Each file in that directory is one workflow — **one file, one workflow**.
+Shipfox scans `.shipfox/workflows/` in your connected repository for workflow definitions. Each file in that directory is one definition: **one file, one workflow**.
 
 - **Any `.yml` or `.yaml` file under `.shipfox/workflows/` is picked up.** Files match by path prefix and extension, so nested paths such as `.shipfox/workflows/ci/build.yml` are scanned too.
 - **The filename is not the workflow name.** The name comes from the top-level `name:` field inside the file. You can name the file anything you like.
@@ -19,7 +19,7 @@ Shipfox scans `.shipfox/workflows/` in your connected repository for workflow de
 ## A complete workflow
 
 ```yaml
-name: My workflow          # required — shown in the dashboard
+name: My workflow          # required; shown in the dashboard
 runner: ubuntu-latest      # default runner label for all jobs
 env:                       # env vars for run steps (not agent steps)
   NODE_ENV: production
@@ -27,7 +27,7 @@ triggers:                  # what starts a run
   on_push:
     source: github_acme    # your GitHub connection slug
     event: push
-jobs:                      # required — at least one job
+jobs:                      # required; at least one job
   build:
     steps:
       - run: npm test
@@ -40,7 +40,7 @@ Every field, its type, and its constraints are in the [Workflow Schema reference
 ## Roadmap
 
 <Callout type="info">
-  `filter` evaluation, `loop`, `matrix`, and `branch` are roadmap features. `${{ }}` template interpolation is supported today — see [Expressions](/reference/expressions).
+  `filter` evaluation, `loop`, `matrix`, and `branch` are roadmap features. `${{ }}` template interpolation is supported today; see [Expressions](/reference/expressions).
 </Callout>
 
 ## Related pages

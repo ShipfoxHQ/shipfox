@@ -3,9 +3,10 @@
 This is a Next.js application generated with
 [Create Fumadocs](https://github.com/fuma-nama/fumadocs).
 
-Before writing or editing any page under `content/docs/`, read
-[WRITING.md](WRITING.md) — it defines the page types, the concept-page
-template, the example rules, and the language level every page follows.
+Before writing or editing any page under `content/docs/`, read the repo-wide
+[WRITING.md](../../WRITING.md) (style, sentences, punctuation, language level)
+and then [apps/docs/WRITING.md](WRITING.md) (page types, the concept-page
+template, example rules, and schema-documentation rules).
 
 Run development server:
 
