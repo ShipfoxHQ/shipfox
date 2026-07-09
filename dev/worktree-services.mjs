@@ -130,7 +130,7 @@ export function portsFromBase(base) {
     api: base + 1,
     postgres: base + 2,
     temporal: base + 3,
-    temporalUi: base + 4,
+    docs: base + 4,
     garageS3: base + 5,
     giteaHttp: base + 6,
     giteaSsh: base + 7,
@@ -147,7 +147,7 @@ function portsFromEnv(env) {
     api: numberFromEnv(env, 'SHIPFOX_API_PORT'),
     postgres: numberFromEnv(env, 'SHIPFOX_POSTGRES_PORT'),
     temporal: numberFromEnv(env, 'SHIPFOX_TEMPORAL_PORT'),
-    temporalUi: numberFromEnv(env, 'SHIPFOX_TEMPORAL_UI_PORT'),
+    docs: optionalNumberFromEnv(env, 'SHIPFOX_DOCS_PORT') ?? base + 4,
     garageS3: numberFromEnv(env, 'SHIPFOX_GARAGE_S3_PORT'),
     giteaHttp: numberFromEnv(env, 'SHIPFOX_GITEA_HTTP_PORT'),
     giteaSsh: numberFromEnv(env, 'SHIPFOX_GITEA_SSH_PORT'),
@@ -165,13 +165,18 @@ function numberFromEnv(env, key) {
   return port;
 }
 
+function optionalNumberFromEnv(env, key) {
+  if (env[key] === undefined) return undefined;
+  return numberFromEnv(env, key);
+}
+
 function portEnv(ports) {
   return {
     SHIPFOX_CLIENT_PORT: String(ports.client),
     SHIPFOX_API_PORT: String(ports.api),
     SHIPFOX_POSTGRES_PORT: String(ports.postgres),
     SHIPFOX_TEMPORAL_PORT: String(ports.temporal),
-    SHIPFOX_TEMPORAL_UI_PORT: String(ports.temporalUi),
+    SHIPFOX_DOCS_PORT: String(ports.docs),
     SHIPFOX_GARAGE_S3_PORT: String(ports.garageS3),
     SHIPFOX_GITEA_HTTP_PORT: String(ports.giteaHttp),
     SHIPFOX_GITEA_SSH_PORT: String(ports.giteaSsh),
@@ -183,6 +188,7 @@ function portEnv(ports) {
 function composeEnv(ports) {
   return {
     ...portEnv(ports),
+    SHIPFOX_TEMPORAL_UI_PORT: '',
     SHIPFOX_GARAGE_RPC_PORT: '',
     SHIPFOX_GARAGE_ADMIN_PORT: '',
   };
@@ -206,6 +212,7 @@ export function appEnv(ports) {
     OTEL_SERVICE_METRICS_PORT: String(ports.otelService),
     VITE_API_URL: apiUrl,
     SHIPFOX_CLIENT_PORT: String(ports.client),
+    SHIPFOX_DOCS_PORT: String(ports.docs),
     SHIPFOX_API_URL: apiUrl,
     SHIPFOX_RUNNER_API_URL: `http://host.docker.internal:${ports.api}`,
     SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS: 'host.docker.internal:host-gateway',
