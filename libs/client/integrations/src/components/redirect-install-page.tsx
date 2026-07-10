@@ -4,7 +4,6 @@ import {ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {Text} from '@shipfox/react-ui/typography';
-import {useMutation} from '@tanstack/react-query';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
 
@@ -28,7 +27,6 @@ export function RedirectInstallPage({
   assignLocation = (url) => window.location.assign(url),
 }: RedirectInstallPageProps) {
   const workspace = useActiveWorkspace();
-  const createInstall = useMutation({mutationFn: installRequest});
   const startedRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
@@ -42,15 +40,14 @@ export function RedirectInstallPage({
     } catch {
       // ignore
     }
-    createInstall
-      .mutateAsync({workspace_id: workspace.id})
+    installRequest({workspace_id: workspace.id})
       .then((response) => {
         assignLocation(response.install_url);
       })
       .catch((error: unknown) => {
         setErrorMessage(error instanceof ApiError ? error.message : errorFallbackMessage);
       });
-  }, [workspace, createInstall, beforeRedirect, errorFallbackMessage, assignLocation]);
+  }, [workspace, installRequest, beforeRedirect, errorFallbackMessage, assignLocation]);
 
   if (errorMessage) {
     return (

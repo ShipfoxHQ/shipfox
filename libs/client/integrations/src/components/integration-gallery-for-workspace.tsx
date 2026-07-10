@@ -134,6 +134,7 @@ export function IntegrationGalleryForWorkspace({
           void setConnectionActive(connection, active);
         }}
         onDelete={setDeleteConnectionId}
+        providerDisplayName={(provider) => providersMap.get(provider)?.display_name}
       />
 
       <section className="flex flex-col gap-16" aria-label="Available integrations">

@@ -10,6 +10,11 @@ describe('PROVIDER_CATALOG', () => {
       kind: 'redirect-install',
       setupPath: '/workspaces/$wid/integrations/sentry',
     });
+    expect(PROVIDER_CATALOG.linear).toMatchObject({
+      kind: 'redirect-install',
+      iconName: 'linear',
+      setupPath: '/workspaces/$wid/integrations/linear',
+    });
     expect(PROVIDER_CATALOG.gitea).toMatchObject({
       kind: 'direct-connect',
       setupPath: '/workspaces/$wid/integrations/gitea',
@@ -19,6 +24,7 @@ describe('PROVIDER_CATALOG', () => {
   test('marks providers with the install behavior their pages implement', () => {
     expect(PROVIDER_CATALOG.github?.kind).toBe('redirect-install');
     expect(PROVIDER_CATALOG.sentry?.kind).toBe('redirect-install');
+    expect(PROVIDER_CATALOG.linear?.kind).toBe('redirect-install');
     expect(PROVIDER_CATALOG.gitea?.kind).toBe('direct-connect');
     expect(PROVIDER_CATALOG.webhook?.kind).toBe('modal-connect');
   });

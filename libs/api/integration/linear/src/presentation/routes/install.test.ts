@@ -161,7 +161,7 @@ describe('Linear integration routes', () => {
     expect(installUrl.origin + installUrl.pathname).toBe('https://linear.app/oauth/authorize');
     expect(installUrl.searchParams.get('client_id')).toBe('test-client-id');
     expect(installUrl.searchParams.get('redirect_uri')).toBe(
-      'https://api.example.com/integrations/linear/callback/api',
+      'https://shipfox.example.com/integrations/linear/callback',
     );
     expect(installUrl.searchParams.get('response_type')).toBe('code');
     expect(installUrl.searchParams.get('actor')).toBe('app');

@@ -1,0 +1,136 @@
+import type {LinearCallbackQueryDto} from '@shipfox/api-integration-linear-dto';
+import {ApiError} from '@shipfox/client-api';
+
+export const LINEAR_INSTALL_WORKSPACE_KEY = 'shipfox.linear-install.workspace-id';
+
+type WorkspaceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+export function saveLinearInstallWorkspace(storage: WorkspaceStorage, workspaceId: string): void {
+  try {
+    storage.setItem(LINEAR_INSTALL_WORKSPACE_KEY, workspaceId);
+  } catch {
+    // Storage only improves recovery navigation; callback input always comes from the URL.
+  }
+}
+
+export function readLinearInstallWorkspace(storage: WorkspaceStorage): string | undefined {
+  try {
+    return storage.getItem(LINEAR_INSTALL_WORKSPACE_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function clearLinearInstallWorkspace(storage: WorkspaceStorage): void {
+  try {
+    storage.removeItem(LINEAR_INSTALL_WORKSPACE_KEY);
+  } catch {
+    // A stale navigation hint cannot alter the callback request or its response.
+  }
+}
+
+export function parseLinearCallbackQuery(
+  search: Record<string, unknown>,
+): LinearCallbackQueryDto | undefined {
+  const state = stringParam(search.state);
+  if (!state) return undefined;
+
+  const code = stringParam(search.code);
+  if (code) return {code, state};
+
+  const error = stringParam(search.error);
+  if (!error) return undefined;
+  const errorDescription = stringParam(search.error_description);
+  return errorDescription ? {error, error_description: errorDescription, state} : {error, state};
+}
+
+export function serializeLinearCallbackQuery(query: LinearCallbackQueryDto): string {
+  const params = new URLSearchParams();
+  if ('code' in query) params.set('code', query.code);
+  else {
+    params.set('error', query.error);
+    if (query.error_description) params.set('error_description', query.error_description);
+  }
+  params.set('state', query.state);
+  return params.toString();
+}
+
+export type LinearCallbackFailure = {
+  title?: string;
+  message: string;
+  startOver: boolean;
+  signIn: boolean;
+};
+
+export function classifyLinearCallbackError(error: unknown): LinearCallbackFailure {
+  if (error instanceof ApiError) {
+    if (error.code === 'invalid-linear-install-state') {
+      return {
+        title: 'Linear install link expired',
+        message: 'Linear install link expired. Start again from workspace settings.',
+        startOver: true,
+        signIn: false,
+      };
+    }
+    if (error.code === 'linear-install-state-actor-mismatch' || error.code === 'unauthorized') {
+      return {
+        title: 'Different Shipfox account',
+        message: 'Different Shipfox account. Sign in with the account that started this install.',
+        startOver: true,
+        signIn: true,
+      };
+    }
+    if (
+      error.code === 'linear-installation-already-linked' ||
+      error.code === 'linear-connection-already-linked'
+    ) {
+      return {
+        title: 'Linear already linked',
+        message: 'This Linear organization is already linked to another workspace.',
+        startOver: false,
+        signIn: false,
+      };
+    }
+    if (
+      error.code === 'linear-authorization-scope-mismatch' ||
+      error.code === 'linear-oauth-callback-error'
+    ) {
+      return {
+        title: 'Linear permissions needed',
+        message:
+          'Linear did not authorize the permissions Shipfox needs. Review the Linear consent and start again.',
+        startOver: true,
+        signIn: false,
+      };
+    }
+    if (error.status === 0 || error.code === 'network-error') {
+      return {
+        message: 'Could not reach Shipfox. Check your connection and start again.',
+        startOver: true,
+        signIn: false,
+      };
+    }
+    if (
+      error.status >= 500 ||
+      error.status === 429 ||
+      error.code === 'provider-unavailable' ||
+      error.code === 'timeout' ||
+      error.code === 'rate-limited'
+    ) {
+      return {
+        message: 'Linear is temporarily unavailable. Start a new install when it is available.',
+        startOver: true,
+        signIn: false,
+      };
+    }
+  }
+  return {
+    message: 'Could not complete the Linear install. Start again from workspace settings.',
+    startOver: true,
+    signIn: false,
+  };
+}
+
+function stringParam(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
