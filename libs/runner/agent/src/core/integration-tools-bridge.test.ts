@@ -1,0 +1,196 @@
+import {once} from 'node:events';
+import {createServer, type Server as HttpServer} from 'node:http';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import {Server} from '@modelcontextprotocol/sdk/server/index.js';
+import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
+import {
+  CallToolRequestSchema,
+  CallToolResultSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import {createIntegrationToolsBridge} from '#core/integration-tools-bridge.js';
+
+describe('createIntegrationToolsBridge', () => {
+  let gateway: FakeGateway | undefined;
+
+  afterEach(async () => {
+    await gateway?.close();
+    gateway = undefined;
+  });
+
+  it('lists tools and forwards calls to the gateway with the current lease token', async () => {
+    let leaseToken = 'lease-initial';
+    gateway = await startFakeGateway(() => leaseToken);
+    const bridge = createIntegrationToolsBridge({
+      name: 'shipfox_integration_tools',
+      url: gateway.url,
+      fetch: leaseFetch(() => leaseToken),
+    });
+
+    const tools = await bridge.listTools();
+    leaseToken = 'lease-next';
+    const result = await bridge.callTool('github_main__issue_read', {
+      method: 'get',
+      owner: 'shipfox',
+      repo: 'platform',
+      issue_number: 1,
+    });
+    await bridge.close();
+
+    expect(tools.tools.map((tool) => tool.name)).toEqual(['github_main__issue_read']);
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toEqual({
+      name: 'github_main__issue_read',
+      method: 'get',
+      issue_number: 1,
+    });
+    expect(gateway.authorizations).toContain('Bearer lease-initial');
+    expect(gateway.authorizations.at(-1)).toBe('Bearer lease-next');
+    expect(gateway.calls).toEqual([
+      {
+        name: 'github_main__issue_read',
+        arguments: {
+          method: 'get',
+          owner: 'shipfox',
+          repo: 'platform',
+          issue_number: 1,
+        },
+      },
+    ]);
+  });
+
+  it('relays list and call through the in-process MCP server', async () => {
+    let leaseToken = 'lease-initial';
+    gateway = await startFakeGateway(() => leaseToken);
+    const bridge = createIntegrationToolsBridge({
+      name: 'shipfox_integration_tools',
+      url: gateway.url,
+      fetch: leaseFetch(() => leaseToken),
+    });
+    const client = new Client({name: 'test-client', version: '0.0.0'});
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+    await bridge.server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const tools = await client.listTools();
+    leaseToken = 'lease-next';
+    const result = await client.callTool(
+      {
+        name: 'github_main__issue_read',
+        arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 2},
+      },
+      CallToolResultSchema,
+    );
+    await client.close();
+    await bridge.close();
+
+    expect(tools.tools.map((tool) => tool.name)).toEqual(['github_main__issue_read']);
+    expect(result.structuredContent).toEqual({
+      name: 'github_main__issue_read',
+      method: 'get',
+      issue_number: 2,
+    });
+    expect(gateway.authorizations).toContain('Bearer lease-initial');
+    expect(gateway.authorizations.at(-1)).toBe('Bearer lease-next');
+  });
+});
+
+interface FakeGateway {
+  url: URL;
+  authorizations: string[];
+  calls: Array<{name: string; arguments: Record<string, unknown> | undefined}>;
+  close(): Promise<void>;
+}
+
+async function startFakeGateway(expectedLeaseToken: () => string): Promise<FakeGateway> {
+  const authorizations: string[] = [];
+  const calls: Array<{name: string; arguments: Record<string, unknown> | undefined}> = [];
+  const httpServer = createServer(async (request, response) => {
+    const authorization = request.headers.authorization ?? '';
+    authorizations.push(authorization);
+    if (authorization !== `Bearer ${expectedLeaseToken()}`) {
+      response.writeHead(401).end();
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const server = new Server(
+      {name: 'fake-integration-tools', version: '0.0.0'},
+      {capabilities: {tools: {}}},
+    );
+    const transport = new StreamableHTTPServerTransport();
+
+    server.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: [
+        {
+          name: 'github_main__issue_read',
+          description: 'Read issue metadata from GitHub.',
+          inputSchema: {type: 'object'},
+        },
+      ],
+    }));
+    server.setRequestHandler(CallToolRequestSchema, (toolRequest) => {
+      calls.push({
+        name: toolRequest.params.name,
+        arguments: toolRequest.params.arguments,
+      });
+      return {
+        content: [{type: 'text', text: 'called'}],
+        structuredContent: {
+          name: toolRequest.params.name,
+          method: toolRequest.params.arguments?.method,
+          issue_number: toolRequest.params.arguments?.issue_number,
+        },
+      };
+    });
+
+    await server.connect(transport as unknown as Transport);
+    response.on('close', () => {
+      void transport.close();
+      void server.close();
+    });
+    await transport.handleRequest(request, response, body);
+  });
+  httpServer.listen(0, '127.0.0.1');
+  await once(httpServer, 'listening');
+
+  return {
+    url: new URL('/runs/jobs/current/integration-tools/mcp', address(httpServer)),
+    authorizations,
+    calls,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        httpServer.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      }),
+  };
+}
+
+function leaseFetch(leaseToken: () => string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${leaseToken()}`);
+    return fetch(input, {...init, headers});
+  };
+}
+
+function address(server: HttpServer): string {
+  const addressInfo = server.address();
+  if (typeof addressInfo !== 'object' || addressInfo === null) {
+    throw new Error('Fake gateway did not bind a TCP address.');
+  }
+  return `http://127.0.0.1:${addressInfo.port}`;
+}
+
+async function readJsonBody(request: NodeJS.ReadableStream): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const text = Buffer.concat(chunks).toString('utf8');
+  return text === '' ? undefined : (JSON.parse(text) as unknown);
+}

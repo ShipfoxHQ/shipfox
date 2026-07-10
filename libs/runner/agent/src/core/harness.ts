@@ -1,5 +1,6 @@
 import type {CustomModelProviderRuntimeConfigDto} from '@shipfox/api-agent-dto';
 import type {OutputDeclarations} from '@shipfox/expression';
+import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
 
 // The invocation shape is still pi-oriented because v1 only has two harnesses.
 // Revisit this shared contract if a third harness needs materially different inputs.
@@ -10,6 +11,7 @@ export interface HarnessInvocation {
   readonly thinking: string;
   readonly prompt: string;
   readonly tools?: readonly string[] | undefined;
+  readonly mcpServers?: readonly IntegrationToolsBridge[] | undefined;
   readonly outputs?: OutputDeclarations | undefined;
   readonly credentials: Record<string, string>;
   readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;

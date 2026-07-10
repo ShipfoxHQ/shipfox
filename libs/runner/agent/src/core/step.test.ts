@@ -1,11 +1,45 @@
-const {runAgentMock, runClaudeMock} = vi.hoisted(() => ({
-  runAgentMock: vi.fn(),
-  runClaudeMock: vi.fn(),
-}));
+const {
+  bridgeCloseMock,
+  createIntegrationToolsBridgeMock,
+  createIntegrationToolsGatewayFetchMock,
+  gatewayFetch,
+  runAgentMock,
+  runClaudeMock,
+} = vi.hoisted(() => {
+  const bridgeCloseMock = vi.fn();
+  const gatewayFetch = vi.fn();
+
+  return {
+    bridgeCloseMock,
+    createIntegrationToolsBridgeMock: vi.fn((params: {name: string}) => ({
+      name: params.name,
+      server: {},
+      listTools: vi.fn(),
+      callTool: vi.fn(),
+      close: bridgeCloseMock,
+    })),
+    createIntegrationToolsGatewayFetchMock: vi.fn(() => gatewayFetch),
+    gatewayFetch,
+    runAgentMock: vi.fn(),
+    runClaudeMock: vi.fn(),
+  };
+});
 
 vi.mock('#core/pi-adapter.js', () => ({piHarnessAdapter: {run: runAgentMock}}));
 vi.mock('#core/claude-adapter.js', () => ({claudeHarnessAdapter: {run: runClaudeMock}}));
+vi.mock('#core/integration-tools-bridge.js', () => ({
+  createIntegrationToolsBridge: createIntegrationToolsBridgeMock,
+}));
+vi.mock('@shipfox/runner-protocol', () => ({
+  createIntegrationToolsGatewayFetch: createIntegrationToolsGatewayFetchMock,
+}));
 
+import {
+  AGENT_INTEGRATION_MCP_AUTH,
+  AGENT_INTEGRATION_MCP_ENDPOINT,
+  AGENT_INTEGRATION_MCP_SERVER_NAME,
+  AGENT_INTEGRATION_MCP_TRANSPORT,
+} from '@shipfox/api-agent-dto';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
 import type {HarnessInvocation} from '#core/harness.js';
@@ -42,6 +76,10 @@ function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
 
 describe('executeAgentStep', () => {
   beforeEach(() => {
+    bridgeCloseMock.mockReset();
+    createIntegrationToolsBridgeMock.mockClear();
+    createIntegrationToolsGatewayFetchMock.mockClear();
+    gatewayFetch.mockReset();
     runAgentMock.mockReset();
     runClaudeMock.mockReset();
   });
@@ -118,6 +156,123 @@ describe('executeAgentStep', () => {
     expect(runAgentMock).toHaveBeenCalledWith(
       expect.objectContaining({tools: ['read', 'web_search']}),
     );
+  });
+
+  it('runs normally when integration tools are absent', async () => {
+    runAgentMock.mockResolvedValue({});
+
+    await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
+      runtime: RUNTIME,
+    });
+
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({mcpServers: expect.anything()}),
+    );
+    expect(createIntegrationToolsBridgeMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['non-array MCP servers', {prompt: 'p', mcpServers: 'bad'}],
+    ['empty MCP servers', {prompt: 'p', mcpServers: []}],
+    ['wrong transport', {prompt: 'p', mcpServers: [integrationToolsConfig({transport: 'stdio'})]}],
+    ['wrong auth', {prompt: 'p', mcpServers: [integrationToolsConfig({auth: 'provider_token'})]}],
+  ])('fails with agent_config_invalid for %s', async (_name, config) => {
+    const result = await executeAgentStep(buildAgentStep({config}), {runtime: RUNTIME});
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        message: 'Agent step config has invalid integration tools.',
+        reason: 'agent_config_invalid',
+        agent_config_issue: 'step_config_invalid',
+      },
+      exit_code: null,
+    });
+    expect(runAgentMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when integration tools are configured without bridge prerequisites', async () => {
+    const result = await executeAgentStep(
+      buildAgentStep({config: {prompt: 'p', mcpServers: [integrationToolsConfig()]}}),
+      {runtime: RUNTIME},
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        message: 'Agent step config has invalid integration tools.',
+        reason: 'agent_config_invalid',
+        agent_config_issue: 'step_config_invalid',
+      },
+      exit_code: null,
+    });
+    expect(runAgentMock).not.toHaveBeenCalled();
+    expect(createIntegrationToolsBridgeMock).not.toHaveBeenCalled();
+  });
+
+  it('constructs, forwards, and closes integration tool bridges around the harness run', async () => {
+    runAgentMock.mockResolvedValue({});
+    const leaseToken = () => 'lease-current';
+    const gatewayUrl = new URL('https://api.example.test/runs/jobs/current/integration-tools/mcp');
+
+    await executeAgentStep(
+      buildAgentStep({config: {prompt: 'p', mcpServers: [integrationToolsConfig()]}}),
+      {
+        runtime: RUNTIME,
+        leaseToken,
+        integrationToolsGatewayUrl: gatewayUrl,
+      },
+    );
+
+    expect(createIntegrationToolsGatewayFetchMock).toHaveBeenCalledWith(leaseToken, gatewayUrl);
+    expect(createIntegrationToolsBridgeMock).toHaveBeenCalledWith({
+      name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+      url: gatewayUrl,
+      fetch: gatewayFetch,
+    });
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mcpServers: [expect.objectContaining({name: AGENT_INTEGRATION_MCP_SERVER_NAME})],
+      }),
+    );
+    expect(bridgeCloseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes integration tool bridges when the harness run fails', async () => {
+    runAgentMock.mockRejectedValue(new Error('provider failed'));
+
+    const result = await executeAgentStep(
+      buildAgentStep({config: {prompt: 'p', mcpServers: [integrationToolsConfig()]}}),
+      {
+        runtime: RUNTIME,
+        leaseToken: 'lease-current',
+        integrationToolsGatewayUrl: new URL(
+          'https://api.example.test/runs/jobs/current/integration-tools/mcp',
+        ),
+      },
+    );
+
+    expect(result.success).toBe(false);
+    expect(bridgeCloseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves the harness result when closing an integration tool bridge fails', async () => {
+    runAgentMock.mockResolvedValue({response: 'done'});
+    bridgeCloseMock.mockRejectedValueOnce(new Error('close failed'));
+
+    const result = await executeAgentStep(
+      buildAgentStep({config: {prompt: 'p', mcpServers: [integrationToolsConfig()]}}),
+      {
+        runtime: RUNTIME,
+        leaseToken: 'lease-current',
+        integrationToolsGatewayUrl: new URL(
+          'https://api.example.test/runs/jobs/current/integration-tools/mcp',
+        ),
+      },
+    );
+
+    expect(result).toEqual({success: true, response: 'done', error: null, exit_code: 0});
+    expect(bridgeCloseMock).toHaveBeenCalledTimes(1);
   });
 
   it('forwards custom provider runtime config to the agent invocation', async () => {
@@ -318,3 +473,31 @@ describe('executeAgentStep', () => {
     expect(result.success).toBe(false);
   });
 });
+
+function integrationToolsConfig(overrides: Record<string, unknown> = {}) {
+  return {
+    name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+    transport: AGENT_INTEGRATION_MCP_TRANSPORT,
+    endpoint: AGENT_INTEGRATION_MCP_ENDPOINT,
+    auth: AGENT_INTEGRATION_MCP_AUTH,
+    integrations: [
+      {
+        connectionId: 'connection-1',
+        connectionSlug: 'github_main',
+        provider: 'github',
+        repos: ['shipfox/platform'],
+        requiredScope: [],
+        tools: [
+          {
+            id: 'issue_read',
+            sensitivity: 'read',
+            sensitive: false,
+            requiredScope: [],
+            inputSchema: {type: 'object'},
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}

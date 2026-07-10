@@ -219,7 +219,7 @@ function hasRunnerSessionExhaustedCode(body: unknown): boolean {
 // retried — it surfaces so the loop can stop.
 export type LeaseTokenSource = string | (() => string);
 
-function readLeaseToken(leaseToken: LeaseTokenSource): string {
+export function readLeaseToken(leaseToken: LeaseTokenSource): string {
   return typeof leaseToken === 'function' ? leaseToken() : leaseToken;
 }
 

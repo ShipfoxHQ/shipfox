@@ -7,6 +7,7 @@ export {
   createLeaseClient,
   HTTPError,
   heartbeat,
+  type LeaseTokenSource,
   type LogAppendFn,
   type LogAppendOutcome,
   RunnerLabelsRequiredError,
@@ -23,3 +24,7 @@ export {
   StepSecretsRequestError,
   writeStepAnnotations,
 } from '#api-client.js';
+export {
+  createIntegrationToolsGatewayFetch,
+  integrationToolsGatewayUrl,
+} from '#integration-tools-gateway.js';
