@@ -8,6 +8,7 @@ allowBuilds:
   core-js: false
   cpu-features: true
   esbuild: true
+  koffi: true
   protobufjs: true
   sharp: true
   ssh2: true
