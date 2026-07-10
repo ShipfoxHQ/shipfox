@@ -35,6 +35,18 @@ function linearPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function agentSessionPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    action: 'created',
+    type: 'AgentSessionEvent',
+    organizationId: `org-${randomUUID()}`,
+    appUserId: 'app-user-1',
+    webhookTimestamp: Date.now(),
+    agentSession: {id: 'session-1'},
+    ...overrides,
+  };
+}
+
 function signedHeaders(rawBody: string, event: string, deliveryId: string) {
   const signature = createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex');
   return {
@@ -154,6 +166,64 @@ describe('Linear webhook route', () => {
     expect(
       publishIntegrationEventReceived.mock.calls.map(([call]) => call.event.deliveryId),
     ).toEqual(['linear-delivery-a', 'linear-delivery-b']);
+  });
+
+  it.each([
+    ['an assignment', {agentSession: {id: 'session-1', issueId: 'issue-1'}}],
+    [
+      'a comment mention',
+      {agentSession: {id: 'session-1', commentId: 'comment-1', sourceCommentId: 'comment-1'}},
+    ],
+  ])('publishes %s as agentSession.created', async (_context, details) => {
+    const connection = fakeConnection();
+    const {app, publishIntegrationEventReceived} = await createTestApp({connection});
+    const deliveryId = randomUUID();
+    const rawPayload = agentSessionPayload({
+      organizationId: `org-${deliveryId}`,
+      promptContext: '<issue identifier="ENG-879">Route the complete payload</issue>',
+      ...details,
+    });
+    await seedInstallation({connectionId: connection.id, organizationId: `org-${deliveryId}`});
+    const body = JSON.stringify(rawPayload);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers: signedHeaders(body, 'AgentSessionEvent', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(publishIntegrationEventReceived).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({event: 'agentSession.created', payload: rawPayload}),
+      }),
+    );
+  });
+
+  it('publishes prompted AgentSessionEvent deliveries without an agent response', async () => {
+    const connection = fakeConnection();
+    const {app, publishIntegrationEventReceived} = await createTestApp({connection});
+    const deliveryId = randomUUID();
+    const rawPayload = agentSessionPayload({
+      action: 'prompted',
+      organizationId: `org-${deliveryId}`,
+      agentSession: {id: 'session-1', issueId: 'issue-1'},
+    });
+    await seedInstallation({connectionId: connection.id, organizationId: `org-${deliveryId}`});
+    const body = JSON.stringify(rawPayload);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers: signedHeaders(body, 'AgentSessionEvent', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(publishIntegrationEventReceived).toHaveBeenCalledWith(
+      expect.objectContaining({event: expect.objectContaining({event: 'agentSession.prompted'})}),
+    );
   });
 
   it.each([

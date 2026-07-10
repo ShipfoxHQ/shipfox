@@ -18,12 +18,31 @@ request body before parsing JSON, rejects signed payloads whose
 `webhookTimestamp` is more than 60 seconds from the API server clock, and uses
 the `Linear-Delivery` header as the integration delivery id.
 
+The OAuth app manifest is the canonical webhook configuration. Configure its
+initial webhook resource types as `Issue`, `Comment`, `IssueLabel`, `Project`,
+`Cycle`, and `AgentSessionEvent`; Linear applies that app-level configuration
+when an organization authorizes the app. Shipfox does not issue a runtime
+`webhookCreate` mutation, and there are no earlier installed organizations to
+migrate. See [Linear's OAuth app manifests](https://linear.app/developers/oauth-app-manifests).
+
 Supported data webhook events are `Issue`, `Comment`, `IssueLabel`, `Project`,
-and `Cycle` with `create`, `update`, or `remove` actions. Supported deliveries
-publish `integrations.event.received` with `provider: "linear"`,
-`source: connection.slug`, and event names such as `Issue.create`. Signed but
-unsupported webhook shapes are recorded and dropped with a 200 response so
-Linear does not retry or disable the webhook endpoint.
+and `Cycle` with `create`, `update`, or `remove` actions. They publish
+`integrations.event.received` with `provider: "linear"`, `source:
+connection.slug`, and event names such as `Issue.create`.
+
+`AgentSessionEvent.created` publishes `agentSession.created` for both an
+assignment and a comment mention. The raw payload is preserved, including
+`agentSession.commentId` and `agentSession.sourceCommentId`, so workflow filters
+can distinguish the context. Authors can get the Linear app user id from an
+observed event or the Linear app identity, then compare it with `appUserId` in a
+filter literal. `AgentSessionEvent.prompted` publishes `agentSession.prompted`;
+it can start a subscribed workflow or reach an explicitly configured job listener,
+but never automatically resumes a run from its AgentSession. The module does not
+acknowledge sessions or emit Linear agent activities. See [Linear's agent-session
+behavior](https://linear.app/developers/agent-interaction).
+
+Signed but unsupported webhook shapes are recorded and dropped with a 200
+response so Linear does not retry or disable the webhook endpoint.
 ## Agent Tool Catalog
 
 The v1 Linear agent tool catalog is a broad workspace catalog over Linear's

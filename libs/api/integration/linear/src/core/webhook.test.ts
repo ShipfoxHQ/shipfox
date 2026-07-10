@@ -5,6 +5,7 @@ import type {
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-core-dto';
+import type {LinearWebhookBaseEnvelopeDto} from '@shipfox/api-integration-linear-dto';
 import {db} from '#db/db.js';
 import {upsertLinearInstallation} from '#db/installations.js';
 import {linearInstallations} from '#db/schema/installations.js';
@@ -32,6 +33,20 @@ function payload(overrides: Record<string, unknown> = {}) {
     organizationId: `org-${randomUUID()}`,
     webhookTimestamp: Date.now(),
     data: {id: 'issue-1'},
+    ...overrides,
+  };
+}
+
+function agentSessionPayload(
+  overrides: Record<string, unknown> = {},
+): LinearWebhookBaseEnvelopeDto {
+  return {
+    action: 'created',
+    type: 'AgentSessionEvent',
+    organizationId: `org-${randomUUID()}`,
+    appUserId: 'app-user-1',
+    webhookTimestamp: Date.now(),
+    agentSession: {id: 'session-1'},
     ...overrides,
   };
 }
@@ -144,6 +159,35 @@ describe('handleLinearWebhook', () => {
     expect(handlers.recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['created', 'agentSession.created'],
+    ['prompted', 'agentSession.prompted'],
+  ] as const)('publishes AgentSessionEvent %s as %s', async (action, event) => {
+    const connection = fakeConnection();
+    const rawPayload = agentSessionPayload({
+      action,
+      organizationId: `org-${action}`,
+      promptContext: '<issue identifier="ENG-879">Route the complete payload</issue>',
+    });
+    await seedInstallation({connectionId: connection.id, organizationId: `org-${action}`});
+    const handlers = deps({connection});
+
+    const result = await handleLinearWebhook({
+      tx: db(),
+      deliveryId: randomUUID(),
+      payload: rawPayload,
+      rawPayload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published');
+    const published = firstPublishIntegrationEventReceivedCall(
+      handlers.publishIntegrationEventReceived,
+    );
+    expect(published.event.event).toBe(event);
+    expect(published.event.payload).toEqual(rawPayload);
+  });
+
   it('records the delivery only for an unknown organization', async () => {
     const handlers = deps();
     const deliveryId = randomUUID();
@@ -238,6 +282,25 @@ describe('handleLinearWebhook', () => {
     const connection = fakeConnection();
     const rawPayload = payload({organizationId: 'org-reaction', type: 'Reaction'});
     await seedInstallation({connectionId: connection.id, organizationId: 'org-reaction'});
+    const handlers = deps({connection});
+
+    const result = await handleLinearWebhook({
+      tx: db(),
+      deliveryId: randomUUID(),
+      payload: rawPayload,
+      rawPayload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unsupported-event');
+    expect(handlers.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+
+  it('records and drops an unsupported AgentSessionEvent action', async () => {
+    const connection = fakeConnection();
+    const rawPayload = agentSessionPayload({action: 'resolved', organizationId: 'org-resolved'});
+    await seedInstallation({connectionId: connection.id, organizationId: 'org-resolved'});
     const handlers = deps({connection});
 
     const result = await handleLinearWebhook({
