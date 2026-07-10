@@ -75,6 +75,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
   const hasDeclaredOutputs =
     invocation.outputs !== undefined && Object.keys(invocation.outputs).length > 0;
   const useOutputTools = hasDeclaredOutputs;
+  const mcpServers = claudeMcpServers(invocation.mcpServers, collector, useOutputTools);
 
   await assertRunnerEgressAllowed(targetUrl, targetLabel);
 
@@ -105,19 +106,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         abortController: controller,
         ...claudeToolsOption(tools, override),
         env: claudeEnvironment(auth, configDir, gitConfigGlobal, override),
-        ...(useOutputTools
-          ? {
-              mcpServers: {
-                shipfox_outputs: createSdkMcpServer({
-                  name: 'shipfox_outputs',
-                  version: '1.0.0',
-                  instructions: collector.guidanceText(),
-                  tools: [setOutputTool(collector)],
-                  alwaysLoad: true,
-                }),
-              },
-            }
-          : {}),
+        ...(mcpServers === undefined ? {} : {mcpServers}),
         persistSession: false,
         includePartialMessages: false,
       },
@@ -159,6 +148,29 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
   }
 
   throw new Error('Claude agent did not emit a result message.');
+}
+
+function claudeMcpServers(
+  integrationMcpServers: HarnessInvocation['mcpServers'],
+  collector: OutputCollector,
+  useOutputTools: boolean,
+) {
+  const servers = Object.fromEntries(
+    (integrationMcpServers ?? []).map((server) => [
+      server.name,
+      {type: 'sdk' as const, name: server.name, instance: server.server},
+    ]),
+  );
+  if (useOutputTools) {
+    servers.shipfox_outputs = createSdkMcpServer({
+      name: 'shipfox_outputs',
+      version: '1.0.0',
+      instructions: collector.guidanceText(),
+      tools: [setOutputTool(collector)],
+      alwaysLoad: true,
+    });
+  }
+  return Object.keys(servers).length === 0 ? undefined : servers;
 }
 
 function claudeToolsOption(

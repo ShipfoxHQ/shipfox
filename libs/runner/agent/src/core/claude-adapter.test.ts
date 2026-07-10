@@ -55,6 +55,7 @@ import {join} from 'node:path';
 import {claudeHarnessAdapter} from '#core/claude-adapter.js';
 import {AgentConfigError} from '#core/errors.js';
 import type {HarnessInvocation} from '#core/harness.js';
+import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
 
 function invocation(overrides: Partial<HarnessInvocation> = {}): HarnessInvocation {
   return {
@@ -102,6 +103,17 @@ function makeThrowingQuery(error: Error) {
     [Symbol.asyncIterator]: () => ({
       next: () => Promise.reject(error),
     }),
+  };
+}
+
+function mcpBridge(): IntegrationToolsBridge {
+  return {
+    name: 'shipfox_integration_tools',
+    server: {} as IntegrationToolsBridge['server'],
+    listTools: vi.fn(),
+    callTool: vi.fn(),
+    activateHttp: vi.fn(),
+    close: vi.fn(),
   };
 }
 
@@ -293,6 +305,25 @@ describe('claudeHarnessAdapter', () => {
     expect(lastQueryOptions().mcpServers).toBeUndefined();
   });
 
+  it('keeps integration bridges available with the Anthropic base URL override', async () => {
+    configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://127.0.0.1:11434';
+    const bridge = mcpBridge();
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+
+    await claudeHarnessAdapter.run(invocation({credentials: {}, mcpServers: [bridge]}));
+
+    expect(lastQueryOptions()).toMatchObject({
+      tools: [],
+      mcpServers: {
+        shipfox_integration_tools: {
+          type: 'sdk',
+          name: 'shipfox_integration_tools',
+          instance: bridge.server,
+        },
+      },
+    });
+  });
+
   it('registers declared output tools when the Anthropic base URL override is active', async () => {
     configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://127.0.0.1:11434';
     queryMock.mockReturnValue(makeQuery([successMessage, successMessage, successMessage]));
@@ -388,6 +419,42 @@ describe('claudeHarnessAdapter', () => {
         tools: ['Read', 'Grep', 'WebSearch'],
       }),
     });
+  });
+
+  it('registers integration bridges with the Claude SDK transport', async () => {
+    const bridge = mcpBridge();
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+
+    await claudeHarnessAdapter.run(invocation({mcpServers: [bridge]}));
+
+    expect(lastQueryOptions().mcpServers).toEqual({
+      shipfox_integration_tools: {
+        type: 'sdk',
+        name: 'shipfox_integration_tools',
+        instance: bridge.server,
+      },
+    });
+  });
+
+  it('merges integration bridges with output tools', async () => {
+    const bridge = mcpBridge();
+    queryMock.mockReturnValue(makeQuery([successMessage, successMessage, successMessage]));
+
+    const result = claudeHarnessAdapter.run(
+      invocation({mcpServers: [bridge], outputs: {summary: {type: 'string'}}}),
+    );
+
+    await expect(result).rejects.toThrow('Agent step finished without required outputs: summary');
+    expect(lastQueryOptions().mcpServers).toEqual(
+      expect.objectContaining({
+        shipfox_integration_tools: {
+          type: 'sdk',
+          name: 'shipfox_integration_tools',
+          instance: bridge.server,
+        },
+        shipfox_outputs: expect.objectContaining({name: 'shipfox_outputs'}),
+      }),
+    );
   });
 
   it('does not spawn Claude when already aborted', async () => {

@@ -1,3 +1,4 @@
+import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {
   type ApiKeyCredential,
@@ -17,6 +18,7 @@ import {
   DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
   DEFAULT_CUSTOM_MODEL_REASONING,
 } from '@shipfox/api-agent-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {Type} from 'typebox';
 import {assertRunnerEgressAllowed} from '#core/egress.js';
 import {AgentConfigError, AgentInvocationError} from '#core/errors.js';
@@ -55,6 +57,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     thinking,
     prompt,
     tools,
+    mcpServers,
     credentials,
     customProvider,
     gitConfigGlobal,
@@ -93,94 +96,202 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     );
   }
 
-  const services = await createAgentSessionServices({
-    cwd,
-    authStorage,
-    modelRegistry,
-    resourceLoaderOptions: {
-      additionalExtensionPaths: ['pi-web-access'],
-    },
-  });
+  let session: Awaited<ReturnType<typeof createAgentSessionFromServices>>['session'] | undefined;
+  let mcpConfig: PiMcpConfig | undefined;
 
-  const {session} = await createAgentSessionFromServices({
-    services,
-    model,
-    thinkingLevel: thinking as PiThinkingLevel,
-    ...piToolsOption(tools, customProvider),
-    ...(hasDeclaredOutputs ? {customTools: [setOutputTool(collector)]} : {}),
-    // Keep the session JSONL inside the job workspace so it forwards from a deterministic path
-    // and is cleaned up with the workspace; pi's default lives under ~/.pi, outside it.
-    sessionManager: SessionManager.create(cwd, join(cwd, 'logs', 'agent-sessions')),
-  });
-
-  // session.abort() returns a promise; a rejected abort must not become an unhandled
-  // rejection that crashes the long-lived runner, so swallow it.
-  const abortSession = () => {
-    Promise.resolve(session.abort()).catch(() => undefined);
-  };
-
-  if (signal.aborted) {
-    abortSession();
-    throw new Error('Agent step aborted during pi session creation');
-  }
-
-  signal.addEventListener('abort', abortSession, {once: true});
-  const forwarder = startForwarding(session.sessionFile, onSessionEntry);
-  // pi may not settle session.prompt() promptly on abort (step.ts races the call), so the
-  // finally below can be delayed indefinitely. Stop the forwarder on abort too, or its poll
-  // timer leaks past workspace teardown. stop() is idempotent, so the finally re-calling it is
-  // safe, and the early stop still does its final drain.
-  const stopForwarder = () => forwarder?.stop();
-  signal.addEventListener('abort', stopForwarder, {once: true});
-  const restoreGitConfigGlobal = createGitConfigGlobalRestorer(gitConfigGlobal);
-  if (gitConfigGlobal) {
-    // The runner executes one agent step at a time in this process; restore promptly so the
-    // process-global Git config cannot leak into the next step.
-    process.env.GIT_CONFIG_GLOBAL = gitConfigGlobal;
-    signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
-  }
   try {
-    let response = '';
-    await runOutputTurnLoop({
-      signal,
-      prompt: hasDeclaredOutputs ? withOutputGuidance(prompt, collector.guidanceText()) : prompt,
-      runTurn: async (message) => {
-        await session.prompt(message);
-        const assistantError = lastAssistantError(session.messages);
-        if (assistantError !== undefined) {
-          throw new AgentInvocationError(assistantError, session.getLastAssistantText() ?? '');
-        }
-        response = session.getLastAssistantText() ?? '';
+    mcpConfig = await createPiMcpConfig(cwd, mcpServers);
+    const services = await createAgentSessionServices({
+      cwd,
+      authStorage,
+      modelRegistry,
+      ...(mcpConfig === undefined
+        ? {}
+        : {extensionFlagValues: new Map([['mcp-config', mcpConfig.path]])}),
+      resourceLoaderOptions: {
+        additionalExtensionPaths:
+          mcpConfig === undefined ? ['pi-web-access'] : ['pi-web-access', 'pi-mcp-adapter'],
       },
-      missingRequired: () => collector.missingRequired(),
     });
-    const outputs = collector.snapshot();
-    return {
-      response,
-      ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
-    };
-  } catch (error) {
-    if (error instanceof RequiredOutputsMissingError) {
-      throw new AgentInvocationError(error.message, session.getLastAssistantText() ?? '');
+    assertPiServiceDiagnostics(services.diagnostics);
+
+    const createdSession = await createAgentSessionFromServices({
+      services,
+      model,
+      thinkingLevel: thinking as PiThinkingLevel,
+      ...piToolsOption(tools, customProvider, mcpConfig !== undefined),
+      ...(hasDeclaredOutputs ? {customTools: [setOutputTool(collector)]} : {}),
+      // Keep the session JSONL inside the job workspace so it forwards from a deterministic path
+      // and is cleaned up with the workspace; pi's default lives under ~/.pi, outside it.
+      sessionManager: SessionManager.create(cwd, join(cwd, 'logs', 'agent-sessions')),
+    });
+    const piSession = createdSession.session;
+    session = piSession;
+    if (mcpConfig !== undefined) {
+      await piSession.bindExtensions({
+        mode: 'print',
+        onError: (error) => {
+          logger().warn({err: error}, 'Pi extension failed');
+        },
+      });
     }
-    throw error;
+
+    // session.abort() returns a promise; a rejected abort must not become an unhandled
+    // rejection that crashes the long-lived runner, so swallow it.
+    const abortSession = () => {
+      Promise.resolve(piSession.abort()).catch(() => undefined);
+    };
+
+    if (signal.aborted) {
+      abortSession();
+      throw new Error('Agent step aborted during pi session creation');
+    }
+
+    signal.addEventListener('abort', abortSession, {once: true});
+    const forwarder = startForwarding(piSession.sessionFile, onSessionEntry);
+    // pi may not settle session.prompt() promptly on abort (step.ts races the call), so the
+    // finally below can be delayed indefinitely. Stop the forwarder on abort too, or its poll
+    // timer leaks past workspace teardown. stop() is idempotent, so the finally re-calling it is
+    // safe, and the early stop still does its final drain.
+    const stopForwarder = () => forwarder?.stop();
+    signal.addEventListener('abort', stopForwarder, {once: true});
+    const restoreGitConfigGlobal = createGitConfigGlobalRestorer(gitConfigGlobal);
+    if (gitConfigGlobal) {
+      // The runner executes one agent step at a time in this process; restore promptly so the
+      // process-global Git config cannot leak into the next step.
+      process.env.GIT_CONFIG_GLOBAL = gitConfigGlobal;
+      signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
+    }
+    try {
+      let response = '';
+      await runOutputTurnLoop({
+        signal,
+        prompt: hasDeclaredOutputs ? withOutputGuidance(prompt, collector.guidanceText()) : prompt,
+        runTurn: async (message) => {
+          await piSession.prompt(message);
+          const assistantError = lastAssistantError(piSession.messages);
+          if (assistantError !== undefined) {
+            throw new AgentInvocationError(assistantError, piSession.getLastAssistantText() ?? '');
+          }
+          response = piSession.getLastAssistantText() ?? '';
+        },
+        missingRequired: () => collector.missingRequired(),
+      });
+      const outputs = collector.snapshot();
+      return {
+        response,
+        ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
+      };
+    } catch (error) {
+      if (error instanceof RequiredOutputsMissingError) {
+        throw new AgentInvocationError(error.message, piSession.getLastAssistantText() ?? '');
+      }
+      throw error;
+    } finally {
+      // A final synchronous read forwards every entry written before the caller closes the log
+      // stream, so all session records precede its end marker.
+      forwarder?.stop();
+      restoreGitConfigGlobal();
+      signal.removeEventListener('abort', abortSession);
+      signal.removeEventListener('abort', stopForwarder);
+      signal.removeEventListener('abort', restoreGitConfigGlobal);
+    }
   } finally {
-    // A final synchronous read forwards every entry written before the caller closes the log
-    // stream, so all session records precede its end marker.
-    forwarder?.stop();
-    restoreGitConfigGlobal();
-    signal.removeEventListener('abort', abortSession);
-    signal.removeEventListener('abort', stopForwarder);
-    signal.removeEventListener('abort', restoreGitConfigGlobal);
+    await closePiSession({session, mcpConfig});
   }
 }
 
 function piToolsOption(
   tools: readonly string[] | undefined,
   customProvider: CustomModelProviderRuntimeConfigDto | undefined,
+  hasMcpServers: boolean,
 ): {tools: string[]} | {noTools: 'builtin'} | Record<string, never> {
-  if (tools !== undefined) return {tools: [...tools]};
+  if (tools !== undefined) {
+    const needsMcpTool = hasMcpServers && !tools.includes('mcp');
+    return {tools: needsMcpTool ? [...tools, 'mcp'] : [...tools]};
+  }
   return customProvider === undefined ? {} : {noTools: 'builtin'};
+}
+
+interface PiMcpConfig {
+  readonly directory: string;
+  readonly path: string;
+}
+
+function assertPiServiceDiagnostics(
+  diagnostics: Awaited<ReturnType<typeof createAgentSessionServices>>['diagnostics'],
+): void {
+  const errors = diagnostics.filter((diagnostic) => diagnostic.type === 'error');
+  if (errors.length === 0) return;
+  throw new AgentConfigError(
+    `Pi extension setup failed: ${errors.map((diagnostic) => diagnostic.message).join('; ')}`,
+  );
+}
+
+async function createPiMcpConfig(
+  cwd: string,
+  mcpServers: HarnessInvocation['mcpServers'],
+): Promise<PiMcpConfig | undefined> {
+  if (mcpServers === undefined || mcpServers.length === 0) return undefined;
+
+  const logsDirectory = join(cwd, 'logs');
+  await mkdir(logsDirectory, {recursive: true});
+  const directory = await mkdtemp(join(logsDirectory, 'pi-mcp-'));
+  const path = join(directory, 'mcp.json');
+  try {
+    const serverEntries = await Promise.all(
+      mcpServers.map(async (server) => [
+        server.name,
+        {
+          url: (await server.activateHttp()).toString(),
+          auth: false,
+          lifecycle: 'eager',
+          exposeResources: false,
+        },
+      ]),
+    );
+    await writeFile(
+      path,
+      JSON.stringify({
+        settings: {toolPrefix: 'none'},
+        mcpServers: Object.fromEntries(serverEntries),
+      }),
+    );
+    return {directory, path};
+  } catch (error) {
+    try {
+      await rm(directory, {recursive: true, force: true});
+    } catch (cleanupError) {
+      logger().warn({err: cleanupError}, 'Failed to remove incomplete Pi MCP configuration');
+    }
+    throw error;
+  }
+}
+
+async function closePiSession(params: {
+  session: Awaited<ReturnType<typeof createAgentSessionFromServices>>['session'] | undefined;
+  mcpConfig: PiMcpConfig | undefined;
+}): Promise<void> {
+  const {session, mcpConfig} = params;
+  if (session !== undefined) {
+    try {
+      await session.extensionRunner.emit({type: 'session_shutdown', reason: 'quit'});
+    } catch (error) {
+      logger().warn({err: error}, 'Failed to shut down Pi extensions');
+    }
+    try {
+      session.dispose();
+    } catch (error) {
+      logger().warn({err: error}, 'Failed to dispose Pi session');
+    }
+  }
+  if (mcpConfig !== undefined) {
+    try {
+      await rm(mcpConfig.directory, {recursive: true, force: true});
+    } catch (error) {
+      logger().warn({err: error}, 'Failed to remove Pi MCP configuration');
+    }
+  }
 }
 
 function lastAssistantError(messages: readonly unknown[]): string | undefined {
