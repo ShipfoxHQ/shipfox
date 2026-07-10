@@ -242,12 +242,14 @@ function connectionsForScenario(scenario: Scenario): IntegrationConnectionDto[] 
       provider: 'linear',
       display_name: 'linear-disabled',
       lifecycle_status: 'disabled',
+      external_url: undefined,
     }),
     connection({
       id: '66666666-6666-4666-8666-666666666666',
       provider: 'linear',
       display_name: 'linear-error',
       lifecycle_status: 'error',
+      external_url: undefined,
     }),
     connection({
       id: '77777777-7777-4777-8777-777777777777',

@@ -130,7 +130,9 @@ describe('LinearCallbackPage', () => {
     expect(await screen.findByRole('heading', {name: 'Different Shipfox account'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Switch account'})).toHaveAttribute(
       'href',
-      '/auth/logout',
+      `/auth/logout?redirect=${encodeURIComponent(
+        `/workspaces/${INTEGRATIONS_TEST_WID}/integrations/linear`,
+      )}`,
     );
     expect(screen.getByRole('link', {name: 'Start over'})).toBeVisible();
   });

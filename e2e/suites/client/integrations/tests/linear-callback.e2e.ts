@@ -79,12 +79,18 @@ test('Linear callback presents the conflict recovery state', async ({auth, page,
   await auth.loginAs(page, user);
   await stubCallback(page, {
     status: 409,
-    body: {code: 'linear-installation-already-linked'},
+    body: {
+      code: 'linear-installation-already-linked',
+      message: 'This Linear organization is already linked to another workspace.',
+    },
   });
 
   await page.goto('/integrations/linear/callback?code=spent-code&state=signed-state');
 
   await expect(page.getByRole('heading', {name: 'Linear already linked'})).toBeVisible();
+  await expect(
+    page.getByText('This Linear organization is already linked to another workspace.'),
+  ).toBeVisible();
   await expect(page.getByRole('link', {name: 'Back to Shipfox'})).toBeVisible();
   await expect(page.getByRole('link', {name: 'Start over'})).toHaveCount(0);
   await stableScreenshot(page, 'integrations/linear-callback-conflict');

@@ -130,6 +130,9 @@ function LinearCallbackFailurePage({
   }, []);
 
   const recoveryVariant = failure.startOver || failure.signIn ? 'muted' : 'base';
+  const switchAccountHref = workspaceId
+    ? `/auth/logout?redirect=${encodeURIComponent(`/workspaces/${workspaceId}/integrations/linear`)}`
+    : '/auth/logout';
   const settingsLink = workspaceId ? (
     <ButtonLink asChild variant={recoveryVariant} className="min-h-44 w-full sm:w-fit">
       <Link to="/workspaces/$wid/settings/integrations" params={{wid: workspaceId}}>
@@ -154,7 +157,7 @@ function LinearCallbackFailurePage({
         <div className="flex flex-col gap-8 sm:flex-row sm:items-center">
           {failure.signIn ? (
             <ButtonLink asChild className="min-h-44 w-full sm:w-fit">
-              <Link to="/auth/logout">Switch account</Link>
+              <Link to={switchAccountHref}>Switch account</Link>
             </ButtonLink>
           ) : null}
           {failure.startOver && workspaceId ? (

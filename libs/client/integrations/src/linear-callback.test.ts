@@ -81,25 +81,147 @@ describe('Linear callback helpers', () => {
   });
 
   it.each([
-    ['invalid-linear-install-state', 400, true, false],
-    ['linear-install-state-actor-mismatch', 403, true, true],
-    ['linear-installation-already-linked', 409, false, false],
-    ['linear-connection-already-linked', 409, false, false],
-    ['linear-authorization-scope-mismatch', 422, true, false],
-    ['linear-oauth-callback-error', 422, true, false],
-    ['unauthorized', 401, true, true],
-    ['provider-unavailable', 503, true, false],
-    ['timeout', 503, true, false],
-    ['rate-limited', 429, true, false],
-    ['network-error', 0, true, false],
-    ['slug-conflict', 409, true, false],
-    ['unknown-error', 400, true, false],
-  ])('classifies %s without retrying the callback code', (code, status, startOver, signIn) => {
+    [
+      'invalid-linear-install-state',
+      400,
+      {
+        title: 'Linear install link expired',
+        message: 'Linear install link expired. Start again from workspace settings.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'linear-install-state-actor-mismatch',
+      403,
+      {
+        title: 'Different Shipfox account',
+        message: 'Different Shipfox account. Sign in with the account that started this install.',
+        startOver: true,
+        signIn: true,
+      },
+    ],
+    [
+      'linear-installation-already-linked',
+      409,
+      {
+        title: 'Linear already linked',
+        message: 'This Linear organization is already linked to another workspace.',
+        startOver: false,
+        signIn: false,
+      },
+    ],
+    [
+      'linear-connection-already-linked',
+      409,
+      {
+        title: 'Linear already linked',
+        message: 'This Linear organization is already linked to another workspace.',
+        startOver: false,
+        signIn: false,
+      },
+    ],
+    [
+      'linear-authorization-scope-mismatch',
+      422,
+      {
+        title: 'Linear permissions needed',
+        message:
+          'Linear did not authorize the permissions Shipfox needs. Review the Linear consent and start again.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'linear-oauth-callback-error',
+      422,
+      {
+        title: 'Linear permissions needed',
+        message:
+          'Linear did not authorize the permissions Shipfox needs. Review the Linear consent and start again.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'unauthorized',
+      401,
+      {
+        title: 'Different Shipfox account',
+        message: 'Different Shipfox account. Sign in with the account that started this install.',
+        startOver: true,
+        signIn: true,
+      },
+    ],
+    [
+      'provider-unavailable',
+      503,
+      {
+        message: 'Linear is temporarily unavailable. Start a new install when it is available.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'timeout',
+      503,
+      {
+        message: 'Linear is temporarily unavailable. Start a new install when it is available.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'rate-limited',
+      429,
+      {
+        message: 'Linear is temporarily unavailable. Start a new install when it is available.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'network-error',
+      0,
+      {
+        message: 'Could not reach Shipfox. Check your connection and start again.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'slug-conflict',
+      409,
+      {
+        message: 'Could not complete the Linear install. Start again from workspace settings.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+    [
+      'unknown-error',
+      400,
+      {
+        message: 'Could not complete the Linear install. Start again from workspace settings.',
+        startOver: true,
+        signIn: false,
+      },
+    ],
+  ])('classifies %s without retrying the callback code', (code, status, expected) => {
     const failure = classifyLinearCallbackError(
       new ApiError({code, message: 'request failed', status}),
     );
 
-    expect(failure.startOver).toBe(startOver);
-    expect(failure.signIn).toBe(signIn);
+    expect(failure).toEqual(expected);
+  });
+
+  it('uses the generic recovery for unexpected errors', () => {
+    const failure = classifyLinearCallbackError(new Error('network down'));
+
+    expect(failure).toEqual({
+      message: 'Could not complete the Linear install. Start again from workspace settings.',
+      startOver: true,
+      signIn: false,
+    });
   });
 });

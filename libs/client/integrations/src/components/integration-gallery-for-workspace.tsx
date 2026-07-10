@@ -61,7 +61,8 @@ export function IntegrationGalleryForWorkspace({
     ? allConnections.filter((connection) => connection.capabilities.includes(capability))
     : allConnections;
 
-  const providerLabel = (provider: string) => providersMap.get(provider)?.display_name ?? provider;
+  const providerDisplayName = (provider: string) => providersMap.get(provider)?.display_name;
+  const providerLabel = (provider: string) => providerDisplayName(provider) ?? provider;
 
   const sortedConnections = [...connections].sort((a, b) => {
     const byProvider = providerLabel(a.provider).localeCompare(providerLabel(b.provider));
@@ -134,7 +135,7 @@ export function IntegrationGalleryForWorkspace({
           void setConnectionActive(connection, active);
         }}
         onDelete={setDeleteConnectionId}
-        providerDisplayName={(provider) => providersMap.get(provider)?.display_name}
+        providerDisplayName={providerDisplayName}
       />
 
       <section className="flex flex-col gap-16" aria-label="Available integrations">
