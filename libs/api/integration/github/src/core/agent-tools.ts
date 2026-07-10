@@ -6,6 +6,7 @@ import type {
   AgentToolsProvider,
   IntegrationConnection,
 } from '@shipfox/api-integration-core-dto';
+import {DEFAULT_JOB_LOG_TAIL_LINES} from './actions-logs.js';
 import {buildGithubAgentToolSelectionCatalog} from './agent-tool-selection.js';
 import {GithubIntegrationProviderError} from './errors.js';
 
@@ -739,20 +740,27 @@ export const githubAgentToolCatalog = [
     id: 'get_job_logs',
     category: 'actions',
     description:
-      'Get logs for GitHub Actions workflow jobs. Use this tool to retrieve logs for a specific job or all failed jobs in a workflow run.',
+      'Get logs for GitHub Actions workflow jobs. Use this tool to retrieve logs for a specific job or all failed jobs in a workflow run. For single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.',
     sensitivity: 'read',
     sensitive: false,
     requiredScope: scopes.actionsRead,
     inputSchema: repositoryInputSchema({
-      job_id: integerSchema('The unique identifier of the workflow job'),
-      run_id: integerSchema('The unique identifier of the workflow run'),
+      job_id: numberSchema(
+        'The unique identifier of the workflow job. Required when getting logs for a single job.',
+      ),
+      run_id: numberSchema(
+        'The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run.',
+      ),
       failed_only: booleanSchema(
-        'When true, gets logs for all failed jobs in the workflow run specified by run_id',
+        'When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided.',
       ),
       return_content: booleanSchema('Returns actual log content instead of URLs'),
-      tail_lines: integerSchema('Number of lines to return from the end of the log'),
+      tail_lines: {
+        ...numberSchema('Number of lines to return from the end of the log'),
+        default: DEFAULT_JOB_LOG_TAIL_LINES,
+      },
     }),
-    outputSchema: objectSchema({logs: openObjectSchema('GitHub Actions job logs')}, ['logs']),
+    outputSchema: openObjectSchema('GitHub Actions workflow job logs'),
   }),
 ] as const satisfies readonly GithubAgentToolCatalogEntry[];
 
@@ -887,6 +895,10 @@ function integerSchema(
   options: {minimum?: number | undefined; maximum?: number | undefined} = {},
 ): AgentToolJsonSchema {
   return {type: 'integer', ...(description ? {description} : {}), ...options};
+}
+
+function numberSchema(description?: string): AgentToolJsonSchema {
+  return {type: 'number', ...(description ? {description} : {})};
 }
 
 function booleanSchema(description: string): AgentToolJsonSchema {
