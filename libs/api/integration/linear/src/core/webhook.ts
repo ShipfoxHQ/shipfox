@@ -7,6 +7,8 @@ import type {
 import {
   LINEAR_PROVIDER,
   type LinearWebhookBaseEnvelopeDto,
+  type LinearWebhookEnvelopeDto,
+  type LinearWebhookEventName,
   linearWebhookEnvelopeSchema,
 } from '@shipfox/api-integration-linear-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -113,7 +115,7 @@ export async function handleLinearWebhook(
     event: {
       provider: LINEAR_PROVIDER,
       source: connection.slug,
-      event: `${supported.data.type}.${supported.data.action}`,
+      event: linearWebhookEventName(supported.data),
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
       connectionName: connection.displayName,
@@ -124,6 +126,11 @@ export async function handleLinearWebhook(
   });
 
   return {outcome: result.published ? 'published' : 'duplicate'};
+}
+
+function linearWebhookEventName(payload: LinearWebhookEnvelopeDto): LinearWebhookEventName {
+  if (payload.type === 'AgentSessionEvent') return `agentSession.${payload.action}`;
+  return `${payload.type}.${payload.action}`;
 }
 
 async function recordDeliveryOnly(params: {

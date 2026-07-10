@@ -1,5 +1,7 @@
 import {
   LINEAR_PROVIDER,
+  linearAgentSessionWebhookBaseEnvelopeSchema,
+  linearAgentSessionWebhookEnvelopeSchema,
   linearWebhookBaseEnvelopeSchema,
   linearWebhookEnvelopeSchema,
   linearWebhookEventNames,
@@ -74,9 +76,64 @@ describe('linear webhook schemas', () => {
     expect(result.type).toBe('Reaction');
   });
 
+  it.each([
+    'created',
+    'prompted',
+  ] as const)('accepts the supported AgentSessionEvent %s action', (action) => {
+    const result = linearAgentSessionWebhookEnvelopeSchema.parse({
+      action,
+      type: 'AgentSessionEvent',
+      organizationId: 'org-1',
+      appUserId: 'app-user-1',
+      webhookTimestamp: 1_786_257_600_000,
+      agentSession: {id: 'session-1'},
+    });
+
+    expect(result.action).toBe(action);
+  });
+
+  it.each([
+    ['organizationId', undefined],
+    ['organizationId', ''],
+    ['appUserId', undefined],
+    ['appUserId', ''],
+    ['webhookTimestamp', undefined],
+    ['webhookTimestamp', 1.5],
+    ['agentSession', undefined],
+    ['agentSession', 'session-1'],
+  ])('rejects AgentSessionEvent payloads missing or invalid %s', (field, value) => {
+    const payload = {
+      action: 'created',
+      type: 'AgentSessionEvent',
+      organizationId: 'org-1',
+      appUserId: 'app-user-1',
+      webhookTimestamp: 1_786_257_600_000,
+      agentSession: {id: 'session-1'},
+      [field]: value,
+    };
+
+    expect(linearAgentSessionWebhookEnvelopeSchema.safeParse(payload).success).toBe(false);
+  });
+
+  it('accepts an unknown AgentSessionEvent action in the base schema but not the supported schema', () => {
+    const payload = {
+      action: 'resolved',
+      type: 'AgentSessionEvent',
+      organizationId: 'org-1',
+      appUserId: 'app-user-1',
+      webhookTimestamp: 1_786_257_600_000,
+      agentSession: {id: 'session-1'},
+    };
+
+    expect(linearAgentSessionWebhookBaseEnvelopeSchema.safeParse(payload).success).toBe(true);
+    expect(linearAgentSessionWebhookEnvelopeSchema.safeParse(payload).success).toBe(false);
+  });
+
   it('exports Linear-facing event names without remapping resource casing', () => {
     expect(linearWebhookEventNames).toContain('Issue.create');
     expect(linearWebhookEventNames).toContain('IssueLabel.update');
     expect(linearWebhookEventNames).toContain('Cycle.remove');
+    expect(linearWebhookEventNames).toContain('agentSession.created');
+    expect(linearWebhookEventNames).toContain('agentSession.prompted');
   });
 });

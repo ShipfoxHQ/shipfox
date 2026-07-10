@@ -204,6 +204,46 @@ describe('dispatchIntegrationEvent', () => {
     );
   });
 
+  test('dispatches AgentSessionEvent deliveries only to the matching app-user filter', async () => {
+    const workspaceId = crypto.randomUUID();
+    const payload = {
+      action: 'created',
+      type: 'AgentSessionEvent',
+      organizationId: 'linear-org-id',
+      appUserId: 'app-user-1',
+      webhookTimestamp: Date.now(),
+      agentSession: {id: 'session-id', commentId: 'comment-id'},
+    };
+    const matching = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'Linear_Acme',
+      event: 'agentSession.created',
+      config: {filter: 'event.appUserId == "app-user-1"'},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'Linear_Acme',
+      event: 'agentSession.created',
+      config: {filter: 'event.appUserId == "other-app-user"'},
+    });
+
+    await dispatch({
+      provider: 'linear',
+      workspaceId,
+      source: 'Linear_Acme',
+      event: 'agentSession.created',
+      payload,
+    });
+
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: matching.projectId,
+        triggerPayload: expect.objectContaining({data: payload}),
+      }),
+    );
+  });
+
   test('routes webhook events only when workspace, source, and received event match', async () => {
     const workspaceId = crypto.randomUUID();
     const matching = await triggerSubscriptionFactory.create({

@@ -13,33 +13,74 @@ export const linearWebhookResourceTypes = [
   'Cycle',
 ] as const;
 export const linearWebhookActions = ['create', 'update', 'remove'] as const;
+export const linearAgentSessionWebhookActions = ['created', 'prompted'] as const;
 
-export const linearWebhookEventNames = linearWebhookResourceTypes.flatMap((type) =>
+const linearDataWebhookEventNames = linearWebhookResourceTypes.flatMap((type) =>
   linearWebhookActions.map((action) => `${type}.${action}` as const),
 );
+export const linearAgentSessionWebhookEventNames = linearAgentSessionWebhookActions.map(
+  (action) => `agentSession.${action}` as const,
+);
+export const linearWebhookEventNames = [
+  ...linearDataWebhookEventNames,
+  ...linearAgentSessionWebhookEventNames,
+] as const;
 
 export type LinearWebhookResourceType = (typeof linearWebhookResourceTypes)[number];
 export type LinearWebhookAction = (typeof linearWebhookActions)[number];
+export type LinearAgentSessionWebhookAction = (typeof linearAgentSessionWebhookActions)[number];
+export type LinearAgentSessionWebhookEventName =
+  (typeof linearAgentSessionWebhookEventNames)[number];
 export type LinearWebhookEventName = (typeof linearWebhookEventNames)[number];
 
 const linearWebhookDataSchema = z.record(z.string(), z.unknown());
+const linearWebhookAgentSessionSchema = z.record(z.string(), z.unknown());
 
-export const linearWebhookEnvelopeSchema = z.object({
+const linearWebhookDataEnvelopeSchema = z.object({
   action: z.enum(linearWebhookActions),
   type: z.enum(linearWebhookResourceTypes),
   organizationId: z.string().min(1),
   webhookTimestamp: z.number().int(),
   data: linearWebhookDataSchema,
 });
-export type LinearWebhookEnvelopeDto = z.infer<typeof linearWebhookEnvelopeSchema>;
 
-export const linearWebhookBaseEnvelopeSchema = z.object({
+const linearWebhookDataBaseEnvelopeSchema = z.object({
   action: z.string().min(1),
   type: z.string().min(1),
   organizationId: z.string().min(1),
   webhookTimestamp: z.number().int(),
   data: linearWebhookDataSchema,
 });
+export const linearAgentSessionWebhookBaseEnvelopeSchema = z.object({
+  action: z.string().min(1),
+  type: z.literal('AgentSessionEvent'),
+  organizationId: z.string().min(1),
+  appUserId: z.string().min(1),
+  webhookTimestamp: z.number().int(),
+  agentSession: linearWebhookAgentSessionSchema,
+});
+export type LinearAgentSessionWebhookBaseEnvelopeDto = z.infer<
+  typeof linearAgentSessionWebhookBaseEnvelopeSchema
+>;
+
+export const linearAgentSessionWebhookEnvelopeSchema =
+  linearAgentSessionWebhookBaseEnvelopeSchema.extend({
+    action: z.enum(linearAgentSessionWebhookActions),
+  });
+export type LinearAgentSessionWebhookEnvelopeDto = z.infer<
+  typeof linearAgentSessionWebhookEnvelopeSchema
+>;
+
+export const linearWebhookEnvelopeSchema = z.union([
+  linearWebhookDataEnvelopeSchema,
+  linearAgentSessionWebhookEnvelopeSchema,
+]);
+export type LinearWebhookEnvelopeDto = z.infer<typeof linearWebhookEnvelopeSchema>;
+
+export const linearWebhookBaseEnvelopeSchema = z.union([
+  linearWebhookDataBaseEnvelopeSchema,
+  linearAgentSessionWebhookBaseEnvelopeSchema,
+]);
 export type LinearWebhookBaseEnvelopeDto = z.infer<typeof linearWebhookBaseEnvelopeSchema>;
 
 export const createLinearInstallBodySchema = z.object({
