@@ -36,10 +36,10 @@ can change the values marked configurable.
 
 | Limit | Default | Configurable | Details |
 | --- | --- | --- | --- |
-| Per-job log budget | 32 MiB + 1 MiB per minute | Self-host: `LOG_BUDGET_BASE_BYTES`, `LOG_BUDGET_RATE_BYTES_PER_MINUTE` | Past the budget, further output is dropped and the stream is flagged truncated. See [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs). |
+| Per-job log budget | 32 MiB + 1 MiB per minute | Self-host: `LOG_BUDGET_BASE_BYTES`, `LOG_BUDGET_RATE_BYTES_PER_MINUTE` | Past the budget, the job is capped and further output is dropped. A `capped` record marks the boundary. See [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs). |
 | Log retention | 90 days | Self-host: `LOG_RETENTION_DAYS` | Persisted logs are deleted from the database and object storage after this window. |
 | Output group nesting | 32 levels | No | Past the cap a group is flattened into plain output. Wrap output in `::group::<name>` / `::endgroup::` marker lines to create collapsible sections. |
-| Output group name | 1 KiB | No | Longer group names are rejected at the record level. |
+| Output group name | 1 KiB | No | The runner byte-truncates longer marker names before upload. Direct log records over the cap are rejected at the record level. |
 
 ## Related pages
 

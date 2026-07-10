@@ -70,5 +70,5 @@ You need a project that can sync workflows, an online runner with the
 </Steps>
 
 Cron triggers do not receive an outside event payload, so they do not accept a
-`filter`. Use job or step [conditions](./control-jobs-and-steps) when scheduled
-work should make a decision after the run starts.
+`filter`. Use job or step [`if` conditions](/reference/workflow-schema#job-fields)
+when scheduled work should make a decision after the run starts.

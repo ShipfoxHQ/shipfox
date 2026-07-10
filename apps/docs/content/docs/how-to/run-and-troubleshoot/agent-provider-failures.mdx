@@ -19,7 +19,7 @@ If the workflow does not sync, open its sync error.
 
 - A harness and provider mismatch requires a compatible pair.
 - An unknown native tool requires a name supported by the selected harness.
-- An integration selection requires a valid integration connection and tool family.
+- An integration selection requires a valid integration connection and a supported integration tool token.
 - A write-capable integration selection also requires `allow_write: true`.
 
 Fix the YAML and wait for it to sync. Use [Model Providers](/reference/model-providers)
@@ -37,7 +37,7 @@ Open the failed agent step. Shipfox shows a warning for known setup errors.
 | Update credentials | Replace the saved key. Make sure **Test & save** succeeds. |
 | Choose a supported provider | Change the provider or harness to a compatible pair. |
 | Choose an available model | Choose a model from that provider. You can also use its default. |
-| Fix this step's agent settings | Check the prompt, provider, model, and thinking fields. |
+| Fix this step's agent settings | Check the prompt and any explicitly set provider, model, and thinking fields. |
 
 Re-run the workflow after the fix. Change only fields named in the warning.
 

@@ -10,9 +10,7 @@ export function PageFeedback({pageUrl, filePath}: {pageUrl: string; filePath: st
 
   const vote = (helpful: boolean) => {
     setVoted(true);
-    if (posthog.__loaded) {
-      posthog.capture('docs_page_feedback', {page: pageUrl, helpful});
-    }
+    posthog.capture('docs_page_feedback', {page: pageUrl, helpful});
   };
 
   return (

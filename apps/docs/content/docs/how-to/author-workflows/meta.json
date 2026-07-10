@@ -7,7 +7,7 @@
     "run-shell-commands",
     "group-command-logs",
     "schedule-workflows",
-    "control-jobs-and-steps",
+    "trigger-ready-pull-requests",
     "choose-runners",
     "add-agent-steps",
     "use-integration-tools",

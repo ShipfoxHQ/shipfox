@@ -7,6 +7,7 @@ const contentRoot = path.join(docsRoot, 'content', 'docs');
 const internalLinkPattern = /(?:\]\(|href=["'])((?:\/|#)[^)"'\s]+)(?:\)|["'])/g;
 const mdxExtensionPattern = /\.mdx$/;
 const headingPattern = /^#{1,6}\s+(.+?)\s*#*\s*$/gm;
+const trailingSlashPattern = /\/$/;
 const pages = (await filesUnder(contentRoot)).filter((file) => file.endsWith('.mdx'));
 const routes = new Set(pages.map(routeFor));
 const anchorsByRoute = new Map(
@@ -25,7 +26,7 @@ for (const file of pages) {
     const target = match[1];
     if (!target || target.startsWith('/img/')) continue;
     const [targetRoute, encodedAnchor] = target.split('#', 2);
-    const route = targetRoute || routeFor(file);
+    const route = normalizeRoute(targetRoute || routeFor(file));
     if (!routes.has(route)) {
       violations.push(`${path.relative(docsRoot, file)} -> ${target}`);
       continue;
@@ -43,6 +44,10 @@ if (violations.length > 0) {
   process.exitCode = 1;
 } else {
   process.stdout.write('All internal documentation links target existing pages.\n');
+}
+
+function normalizeRoute(route) {
+  return route === '/' ? route : route.replace(trailingSlashPattern, '');
 }
 
 function routeFor(file) {
