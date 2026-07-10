@@ -42,6 +42,7 @@
     "@earendil-works/pi-ai": "0.79.9",
     "@earendil-works/pi-coding-agent": "0.79.6",
     "@earendil-works/pi-tui": "0.79.9",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
@@ -50,6 +51,7 @@
     "@shipfox/node-egress-guard": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/runner-execution": "workspace:*",
+    "@shipfox/runner-protocol": "workspace:*",
     "pi-web-access": "0.13.0",
     "typebox": "1.1.38",
     "zod": "4.4.3"

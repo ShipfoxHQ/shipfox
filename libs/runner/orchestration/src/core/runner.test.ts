@@ -153,6 +153,7 @@ describe('runJob', () => {
     );
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
     expect(leaseTokenSource).toEqual(expect.any(Function));
+    expect(mockRunJobSteps.mock.calls[0]?.[0].leaseToken).toEqual(expect.any(Function));
     expect(mockRunJobSteps).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: JOB.job_id,
@@ -187,12 +188,16 @@ describe('runJob', () => {
 
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
     const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
+    const stepLeaseTokenSource = stepParams?.leaseToken as (() => string) | undefined;
     expect(typeof leaseTokenSource).toBe('function');
+    expect(typeof stepLeaseTokenSource).toBe('function');
     expect((leaseTokenSource as () => string)()).toBe(JOB.lease_token);
+    expect(stepLeaseTokenSource?.()).toBe(JOB.lease_token);
     expect(stepParams?.secrets).toEqual(['sf_mrt_runner-registration-token', JOB.lease_token]);
     const heartbeatOptions = mockStartHeartbeatLoop.mock.calls[0]?.[3];
     heartbeatOptions?.onLeaseTokenRenewed?.('lease-next');
     expect((leaseTokenSource as () => string)()).toBe('lease-next');
+    expect(stepLeaseTokenSource?.()).toBe('lease-next');
     heartbeatOptions?.onLeaseTokenRenewed?.('lease-third');
     heartbeatOptions?.onLeaseTokenRenewed?.('lease-fourth');
 
@@ -220,11 +225,14 @@ describe('runJob', () => {
 
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
     const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
+    const stepLeaseTokenSource = stepParams?.leaseToken as (() => string) | undefined;
     expect(typeof leaseTokenSource).toBe('function');
+    expect(typeof stepLeaseTokenSource).toBe('function');
 
     stepParams?.onLeaseTokenAdopted?.('lease-step-scoped');
 
     expect((leaseTokenSource as () => string)()).toBe('lease-step-scoped');
+    expect(stepLeaseTokenSource?.()).toBe('lease-step-scoped');
     expect(stepParams?.secrets).toEqual([
       'sf_mrt_runner-registration-token',
       JOB.lease_token,

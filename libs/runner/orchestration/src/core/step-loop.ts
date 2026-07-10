@@ -28,6 +28,8 @@ import {
   type AnnotationWriteOutcome,
   appendStepLogs,
   HTTPError,
+  integrationToolsGatewayUrl,
+  type LeaseTokenSource,
   type LogAppendFn,
   reportStep,
   requestAgentRuntimeConfig,
@@ -51,6 +53,7 @@ const WHITESPACE_REGEX = /\s+/;
 export async function runJobSteps(params: {
   jobId: string;
   leaseClient: KyInstance;
+  leaseToken: LeaseTokenSource;
   /** Secrets masked out of captured output before it reaches the spool. */
   secrets: string[];
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
@@ -98,6 +101,7 @@ export async function runJobSteps(params: {
         attempt,
         cwd,
         leaseClient,
+        leaseToken: params.leaseToken,
         secrets,
         ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
         signal,
@@ -208,6 +212,7 @@ export async function executeStep(params: {
   logsDir: string;
   jobContext: SetupJobContext;
   leaseClient: KyInstance;
+  leaseToken: LeaseTokenSource;
   secrets: string[];
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   signal: AbortSignal;
@@ -224,6 +229,7 @@ export async function executeStep(params: {
     logsDir,
     jobContext,
     leaseClient,
+    leaseToken,
     secrets,
     subscribeSecrets,
     signal,
@@ -371,6 +377,8 @@ export async function executeStep(params: {
             ? {custom_provider: runtimeConfig.custom_provider}
             : {}),
         },
+        leaseToken,
+        integrationToolsGatewayUrl: integrationToolsGatewayUrl(),
         ...(sessionStream
           ? {onSessionEntry: (line: string) => sessionStream?.writeEntry(line)}
           : {}),

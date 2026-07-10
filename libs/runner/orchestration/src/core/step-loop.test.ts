@@ -38,6 +38,7 @@ const requestStepSecretsMock = vi.fn();
 const reportStepMock = vi.fn();
 const appendStepLogsMock = vi.fn();
 const writeStepAnnotationsMock = vi.fn();
+const integrationToolsGatewayUrlMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeSetupStepMock = vi.fn();
 const createStepLogStreamMock = vi.fn();
@@ -51,6 +52,7 @@ vi.mock('@shipfox/runner-protocol', () => ({
   reportStep: (...args: unknown[]) => reportStepMock(...args),
   appendStepLogs: (...args: unknown[]) => appendStepLogsMock(...args),
   writeStepAnnotations: (...args: unknown[]) => writeStepAnnotationsMock(...args),
+  integrationToolsGatewayUrl: (...args: unknown[]) => integrationToolsGatewayUrlMock(...args),
   AgentRuntimeConfigRequestError,
   StepSecretsRequestError,
   HTTPError,
@@ -89,6 +91,10 @@ const JOB_CONTEXT = {
   jobExecutionId: '00000000-0000-0000-0000-0000000000ad',
 };
 const leaseClient = {} as never;
+const leaseTokenSource = () => 'lease-current';
+const integrationGatewayUrl = new URL(
+  'https://api.example.test/runs/jobs/current/integration-tools/mcp',
+);
 const STREAM_LENGTH = 128;
 
 // Ordered log of stream lifecycle events across all created streams, so tests can
@@ -163,6 +169,7 @@ function streamFor(stepId: string): FakeStream {
 
 function runLoop(params: {
   signal: AbortSignal;
+  leaseToken?: () => string;
   secrets?: string[];
   cwd?: string;
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
@@ -171,6 +178,7 @@ function runLoop(params: {
   return runJobSteps({
     jobId: JOB_ID,
     leaseClient,
+    leaseToken: params.leaseToken ?? leaseTokenSource,
     secrets: params.secrets ?? [],
     ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
     signal: params.signal,
@@ -190,6 +198,7 @@ describe('runJobSteps', () => {
     reportStepMock.mockReset();
     appendStepLogsMock.mockReset();
     writeStepAnnotationsMock.mockReset();
+    integrationToolsGatewayUrlMock.mockReset();
     executeRunStepMock.mockReset();
     executeSetupStepMock.mockReset();
     createStepLogStreamMock.mockReset();
@@ -203,6 +212,7 @@ describe('runJobSteps', () => {
       credentials: {api_key: 'sk-runtime-secret'},
     });
     requestStepSecretsMock.mockResolvedValue({secrets: []});
+    integrationToolsGatewayUrlMock.mockReturnValue(integrationGatewayUrl);
     events = [];
     createdStreams = new Map();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
@@ -1195,6 +1205,8 @@ describe('runJobSteps', () => {
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},
       },
+      leaseToken: leaseTokenSource,
+      integrationToolsGatewayUrl: integrationGatewayUrl,
       onSessionEntry: expect.any(Function),
     });
     expect(requestAgentRuntimeConfigMock).toHaveBeenCalledWith(leaseClient, {
@@ -1389,6 +1401,8 @@ describe('runJobSteps', () => {
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},
       },
+      leaseToken: leaseTokenSource,
+      integrationToolsGatewayUrl: integrationGatewayUrl,
     });
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
@@ -1444,6 +1458,7 @@ describe('runJobSteps', () => {
       logsDir: LOGS_DIR,
       jobContext: JOB_CONTEXT,
       leaseClient,
+      leaseToken: leaseTokenSource,
       secrets: [],
       signal: ac.signal,
       workspacePrepared: true,
@@ -1481,6 +1496,7 @@ describe('runJobSteps', () => {
       logsDir: LOGS_DIR,
       jobContext: JOB_CONTEXT,
       leaseClient,
+      leaseToken: leaseTokenSource,
       secrets: [],
       signal: ac.signal,
       workspacePrepared: true,

@@ -4916,6 +4916,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: 0.79.9
         version: 0.79.9
+      '@modelcontextprotocol/sdk':
+        specifier: 1.29.0
+        version: 1.29.0(zod@4.4.3)
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../../api/agent-dto
@@ -4940,6 +4943,9 @@ importers:
       '@shipfox/runner-execution':
         specifier: workspace:*
         version: link:../execution
+      '@shipfox/runner-protocol':
+        specifier: workspace:*
+        version: link:../protocol
       pi-web-access:
         specifier: 0.13.0
         version: 0.13.0(@earendil-works/pi-ai@0.79.9(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.79.6(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-tui@0.79.9)(typebox@1.1.38)

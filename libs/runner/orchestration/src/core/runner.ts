@@ -203,6 +203,7 @@ export async function runJob(
     await runJobSteps({
       jobId: job.job_id,
       leaseClient,
+      leaseToken: () => currentLeaseToken,
       secrets,
       subscribeSecrets: (subscriber) => {
         leaseTokenSecretSubscribers.add(subscriber);
