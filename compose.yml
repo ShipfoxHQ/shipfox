@@ -23,7 +23,7 @@ services:
     network_mode: bridge
     ports:
       - 127.0.0.1:${SHIPFOX_TEMPORAL_PORT:-7233}:7233
-      - 127.0.0.1:${SHIPFOX_TEMPORAL_UI_PORT:-8233}:8233
+      - 127.0.0.1:${SHIPFOX_TEMPORAL_UI_PORT-8233}:8233
     volumes:
       - temporal:/home/temporal
     command: "server start-dev --ip 0.0.0.0 --db-filename /home/temporal/temporal.db"

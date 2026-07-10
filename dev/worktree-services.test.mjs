@@ -26,7 +26,7 @@ describe('portsFromBase', () => {
       api: 65_001,
       postgres: 65_002,
       temporal: 65_003,
-      temporalUi: 65_004,
+      docs: 65_004,
       garageS3: 65_005,
       giteaHttp: 65_006,
       giteaSsh: 65_007,
@@ -72,6 +72,7 @@ describe('appEnv', () => {
 
     assert.equal(env.SHIPFOX_RUNNER_API_URL, 'http://host.docker.internal:55291');
     assert.equal(env.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS, 'host.docker.internal:host-gateway');
+    assert.equal(env.SHIPFOX_DOCS_PORT, '55294');
   });
 });
 
