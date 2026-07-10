@@ -13,8 +13,8 @@ const simpleIcons = {
   slack: siSlack,
 };
 
-// Sidebar shows the shorter `sidebarTitle` frontmatter (e.g. "Jobs, Steps &
-// Agents") while the page keeps its descriptive `title` as the H1. Runs before
+// Sidebar shows the shorter `sidebarTitle` frontmatter (e.g. "Jobs & Steps")
+// while the page keeps its descriptive `title` as the H1. Runs before
 // the status-badges plugin so the badge is appended to the overridden label.
 const sidebarTitlePlugin: LoaderPlugin = {
   name: 'shipfox:sidebar-title',

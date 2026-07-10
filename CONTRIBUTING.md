@@ -118,6 +118,14 @@ mise exec -- node dev/worktree-services.mjs destroy
 `destroy` removes the worktree Docker volumes and generated local-service state.
 The shared Ollama service is intentionally not stopped during workspace archive.
 
+## Writing Documentation
+
+All technical writing (docs pages, package READMEs, guides) follows
+[WRITING.md](WRITING.md): structure for skimming, sentence and word rules, a
+strict no-em-dash rule, and language-level targets with a readability script.
+Docs-app pages additionally follow
+[apps/docs/WRITING.md](apps/docs/WRITING.md).
+
 ## Directory Structure
 
 ```
@@ -345,7 +353,7 @@ This runs Vitest in browser mode against every story, producing PNGs in
 `libs/shared/react/ui/screenshots/` (gitignored). No `ARGOS_TOKEN` is needed
 locally; the `argosVitestPlugin` only uploads when `process.env.CI` is set.
 
-Page snapshots ride on the existing E2E flow — when you run
+Page snapshots ride on the existing E2E flow. When you run
 `turbo test:e2e --filter=@shipfox/e2e-client-auth` locally without `CI=true`,
 the Argos reporter is not active, so no screenshots are uploaded.
 
@@ -375,7 +383,7 @@ test('shows the empty state for new workspaces', async ({page, auth}) => {
 Conventions:
 
 - Snapshot **after** the assertions that prove the page reached the expected
-  state — `argosScreenshot` waits for fonts and stable layout, but it cannot
+  state. `argosScreenshot` waits for fonts and stable layout, but it cannot
   wait for content you have not asserted on.
 - Name snapshots `<surface>/<state>` (e.g. `auth/login`,
   `projects/empty-state`). The directory-style prefix groups related shots in
@@ -402,7 +410,7 @@ the PR merges to `main`.
 
 ### Plumbing files
 
-- `libs/shared/react/ui/vitest.config.ts` — defines the `storybook` Vitest
+- `libs/shared/react/ui/vitest.config.ts`: defines the `storybook` Vitest
   project that wraps stories with `storybookTest()` and `argosVitestPlugin()`.
   The plugin writes PNGs to `screenshots/` and uploads when `process.env.CI`
   is set.

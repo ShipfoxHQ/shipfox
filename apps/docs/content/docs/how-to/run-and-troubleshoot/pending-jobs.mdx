@@ -1,0 +1,34 @@
+---
+title: "Resolve Pending Shipfox Jobs"
+sidebarTitle: "Pending Jobs"
+description: "Match workflow runner labels with an online runner and dispatch work that remains pending."
+---
+
+A job can remain pending while it waits for dependencies or for a compatible
+runner. Use this guide after its dependencies have finished and the job is ready
+to be claimed.
+
+## Before you begin
+
+You need a run with a pending job and access to the runner process or
+provisioner that should claim it.
+
+## Compare the required labels
+
+Open the run, select the pending job, and note its runner labels. The job may
+inherit labels from the workflow or the Shipfox instance default.
+
+Check the runner process that should claim it:
+
+1. Confirm the runner is online and polling the same workspace.
+2. Confirm its configured labels include every label required by the job.
+3. Confirm the runner has capacity for another job.
+4. Check its log for registration, authentication, or polling errors.
+
+Start or repair a matching runner. The pending job is claimed automatically.
+You do not need to start another run. See [Start a
+runner](/operations/runners) for registration and the [Runner
+reference](/reference/runner) for label configuration.
+
+Confirm that the job leaves `pending`, starts an execution, and streams step
+logs from the matching runner.

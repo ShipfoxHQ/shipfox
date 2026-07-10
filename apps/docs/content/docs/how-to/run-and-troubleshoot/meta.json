@@ -1,0 +1,13 @@
+{
+  "title": "Run and Troubleshoot",
+  "pages": [
+    "index",
+    "inspect-runs-and-attempts",
+    "inspect-logs",
+    "agent-provider-failures",
+    "cancel-and-rerun",
+    "workflow-sync",
+    "event-routing",
+    "pending-jobs"
+  ]
+}

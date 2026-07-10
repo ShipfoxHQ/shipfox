@@ -1,0 +1,41 @@
+---
+title: "Cancel or Re-run a Shipfox Workflow"
+sidebarTitle: "Cancel or Re-run"
+description: "Stop active work, re-run a complete workflow, or start a new attempt for failed jobs only."
+---
+
+## Before you begin
+
+You need an active run to cancel or a finished, failed, or cancelled run to
+start again.
+
+## Cancel active work
+
+Open the active run and select **Cancel workflow**. Shipfox cancels unfinished
+work and keeps the attempt, logs, and results already recorded.
+
+Wait for the run to reach `cancelled` before starting another attempt.
+
+## Re-run all jobs
+
+Open a terminal run and select **Re-run workflow** or **Re-run all jobs**. Shipfox
+adds a new attempt to the same run and starts every job from pending state.
+
+## Re-run failed jobs only
+
+For a failed or cancelled run, open the re-run menu and select **Re-run failed
+jobs**. Successful jobs are carried into the new attempt with their outputs.
+Failed, cancelled, and downstream jobs start again.
+
+Use the attempt selector near the run title to switch between histories. A
+re-run uses the definition materialized for the original run. Start the workflow
+from its Workflows page when you need YAML that synced later.
+
+## Confirm the result
+
+- After cancellation, confirm that the active attempt reaches `cancelled` and
+  keeps completed logs.
+- After a full re-run, confirm that the attempt selector shows a new attempt and
+  every job starts again.
+- After a failed-job re-run, confirm that successful jobs and their outputs are
+  carried forward while failed and downstream jobs run again.

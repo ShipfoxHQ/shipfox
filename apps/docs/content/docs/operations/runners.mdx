@@ -1,0 +1,63 @@
+---
+title: "Start and Register a Shipfox Runner"
+sidebarTitle: "Start a Runner"
+description: "Create a token, start a runner from a Shipfox source checkout, and check that it can claim jobs."
+---
+
+Use this guide to add a runner that stays online on a machine you control. Use a
+[runner provisioner](/operations/runner-provisioners) when you want to create a
+new runner for each job.
+
+## Before you begin
+
+You need:
+
+- Access to **Settings → Runners** in the target workspace.
+- A machine that can reach Shipfox, with Git 2.31 or newer.
+- A Shipfox source checkout with `mise install` and `pnpm install` complete.
+- A label plan that matches the jobs this runner should claim.
+- Outbound access to the selected model provider if the runner handles agent
+  steps.
+
+Read [Runners and execution
+environments](/understand/runners-and-execution-environments) before choosing a
+label or capacity model.
+
+## Create a registration token
+
+Open **Settings → Runners** and create a runner token. Copy the value when
+Shipfox shows it. You can see it only once, so keep it secret.
+
+## Start the runner
+
+From the Shipfox source checkout, set the API URL, token, and labels. Replace
+each placeholder with a value from your deployment:
+
+```bash
+SHIPFOX_API_URL='<YOUR_SHIPFOX_API_URL>' \
+SHIPFOX_RUNNER_REGISTRATION_TOKEN='<YOUR_REGISTRATION_TOKEN>' \
+SHIPFOX_RUNNER_LABELS='ubuntu-latest' \
+SHIPFOX_POLL_MAX_DURATION_MS=0 \
+mise exec -- pnpm --filter=@shipfox/runner dev
+```
+
+The zero poll duration keeps this manually started runner online. The [Runner
+reference](/reference/runner) lists every environment variable, token type, and
+log setting.
+
+## Verify registration
+
+Read the runner log and wait for `Runner session registered`. The process should
+remain online and begin polling the target workspace.
+
+The dashboard does not yet list live runner sessions or labels. Use the process
+log to check the runner's API connection.
+
+## Verify job dispatch
+
+Run a workflow whose `runner` labels match the new process. Open the run and
+confirm that the job leaves `pending`, starts, and streams step logs.
+
+If it remains pending, use [Resolve pending
+jobs](/how-to/run-and-troubleshoot/pending-jobs) to compare the required labels,
+runner state, and available capacity.

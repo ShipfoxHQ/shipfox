@@ -31,10 +31,7 @@ const config = {
     ];
   },
   redirects() {
-    // The old Introduction page merged into the docs root. Redirect it in both
-    // environments; Next prefixes the basePath, so in production this matches
-    // /docs/introduction -> /docs.
-    const rules = [{source: '/introduction', destination: '/', permanent: true}];
+    const rules = [];
     if (!basePath) {
       // In dev there is no basePath, so redirect /docs-prefixed URLs back to the
       // unprefixed route so production URLs copied into a local browser still work.

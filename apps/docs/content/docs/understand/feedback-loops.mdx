@@ -1,0 +1,128 @@
+---
+title: "Feedback loops"
+sidebarTitle: "Feedback Loops"
+description: "Understand why a gate becomes a loop only when it restarts work, and how objective checks, bounds, and side effects shape a safe retry design."
+---
+
+A **feedback loop** repeats part of a job after a check rejects the result. One
+step does the open-ended work. A later step measures it. The job returns to the
+earlier step only when the check fails.
+
+A **gate** is the decision point, not the loop itself. A gate can accept or
+reject a result without repeating anything. The restart policy creates the
+loop.
+
+## Gate outcomes
+
+The check answers, "Is this result good enough to continue?" The restart
+answers, "Which earlier work should get another attempt?"
+
+Keeping them separate supports three useful shapes:
+
+- A gate can fail the job without retrying unsafe work.
+- A gate can restart only the part that can improve the result.
+- The repeated step can receive evidence from the failed check.
+
+This separation also makes the run readable. The check result explains why the
+job moved forward, failed, or created another step attempt.
+
+## Objective checks are stronger than confidence
+
+Asking an agent whether its own work is correct repeats the same judgment. A
+test, type check, linter, policy script, or independent review measures
+something outside that judgment.
+
+The check does not need to prove every property. It should prove the property
+that decides whether the next action is safe. A unit test can guard behavior
+before a commit. A policy check can guard a deploy. A read-back can confirm an
+external write.
+
+In a project with `npm test`, an online `ubuntu-latest` runner, and configured
+agent defaults, this complete workflow shows the loop:
+
+```yaml
+name: Fix failing tests
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  fix:
+    steps:
+      - key: fix
+        prompt: >
+          Fix the failing tests in this repository.
+          Previous check: ${{ step.is_retry
+            ? step.restart.feedback
+            : "No previous check. Run the tests and inspect the failures." }}
+
+      - run: npm test
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: fix
+            feedback: The tests still fail. Reproduce the failure and fix its cause.
+```
+
+The first attempt gets initial guidance. A failed test restarts `fix` in the
+same job checkout, so the agent can revise its files. A passing test lets the
+job continue.
+
+The [Gate fields
+reference](/reference/workflow-schema#gate-fields) defines the exact fields.
+
+## Feedback should change the next attempt
+
+A retry without new evidence may repeat the same mistake. Useful feedback names
+the failed property and points the repeated step toward evidence it can inspect.
+
+Static guidance is enough when the step can rerun the check and read its output.
+A checking step can also publish a small result for the feedback message. Keep
+large logs in the run rather than copying them into every prompt.
+
+Feedback is not a new event. It belongs to the restart decision and is visible
+only to the repeated attempt. [Context and
+templating](/understand/data-and-templating) explains that staged availability.
+
+## Loop bounds
+
+Every attempt consumes runner time and, for an agent, model cost. Slow checks
+multiply that cost. A loop therefore needs a useful stopping rule and a bounded
+number of attempts.
+
+The loop stops in one of two meaningful states:
+
+- The objective check passes.
+- The attempt bound is exhausted and the job fails.
+
+Do not weaken the check to make the loop finish. A failure after the bound is
+evidence that the task needs another approach or a person.
+
+Exact attempt limits live in [Limits](/reference/limits). The [run
+history](/understand/workflows-and-runs) keeps each step attempt and its
+feedback.
+
+## Repeated side effects need special care
+
+Restarting from an earlier step repeats every step from that point through the
+gate. A deploy, notification, comment, payment, or repository push inside that
+segment may happen more than once.
+
+Prefer this order:
+
+1. Make local or reversible changes.
+2. Run the objective check.
+3. Perform the external write only after the gate passes.
+
+When a write must occur inside the repeated segment, make it idempotent. Use a
+stable identity and update or read back the existing result instead of creating
+a new one on every attempt.
+
+Blindly retrying a deploy or external write is not a reliability strategy. The
+loop can amplify a bad side effect as easily as it can improve code.
+
+Use [Build a feedback
+loop](/how-to/author-workflows/build-feedback-loop) for the authoring task.

@@ -1,0 +1,82 @@
+---
+title: "Connect Sentry to a Shipfox Workspace"
+sidebarTitle: "Connect Sentry"
+description: "Install the Sentry App, choose an organization, and verify issue delivery with a workflow run."
+---
+
+Connect Sentry when a new issue should start a Shipfox workflow.
+
+## Before you begin
+
+You need access to workspace integration settings. You must also be able to
+install an app in the target Sentry organization.
+
+To verify a run, you also need a project that can sync workflows and an online
+runner with the `ubuntu-latest` label.
+
+## Install the Sentry App
+
+<Steps>
+  <Step>
+
+    **Start the integration connection**
+
+    Open **Settings → Integrations** in the workspace. Select **Sentry**, then
+    start the integration connection. Shipfox opens the Sentry App installation flow.
+  </Step>
+  <Step>
+
+    **Authorize the organization**
+
+    Select the Sentry organization and authorize the App. Sentry returns you to
+    Shipfox, which verifies the installation.
+  </Step>
+  <Step>
+
+    **Record the integration connection slug**
+
+    Open the new integration connection's menu. Select **Use this integration**. Copy the
+    slug from the trigger example. Workflows use that value as `source`.
+  </Step>
+</Steps>
+
+## Add a test workflow
+
+Create `.shipfox/workflows/check-sentry-connection.yml`. Replace `sentry_acme`
+with the integration connection slug. This is a complete workflow:
+
+```yaml
+name: Check the Sentry integration connection
+runner: ubuntu-latest
+
+triggers:
+  on_issue:
+    source: sentry_acme # Replace with your Sentry integration connection slug.
+    event: issue.created
+
+jobs:
+  check:
+    steps:
+      - env:
+          ISSUE_ID: "${{ event.issueId }}"
+          ISSUE_TITLE: "${{ event.title }}"
+        run: |
+          printf 'Received Sentry issue %s: %s\n' "$ISSUE_ID" "$ISSUE_TITLE"
+```
+
+Commit and push the workflow to the project's default branch. Wait for **Check
+the Sentry integration connection** to sync.
+
+## Verify the integration connection
+
+Make sure the integration connection is enabled in **Settings → Integrations**. Select
+**View recent events**. Create a safe test issue in Sentry.
+
+Open the new issue event and its linked run. Confirm that the log prints the
+same issue ID and title. This proves the App delivered the issue and the trigger
+used the saved integration connection slug.
+
+Use the [Sentry reference](/integrations/sentry) for event names and event
+fields instead of copying Sentry's event catalog. The [Sentry triage
+recipe](/how-to/recipes/triage-sentry-issues) turns a delivered issue into an
+agent run.

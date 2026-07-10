@@ -1,0 +1,99 @@
+---
+title: "Workflows, runs, executions, and attempts"
+sidebarTitle: "Workflows & Runs"
+description: "Understand how a stored workflow becomes a stable run snapshot, and how reruns, listeners, and feedback loops add distinct layers of history."
+---
+
+A **workflow** is reusable intent stored with the repository. A **run** is the
+record created when that intent meets one event or manual start. The workflow
+can change over time. The run must remain an honest record of what it used.
+
+That need for stable history explains why Shipfox stores more than one level of
+execution.
+
+## A definition can change; a run snapshot cannot
+
+Shipfox syncs workflow files from the repository into stored definitions. A
+successful sync changes what future runs will use. It does not start work, and
+it does not rewrite an active or finished run.
+
+When a trigger starts a run, Shipfox materializes the workflow into a run
+attempt. The attempt keeps the parsed job graph and the agent-tool selection
+used for that work. The run also keeps its starting event, inputs, and source
+snapshot.
+
+This separation has two useful consequences.
+
+- A workflow edit cannot change the meaning of work that is already running.
+- A later investigation can compare the saved source with the jobs, tools, and
+  outputs that actually ran.
+
+Start a new run when the work must use a newly synced definition. A rerun stays
+with the original run snapshot.
+
+## The history has six levels
+
+```text
+run
+`-- run attempt
+    `-- job
+        `-- job execution
+            `-- step
+                `-- step attempt
+```
+
+Most simple runs show one item at each level. The extra levels become visible
+when work repeats.
+
+- **Run attempt:** a rerun adds another attempt under the same run.
+- **Job execution:** a listening job adds an execution for each matching event
+  batch.
+- **Step attempt:** a feedback loop adds an attempt when a gate restarts an
+  earlier step.
+
+These are not interchangeable retries. A rerun repeats a run plan. A listening
+execution handles new outside input. A step attempt revises work after a check
+failed.
+
+## Status belongs to the level that changed
+
+The run gives the overall state. Each attempt, job, execution, and step keeps
+its own state and history. This makes a mixed result readable: one job may have
+succeeded, a listener may still be waiting, and another step may be on a later
+attempt.
+
+A terminal run status tells whether the current attempt succeeded, failed, or
+was cancelled. It does not erase earlier attempts or their logs. The dashboard
+can therefore show both the current result and the path that led to it.
+
+## Reruns preserve identity but create new attempts
+
+A rerun keeps the same run, starting event, inputs, source snapshot, and frozen
+workflow model. It creates a new run attempt with new jobs and executions.
+
+The rerun choice changes what is carried forward.
+
+- An **all-work rerun** schedules every job again.
+- A **failed-work rerun** carries successful jobs and their published outputs
+  into the new attempt. Failed, cancelled, and blocked work runs again.
+
+Carried outputs let downstream jobs use a successful result without rebuilding
+it. They do not imply that the old job's files or process environment moved to
+the new attempt.
+
+Use a new run instead when the event, inputs, or workflow definition should
+change.
+
+## Cancellation stops work, not history
+
+Cancellation targets the active attempt. Shipfox stops unfinished work and
+marks the affected levels accordingly. Completed logs, outputs, and earlier
+attempts remain available.
+
+This is why cancellation is different from deleting a record. It changes the
+outcome of active work while preserving the evidence needed to understand it.
+
+Use [Cancel or re-run
+work](/how-to/run-and-troubleshoot/cancel-and-rerun) for the procedure. [Inspect
+a run](/how-to/run-and-troubleshoot/inspect-runs-and-attempts) shows how to move
+through these levels in the dashboard.

@@ -1,0 +1,81 @@
+---
+title: "How Shipfox works"
+sidebarTitle: "How Shipfox Works"
+description: "See how an event becomes visible work and how that work can repeat or wait."
+---
+
+Shipfox stores engineering work as **workflows** beside the code they act on.
+An event starts a run. Jobs divide the work. Runners provide the compute, and
+steps perform fixed commands or work that needs an agent's judgment.
+
+Shipfox plans and records the work. Runners do it in an environment that the
+team controls.
+
+The same model appears in the workflow file and in the run view.
+
+Start with the core path. Add agents or waiting only when the task needs them.
+
+## The lifecycle at a glance
+
+```text
+event -> trigger -> run snapshot
+                       |
+                       +-> job -> runner -> ordered steps -> result
+                       |
+                       `-> later event -> listening-job execution
+```
+
+A run uses a workflow snapshot. A later edit cannot change active work. Each
+job gets its own checkout. Steps share that checkout and run in order.
+
+Most runs follow the direct path from event to result. Shipfox adds two forms of
+controlled repetition.
+
+- A **feedback loop** sends work back when an objective check fails.
+- A **listening job** keeps the run open for related events that arrive later.
+
+These forms solve different problems. A failed check means the current attempt
+needs more work. A later review comment means the same run has received new
+input.
+
+## Follow the core path
+
+Read these pages in order when the model is new.
+
+1. [Workspaces and projects](/understand/workspaces-and-projects) explains what
+   a team shares and what stays tied to one repository.
+2. [Workflows and runs](/understand/workflows-and-runs) separates the stored
+   definition from each recorded use and its attempts.
+3. [Events and triggers](/understand/events-and-triggers) explains why signals
+   and run-creation policy remain separate.
+4. [Jobs and steps](/understand/jobs-and-steps) explains how to choose a work
+   boundary and what that boundary isolates.
+5. [Runners and execution
+   environments](/understand/runners-and-execution-environments) explains how
+   labels and capacity place each job.
+6. [Context and templating](/understand/data-and-templating) explains when data
+   becomes available and how results move forward.
+7. [Integrations, integration connections, and
+   tools](/understand/integrations-connections-and-tools) explains how events,
+   checkout access, and external tools cross workspace boundaries.
+
+## Add judgment and repetition
+
+These pages build on the core path.
+
+- [Agents](/understand/agents) helps choose between a fixed command and work
+  that needs judgment.
+- [Feedback loops](/understand/feedback-loops) explains why an independent
+  check, not agent confidence, should decide whether work repeats.
+- [Listening jobs](/understand/listening-jobs) explains how later events
+  continue the same run without becoming retries or new runs.
+
+The dashboard mirrors this model. It keeps the run, its attempts, job
+executions, step attempts, logs, outputs, and final status together. That shape
+lets a reader see both what the workflow planned and what actually happened.
+
+<Cards>
+  <Card title="Run your first workflow" href="/getting-started">
+    Use a guided project to see the model in a working run.
+  </Card>
+</Cards>

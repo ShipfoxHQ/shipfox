@@ -1,0 +1,59 @@
+---
+title: "Update a Custom Model Provider"
+sidebarTitle: "Update Custom Provider"
+description: "Change one custom endpoint configuration and verify it with an agent run."
+---
+
+Update a custom provider when its endpoint, authentication, headers, models, or
+default model changes. The provider ID stays the same, so workflow references do
+not need a rename.
+
+## Before you begin
+
+You need workspace agent-settings access and the new endpoint configuration.
+You also need a representative project and an online runner. Keep the old
+endpoint or credential active until verification succeeds.
+
+## Find affected workflows
+
+Search project workflow files for the custom provider ID. Check the workspace
+default provider too because steps may omit `provider`.
+
+Choose a workflow that names a model you plan to keep.
+
+## Update the provider
+
+<Steps>
+  <Step>
+
+    **Open the custom provider**
+
+    Open **Settings → Agents**. Open the custom provider's menu and select
+    **Edit**.
+  </Step>
+  <Step>
+
+    **Update the connection**
+
+    Change the endpoint, protocol, headers, or models. Enter a new API key when
+    it changed. Leave it blank to keep the stored key.
+  </Step>
+  <Step>
+
+    **Test and save**
+
+    Choose a valid default model, then select **Test & save**.
+  </Step>
+</Steps>
+
+If the base URL changes, re-enter stored secret values instead of trying to
+reuse them for the new host.
+
+## Verify the update
+
+Run the representative workflow. Open its agent step and confirm that it uses
+the custom provider, resolves an expected model, and returns a response.
+
+Retire the old endpoint or credential only after the run succeeds. Use [Fix
+agent failures](/how-to/run-and-troubleshoot/agent-provider-failures) if the
+endpoint test passes but the workflow fails.

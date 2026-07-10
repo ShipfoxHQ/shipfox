@@ -1,0 +1,79 @@
+---
+title: "Run a Docker Runner Provisioner"
+sidebarTitle: "Runner Provisioner"
+description: "Start the Shipfox Docker runner provisioner from a source checkout and verify that it creates a runner for waiting work."
+---
+
+A [runner provisioner](/operations/runner-provisioners) starts ephemeral, single-job runner containers to meet demand. You don't hand-start runners or keep a fleet idle. This guide deploys the Docker provisioner.
+
+## Before you begin
+
+- A Docker daemon the provisioner can control (local socket or a reachable Docker host).
+- A runner container image, such as `shipfox-runner:ubuntu22`.
+- Access to your workspace settings in the Shipfox dashboard.
+- A Shipfox source checkout with `mise install` and `pnpm install` complete.
+
+## Create a provisioner token
+
+<Steps>
+  <Step>
+
+    **Open Settings → Runner Provisioners**
+
+    In the dashboard, go to **Settings → Runner Provisioners**.
+  </Step>
+  <Step>
+
+    **Create the token**
+
+    Click **Create token** and copy the value. It is shown only once. Treat it like a secret. It authenticates the provisioner to your workspace, and you can revoke it on the same page.
+  </Step>
+</Steps>
+
+## Write a templates file
+
+A template maps a label set to the container that provides it. Start with one template:
+
+```yaml
+templates:
+  docker-ubuntu22-2vcpu:
+    labels: [ubuntu22, ubuntu22-2vcpu]
+    image: shipfox-runner:ubuntu22
+    cpu: 2
+    memory: 4GiB
+    max_concurrency: 100
+```
+
+The full field semantics and selection rule live in the [Runner Provisioner reference](/reference/runner-provisioner#template-file-schema).
+
+## Start the provisioner
+
+Start the provisioner from the Shipfox source checkout. Replace the API URL and
+token with values from your deployment:
+
+```bash
+SHIPFOX_API_URL='<YOUR_SHIPFOX_API_URL>' \
+SHIPFOX_PROVISIONER_TOKEN='<YOUR_PROVISIONER_TOKEN>' \
+SHIPFOX_PROVISIONER_TEMPLATES_FILE=./templates.yaml \
+mise exec -- pnpm --filter=@shipfox/provisioner-docker dev
+```
+
+It authenticates on startup, then enters its control loop. On a shutdown signal
+it stops claiming new work and exits cleanly. Use your process supervisor to
+keep it running. All tuning variables are listed in the [Runner Provisioner
+reference](/reference/runner-provisioner).
+
+## Verify it works
+
+Fire a workflow whose `runner:` label matches one of your templates (for example `runner: ubuntu22`). Within a few seconds the provisioner starts a container. The container registers as a runner, claims the job, runs it, and exits. The run detail page shows the job leaving `pending` and streaming logs.
+
+## Related pages
+
+<Cards>
+  <Card title="Runner Provisioner reference" href="/reference/runner-provisioner">
+    Every environment variable and the template schema.
+  </Card>
+  <Card title="Runner Provisioners" href="/operations/runner-provisioners">
+    How the control loop works.
+  </Card>
+</Cards>

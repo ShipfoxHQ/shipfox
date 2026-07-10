@@ -1,0 +1,77 @@
+---
+title: "Select a Test Suite with Trigger Inputs"
+sidebarTitle: "Pass Trigger Inputs"
+description: "Use one job for a quick manual check and a full scheduled test run."
+---
+
+Use fixed trigger inputs when several start paths should run the same job with
+different settings. This guide maps a manual trigger to smoke tests and a Cron
+trigger to the full test suite.
+
+## Before you begin
+
+You need:
+
+- A project that can sync workflow files.
+- An online runner with the `ubuntu-latest` label.
+- A Node.js repository with `test:smoke` and `test` scripts.
+
+## Add the workflow
+
+Create `.shipfox/workflows/test-suites.yml`. This is a complete workflow:
+
+```yaml
+name: Run the right test suite
+runner: ubuntu-latest
+
+triggers:
+  manual_smoke:
+    source: manual
+    event: fire
+    with:
+      suite: smoke
+
+  nightly_full:
+    source: cron
+    event: tick
+    config:
+      schedule: "0 2 * * *"
+      timezone: UTC
+    with:
+      suite: full
+
+jobs:
+  test:
+    steps:
+      - run: npm ci
+      - env:
+          TEST_SUITE: "${{ inputs.suite }}"
+        run: |
+          case "$TEST_SUITE" in
+            smoke) npm run test:smoke ;;
+            full) npm test ;;
+            *) printf 'Unknown test suite: %s\n' "$TEST_SUITE" >&2; exit 2 ;;
+          esac
+```
+
+Each trigger records its `with` values as run `inputs`. The run step binds the
+input through `env` before the shell reads it. The allowlist in the `case`
+statement also rejects any value the workflow does not expect.
+
+Commit and push the file to the project's default branch. Wait for **Run the
+right test suite** to sync.
+
+## Verify both start paths
+
+For a quick schedule check, temporarily set `schedule` to the next UTC minute.
+Restore `0 2 * * *` after both start paths work.
+
+1. Select **Run**. Open the run and check that it uses `smoke` and calls
+   `npm run test:smoke`.
+2. After the next scheduled run, check that it uses `full` and calls `npm test`.
+3. Open each run's trigger data. Confirm that the matching `with` value appears
+   under `inputs`.
+
+The [Expressions reference](/reference/expressions#context-available) defines
+where `inputs` is available and why it is untrusted. The [Cron
+reference](/reference/trigger-sources#cron) defines schedule fields.

@@ -1,0 +1,72 @@
+---
+title: "Set Up Work in Shipfox"
+sidebarTitle: "Set Up Work"
+description: "Connect other systems, create projects, set up agents, and manage workspace access."
+---
+
+These guides get a workspace ready to run work. You do not need a runner or
+model provider for every task. Each guide tells you which account and access it
+needs.
+
+## Connect external systems
+
+<Cards>
+  <Card title="Connect GitHub" href="/how-to/set-up-work/connect-github">
+    Install the GitHub App and create a workspace integration connection.
+  </Card>
+  <Card title="Connect Sentry" href="/how-to/set-up-work/connect-sentry">
+    Install the Sentry App and create a workspace integration connection.
+  </Card>
+  <Card title="Create a custom webhook" href="/how-to/set-up-work/create-custom-webhook">
+    Receive events from a system without a built-in integration.
+  </Card>
+  <Card title="Inspect an integration connection" href="/how-to/set-up-work/manage-integration-connections">
+    Find its slug and confirm recent events.
+  </Card>
+  <Card title="Pause an integration connection" href="/how-to/set-up-work/disable-integration-connection">
+    Stop new events for a limited time, then resume them.
+  </Card>
+  <Card title="Delete an integration connection" href="/how-to/set-up-work/delete-integration-connection">
+    Check dependencies before permanent removal.
+  </Card>
+</Cards>
+
+## Prepare projects and agents
+
+<Cards>
+  <Card title="Create a project" href="/how-to/set-up-work/create-project">
+    Bind a connected repository to a Shipfox project.
+  </Card>
+  <Card title="Configure agent defaults" href="/how-to/set-up-work/configure-model-providers">
+    Configure a harness and provider, then verify them with a run.
+  </Card>
+  <Card title="Add a custom model provider" href="/how-to/set-up-work/add-custom-model-provider">
+    Connect a model endpoint outside the built-in provider catalog.
+  </Card>
+  <Card title="Rotate provider credentials" href="/how-to/set-up-work/rotate-model-provider-credentials">
+    Replace a built-in provider key and verify a run.
+  </Card>
+  <Card title="Update a custom provider" href="/how-to/set-up-work/update-custom-model-provider">
+    Change an endpoint or model configuration without changing its ID.
+  </Card>
+  <Card title="Delete a model provider" href="/how-to/set-up-work/delete-model-provider">
+    Move workflows to a replacement before removing credentials.
+  </Card>
+</Cards>
+
+## Manage workspace values and access
+
+<Cards>
+  <Card title="Add secrets and variables" href="/how-to/set-up-work/secrets-and-variables">
+    Store configuration and bind it into run steps.
+  </Card>
+  <Card title="Replace a secret or variable" href="/how-to/set-up-work/update-workspace-value">
+    Update a shared value and verify affected workflows.
+  </Card>
+  <Card title="Delete a secret or variable" href="/how-to/set-up-work/delete-workspace-value">
+    Remove references before deleting an unused value.
+  </Card>
+  <Card title="Manage workspace members" href="/how-to/set-up-work/manage-workspace-members">
+    Invite people, revoke invitations, or remove members.
+  </Card>
+</Cards>

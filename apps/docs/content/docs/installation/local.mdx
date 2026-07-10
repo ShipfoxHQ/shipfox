@@ -1,11 +1,11 @@
 ---
 title: "Local Evaluation"
 sidebarTitle: "Local Evaluation"
-description: "Run the full Shipfox stack on your machine with Docker Compose — API, dashboard, PostgreSQL, Temporal, Gitea, and object storage — to explore the platform."
+description: "Run the full Shipfox stack on your machine with Docker Compose to explore the API, dashboard, PostgreSQL, Temporal, Gitea, and object storage."
 ---
 
-Evaluation mode runs the full Shipfox stack — API, dashboard, PostgreSQL, Temporal,
-Gitea, and object storage — locally with Docker Compose, so you can explore the
+Evaluation mode runs the full Shipfox stack locally with Docker Compose. It includes
+the API, dashboard, PostgreSQL, Temporal, Gitea, and object storage, so you can explore the
 platform without any cloud account. For a production deployment, see
 [Self-Hosting](/installation/self-hosting).
 
@@ -17,7 +17,7 @@ platform without any cloud account. For a production deployment, see
     Make sure the following are installed and available on your `PATH` before continuing:
 
     - [Docker](https://docs.docker.com/get-docker/) (with Compose v2)
-    - [mise](https://mise.jdx.dev/) — installs the pinned Node.js, pnpm, and turbo versions
+    - [mise](https://mise.jdx.dev/), which installs the pinned Node.js, pnpm, and turbo versions
     - [Git](https://git-scm.com/)
 
     Clone the Shipfox repository to your local machine:
@@ -50,7 +50,7 @@ platform without any cloud account. For a production deployment, see
     turbo build --filter=@shipfox/api...
     ```
 
-    The first command builds shared UI primitives; the second builds everything the API transitively depends on. Both are incremental — re-running after a code change only rebuilds what changed.
+    The first command builds shared UI primitives. The second builds everything the API transitively depends on. Both are incremental, so running them again after a code change only rebuilds what changed.
   </Step>
   <Step>
 
@@ -77,9 +77,9 @@ platform without any cloud account. For a production deployment, see
       The stack binds fixed host ports: 5432 (PostgreSQL), 7233 (Temporal), 3000
       (Gitea HTTP), 2222 (Gitea SSH), and 3900 (object storage S3). If
       `docker compose up` fails with "port is already allocated", override the
-      conflicting port with the matching variable — `SHIPFOX_POSTGRES_PORT`,
+      conflicting port with the matching variable: `SHIPFOX_POSTGRES_PORT`,
       `SHIPFOX_TEMPORAL_PORT`, `SHIPFOX_GITEA_HTTP_PORT`, `SHIPFOX_GITEA_SSH_PORT`,
-      or `SHIPFOX_GARAGE_S3_PORT` — before running the command again.
+      or `SHIPFOX_GARAGE_S3_PORT`. Then run the command again.
     </Callout>
   </Step>
   <Step>
@@ -89,14 +89,14 @@ platform without any cloud account. For a production deployment, see
     Open two terminal windows and start the API and dashboard processes:
 
     ```bash
-    # Terminal 1 — API on port 16101
+    # Terminal 1: API on port 16101
     pnpm --filter=@shipfox/api dev
 
-    # Terminal 2 — Dashboard on port 5173
+    # Terminal 2: Dashboard on port 5173
     pnpm --filter=@shipfox/client dev
     ```
 
-    Wait until both processes are ready before proceeding. The API prints `Server listening at http://127.0.0.1:16101`; the dashboard prints `VITE ready`. The dashboard is available at `http://localhost:5173` and the API at `http://localhost:16101`.
+    Wait until both processes are ready before proceeding. The API prints `Server listening at http://127.0.0.1:16101`, and the dashboard prints `VITE ready`. The dashboard is available at `http://localhost:5173` and the API at `http://localhost:16101`.
   </Step>
   <Step>
 
@@ -106,21 +106,21 @@ platform without any cloud account. For a production deployment, see
 
     <Callout type="info">
       Signup asks you to verify your email. In evaluation mode there is no mail
-      server — the API prints every email to its terminal. Find the line containing
+      server. The API prints every email to its terminal. Find the line containing
       `Verify your email` in the API logs and open the verification link it
       contains.
     </Callout>
 
     After verification, the dashboard walks you through setup:
 
-    1. **Create your workspace** — pick any name.
-    2. **Install source control** — choose **Gitea** and enter the organization `shipfox` (the org seeded by Docker Compose).
-    3. **Configure agent provider** — skip this unless you want to run agent steps immediately.
-    4. **Create project** — pick a seeded repository such as `shipfox/demo`. The project name is pre-filled from the repository.
+    1. **Create your workspace**: pick any name.
+    2. **Install source control**: choose **Gitea** and enter the organization `shipfox` (the org seeded by Docker Compose).
+    3. **Configure agent provider**: skip this unless you want to run agent steps immediately.
+    4. **Create project**: pick a seeded repository such as `shipfox/demo`. The project name is pre-filled from the repository.
 
-    ![The create-project form showing the source connection, repository picker, and pre-filled project name](/img/create-project.png)
+    ![The create-project form showing the source integration connection, repository picker, and pre-filled project name](/img/create-project.png)
 
-*Create project: pick the source connection, then the repository — the name is pre-filled.*
+*Create project: pick the source integration connection and repository. The name is pre-filled.*
   </Step>
   <Step>
 
@@ -128,7 +128,7 @@ platform without any cloud account. For a production deployment, see
 
     A runner is required to execute jobs. Follow these steps to register one:
 
-    1. Go to **Settings → Runners** and click **Create token**. Name the token, pick an expiry, and copy the token — it is shown only once.
+    1. Go to **Settings → Runners** and click **Create token**. Name the token, pick an expiry, and copy the token. It is shown only once.
     2. Start a runner in a third terminal, passing your token and labels as environment variables:
 
     ```bash
@@ -138,11 +138,11 @@ platform without any cloud account. For a production deployment, see
     pnpm --filter=@shipfox/runner dev
     ```
 
-    The runner reads `SHIPFOX_API_URL`, `SHIPFOX_RUNNER_REGISTRATION_TOKEN`, and `SHIPFOX_RUNNER_LABELS` from its environment. Within a few seconds its terminal prints `Runner session registered` — the runner is now polling for jobs. The dashboard does not list connected runners yet; the runner's own log is the place to confirm it is connected.
+    The runner reads `SHIPFOX_API_URL`, `SHIPFOX_RUNNER_REGISTRATION_TOKEN`, and `SHIPFOX_RUNNER_LABELS` from its environment. Within a few seconds, its terminal prints `Runner session registered` and starts polling for jobs. The dashboard does not list connected runners yet, so use the runner log to confirm that it is connected.
 
     ![The create registration token dialog on Settings → Runners, showing the one-time token value and copy button](/img/runner-registration-token.png)
 
-*Creating a registration token — the value is shown once, with a copy button.*
+*Creating a registration token. The value is shown once, with a copy button.*
 
     <Callout type="info">
       A runner exits after a default idle window (about 5 minutes). To keep it polling indefinitely during evaluation, add `SHIPFOX_POLL_MAX_DURATION_MS=0` to its environment.
@@ -152,7 +152,8 @@ platform without any cloud account. For a production deployment, see
 
     **Fire your first run**
 
-    Create a workflow file in the `shipfox/demo` repository that uses a manual trigger — for example:
+    Create a workflow file in the `shipfox/demo` repository that uses a manual
+    trigger. This is a complete workflow:
 
     ```yaml
     name: First run
@@ -177,8 +178,19 @@ platform without any cloud account. For a production deployment, see
   </Step>
 </Steps>
 
+## Verify the evaluation stack
+
+Confirm that **First run** succeeds, its command prints `Shipfox is running!`,
+and the runner log shows that it claimed and completed the job. These checks
+prove that workflow sync, manual routing, runner registration, checkout, and log
+delivery work together.
+
 <Callout type="info">
-  In evaluation mode, **GitHub** push triggers will not fire because the local API is not reachable from GitHub's webhook infrastructure. **Gitea** push triggers do fire: the compose stack registers a webhook from the seeded `shipfox` org to your local API. Add a push trigger with the Gitea connection's slug as its source:
+  In evaluation mode, **GitHub** push triggers do not fire by default because
+  the local API is not reachable from GitHub's webhook infrastructure.
+  **Gitea** push triggers do fire: the compose stack registers a webhook from
+  the seeded `shipfox` org to your local API. Add this trigger fragment under
+  the complete workflow's `triggers` map:
 
   ```yaml
   triggers:
@@ -189,11 +201,15 @@ platform without any cloud account. For a production deployment, see
 
   Then `git push` to the connected repository and watch the run start.
 
-  Gitea is the evaluation stack's local stand-in for GitHub — it exists only in
+  Gitea is the evaluation stack's local stand-in for GitHub. It exists only in
   this Docker Compose setup. Deployed installations (self-hosted or cloud) connect
-  **GitHub**; GitLab support is on the roadmap.
+  **GitHub**: GitLab support is on the roadmap.
 </Callout>
 
 <Callout type="info">
-  Agent steps (`model` + `prompt`) require the appropriate provider API key to be set in the runner's environment. For Anthropic models, set `ANTHROPIC_API_KEY` before starting the runner process. Other providers use their own key environment variables.
+  Agent steps use model-provider credentials stored in workspace settings. Do
+  not put provider API keys in the runner environment. Follow [Configure an
+  agent harness and model
+  provider](/how-to/set-up-work/configure-model-providers) before running an
+  agent step.
 </Callout>

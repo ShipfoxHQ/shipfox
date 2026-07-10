@@ -1,0 +1,22 @@
+{
+  "title": "Author Workflows",
+  "pages": [
+    "index",
+    "run-manually",
+    "pass-trigger-inputs",
+    "run-shell-commands",
+    "group-command-logs",
+    "schedule-workflows",
+    "trigger-ready-pull-requests",
+    "choose-runners",
+    "add-agent-steps",
+    "use-integration-tools",
+    "post-pull-request-review",
+    "push-repository-changes",
+    "pass-outputs",
+    "use-structured-agent-outputs",
+    "bound-listening-job",
+    "define-listener-success",
+    "build-feedback-loop"
+  ]
+}

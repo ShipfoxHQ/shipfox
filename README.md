@@ -77,11 +77,11 @@ then a `gate` reruns the tests and sends the agent back until they pass.
 |---|---|
 | **Workflow** | A YAML file under `.shipfox/workflows/`, versioned and reviewed like code. One file, one workflow. |
 | **Trigger** | What starts a run: an event from a connected integration, or an on-demand fire. |
-| **Integration** | A connection to an external tool (GitHub, Sentry, Slack, Linear, ...) whose events start runs. Use the [generic webhook](docs/integrations/webhooks.mdx) to connect anything not built in. |
+| **Integration** | A connection to an external tool (GitHub, Sentry, Slack, Linear, ...) whose events start runs. Use the [generic webhook](apps/docs/content/docs/integrations/webhooks.mdx) to connect anything not built in. |
 | **Job** | A group of steps on one runner. Jobs form a DAG via `needs` and are isolated, so each re-clones the repo. |
 | **Step** | A `run` shell command or an agent (`model` + `prompt`, on the `pi` or `claude` harness). Runs in order within a job. |
-| **Gate** | A pass/fail [check on a step](docs/concepts/gates.mdx) that retries from an earlier step when it fails. Bounded retry loops, no scripting. |
-| **Listening job** | A [job that waits on events](docs/concepts/listening-jobs.mdx) and runs again per batch inside the same run, until a resolution condition. Drives event-driven, asynchronous workflows. |
+| **Gate** | A pass/fail [check on a step](apps/docs/content/docs/understand/feedback-loops.mdx) that retries from an earlier step when it fails. Bounded retry loops, no scripting. |
+| **Listening job** | A [job that waits on events](apps/docs/content/docs/understand/listening-jobs.mdx) and runs again per batch inside the same run, until a resolution condition. Drives event-driven, asynchronous workflows. |
 | **Runner** | A process you register on your own compute; matched to jobs by label. |
 
 ## Getting started

@@ -1,0 +1,65 @@
+---
+title: "Add and Test an Agent Step"
+sidebarTitle: "Agent Steps"
+description: "Add one agent step that reads project files. Check its result in a manual run."
+---
+
+Use this guide to add an agent step to a project. The agent reads the code and
+describes what it finds. It does not change any files.
+
+## Before you begin
+
+You need:
+
+- A project that can sync workflow files.
+- An online runner with the `ubuntu-latest` label.
+- [Configured agent
+  defaults](/how-to/set-up-work/configure-model-providers).
+
+## Add the workflow
+
+Create `.shipfox/workflows/summarize-repository.yml`. This is a complete
+workflow. It uses the workspace's default harness, provider, and model:
+
+```yaml
+name: Summarize the repository
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  summarize:
+    steps:
+      - prompt: |
+          Read this repository and summarize its purpose in three sentences.
+          Name the main entry point and one command a contributor should know.
+          Do not change any files.
+```
+
+Commit and push the file to the project's default branch. Wait for **Summarize
+the repository** to appear in the project's **Workflows** tab.
+
+## Verify the agent result
+
+Select **Run** and open the new run.
+
+1. Confirm that the `summarize` job starts on the expected runner.
+2. Open the agent step and follow its messages and tool activity.
+3. Check that the final response has three sentences.
+4. Check that it names a real entry point and a command from the project.
+
+The result should match the code in the commit that started the run.
+
+If the step cannot resolve a model or provider, check [Configure agent
+defaults](/how-to/set-up-work/configure-model-providers). To override defaults,
+use the exact fields in [Agent step
+fields](/reference/workflow-schema#agent-step-fields).
+
+Use [Build a feedback
+loop](/how-to/author-workflows/build-feedback-loop) to check and retry agent
+work. Use [read-only integration
+tools](/how-to/author-workflows/use-integration-tools) to give the agent outside
+context.

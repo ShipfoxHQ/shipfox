@@ -1,0 +1,39 @@
+---
+title: "Remove an Unused Model Provider"
+sidebarTitle: "Delete a Provider"
+description: "Move agent steps to another provider. Remove the old provider and check the affected runs."
+---
+
+Remove a provider only after no workflow or workspace default needs it. This
+also removes its saved keys from the workspace.
+
+## Before you begin
+
+You need access to agent settings and a working replacement. It must support the
+harnesses and models used by your workflows. You also need a representative
+project and an online runner.
+
+## Move every dependency
+
+1. Search every project workflow for the provider ID.
+2. Update explicit `provider` and `model` fields to the replacement.
+3. If this is the workspace default, set another configured provider as default.
+4. Check steps that omit `provider`; they now resolve through the new default.
+5. Push workflow edits to each project's default branch and wait for successful
+   sync.
+6. Run one agent workflow and check that the replacement works.
+
+## Delete the provider
+
+Open **Settings → Agents**. Open the old provider's menu, select **Delete**, and
+confirm the provider shown in the dialog.
+
+Agent jobs cannot use that provider until it is configured again.
+
+## Verify the removal
+
+Check that the old provider is gone from **Configured providers**. Start the
+affected workflows again. Check their resolved provider and model.
+
+If a step still names the old provider, restore it for urgent work. Update the
+missed workflow or default before removing it again.

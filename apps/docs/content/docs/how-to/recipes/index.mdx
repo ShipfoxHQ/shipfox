@@ -1,0 +1,28 @@
+---
+title: "Shipfox Workflow Recipes"
+sidebarTitle: "Recipes"
+description: "Start with a complete workflow for a common task, then adapt it to your repository."
+---
+
+Each recipe gives you a full workflow for a common task. It assumes you know
+the basic workflow parts from [Understand](/understand). Replace the values
+noted in the recipe, then run it and change the commands or prompts to fit your
+repository.
+
+<Cards>
+  <Card title="Run checks on every push" href="/how-to/recipes/checks-on-push">
+    Run tests before an agent reviews each GitHub push.
+  </Card>
+  <Card title="Triage new Sentry issues" href="/how-to/recipes/triage-sentry-issues">
+    Start an agent investigation when Sentry reports an issue.
+  </Card>
+  <Card title="Run parallel CI before review" href="/how-to/recipes/parallel-ci-agent-review">
+    Run lint and tests together, then start an agent review after both pass.
+  </Card>
+  <Card title="Turn a Sentry issue into a verified pull request" href="/how-to/recipes/event-to-verified-pull-request">
+    Let an agent fix an issue, pass the tests, push a branch, and open a pull request.
+  </Card>
+</Cards>
+
+Use the [Workflow Schema](/reference/workflow-schema) to look up fields. Read
+[Understand](/understand) to learn why each part works this way.

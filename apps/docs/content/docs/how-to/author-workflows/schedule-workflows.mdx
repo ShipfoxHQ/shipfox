@@ -1,0 +1,74 @@
+---
+title: "Schedule Shipfox Workflows with Cron"
+sidebarTitle: "Schedule Workflows"
+description: "Run a Shipfox workflow on a recurring Cron schedule and verify each scheduled event."
+---
+
+A Cron trigger starts a new run on a recurring schedule. The schedule does not
+need an integration connection.
+
+## Before you begin
+
+You need a project that can sync workflows, an online runner with the
+`ubuntu-latest` label, and a command or script for the scheduled task.
+
+## Add a scheduled trigger
+
+<Steps>
+  <Step>
+
+    **Create the workflow file**
+
+    Add `.shipfox/workflows/nightly.yml`. Replace the command with the task the
+    project should run. This is a complete workflow:
+
+    ```yaml
+    name: Nightly maintenance
+    runner: ubuntu-latest
+
+    triggers:
+      nightly:
+        source: cron
+        event: tick
+        config:
+          schedule: "0 2 * * *"
+          timezone: "Europe/Paris"
+
+    jobs:
+      maintain:
+        steps:
+          - key: maintenance
+            run: ./scripts/nightly-maintenance.sh
+    ```
+  </Step>
+  <Step>
+
+    **Choose the schedule and time zone**
+
+    Set `config.schedule` to a five-field Cron expression. Set
+    `config.timezone` to the time zone that should interpret it. Omit the time
+    zone to use the documented default.
+
+    See [Cron triggers](/reference/trigger-sources#cron) for the exact contract.
+  </Step>
+  <Step>
+
+    **Commit and push the file to the default branch**
+
+    Open the project's **Workflows** tab. Confirm that **Nightly maintenance**
+    syncs without an error.
+  </Step>
+  <Step>
+
+    **Verify the next scheduled run**
+
+    For a quick check, temporarily set the schedule to the next minute in the
+    chosen time zone. After that time, open **Settings → Events**. Filter for
+    source `cron` and event `tick`. A triggered result links to the run. Restore
+    the intended schedule after the check.
+  </Step>
+</Steps>
+
+Cron triggers do not receive an outside event payload, so they do not accept a
+`filter`. Use job or step [`if` conditions](/reference/workflow-schema#job-fields)
+when scheduled work should make a decision after the run starts.

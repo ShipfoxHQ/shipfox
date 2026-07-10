@@ -1,0 +1,68 @@
+---
+title: "Choose Runners for Shipfox Workflow Jobs"
+sidebarTitle: "Choose Runners"
+description: "Match job labels with Shipfox runners and change the runner for selected jobs."
+---
+
+Runner labels describe where a job can run. A runner must have every label the
+job needs.
+
+## Before you begin
+
+You need a project that can sync workflows and access to the runner process or
+provisioner template whose labels should claim the job.
+
+## Match a workflow to a runner
+
+<Steps>
+  <Step>
+
+    **Find the runner's labels**
+
+    Check `SHIPFOX_RUNNER_LABELS` in the runner process. For a provisioner, check
+    its matching template. The dashboard does not list online runner labels yet.
+  </Step>
+  <Step>
+
+    **Set the workflow default**
+
+    Add labels to the top-level `runner` field. Replace the example with labels
+    from the runner. This is a complete workflow:
+
+    ```yaml
+    name: Verify on Linux
+    runner: [linux, x64] # Replace with labels from your runner.
+
+    triggers:
+      manual:
+        source: manual
+        event: fire
+
+    jobs:
+      verify:
+        steps:
+          - key: platform
+            run: uname -a
+    ```
+  </Step>
+  <Step>
+
+    **Override one job when needed**
+
+    A job-level `runner` value replaces the workflow default. For example, add
+    `runner: [linux, gpu]` to a job that needs both labels. One runner must have
+    the full set.
+  </Step>
+  <Step>
+
+    **Run and verify the job**
+
+    Commit and push the file to the project's default branch. Start it from the
+    **Workflows** tab. The job leaves `pending` after a matching runner claims
+    it.
+  </Step>
+</Steps>
+
+If the job remains pending, use [Resolve pending
+jobs](/how-to/run-and-troubleshoot/pending-jobs). Runner registration and label
+configuration stay in the [Runner reference](/reference/runner).

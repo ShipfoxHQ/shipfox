@@ -1,0 +1,95 @@
+---
+title: "Runner Provisioners: Autoscale Runners on Demand"
+sidebarTitle: "Runner Provisioners"
+description: "Understand how the Docker provisioner starts single-job runners to meet changing job demand."
+---
+
+A **provisioner** watches how many jobs are waiting. It starts an ephemeral
+runner container for each reserved job, then lets the runner exit.
+
+Use a provisioner when demand changes enough that a fixed runner fleet would sit
+idle or run out of capacity. One provisioner scales runner containers to the
+work.
+
+<Callout type="info">
+  Shipfox currently ships a **Docker** provisioner. Kubernetes and cloud virtual
+  machine backends are on the roadmap.
+</Callout>
+
+## How it works
+
+The provisioner runs a continuous control loop against the Shipfox API:
+
+<Steps>
+  <Step>
+
+    **Advertise capacity**
+
+    The provisioner reports free slots for each template. Free slots equal
+    `max_concurrency` minus the containers already starting or running.
+  </Step>
+  <Step>
+
+    **Poll for demand**
+
+    It long-polls the API. The API grants reservations when waiting jobs need
+    labels that a template provides.
+  </Step>
+  <Step>
+
+    **Mint ephemeral tokens**
+
+    The provisioner mints one single-use **ephemeral registration token**
+    (`sf_ert_…`) for each reservation. The new runner uses it to register once.
+    This differs from the long-lived `sf_mrt_…` manual token; see
+    [token types](/reference/runner#token-types).
+  </Step>
+  <Step>
+
+    **Launch and reconcile**
+
+    It starts one container per reservation. Each container gets the API URL,
+    ephemeral token, and template labels.
+
+    The provisioner reports each container's state. After a restart, it compares
+    its records with Docker and removes containers that never registered. If
+    Docker is unreachable, it advertises zero capacity and backs off.
+  </Step>
+</Steps>
+
+Each provisioned runner claims one job, runs it, and exits. A burst starts more
+runners. Quiet periods leave no runner containers idle.
+
+## Templates
+
+A **template** maps a label set to the container that provides it. Templates live in
+a YAML file the provisioner loads at startup:
+
+```yaml
+templates:
+  docker-ubuntu22-2vcpu:
+    labels: [ubuntu22, ubuntu22-2vcpu]   # labels the started runner registers with
+    image: shipfox-runner:ubuntu22       # container image to start
+    cpu: 2
+    memory: 4GiB
+    max_concurrency: 100
+```
+
+When several templates satisfy a job's labels, the provisioner chooses the one
+with the fewest virtual CPUs. A specificity rule breaks a tie. The full template
+schema and every environment variable are in the
+[Runner Provisioner reference](/reference/runner-provisioner).
+
+## Related pages
+
+<Cards>
+  <Card title="Run a provisioner" href="/installation/runner-provisioner">
+    Token creation, templates file, and the launch command.
+  </Card>
+  <Card title="Runner Provisioner reference" href="/reference/runner-provisioner">
+    Environment variables and the template schema.
+  </Card>
+  <Card title="Runners" href="/operations/runners">
+    Manually started runners, labels, and registration.
+  </Card>
+</Cards>

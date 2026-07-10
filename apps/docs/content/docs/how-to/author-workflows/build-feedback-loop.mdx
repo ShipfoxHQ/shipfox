@@ -1,0 +1,69 @@
+---
+title: "Build an Agent Feedback Loop in Shipfox"
+sidebarTitle: "Build a Feedback Loop"
+description: "Pair an agent with an objective check and restart it with useful feedback until the check passes or the attempt bound is reached."
+---
+
+This guide builds a workflow where an agent fixes failing tests and `npm test`
+decides whether another attempt is needed.
+
+## Before you begin
+
+You need a test project that can sync workflows, an online runner with the
+`ubuntu-latest` label, configured agent defaults, and an `npm test` command with
+a safe failure that the agent can repair.
+
+## Add the workflow
+
+Create `.shipfox/workflows/fix-tests.yml`. This is a complete workflow:
+
+```yaml
+name: Fix failing tests
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  fix:
+    execution_timeout: "30m"
+    steps:
+      - key: fix
+        prompt: >
+          Fix the failing tests in this repository.
+          Previous check: ${{ step.is_retry
+            ? step.restart.feedback
+            : "No previous check. Run the tests and inspect the failures." }}
+
+      - key: test
+        run: npm test
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: fix
+            feedback: The tests still fail. Run them again and fix the cause.
+```
+
+Replace `npm test` with the command that proves the work is correct in your
+repository.
+
+## Run and inspect it
+
+1. Commit and push the workflow to the project's default branch.
+2. Wait for its definition to sync.
+3. Open the workflow and select **Run**.
+4. Open the `fix` job in the run detail.
+5. If the check fails, confirm that a new `fix` step attempt receives the gate
+   feedback.
+6. Confirm that the job finishes when the check passes or the restart bound is
+   exhausted.
+
+The `key` on `fix` is required because `restart_from` targets step keys. The
+target must appear before the gated step in the same job. Exact gate fields and
+validation rules live in [Gate fields](/reference/workflow-schema#gate-fields).
+
+The job timeout is an outer wall-clock bound. The gate also has its own attempt
+limit. See [Limits](/reference/limits). For the evaluation model, see
+[Feedback loops](/understand/feedback-loops).

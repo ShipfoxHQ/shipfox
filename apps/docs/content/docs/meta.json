@@ -3,14 +3,14 @@
     "---Get Started---",
     "index",
     "getting-started",
-    "concepts",
+    "tutorials",
+    "---Use Shipfox---",
+    "understand",
+    "how-to",
     "integrations",
-    "guides",
-    "ai",
     "reference",
-    "installation",
-    "---Help---",
-    "troubleshooting",
-    "faq"
+    "---Operate---",
+    "operations",
+    "installation"
   ]
 }

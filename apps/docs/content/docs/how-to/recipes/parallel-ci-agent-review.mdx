@@ -1,0 +1,69 @@
+---
+title: "Run Parallel CI Checks Before an Agent Review"
+sidebarTitle: "Parallel CI Review"
+description: "Run lint and tests in parallel, then start an agent review only after both checks pass."
+---
+
+Use this recipe when lint and tests can run independently, but an agent review
+should start only after both checks pass.
+
+## Before you begin
+
+You need:
+
+- A project connected to GitHub. Find its integration connection slug in **Settings → Integrations**.
+- An online runner with the `ubuntu-latest` label.
+- A configured model provider and workspace agent defaults.
+- A Node.js repository with `lint` and `test` scripts.
+
+## Add the workflow
+
+Create `.shipfox/workflows/parallel-ci-review.yml`. Replace `github_acme` with
+your GitHub integration connection slug. This is a complete workflow:
+
+```yaml
+name: Parallel CI and agent review
+runner: ubuntu-latest
+
+triggers:
+  on_push:
+    source: github_acme # Replace with your GitHub integration connection slug.
+    event: push
+
+jobs:
+  lint:
+    steps:
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    steps:
+      - run: npm ci
+      - run: npm test
+
+  review:
+    needs: [lint, test]
+    steps:
+      - prompt: Review the repository for likely bugs and missing test coverage.
+```
+
+Commit and push the file to the project's default branch. Wait for **Parallel
+CI and agent review** to sync in the project's **Workflows** tab.
+
+## Verify the job graph
+
+Push another commit and open the new run:
+
+1. Confirm that `lint` and `test` start without waiting for each other.
+2. Confirm that `review` starts only after both checks pass.
+3. Open the agent step and confirm that it returns a repository review.
+4. Make one check fail and confirm that Shipfox skips `review`.
+
+Each job receives a fresh checkout. The review job does not receive the lint or
+test logs. Use declared [outputs](/how-to/author-workflows/pass-outputs) for small
+values. Store reports and other artifacts outside the job checkout.
+
+The extra checkout and dependency install in each job cost time. In return,
+independent checks can use separate runners and finish sooner. See [Jobs and
+steps](/understand/jobs-and-steps) for the mental model and the [workflow
+schema](/reference/workflow-schema#job-fields) for exact dependency fields.

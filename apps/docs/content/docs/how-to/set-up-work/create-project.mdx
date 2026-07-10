@@ -1,0 +1,72 @@
+---
+title: "Create a Shipfox Project from a Repository"
+sidebarTitle: "Create a Project"
+description: "Connect one repository to a workspace. Check that Shipfox finds its workflows."
+---
+
+A project connects one repository to Shipfox.
+
+## Before you begin
+
+You need a source integration connection that can read the repository. If you do not have
+one, [connect GitHub](/how-to/set-up-work/connect-github) first.
+
+## Create the project
+
+<Steps>
+  <Step>
+
+    **Open the project form**
+
+    Open your workspace, select **Projects**, then select **New project**.
+  </Step>
+  <Step>
+
+    **Choose the source integration connection**
+
+    Select the integration connection that can read the repository. If it is missing, create
+    or repair the integration connection first.
+  </Step>
+  <Step>
+
+    **Choose the repository**
+
+    Select one repository from the integration connection. Shipfox looks for workflows in
+    it. Project jobs also check out this repository.
+  </Step>
+  <Step>
+
+    **Name and create the project**
+
+    Keep the suggested name or enter a clearer one. Select **Create project**.
+  </Step>
+</Steps>
+
+## Verify workflow discovery
+
+Add `.shipfox/workflows/project-connection-check.yml` to the repository. This is
+a complete workflow:
+
+```yaml
+name: Project integration connection check
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  check:
+    steps:
+      - run: echo "Project checkout is available"
+```
+
+Commit the file to the default branch. Push it, then open the project's
+**Workflows** tab.
+
+A successful sync lists the workflow. If the sync badge reports a failure, use
+[Troubleshoot workflow sync](/how-to/run-and-troubleshoot/workflow-sync).
+
+You only need an online `ubuntu-latest` runner to start the workflow. Shipfox
+can find the workflow without a runner.

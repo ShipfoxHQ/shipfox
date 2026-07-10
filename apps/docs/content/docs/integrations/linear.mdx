@@ -2,7 +2,7 @@
 title: "Linear Integration (Coming Soon)"
 sidebarTitle: "Linear"
 status: "soon"
-description: "Trigger Shipfox workflows from Linear issue events — an agent that picks up a ticket, plans, and opens a PR. Coming soon."
+description: "Trigger Shipfox workflows from Linear issue events so an agent can pick up a ticket, plan, and open a PR. Coming soon."
 ---
 
 <Callout type="info">
@@ -11,20 +11,20 @@ description: "Trigger Shipfox workflows from Linear issue events — an agent th
 </Callout>
 
 The Linear integration will connect a Linear workspace to Shipfox so issue events
-can trigger workflow runs — the natural entry point for agentic work that starts
-from a ticket: an issue is created or moved, a workflow fires, and an agent picks
+can trigger workflow runs. It is the natural entry point for agentic work that starts
+from a ticket. When an issue is created or moved, a workflow fires and an agent picks
 it up with the issue's context in its prompt.
 
 Like every integration, it will follow the same model as [GitHub](/integrations/github)
-and [Sentry](/integrations/sentry): connect once, get a **connection slug**
+and [Sentry](/integrations/sentry): connect once, get an **integration connection slug**
 (e.g. `linear_acme`), and reference it as a trigger `source` with the events the
 integration emits.
 
 ## Until it ships
 
 Linear can already reach Shipfox through a [custom webhook](/integrations/webhooks):
-create a webhook connection, point a Linear webhook at its ingest URL, and trigger
-on `received` — the run gets Linear's payload as its `event` context.
+create a webhook integration connection, point a Linear webhook at its ingest URL, and trigger
+on `received`. The run gets Linear's payload as its `event` context.
 
 ## Related pages
 
@@ -32,7 +32,7 @@ on `received` — the run gets Linear's payload as its `event` context.
   <Card title="Custom webhook" href="/integrations/webhooks">
     The working interim path for Linear events today.
   </Card>
-  <Card title="Integrations overview" href="/integrations/overview">
-    Connections, slugs, and every available integration.
+  <Card title="Integrations overview" href="/integrations">
+    Integration connections, slugs, and every available integration.
   </Card>
 </Cards>

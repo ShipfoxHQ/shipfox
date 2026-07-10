@@ -1,0 +1,80 @@
+---
+title: "Push Agent Changes to a Repository Branch"
+sidebarTitle: "Push Agent Changes"
+description: "Grant one job authenticated Git write access, check an agent's README change, and push it to a new branch."
+---
+
+Use this guide when an agent must edit the project repository and a later shell
+step must push the checked change. It grants Git write access without granting
+any integration tool.
+
+## Before you begin
+
+You need:
+
+- A GitHub-backed project whose source integration connection can write repository contents.
+- An online runner with the `ubuntu-latest` label.
+- Configured agent defaults.
+- A repository with `README.md`.
+- A repository where a temporary `shipfox/docs-*` branch is safe.
+
+## Add the workflow
+
+Create `.shipfox/workflows/push-readme-update.yml`. This is a complete
+workflow:
+
+```yaml
+name: Push a README update
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  update:
+    checkout:
+      permissions:
+        contents: write
+    steps:
+      - prompt: |
+          Improve one unclear setup instruction in README.md.
+          Change no other file. Do not commit or push.
+
+      - run: git diff --check
+
+      - env:
+          BRANCH_NAME: "shipfox/docs-${{ run.id }}"
+        run: |
+          git switch -c "$BRANCH_NAME"
+          git add README.md
+          if git diff --cached --quiet; then
+            echo "README.md did not change." >&2
+            exit 1
+          fi
+          git commit -m "Improve README setup instructions"
+          git push -u origin "$BRANCH_NAME"
+```
+
+Checkout permission applies to the whole job because the edit and push share
+one checkout. The prompt forbids the earlier agent step from pushing. The shell
+step owns the intended commit and push.
+
+Commit and push the workflow file to the project's default branch. Wait for
+**Push a README update** to sync.
+
+## Verify the branch
+
+Start the workflow from the **Workflows** tab.
+
+1. Confirm that the agent changes only `README.md`.
+2. Confirm that `git diff --check` passes before the push step.
+3. Open GitHub and confirm that a `shipfox/docs-<run-id>` branch contains one
+   commit with the README change.
+4. Confirm that the agent step has no `integrations` selection.
+
+The checkout credential remains available to later steps by default. Set
+`persist-credentials: false` only when no later step should perform an
+authenticated Git command. See [Checkout
+fields](/reference/workflow-schema#checkout-fields).

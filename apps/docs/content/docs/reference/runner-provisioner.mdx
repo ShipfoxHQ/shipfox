@@ -1,0 +1,69 @@
+---
+title: "Runner Provisioner Configuration Reference"
+sidebarTitle: "Runner Provisioner"
+description: "Every Shipfox runner provisioner environment variable with its default, plus the runner template file schema: labels, image, cpu, memory, and max_concurrency."
+---
+
+This page is the canonical reference for configuring the Docker runner provisioner (`@shipfox/provisioner-docker`). For how a provisioner works, see [Runner Provisioners](/operations/runner-provisioners); for starting one, see [Run a provisioner](/installation/runner-provisioner).
+
+## Required variables
+
+| Variable | Purpose |
+| --- | --- |
+| `SHIPFOX_API_URL` | Base URL of the Shipfox API the provisioner connects to. |
+| `SHIPFOX_PROVISIONER_TOKEN` | Long-lived token that authenticates control-plane calls. Created on **Settings → Runner Provisioners**: the value is shown once and can be revoked there. |
+| `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | Path to the YAML file describing the runner templates this provisioner can start. |
+
+## Optional variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SHIPFOX_RUNNER_API_URL` | `SHIPFOX_API_URL` | Base URL injected into runner containers as their `SHIPFOX_API_URL`. Set it when containers reach the API through a different address than the provisioner uses. |
+| `SHIPFOX_RUNNER_POLL_MAX_DURATION_MS` | `300000` | Injected into each runner as `SHIPFOX_POLL_MAX_DURATION_MS`: how long a started runner polls for a job before exiting. Use `0` to poll forever. |
+| `SHIPFOX_PROVISIONER_DOCKER_HOST` | local socket | Docker daemon host. Set a Docker host URL when the daemon is remote. |
+| `SHIPFOX_PROVISIONER_DOCKER_NETWORK` | unset | Docker network attached to runner containers, for reaching the API through a Compose or bridge network. |
+| `SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS` | unset | Comma-separated host mappings added to runner containers, such as `host.docker.internal:host-gateway`. |
+| `SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS` | `30` | How long each demand poll waits for work before returning. `0` makes the poll non-blocking. |
+| `SHIPFOX_PROVISIONER_POLL_INTERVAL_MS` | `1000` | Wait between demand polls. Backs off toward the max after errors. |
+| `SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS` | `5000` | Largest poll backoff interval after repeated errors. |
+| `SHIPFOX_PROVISIONER_MAX_RESERVATIONS` | `250` | Most reservations requested in one poll. Also bounded by free template capacity and the API's cap of 1000. |
+| `SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE` | `250` | Ephemeral registration tokens minted per request (1–1000). Must not exceed the API's own batch limit. |
+| `SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS` | `120000` | How long a created container may stay unstarted before the provisioner reaps it as stale. |
+
+## Template file schema
+
+The templates file maps label sets to the containers that provide them:
+
+```yaml
+templates:
+  docker-ubuntu22-2vcpu:
+    labels: [ubuntu22, ubuntu22-2vcpu]
+    image: shipfox-runner:ubuntu22
+    cpu: 2
+    memory: 4GiB
+    max_concurrency: 100
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `labels` | `string[]` | Labels the started runner registers with. A template can serve any job whose required labels are all in this list. |
+| `image` | `string` | Container image to start. |
+| `cpu` | `number` | vCPUs allocated to the container. Also the template's selection cost. |
+| `memory` | `string` | Memory allocation, such as `4GiB`. |
+| `max_concurrency` | `number` | Cap on live containers started from this template. |
+
+**Template selection:** when several templates satisfy a job's labels, the provisioner picks the cheapest (fewest vCPUs), then the most specific.
+
+## Related pages
+
+<Cards>
+  <Card title="Runner Provisioners" href="/operations/runner-provisioners">
+    The control loop: advertise, poll, mint, launch.
+  </Card>
+  <Card title="Run a provisioner" href="/installation/runner-provisioner">
+    Prerequisites, token creation, and the launch command.
+  </Card>
+  <Card title="Runner" href="/reference/runner">
+    The variables injected into each provisioned runner.
+  </Card>
+</Cards>

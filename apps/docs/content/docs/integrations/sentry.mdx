@@ -1,115 +1,62 @@
 ---
-title: "Sentry Integration: Trigger Workflows on Issue Events"
+title: "Sentry Integration Reference"
 sidebarTitle: "Sentry"
-description: "Connect Sentry to Shipfox and trigger workflows when issues are created, resolved, assigned, archived, or regress. Reference the connection by its slug."
+description: "Look up Sentry integration connection slugs, issue event names, event fields, and filters."
 ---
 
-The Sentry integration connects a Sentry organization to Shipfox through a
-**Sentry App**. Once connected, issue lifecycle events can trigger workflow runs —
-for example, kicking off an agent to investigate a newly created issue.
+Shipfox receives issue events through a Sentry App. [Connect
+Sentry](/how-to/set-up-work/connect-sentry) creates the integration connection used here.
 
-## Setup
+## Integration connection identity
 
-<Steps>
-  <Step>
+A Sentry integration connection slug defaults to `sentry_<organization>`, such as
+`sentry_acme`. Use the actual workspace integration connection slug as a trigger's `source`.
 
-    **Start the connection**
-
-    In your workspace's integration settings, choose **Sentry** and start the
-    connection. Shipfox sends you to Sentry to install its App.
-  </Step>
-  <Step>
-
-    **Install the Sentry App**
-
-    On Sentry, pick the organization and authorize the App. Sentry redirects you
-    back to Shipfox, which verifies the installation.
-  </Step>
-  <Step>
-
-    **Copy the connection slug**
-
-    Shipfox creates a **connection** whose slug defaults to `sentry_<org>` — for
-    example `sentry_acme`. Use this slug in a trigger's `source` field.
-  </Step>
-</Steps>
-
-## Triggering a workflow
-
-Use the connection slug as `source` and a Sentry issue event as `event`:
+This trigger fragment belongs under an existing workflow's `triggers` map:
 
 ```yaml
 triggers:
-  on_new_issue:
-    source: sentry_acme
+  on_issue:
+    source: sentry_acme # Replace with your Sentry integration connection slug.
     event: issue.created
 ```
 
-`source` is the connection **slug** (`sentry_acme`), not the word `sentry` — see
-[Finding your connection slug](/integrations/overview#finding-your-connection-slug).
-
 ## Events
 
-Shipfox triggers on Sentry **issue** events: `issue.created`, `issue.resolved`,
-`issue.assigned`, `issue.archived`, and `issue.unresolved`. For exactly when each
-action fires and the payload it carries, use Sentry's reference rather than a copy
-here:
+Shipfox records these Sentry issue events:
+
+- `issue.created`
+- `issue.resolved`
+- `issue.assigned`
+- `issue.archived`
+- `issue.unresolved`
+
+Sentry owns the lifecycle meaning and original webhook payload:
 
 <Card title="Sentry issue webhooks" href="https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/">
-  When each issue action fires and the payload Sentry sends.
+  The authoritative Sentry issue webhook reference.
 </Card>
 
-The run receives a normalized version of that payload as its `event` context — the
-issue's `action`, `issueId`, `title`, `level`, `status`, `platform`, `projectUrl`,
-and links back to Sentry (`issueUrl`, `webUrl`).
+## Normalized event payload
 
-## Filtering by project or team
+The run gets an `event` object. It can hold `action`, `issueId`, `title`,
+`culprit`, `level`, `status`, `platform`, `projectUrl`, `issueUrl`, and `webUrl`.
+A field is present when Sentry sends its value.
 
-Shipfox receives issue events for your **whole connected Sentry organization**. To
-act on a specific project — or a team's projects — key off the project the event
-carries as `event.projectUrl`.
+## Filtering by project
 
-The intended way is a trigger `filter`:
+The integration connection receives issue events for its Sentry organization. This fragment
+accepts issues whose project URL contains `/backend`:
 
 ```yaml
 triggers:
   on_backend_issue:
-    source: sentry_acme
+    source: sentry_acme # Replace with your Sentry integration connection slug.
     event: issue.created
     filter: event.projectUrl.contains("/backend")
 ```
 
-<Callout type="warn">
-  `filter` is **parsed but not evaluated yet** (see
-  [Expressions](/reference/expressions)), so today it does not stop the run. Until it
-  ships, scope inside the workflow: read `${{ event.projectUrl }}` in a `run` step or
-  agent `prompt` and act only on the projects you care about. Sentry's issue payload
-  has no team field, so filter a team by the set of projects it owns.
-</Callout>
-
-For example, pass the project and issue straight into an agent so it only triages
-what you point it at:
-
-```yaml
-jobs:
-  triage:
-    steps:
-      - model: claude-opus-4-8
-        prompt: >
-          Triage this Sentry issue in project ${{ event.projectUrl }}:
-          "${{ event.title }}" (${{ event.issueUrl }}). Summarize the likely cause.
-```
-
-## Related pages
-
-<Cards>
-  <Card title="Triage Sentry issues" href="/guides/triage-sentry-issues">
-    A worked guide: fire on an issue and hand it to an agent that investigates.
-  </Card>
-  <Card title="Agent steps" href="/guides/agent-steps">
-    Have an agent triage or fix the issue that triggered the run.
-  </Card>
-  <Card title="Triggers" href="/concepts/triggers">
-    The trigger schema and how sources and events fit together.
-  </Card>
-</Cards>
+The issue payload has no normalized team field. Filter a team's events by the
+projects it owns. See [Expressions](/reference/expressions#trigger-filters) for
+filter behavior and [Triage Sentry
+issues](/how-to/recipes/triage-sentry-issues) for a complete workflow.

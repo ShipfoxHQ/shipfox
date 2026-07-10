@@ -1,0 +1,65 @@
+---
+title: "Review a Pull Request with Read-Only GitHub Tools"
+sidebarTitle: "Read-Only Tools"
+description: "Let an agent read a pull request without changing GitHub."
+---
+
+Use this guide when an agent must read pull-request data from GitHub. The step
+receives no write operation.
+
+## Before you begin
+
+You need:
+
+- A project connected to GitHub.
+- Its integration connection slug. This guide uses `github_acme` as a placeholder.
+- A GitHub integration connection that supports agent tools.
+- An online runner with the `ubuntu-latest` label.
+- Configured agent defaults.
+- A test branch that is ready to open as a pull request. Do not open it until
+  the workflow has synced.
+
+## Add the workflow
+
+Create `.shipfox/workflows/read-pull-request.yml`. Replace `github_acme` with
+your GitHub integration connection slug. This is a complete workflow:
+
+```yaml
+name: Read a new pull request
+runner: ubuntu-latest
+
+triggers:
+  on_pull_request:
+    source: github_acme # Replace with your GitHub integration connection slug.
+    event: pull_request.opened
+
+jobs:
+  review:
+    steps:
+      - prompt: |
+          Read pull request #${{ event.number }} and its changed files.
+          Report the two highest correctness risks in the step log.
+          Do not change the pull request or repository.
+        integrations:
+          - include: [pull_request_read]
+```
+
+The workflow omits `connection` and repository scope. It uses the project's
+GitHub source and repository. See [Agent integration
+fields](/reference/workflow-schema#agent-integration-fields) for other choices.
+
+Commit and push the file to the project's default branch. Wait for **Read a new
+pull request** to sync.
+
+## Verify read-only access
+
+Open the test pull request and inspect the new Shipfox run.
+
+1. Confirm that the agent calls only operations from `pull_request_read`.
+2. Confirm that its report cites files from the pull request.
+3. Refresh GitHub. Check that the agent added no comment, review, label, or
+   commit.
+
+Use [Post a pull-request
+review](/how-to/author-workflows/post-pull-request-review) when the task intends
+a GitHub write.

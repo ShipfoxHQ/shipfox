@@ -1,0 +1,73 @@
+---
+title: "Runner Configuration Reference"
+sidebarTitle: "Runner"
+description: "Every Shipfox runner environment variable with its default: registration, labels, polling, heartbeats, log delivery, and agent harness overrides. Plus token types."
+---
+
+This page is the canonical reference for configuring a Shipfox runner process.
+For the execution model, see [Runners and execution
+environments](/understand/runners-and-execution-environments). To start one, see
+[Start and register a runner](/operations/runners).
+
+## Required variables
+
+| Variable | Purpose |
+| --- | --- |
+| `SHIPFOX_API_URL` | Base URL of the Shipfox API the runner connects to, such as `https://api.shipfox.io`. |
+| `SHIPFOX_RUNNER_REGISTRATION_TOKEN` | Registration token the runner exchanges for a short-lived session token at startup. Accepts `sf_mrt_…` (manual) or `sf_ert_…` (ephemeral) tokens; see [Token types](#token-types). |
+| `SHIPFOX_RUNNER_LABELS` | Comma-separated labels this runner registers with, such as `linux,x64,self-hosted`. |
+
+## Label matching
+
+A job is dispatched to a runner only when the runner's labels include **all** labels the job's `runner:` field requires. A runner may carry several labels; one machine may run several runner processes with different label sets.
+
+## Token types
+
+| Prefix | Name | Created by | Lifetime |
+| --- | --- | --- | --- |
+| `sf_mrt_` | Manual registration token | **Settings → Runners** in the dashboard | Long-lived; revocable in the dashboard; value shown once at creation. |
+| `sf_ert_` | Ephemeral registration token | A [runner provisioner](/reference/runner-provisioner) | Single-use; minted per provisioned runner; expires if unused. |
+
+## Optional variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SHIPFOX_RUNNER_WORKSPACE_ROOT` | OS temp directory | Parent directory for per-job workspaces. The runner only creates and cleans per-job child directories under this root. |
+| `SHIPFOX_POLL_INTERVAL_MS` | `1000` | How often the runner asks the API for new jobs. Backs off toward `SHIPFOX_POLL_MAX_INTERVAL_MS` while idle or after errors. |
+| `SHIPFOX_POLL_MAX_INTERVAL_MS` | `5000` | Largest interval the poll backoff can reach. |
+| `SHIPFOX_POLL_MAX_DURATION_MS` | `300000` | How long the runner keeps polling without claiming a job before it exits. Use `0` for runners that should poll forever. |
+| `SHIPFOX_HEARTBEAT_INTERVAL_MS` | `10000` | How often the runner sends a heartbeat. Keep it well below the server's stuck-job threshold of 180 seconds. |
+| `SHIPFOX_HEARTBEAT_MAX_STALE_MS` | `10000` | How long one heartbeat request may stay open before the runner cancels it and starts the next. |
+
+## Log delivery
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SHIPFOX_LOG_FLUSH_INTERVAL_MS` | `2000` | How often buffered step logs upload. Bounds how much recent output is lost if the machine dies mid-step. |
+| `SHIPFOX_LOG_FLUSH_BYTES` | `262144` | Size threshold that triggers an early upload before the interval elapses. |
+| `SHIPFOX_LOG_SPOOL_MAX_BYTES` | `67108864` | Maximum unacknowledged log bytes kept on disk per step attempt while the API is unreachable. Past it, output is dropped with a gap marker. |
+| `SHIPFOX_LOG_DRAIN_TIMEOUT_MS` | `5000` | How long the runner waits at job end for in-flight uploads before deleting the workspace. |
+| `SHIPFOX_AGENT_SESSION_FLUSH_BYTES` | `4194304` | Upload window and per-entry drop threshold for agent-session logs. An entry above it is dropped with a gap marker. |
+
+## Agent steps
+
+Model provider credentials are **workspace configuration**, delivered to the runner per step by the API. Do not put provider API keys in the runner's environment. The runner machine needs outbound network access to the resolved provider's endpoint. See [Model Providers](/reference/model-providers).
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AGENT_CLAUDE_ANTHROPIC_BASE_URL` | unset | Anthropic-compatible base URL override for the `claude` harness, for tests or private deployments (for example a local Ollama server). Unset uses the Anthropic API. |
+| `AGENT_CLAUDE_ANTHROPIC_MODEL` | unset | Model ID the `claude` harness sends when the base URL override is set. |
+| `AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL` | unset | Small fast model ID for the `claude` harness when the base URL override is set. |
+| `AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS` | `true` | Allows custom model providers to target private, loopback, and internal networks. Keep `true` for local and self-hosted private networks; set `false` on cloud instances. |
+| `AGENT_CUSTOM_PROVIDER_HOST_DENYLIST` | empty | Comma-separated hosts and IP ranges custom model providers may not call. Accepts exact hosts, suffix patterns, IP literals, and CIDR blocks. |
+
+## Related pages
+
+<Cards>
+  <Card title="Runners and execution" href="/understand/runners-and-execution-environments">
+    Understand placement, labels, capacity, and checkout isolation.
+  </Card>
+  <Card title="Runner Provisioner" href="/reference/runner-provisioner">
+    Autoscaling configuration and template schema.
+  </Card>
+</Cards>

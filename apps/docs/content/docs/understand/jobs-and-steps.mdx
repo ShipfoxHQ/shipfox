@@ -1,0 +1,120 @@
+---
+title: "Jobs and steps"
+sidebarTitle: "Jobs & Steps"
+description: "Understand how a job boundary controls shared files, parallel work, runner placement, and results."
+---
+
+A **job** is the unit that Shipfox places on a runner. A **step** is one ordered
+action inside that job.
+
+The main design choice is the job boundary. It decides which actions share a
+checkout. It also decides what can run at the same time and which results must
+cross a clear boundary.
+
+## Keep work in one job when it shares state
+
+Steps in one job run in order and use the same checkout. A later step can read
+files changed by an earlier step. It can also use packages installed there.
+
+They do not share one long-lived shell process. A shell variable set by one run
+step may not reach the next. Save a file in the checkout when the next step
+needs it. Publish an output when the value should become workflow data.
+
+One job is usually the right boundary when actions must:
+
+- Edit and check the same files.
+- Reuse an expensive local setup.
+- Repeat together in a feedback loop.
+- Use the same runner capabilities and repository permission.
+
+The tradeoff is less parallelism. One slow step holds the job's runner and
+delays every later step.
+
+## Split jobs when work is independent
+
+Each job gets a fresh checkout. It can use a different runner or repository
+permission. Jobs without dependencies can start at the same time when capacity
+is free.
+
+Separate jobs fit work that should:
+
+- Run in parallel.
+- Fail or be skipped as a distinct unit.
+- Use a different execution environment.
+- Expose a small, named result to later work.
+
+The cost is repeated setup. Two jobs that both need Node.js packages each need
+their own install. Their files, process environment, and logs remain separate.
+
+This complete workflow shows the boundary:
+
+```yaml
+name: Check and review a change
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  lint:
+    steps:
+      - run: npm ci && npm run lint
+
+  test:
+    steps:
+      - run: npm ci && npm test
+
+  review:
+    needs: [lint, test]
+    steps:
+      - prompt: Review the repository for likely bugs and missing tests.
+```
+
+`lint` and `test` can run in parallel. Each installs its own dependencies.
+`review` waits for both, but receives neither job's files nor logs. It reviews
+its own fresh checkout.
+
+The [parallel CI
+recipe](/how-to/recipes/parallel-ci-agent-review) applies this shape to a GitHub
+push. The [job fields
+reference](/reference/workflow-schema#job-fields) defines the dependency syntax.
+
+## Outputs and artifacts solve different problems
+
+A job output carries a small value into workflow context. It fits a version,
+decision, identifier, or URL that later jobs need.
+
+An artifact is a file or directory. Job checkouts do not store files for one
+another. Put large reports or build products in an external store. Pass only
+the location as an output.
+
+This explicit transfer keeps a downstream job from depending on an accidental
+file left by another job. It also makes rerun and runner placement behavior
+easier to reason about.
+
+## Boundaries also control placement and authority
+
+A job asks for runner labels as one unit. Split work when one part needs a
+private network, special hardware, or another operating system. Keep it
+together when every step needs the same environment.
+
+Repository checkout permission is also job-wide. Integration tools are selected
+on individual agent steps and remain separate from Git access. This distinction
+matters when an agent may read code but only one later action should write to an
+external system.
+
+[Runners and execution
+environments](/understand/runners-and-execution-environments) explains
+placement. [Agent access](/how-to/author-workflows/use-integration-tools) shows
+the separate repository and integration controls.
+
+## Repetition stays inside the chosen boundary
+
+A feedback loop rewinds steps inside one job execution, so repeated work keeps
+the same checkout. A listening job creates more job executions as later events
+arrive. It may run its step list several times in one run.
+
+Choose the boundary before adding either form of repetition. A boundary that
+mixes unrelated writes makes retries and later events harder to handle safely.

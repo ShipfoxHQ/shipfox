@@ -1,0 +1,49 @@
+---
+title: "Delete an Integration Connection Safely"
+sidebarTitle: "Delete an Integration Connection"
+description: "Find dependencies, delete one integration connection, and check its replacement."
+---
+
+Deleting an integration connection is permanent. Use this guide only when no project should
+use its external account or installation.
+
+## Before you begin
+
+You need permission to manage workspace integrations. You also need the
+integration connection slug. Set up a replacement first if its events, checkout, or tools
+must continue.
+
+## Check every dependency
+
+Before deletion:
+
+1. Search `.shipfox/workflows/` in each project repository for the slug. Check
+   trigger `source` values. Check agent-tool `connection` values too.
+2. Open each project's settings. Check whether this is its source integration connection.
+3. Identify active runs whose listening jobs still expect events from it.
+4. Point workflow files and project settings to a replacement where needed.
+5. Wait for every changed workflow to sync successfully.
+
+Do not delete it while a project needs it for checkout. Do not delete it while
+an active listener needs its events.
+
+## Delete the integration connection
+
+Open **Settings → Integrations**. Open the integration connection's menu, select **Delete
+integration**, and confirm the workspace and integration connection shown in the dialog.
+
+The action cannot be undone. Shipfox stops receiving its new events. A workflow
+that still uses the slug may fail to sync or run.
+
+## Verify the removal
+
+1. Confirm that the integration connection no longer appears in integration settings.
+2. If it was a custom webhook, confirm that every sender has retired its old
+   ingest URL.
+3. Check the affected projects for sync errors.
+4. Start one workflow through the replacement. Check that checkout, events, or
+   tools still work.
+
+Use [Fix workflow
+sync](/how-to/run-and-troubleshoot/workflow-sync) for a definition that still
+references the deleted integration connection.

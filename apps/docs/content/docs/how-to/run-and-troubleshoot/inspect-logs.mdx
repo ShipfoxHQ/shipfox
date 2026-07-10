@@ -1,0 +1,77 @@
+---
+title: "Find Missing or Incomplete Step Logs"
+sidebarTitle: "Inspect Logs"
+description: "Select the correct attempt, inspect command or agent activity, and distinguish missing, delayed, and truncated logs."
+---
+
+Use this guide when a step's output is absent, still arriving, or marked
+truncated.
+
+## Before you begin
+
+You need access to the run and the job or step whose output you expect.
+
+## Select the exact attempt
+
+Open the run and select the correct run attempt. Select the job execution when a
+listening job ran more than once. Select the step attempt when a feedback loop
+restarted it.
+
+Many apparent log gaps come from viewing an older execution or attempt.
+
+## Inspect the stream
+
+Run steps show standard output and standard error. Agent steps show messages,
+tool calls, tool results, token use, cost, and the final response.
+
+Start with the step state:
+
+- **Pending or skipped:** the step has not produced a log stream.
+- **Running:** output may still arrive while the runner drains new chunks.
+- **Finished:** the stored stream should represent what Shipfox received for
+  that attempt.
+
+For an agent step, open tool calls as well as the final response. A short final
+message can still follow a long tool session.
+
+## If logs are missing
+
+Confirm that the step actually started. Check the runner and job state when it
+did not.
+
+If the step finished but shows no expected command output:
+
+1. Confirm that the command writes to standard output or standard error.
+2. Select every step attempt to find output from an earlier retry.
+3. Compare the saved workflow source with the command you expected.
+4. Check whether the runner stopped before it could drain the stream.
+
+Use [Diagnose a run](/how-to/run-and-troubleshoot/inspect-runs-and-attempts) when
+the missing stream is one symptom of a wider failure.
+
+## If logs are delayed
+
+Check whether the step is still running and whether new chunks continue to
+arrive. Long-running commands may buffer their own output before writing it.
+
+If other steps on the same runner also stop updating, inspect runner health. Do
+not rerun only to refresh the page; first decide whether the active work is
+still making progress.
+
+## If logs are truncated
+
+Shipfox marks a stream truncated when it exceeds its budget or the runner cannot
+finish draining it. The visible stream is incomplete, but truncation alone does
+not change the step result.
+
+Reduce noisy output or split it into useful groups before the next run. Exact
+budgets and retention live in [Limits](/reference/limits#logs). Use [Group
+command logs](/how-to/author-workflows/group-command-logs) to make a long stream
+easier to scan.
+
+## Confirm the cause
+
+Record the run attempt, job execution, and step attempt you inspected. State
+whether the output was in another attempt, still arriving, marked truncated, or
+lost when the runner stopped. That result determines whether to change the
+command, wait, reduce output, or repair the runner.

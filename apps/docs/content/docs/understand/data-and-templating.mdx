@@ -1,0 +1,111 @@
+---
+title: "Context and templating"
+sidebarTitle: "Context & Templating"
+description: "Understand when run data is ready, how outputs move it, and how workflows use it safely."
+---
+
+**Context** is the data a workflow can use while it runs. It begins with the
+event or manual inputs and grows as jobs and steps produce results.
+
+That timing matters. A workflow cannot read a result before the work that
+creates it has finished. Shipfox resolves a value when enough context exists.
+Values that depend on later work wait until that work is done.
+
+## Context arrives in stages
+
+Think of context as a flow rather than one global object:
+
+1. **Run creation** adds the run identity, trigger, event, and inputs.
+2. **Job readiness** adds outputs from upstream jobs that have finished.
+3. **Listening execution** adds the event batch that woke that execution.
+4. **Step dispatch** adds earlier step outputs and retry context.
+5. **Runner execution** resolves secret bindings for the command that needs
+   them without storing the plaintext value in the run plan.
+
+Workspace variables and project settings provide long-lived configuration.
+Events and outputs describe this run. Secrets grant authority and follow a
+stricter path.
+
+The [Expressions reference](/reference/expressions#context-available) is the
+canonical map of which context roots each field can read.
+
+## Templates carry data; predicates make decisions
+
+A `${{ }}` template places a value into text or settings. It can put an issue
+title in a prompt. It can also bind a job output to an environment variable.
+
+A predicate returns a boolean. Filters, conditions, gates, and job success rules
+use predicates. They decide whether work starts, continues, or passes.
+
+Keeping these roles separate makes policy easier to inspect. Text substitution
+does not quietly decide control flow. A predicate cannot run a command or change
+outside state. The same saved context therefore produces the same decision.
+
+Use templates to move a known value. Use a predicate when the workflow needs a
+yes-or-no rule. The [Expressions
+reference](/reference/expressions) defines the exact syntax and available
+fields.
+
+## Outputs make results explicit
+
+Steps in one job can share files, but files do not cross a job boundary. An
+output turns a result into named workflow data that later work can read.
+
+This complete workflow moves a version between two isolated jobs:
+
+```yaml
+name: Pass a version between jobs
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  package:
+    outputs:
+      version: ${{ steps.read_version.outputs.version }}
+    steps:
+      - key: read_version
+        run: echo "version=$(git describe --tags --always)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          version: string
+
+  publish:
+    needs: package
+    steps:
+      - env:
+          VERSION: "${{ jobs.package.outputs.version }}"
+        run: printf 'Publishing version %s\n' "$VERSION"
+```
+
+The step creates `version`. The `package` job publishes it. The `publish`
+job declares the dependency, binds the value through `env`, and quotes the
+shell variable.
+
+Outputs suit small facts. Files and build products belong in external artifact
+storage, with an output carrying their location. Exact output types and limits
+live in [Step outputs](/reference/workflow-schema#step-outputs).
+
+## Trust follows the data, not the template
+
+Events, manual inputs, listening events, and outputs may contain untrusted text.
+A template does not make that text safe.
+
+For a shell command, bind untrusted data through `env` and quote the shell
+variable. This keeps the shell from treating data as command syntax. Never
+place an untrusted template directly into a command.
+
+Prompts do not have shell injection, but they still have instruction injection.
+Tell the agent which fields are data. Limit the tools and write access on that
+step.
+
+Secrets are different again. Keep raw secrets out of prompts and persisted
+outputs. Use a run step when a command needs a secret. For external work, give
+the agent a narrow tool that keeps the credential behind its integration connection.
+
+[Secrets and variables](/reference/secrets-variables) describes storage,
+masking, and binding. [Integrations, integration connections, and
+tools](/understand/integrations-connections-and-tools) explains the external
+credential boundary.

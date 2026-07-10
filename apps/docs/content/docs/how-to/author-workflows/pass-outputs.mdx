@@ -1,0 +1,67 @@
+---
+title: "Pass a Computed Version to a Later Job"
+sidebarTitle: "Pass Outputs"
+description: "Publish a version from one job and bind it safely in a later release-preview job."
+---
+
+Use this guide when one job computes a small value that another isolated job
+needs. The workflow derives a version from Git and prints it in a later job.
+
+## Before you begin
+
+You need a project that can sync workflows and an online runner with the
+`ubuntu-latest` label. The repository must contain at least one Git commit.
+
+## Add the workflow
+
+Create `.shipfox/workflows/release-version.yml`. This is a complete workflow:
+
+```yaml
+name: Preview a release version
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  package:
+    outputs:
+      version: ${{ steps.read_version.outputs.version }}
+    steps:
+      - key: read_version
+        run: echo "version=$(git describe --tags --always)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          version: string
+
+  preview:
+    needs: package
+    steps:
+      - env:
+          VERSION: "${{ jobs.package.outputs.version }}"
+        run: |
+          printf 'Release version: %s\n' "$VERSION"
+```
+
+The `read_version` step declares and writes `version`. The `package` job
+publishes it. The `preview` job declares the dependency, reads the job output,
+and binds it through `env` before the shell uses it.
+
+Commit and push the file to the project's default branch. Wait for **Preview a
+release version** to sync.
+
+## Verify the value
+
+Start the workflow from the **Workflows** tab.
+
+1. Open `package` and confirm that its outputs include `version`.
+2. Open `preview` and confirm that the printed version matches the package
+   output.
+3. Confirm that `preview` ran in a separate job execution and did not rely on
+   files from `package`.
+
+Use [Step outputs](/reference/workflow-schema#step-outputs) for output types,
+limits, and encoding. Use [structured agent
+outputs](/how-to/author-workflows/use-structured-agent-outputs) when an agent,
+rather than a command, must produce the value.

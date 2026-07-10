@@ -1,0 +1,84 @@
+---
+title: "Troubleshoot Events That Do Not Start a Run"
+sidebarTitle: "Event Routing"
+description: "Find where an event stopped before it could start a run."
+---
+
+Use this guide when an external event should have started a workflow but no run
+appeared.
+
+## Before you begin
+
+You need access to workspace events. You also need the expected integration connection slug,
+event name, and workflow trigger.
+
+## Check whether Shipfox received the event
+
+Open **Settings → Events**. Filter by source, event name, and time.
+
+If the event is absent, the problem is before trigger matching:
+
+- For GitHub, check that the integration connection is enabled. Check that the App can read
+  the repository. Repeat the [GitHub setup](/how-to/set-up-work/connect-github)
+  checks.
+- For Sentry, check the organization integration connection. Send a safe test issue. Repeat
+  the [Sentry setup](/how-to/set-up-work/connect-sentry) checks.
+- For a custom webhook, inspect the sender's HTTP response and delivery ID.
+  Repeat [Create a custom
+  webhook](/how-to/set-up-work/create-custom-webhook) checks.
+- If the integration connection is disabled, [enable it and send a new
+  event](/how-to/set-up-work/disable-integration-connection).
+
+Repair or replace an expired provider installation. Do the same for an
+unauthorized installation. Shipfox cannot receive a new event until then.
+
+## If delivery succeeded but no workflow matched
+
+Open the event and compare it with the synced trigger:
+
+1. `source` equals the integration connection slug on the event.
+2. `event` equals the delivered event name.
+3. The filter reads fields that exist in this payload and returns true.
+4. The workflow finished syncing before the event arrived.
+
+A false filter creates no run. A filter error does the same. Fix the trigger and
+wait for a successful sync. Then send a new event. Shipfox does not replay the
+old event after an edit.
+
+Use [Trigger sources](/reference/trigger-sources) for exact event contracts and
+[Expressions](/reference/expressions#trigger-filters) for filter behavior.
+
+## If evaluation or run creation failed
+
+A **Failed** result means Shipfox received the event. It could not finish the
+check or create the matched work.
+
+Read the error on the event. Check the workflow's latest sync result and saved
+trigger. Fix the item named by the error. It may be an expression, integration connection,
+or workflow field. Wait for sync, then send one new test event.
+
+Each matching trigger creates its own run. If only some runs appear, check each
+missing trigger on its own.
+
+## If the event stays evaluating
+
+Compare its time with newer events from the same workspace. If newer events
+finish while this one stays **Evaluating**, record:
+
+- Event or delivery ID.
+- Integration connection slug and event name.
+- Received time.
+- Expected workflow.
+- The last visible routing state.
+
+Send one fresh test event. If it also stays evaluating, stop changing the
+workflow. The routing work did not finish. The trigger policy is not the likely
+cause.
+
+## Confirm the repair
+
+Send a new safe event and confirm one final outcome:
+
+- **Triggered** links to every expected run.
+- **No workflows triggered** is correct for a deliberate non-match.
+- **Failed** and **Evaluating** no longer appear for the repaired path.

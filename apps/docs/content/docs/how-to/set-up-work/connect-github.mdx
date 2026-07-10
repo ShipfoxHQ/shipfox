@@ -1,0 +1,81 @@
+---
+title: "Connect GitHub to a Shipfox Workspace"
+sidebarTitle: "Connect GitHub"
+description: "Install the GitHub App. Limit repository scope and prove that a push starts a run."
+---
+
+Connect GitHub so Shipfox can read a repository and receive events. The same
+integration connection can give selected GitHub tools to an agent.
+
+## Before you begin
+
+You need access to workspace integration settings. You must also be able to
+install a GitHub App on the target account or organization.
+
+To verify a run, you also need an online runner with the `ubuntu-latest` label.
+
+## Install the GitHub App
+
+<Steps>
+  <Step>
+
+    **Start the integration connection**
+
+    Open **Settings → Integrations** in the workspace. Select **GitHub**, then
+    start the integration connection. Shipfox opens the GitHub App installation flow.
+  </Step>
+  <Step>
+
+    **Choose repository access**
+
+    Select the GitHub account or organization. Grant access only to the
+    repositories Shipfox should use. GitHub returns you to Shipfox.
+  </Step>
+  <Step>
+
+    **Record the integration connection slug**
+
+    Open the new integration connection's menu. Select **Use this integration**. Copy the
+    slug from the trigger example. Workflows use that value as `source`.
+  </Step>
+</Steps>
+
+## Check event delivery
+
+Make sure the integration connection is enabled in **Settings → Integrations**. Select
+**View recent events**. Push to an allowed repository. The event journal should
+show the GitHub event.
+
+## Verify a triggered run
+
+[Create a project](/how-to/set-up-work/create-project) from one allowed
+repository. Add `.shipfox/workflows/check-github-connection.yml` to that
+repository. Replace `github_acme` with the integration connection slug. This is a complete
+workflow:
+
+```yaml
+name: Check the GitHub integration connection
+runner: ubuntu-latest
+
+triggers:
+  on_push:
+    source: github_acme # Replace with your GitHub integration connection slug.
+    event: push
+
+jobs:
+  check:
+    steps:
+      - env:
+          GIT_REF: "${{ event.ref }}"
+        run: printf 'Received push for %s\n' "$GIT_REF"
+```
+
+Commit and push the workflow to the project's default branch. Wait for **Check
+the GitHub integration connection** to sync, then push one more safe commit. The workflow
+file's first push may arrive before the new definition is ready.
+
+Open the second push event and its linked run. Check the Git ref in the log.
+Check that the job uses the same allowed repository.
+
+The [GitHub reference](/integrations/github) lists event names and payload
+behavior without copying GitHub's provider-owned event catalog.
