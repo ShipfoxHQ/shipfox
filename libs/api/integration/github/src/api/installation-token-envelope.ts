@@ -41,6 +41,7 @@ void providerErrorReasonSchemaCoversUnion;
 const installationTokenEnvelopeSchema = z.object({
   token: z.string().min(1).optional(),
   expiresAt: z.string().datetime().optional(),
+  permissions: z.record(z.string(), z.enum(['read', 'write', 'admin'])).optional(),
   backoffUntil: z.string().datetime().optional(),
   backoffReason: providerErrorReasonSchema.optional(),
 });
@@ -48,6 +49,7 @@ const installationTokenEnvelopeSchema = z.object({
 export interface InstallationTokenEnvelope {
   token?: string | undefined;
   expiresAt?: Date | undefined;
+  permissions?: Record<string, 'read' | 'write' | 'admin'> | undefined;
   backoffUntil?: Date | undefined;
   backoffReason?: IntegrationProviderErrorReason | undefined;
 }
@@ -68,6 +70,7 @@ export function encodeInstallationTokenEnvelope(envelope: InstallationTokenEnvel
   return JSON.stringify({
     ...(envelope.token !== undefined && {token: envelope.token}),
     ...(envelope.expiresAt !== undefined && {expiresAt: envelope.expiresAt.toISOString()}),
+    ...(envelope.permissions !== undefined && {permissions: envelope.permissions}),
     ...(envelope.backoffUntil !== undefined && {
       backoffUntil: envelope.backoffUntil.toISOString(),
     }),
@@ -89,6 +92,7 @@ export function parseInstallationTokenEnvelope(raw: string): InstallationTokenEn
   return {
     token: result.data.token,
     expiresAt: result.data.expiresAt ? new Date(result.data.expiresAt) : undefined,
+    permissions: result.data.permissions,
     backoffUntil: result.data.backoffUntil ? new Date(result.data.backoffUntil) : undefined,
     backoffReason: result.data.backoffReason,
   };

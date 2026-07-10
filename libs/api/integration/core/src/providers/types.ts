@@ -33,6 +33,7 @@ export interface IntegrationProviderModuleLoadOptions {
 }
 
 export interface IntegrationProviderSecrets {
+  github?: IntegrationProviderScopedSecrets | undefined;
   linear?: IntegrationProviderScopedSecrets | undefined;
   deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }

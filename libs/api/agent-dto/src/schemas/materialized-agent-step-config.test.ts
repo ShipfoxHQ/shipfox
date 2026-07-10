@@ -10,7 +10,6 @@ const materializedIntegration = {
   connectionId: 'connection-1',
   connectionSlug: 'github-main',
   provider: 'github',
-  repos: ['github:owner/repo'],
   requiredScope: [{permission: 'issues', access: 'write'}],
   tools: [
     {
@@ -160,7 +159,6 @@ describe('materializedAgentStepConfigSchema', () => {
             connectionId: 'connection-1',
             connectionSlug: 'github-main',
             provider: 'github',
-            repos: ['github:owner/repo'],
             requiredScope: [],
             tools: [],
           },

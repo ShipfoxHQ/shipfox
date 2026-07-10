@@ -485,7 +485,6 @@ function integrationToolsConfig(overrides: Record<string, unknown> = {}) {
         connectionId: 'connection-1',
         connectionSlug: 'github_main',
         provider: 'github',
-        repos: ['shipfox/platform'],
         requiredScope: [],
         tools: [
           {

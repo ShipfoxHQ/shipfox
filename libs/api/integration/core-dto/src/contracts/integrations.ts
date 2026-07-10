@@ -175,19 +175,16 @@ export interface OpenAgentToolsSessionInput<
   Connection extends IntegrationConnection = IntegrationConnection,
   RequiredScope = unknown,
   ProviderScope = unknown,
-  ScopedToken = unknown,
 > {
   connection: Connection;
   tools: readonly AgentToolCatalogEntry<RequiredScope>[];
   scope: ProviderScope;
-  mintToken(requiredScope: RequiredScope): Promise<ScopedToken>;
 }
 
 export interface AgentToolsProvider<
   Connection extends IntegrationConnection = IntegrationConnection,
   RequiredScope = unknown,
   ProviderScope = unknown,
-  ScopedToken = unknown,
   CallResult = unknown,
 > {
   catalog():
@@ -195,7 +192,7 @@ export interface AgentToolsProvider<
     | Promise<readonly AgentToolCatalogEntry<RequiredScope>[]>;
   selectionCatalog(): AgentToolSelectionCatalog | Promise<AgentToolSelectionCatalog>;
   openSession(
-    input: OpenAgentToolsSessionInput<Connection, RequiredScope, ProviderScope, ScopedToken>,
+    input: OpenAgentToolsSessionInput<Connection, RequiredScope, ProviderScope>,
   ): Promise<AgentToolSession<CallResult>>;
 }
 

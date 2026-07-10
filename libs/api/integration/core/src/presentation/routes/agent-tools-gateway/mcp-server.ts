@@ -4,7 +4,6 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import {Ajv, type ValidateFunction} from 'ajv';
 import {INVALID_METHOD_LABEL, type IntegrationToolCallRecorder, NO_METHOD_LABEL} from './audit.js';
 import type {
   AuthorizedIntegrationTool,
@@ -27,15 +26,11 @@ export interface BuildAgentToolsMcpServerParams {
   recordCall?: IntegrationToolCallRecorder | undefined;
 }
 
-const ajv = new Ajv({strict: false, allErrors: true});
-
 export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams): Server {
   const server = new Server(
     {name: 'shipfox-integration-tools', version: '0.0.0'},
     {capabilities: {tools: {}}},
   );
-  const validators = new Map<string, ValidateFunction>();
-
   server.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [...params.authorizedTools.values()].map((authorizedTool) => ({
       name: authorizedTool.mcpName,
@@ -90,17 +85,6 @@ export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams)
       return toolError(methodValidation.message);
     }
     const method = methodValidation.method ?? NO_METHOD_LABEL;
-
-    const schemaError = validateToolInput(authorizedTool, args, validators);
-    if (schemaError) {
-      recordToolCall(params.recordCall, {
-        authorizedTool,
-        arguments: args,
-        method,
-        outcome: 'invalid-request',
-      });
-      return toolError(schemaError);
-    }
 
     try {
       const result = await params.dispatch({
@@ -157,28 +141,6 @@ function validateMethod(
   }
 
   return {kind: 'ok', method};
-}
-
-function validateToolInput(
-  authorizedTool: AuthorizedIntegrationTool,
-  args: Record<string, unknown>,
-  validators: Map<string, ValidateFunction>,
-): string | null {
-  let validate = validators.get(authorizedTool.mcpName);
-  if (!validate) {
-    try {
-      validate = ajv.compile(authorizedTool.inputSchema);
-    } catch {
-      return 'Tool input schema is invalid';
-    }
-    validators.set(authorizedTool.mcpName, validate);
-  }
-
-  if (validate(args)) return null;
-
-  return `Tool arguments do not match input schema: ${ajv.errorsText(validate.errors, {
-    separator: '; ',
-  })}`;
 }
 
 function toolError(message: string): CallToolResult {

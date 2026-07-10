@@ -98,6 +98,7 @@ export interface GithubApiClient {
 export interface GithubInstallationAccessToken {
   token: string;
   expiresAt: Date;
+  permissions?: Record<string, 'read' | 'write' | 'admin'> | undefined;
 }
 
 export function createGithubApiClient(): GithubApiClient {
@@ -370,6 +371,7 @@ class OctokitGithubApiClient implements GithubApiClient {
     return {
       token: response.data.token,
       expiresAt,
+      ...(response.data.permissions === undefined ? {} : {permissions: response.data.permissions}),
     };
   }
 

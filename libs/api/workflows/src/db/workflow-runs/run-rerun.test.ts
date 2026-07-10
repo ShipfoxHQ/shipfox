@@ -158,7 +158,6 @@ describe('workflow run queries', () => {
                 connectionId: crypto.randomUUID(),
                 connectionSlug: 'github',
                 provider: 'github',
-                repos: ['github:shipfox/platform'],
                 requiredScope: [{permission: 'issues', access: 'read'}],
                 tools: [
                   {

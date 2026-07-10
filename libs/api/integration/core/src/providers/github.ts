@@ -32,12 +32,34 @@ async function loadGithubModuleParts(
   options: IntegrationProviderModuleLoadOptions = {},
 ): Promise<IntegrationModuleParts> {
   const {
+    createGithubInstallationTokenProvider,
+    encodeInstallationTokenEnvelope,
     createGithubIntegrationProvider,
     getGithubInstallationByInstallationId,
+    githubInstallationTokenNamespace,
     db: githubDb,
     migrationsPath: githubMigrationsPath,
     upsertGithubInstallation,
   } = await import('@shipfox/api-integration-github');
+
+  const tokenProvider = createGithubInstallationTokenProvider({
+    getIntegrationConnectionById,
+    secretStore: {
+      read: async (workspaceId, installationId) =>
+        (await options.secrets?.github?.getSecret({
+          workspaceId,
+          namespace: githubInstallationTokenNamespace(installationId),
+          key: 'envelope',
+        })) ?? null,
+      write: async (workspaceId, installationId, envelope) => {
+        await options.secrets?.github?.setSecrets({
+          workspaceId,
+          namespace: githubInstallationTokenNamespace(installationId),
+          values: {envelope: encodeInstallationTokenEnvelope(envelope)},
+        });
+      },
+    },
+  });
 
   async function getExistingGithubConnection(input: {
     installationId: string;
@@ -101,6 +123,7 @@ async function loadGithubModuleParts(
       getIntegrationConnectionById,
       coreDb: db,
       deleteSecrets: options.secrets?.deleteSecrets,
+      agentTools: {tokenProvider},
     }),
     database: {
       db: githubDb,

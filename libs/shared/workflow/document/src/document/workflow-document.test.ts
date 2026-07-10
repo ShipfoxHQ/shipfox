@@ -874,7 +874,6 @@ describe('workflowDocumentSchema', () => {
             include: ['issue_read.get', 'pull_request_read.get_files'],
             exclude: ['actions_run_trigger.run_workflow'],
             allow_write: false,
-            repos: ['shipfox'],
           },
         ],
       },
@@ -926,10 +925,6 @@ describe('workflowDocumentSchema', () => {
     [
       'empty integration connection',
       {prompt: 'Fix.', integrations: [{connection: '', include: ['issue_read']}]},
-    ],
-    [
-      'empty integration repo',
-      {prompt: 'Fix.', integrations: [{include: ['issue_read'], repos: ['shipfox', '']}]},
     ],
     [
       'non-boolean integration allow_write',

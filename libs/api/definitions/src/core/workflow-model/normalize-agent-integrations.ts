@@ -29,7 +29,6 @@ function normalizeIntegration(
     include: dedupe(integration.include),
     ...(integration.exclude === undefined ? {} : {exclude: dedupe(integration.exclude)}),
     allowWrite: integration.allow_write ?? false,
-    ...(integration.repos === undefined ? {} : {repos: dedupe(integration.repos)}),
   };
 }
 

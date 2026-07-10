@@ -99,7 +99,6 @@ export function materializedIntegration(
     connectionId: crypto.randomUUID(),
     connectionSlug: 'github-main',
     provider: 'github',
-    repos: ['github:owner/repo'],
     requiredScope: [],
     tools: [materializedTool()],
     ...overrides,

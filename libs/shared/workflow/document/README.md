@@ -91,8 +91,8 @@ parseWorkflowDocument({
 
 Integration tools are selected with an `integrations` block on an agent step.
 This package validates the shape only: non-empty selections, optional connection
-and repository strings, and boolean write opt-in. Catalog checks, wildcard
-expansion, connection lookup, and write-safety rules belong to later layers.
+and boolean write opt-in. Catalog checks, wildcard expansion, connection lookup,
+and write-safety rules belong to later layers.
 
 ```ts
 parseWorkflowDocument({
@@ -110,7 +110,6 @@ parseWorkflowDocument({
               include: ['issue_read.get', 'pull_request_read.get_files'],
               exclude: ['actions_run_trigger.run_workflow'],
               allow_write: false,
-              repos: ['shipfox'],
             },
           ],
         },
