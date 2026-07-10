@@ -127,17 +127,6 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     });
     const piSession = createdSession.session;
     session = piSession;
-    if (mcpConfig !== undefined) {
-      await piSession.bindExtensions({
-        mode: 'print',
-        onError: (error) => {
-          logger().warn({err: error}, 'Pi extension failed');
-        },
-      });
-    }
-
-    // session.abort() returns a promise; a rejected abort must not become an unhandled
-    // rejection that crashes the long-lived runner, so swallow it.
     const abortSession = () => {
       Promise.resolve(piSession.abort()).catch(() => undefined);
     };
@@ -148,53 +137,74 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     }
 
     signal.addEventListener('abort', abortSession, {once: true});
-    const forwarder = startForwarding(piSession.sessionFile, onSessionEntry);
-    // pi may not settle session.prompt() promptly on abort (step.ts races the call), so the
-    // finally below can be delayed indefinitely. Stop the forwarder on abort too, or its poll
-    // timer leaks past workspace teardown. stop() is idempotent, so the finally re-calling it is
-    // safe, and the early stop still does its final drain.
-    const stopForwarder = () => forwarder?.stop();
-    signal.addEventListener('abort', stopForwarder, {once: true});
-    const restoreGitConfigGlobal = createGitConfigGlobalRestorer(gitConfigGlobal);
-    if (gitConfigGlobal) {
-      // The runner executes one agent step at a time in this process; restore promptly so the
-      // process-global Git config cannot leak into the next step.
-      process.env.GIT_CONFIG_GLOBAL = gitConfigGlobal;
-      signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
-    }
     try {
-      let response = '';
-      await runOutputTurnLoop({
-        signal,
-        prompt: hasDeclaredOutputs ? withOutputGuidance(prompt, collector.guidanceText()) : prompt,
-        runTurn: async (message) => {
-          await piSession.prompt(message);
-          const assistantError = lastAssistantError(piSession.messages);
-          if (assistantError !== undefined) {
-            throw new AgentInvocationError(assistantError, piSession.getLastAssistantText() ?? '');
-          }
-          response = piSession.getLastAssistantText() ?? '';
-        },
-        missingRequired: () => collector.missingRequired(),
-      });
-      const outputs = collector.snapshot();
-      return {
-        response,
-        ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
-      };
-    } catch (error) {
-      if (error instanceof RequiredOutputsMissingError) {
-        throw new AgentInvocationError(error.message, piSession.getLastAssistantText() ?? '');
+      if (mcpConfig !== undefined) {
+        await piSession.bindExtensions({
+          mode: 'print',
+          onError: (error) => {
+            logger().warn({err: error}, 'Pi extension failed');
+          },
+        });
       }
-      throw error;
+
+      if (signal.aborted) {
+        throw new Error('Agent step aborted during pi session creation');
+      }
+
+      const forwarder = startForwarding(piSession.sessionFile, onSessionEntry);
+      // pi may not settle session.prompt() promptly on abort (step.ts races the call), so the
+      // finally below can be delayed indefinitely. Stop the forwarder on abort too, or its poll
+      // timer leaks past workspace teardown. stop() is idempotent, so the finally re-calling it is
+      // safe, and the early stop still does its final drain.
+      const stopForwarder = () => forwarder?.stop();
+      signal.addEventListener('abort', stopForwarder, {once: true});
+      const restoreGitConfigGlobal = createGitConfigGlobalRestorer(gitConfigGlobal);
+      if (gitConfigGlobal) {
+        // The runner executes one agent step at a time in this process; restore promptly so the
+        // process-global Git config cannot leak into the next step.
+        process.env.GIT_CONFIG_GLOBAL = gitConfigGlobal;
+        signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
+      }
+      try {
+        let response = '';
+        await runOutputTurnLoop({
+          signal,
+          prompt: hasDeclaredOutputs
+            ? withOutputGuidance(prompt, collector.guidanceText())
+            : prompt,
+          runTurn: async (message) => {
+            await piSession.prompt(message);
+            const assistantError = lastAssistantError(piSession.messages);
+            if (assistantError !== undefined) {
+              throw new AgentInvocationError(
+                assistantError,
+                piSession.getLastAssistantText() ?? '',
+              );
+            }
+            response = piSession.getLastAssistantText() ?? '';
+          },
+          missingRequired: () => collector.missingRequired(),
+        });
+        const outputs = collector.snapshot();
+        return {
+          response,
+          ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
+        };
+      } catch (error) {
+        if (error instanceof RequiredOutputsMissingError) {
+          throw new AgentInvocationError(error.message, piSession.getLastAssistantText() ?? '');
+        }
+        throw error;
+      } finally {
+        // A final synchronous read forwards every entry written before the caller closes the log
+        // stream, so all session records precede its end marker.
+        forwarder?.stop();
+        restoreGitConfigGlobal();
+        signal.removeEventListener('abort', stopForwarder);
+        signal.removeEventListener('abort', restoreGitConfigGlobal);
+      }
     } finally {
-      // A final synchronous read forwards every entry written before the caller closes the log
-      // stream, so all session records precede its end marker.
-      forwarder?.stop();
-      restoreGitConfigGlobal();
       signal.removeEventListener('abort', abortSession);
-      signal.removeEventListener('abort', stopForwarder);
-      signal.removeEventListener('abort', restoreGitConfigGlobal);
     }
   } finally {
     await closePiSession({session, mcpConfig});

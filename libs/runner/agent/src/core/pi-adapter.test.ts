@@ -253,6 +253,33 @@ describe('piHarnessAdapter', () => {
     expect(existsSync(configPath)).toBe(false);
   });
 
+  it('aborts Pi while MCP extensions are binding', async () => {
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
+    const abortController = new AbortController();
+    let resolveBinding: (() => void) | undefined;
+    bindExtensionsMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveBinding = resolve;
+        }),
+    );
+
+    const result = piHarnessAdapter.run(
+      invocation({
+        cwd: sessionDir,
+        signal: abortController.signal,
+        mcpServers: [mcpBridge()],
+      }),
+    );
+    await vi.waitFor(() => expect(bindExtensionsMock).toHaveBeenCalledTimes(1));
+
+    abortController.abort();
+
+    expect(abortMock).toHaveBeenCalledTimes(1);
+    resolveBinding?.();
+    await expect(result).rejects.toThrow('Agent step aborted during pi session creation');
+  });
+
   it('fails before creating a Pi session when extension setup reports an error', async () => {
     createAgentSessionServicesMock.mockResolvedValue({
       cwd: '/work',

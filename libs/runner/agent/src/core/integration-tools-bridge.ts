@@ -186,7 +186,11 @@ async function handleHttpRequest(
     if (isInitializeRequest(body)) sessions.set(session.id, session);
     await session.transport.handleRequest(request, response, body);
     if (request.method === 'DELETE') {
-      response.once('finish', () => void closeHttpSession(session, sessions));
+      response.once('finish', () => {
+        void closeHttpSession(session, sessions).catch((error) => {
+          logger().warn({err: error}, 'Failed to close MCP HTTP session');
+        });
+      });
     }
   } catch (error) {
     logger().warn({err: error}, 'MCP bridge request failed');
@@ -302,9 +306,9 @@ async function closeHttpSession(
 }
 
 function closeHttpServer(server: HttpServer): Promise<void> {
-  server.closeAllConnections();
   if (!server.listening) return Promise.resolve();
   return new Promise((resolve, reject) => {
     server.close((error) => (error === undefined ? resolve() : reject(error)));
+    server.closeAllConnections();
   });
 }
