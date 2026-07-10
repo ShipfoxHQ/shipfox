@@ -145,7 +145,7 @@ function LinearCallbackFailurePage({
   return (
     <main className="flex min-h-screen bg-background-subtle-base px-16 py-32">
       <div className="mx-auto flex w-full max-w-[480px] flex-col justify-center gap-20">
-        <h2 ref={headingRef} tabIndex={-1} className="text-24 font-semibold">
+        <h2 ref={headingRef} tabIndex={-1} className="text-24 font-semibold outline-none">
           {failure.title ?? 'Linear install could not be completed'}
         </h2>
         <Callout role="alert" type="error">

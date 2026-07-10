@@ -55,13 +55,14 @@ describe('LinearCallbackPage', () => {
 
     renderCallback('?state=signed-state');
 
-    expect(await screen.findByRole('heading', {name: 'Invalid Linear callback'})).toBeVisible();
+    const heading = await screen.findByRole('heading', {name: 'Invalid Linear callback'});
+
+    expect(heading).toBeVisible();
     expect(completeCallbackMock).not.toHaveBeenCalled();
     expect(screen.getByRole('link', {name: 'Start over'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Back to integrations'})).toBeVisible();
-    expect(document.activeElement).toBe(
-      screen.getByRole('heading', {name: 'Invalid Linear callback'}),
-    );
+    expect(document.activeElement).toBe(heading);
+    expect(heading).toHaveClass('outline-none');
   });
 
   test('submits a callback once in Strict Mode, clears the handoff, and navigates to the response workspace', async () => {
