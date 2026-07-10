@@ -1,4 +1,5 @@
 import {upsertIntegrationConnection} from '#db/connections.js';
+import {linearProviderModule} from '#providers/linear.js';
 import {createTestApp, sourceProvider, useIntegrationRouteTest} from '#test/route-utils.js';
 
 describe('GET /integration-connections', () => {
@@ -131,6 +132,32 @@ describe('GET /integration-connections', () => {
       {
         provider: 'linear',
         capabilities: [],
+      },
+    ]);
+  });
+
+  it('advertises agent tools on Linear module connections', async () => {
+    const {provider} = await linearProviderModule.load();
+    const app = await createTestApp([provider]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'linear',
+      externalAccountId: 'org-1',
+      slug: 'linear_org_1',
+      displayName: 'Linear Org',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}&capability=agent_tools`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections).toMatchObject([
+      {
+        provider: 'linear',
+        capabilities: ['agent_tools'],
       },
     ]);
   });

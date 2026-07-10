@@ -5,7 +5,7 @@ import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
 import {createIntegrationToolCallRecorder} from './audit.js';
-import {dispatchIntegrationToolCall} from './dispatch-stub.js';
+import {createIntegrationToolDispatcher} from './dispatch.js';
 import {buildAgentToolsMcpServer} from './mcp-server.js';
 import {
   type LeasedAgentStepLoader,
@@ -23,6 +23,8 @@ export interface CreateAgentToolsGatewayRoutesParams {
 export function createAgentToolsGatewayRoutes(
   params: CreateAgentToolsGatewayRoutesParams,
 ): RouteGroup {
+  const dispatchIntegrationToolCall = createIntegrationToolDispatcher({registry: params.registry});
+
   return {
     prefix: '/runs/jobs/current/integration-tools',
     auth: AUTH_LEASED_JOB,

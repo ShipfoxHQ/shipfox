@@ -366,6 +366,7 @@ function materializedTool(state: SelectedToolState): MaterializedAgentIntegratio
     .map((method) => ({
       id: method.id,
       token: `${state.entry.id}.${method.id}`,
+      description: method.description,
       sensitivity: method.sensitivity,
       sensitive: method.sensitive,
       requiredScope: normalizeRequiredScope(method.requiredScope),

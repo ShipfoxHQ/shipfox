@@ -1,5 +1,5 @@
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createLinearInstallBodySchema,
   createLinearInstallResponseSchema,
@@ -32,6 +32,7 @@ export interface CreateLinearIntegrationRoutesOptions {
     input: ConnectLinearInstallationInput,
   ) => Promise<IntegrationConnection<'linear'>>;
   disconnectLinearInstallation: (input: {connectionId: string}) => Promise<void>;
+  connectionCapabilities: IntegrationCapability[];
 }
 
 export function createLinearIntegrationRoutes({
@@ -40,6 +41,7 @@ export function createLinearIntegrationRoutes({
   getExistingLinearConnection,
   connectLinearInstallation,
   disconnectLinearInstallation,
+  connectionCapabilities,
 }: CreateLinearIntegrationRoutesOptions): RouteGroup {
   const createInstallRoute = defineRoute({
     method: 'POST',
@@ -109,7 +111,7 @@ export function createLinearIntegrationRoutes({
         disconnectLinearInstallation,
       });
 
-      return toIntegrationConnectionDto(connection);
+      return toIntegrationConnectionDto(connection, {capabilities: connectionCapabilities});
     },
   });
 

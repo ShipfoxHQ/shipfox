@@ -111,45 +111,63 @@ export function createLinearTokenStore(params: CreateLinearTokenStoreParams): Li
       const inFlightRefresh = tokenRefreshes.get(input.connectionId);
       if (inFlightRefresh) return inFlightRefresh;
 
-      const lock = await withLinearRefreshLock(input.connectionId, async () => {
-        const refresh = refreshAccessTokenForConnection({
-          connectionId: input.connectionId,
-          workspaceId,
-          originalAccessToken: accessToken,
-          forceRefresh,
-          client,
-          secrets: params.secrets,
-          readAccessToken,
-          readSecretToken,
-        });
-        tokenRefreshes.set(input.connectionId, refresh);
-        try {
-          return await refresh;
-        } finally {
-          tokenRefreshes.delete(input.connectionId);
-        }
+      const refresh = refreshAccessTokenWithLock({
+        connectionId: input.connectionId,
+        workspaceId,
+        originalAccessToken: accessToken,
+        forceRefresh,
+        client,
+        secrets: params.secrets,
+        readAccessToken,
+        readSecretToken,
       });
-
-      if (lock.acquired) return lock.value;
-
-      const missedRefresh = tokenRefreshes.get(input.connectionId);
-      if (missedRefresh) return missedRefresh;
-
-      const rereadToken = await readAccessToken(workspaceId, input.connectionId);
-      if (rereadToken !== accessToken) return rereadToken;
-      if (forceRefresh) {
-        throw new LinearIntegrationProviderError(
-          'provider-unavailable',
-          'Linear token refresh is already in progress',
-        );
-      }
-      return accessToken;
+      tokenRefreshes.set(input.connectionId, refresh);
+      void refresh.then(
+        () => clearTokenRefresh(input.connectionId, refresh),
+        () => clearTokenRefresh(input.connectionId, refresh),
+      );
+      return refresh;
     },
   };
 }
 
 function shouldRefresh(expiresAt: Date | null): boolean {
   return expiresAt !== null && expiresAt.getTime() <= Date.now() + TOKEN_REFRESH_MARGIN_MS;
+}
+
+async function refreshAccessTokenWithLock(params: {
+  connectionId: string;
+  workspaceId: string;
+  originalAccessToken: string;
+  forceRefresh: boolean;
+  client: LinearApiClient;
+  secrets: LinearSecretsStore;
+  readAccessToken(workspaceId: string, connectionId: string): Promise<string>;
+  readSecretToken(
+    workspaceId: string,
+    connectionId: string,
+    key: typeof ACCESS_TOKEN_KEY | typeof REFRESH_TOKEN_KEY,
+  ): Promise<string | null>;
+}): Promise<string> {
+  const lock = await withLinearRefreshLock(params.connectionId, async () =>
+    refreshAccessTokenForConnection(params),
+  );
+
+  if (lock.acquired) return lock.value;
+
+  const rereadToken = await params.readAccessToken(params.workspaceId, params.connectionId);
+  if (rereadToken !== params.originalAccessToken) return rereadToken;
+  if (params.forceRefresh) {
+    throw new LinearIntegrationProviderError(
+      'provider-unavailable',
+      'Linear token refresh is already in progress',
+    );
+  }
+  return params.originalAccessToken;
+}
+
+function clearTokenRefresh(connectionId: string, refresh: Promise<string>): void {
+  if (tokenRefreshes.get(connectionId) === refresh) tokenRefreshes.delete(connectionId);
 }
 
 async function refreshAccessTokenForConnection(params: {

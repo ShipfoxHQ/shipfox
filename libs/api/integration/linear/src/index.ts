@@ -1,6 +1,8 @@
 import {LINEAR_PROVIDER} from '@shipfox/api-integration-linear-dto';
 import {createLinearApiClient, type LinearApiClient} from '#api/client.js';
 import {config} from '#config.js';
+import {LinearAgentToolsProvider} from '#core/agent-tools-provider.js';
+import type {LinearTokenStore} from '#core/tokens.js';
 import {closeDb, db} from '#db/db.js';
 import {getLinearInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -83,9 +85,16 @@ export {closeDb, config, db, migrationsPath};
 
 export interface CreateLinearIntegrationProviderOptions {
   linear?: LinearApiClient | undefined;
+  agentTools?:
+    | {
+        tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
+        endpoint?: string | URL | undefined;
+        callTimeoutMs?: number | undefined;
+      }
+    | undefined;
   getLinearInstallationByConnectionId?: typeof getLinearInstallationByConnectionId | undefined;
   routes?:
-    | (Omit<CreateLinearIntegrationRoutesOptions, 'linear'> &
+    | (Omit<CreateLinearIntegrationRoutesOptions, 'linear' | 'connectionCapabilities'> &
         Partial<CreateLinearWebhookRoutesOptions>)
     | undefined;
 }
@@ -96,11 +105,17 @@ export function createLinearIntegrationProvider(
   const linear = options.linear ?? createLinearApiClient();
   const getInstallationByConnectionId =
     options.getLinearInstallationByConnectionId ?? getLinearInstallationByConnectionId;
+  const adapters = options.agentTools
+    ? {
+        agent_tools: new LinearAgentToolsProvider(options.agentTools),
+      }
+    : {};
 
   const routes = options.routes
     ? [
         createLinearIntegrationRoutes({
           linear,
+          connectionCapabilities: adapters.agent_tools ? ['agent_tools'] : [],
           ...options.routes,
         }),
       ]
@@ -112,7 +127,7 @@ export function createLinearIntegrationProvider(
   return {
     provider: LINEAR_PROVIDER,
     displayName: 'Linear',
-    adapters: {},
+    adapters,
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);
       if (!installation?.organizationUrlKey) return undefined;
