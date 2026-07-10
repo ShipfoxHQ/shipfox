@@ -1,0 +1,100 @@
+---
+title: "Require a Successful Listener Execution"
+sidebarTitle: "Listener Success"
+description: "Fail a listening job unless it processes at least one event and every execution succeeds."
+---
+
+The default job result accepts a listener that resolves before it runs. Use a
+custom `success` expression when an empty listener must fail.
+
+This guide starts one run for a task, checks later status events, and finishes
+when a final event arrives.
+
+## Before you begin
+
+You need:
+
+- A custom webhook integration connection and its ingest URL.
+- The integration connection slug. This guide uses `task_hook` as a placeholder.
+- A project that can sync workflow files.
+- An online runner with the `ubuntu-latest` label.
+
+## Add the workflow
+
+Create `.shipfox/workflows/require-task-check.yml`. Replace `task_hook` with the
+custom webhook integration connection slug. This is a complete workflow:
+
+```yaml
+name: Require a task check
+runner: ubuntu-latest
+
+triggers:
+  task_started:
+    source: task_hook # Replace with your webhook integration connection slug.
+    event: received
+    filter: event.body.kind == "start"
+
+jobs:
+  remember:
+    outputs:
+      task_id: ${{ steps.save.outputs.task_id }}
+    steps:
+      - key: save
+        env:
+          TASK_ID: "${{ event.body.task_id }}"
+        run: printf 'task_id=%s\n' "$TASK_ID" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          task_id: string
+
+  check:
+    needs: remember
+    success: 'executions.size() > 0 && executions.all(e, e.status == "succeeded")'
+    listening:
+      on:
+        - source: task_hook # Replace with the same integration connection slug.
+          event: received
+          filter: event.body.kind == "check" && event.body.task_id == jobs.remember.outputs.task_id
+      until:
+        - source: task_hook # Replace with the same integration connection slug.
+          event: received
+          filter: event.body.kind == "finish" && event.body.task_id == jobs.remember.outputs.task_id
+      timeout: 30m
+      max_executions: 3
+    steps:
+      - env:
+          CHECK_RESULT: "${{ execution.events[0].data.body.result }}"
+        run: test "$CHECK_RESULT" = "pass"
+```
+
+The expression runs after the listener resolves. It requires a non-empty
+`executions` list and rejects any failed execution. The exact execution fields
+remain in the [Expressions reference](/reference/expressions#job-success-success).
+
+Commit and push the file to the project's default branch. Wait for **Require a
+task check** to sync.
+
+## Verify the result policy
+
+Replace `<ingest-url>` below with the webhook URL. Use a new `task_id` for each
+case.
+
+1. **Successful case:** send `{"kind":"start","task_id":"task-pass"}`, then
+   `{"kind":"check","task_id":"task-pass","result":"pass"}`, then
+   `{"kind":"finish","task_id":"task-pass"}`. The `check` job succeeds.
+2. **Failed case:** repeat with `task-fail` and a check result of `fail`. The
+   execution fails, so the job fails after the finish event.
+3. **Empty case:** send start and finish events for `task-empty` without a check
+   event. The listener has no executions, so the job fails.
+4. **Bound case:** send only a start event for `task-timeout`. After 30 minutes,
+   the timeout resolves the empty listener and the job fails.
+
+Send each body with this command:
+
+```bash
+curl -X POST '<ingest-url>' \
+  -H 'Content-Type: application/json' \
+  -d '<body-from-the-case>'
+```
+
+The default result, custom predicate scope, and expression failure behavior live
+in [Expressions](/reference/expressions#job-success-success).

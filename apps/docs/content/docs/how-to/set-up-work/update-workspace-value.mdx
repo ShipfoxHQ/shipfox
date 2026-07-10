@@ -1,0 +1,47 @@
+---
+title: "Replace a Workspace Secret or Variable"
+sidebarTitle: "Replace a Value"
+description: "Update one workspace value and verify every workflow that depends on it."
+---
+
+Use this guide to replace a value without changing its key. Keep the old
+external credential active until workflows succeed with the new secret.
+
+## Before you begin
+
+You need workspace value-settings access and the replacement value. You also
+need a representative project and runner for verification.
+
+## Find affected workflows
+
+Search project workflow files for the exact key:
+
+- A secret appears as `${{ secrets.KEY }}`.
+- A variable appears as `${{ vars.KEY }}`.
+
+List the workflows that must be tested. Check all projects in the workspace
+because workspace values are shared.
+
+## Replace the value
+
+For a secret:
+
+1. Open **Settings → Secrets**.
+2. Open the key's menu and select **Edit value**.
+3. Enter the full replacement value. The old value cannot be read back.
+4. Select **Update secret**.
+
+For a variable, use **Settings → Variables** and the same **Edit value** action.
+Select **Update variable** after changing the value.
+
+## Verify the replacement
+
+Start one representative workflow for each distinct use of the value. Confirm
+that every bound step succeeds and that logs do not expose a secret.
+
+If the secret replaces an external credential, revoke the old credential only
+after these runs pass. To rename a key, create the new key, update and sync all
+workflow references, verify them, and then delete the old key.
+
+The [Secrets and variables reference](/reference/secrets-variables) defines
+scope, binding sites, missing-value failures, and masking.

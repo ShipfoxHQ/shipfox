@@ -1,0 +1,94 @@
+---
+title: "Add a Custom AI Model Provider to Shipfox"
+sidebarTitle: "Custom Model Provider"
+description: "Connect a custom model endpoint, discover or add its models, and use its provider ID in a Shipfox agent step."
+---
+
+A custom provider connects Shipfox to a model endpoint that is not in the
+built-in provider catalog. The endpoint must use one of the protocols shown by
+the setup form.
+
+## Before you begin
+
+You need access to workspace agent settings, the endpoint base URL, any required
+API key or headers, and the model IDs the endpoint serves. To verify it in a
+workflow, you also need a project and an online runner.
+
+## Connect the provider
+
+<Steps>
+  <Step>
+
+    **Open the custom provider form**
+
+    Open **Settings → Agents** in the workspace. Select **Add custom provider**.
+  </Step>
+  <Step>
+
+    **Name the provider**
+
+    Enter a display name. Check the generated **Provider ID** because workflows
+    use that value in the `provider` field. The provider ID cannot change after
+    creation.
+  </Step>
+  <Step>
+
+    **Configure the endpoint**
+
+    Choose its protocol and enter the full base URL. Add an API key when the
+    endpoint requires one. Add any required headers and mark sensitive header
+    values as secret.
+  </Step>
+  <Step>
+
+    **Add the models**
+
+    Select **Fetch models**. Keep the models the endpoint returns. If discovery
+    is not available, select **Add model** and enter each model ID and label.
+    Choose a default model when agent steps may omit `model`.
+  </Step>
+  <Step>
+
+    **Test and save**
+
+    Select **Test & save**. Shipfox sends a live request to the endpoint before
+    it stores the configuration.
+  </Step>
+</Steps>
+
+## If the endpoint test fails
+
+Check the base URL, protocol, authentication, headers, and model ID against the
+endpoint's own configuration. Update the provider and select **Test & save**
+again. Do not continue until the live test succeeds.
+
+## Use the provider
+
+Add the provider ID and one of its model IDs to an agent step. Replace both
+example values with the values saved in the form. This is a complete workflow:
+
+```yaml
+name: Review with a custom provider
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  review:
+    steps:
+      - harness: pi
+        provider: acme-ai # Replace with your custom provider ID.
+        model: acme-code # Replace with a model ID from the provider.
+        prompt: Review the repository for correctness risks.
+```
+
+Commit and push the workflow to the project's default branch. Start it from the
+**Workflows** tab and open the agent step. The run shows the provider and model
+used for the request. A successful step confirms that Shipfox can use the saved
+endpoint, not only test it from settings.
+
+For built-in providers and default resolution, use [Configure a model
+provider](/how-to/set-up-work/configure-model-providers).

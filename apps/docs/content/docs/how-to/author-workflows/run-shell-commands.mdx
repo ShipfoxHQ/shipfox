@@ -1,0 +1,55 @@
+---
+title: "Run Repository Checks on Demand"
+sidebarTitle: "Run Project Checks"
+description: "Add a manual workflow that installs dependencies and runs repository tests."
+---
+
+Use this guide when a repository check should run on demand in a clean Shipfox
+job. The workflow uses fixed shell commands, not an agent.
+
+## Before you begin
+
+You need:
+
+- A project that can sync workflows.
+- An online runner with the `ubuntu-latest` label.
+- A Node.js repository with a lockfile and an `npm test` command.
+
+## Add the workflow
+
+Create `.shipfox/workflows/project-checks.yml`. This is a complete workflow:
+
+```yaml
+name: Run project checks
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  checks:
+    steps:
+      - run: npm ci
+      - run: npm test
+```
+
+Commit and push the file to the project's default branch. Wait for **Run project
+checks** to appear in the project's **Workflows** tab.
+
+## Verify the checks
+
+Select **Run** and open the new run.
+
+1. Confirm that `npm ci` finishes successfully.
+2. Open the `npm test` step. Check that its output matches a local test run.
+3. In a test repository, push a safe failing test to the default branch and
+   start another run. Check that the test step fails. Revert the test change
+   afterward.
+
+Use [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs) when output is
+missing. See [Run step
+fields](/reference/workflow-schema#run-step-fields) for all fields. See
+[Environment variables](/reference/workflow-schema#environment-variables) for
+workflow, job, and step order.

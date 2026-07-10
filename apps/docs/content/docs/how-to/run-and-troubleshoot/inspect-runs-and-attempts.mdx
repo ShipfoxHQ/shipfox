@@ -1,0 +1,75 @@
+---
+title: "Find Why a Workflow Run Did Not Complete"
+sidebarTitle: "Diagnose a Run"
+description: "Trace a run from its current attempt through the first job, execution, or step that did not finish as expected."
+---
+
+Use this guide when a run is pending, failed, cancelled, or successful with an
+unexpected result. The goal is to leave the run view with one diagnosis and one
+next action.
+
+## Before you begin
+
+You need access to the project and the run ID or trigger that identifies the
+affected work.
+
+## Select the right run attempt
+
+Open the project's **Runs** tab and find the run by ID or trigger. Open it and
+check the attempt selector near the title.
+
+Select the latest attempt unless the report concerns an earlier rerun. A later
+attempt does not replace the logs or results from the first one.
+
+## Find the first unexpected job
+
+Read the job graph in dependency order. Select the first job whose state differs
+from the expected path.
+
+- A pending job may be waiting for a dependency or matching runner.
+- A skipped job points to a condition or unsuccessful dependency.
+- A failed job contains a failed execution or step.
+- A cancelled job points to a run, user, timeout, or runner cancellation.
+
+The [workflow run
+model](/understand/workflows-and-runs) explains the run, attempt, execution, and
+step hierarchy.
+
+## Select the execution and step attempt
+
+For a listening job, select the execution that handled the relevant event
+batch. Confirm that its event data matches the report.
+
+For a feedback loop, select the latest failed step attempt and compare it with
+the prior attempt. Check whether the feedback changed the repeated work.
+
+Open the first step that failed or produced the wrong result. Read its command
+output, agent activity, error, and duration. Use [Inspect step
+logs](/how-to/run-and-troubleshoot/inspect-logs) when the stream is missing or
+incomplete.
+
+## Compare the saved workflow
+
+Select **View source**. The saved YAML is the snapshot used by this run attempt.
+Compare it with the current repository file.
+
+If they differ, decide which question you are answering:
+
+- Diagnose this run from its saved source.
+- Start a new run after the updated definition syncs.
+
+A rerun keeps the original workflow model. It does not pick up a later workflow
+edit.
+
+## Choose the next action
+
+| Diagnosis | Next action |
+| --- | --- |
+| Workflow source is wrong or stale. | Fix the file, wait for sync, and start a new run. |
+| Job is waiting for a runner. | Use [Resolve pending jobs](/how-to/run-and-troubleshoot/pending-jobs). |
+| Command or agent step failed. | Fix the input or code shown by that step, then choose a new run or rerun. |
+| Event reached the wrong execution or no execution. | Check listener correlation or [event routing](/how-to/run-and-troubleshoot/event-routing). |
+| An earlier attempt differs from the current one. | Compare its logs and carried outputs before rerunning again. |
+
+Record the run ID, attempt, job, execution, step, and observed error with the
+diagnosis. That gives the next person a precise place to continue.

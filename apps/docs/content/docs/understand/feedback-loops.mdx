@@ -1,42 +1,44 @@
 ---
 title: "Feedback loops"
 sidebarTitle: "Feedback Loops"
-description: "Feedback loops pair work with a check. A gate judges the result and can restart earlier steps with feedback when the check fails."
+description: "Understand why a gate becomes a loop only when it restarts work, and how objective checks, bounds, and side effects shape a safe retry design."
 ---
 
-A **feedback loop** lets a job revise its work after another step shows that the
-result is not ready. One step does the work, another checks it, and the job goes
-back when the result does not pass.
+A **feedback loop** repeats part of a job after a check rejects the result. One
+step does the open-ended work. A later step measures it. The job returns to the
+earlier step only when the check fails.
 
-Use a feedback loop when the result can be checked inside the job. Tests, type
-checks, linters, scripts, and agent reviews can all act as checks. If the next
-attempt must wait for new outside input, use a
-[listening job](/understand/listening-jobs) instead.
+A **gate** is the decision point, not the loop itself. A gate can accept or
+reject a result without repeating anything. The restart policy creates the
+loop.
 
-A **gate** is the decision point attached to the checking step. It uses the
-completed step's result. A gate becomes a feedback loop only when its failure
-policy sends the job back to an earlier step.
+## Gate outcomes
 
-## How a gate is evaluated
+The check answers, "Is this result good enough to continue?" The restart
+answers, "Which earlier work should get another attempt?"
 
-A gate evaluates after its step finishes. Its `success` expression reads the
-step result and decides whether the check passed.
+Keeping them separate supports three useful shapes:
 
-| Gate result | Restart configured | What happens |
-| --- | --- | --- |
-| Pass | Either | The job continues to the next step |
-| Fail | No | The job fails |
-| Fail | Yes | The job restarts from the named earlier step while attempts remain |
-| Cannot be evaluated | Either | The job fails without restarting |
+- A gate can fail the job without retrying unsafe work.
+- A gate can restart only the part that can improve the result.
+- The repeated step can receive evidence from the failed check.
 
-This separation matters. A gate can enforce a custom success rule without
-creating a loop. The `on_failure.restart_from` policy is what sends the job
-back for another pass through the work.
+This separation also makes the run readable. The check result explains why the
+job moved forward, failed, or created another step attempt.
 
-The exact expressions and recovery fields live in the
-[gate fields reference](/reference/workflow-schema#gate-fields).
+## Objective checks are stronger than confidence
 
-## The loop shape
+Asking an agent whether its own work is correct repeats the same judgment. A
+test, type check, linter, policy script, or independent review measures
+something outside that judgment.
+
+The check does not need to prove every property. It should prove the property
+that decides whether the next action is safe. A unit test can guard behavior
+before a commit. A policy check can guard a deploy. A read-back can confirm an
+external write.
+
+In a project with `npm test`, an online `ubuntu-latest` runner, and configured
+agent defaults, this complete workflow shows the loop:
 
 ```yaml
 name: Fix failing tests
@@ -57,54 +59,70 @@ jobs:
             ? step.restart.feedback
             : "No previous check. Run the tests and inspect the failures." }}
 
-      - key: test
-        run: npm test
+      - run: npm test
         gate:
           success: step.exit_code == 0
           on_failure:
             restart_from: fix
-            feedback: The tests still fail. Run them again, inspect the failures, and fix the cause.
+            feedback: The tests still fail. Reproduce the failure and fix its cause.
 ```
 
-The `fix` step changes the repository. The `test` step checks the result, and
-the gate treats exit code `0` as a pass. A failure restarts the job from `fix`,
-then the test runs again.
+The first attempt gets initial guidance. A failed test restarts `fix` in the
+same job checkout, so the agent can revise its files. A passing test lets the
+job continue.
 
-The prompt checks `step.is_retry` before reading the gate feedback. The first
-attempt gets its initial instruction. Later attempts get the reason the check
-sent the job back.
+The [Gate fields
+reference](/reference/workflow-schema#gate-fields) defines the exact fields.
 
-## Feedback guides the next attempt
+## Feedback should change the next attempt
 
-Trying the work again without new information often repeats the same mistake.
-Gate feedback carries the reason the job went back. The earlier step reads it
-from `step.restart.feedback`.
+A retry without new evidence may repeat the same mistake. Useful feedback names
+the failed property and points the repeated step toward evidence it can inspect.
 
-Feedback can be fixed guidance, as in the example, or include outputs from the
-checking step. Give the next attempt the evidence it needs: a failed test, a
-review finding, or the missing condition that kept the result from passing.
+Static guidance is enough when the step can rerun the check and read its output.
+A checking step can also publish a small result for the feedback message. Keep
+large logs in the run rather than copying them into every prompt.
 
-[Data and templating](/understand/data-and-templating) explains how step outputs
-can feed that message.
+Feedback is not a new event. It belongs to the restart decision and is visible
+only to the repeated attempt. [Context and
+templating](/understand/data-and-templating) explains that staged availability.
 
 ## Loop bounds
 
-Feedback loops stop when the gate passes or the restart budget is exhausted.
-An execution timeout can also stop the whole job. If the result never passes,
-the job fails rather than running forever.
+Every attempt consumes runner time and, for an agent, model cost. Slow checks
+multiply that cost. A loop therefore needs a useful stopping rule and a bounded
+number of attempts.
 
-These bounds are a safety net. A loop that often reaches them usually needs a
-clearer prompt, a better check, or a smaller task. The exact values live in
-[Limits](/reference/limits).
+The loop stops in one of two meaningful states:
 
-## What the run shows
+- The objective check passes.
+- The attempt bound is exhausted and the job fails.
 
-Each attempt appears in the run with its step result, gate decision, restart
-point, and feedback. The run keeps the whole cycle as structured history
-instead of hiding it inside one long retry log.
+Do not weaken the check to make the loop finish. A failure after the bound is
+evidence that the task needs another approach or a person.
 
-<Cards>
-  <Card title="Gate & Retry guide" href="/how-to/author-workflows/build-feedback-loop">
-    Build a complete agent, check, and retry workflow.
-  </Card>
-</Cards>
+Exact attempt limits live in [Limits](/reference/limits). The [run
+history](/understand/workflows-and-runs) keeps each step attempt and its
+feedback.
+
+## Repeated side effects need special care
+
+Restarting from an earlier step repeats every step from that point through the
+gate. A deploy, notification, comment, payment, or repository push inside that
+segment may happen more than once.
+
+Prefer this order:
+
+1. Make local or reversible changes.
+2. Run the objective check.
+3. Perform the external write only after the gate passes.
+
+When a write must occur inside the repeated segment, make it idempotent. Use a
+stable identity and update or read back the existing result instead of creating
+a new one on every attempt.
+
+Blindly retrying a deploy or external write is not a reliability strategy. The
+loop can amplify a bad side effect as easily as it can improve code.
+
+Use [Build a feedback
+loop](/how-to/author-workflows/build-feedback-loop) for the authoring task.

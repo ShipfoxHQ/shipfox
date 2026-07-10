@@ -24,7 +24,8 @@ This glossary defines the core terms used in Shipfox documentation and in the pr
   </Accordion>
 
   <Accordion title="Execution">
-    One firing of a job. A regular job has exactly one execution per run; a
+    One firing of a job. A regular job has exactly one execution per run
+    attempt; a
     [listening job](/understand/listening-jobs) fires one execution per event
     batch. Job status is derived over all executions. See
     [Jobs and steps](/understand/jobs-and-steps).
@@ -49,7 +50,7 @@ This glossary defines the core terms used in Shipfox documentation and in the pr
   </Accordion>
 
   <Accordion title="Job">
-    A group of steps that runs on a single runner. Jobs within a workflow run in parallel by default; use `needs` to declare dependencies and sequence them. Each job re-clones the repository independently. A job must have at least one step. See [Job fields](/reference/workflow-schema#job-fields).
+    A group of steps that runs on a single runner. Jobs within a workflow run in parallel by default; use `needs` to declare dependencies and sequence them. Each job execution gets a fresh repository checkout. A job must have at least one step. See [Job fields](/reference/workflow-schema#job-fields).
   </Accordion>
 
   <Accordion title="Key (step field)">
@@ -86,11 +87,11 @@ This glossary defines the core terms used in Shipfox documentation and in the pr
   </Accordion>
 
   <Accordion title="Run">
-    One execution of a workflow. A run contains one or more jobs, each of which fires one or more executions of its steps. Runs are triggered by a trigger event or fired manually from the dashboard. Each run records its jobs, steps, and their outcomes.
+    The record created when a workflow starts for one event or manual action. A run contains one or more attempts, jobs, job executions, and step attempts. It keeps their inputs, logs, outputs, and outcomes.
   </Accordion>
 
   <Accordion title="Runner">
-    A process you deploy on your own infrastructure that polls Shipfox for jobs. Jobs are dispatched to runners whose labels match the job's `runner:` field. Runners execute run steps and coordinate agent steps. Multiple runners can be registered in a workspace. See [Runners](/operations/runners).
+    A process you deploy on your own infrastructure that polls Shipfox for jobs. Jobs are dispatched to runners whose labels match the job's `runner:` field. Runners execute both run steps and agent steps. Multiple runners can be registered in a workspace. See [Runners and execution environments](/understand/runners-and-execution-environments).
   </Accordion>
 
   <Accordion title="Run step">
@@ -113,7 +114,7 @@ This glossary defines the core terms used in Shipfox documentation and in the pr
   </Accordion>
 
   <Accordion title="Trigger">
-    Defines when a workflow run starts. Configured in the `triggers:` section of a workflow YAML. Each trigger has a `source` (the integration) and an `event` (the specific event from that source). An optional `filter` CEL expression narrows which events fire the trigger, evaluated when the event arrives. See the [Trigger Sources reference](/reference/trigger-sources).
+    Defines when a workflow run starts. Configured in the `triggers:` section of a workflow YAML. Each trigger has a `source` (an integration connection slug or built-in source) and an `event` from that source. An optional `filter` CEL expression narrows which events fire the trigger, evaluated when the event arrives. See the [Trigger Sources reference](/reference/trigger-sources).
   </Accordion>
 
   <Accordion title="Variable">
@@ -128,7 +129,7 @@ This glossary defines the core terms used in Shipfox documentation and in the pr
   </Accordion>
 
   <Accordion title="Workspace">
-    The top-level organisational unit in Shipfox. Contains projects, runner settings, AI provider configurations, and members. Provider API keys and default model selections are configured at the workspace level and resolved at run time when not specified in a workflow step.
+    The top-level organisational unit in Shipfox. Contains projects, integration connections, runners, secrets, variables, AI provider configurations, and members. Provider credentials and default model selections are configured at this level and resolved at run time when a workflow step omits them.
   </Accordion>
 
 </Accordions>

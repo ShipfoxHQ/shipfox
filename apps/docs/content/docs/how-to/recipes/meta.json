@@ -1,0 +1,10 @@
+{
+  "title": "Recipes",
+  "pages": [
+    "index",
+    "checks-on-push",
+    "triage-sentry-issues",
+    "parallel-ci-agent-review",
+    "event-to-verified-pull-request"
+  ]
+}

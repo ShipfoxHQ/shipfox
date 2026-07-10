@@ -1,0 +1,60 @@
+---
+title: "Group Long Command Logs"
+sidebarTitle: "Group Command Logs"
+description: "Print log markers around install and test output so the run view renders two collapsible groups."
+---
+
+Use groups when one command step produces a long stream that is hard to scan.
+
+## Before you begin
+
+You need a project that can sync workflows, an online runner with the
+`ubuntu-latest` label, and a Node.js repository with a lockfile and tests.
+
+## Add the workflow
+
+Create `.shipfox/workflows/grouped-checks.yml`. This is a complete workflow:
+
+```yaml
+name: Run grouped checks
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  checks:
+    steps:
+      - run: |
+          echo "::group::Install dependencies"
+          if ! npm ci; then
+            echo "::endgroup::"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Run tests"
+          if ! npm test; then
+            echo "::endgroup::"
+            exit 1
+          fi
+          echo "::endgroup::"
+```
+
+Commit and push the file to the project's default branch. Wait for **Run grouped
+checks** to sync.
+
+## Verify the groups
+
+Start the workflow and open the command step.
+
+1. Confirm that **Install dependencies** and **Run tests** appear as separate
+   collapsible groups.
+2. Open each group and confirm that it contains only its command's output.
+3. Confirm that the step status still follows the command exit status.
+
+Use [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs) when output is
+missing, delayed, or truncated. Exact group and log limits live in
+[Limits](/reference/limits#logs).

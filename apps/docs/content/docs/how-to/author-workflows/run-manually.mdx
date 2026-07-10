@@ -1,0 +1,67 @@
+---
+title: "Run a Shipfox Workflow Manually"
+sidebarTitle: "Manual Trigger"
+description: "Add a manual trigger, start the workflow from the Shipfox dashboard, and open the new run."
+---
+
+A manual trigger adds a **Run** action to a workflow. Use it for on-demand work,
+testing a new workflow, or repeating a task without waiting for an outside event.
+
+## Before you begin
+
+You need a project that can sync workflows and an online runner with the
+`ubuntu-latest` label.
+
+## Add and use a manual trigger
+
+<Steps>
+  <Step>
+
+    **Add the manual trigger**
+
+    Create `.shipfox/workflows/on-demand.yml`. Replace the command with the task
+    the project should run. This is a complete workflow:
+
+    ```yaml
+    name: On-demand checks
+    runner: ubuntu-latest
+
+    triggers:
+      manual:
+        source: manual
+        event: fire
+
+    jobs:
+      checks:
+        steps:
+          - key: check
+            run: ./scripts/check.sh
+    ```
+  </Step>
+  <Step>
+
+    **Commit and push the file to the default branch**
+
+    Open the project's **Workflows** tab. Wait for **On-demand checks** to appear
+    after a successful sync.
+  </Step>
+  <Step>
+
+    **Start the run**
+
+    Select **Run** next to the workflow. Shipfox queues a new run and confirms
+    that it started.
+  </Step>
+  <Step>
+
+    **Open the run**
+
+    Open the project's **Runs** tab. Select the newest **On-demand checks** run
+    and inspect its jobs and steps.
+  </Step>
+</Steps>
+
+The workspace event journal records the manual call with source `manual` and
+event `fire`. Open **Settings → Events** when the action succeeds but no run
+appears. A workflow accepts at most one manual trigger; see the [trigger sources
+reference](/reference/trigger-sources#manual).

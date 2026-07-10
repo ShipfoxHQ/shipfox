@@ -1,106 +1,65 @@
 ---
-title: "Configure and Use AI Agent Steps in Shipfox Workflows"
+title: "Add and Test an Agent Step"
 sidebarTitle: "Agent Steps"
-description: "Run AI models inline in your Shipfox workflows using agent steps. Set model, thinking level, and provider, or mix agent and shell steps in a single job."
+description: "Add one agent step that reads project files. Check its result in a manual run."
 ---
 
-Shipfox agent steps run an AI model inside a workflow. They need no glue code or
-webhooks. An agent step has a `prompt`. It can also set a `model`, `thinking`
-level, and `provider`. The step works in the job checkout. Its output appears in
-the run log beside shell output.
+Use this guide to add an agent step to a project. The agent reads the code and
+describes what it finds. It does not change any files.
 
-## Basic agent step
+## Before you begin
 
-At a minimum, an agent step requires a `prompt`. If you omit `model` and
-`provider`, Shipfox uses the workspace defaults. See
-[Configure a model provider](/how-to/set-up-work/configure-model-providers).
+You need:
+
+- A project that can sync workflow files.
+- An online runner with the `ubuntu-latest` label.
+- [Configured agent
+  defaults](/how-to/set-up-work/configure-model-providers).
+
+## Add the workflow
+
+Create `.shipfox/workflows/summarize-repository.yml`. This is a complete
+workflow. It uses the workspace's default harness, provider, and model:
 
 ```yaml
+name: Summarize the repository
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
 jobs:
-  fix:
+  summarize:
     steps:
-      - key: ask-claude
-        model: claude-opus-4-8
-        prompt: Read the repository and summarize what it does in three sentences.
+      - prompt: |
+          Read this repository and summarize its purpose in three sentences.
+          Name the main entry point and one command a contributor should know.
+          Do not change any files.
 ```
 
-The `key` field identifies the step in the dashboard and as the target of a
-`restart_from` gate. Use it on any step you may want to reference.
+Commit and push the file to the project's default branch. Wait for **Summarize
+the repository** to appear in the project's **Workflows** tab.
 
-## Choosing a model
+## Verify the agent result
 
-Set `model` to a model ID. Set `provider` to a provider ID, such as `openai`.
-When you omit `provider`, Shipfox uses the workspace default.
+Select **Run** and open the new run.
 
-To use a non-default provider, specify both fields:
+1. Confirm that the `summarize` job starts on the expected runner.
+2. Open the agent step and follow its messages and tool activity.
+3. Check that the final response has three sentences.
+4. Check that it names a real entry point and a command from the project.
 
-```yaml
-- model: gpt-5.5-pro
-  provider: openai
-  prompt: Review the recent changes for security issues.
-```
+The result should match the code in the commit that started the run.
 
-See the [Model Providers reference](/reference/model-providers) for supported
-provider IDs, defaults, and model-resolution rules.
+If the step cannot resolve a model or provider, check [Configure agent
+defaults](/how-to/set-up-work/configure-model-providers). To override defaults,
+use the exact fields in [Agent step
+fields](/reference/workflow-schema#agent-step-fields).
 
-## Thinking level
-
-The `thinking` field controls how much reasoning the model does. Its accepted
-values depend on the harness. See
-[Agent step fields](/reference/workflow-schema#agent-step-fields) for the values
-and default.
-
-Higher levels use more tokens. Use `low` for a simple summary or writing task.
-Use `high` or above for code review and multi-file debugging.
-
-```yaml
-- model: claude-opus-4-8
-  thinking: xhigh
-  prompt: >
-    Trace the root cause of the failing integration test. Check all code paths
-    that touch the payment module and propose a fix.
-```
-
-## Combining run and agent steps
-
-Mix agent and shell steps in one job to build a feedback loop. The agent edits
-the source. A `run` step checks the result. A gate sends failed work back to an
-earlier step.
-
-```yaml
-jobs:
-  fix-and-verify:
-    steps:
-      - key: install
-        run: npm ci
-      - model: claude-opus-4-8
-        prompt: The tests are failing. Edit the source code to fix them.
-      - run: npm test
-        gate:
-          success: step.exit_code == 0
-          on_failure:
-            restart_from: install
-```
-
-On each attempt, the agent reads the updated code and tries another fix. The gate
-checks the `npm test` exit code. If the test still fails, the job goes back to
-the `install` step. See
-[Build a feedback loop](/how-to/author-workflows/build-feedback-loop) for the
-complete procedure.
-
-## Agent step rules
-
-<Callout type="warn">
-  Keep these constraints in mind when authoring agent steps:
-
-  - `env` is not valid on agent steps. It is supported only on `run` steps.
-  - `run` and any agent field, including `prompt`, `model`, `harness`, `thinking`, `provider`, `tools`, or `integrations`, cannot appear on the same step.
-  - `prompt` is required on every agent step. A step with `model` but no `prompt` is rejected.
-  - The `agent:` key is reserved and will be rejected with an explicit error message.
-</Callout>
-
-## Next steps
-
-- [Build a feedback loop](/how-to/author-workflows/build-feedback-loop) to check agent work and try again with evidence.
-- [Use integration tools](/how-to/author-workflows/use-integration-tools) to grant scoped access to connected systems.
-- [Configure a model provider](/how-to/set-up-work/configure-model-providers) to change workspace defaults.
+Use [Build a feedback
+loop](/how-to/author-workflows/build-feedback-loop) to check and retry agent
+work. Use [read-only integration
+tools](/how-to/author-workflows/use-integration-tools) to give the agent outside
+context.

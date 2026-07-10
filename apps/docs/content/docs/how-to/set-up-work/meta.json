@@ -1,4 +1,22 @@
 {
   "title": "Set Up Work",
-  "pages": ["create-project", "configure-model-providers", "secrets-and-variables"]
+  "pages": [
+    "index",
+    "connect-github",
+    "connect-sentry",
+    "create-custom-webhook",
+    "create-project",
+    "manage-integration-connections",
+    "disable-integration-connection",
+    "delete-integration-connection",
+    "configure-model-providers",
+    "add-custom-model-provider",
+    "rotate-model-provider-credentials",
+    "update-custom-model-provider",
+    "delete-model-provider",
+    "secrets-and-variables",
+    "update-workspace-value",
+    "delete-workspace-value",
+    "manage-workspace-members"
+  ]
 }

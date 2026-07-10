@@ -1,54 +1,118 @@
 ---
-title: "Configure an AI Model Provider for Shipfox"
-sidebarTitle: "Model Providers"
-description: "Add a provider credential, choose workspace defaults, and run an agent step with the configured model provider."
+title: "Configure an Agent Harness and Model Provider"
+sidebarTitle: "Agent Setup"
+description: "Choose a harness and model provider. Set workspace defaults and verify them with an agent run."
 ---
 
-Add a model provider in workspace settings. Any project in that workspace can
-then use it. You need the provider's API key. The form shows any other values it
-needs.
+Set up the agent runtime for a workspace. All projects in it use the same
+settings. This guide configures workspace defaults and verifies them with a
+manual agent run.
 
-## Configure the provider
+## Before you begin
 
-1. Open **Settings → Agents** in the workspace.
-2. Find the provider and select **Configure**.
-3. Enter its API key and any additional required values.
-4. Select **Save**.
-5. Optionally, select **Set as default**.
+You need:
 
-The [Model Providers reference](/reference/model-providers) lists each provider
-ID, default model, and required key.
+- The provider's API key. The form asks for any other provider values.
+- A project that can sync workflow files.
+- An online runner with the `ubuntu-latest` label.
 
-## Use the workspace default
+## Configure the agent runtime
 
-An agent step with only a prompt uses the workspace default provider and model:
+<Steps>
+  <Step>
+
+    **Open the agent settings**
+
+    Open **Settings → Agents** in the workspace.
+  </Step>
+  <Step>
+
+    **Choose a harness**
+
+    Review the list under **Harnesses**. Pick the runtime you plan to use. If a
+    harness is unavailable, it needs a model provider that works with it.
+  </Step>
+  <Step>
+
+    **Configure a model provider**
+
+    Find a provider that works with the harness. Select **Configure**. Enter its
+    API key, complete any other fields, and select **Save**.
+  </Step>
+  <Step>
+
+    **Choose the workspace defaults**
+
+    Set the provider as the workspace default if needed. Open the harness menu.
+    Select **Set as default**.
+  </Step>
+</Steps>
+
+Use the [Model Providers reference](/reference/model-providers) to compare the
+choices. It lists provider IDs, default models, required credentials, and
+harness support.
+
+## Check the workspace defaults
+
+Stay in **Settings → Agents** and check the current values:
+
+- Under **Harnesses**, the star marks the default harness.
+- Under **Configured providers**, the star marks the default provider.
+- Open the default provider's menu. Select **Change default model** to review its
+  model. For a custom provider, select **Edit** instead.
+
+Use the same controls to correct a value that is not the one you want.
+
+## Run the workspace defaults
+
+Create `.shipfox/workflows/check-agent-defaults.yml`. This complete workflow
+omits `harness`, `provider`, and `model`. The agent step resolves all three from
+the workspace settings you checked above.
 
 ```yaml
+name: Check agent defaults
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
 jobs:
-  review:
+  check:
     steps:
-      - prompt: Review the repository for correctness risks.
+      - key: summarize
+        prompt: Read this repository and summarize its purpose in one sentence.
 ```
 
-## Select a provider and model
+Commit and push the file to the project's default branch. Open the project's
+**Workflows** tab. Wait for **Check agent defaults** to sync. Select **Run**,
+then open the new run.
 
-Set both fields when the step must use a non-default provider:
+## Verify the agent run
 
-```yaml
-jobs:
-  review:
-    steps:
-      - provider: openai
-        model: gpt-5.5-pro
-        prompt: Review the repository for correctness risks.
-```
+The step declares no overrides. Shipfox therefore uses the starred harness and
+provider in **Settings → Agents**, plus the provider's default model.
 
-Commit and push the workflow. Wait for a successful sync, then start it. Open
-the agent step in the run detail. Check that Shipfox used the provider and model
-you chose.
+Open the `check` job and its agent step. A completed step with a one-sentence
+response confirms that the defaults resolved and the saved credentials worked.
+
+## If the agent step fails
+
+- If the workflow does not sync, use [Troubleshoot workflow
+  sync](/how-to/run-and-troubleshoot/workflow-sync).
+- If the run shows a provider, credential, or model warning, follow the action in
+  that warning. Compare the selection with the [Model Providers
+  reference](/reference/model-providers). Run the workflow again after the fix.
+- For another runtime failure, open the agent step and use [Inspect
+  logs](/how-to/run-and-troubleshoot/inspect-logs) to review its messages and
+  tool results.
 
 <Cards>
+  <Card title="Add a custom provider" href="/how-to/set-up-work/add-custom-model-provider">
+    Connect a model endpoint that is not in the built-in catalog.
+  </Card>
   <Card title="Add an agent step" href="/how-to/author-workflows/add-agent-steps">
-    Combine the configured model with prompts, checks, and outputs.
+    Override defaults or use more than one harness in a workflow.
   </Card>
 </Cards>

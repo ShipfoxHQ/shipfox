@@ -1,0 +1,71 @@
+---
+title: "Run Checks Only for Ready Pull Requests"
+sidebarTitle: "Ready PR Checks"
+description: "Start checks only when a pull request is ready for review and targets the repository's default branch."
+---
+
+Use a trigger filter when unwanted pull-request events should create no run at
+all. This guide accepts ready pull requests that target `main` and ignores
+drafts or other base branches.
+
+## Before you begin
+
+You need:
+
+- A project connected to GitHub.
+- Its GitHub integration connection slug. This guide uses `github_acme` as a placeholder.
+- An online runner with the `ubuntu-latest` label.
+- A Node.js repository with a lockfile and an `npm test` command.
+
+Replace `main` below if the repository uses another default branch.
+
+## Add the filtered workflow
+
+Create `.shipfox/workflows/ready-pull-request-checks.yml`. Replace
+`github_acme` with your GitHub integration connection slug. This is a complete workflow:
+
+```yaml
+name: Check ready pull requests
+runner: ubuntu-latest
+
+triggers:
+  opened_ready:
+    source: github_acme # Replace with your GitHub integration connection slug.
+    event: pull_request.opened
+    filter: event.pull_request.base.ref == "main" && event.pull_request.draft == false
+
+  marked_ready:
+    source: github_acme # Replace with the same integration connection slug.
+    event: pull_request.ready_for_review
+    filter: event.pull_request.base.ref == "main" && event.pull_request.draft == false
+
+jobs:
+  checks:
+    steps:
+      - run: npm ci
+      - run: npm test
+```
+
+Commit and push the file to the project's default branch. Wait for **Check ready
+pull requests** to sync without an expression error.
+
+The filter belongs on the trigger because a non-matching event should create no
+run. Use a job or step `if` only when the run should exist but one part should
+be skipped. Use a gate when completed work must pass a check or retry. The
+[Expressions reference](/reference/expressions) defines those forms.
+
+## Verify matching and non-matching events
+
+Send three safe test cases:
+
+1. Open a ready pull request against `main`. Confirm that Shipfox creates a run
+   and `npm test` passes.
+2. Open a draft pull request against `main`. Confirm in **Settings → Events**
+   that the opening event creates no run. Mark it ready and confirm that the
+   ready event starts one run.
+3. Open a ready pull request against another base branch. Confirm that its event
+   creates no run.
+
+If a matching case creates no run, use [Troubleshoot event
+routing](/how-to/run-and-troubleshoot/event-routing) to compare the event data
+with the filter.

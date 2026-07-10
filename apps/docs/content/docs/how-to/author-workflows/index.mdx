@@ -1,0 +1,67 @@
+---
+title: "Author Shipfox Workflows"
+sidebarTitle: "Author Workflows"
+description: "Start workflows, run commands and agents, pass results, and check the work."
+---
+
+Use these guides to change a workflow file and get a clear result. Most tasks
+need a project that can sync workflow files. Each guide also lists the runner,
+provider, integration connection, or repository access it needs.
+
+## Start and route work
+
+<Cards>
+  <Card title="Run a workflow manually" href="/how-to/author-workflows/run-manually">
+    Add an on-demand Run action to a workflow.
+  </Card>
+  <Card title="Pass fixed trigger inputs" href="/how-to/author-workflows/pass-trigger-inputs">
+    Reuse one test job for manual and scheduled runs.
+  </Card>
+  <Card title="Schedule a workflow" href="/how-to/author-workflows/schedule-workflows">
+    Start recurring work from a Cron schedule.
+  </Card>
+  <Card title="Run work conditionally" href="/how-to/author-workflows/control-jobs-and-steps">
+    Filter events or skip selected jobs and steps.
+  </Card>
+  <Card title="Choose runners" href="/how-to/author-workflows/choose-runners">
+    Route jobs to runners with matching labels.
+  </Card>
+</Cards>
+
+## Perform and connect work
+
+<Cards>
+  <Card title="Run project commands" href="/how-to/author-workflows/run-shell-commands">
+    Run tests, builds, and other command-line tools.
+  </Card>
+  <Card title="Group command logs" href="/how-to/author-workflows/group-command-logs">
+    Make long install and test output easier to scan.
+  </Card>
+  <Card title="Add an agent step" href="/how-to/author-workflows/add-agent-steps">
+    Run work that needs investigation or judgment.
+  </Card>
+  <Card title="Read a pull request with an agent" href="/how-to/author-workflows/use-integration-tools">
+    Give an agent read-only GitHub context.
+  </Card>
+  <Card title="Post a pull-request review" href="/how-to/author-workflows/post-pull-request-review">
+    Grant one agent step a narrow GitHub write.
+  </Card>
+  <Card title="Push agent changes" href="/how-to/author-workflows/push-repository-changes">
+    Check an agent's local edit and push it to a new branch.
+  </Card>
+  <Card title="Pass outputs" href="/how-to/author-workflows/pass-outputs">
+    Move a small typed value to later work.
+  </Card>
+  <Card title="Use structured agent outputs" href="/how-to/author-workflows/use-structured-agent-outputs">
+    Route later work with a typed decision from an agent.
+  </Card>
+  <Card title="Bound a listening job" href="/how-to/author-workflows/bound-listening-job">
+    Batch later events and guarantee that the listener stops.
+  </Card>
+  <Card title="Define listener success" href="/how-to/author-workflows/define-listener-success">
+    Require at least one successful listener execution.
+  </Card>
+  <Card title="Build a feedback loop" href="/how-to/author-workflows/build-feedback-loop">
+    Check agent work and retry it with evidence.
+  </Card>
+</Cards>

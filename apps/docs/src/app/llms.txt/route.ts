@@ -5,6 +5,7 @@ export const revalidate = false;
 
 const SECTION_ORDER = [
   'get-started',
+  'tutorials',
   'understand',
   'how-to',
   'integrations',
@@ -16,6 +17,7 @@ const SECTION_ORDER = [
 
 const SECTION_LABELS: Record<(typeof SECTION_ORDER)[number], string> = {
   'get-started': 'Get Started',
+  tutorials: 'Tutorials',
   understand: 'Understand',
   'how-to': 'How-to Guides',
   integrations: 'Integrations',

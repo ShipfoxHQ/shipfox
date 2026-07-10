@@ -1,0 +1,41 @@
+---
+title: "Find an Integration Connection Slug and Check Its Events"
+sidebarTitle: "Inspect an Integration Connection"
+description: "Copy an integration connection slug and check its recent events."
+---
+
+Use this guide to find an integration connection slug and check an event. This is a read-only
+task. It does not change the integration connection.
+
+## Before you begin
+
+You need an existing integration connection and access to its settings. If you do not have
+one, use one of these setup guides:
+
+- [GitHub](/how-to/set-up-work/connect-github).
+- [Sentry](/how-to/set-up-work/connect-sentry).
+- [Custom webhook](/how-to/set-up-work/create-custom-webhook).
+
+## Copy the integration connection slug
+
+Open **Settings → Integrations**. Open the integration connection's menu and select **Use
+this integration**.
+
+Copy the slug from the trigger example. Use the full value as a trigger
+`source`. You can also use it as an agent-tool `connection`.
+
+## Inspect recent events
+
+Open the same menu and select **View recent events**. Shipfox opens the event
+journal with that integration connection selected.
+
+Send one safe test event from the provider. Open the new event. Check that:
+
+1. The source equals the copied integration connection slug.
+2. The event name matches the provider action.
+3. The payload shows the test item you sent.
+4. The result shows if a workflow matched.
+
+The [Integrations reference](/integrations) lists provider events. Use
+[Troubleshoot event routing](/how-to/run-and-troubleshoot/event-routing) when
+delivery succeeds but no run appears.

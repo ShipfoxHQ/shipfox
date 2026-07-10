@@ -1,0 +1,39 @@
+---
+title: "Pause and Resume an Integration Connection"
+sidebarTitle: "Pause an Integration Connection"
+description: "Pause new events from one integration connection. Resume it with a fresh test event."
+---
+
+Use this guide to stop events from one integration connection for a short time. Shipfox does
+not replay events dropped during the pause. The integration connection stays in the
+workspace.
+
+## Before you begin
+
+You need permission to manage workspace integrations. The integration connection must be
+safe to pause.
+
+Find the workflows that use the integration connection slug. Check that missing runs during
+the pause will not hide urgent work.
+
+## Disable the integration connection
+
+Open **Settings → Integrations**. Open the integration connection's menu and select
+**Disable integration**.
+
+Send a safe test event. Check that it does not appear in **Settings → Events**.
+Check that no workflow run starts from it.
+
+## Enable and verify the integration connection
+
+Open the integration connection's menu and select **Enable integration**. Send a new test
+event from the provider.
+
+Check that the new event appears in the event journal. It must have a final
+routing result. Shipfox will not recover events sent during the pause.
+
+If the fresh event does not arrive, repeat its setup check:
+
+- [GitHub integration connection](/how-to/set-up-work/connect-github).
+- [Sentry integration connection](/how-to/set-up-work/connect-sentry).
+- [Custom webhook](/how-to/set-up-work/create-custom-webhook).

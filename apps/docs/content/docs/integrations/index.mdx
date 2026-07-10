@@ -1,0 +1,56 @@
+---
+title: "Integrations Reference"
+sidebarTitle: "Integrations"
+description: "Look up Shipfox integrations, integration connection slugs, and trigger fields."
+---
+
+This section lists the systems that can connect to a workspace. Read
+[Integrations, integration connections, and
+tools](/understand/integrations-connections-and-tools) to learn how they work.
+Use [Set up work](/how-to/set-up-work#connect-external-systems) to add one.
+
+## Integration connections and slugs
+
+Connecting an integration creates a workspace **integration connection**. Each
+integration connection has a stable **slug**. Workflow triggers use the slug as
+`source`.
+
+This trigger fragment belongs under an existing workflow's `triggers` map:
+
+```yaml
+triggers:
+  on_push:
+    source: github_acme # A GitHub integration connection slug, not a provider ID.
+    event: push
+```
+
+A workspace can have several integration connections from one provider. Their slugs keep
+their events and agent tools separate.
+
+## Integration catalog
+
+| Integration | Status | Event surface | Setup |
+| --- | --- | --- | --- |
+| [GitHub](/integrations/github) | Shipped | GitHub App webhook events | [Connect GitHub](/how-to/set-up-work/connect-github) |
+| [Sentry](/integrations/sentry) | Shipped | Sentry issue lifecycle events | [Connect Sentry](/how-to/set-up-work/connect-sentry) |
+| [Custom webhook](/integrations/webhooks) | Shipped | `received` | [Create a webhook](/how-to/set-up-work/create-custom-webhook) |
+| [Linear](/integrations/linear) | Coming soon | Not available | Not available |
+| [Slack](/integrations/slack) | Coming soon | Not available | Not available |
+
+The built-in `manual` and `cron` trigger sources do not use integration connections. See
+[Trigger Sources](/reference/trigger-sources) for their contracts.
+
+## Integration trigger contract
+
+All integration triggers use these fields. The [Workflow
+Schema](/reference/workflow-schema#trigger-fields) has the full rules.
+
+| Field | Role |
+| --- | --- |
+| `source` | Integration connection slug that must have delivered the event. |
+| `event` | Provider event name recorded by Shipfox. |
+| `filter` | Optional CEL rule checked before Shipfox creates a run. |
+| `with` | Optional fixed values given to the run as `inputs`. |
+
+The provider pages list the event names and fields that Shipfox owns. They link
+to the provider's own guide for raw webhook data.

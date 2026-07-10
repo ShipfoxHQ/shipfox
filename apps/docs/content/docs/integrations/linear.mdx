@@ -16,14 +16,14 @@ from a ticket. When an issue is created or moved, a workflow fires and an agent 
 it up with the issue's context in its prompt.
 
 Like every integration, it will follow the same model as [GitHub](/integrations/github)
-and [Sentry](/integrations/sentry): connect once, get a **connection slug**
+and [Sentry](/integrations/sentry): connect once, get an **integration connection slug**
 (e.g. `linear_acme`), and reference it as a trigger `source` with the events the
 integration emits.
 
 ## Until it ships
 
 Linear can already reach Shipfox through a [custom webhook](/integrations/webhooks):
-create a webhook connection, point a Linear webhook at its ingest URL, and trigger
+create a webhook integration connection, point a Linear webhook at its ingest URL, and trigger
 on `received`. The run gets Linear's payload as its `event` context.
 
 ## Related pages
@@ -32,7 +32,7 @@ on `received`. The run gets Linear's payload as its `event` context.
   <Card title="Custom webhook" href="/integrations/webhooks">
     The working interim path for Linear events today.
   </Card>
-  <Card title="Integrations overview" href="/integrations/overview">
-    Connections, slugs, and every available integration.
+  <Card title="Integrations overview" href="/integrations">
+    Integration connections, slugs, and every available integration.
   </Card>
 </Cards>

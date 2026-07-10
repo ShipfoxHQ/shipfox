@@ -7,6 +7,11 @@ description: "Find why workflow YAML did not produce a usable definition and ver
 Use this guide when a workflow is missing from the Workflows tab. It also applies
 when the project reports **Workflow sync failed**.
 
+## Before you begin
+
+You need access to the project, its source integration connection, and the repository's
+default branch.
+
 ## Inspect the sync result
 
 Open the project and select **Workflows**. Read the sync badge and failure
@@ -15,9 +20,9 @@ message before changing the workflow.
 | Result | What to check |
 | --- | --- |
 | No workflow files | The default branch contains `.yml` or `.yaml` files under `.shipfox/workflows/` |
-| Invalid definition | The named file follows the strict workflow schema and every referenced job, step, connection, and tool exists |
-| Repository or file not found | The project still points to a repository visible through its source connection |
-| Access denied or connection unavailable | The source integration is installed and authorized for the repository |
+| Invalid definition | The named file follows the strict workflow schema and every referenced job, step, integration connection, and tool exists |
+| Repository or file not found | The project still points to a repository visible through its source integration connection |
+| Access denied or integration connection unavailable | The source integration is installed and authorized for the repository |
 | Too large or too many files | The workflow files fit the documented [limits](/reference/limits) |
 
 ## Correct and verify

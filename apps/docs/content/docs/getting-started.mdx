@@ -1,13 +1,21 @@
 ---
 title: "Getting Started with Shipfox: Run Your First Workflow"
 sidebarTitle: "Quick Start"
-description: "Connect a project, add your first workflow YAML, fire a run, and watch an agent fix code in a self-correcting loop, all in a few minutes with Shipfox."
+description: "Connect a project, add a workflow, and verify a command and agent step in your first Shipfox run."
 ---
 
-This guide walks you through connecting a repository to Shipfox, writing your first workflow, firing a run, and ending with an agent that fixes code in a self-correcting loop.
+In this lesson, you will connect a test repository and run one complete
+workflow. The final run prints a command result and contains an agent summary
+based on the repository's files.
+
+## Before you begin
 
 <Callout type="info">
-  This guide assumes Shipfox is already set up for your team: you can sign in to a workspace and at least one runner is online. If you need to stand Shipfox up yourself first, see [Installation](/installation); to add runners, see [Operations](/operations/runners).
+  This lesson assumes that you can sign in to a workspace, a source integration connection
+  can read the test repository, an `ubuntu-latest` runner is online, and the
+  workspace has [configured agent
+  defaults](/how-to/set-up-work/configure-model-providers). See
+  [Installation](/installation) if Shipfox is not running yet.
 </Callout>
 
 ## Connect your project
@@ -19,7 +27,7 @@ A project connects one repository to Shipfox and is the container for all workfl
 
     **Create a project**
 
-    Open your Shipfox workspace dashboard and create a project. Pick the source connection, then the repository. The project name is pre-filled from the repository and can be edited.
+    Open your Shipfox workspace dashboard and create a project. Pick the source integration connection, then the repository. The project name is pre-filled from the repository and can be edited.
   </Step>
   <Step>
 
@@ -31,33 +39,41 @@ A project connects one repository to Shipfox and is the container for all workfl
 
 ## Add your first workflow
 
-A workflow is a YAML file that tells Shipfox when to run (`triggers`), where to run (`runner`), and what to do (`jobs` → `steps`). Create the file `.shipfox/workflows/hello.yaml` in your repository with the following content:
+A workflow is a YAML file that tells Shipfox when to run (`triggers`), where to
+run (`runner`), and what to do (`jobs` and `steps`). Create
+`.shipfox/workflows/hello.yaml`. This is a complete workflow:
 
 ```yaml
-name: Hello world
+name: Inspect the repository
 runner: ubuntu-latest      # label of the runner that executes the jobs
 triggers:
   on_demand:
     source: manual         # fires when you click Run in the dashboard
     event: fire
 jobs:
-  build:
+  inspect:
     steps:
       - run: echo "hello world"
+      - prompt: |
+          Read this repository and summarize its purpose in two sentences.
+          Name one top-level file that supports your answer.
+          Do not change any files.
 ```
 
 The manual trigger works in every workspace with no further setup. Every field is described in the [Workflow Schema reference](/reference/workflow-schema).
 
-Commit and push the file to your connected repository. Shipfox detects the new workflow file automatically. No manual import is required.
+Commit and push the file to the repository's default branch. Shipfox detects
+the workflow automatically. No manual import is required.
 
 ## Run it
 
-A run is one execution of a workflow. Open the project's **Workflows** page, find the workflow, and click **Run**.
+A run records one use of a workflow. Open the project's **Workflows** page, find
+**Inspect the repository**, and select **Run**.
 
-Once the run starts, click into it to stream live output. For the workflow above you should see:
+Open the run to stream its output. The command step should show:
 
 ```text
-build · echo "hello world"
+inspect · echo "hello world"
 hello world
 ```
 
@@ -66,81 +82,25 @@ hello world
 *A run detail page: status, the job graph, and every step with its duration.*
 
 <Callout type="info">
-  A run stuck in `pending` means no online runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online. See [Runners](/operations/runners#pending-runs).
+  A run stuck in `pending` means no online runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online. See [Resolve pending jobs](/how-to/run-and-troubleshoot/pending-jobs).
 </Callout>
 
-## Make it automatic
+## Verify the result
 
-To fire the workflow on every push, add a second trigger whose `source` is your GitHub **connection slug**, not the provider name. Find your slugs on the [integrations settings page](/integrations/overview#finding-your-connection-slug); they look like `github_<org>`.
+Open the agent step after it finishes.
 
-```yaml
-triggers:
-  on_demand:
-    source: manual
-    event: fire
-  on_push:
-    source: github_acme    # replace with YOUR connection slug
-    event: push
-```
+1. Confirm that the response has two sentences.
+2. Open the file named by the agent and check that it supports the summary.
+3. Confirm that the agent did not change any repository file.
 
-<Callout type="info">
-  Push triggers require GitHub today. GitLab is on the roadmap. To run only on
-  some branches, add a `filter` such as `event.ref == "refs/heads/main"`. See
-  [Trigger Sources](/reference/trigger-sources#filter).
-</Callout>
+The agent uses the checkout for the commit that started the run. Its messages,
+tool calls, token use, cost, and final response remain in the step log.
 
-## Add an agent step
+## What you built
 
-Shipfox treats AI agents as first-class steps. Instead of `run`, give a step a `prompt` (and optionally a `model`).
-
-<Callout type="warn">
-  Agent steps use your workspace's configured [model provider](/reference/model-providers). Configure one first in **Settings → Agents**. An API key is enough. Without a configured provider, the step fails at execution time.
-</Callout>
-
-```yaml
-jobs:
-  build:
-    steps:
-      - run: echo "hello world"
-      - key: explain
-        model: claude-opus-4-8
-        prompt: >
-          Read this repository and explain in two sentences what it does
-          and how you would run its tests.
-```
-
-Push the updated file and fire another run. You should see output similar to:
-
-```text
-explain · claude-opus-4-8
-This repository is a small demo service... To run its tests, ...
-```
-
-The agent had your repository checked out and read real files to answer. Open the step in the dashboard to see the full **agent session**: every message, thinking block, and tool call, plus token usage and cost. Output varies between runs. The step still succeeds or fails based on whether the call completes.
-
-## Watch it fix itself
-
-The step above only reads. The pattern that makes Shipfox different: pair an agent that **acts** with a `run` step that **verifies**, and a [feedback loop](/understand/feedback-loops) that sends the agent back until the check passes. Add this job (it assumes an `npm test` project; adapt the check to your stack):
-
-```yaml
-jobs:
-  fix:
-    steps:
-      - key: edit
-        model: claude-opus-4-8
-        prompt: The tests are failing. Edit the source code to fix them.
-      - run: npm test
-        gate:
-          success: step.exit_code == 0
-          on_failure:
-            restart_from: edit   # the agent tries again until tests pass
-```
-
-Fire the run and watch the loop. The agent edits, `npm test` judges, and the gate restarts the agent until the tests go green (bounded automatically; see [Limits](/reference/limits)). You just built a self-correcting workflow with twelve lines of YAML.
-
-## Let your agent write workflows
-
-You can use a coding agent to generate and iterate on Shipfox workflows directly in your repository. Because every Shipfox documentation page is available as plain Markdown, your agent can fetch the schema reference and author workflow YAML without any special plugin. Point your agent at the [AI overview](/ai/overview) page or simply describe what you want in natural language, for example "add a Shipfox workflow that runs tests on every push and posts a summary".
+You connected one repository, synced a complete workflow, and started it with a
+manual trigger. One job ran a fixed command and an agent in the same checkout.
+The run now provides a visible record of both steps and their results.
 
 ## Next steps
 
@@ -148,13 +108,16 @@ You can use a coding agent to generate and iterate on Shipfox workflows directly
   <Card title="How Shipfox works" href="/understand">
     The mental model in one page: events, jobs, agents, and feedback loops.
   </Card>
-  <Card title="Multi-job workflows" href="/how-to/patterns/multi-job-workflows">
-    Use `needs` to chain jobs together and build fan-out / fan-in DAGs.
+  <Card title="Parallel CI and agent review" href="/how-to/recipes/parallel-ci-agent-review">
+    Run lint and tests together, then review the repository after both pass.
   </Card>
   <Card title="Gate & retry" href="/how-to/author-workflows/build-feedback-loop">
-    Go deeper on the self-correcting loop you just built.
+    Add an objective check and retry an agent with evidence.
   </Card>
   <Card title="Agent steps" href="/how-to/author-workflows/add-agent-steps">
-    Models, thinking levels, and providers in practice.
+    Add and verify agent work in another workflow.
+  </Card>
+  <Card title="Checks on every push" href="/how-to/recipes/checks-on-push">
+    Replace the manual start with a GitHub push trigger.
   </Card>
 </Cards>

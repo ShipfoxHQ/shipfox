@@ -1,0 +1,89 @@
+---
+title: "Fix an Agent Step That Fails"
+sidebarTitle: "Agent Failures"
+description: "Find why an agent step fails. Repair its provider, model, tools, or access."
+---
+
+Use this guide when an agent step fails. Start with the error shown in the run.
+Sync, setup, and provider errors need different fixes.
+
+## Before you begin
+
+You need the failed run and access to workspace agent settings. A tool failure
+may also require integration settings. A network failure may require runner
+logs.
+
+## Check whether the workflow synced
+
+If the workflow does not sync, open its sync error.
+
+- A harness and provider mismatch requires a compatible pair.
+- An unknown native tool requires a name supported by the selected harness.
+- An integration selection requires a valid integration connection and tool family.
+- A write-capable integration selection also requires `allow_write: true`.
+
+Fix the YAML and wait for it to sync. Use [Model Providers](/reference/model-providers)
+to find a compatible harness. Use [Agent
+integration fields](/reference/workflow-schema#agent-integration-fields) for
+tool selection rules.
+
+## Follow the agent configuration warning
+
+Open the failed agent step. Shipfox shows a warning for known setup errors.
+
+| Warning | Repair |
+| --- | --- |
+| Configure credentials | Open **Settings → Agents**. Configure the selected provider and test the key. |
+| Update credentials | Replace the saved key. Make sure **Test & save** succeeds. |
+| Choose a supported provider | Change the provider or harness to a compatible pair. |
+| Choose an available model | Choose a model from that provider. You can also use its default. |
+| Fix this step's agent settings | Check the prompt, provider, model, and thinking fields. |
+
+Re-run the workflow after the fix. Change only fields named in the warning.
+
+## Check tool and repository scope
+
+If the agent starts but a tool call fails, open the tool result in the step log.
+
+For a native tool, check that the harness exposes it. For an integration tool,
+check all of these facts:
+
+1. The integration connection is enabled and belongs to the workspace.
+2. The operation is included with the needed read or write choice.
+3. The repository is installed and is inside the `repos` scope.
+4. The external account still grants the operation.
+
+Use [read-only integration tools](/how-to/author-workflows/use-integration-tools)
+or [write-capable integration tools](/how-to/author-workflows/post-pull-request-review)
+to rebuild the smallest valid selection.
+
+## Check provider invocation failures
+
+An invocation failure means the setup resolved but the provider call failed.
+Read the last agent message and error in [step
+logs](/how-to/run-and-troubleshoot/inspect-logs).
+
+- **Authentication rejection:** test and replace the provider key. A saved key
+  may be revoked or lack account access.
+- **Rate limit:** wait for the provider's retry window, then re-run the workflow.
+  Reduce concurrent agent work if the limit repeats.
+- **Unavailable model:** choose another model or use the provider default.
+- **Network or provider server error:** check the provider status and the
+  runner's outbound access. Re-run once after the service recovers.
+- **Custom endpoint failure:** use **Edit** and **Test & save**. Check the URL,
+  protocol, headers, and model list.
+
+Do not keep re-running a request that is invalid. Fix its setup first.
+
+## Verify the repair
+
+Re-run the same workflow and open the new attempt.
+
+1. Check the resolved harness, provider, and model.
+2. Check that tool calls stay in the intended integration connection and repository.
+3. Check that the step returns a response and succeeds.
+
+If the new attempt has an unknown error, save the run, job, step, and attempt
+IDs. Include the last message and runner logs in the handoff. Use [Inspect a
+run](/how-to/run-and-troubleshoot/inspect-runs-and-attempts) to select the right
+attempt.

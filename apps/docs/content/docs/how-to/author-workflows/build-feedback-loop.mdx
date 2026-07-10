@@ -7,9 +7,15 @@ description: "Pair an agent with an objective check and restart it with useful f
 This guide builds a workflow where an agent fixes failing tests and `npm test`
 decides whether another attempt is needed.
 
+## Before you begin
+
+You need a test project that can sync workflows, an online runner with the
+`ubuntu-latest` label, configured agent defaults, and an `npm test` command with
+a safe failure that the agent can repair.
+
 ## Add the workflow
 
-Create `.shipfox/workflows/fix-tests.yml`:
+Create `.shipfox/workflows/fix-tests.yml`. This is a complete workflow:
 
 ```yaml
 name: Fix failing tests
@@ -45,7 +51,7 @@ repository.
 
 ## Run and inspect it
 
-1. Commit and push the workflow.
+1. Commit and push the workflow to the project's default branch.
 2. Wait for its definition to sync.
 3. Open the workflow and select **Run**.
 4. Open the `fix` job in the run detail.

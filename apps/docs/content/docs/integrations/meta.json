@@ -1,4 +1,4 @@
 {
   "title": "Integrations",
-  "pages": ["overview", "github", "sentry", "webhooks", "linear", "slack"]
+  "pages": ["index", "github", "sentry", "webhooks", "linear", "slack"]
 }

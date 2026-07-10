@@ -6,7 +6,9 @@
     "workflows-and-runs",
     "events-and-triggers",
     "jobs-and-steps",
+    "runners-and-execution-environments",
     "data-and-templating",
+    "integrations-connections-and-tools",
     "agents",
     "feedback-loops",
     "listening-jobs"

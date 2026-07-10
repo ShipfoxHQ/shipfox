@@ -1,39 +1,52 @@
 ---
 title: "Jobs and steps"
 sidebarTitle: "Jobs & Steps"
-description: "Jobs group ordered steps, share one working checkout, form a dependency graph, and run in isolated repository clones."
+description: "Understand how a job boundary controls shared files, parallel work, runner placement, and results."
 ---
 
-A **job** is a unit of work inside a run. It contains ordered steps and runs on
-one matching runner.
+A **job** is the unit that Shipfox places on a runner. A **step** is one ordered
+action inside that job.
 
-Jobs let a workflow split work into clear parts. One job might lint code,
-another might run tests, and another might ask an agent to review a change.
+The main design choice is the job boundary. It decides which actions share a
+checkout. It also decides what can run at the same time and which results must
+cross a clear boundary.
 
-Jobs without dependencies can start at the same time. Add a dependency when
-one job needs another job to succeed first.
+## Keep work in one job when it shares state
 
-## Steps share the job checkout
+Steps in one job run in order and use the same checkout. A later step can read
+files changed by an earlier step. It can also use packages installed there.
 
-A **step** is one ordered action inside a job. A run step executes a known shell
-command. An agent step asks a coding agent to choose how to reach a goal.
+They do not share one long-lived shell process. A shell variable set by one run
+step may not reach the next. Save a file in the checkout when the next step
+needs it. Publish an output when the value should become workflow data.
 
-Steps in one job share the same working checkout. A package installed by one run
-step is available to the next step. A file changed by an agent can be tested by a
-later command. Feedback loops rely on this shared state when they send execution
-back to an earlier step.
+One job is usually the right boundary when actions must:
 
-The sharing stops at the job boundary. Another job receives a fresh checkout,
-even when `needs` makes it wait for this job.
+- Edit and check the same files.
+- Reuse an expensive local setup.
+- Repeat together in a feedback loop.
+- Use the same runner capabilities and repository permission.
 
-## The dependency graph
+The tradeoff is less parallelism. One slow step holds the job's runner and
+delays every later step.
 
-The `needs` field connects jobs into a dependency graph. It supports three
-common shapes:
+## Split jobs when work is independent
 
-- **Parallel work:** independent jobs start when runners are available.
-- **Fan-in:** one job waits for several jobs.
-- **Ordered work:** each job waits for the one before it.
+Each job gets a fresh checkout. It can use a different runner or repository
+permission. Jobs without dependencies can start at the same time when capacity
+is free.
+
+Separate jobs fit work that should:
+
+- Run in parallel.
+- Fail or be skipped as a distinct unit.
+- Use a different execution environment.
+- Expose a small, named result to later work.
+
+The cost is repeated setup. Two jobs that both need Node.js packages each need
+their own install. Their files, process environment, and logs remain separate.
+
+This complete workflow shows the boundary:
 
 ```yaml
 name: Check and review a change
@@ -56,73 +69,52 @@ jobs:
   review:
     needs: [lint, test]
     steps:
-      - prompt: Review the current change and report any remaining risk.
+      - prompt: Review the repository for likely bugs and missing tests.
 ```
 
-`lint` and `test` can run in parallel. `review` starts only after both succeed.
-The [multi-job workflow guide](/how-to/patterns/multi-job-workflows) covers larger graphs.
+`lint` and `test` can run in parallel. Each installs its own dependencies.
+`review` waits for both, but receives neither job's files nor logs. It reviews
+its own fresh checkout.
 
-## Isolation is the point
+The [parallel CI
+recipe](/how-to/recipes/parallel-ci-agent-review) applies this shape to a GitHub
+push. The [job fields
+reference](/reference/workflow-schema#job-fields) defines the dependency syntax.
 
-Each job gets a fresh clone of the repository. Jobs do not share installed
-packages, process environment, or files created while another job ran.
+## Outputs and artifacts solve different problems
 
-This makes each result depend on the commit and that job's own steps. A job
-cannot pass only because an earlier job left a useful file behind.
+A job output carries a small value into workflow context. It fits a version,
+decision, identifier, or URL that later jobs need.
 
-Use declared [outputs](/understand/data-and-templating) to pass small values to a
-later job. Put build artifacts in external storage.
+An artifact is a file or directory. Job checkouts do not store files for one
+another. Put large reports or build products in an external store. Pass only
+the location as an output.
 
-## Checkout permissions are separate
+This explicit transfer keeps a downstream job from depending on an accidental
+file left by another job. It also makes rerun and runner placement behavior
+easier to reason about.
 
-The checkout is read-only by default. A job can request write access when a step
-must push repository changes. It can also decide whether the checkout credential
-remains available to later steps.
+## Boundaries also control placement and authority
 
-Checkout permission controls Git repository contents. It does not grant an agent
-access to issues, pull requests, or other integrations. Those capabilities are
-selected separately on the agent step. See [Use integration tools](/how-to/author-workflows/use-integration-tools).
+A job asks for runner labels as one unit. Split work when one part needs a
+private network, special hardware, or another operating system. Keep it
+together when every step needs the same environment.
 
-## Where a job runs
+Repository checkout permission is also job-wide. Integration tools are selected
+on individual agent steps and remain separate from Git access. This distinction
+matters when an agent may read code but only one later action should write to an
+external system.
 
-A job resolves to one or more runner labels. Set them on the job, inherit them
-from the workflow, or use the Shipfox instance default. An online
-[runner](/operations/runners) with every required label can claim the job.
+[Runners and execution
+environments](/understand/runners-and-execution-environments) explains
+placement. [Agent access](/how-to/author-workflows/use-integration-tools) shows
+the separate repository and integration controls.
 
-Labels make placement clear. Work that needs a large machine, private network,
-or special toolchain can ask for a runner that provides it.
+## Repetition stays inside the chosen boundary
 
-## Skipped work
+A feedback loop rewinds steps inside one job execution, so repeated work keeps
+the same checkout. A listening job creates more job executions as later events
+arrive. It may run its step list several times in one run.
 
-An `if` predicate can decide whether a job or step should run. A false result
-marks that work as **skipped**, not failed.
-
-```yaml
-name: Deploy the default branch
-runner: ubuntu-latest
-
-triggers:
-  on_push:
-    source: github_acme # Replace with your GitHub connection slug.
-    event: push
-
-jobs:
-  test:
-    steps:
-      - run: npm test
-
-  deploy:
-    needs: test
-    if: ${{ event.ref == "refs/heads/main" }}
-    steps:
-      - run: ./deploy.sh # Replace with your deploy command.
-```
-
-Every push runs the tests. The deploy job runs only for `main`. The full
-predicate syntax lives in [Expressions](/reference/expressions#conditionals-if).
-
-## Jobs that react more than once
-
-Most jobs make one pass through their steps. A
-[listening job](/understand/listening-jobs) is different: it waits inside the run
-and starts another execution when matching outside events arrive.
+Choose the boundary before adding either form of repetition. A boundary that
+mixes unrelated writes makes retries and later events harder to handle safely.

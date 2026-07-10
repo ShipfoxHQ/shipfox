@@ -1,67 +1,78 @@
 ---
 title: "Workspaces and projects"
 sidebarTitle: "Workspaces & Projects"
-description: "Workspaces hold shared team configuration. Projects connect one repository and contain its workflows and runs."
+description: "Understand what a team shares in a workspace and what stays with one project."
 ---
 
-A **workspace** is the boundary shared by a team. It holds members and settings
-that many projects can use. These settings include integration connections,
-model providers, runners, secrets, and variables.
+A **workspace** is the team boundary in Shipfox. It holds members and resources
+that several projects can use. A **project** binds one repository to that
+workspace. It owns the workflows and run history for that codebase.
 
-A **project** connects one source-code repository to that workspace. Shipfox
-syncs workflow definitions from the repository. The project keeps every run
-created from those definitions.
+This split answers a practical question. What should a team set up once? What
+must stay tied to one codebase?
 
-The distinction answers two questions. Who shares a setting? Which repository
-will a job check out?
+The rule is simple. Share what the team uses. Keep code history with its
+codebase.
 
-## The containment model
+A workspace answers who shares. A project answers which code owns the work.
+This keeps team setup broad and run history narrow.
+The split can grow with the team.
+
+## Shared resources belong to the workspace
+
+Many resources can serve more than one project. These include integration connections,
+model providers, runners, secrets, variables, and membership. Workspace scope
+avoids a separate copy for every repository.
 
 ```text
 Workspace
-|-- Members and shared settings
-|-- Integration connections
-|-- Model providers and runners
+|-- Members
+|-- Integration connections, model providers, runners, secrets, and variables
 `-- Projects
-    `-- Repository -> workflows -> runs -> jobs -> steps
+    |-- Project A -> repository A -> workflows and runs
+    `-- Project B -> repository B -> workflows and runs
 ```
 
-Workspace settings are available across its projects. Project history stays tied
-to one repository. A new project does not create a new workspace. It also does
-not copy provider or runner settings.
+The benefit is reuse. The cost is a wider effect when shared settings change.
+Disabling an integration connection can affect every project that uses it. Changing a model
+provider can do the same. Membership also grants access across that shared
+boundary.
 
-## A project starts from a connection
+Use separate workspaces when teams must not share members or operational
+resources. Use projects inside one workspace when the repositories should share
+that administration.
 
-Each project selects a source connection. It then selects one repository that the
-connection can see. Shipfox uses this access to find workflow files and check out
-the repository for jobs.
+## A project gives work a repository identity
 
-The project source connection is also the default for agent integration tools. A
-workflow can name another workspace connection. Use one when a step must act on a
-different system or account.
+A project records a source integration connection and one repository. Shipfox finds the
+workflow files there. Jobs also use it as their default checkout.
 
-## Configuration has a scope
+The project boundary also keeps history clear. Runs for repository A do not
+appear in project B. This stays true when both projects use the same runner or
+model provider. A run keeps its repository identity while using shared
+resources.
 
-| Scope | What belongs there |
+## Scope shapes ownership
+
+The four scopes answer different questions.
+
+| Scope | Question it answers |
 | --- | --- |
-| Workspace | Members, connections, model providers, runners, secrets, and variables |
-| Project | Source connection, repository, workflow definitions, and run history |
-| Workflow | Triggers, jobs, steps, defaults, and committed configuration |
-| Run | The event, inputs, resolved definition, attempts, logs, and outputs for one piece of work |
+| Workspace | Which people and reusable resources share one trust boundary? |
+| Project | Which repository owns these workflows and this run history? |
+| Workflow | Which events and ordered work define this automation? |
+| Run | What happened for one event or manual start? |
 
-Choose the broadest scope that should share a value. Put a model provider key in
-the workspace. Put a workflow command in repository YAML. Put a result from one
-run in an output, not in workspace settings.
+Long-lived configuration belongs above a run. Event data, logs, and outputs
+belong inside the run that produced them. This prevents one result from silently
+becoming configuration for unrelated future work.
 
-## The boundaries stay explicit
+The source integration connection deserves special care. It is a workspace integration connection, but
+the project selects one repository from it. That selection controls workflow
+discovery and checkout. Other integration connections may receive events or
+provide agent tools without becoming the project's source.
 
-A project does not copy integration keys into workflow YAML. A workflow names its
-connections and permissions. Shipfox resolves them inside the workspace when it
-creates the run. A job receives only the repository and access that its definition
-requests.
-
-<Cards>
-  <Card title="Create a project" href="/how-to/set-up-work/create-project">
-    Connect a repository and let Shipfox discover its workflows.
-  </Card>
-</Cards>
+Use [Create a project](/how-to/set-up-work/create-project) for the setup task.
+[Integrations, integration connections, and
+tools](/understand/integrations-connections-and-tools) explains the different
+roles that an integration connection can play.

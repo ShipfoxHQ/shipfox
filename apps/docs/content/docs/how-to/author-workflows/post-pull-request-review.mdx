@@ -1,0 +1,72 @@
+---
+title: "Post an Agent Review to a Pull Request"
+sidebarTitle: "Post a PR Review"
+description: "Grant one agent step the GitHub operations needed to inspect and post a review on a new pull request."
+---
+
+Use this guide when an agent should publish its review to GitHub, not only write
+it to the Shipfox log. The step receives pull-request read operations and one
+review-write family.
+
+## Before you begin
+
+You need:
+
+- A project connected to GitHub.
+- Its integration connection slug. This guide uses `github_acme` as a placeholder.
+- A GitHub integration connection that can read and write pull-request reviews.
+- An online runner with the `ubuntu-latest` label.
+- Configured agent defaults.
+- A test branch that is ready to open as a pull request. Do not open it until
+  the workflow has synced.
+
+## Add the workflow
+
+Create `.shipfox/workflows/post-pull-request-review.yml`. Replace
+`github_acme` with your integration connection slug. This is a complete workflow:
+
+```yaml
+name: Post a pull request review
+runner: ubuntu-latest
+
+triggers:
+  on_pull_request:
+    source: github_acme # Replace with your GitHub integration connection slug.
+    event: pull_request.opened
+
+jobs:
+  review:
+    steps:
+      - prompt: |
+          Inspect pull request #${{ event.number }} and its changed files.
+          Submit one COMMENT review with the two highest correctness risks.
+          Do not approve, request changes, merge, or edit the repository.
+        integrations:
+          - include: [pull_request_read, pull_request_review_write]
+            allow_write: true
+```
+
+`allow_write` is an explicit choice for this step. The selection does not
+grant repository-content writes or unrelated GitHub operations. Exact tool and
+repository selection fields live in [Agent integration
+fields](/reference/workflow-schema#agent-integration-fields).
+
+The integration entry omits `connection`, so it uses the project's GitHub
+source integration connection and repository.
+
+Commit and push the workflow to the project's default branch. Wait for **Post a
+pull request review** to sync.
+
+## Verify the external write
+
+Open the test pull request and inspect the new Shipfox run.
+
+1. Confirm that the agent reads the pull request before writing.
+2. Confirm that it calls only the selected read and review-write operations.
+3. Open GitHub and confirm that one COMMENT review appears on the correct pull
+   request.
+4. Confirm that the pull request state, branch, and repository contents did not
+   change.
+
+If sync rejects the write selection, check the GitHub integration connection permission and
+the `allow_write` choice before sending another event.

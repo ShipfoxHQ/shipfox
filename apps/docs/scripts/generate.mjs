@@ -8,7 +8,7 @@
 import {readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
+import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
 
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const check = process.argv.includes('--check');
@@ -24,8 +24,19 @@ const regions = [
 
 function renderModelProvidersTable() {
   const supported = MODEL_PROVIDER_CATALOG_SEED.filter((p) => p.support_status === 'supported');
-  const rows = supported.map((p) => `| ${p.label} | \`${p.id}\` | \`${p.default_model}\` |`);
-  return ['| Provider | `provider` ID | Default model |', '|---|---|---|', ...rows].join('\n');
+  const harnesses = listHarnessDescriptors();
+  const rows = supported.map((provider) => {
+    const compatibleHarnesses = harnesses
+      .filter((harness) => harness.supportedProviderIds.includes(provider.id))
+      .map((harness) => `\`${harness.id}\``)
+      .join(', ');
+    return `| ${provider.label} | \`${provider.id}\` | \`${provider.default_model}\` | ${compatibleHarnesses} |`;
+  });
+  return [
+    '| Provider | `provider` ID | Default model | Compatible harnesses |',
+    '|---|---|---|---|',
+    ...rows,
+  ].join('\n');
 }
 
 function applyRegion(source, id, body) {

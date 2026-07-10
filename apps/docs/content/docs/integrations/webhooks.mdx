@@ -1,87 +1,48 @@
 ---
-title: "Custom Webhooks: Trigger Workflows from Any System"
-sidebarTitle: "Custom webhook"
-description: "Create a Shipfox webhook connection, point any system at its URL, and trigger workflows on the received event. The connection slug is your trigger source."
+title: "Custom Webhook Integration Reference"
+sidebarTitle: "Custom Webhook"
+description: "Look up custom webhook requests, delivery IDs, responses, and event fields."
 ---
 
-A **custom webhook** connection gives you a unique URL that any system can POST to.
-Every request that arrives fires the `received` event, which your workflows
-can trigger on. Use it for tools Shipfox does not integrate with directly, such as CI
-systems, monitoring, internal services, or anything that can send an HTTP request.
+A custom webhook has an ingest URL. Each accepted request creates a `received`
+event. [Create and verify a custom
+webhook](/how-to/set-up-work/create-custom-webhook) shows how to make one and
+send a test request.
 
-## Setup
+## Integration connection identity
 
-<Steps>
-  <Step>
+You choose the integration connection slug. It must be unique in the workspace. Use it as
+`source` with the event name `received`.
 
-    **Create a webhook connection**
-
-    Create a webhook connection in your workspace. You choose its **slug**: a
-    lowercase identifier matching `^[a-z0-9]+(?:[_-][a-z0-9]+)*$`, unique within
-    the workspace (for example `deploy_hook`). Shipfox returns a unique **ingest
-    URL** for the connection.
-  </Step>
-  <Step>
-
-    **Send events to the URL**
-
-    Point any system at the ingest URL with an HTTP `POST`. The body can be JSON,
-    form-encoded, or plain text. An optional `X-Delivery-ID` header lets you
-    deduplicate retries. Shipfox generates one if you omit it.
-
-    ```bash
-    curl -X POST https://<your-shipfox>/webhook/<connection-id> \
-      -H "Content-Type: application/json" \
-      -d '{"environment": "production", "version": "1.4.2"}'
-    ```
-
-    Shipfox responds `202 Accepted` with a `delivery_id`.
-  </Step>
-  <Step>
-
-    **Trigger a workflow**
-
-    Author a trigger using the connection slug as `source` and `received`
-    as `event`.
-  </Step>
-</Steps>
-
-## Triggering a workflow
+This trigger fragment belongs under an existing workflow's `triggers` map:
 
 ```yaml
 triggers:
   on_webhook:
-    source: deploy_hook       # your webhook connection slug
+    source: deploy_hook # Replace with your webhook integration connection slug.
     event: received
 ```
 
-`received` is the only event a custom webhook emits. Every request to the
-ingest URL fires it.
+## Request contract
+
+Send an HTTP `POST` request to the integration connection's ingest URL. The body can contain
+JSON, form data, or plain text.
+
+You may send an `X-Delivery-ID` header. Shipfox uses it to detect a retried
+delivery. Shipfox creates an ID when the header is absent.
+
+An accepted request returns `202 Accepted` with its `delivery_id`.
 
 ## Event payload
 
-Shipfox passes the request to the run as structured data:
+The run receives an `event` object with these values:
 
 | Field | Contents |
-|---|---|
-| `method` | The HTTP method (typically `POST`) |
-| `headers` | Request headers, with sensitive ones (authorization, bearer tokens) removed |
-| `query` | Parsed query-string parameters |
-| `body` | Parsed JSON, or the raw body when it isn't JSON |
+| --- | --- |
+| `method` | HTTP method used for the delivery. |
+| `headers` | Request headers after sensitive authorization values are removed. |
+| `query` | Parsed query parameters. |
+| `body` | Parsed JSON, form data, or the raw body. |
 
-<Callout type="info">
-  A `filter` CEL expression can reference `event.headers`, `event.query`, and
-  `event.body`. It is evaluated when the request arrives. A request that does
-  not match starts no run.
-</Callout>
-
-## Related pages
-
-<Cards>
-  <Card title="Events & Triggers" href="/understand/events-and-triggers">
-    The trigger schema shared by every source.
-  </Card>
-  <Card title="Integrations overview" href="/integrations/overview">
-    Connections, slugs, and the other available integrations.
-  </Card>
-</Cards>
+A trigger filter can read `event.headers`, `event.query`, and `event.body`.
+See [Expressions](/reference/expressions#trigger-filters) for filter behavior.

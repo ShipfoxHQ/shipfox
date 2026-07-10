@@ -16,16 +16,17 @@ report results such as an agent summary, a failed check, or a finished triage ba
 to your channels.
 
 Like every integration, it will follow the same model as [GitHub](/integrations/github)
-and [Sentry](/integrations/sentry): connect once, get a **connection slug**
+and [Sentry](/integrations/sentry): connect once, get an **integration connection slug**
 (e.g. `slack_acme`), and reference it as a trigger `source` with the events the
 integration emits.
 
 ## Until it ships
 
 Slack can already reach Shipfox through a [custom webhook](/integrations/webhooks):
-create a webhook connection and point a Slack outgoing webhook or automation at its
+create a webhook integration connection and point a Slack outgoing webhook or automation at its
 ingest URL, then trigger on `received`. For the other direction, a `run`
-step can post to a Slack incoming webhook today (`curl` to your Slack webhook URL).
+step can post to a Slack incoming webhook today. Store the webhook URL as a
+Shipfox secret and bind it through the run step's `env` map.
 
 ## Related pages
 
@@ -33,7 +34,7 @@ step can post to a Slack incoming webhook today (`curl` to your Slack webhook UR
   <Card title="Custom webhook" href="/integrations/webhooks">
     The working interim path for Slack events today.
   </Card>
-  <Card title="Integrations overview" href="/integrations/overview">
-    Connections, slugs, and every available integration.
+  <Card title="Integrations overview" href="/integrations">
+    Integration connections, slugs, and every available integration.
   </Card>
 </Cards>

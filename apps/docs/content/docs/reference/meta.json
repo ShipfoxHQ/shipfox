@@ -1,6 +1,7 @@
 {
   "title": "Reference",
   "pages": [
+    "index",
     "workflow-schema",
     "expressions",
     "trigger-sources",

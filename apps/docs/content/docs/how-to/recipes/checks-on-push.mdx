@@ -1,0 +1,81 @@
+---
+title: "Run Checks and an Agent Review on Every Push"
+sidebarTitle: "Checks on Every Push"
+description: "Run a test job for each GitHub push, then start an agent review only when the tests pass."
+---
+
+Use this recipe to run the same checks on every GitHub push. A second job asks
+an agent to review the repository only after the test job succeeds.
+
+## Before you begin
+
+You need:
+
+- A Shipfox project connected to GitHub.
+- The GitHub integration connection slug. This recipe uses `github_acme` as a placeholder.
+- An online runner with the `ubuntu-latest` label.
+- A configured model provider and workspace agent defaults.
+- A Node.js repository with a lockfile and an `npm test` command.
+
+## Add the workflow
+
+Create `.shipfox/workflows/checks-on-push.yml`. Replace `github_acme` with
+your GitHub integration connection slug. This is a complete workflow:
+
+```yaml
+name: Checks on push
+runner: ubuntu-latest
+
+triggers:
+  on_push:
+    source: github_acme # Replace with your GitHub integration connection slug.
+    event: push
+
+jobs:
+  checks:
+    steps:
+      - run: npm ci
+      - run: npm test
+
+  review:
+    needs: checks
+    steps:
+      - prompt: |
+          Review this repository for likely bugs and missing test coverage.
+          Report the three highest-risk findings in the step log.
+```
+
+The `review` job waits for `checks`. Shipfox skips it when an install or test
+step fails. See the [job fields
+reference](/reference/workflow-schema#job-fields) for the exact `needs`
+contract.
+
+Commit and push the workflow file to the project's default branch.
+
+## Check workflow sync
+
+Open the project's **Workflows** tab. Wait for **Checks on push** to appear
+without a sync error.
+
+Do not rely on the push that added the workflow to start it. The workflow must
+sync before Shipfox can match a later push event.
+
+If it does not sync, use [Fix workflow
+sync](/how-to/run-and-troubleshoot/workflow-sync) before continuing.
+
+## Verify the push run
+
+Push another small commit and open the new Shipfox run.
+
+1. Confirm that `checks` installs the dependencies and passes `npm test`.
+2. Confirm that `review` starts after `checks`.
+3. Open the agent step and confirm that its log contains three findings or says
+   that it found no high-risk issue.
+
+Make a test commit that causes `npm test` to fail. Confirm that `checks`
+fails and Shipfox skips `review`. Revert the test commit when the check is
+complete.
+
+If lint and tests should run at the same time, use the [parallel CI
+recipe](/how-to/recipes/parallel-ci-agent-review). It accounts for separate
+checkouts and dependency installs instead of adding that concern here.

@@ -38,6 +38,8 @@ result skips the event. An expression error **fails closed**: the trigger does
 not fire. The same filter shape applies to a listening job's `on` and `until`
 entries.
 
+This trigger fragment belongs under an existing workflow's `triggers` map:
+
 ```yaml
 triggers:
   on_main_push:
@@ -51,6 +53,8 @@ triggers:
 Jobs and steps accept an `if:` field holding exactly one `${{ }}`-wrapped CEL
 boolean. When it is false, the job or step is marked **skipped**, not failed.
 An evaluation error also skips, recorded with a distinct reason.
+
+This job fragment belongs under an existing workflow's `jobs` map:
 
 ```yaml
 jobs:
@@ -72,6 +76,8 @@ integer), `step.status` (a string), and `step.outputs` (the step's declared
 outputs). See [Feedback loops](/understand/feedback-loops) for the full gate
 model.
 
+This gate fragment belongs on a run or agent step:
+
 ```yaml
 gate:
   success: step.exit_code == 0
@@ -81,15 +87,24 @@ gate:
 
 A job's optional `success` expression decides whether the job succeeded once
 all its executions settle. In scope is `executions`, a list where each element
-carries `index`, `name`, `status`, `failed`, `outputs`, and timing fields. The
-default, applied when you omit `success`, is:
+carries `index`, `name`, `status`, `events`, `outputs`, and timing fields. The
+default succeeds when no execution failed. It also succeeds when a listening
+job resolves with no executions:
+
+This job fragment belongs under an existing workflow's `jobs` map:
 
 ```yaml
 jobs:
   build:
-    success: 'executions.all(e, e.status == "succeeded")'
+    success: '!executions.exists(e, e.status == "failed")'
     steps:
       - run: ./maybe-flaky.sh
+```
+
+Add this `success` field to a job to require at least one execution:
+
+```yaml
+success: 'executions.size() > 0 && executions.all(e, e.status == "succeeded")'
 ```
 
 ## Templates: `${{ }}`
@@ -109,6 +124,8 @@ exists: `event`, `inputs`, and `vars` when the run is created, `needs` and
 dispatched, and gate `feedback` when the gate fails. You just write the reference.
 Shipfox fills it as late as needed. A reference that cannot resolve fails the
 run or step with a typed error instead of passing empty text through.
+
+This job fragment belongs under an existing workflow's `jobs` map:
 
 ```yaml
 jobs:
@@ -164,7 +181,7 @@ keeps outside data separate from shell code.
 Steps declare typed outputs and later steps or jobs read them through
 `steps.<key>.outputs` and `needs`/`jobs`. The authored shape and the runtime
 mechanics live in [Step outputs](/reference/workflow-schema#step-outputs). The
-mental model lives in [Data and templating](/understand/data-and-templating).
+mental model lives in [Context and templating](/understand/data-and-templating).
 
 ## Shipped vs. roadmap
 
@@ -184,7 +201,7 @@ mental model lives in [Data and templating](/understand/data-and-templating).
   <Card title="Workflow schema" href="/reference/workflow-schema">
     The full YAML schema these expressions live in.
   </Card>
-  <Card title="Data and templating" href="/understand/data-and-templating">
+  <Card title="Context and templating" href="/understand/data-and-templating">
     The mental model: what data flows through a run, and why the rules exist.
   </Card>
 </Cards>

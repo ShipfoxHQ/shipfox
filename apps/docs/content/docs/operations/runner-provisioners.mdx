@@ -1,18 +1,19 @@
 ---
 title: "Runner Provisioners: Autoscale Runners on Demand"
 sidebarTitle: "Runner Provisioners"
-description: "A provisioner watches job demand and starts ephemeral, single-job runner containers automatically, so you don't hand-start runners or keep a fleet idle."
+description: "Understand how the Docker provisioner starts single-job runners to meet changing job demand."
 ---
 
-A **provisioner** watches how many jobs are waiting. It starts **ephemeral,
-single-job runner containers** to meet that demand, then lets them exit. It is the
-alternative to [manually starting runners](/operations/runners): instead of keeping
-an idle fleet online, you run one provisioner and it scales runners to the work.
+A **provisioner** watches how many jobs are waiting. It starts an ephemeral
+runner container for each reserved job, then lets the runner exit.
+
+Use a provisioner when demand changes enough that a fixed runner fleet would sit
+idle or run out of capacity. One provisioner scales runner containers to the
+work.
 
 <Callout type="info">
-  Today Shipfox ships a **Docker** provisioner. The provisioner core is
-  provider-agnostic, so other backends (Kubernetes, cloud VMs) can follow; those
-  are roadmap.
+  Shipfox currently ships a **Docker** provisioner. Kubernetes and cloud virtual
+  machine backends are on the roadmap.
 </Callout>
 
 ## How it works
@@ -24,39 +25,40 @@ The provisioner runs a continuous control loop against the Shipfox API:
 
     **Advertise capacity**
 
-    For each template it can start, the provisioner reports free slots
-    (`max_concurrency` minus what's already running).
+    The provisioner reports free slots for each template. Free slots equal
+    `max_concurrency` minus the containers already running.
   </Step>
   <Step>
 
     **Poll for demand**
 
-    It long-polls the API. When jobs are waiting for labels a template provides, the
-    API grants reservations.
+    It long-polls the API. The API grants reservations when waiting jobs need
+    labels that a template provides.
   </Step>
   <Step>
 
     **Mint ephemeral tokens**
 
-    For each reservation, the provisioner mints a single-use **ephemeral
-    registration token** (`sf_ert_…`). The new runner uses it to register once.
-    It is distinct from the long-lived `sf_mrt_…` manual token; see
+    The provisioner mints one single-use **ephemeral registration token**
+    (`sf_ert_…`) for each reservation. The new runner uses it to register once.
+    This differs from the long-lived `sf_mrt_…` manual token; see
     [token types](/reference/runner#token-types).
   </Step>
   <Step>
 
     **Launch and reconcile**
 
-    It starts a container per reservation. Each container gets the API URL, the
-    ephemeral token, and the template's labels. The provisioner reports each
-    container's lifecycle, reconciles against Docker on startup, and reaps
-    containers that never registered. If Docker is unreachable, it advertises zero
-    capacity and backs off instead of double-launching.
+    It starts one container per reservation. Each container gets the API URL,
+    ephemeral token, and template labels.
+
+    The provisioner reports each container's state. After a restart, it compares
+    its records with Docker and removes containers that never registered. If
+    Docker is unreachable, it advertises zero capacity and backs off.
   </Step>
 </Steps>
 
-Each provisioned runner claims one job, runs it, and exits. A burst of work spins
-up runners; quiet periods cost nothing.
+Each provisioned runner claims one job, runs it, and exits. A burst starts more
+runners. Quiet periods leave no runner containers idle.
 
 ## Templates
 
@@ -73,15 +75,15 @@ templates:
     max_concurrency: 100
 ```
 
-When several templates satisfy a job's labels, the provisioner picks the cheapest
-(fewest vCPUs), then the most specific. The full template schema and every
-environment variable are in the
+When several templates satisfy a job's labels, the provisioner chooses the one
+with the fewest virtual CPUs. A specificity rule breaks a tie. The full template
+schema and every environment variable are in the
 [Runner Provisioner reference](/reference/runner-provisioner).
 
 ## Related pages
 
 <Cards>
-  <Card title="Deploy a provisioner" href="/installation/runner-provisioner">
+  <Card title="Run a provisioner" href="/installation/runner-provisioner">
     Token creation, templates file, and the launch command.
   </Card>
   <Card title="Runner Provisioner reference" href="/reference/runner-provisioner">

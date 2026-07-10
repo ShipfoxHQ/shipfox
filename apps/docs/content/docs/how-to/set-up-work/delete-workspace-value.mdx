@@ -1,0 +1,41 @@
+---
+title: "Delete an Unused Workspace Secret or Variable"
+sidebarTitle: "Delete a Value"
+description: "Remove workflow references, delete one workspace value, and check affected runs."
+---
+
+Delete a workspace value only after no active workflow needs its key. A missed
+reference can stop run creation or fail a step.
+
+## Before you begin
+
+You need workspace value-settings access and the exact key to remove. You also
+need the runners required by affected workflows for the final checks.
+
+## Remove every dependency
+
+Search every project for `${{ secrets.KEY }}` or `${{ vars.KEY }}`. For each
+match, choose one action:
+
+- Replace it with a new key.
+- Remove the feature that needs the value.
+- Remove the workflow if it is no longer used.
+
+Push the edits to each project's default branch and wait for every affected
+workflow to sync. Check active runs before deleting a secret that a pending step
+may still request.
+
+## Delete the value
+
+Open **Settings → Secrets** or **Settings → Variables**. Open the key's menu,
+select **Delete**, and confirm the key shown in the dialog.
+
+## Verify the removal
+
+1. Confirm that the key no longer appears in workspace settings.
+2. Start each affected workflow through its normal trigger.
+3. Confirm that run creation and all bound steps succeed without the key.
+
+A missed variable reference fails run creation. A missed secret reference fails
+the step before its command runs. Restore the value if an urgent workflow still
+needs it, then remove that dependency before retrying deletion.

@@ -1,16 +1,17 @@
 ---
-title: "Deploy a Runner Provisioner"
+title: "Run a Docker Runner Provisioner"
 sidebarTitle: "Runner Provisioner"
-description: "Deploy the Shipfox Docker runner provisioner: create a provisioner token, write a templates file, start the process, and verify it scales runners on demand."
+description: "Start the Shipfox Docker runner provisioner from a source checkout and verify that it creates a runner for waiting work."
 ---
 
 A [runner provisioner](/operations/runner-provisioners) starts ephemeral, single-job runner containers to meet demand. You don't hand-start runners or keep a fleet idle. This guide deploys the Docker provisioner.
 
-## Prerequisites
+## Before you begin
 
 - A Docker daemon the provisioner can control (local socket or a reachable Docker host).
 - A runner container image, such as `shipfox-runner:ubuntu22`.
 - Access to your workspace settings in the Shipfox dashboard.
+- A Shipfox source checkout with `mise install` and `pnpm install` complete.
 
 ## Create a provisioner token
 
@@ -47,16 +48,20 @@ The full field semantics and selection rule live in the [Runner Provisioner refe
 
 ## Start the provisioner
 
-Run it as a long-lived process next to the Docker daemon:
+Start the provisioner from the Shipfox source checkout. Replace the API URL and
+token with values from your deployment:
 
 ```bash
-SHIPFOX_API_URL=https://api.shipfox.io \
-SHIPFOX_PROVISIONER_TOKEN=<YOUR_PROVISIONER_TOKEN> \
+SHIPFOX_API_URL='<YOUR_SHIPFOX_API_URL>' \
+SHIPFOX_PROVISIONER_TOKEN='<YOUR_PROVISIONER_TOKEN>' \
 SHIPFOX_PROVISIONER_TEMPLATES_FILE=./templates.yaml \
-pnpm --filter=@shipfox/provisioner-docker start
+mise exec -- pnpm --filter=@shipfox/provisioner-docker dev
 ```
 
-It authenticates on startup, then enters its control loop. On a shutdown signal it stops claiming new work and exits cleanly. All tuning variables are listed in the [Runner Provisioner reference](/reference/runner-provisioner).
+It authenticates on startup, then enters its control loop. On a shutdown signal
+it stops claiming new work and exits cleanly. Use your process supervisor to
+keep it running. All tuning variables are listed in the [Runner Provisioner
+reference](/reference/runner-provisioner).
 
 ## Verify it works
 

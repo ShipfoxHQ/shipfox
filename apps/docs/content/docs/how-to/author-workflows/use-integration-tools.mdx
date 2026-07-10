@@ -1,80 +1,65 @@
 ---
-title: "Grant Repository and Integration Access to Shipfox Agents"
-sidebarTitle: "Agent Access"
-description: "Grant repository write access and select narrowly scoped integration tools without exposing credentials to the agent."
+title: "Review a Pull Request with Read-Only GitHub Tools"
+sidebarTitle: "Read-Only Tools"
+description: "Let an agent read a pull request without changing GitHub."
 ---
 
-An agent step can call tools from a connected service through MCP. The agent gets
-only the operations you select. It never gets the connection key.
+Use this guide when an agent must read pull-request data from GitHub. The step
+receives no write operation.
 
-## Add read-only GitHub tools
+## Before you begin
 
-This step reads pull request data. It uses the project's source connection and
-repository:
+You need:
+
+- A project connected to GitHub.
+- Its integration connection slug. This guide uses `github_acme` as a placeholder.
+- A GitHub integration connection that supports agent tools.
+- An online runner with the `ubuntu-latest` label.
+- Configured agent defaults.
+- A test branch that is ready to open as a pull request. Do not open it until
+  the workflow has synced.
+
+## Add the workflow
+
+Create `.shipfox/workflows/read-pull-request.yml`. Replace `github_acme` with
+your GitHub integration connection slug. This is a complete workflow:
 
 ```yaml
+name: Read a new pull request
+runner: ubuntu-latest
+
+triggers:
+  on_pull_request:
+    source: github_acme # Replace with your GitHub integration connection slug.
+    event: pull_request.opened
+
 jobs:
   review:
     steps:
-      - prompt: Review the open pull request and identify correctness risks.
+      - prompt: |
+          Read pull request #${{ event.number }} and its changed files.
+          Report the two highest correctness risks in the step log.
+          Do not change the pull request or repository.
         integrations:
           - include: [pull_request_read]
 ```
 
-Omitting `connection` uses the project's source connection. Omitting `repos`
-limits the tool to the project repository.
+The workflow omits `connection` and repository scope. It uses the project's
+GitHub source and repository. See [Agent integration
+fields](/reference/workflow-schema#agent-integration-fields) for other choices.
 
-## Select another connection
+Commit and push the file to the project's default branch. Wait for **Read a new
+pull request** to sync.
 
-Set `connection` to a workspace connection slug when the agent should use a
-different account:
+## Verify read-only access
 
-```yaml
-      - prompt: Compare the linked issues with this change.
-        integrations:
-          - connection: github_acme
-            include: [issue_read, pull_request_read]
-```
+Open the test pull request and inspect the new Shipfox run.
 
-The connection must support agent tools. A workflow sync fails when a connection
-or tool name is unknown.
+1. Confirm that the agent calls only operations from `pull_request_read`.
+2. Confirm that its report cites files from the pull request.
+3. Refresh GitHub. Check that the agent added no comment, review, label, or
+   commit.
 
-## Allow authenticated Git writes
-
-Agent edits stay in the local job checkout. Give the job write access when it must
-push a branch or commit:
-
-```yaml
-jobs:
-  fix:
-    checkout:
-      permissions:
-        contents: write
-    steps:
-      - prompt: Fix the issue, commit the change, and push the branch.
-```
-
-The checkout key remains available to later steps by default. Set
-`persist-credentials: false` under `checkout` to remove it. Later steps will not
-be able to run Git commands that need a login. Checkout fields are listed in
-[Checkout fields](/reference/workflow-schema#checkout-fields).
-
-## Opt in to a write-capable tool
-
-Write-capable selections require `allow_write: true`:
-
-```yaml
-      - prompt: Review the pull request and submit a concise review.
-        integrations:
-          - include: [pull_request_read, pull_request_review_write]
-            allow_write: true
-```
-
-Select only the tool families that the task needs. Use `exclude` to remove
-operations from a broad selection. Use `repos` only when the connection should
-act on repositories other than the project source.
-
-Commit and push the workflow. A successful sync proves that the connection,
-tools, repository scope, and write choice are valid. See
-[Agent integration fields](/reference/workflow-schema#agent-integration-fields)
-for the exact selection fields.
+Use [Post a pull-request
+review](/how-to/author-workflows/post-pull-request-review) when the task intends
+a GitHub write.

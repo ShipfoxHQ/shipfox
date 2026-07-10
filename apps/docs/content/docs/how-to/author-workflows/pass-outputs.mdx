@@ -1,35 +1,30 @@
 ---
-title: "Pass Outputs Between Shipfox Steps and Jobs"
+title: "Pass a Computed Version to a Later Job"
 sidebarTitle: "Pass Outputs"
-description: "Declare typed step outputs, publish selected values from a job, and read them in later work."
+description: "Publish a version from one job and bind it safely in a later release-preview job."
 ---
 
-Use outputs for small values that later work needs. Jobs do not share files or
-process environments.
+Use this guide when one job computes a small value that another isolated job
+needs. The workflow derives a version from Git and prints it in a later job.
 
-## Produce a step output
+## Before you begin
 
-Declare the output and append its value to `$SHIPFOX_OUTPUT`:
+You need a project that can sync workflows and an online runner with the
+`ubuntu-latest` label. The repository must contain at least one Git commit.
 
-```yaml
-jobs:
-  package:
-    steps:
-      - key: read_version
-        run: echo "version=$(git describe --tags --always)" >> "$SHIPFOX_OUTPUT"
-        outputs:
-          version: string
-```
+## Add the workflow
 
-Later steps in the same job can read
-`${{ steps.read_version.outputs.version }}`.
-
-## Publish it to another job
-
-Expose the step value from the job. Add a dependency to the next job. Bind the
-value to an environment variable before using it in a command:
+Create `.shipfox/workflows/release-version.yml`. This is a complete workflow:
 
 ```yaml
+name: Preview a release version
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
 jobs:
   package:
     outputs:
@@ -40,14 +35,33 @@ jobs:
         outputs:
           version: string
 
-  publish:
+  preview:
     needs: package
     steps:
       - env:
           VERSION: "${{ jobs.package.outputs.version }}"
-        run: printf 'Publishing version %s\n' "$VERSION"
+        run: |
+          printf 'Release version: %s\n' "$VERSION"
 ```
 
-Start the workflow and inspect both jobs in the run detail. The `package` job
-should expose `version`. The `publish` job should print the same value. For JSON
-outputs and limits, see [Step outputs](/reference/workflow-schema#step-outputs).
+The `read_version` step declares and writes `version`. The `package` job
+publishes it. The `preview` job declares the dependency, reads the job output,
+and binds it through `env` before the shell uses it.
+
+Commit and push the file to the project's default branch. Wait for **Preview a
+release version** to sync.
+
+## Verify the value
+
+Start the workflow from the **Workflows** tab.
+
+1. Open `package` and confirm that its outputs include `version`.
+2. Open `preview` and confirm that the printed version matches the package
+   output.
+3. Confirm that `preview` ran in a separate job execution and did not rely on
+   files from `package`.
+
+Use [Step outputs](/reference/workflow-schema#step-outputs) for output types,
+limits, and encoding. Use [structured agent
+outputs](/how-to/author-workflows/use-structured-agent-outputs) when an agent,
+rather than a command, must produce the value.

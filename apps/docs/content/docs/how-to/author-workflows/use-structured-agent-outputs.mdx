@@ -1,0 +1,69 @@
+---
+title: "Route Work with Structured Agent Outputs"
+sidebarTitle: "Agent Outputs"
+description: "Make an agent publish a typed decision, print its summary safely, and run a review step only when the decision requires it."
+---
+
+Use structured outputs when later workflow logic needs a value from an agent.
+This guide records a summary and a boolean review decision instead of parsing
+the agent's final response.
+
+## Before you begin
+
+You need a project that can sync workflows, an online runner with the
+`ubuntu-latest` label, and configured agent defaults.
+
+## Add the workflow
+
+Create `.shipfox/workflows/classify-release-risk.yml`. This is a complete
+workflow:
+
+```yaml
+name: Classify release risk
+runner: ubuntu-latest
+
+triggers:
+  manual:
+    source: manual
+    event: fire
+
+jobs:
+  assess:
+    steps:
+      - key: assess
+        prompt: |
+          Review the repository for release risk.
+          Set summary to one sentence that explains the main risk.
+          Set needs_review to true when a person should review before release.
+        outputs:
+          summary: string
+          needs_review: boolean
+
+      - env:
+          SUMMARY: "${{ steps.assess.outputs.summary }}"
+        run: |
+          printf 'Assessment: %s\n' "$SUMMARY"
+
+      - if: '${{ steps.assess.outputs.needs_review == true }}'
+        run: echo "Human review required"
+```
+
+The declared outputs give the agent two `set_output` tools. The summary is
+bound through `env` before shell use. The final step reads the boolean directly
+in its condition.
+
+Commit and push the file to the project's default branch. Wait for **Classify
+release risk** to sync.
+
+## Verify the decision
+
+Start the workflow and open the `assess` job.
+
+1. Confirm that the agent sets both declared outputs.
+2. Confirm that the assessment line matches the `summary` output.
+3. If `needs_review` is true, confirm that the final step runs. If it is false,
+   confirm that Shipfox marks the final step skipped.
+
+An agent step fails when it does not set a required output after its bounded
+re-prompts. See [Step outputs](/reference/workflow-schema#step-outputs) for the
+exact behavior.

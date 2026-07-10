@@ -118,9 +118,9 @@ platform without any cloud account. For a production deployment, see
     3. **Configure agent provider**: skip this unless you want to run agent steps immediately.
     4. **Create project**: pick a seeded repository such as `shipfox/demo`. The project name is pre-filled from the repository.
 
-    ![The create-project form showing the source connection, repository picker, and pre-filled project name](/img/create-project.png)
+    ![The create-project form showing the source integration connection, repository picker, and pre-filled project name](/img/create-project.png)
 
-*Create project: pick the source connection and repository. The name is pre-filled.*
+*Create project: pick the source integration connection and repository. The name is pre-filled.*
   </Step>
   <Step>
 
@@ -152,7 +152,8 @@ platform without any cloud account. For a production deployment, see
 
     **Fire your first run**
 
-    Create a workflow file in the `shipfox/demo` repository that uses a manual trigger, for example:
+    Create a workflow file in the `shipfox/demo` repository that uses a manual
+    trigger. This is a complete workflow:
 
     ```yaml
     name: First run
@@ -177,8 +178,19 @@ platform without any cloud account. For a production deployment, see
   </Step>
 </Steps>
 
+## Verify the evaluation stack
+
+Confirm that **First run** succeeds, its command prints `Shipfox is running!`,
+and the runner log shows that it claimed and completed the job. These checks
+prove that workflow sync, manual routing, runner registration, checkout, and log
+delivery work together.
+
 <Callout type="info">
-  In evaluation mode, **GitHub** push triggers will not fire because the local API is not reachable from GitHub's webhook infrastructure. **Gitea** push triggers do fire: the compose stack registers a webhook from the seeded `shipfox` org to your local API. Add a push trigger with the Gitea connection's slug as its source:
+  In evaluation mode, **GitHub** push triggers do not fire by default because
+  the local API is not reachable from GitHub's webhook infrastructure.
+  **Gitea** push triggers do fire: the compose stack registers a webhook from
+  the seeded `shipfox` org to your local API. Add this trigger fragment under
+  the complete workflow's `triggers` map:
 
   ```yaml
   triggers:
@@ -195,5 +207,9 @@ platform without any cloud account. For a production deployment, see
 </Callout>
 
 <Callout type="info">
-  Agent steps (`model` + `prompt`) require the appropriate provider API key to be set in the runner's environment. For Anthropic models, set `ANTHROPIC_API_KEY` before starting the runner process. Other providers use their own key environment variables.
+  Agent steps use model-provider credentials stored in workspace settings. Do
+  not put provider API keys in the runner environment. Follow [Configure an
+  agent harness and model
+  provider](/how-to/set-up-work/configure-model-providers) before running an
+  agent step.
 </Callout>
