@@ -167,6 +167,35 @@ describe('RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS validation', () => {
   });
 });
 
+describe('RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    '0',
+    '-5',
+    '1.5',
+  ])('fails startup when RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS is %s', async (value) => {
+    vi.stubEnv('RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS', value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(
+      'RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS',
+    );
+  });
+
+  it('accepts the default 60 second stale window', async () => {
+    vi.stubEnv('RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS', '60');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS).toBe(60);
+  });
+});
+
 describe('RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

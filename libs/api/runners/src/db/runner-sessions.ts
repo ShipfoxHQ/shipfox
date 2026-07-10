@@ -36,6 +36,17 @@ export async function createRunnerSession(
   return toRunnerSession(row);
 }
 
+export async function getRunnerSessionById(runnerSessionId: string): Promise<RunnerSession | null> {
+  const rows = await db()
+    .select()
+    .from(runnerSessions)
+    .where(eq(runnerSessions.id, runnerSessionId))
+    .limit(1);
+
+  const row = rows[0];
+  return row ? toRunnerSession(row) : null;
+}
+
 export interface DeleteExpiredRunnerSessionsParams {
   manualRetentionDays: number;
   ephemeralRetentionDays: number;

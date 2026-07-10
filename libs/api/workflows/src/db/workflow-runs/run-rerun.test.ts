@@ -395,6 +395,7 @@ describe('workflow run queries', () => {
           config: {run: 'deploy', env: {SHA: 'new-snapshot'}},
           configPlan: {env: {SHA: shaPlan}},
         }),
+        dispatched: true,
       });
       const attempts = await getStepAttempts(rerunJob.id);
       expect(attempts.find((attempt) => attempt.stepId === sourceConsumer.id)).toBeUndefined();

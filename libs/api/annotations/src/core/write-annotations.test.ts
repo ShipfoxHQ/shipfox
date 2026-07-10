@@ -58,6 +58,38 @@ describe('writeAnnotations', () => {
     expect(updated.accounting).toEqual({annotationCount: 1, totalBodyBytes: 6});
   });
 
+  it('skips unchanged replace writes and preserves original attribution', async () => {
+    const created = await writeAnnotations({
+      ...params,
+      operations: [{context: 'deploy', style: 'warning', op: 'replace', body: 'same'}],
+    });
+    const originalOriginStepId = params.originStepId;
+
+    const unchanged = await writeAnnotations({
+      ...params,
+      originStepId: crypto.randomUUID(),
+      originStepAttempt: 2,
+      operations: [{context: 'deploy', style: 'warning', op: 'replace', body: 'same'}],
+    });
+
+    const rows = await db()
+      .select()
+      .from(annotations)
+      .where(eq(annotations.jobExecutionId, params.jobExecutionId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: created.annotations[0]?.id,
+      context: 'deploy',
+      style: 'warning',
+      body: 'same',
+      sequence: 1,
+      originStepId: originalOriginStepId,
+      originStepAttempt: 1,
+    });
+    expect(unchanged.annotations[0]?.id).toBe(created.annotations[0]?.id);
+    expect(unchanged.accounting).toEqual({annotationCount: 1, totalBodyBytes: 4});
+  });
+
   it('appends to an existing context', async () => {
     await annotationFactory.create({
       ...params,

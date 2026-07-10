@@ -2,6 +2,7 @@ import {issueJobLeaseToken, jobLeaseParamsFrom} from '@shipfox/api-auth';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {warnAgentToolCapabilityMismatchOnDispatch} from '#core/agent-tool-capability-warning.js';
 import {JobLeaseNotActiveError, JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
 import {toStepDto} from '#presentation/dto/step.js';
@@ -41,6 +42,12 @@ export const nextStepRoute = defineRoute({
           currentStepAttempt: next.step.currentAttempt,
         }),
       );
+      if (next.dispatched) {
+        await warnAgentToolCapabilityMismatchOnDispatch({
+          leaseIdentity: leasedJob,
+          step: next.step,
+        });
+      }
       // The runner echoes this back on report so a stale report from a superseded
       // attempt is ignored.
       return {

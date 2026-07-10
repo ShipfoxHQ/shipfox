@@ -57,6 +57,10 @@ export const config = createConfig({
     desc: 'Time window, in seconds, used to list active runners from recent heartbeats and provisioned runner reports.',
     default: 60,
   }),
+  RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS: num({
+    desc: 'Time window, in seconds, after which a runner tool capability report is treated as stale. Set this higher than the runner heartbeat interval so active runners keep their advertised tools fresh.',
+    default: 60,
+  }),
   RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS: num({
     desc: 'Grace window, in seconds, before maintenance expires a claimed job that has not sent its first heartbeat. Set this lower than the normal stuck-job threshold so startup crashes release work quickly.',
     default: 60,
@@ -186,6 +190,15 @@ if (
 ) {
   throw new Error(
     `RUNNER_ACTIVE_WINDOW_SECONDS (${config.RUNNER_ACTIVE_WINDOW_SECONDS}) must be a whole number of seconds >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS) ||
+  config.RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS < 1
+) {
+  throw new Error(
+    `RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS (${config.RUNNER_TOOL_CAPABILITIES_STALE_AFTER_SECONDS}) must be a whole number of seconds >= 1.`,
   );
 }
 

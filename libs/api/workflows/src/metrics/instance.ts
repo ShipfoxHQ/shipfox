@@ -78,6 +78,12 @@ const listenerResolvedCount = meter.createCounter<{reason: ResolutionReason}>(
   {description: 'Listener resolutions by bounded reason'},
 );
 
+const agentToolWarningFailedCount = meter.createCounter<{
+  reason: 'budget' | 'lookup' | 'write';
+}>('workflows_agent_tool_warning_failed', {
+  description: 'Agent tool capability warning failures by bounded reason',
+});
+
 const listenerEventsCoalesced = meter.createHistogram<Record<string, never>>(
   'workflows_listener_events_coalesced',
   {
@@ -147,4 +153,8 @@ export function recordWorkflowListenerResolved(reason: ResolutionReason): void {
 
 export function recordListenerEventsCoalesced(batchSize: number): void {
   listenerEventsCoalesced.record(batchSize);
+}
+
+export function recordWorkflowAgentToolWarningFailed(reason: 'budget' | 'lookup' | 'write'): void {
+  agentToolWarningFailedCount.add(1, {reason});
 }

@@ -3012,6 +3012,9 @@ importers:
 
   libs/api/workflows:
     dependencies:
+      '@shipfox/annotations':
+        specifier: workspace:*
+        version: link:../annotations
       '@shipfox/api-agent':
         specifier: workspace:*
         version: link:../agent

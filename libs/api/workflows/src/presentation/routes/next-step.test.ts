@@ -1,6 +1,6 @@
 import {createLeaseTokenAuthMethod, verifyJobLeaseToken} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
-import {eq} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
 import {recordStepResult as recordJobExecutionStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
@@ -28,6 +28,27 @@ async function recordStepResult(
   if (!step) throw new JobNotFoundError(params.jobId);
   const {jobId: _jobId, ...rest} = params;
   return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
+}
+
+async function setRunnerToolCapabilities(
+  runnerSessionId: string,
+  capabilities: Record<string, unknown>,
+): Promise<void> {
+  await db().execute(sql`
+    UPDATE runners_runner_sessions
+    SET tool_capabilities = ${JSON.stringify(capabilities)}::jsonb,
+      tool_capabilities_reported_at = now()
+    WHERE id = ${runnerSessionId}
+  `);
+}
+
+async function annotationCount(jobExecutionId: string): Promise<number> {
+  const result = await db().execute<{count: string}>(sql`
+    SELECT count(*)::text AS count
+    FROM annotations_annotations
+    WHERE job_execution_id = ${jobExecutionId}
+  `);
+  return Number(result.rows[0]?.count ?? '0');
 }
 
 describe('POST /runs/jobs/current/steps/next', () => {
@@ -175,6 +196,43 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(second.json().step.id).toBe(first.json().step.id);
     const running = (await getStepsByJobId(jobId)).filter((s) => s.status === 'running');
     expect(running).toHaveLength(1);
+  });
+
+  test('writes the tool capability warning only on fresh dispatch', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    await db()
+      .update(stepsTable)
+      .set({
+        type: 'agent',
+        config: {
+          harness: 'pi',
+          provider: 'anthropic',
+          model: 'claude-opus-4-8',
+          thinking: 'high',
+          tools: ['read', 'web_search'],
+          prompt: 'Fix it.',
+        },
+      })
+      .where(eq(stepsTable.id, steps[0]?.id as string));
+    const token = await mintActiveLeaseToken({jobId});
+    const lease = await verifyJobLeaseToken(token);
+    if (!lease) throw new Error('Expected minted lease token to verify');
+    await setRunnerToolCapabilities(lease.runnerSessionId, {harnesses: {pi: {tools: ['read']}}});
+
+    const first = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+    });
+    const second = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(await annotationCount(lease.jobExecutionId)).toBe(1);
   });
 
   test('returns 404 for a valid token without an active lease', async () => {

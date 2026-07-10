@@ -108,7 +108,11 @@ describe('nextStepForJob', () => {
 
     const result = await nextStepForJob(jobId);
 
-    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: steps[0]?.id})});
+    expect(result).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: steps[0]?.id}),
+      dispatched: true,
+    });
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.status).toBe('running');
     expect(after[1]?.status).toBe('pending');
@@ -126,6 +130,8 @@ describe('nextStepForJob', () => {
     const firstId = first.kind === 'step' ? first.step.id : null;
     const secondId = second.kind === 'step' ? second.step.id : null;
     expect(secondId).toBe(firstId);
+    expect(first.kind === 'step' ? first.dispatched : undefined).toBe(true);
+    expect(second.kind === 'step' ? second.dispatched : undefined).toBe(false);
     const running = (await getStepsByJobId(jobId)).filter((s) => s.status === 'running');
     expect(running).toHaveLength(1);
   });
@@ -137,7 +143,11 @@ describe('nextStepForJob', () => {
 
     const next = await nextStepForJob(jobId);
 
-    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: steps[1]?.id})});
+    expect(next).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: steps[1]?.id}),
+      dispatched: true,
+    });
   });
 
   test('fills dispatch config from terminal step attempt output', async () => {
@@ -173,6 +183,7 @@ describe('nextStepForJob', () => {
         config: {run: 'echo ok', env: {SHA: 'abc123'}},
         configPlan: {env: {SHA: shaPlan}},
       }),
+      dispatched: true,
     });
     expect(redelivery).toEqual({
       kind: 'step',
@@ -181,6 +192,7 @@ describe('nextStepForJob', () => {
         config: {run: 'echo ok', env: {SHA: 'abc123'}},
         configPlan: {env: {SHA: shaPlan}},
       }),
+      dispatched: false,
     });
     const attempts = await getStepAttempts(jobId);
     expect(attempts.find((attempt) => attempt.stepId === consumer.id)).toMatchObject({
@@ -247,6 +259,7 @@ describe('nextStepForJob', () => {
         currentAttempt: 1,
         config: expect.objectContaining({env: {SHA: 'abc123'}}),
       }),
+      dispatched: true,
     });
     expect(secondConsumer).toEqual({
       kind: 'step',
@@ -256,6 +269,7 @@ describe('nextStepForJob', () => {
         config: expect.objectContaining({env: {SHA: 'def456'}}),
         configPlan: {env: {SHA: shaPlan}},
       }),
+      dispatched: true,
     });
     const attempts = await getStepAttempts(jobId);
     expect(
@@ -355,7 +369,11 @@ describe('nextStepForJob', () => {
 
     const result = await nextStepForJob(jobId);
 
-    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: runnableStep.id})});
+    expect(result).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: runnableStep.id}),
+      dispatched: true,
+    });
     const after = await getStepsByJobId(jobId);
     expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
       status: 'skipped',
@@ -378,7 +396,11 @@ describe('nextStepForJob', () => {
 
     const result = await nextStepForJob(jobId);
 
-    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: runnableStep.id})});
+    expect(result).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: runnableStep.id}),
+      dispatched: true,
+    });
     const after = await getStepsByJobId(jobId);
     expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
       status: 'skipped',
@@ -399,7 +421,11 @@ describe('nextStepForJob', () => {
 
     const result = await nextStepForJob(jobId);
 
-    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: third.id})});
+    expect(result).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: third.id}),
+      dispatched: true,
+    });
     if (result.kind !== 'step') throw new Error('Expected a runnable step');
     expect(result.step.config).not.toHaveProperty('if');
     expect(result.step.condition).toBeNull();
@@ -625,7 +651,11 @@ describe('recordStepResult', () => {
 
     const next = await nextStepForJob(jobId);
 
-    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: cleanup.id})});
+    expect(next).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: cleanup.id}),
+      dispatched: true,
+    });
     await recordStepResult({jobId, stepId: cleanup.id, status: 'succeeded'});
     const done = await nextStepForJob(jobId);
     expect(done).toEqual({kind: 'done', status: 'failed'});
@@ -652,7 +682,11 @@ describe('recordStepResult', () => {
 
     const next = await nextStepForJob(jobId);
 
-    expect(next).toEqual({kind: 'step', step: expect.objectContaining({id: upload.id})});
+    expect(next).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: upload.id}),
+      dispatched: true,
+    });
     await recordStepResult({jobId, stepId: upload.id, status: 'succeeded'});
     expect(await nextStepForJob(jobId)).toEqual({kind: 'done', status: 'failed'});
   });
@@ -774,6 +808,7 @@ describe('recordStepResult', () => {
         id: consumer.id,
         config: {run: 'deploy', env: {COUNT: '42'}},
       }),
+      dispatched: true,
     });
   });
 
@@ -1472,6 +1507,7 @@ describe('durable gate restart', () => {
           }),
         },
       }),
+      dispatched: true,
     });
     const attempts = await getStepAttempts(jobId);
     const reviewerAttempt = attempts.find((attempt) => attempt.stepId === reviewer);

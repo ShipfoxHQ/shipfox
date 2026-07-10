@@ -41,6 +41,7 @@
     "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
+    "@shipfox/annotations": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",
     "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-projects": "workspace:*",

@@ -756,6 +756,7 @@ describe('drainListenerEventsIntoExecution', () => {
         key: 'deploy',
         config: {run: 'echo "$SHA"', env: {SHA: 'abc123'}},
       }),
+      dispatched: true,
     });
   });
 

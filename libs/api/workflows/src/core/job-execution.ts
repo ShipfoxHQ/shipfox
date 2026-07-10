@@ -71,7 +71,9 @@ type ReportedStepResult = {
   readonly exitCode: number | null;
 };
 
-export type NextStep = {kind: 'step'; step: Step} | {kind: 'done'; status: CompletionStatus};
+export type NextStep =
+  | {kind: 'step'; step: Step; dispatched: boolean}
+  | {kind: 'done'; status: CompletionStatus};
 
 type DispatchConfigError = InterpolationUnresolvableError | AgentConfigUnresolvableError;
 
@@ -115,7 +117,7 @@ async function nextStepForJobExecutionInTransaction(
   // cannot skip a step.
   const running = steps.find((step) => step.status === 'running');
   const hasRunningStep = running !== undefined;
-  if (hasRunningStep) return {kind: 'step', step: running};
+  if (hasRunningStep) return {kind: 'step', step: running, dispatched: false};
 
   const firstPending = steps.find((step) => step.status === 'pending');
   const hasPendingStep = firstPending !== undefined;
@@ -197,7 +199,7 @@ async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<N
     {jobExecutionId: params.jobExecutionId, stepId: params.pending.id},
     params.tx,
   );
-  return {kind: 'step', step: marked ?? params.pending};
+  return {kind: 'step', step: marked ?? params.pending, dispatched: true};
 }
 
 async function dispatchPendingStepWithConfigPlan({
@@ -223,7 +225,7 @@ async function dispatchPendingStepWithConfigPlan({
       },
       tx,
     );
-    return {kind: 'step', step: marked ?? {...pending, config: completed.config}};
+    return {kind: 'step', step: marked ?? {...pending, config: completed.config}, dispatched: true};
   } catch (error) {
     const configError = toDispatchConfigError(error);
     const isConfigError = configError !== null;

@@ -49,6 +49,16 @@ export function writeAnnotations(params: WriteAnnotationsParams): Promise<WriteA
       const bodyBytes = Buffer.byteLength(body);
       ensureBodyBudget(bodyBytes);
 
+      const isUnchangedReplace =
+        operation.op === 'replace' &&
+        existing !== undefined &&
+        existing.body === body &&
+        existing.style === operation.style;
+      if (isUnchangedReplace) {
+        results.push({context: operation.context, id: existing.id});
+        continue;
+      }
+
       const draft = new Map(current);
       draft.set(operation.context, {
         id: existing?.id ?? '',
