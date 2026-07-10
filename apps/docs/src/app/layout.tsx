@@ -22,20 +22,14 @@ const commitMono = localFont({
 
 export default function Layout({children}: {children: ReactNode}) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${commitMono.variable} dark`}
-      suppressHydrationWarning
-    >
+    <html lang="en" className={`${inter.variable} ${commitMono.variable}`} suppressHydrationWarning>
       <head>
         <link rel="alternate" type="text/markdown" href="/llms.txt" />
       </head>
       <body className="flex flex-col min-h-screen">
         {/* The search client fetches this URL as-is; Next does not apply basePath to
             it, so it must carry the /docs prefix in production (empty in dev). */}
-        <RootProvider theme={{enabled: false}} search={{options: {api: `${basePath}/api/search`}}}>
-          {children}
-        </RootProvider>
+        <RootProvider search={{options: {api: `${basePath}/api/search`}}}>{children}</RootProvider>
       </body>
     </html>
   );

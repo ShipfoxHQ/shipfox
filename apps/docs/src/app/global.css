@@ -7,12 +7,34 @@
   --font-mono: var(--font-commit-mono), "Commit Mono", ui-monospace, monospace;
 }
 
-/* Shipfox brand. The docs render dark only (the theme switch is disabled and
-   <html> is pinned to .dark), matching the product and landing surfaces. Values
-   come from the @shipfox/react-ui neutral scale (neutral-1000 #030303 →
-   neutral-50 #fafafa) with primary-400 #ff4b00 as the accent. Per DESIGN.md,
-   orange is the link / focus-ring / "you are here" highlight, not a CTA fill. */
+/* Shipfox brand tokens: neutral scale from @shipfox/react-ui with primary-400
+   #ff4b00 reserved for links, focus rings, and active navigation. */
+:root {
+  --color-fd-background: #fafafa;
+  --color-fd-foreground: #030303;
+  --color-fd-muted: #f4f4f5;
+  --color-fd-muted-foreground: #52525b;
+  --color-fd-popover: #ffffff;
+  --color-fd-popover-foreground: #030303;
+  --color-fd-card: #ffffff;
+  --color-fd-card-foreground: #030303;
+  --color-fd-border: #d4d4d8;
+  --color-fd-primary: #ff4b00;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #f4f4f5;
+  --color-fd-secondary-foreground: #030303;
+  --color-fd-accent: #f4f4f5;
+  --color-fd-accent-foreground: #030303;
+  --color-fd-ring: #ff4b00;
+  --color-fd-overlay: rgb(3 3 3 / 20%);
+}
+
+html {
+  color-scheme: light;
+}
+
 .dark {
+  color-scheme: dark;
   --color-fd-background: #030303;
   --color-fd-foreground: #fafafa;
   --color-fd-muted: #131314;
@@ -29,6 +51,7 @@
   --color-fd-accent: #1a1a1b;
   --color-fd-accent-foreground: #fafafa;
   --color-fd-ring: #ff4b00;
+  --color-fd-overlay: rgb(0 0 0 / 50%);
 }
 
 body {

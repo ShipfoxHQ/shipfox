@@ -1,5 +1,6 @@
 'use client';
 
+import {useTheme} from 'next-themes';
 import {type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {basePath} from '@/url';
@@ -12,8 +13,12 @@ const withBase = (value?: string) =>
 const FOCUSABLE = 'button, video, a[href], [tabindex]:not([tabindex="-1"])';
 
 interface DocsVideoProps {
-  src: string;
+  src?: string;
+  lightSrc?: string;
+  darkSrc?: string;
   poster?: string;
+  lightPoster?: string;
+  darkPoster?: string;
   label?: string;
   // Intrinsic pixel dimensions of the recording, so the browser reserves the
   // aspect-ratio box and the above-the-fold hero does not shift as it loads.
@@ -24,16 +29,31 @@ interface DocsVideoProps {
 /**
  * Autoplaying, muted, looping product clip that sits inline like an image and
  * opens a larger lightbox on click (Escape or a backdrop click closes it),
- * mirroring the click-to-zoom behaviour of Fumadocs images. The docs render dark
- * only today, so a single (dark) source is enough; the matching light recording
- * is stored for the adaptive-theme follow-up.
+ * mirroring the click-to-zoom behaviour of Fumadocs images.
  */
-export function DocsVideo({src, poster, label, width, height}: DocsVideoProps) {
+export function DocsVideo({
+  src,
+  lightSrc,
+  darkSrc,
+  poster,
+  lightPoster,
+  darkPoster,
+  label,
+  width,
+  height,
+}: DocsVideoProps) {
   const [expanded, setExpanded] = useState(false);
+  const {resolvedTheme} = useTheme();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const resolvedSrc = withBase(src);
-  const resolvedPoster = withBase(poster);
+  const resolvedLightSrc = withBase(lightSrc ?? src ?? darkSrc);
+  const resolvedDarkSrc = withBase(darkSrc ?? src ?? lightSrc);
+  const resolvedLightPoster = withBase(lightPoster ?? poster ?? darkPoster);
+  const resolvedDarkPoster = withBase(darkPoster ?? poster ?? lightPoster);
+  const hasDarkVariant = resolvedDarkSrc !== resolvedLightSrc;
+  const activeSrc = hasDarkVariant && resolvedTheme === 'dark' ? resolvedDarkSrc : resolvedLightSrc;
+  const activePoster =
+    hasDarkVariant && resolvedTheme === 'dark' ? resolvedDarkPoster : resolvedLightPoster;
   const dialogLabel = label ?? 'Enlarged video';
 
   useEffect(() => {
@@ -81,18 +101,12 @@ export function DocsVideo({src, poster, label, width, height}: DocsVideoProps) {
         aria-label={label ? `${label} (click to enlarge)` : 'Enlarge the video'}
         className="group relative my-6 block w-full cursor-zoom-in appearance-none border-0 bg-transparent p-0"
       >
-        <video
-          className="h-auto w-full overflow-hidden rounded-xl border border-fd-border shadow-xl"
-          src={resolvedSrc}
-          poster={resolvedPoster}
+        <ThemedVideo
+          key={activeSrc}
+          src={activeSrc}
+          poster={activePoster}
           width={width}
           height={height}
-          tabIndex={-1}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
         />
         <span className="pointer-events-none absolute top-3 right-3 rounded-md border border-fd-border bg-fd-background/80 p-1.5 text-fd-muted-foreground opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
           <ExpandIcon />
@@ -116,20 +130,42 @@ export function DocsVideo({src, poster, label, width, height}: DocsVideoProps) {
               aria-label="Close the enlarged video"
               className="absolute inset-0 cursor-zoom-out appearance-none border-0 bg-black/80 p-0 backdrop-blur-sm"
             />
-            <video
-              className="relative max-h-[90vh] w-auto max-w-[95vw] rounded-lg border border-fd-border shadow-2xl"
-              src={resolvedSrc}
-              poster={resolvedPoster}
-              autoPlay
-              muted
-              loop
-              playsInline
-              controls
-            />
+            <ThemedVideo key={activeSrc} src={activeSrc} poster={activePoster} expanded />
           </div>,
           document.body,
         )}
     </>
+  );
+}
+
+interface ThemedVideoProps {
+  src?: string;
+  poster?: string;
+  width?: number;
+  height?: number;
+  expanded?: boolean;
+}
+
+function ThemedVideo({src, poster, width, height, expanded}: ThemedVideoProps) {
+  const classes = expanded
+    ? 'relative max-h-[90vh] w-auto max-w-[95vw] rounded-lg border border-fd-border shadow-2xl'
+    : 'h-auto w-full overflow-hidden rounded-xl border border-fd-border shadow-xl';
+
+  return (
+    <video
+      className={classes}
+      src={src}
+      poster={poster}
+      width={width}
+      height={height}
+      tabIndex={expanded ? undefined : -1}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      controls={expanded}
+    />
   );
 }
 
