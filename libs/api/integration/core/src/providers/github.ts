@@ -44,21 +44,23 @@ async function loadGithubModuleParts(
 
   const tokenProvider = createGithubInstallationTokenProvider({
     getIntegrationConnectionById,
-    secretStore: {
-      read: async (workspaceId, installationId) =>
-        (await options.secrets?.github?.getSecret({
-          workspaceId,
-          namespace: githubInstallationTokenNamespace(installationId),
-          key: 'envelope',
-        })) ?? null,
-      write: async (workspaceId, installationId, envelope) => {
-        await options.secrets?.github?.setSecrets({
-          workspaceId,
-          namespace: githubInstallationTokenNamespace(installationId),
-          values: {envelope: encodeInstallationTokenEnvelope(envelope)},
-        });
-      },
-    },
+    secretStore: options.secrets?.github
+      ? {
+          read: async (workspaceId, installationId) =>
+            (await options.secrets?.github?.getSecret({
+              workspaceId,
+              namespace: githubInstallationTokenNamespace(installationId),
+              key: 'envelope',
+            })) ?? null,
+          write: async (workspaceId, installationId, envelope) => {
+            await options.secrets?.github?.setSecrets({
+              workspaceId,
+              namespace: githubInstallationTokenNamespace(installationId),
+              values: {envelope: encodeInstallationTokenEnvelope(envelope)},
+            });
+          },
+        }
+      : undefined,
   });
 
   async function getExistingGithubConnection(input: {

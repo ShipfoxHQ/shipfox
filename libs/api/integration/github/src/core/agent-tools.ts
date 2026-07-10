@@ -893,8 +893,11 @@ function resolveGithubOperation(
 
   if (tool.methods && !tool.methods.some((candidate) => candidate.id === method)) return undefined;
 
-  const route = githubOperationRoute(tool.id as GithubAgentToolId, method, params);
-  return route === undefined ? undefined : {route, parameters: params};
+  const toolId = tool.id as GithubAgentToolId;
+  const route = githubOperationRoute(toolId, method, params);
+  return route === undefined
+    ? undefined
+    : {route, parameters: projectGithubOperationParameters(toolId, method, params)};
 }
 
 function githubOperationRoute(
@@ -930,9 +933,11 @@ function githubOperationRoute(
     case 'search_issues.':
       return 'GET /search/issues';
     case 'add_issue_comment.':
-      return args.comment_id === undefined
-        ? `POST ${repoPath}/issues/${issue}/comments`
-        : `POST ${repoPath}/issues/comments/{comment_id}/reactions`;
+      if (args.comment_id !== undefined)
+        return `POST ${repoPath}/issues/comments/{comment_id}/reactions`;
+      return args.reaction !== undefined && args.body === undefined
+        ? `POST ${repoPath}/issues/${issue}/reactions`
+        : `POST ${repoPath}/issues/${issue}/comments`;
     case 'issue_write.create':
       return `POST ${repoPath}/issues`;
     case 'issue_write.update':
@@ -1018,6 +1023,23 @@ function githubOperationRoute(
     default:
       return undefined;
   }
+}
+
+function projectGithubOperationParameters(
+  toolId: GithubAgentToolId,
+  method: string | undefined,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const parameters = {...args};
+  if (toolId === 'add_issue_comment' && parameters.reaction !== undefined) {
+    parameters.content = parameters.reaction;
+    delete parameters.reaction;
+    if (parameters.body === undefined) delete parameters.body;
+  }
+  if (toolId === 'pull_request_read' && method === 'get_diff') {
+    parameters.headers = {accept: 'application/vnd.github.diff'};
+  }
+  return parameters;
 }
 
 function githubToolResult(data: unknown): GithubToolCallResult {

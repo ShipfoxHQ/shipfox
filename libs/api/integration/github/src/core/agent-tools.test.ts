@@ -316,6 +316,7 @@ describe('github agent tool catalog', () => {
 
   it('opens a provider-owned installation session and dispatches the selected operation', async () => {
     const request = vi.fn(() => Promise.resolve({data: {number: 1}}));
+    let clientToken: string | undefined;
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
       tokenProvider: {
@@ -328,7 +329,7 @@ describe('github agent tool catalog', () => {
         ),
       },
       createClient: vi.fn((token) => {
-        expect(token).toBe('installation-token');
+        clientToken = token;
         return {request};
       }),
     });
@@ -348,6 +349,7 @@ describe('github agent tool catalog', () => {
       repo: 'platform',
       issue_number: 1,
     });
+    expect(clientToken).toBe('installation-token');
     expect(result).toEqual({content: [{type: 'text', text: '{"number":1}'}]});
   });
 });
