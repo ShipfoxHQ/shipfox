@@ -1,5 +1,70 @@
 # @shipfox/client-runners
 
+## 0.0.3
+
+### Patch Changes
+
+- 048fc29: Adds Runner Provisioners settings with provisioner token management and connection status.
+- 6181819: Adds runner registration sessions with bounded label contracts, session-token auth, and lease-token heartbeat ownership.
+- Updated dependencies [43d7996]
+- Updated dependencies [14e0bea]
+- Updated dependencies [8100b48]
+- Updated dependencies [7a9943d]
+- Updated dependencies [2325d76]
+- Updated dependencies [9018f0b]
+- Updated dependencies [7fdfd72]
+- Updated dependencies [c0a883c]
+- Updated dependencies [2a3193f]
+- Updated dependencies [f104ff2]
+- Updated dependencies [7341569]
+- Updated dependencies [c47be09]
+- Updated dependencies [f9f059e]
+- Updated dependencies [e4c6abf]
+- Updated dependencies [5d0676a]
+- Updated dependencies [3afb7e3]
+- Updated dependencies [a35c2dc]
+- Updated dependencies [58f7aef]
+- Updated dependencies [5264a22]
+- Updated dependencies [247cbd6]
+- Updated dependencies [9674879]
+- Updated dependencies [225c9a5]
+- Updated dependencies [fb64f13]
+- Updated dependencies [62720ea]
+- Updated dependencies [24f131b]
+- Updated dependencies [bb2a7bc]
+- Updated dependencies [5eb06d0]
+- Updated dependencies [4e13e5f]
+- Updated dependencies [e92150d]
+- Updated dependencies [8037501]
+- Updated dependencies [0fb6018]
+- Updated dependencies [c27a1ed]
+- Updated dependencies [b8e49ff]
+- Updated dependencies [8037501]
+- Updated dependencies [6c0da64]
+- Updated dependencies [07f8ff8]
+- Updated dependencies [e457582]
+- Updated dependencies [8b5c905]
+- Updated dependencies [f849131]
+- Updated dependencies [88b9793]
+- Updated dependencies [94bdcc5]
+- Updated dependencies [a34c8ea]
+- Updated dependencies [27770eb]
+- Updated dependencies [2933c33]
+- Updated dependencies [8ac4bf4]
+- Updated dependencies [03d9eae]
+- Updated dependencies [a5c7562]
+- Updated dependencies [6181819]
+- Updated dependencies [3a0be6b]
+- Updated dependencies [d42baf4]
+- Updated dependencies [8037501]
+- Updated dependencies [54bb8a3]
+- Updated dependencies [f711e18]
+- Updated dependencies [8ecc121]
+  - @shipfox/react-ui@0.3.0
+  - @shipfox/api-runners-dto@0.1.0
+  - @shipfox/client-api@0.0.1
+  - @shipfox/client-ui@0.1.0
+
 ## 0.0.2
 
 ### Patch Changes

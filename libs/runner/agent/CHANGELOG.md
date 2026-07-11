@@ -1,0 +1,102 @@
+# @shipfox/runner-agent
+
+## 0.1.0
+
+### Minor Changes
+
+- 03d9eae: Adds runner-advertised tool capabilities to registration, heartbeat, persistence, and runner protocol reporting.
+
+### Patch Changes
+
+- eb40964: Add an inline `agent` workflow step that the runner runs with the pi harness. A step is an agent step when it carries `model` + `prompt` and no `run`; it takes a free-text `model`, a single `prompt`, and an optional `thinking` level (default `high`). The step runs to process-success (the agent ran to completion) and reports through the existing step protocol with no runner/backend protocol change, so change quality is judged by a downstream `run` + `gate` step. v1 does not persist the agent's work (no diff, commit, or PR).
+- b775474: Adds the runner harness adapter seam and fails unsupported Claude agent steps instead of silently running the pi harness.
+- b525dcd: Let an agent workflow step pick its pi provider with an optional free-text `provider` field (default `anthropic`), threaded to the runner's pi model lookup, and split agent-step failures into a user-fixable `agent_config_invalid` reason (unknown provider, missing runner credentials, wrong provider/model pair) versus `agent_invocation_failed` for genuine provider/API errors.
+- d49ee4c: Forward agent step session entries into the logs module as opaque `agent_session` records: the runner tails the pi session file and forwards each verbatim entry over a shared log-stream sink, and the write path stores them with a configurable per-line size cap sized for inline base64 content.
+- Updated dependencies [eb40964]
+- Updated dependencies [7bc7498]
+- Updated dependencies [5c18360]
+- Updated dependencies [067a260]
+- Updated dependencies [26fea4b]
+- Updated dependencies [0cf66c4]
+- Updated dependencies [8100b48]
+- Updated dependencies [8f51daf]
+- Updated dependencies [05b61f6]
+- Updated dependencies [e689abf]
+- Updated dependencies [7a9943d]
+- Updated dependencies [ce3e5ca]
+- Updated dependencies [2325d76]
+- Updated dependencies [c17dd6e]
+- Updated dependencies [c0a883c]
+- Updated dependencies [cdf8989]
+- Updated dependencies [e47f8da]
+- Updated dependencies [736249b]
+- Updated dependencies [2bc5595]
+- Updated dependencies [1127ba2]
+- Updated dependencies [36f871d]
+- Updated dependencies [e7b01dd]
+- Updated dependencies [de54da2]
+- Updated dependencies [d546b88]
+- Updated dependencies [58c05ed]
+- Updated dependencies [7b175f5]
+- Updated dependencies [7ca4c65]
+- Updated dependencies [68e4022]
+- Updated dependencies [5bcdbf4]
+- Updated dependencies [c47be09]
+- Updated dependencies [f9f059e]
+- Updated dependencies [940696a]
+- Updated dependencies [c7d8b39]
+- Updated dependencies [f98c2be]
+- Updated dependencies [e9396c9]
+- Updated dependencies [6c80f00]
+- Updated dependencies [360d06d]
+- Updated dependencies [b525dcd]
+- Updated dependencies [2883ab4]
+- Updated dependencies [78d0f7f]
+- Updated dependencies [aca162b]
+- Updated dependencies [998eba3]
+- Updated dependencies [3afb7e3]
+- Updated dependencies [247cbd6]
+- Updated dependencies [5d53ed4]
+- Updated dependencies [c652a68]
+- Updated dependencies [fb64f13]
+- Updated dependencies [62720ea]
+- Updated dependencies [795f440]
+- Updated dependencies [3dcd751]
+- Updated dependencies [5af4907]
+- Updated dependencies [c0a883c]
+- Updated dependencies [362b3eb]
+- Updated dependencies [f0afdf8]
+- Updated dependencies [9d3b43a]
+- Updated dependencies [d635979]
+- Updated dependencies [d69b164]
+- Updated dependencies [2fb3e87]
+- Updated dependencies [e0fee57]
+- Updated dependencies [fa67aa3]
+- Updated dependencies [ef1e917]
+- Updated dependencies [51eb38a]
+- Updated dependencies [88b9793]
+- Updated dependencies [e2fbef8]
+- Updated dependencies [2933c33]
+- Updated dependencies [2ad300c]
+- Updated dependencies [a314b05]
+- Updated dependencies [950ebef]
+- Updated dependencies [03d9eae]
+- Updated dependencies [a5c7562]
+- Updated dependencies [6181819]
+- Updated dependencies [d0cd759]
+- Updated dependencies [1ea2f6a]
+- Updated dependencies [e699508]
+- Updated dependencies [ad6056b]
+- Updated dependencies [282e66a]
+- Updated dependencies [e1d4972]
+- Updated dependencies [a856155]
+- Updated dependencies [8ecc121]
+  - @shipfox/api-workflows-dto@0.1.0
+  - @shipfox/runner-execution@0.1.0
+  - @shipfox/expression@1.1.0
+  - @shipfox/api-agent-dto@0.1.0
+  - @shipfox/api-runners-dto@0.1.0
+  - @shipfox/runner-protocol@0.1.0
+  - @shipfox/node-opentelemetry@0.4.2
+  - @shipfox/config@1.2.0
+  - @shipfox/node-egress-guard@0.0.0

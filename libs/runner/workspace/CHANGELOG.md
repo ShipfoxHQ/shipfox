@@ -1,0 +1,43 @@
+# @shipfox/runner-workspace
+
+## 0.0.1
+
+### Patch Changes
+
+- c7d8b39: Implement the repository checkout inside the runner's "Set up job" step. The setup
+  step now ensures `git` is available, exchanges the job lease for short-lived
+  read-only checkout credentials via the checkout-token endpoint, and shallow-clones
+  the project repository's default branch into the per-job directory. Every failure
+  mode (missing `git`, denied credential, unreachable provider, generic clone failure)
+  fails the job before any user step runs with a machine-readable `reason`. Credentials
+  are injected with a one-shot `http.extraHeader`, never persisted to `.git/config`,
+  and redacted from error messages.
+- Updated dependencies [eb40964]
+- Updated dependencies [5c18360]
+- Updated dependencies [7a9943d]
+- Updated dependencies [c17dd6e]
+- Updated dependencies [e47f8da]
+- Updated dependencies [736249b]
+- Updated dependencies [2bc5595]
+- Updated dependencies [7b175f5]
+- Updated dependencies [940696a]
+- Updated dependencies [f98c2be]
+- Updated dependencies [e9396c9]
+- Updated dependencies [b525dcd]
+- Updated dependencies [3afb7e3]
+- Updated dependencies [c652a68]
+- Updated dependencies [795f440]
+- Updated dependencies [3dcd751]
+- Updated dependencies [c0a883c]
+- Updated dependencies [362b3eb]
+- Updated dependencies [d69b164]
+- Updated dependencies [2fb3e87]
+- Updated dependencies [ef1e917]
+- Updated dependencies [27770eb]
+- Updated dependencies [2933c33]
+- Updated dependencies [e699508]
+- Updated dependencies [8ecc121]
+  - @shipfox/api-workflows-dto@0.1.0
+  - @shipfox/node-opentelemetry@0.4.2
+  - @shipfox/regex@0.2.0
+  - @shipfox/config@1.2.0
