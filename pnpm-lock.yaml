@@ -748,6 +748,34 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/vitest
 
+  e2e/setup/integrations:
+    dependencies:
+      '@shipfox/api-integration-linear-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/linear-dto
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   e2e/setup/projects:
     dependencies:
       '@shipfox/api-projects-dto':
@@ -1119,9 +1147,15 @@ importers:
 
   e2e/suites/flow/workflows:
     devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.29.0
+        version: 1.29.0(zod@4.4.3)
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/definitions-dto
+      '@shipfox/api-integration-linear-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/linear-dto
       '@shipfox/api-integration-webhook-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/integration/webhook-dto
@@ -1170,6 +1204,9 @@ importers:
       '@shipfox/e2e-setup-auth':
         specifier: workspace:*
         version: link:../../../setup/auth
+      '@shipfox/e2e-setup-integrations':
+        specifier: workspace:*
+        version: link:../../../setup/integrations
       '@shipfox/e2e-setup-secrets':
         specifier: workspace:*
         version: link:../../../setup/secrets

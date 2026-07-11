@@ -15,6 +15,7 @@
     "#expect.js": "./src/expect.ts",
     "#listener-helpers.js": "./src/listener-helpers.ts",
     "#listener-jobs.js": "./src/listener-jobs.ts",
+    "#linear-mcp.js": "./src/linear-mcp.ts",
     "#polling.js": "./src/polling.ts",
     "#run-scenario.js": "./src/run-scenario.ts",
     "#runner.js": "./src/runner.ts",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-integration-webhook-dto": "workspace:*",
+    "@shipfox/api-integration-linear-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-triggers-dto": "workspace:*",
@@ -50,6 +52,7 @@
     "@shipfox/e2e-observe-logs": "workspace:*",
     "@shipfox/e2e-observe-workflows": "workspace:*",
     "@shipfox/e2e-setup-agent": "workspace:*",
+    "@shipfox/e2e-setup-integrations": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",
     "@shipfox/e2e-setup-secrets": "workspace:*",
     "@shipfox/e2e-setup-workspaces": "workspace:*",
@@ -58,6 +61,7 @@
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
     "@types/js-yaml": "^4.0.9",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "js-yaml": "^4.1.0",
     "zod": "^4.4.3"
   }

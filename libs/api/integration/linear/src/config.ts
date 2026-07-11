@@ -13,6 +13,10 @@ const linearConfigSchema = {
   LINEAR_OAUTH_REDIRECT_URL: url({
     desc: 'Public client callback URL Linear redirects to after OAuth authorization, such as https://shipfox.example.com/integrations/linear/callback. Required.',
   }),
+  LINEAR_MCP_ENDPOINT: url({
+    desc: 'Streamable HTTP endpoint used for Linear MCP tool calls. Set this only when routing Linear tools through a compatible proxy or test server.',
+    default: 'https://mcp.linear.app/mcp',
+  }),
 };
 
 export const config = createConfig(linearConfigSchema);

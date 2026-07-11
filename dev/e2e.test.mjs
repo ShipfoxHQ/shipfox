@@ -64,6 +64,9 @@ describe('e2eEnv', () => {
     assert.equal(env.CLIENT_URL, 'http://localhost:55350');
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:55356');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
+    assert.equal(env.INTEGRATIONS_ENABLE_LINEAR_PROVIDER, 'true');
+    assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
+    assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
     assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, undefined);
     assert.equal(env.VITE_API_URL, 'http://localhost:55351');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'http://localhost:55351');
@@ -75,6 +78,7 @@ describe('e2eEnv', () => {
       CLIENT_URL: 'http://localhost:5173',
       E2E_GITEA_URL: 'http://localhost:3001',
       GITEA_CLONE_BASE_URL: 'http://localhost:3000',
+      LINEAR_MCP_ENDPOINT: 'http://127.0.0.1:16120/mcp',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -84,6 +88,7 @@ describe('e2eEnv', () => {
     assert.equal(env.CLIENT_URL, 'http://localhost:5173');
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:3001');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:3000');
+    assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:16120/mcp');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
   });
 
@@ -93,6 +98,13 @@ describe('e2eEnv', () => {
     });
 
     assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, '3');
+  });
+
+  test('rejects an API port that cannot reserve the Linear MCP offset', () => {
+    assert.throws(
+      () => e2eEnv({API_URL: 'http://localhost:65527'}),
+      /Cannot derive a Linear MCP port/u,
+    );
   });
 });
 

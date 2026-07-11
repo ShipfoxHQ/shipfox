@@ -81,6 +81,10 @@ export {
   upsertLinearInstallation,
   withLinearRefreshLock,
 } from '#db/installations.js';
+export {
+  type CreateLinearE2eRoutesOptions,
+  createLinearE2eRoutes,
+} from '#presentation/e2eRoutes/index.js';
 export {closeDb, config, db, migrationsPath};
 
 export interface CreateLinearIntegrationProviderOptions {

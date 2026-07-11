@@ -29,7 +29,9 @@ async function loadLinearModuleParts(
 ): Promise<IntegrationModuleParts> {
   const {
     createLinearTokenStore,
+    createLinearE2eRoutes,
     createLinearIntegrationProvider,
+    config: linearConfig,
     disconnectLinearInstallation: disconnectLinearInstallationRecords,
     getLinearInstallationByOrganizationId,
     db: linearDb,
@@ -134,7 +136,7 @@ async function loadLinearModuleParts(
 
   return {
     provider: createLinearIntegrationProvider({
-      agentTools: {tokenStore},
+      agentTools: {tokenStore, endpoint: linearConfig.LINEAR_MCP_ENDPOINT},
       routes: {
         tokenStore,
         getExistingLinearConnection,
@@ -146,6 +148,15 @@ async function loadLinearModuleParts(
         coreDb: db,
       },
     }),
+    e2eRoutes: [
+      createLinearE2eRoutes({
+        tokenStore,
+        getExistingLinearConnection,
+        connectLinearInstallation,
+        disconnectLinearInstallation,
+        connectionCapabilities: ['agent_tools'],
+      }),
+    ],
     database: {
       db: linearDb,
       migrationsPath: linearMigrationsPath,

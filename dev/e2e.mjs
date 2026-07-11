@@ -169,6 +169,7 @@ export function e2eEnv(sourceEnv) {
   const apiUrl = sourceEnv.API_URL ?? sourceEnv.SHIPFOX_API_URL ?? defaultApiUrl;
   const clientUrl = sourceEnv.CLIENT_URL ?? sourceEnv.CLIENT_BASE_URL ?? defaultClientUrl;
   const giteaUrl = sourceEnv.E2E_GITEA_URL ?? sourceEnv.GITEA_BASE_URL ?? 'http://localhost:3000';
+  const linearMcpEndpoint = sourceEnv.LINEAR_MCP_ENDPOINT ?? e2eLinearMcpEndpoint(apiUrl);
   return {
     ...sourceEnv,
     API_URL: apiUrl,
@@ -179,10 +180,34 @@ export function e2eEnv(sourceEnv) {
     E2E_GITEA_URL: giteaUrl,
     GITEA_CLONE_BASE_URL: sourceEnv.GITEA_CLONE_BASE_URL ?? giteaUrl,
     HOST: sourceEnv.HOST ?? '0.0.0.0',
+    INTEGRATIONS_ENABLE_LINEAR_PROVIDER: sourceEnv.INTEGRATIONS_ENABLE_LINEAR_PROVIDER ?? 'true',
+    LINEAR_MCP_ENDPOINT: linearMcpEndpoint,
+    LINEAR_OAUTH_CLIENT_ID: sourceEnv.LINEAR_OAUTH_CLIENT_ID ?? 'e2e-linear-client-id',
+    LINEAR_OAUTH_CLIENT_SECRET:
+      sourceEnv.LINEAR_OAUTH_CLIENT_SECRET ?? 'e2e-linear-client-secret',
+    LINEAR_OAUTH_REDIRECT_URL:
+      sourceEnv.LINEAR_OAUTH_REDIRECT_URL ?? `${clientUrl}/integrations/linear/callback`,
+    LINEAR_WEBHOOK_SIGNING_SECRET:
+      sourceEnv.LINEAR_WEBHOOK_SIGNING_SECRET ?? 'e2e-linear-webhook-secret',
     VITE_API_URL: sourceEnv.VITE_API_URL ?? apiUrl,
     VITE_ENABLE_TEST_VCS_PROVIDER: sourceEnv.VITE_ENABLE_TEST_VCS_PROVIDER ?? 'true',
     WEBHOOK_PUBLIC_URL: sourceEnv.WEBHOOK_PUBLIC_URL ?? apiUrl,
   };
+}
+
+export function e2eLinearMcpEndpoint(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  const linearMcpPort = apiPort + 9;
+  if (linearMcpPort > 65_535) {
+    throw new Error(`Cannot derive a Linear MCP port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(linearMcpPort);
+  endpoint.pathname = '/mcp';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
 }
 
 export function turboCommandArgs(options, env) {
