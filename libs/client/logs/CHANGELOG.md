@@ -1,0 +1,66 @@
+# @shipfox/client-logs
+
+## 0.1.0
+
+### Minor Changes
+
+- b83d31a: Renders agent session log records inline with process output so agent steps show prompts, assistant messages, thinking, tool activity, and failure anchors.
+- f104ff2: Add `@shipfox/client-logs`: the record components for the step-log read stream, composing the `@shipfox/react-ui` log primitives. This covers every process and system record (`output`, `group_start`/`group_end`, `end`, `gap`, `capped`, `runner_lost`); `agent_session` is rendered by the agent-sessions surface.
+  - `buildLogTree(records)` is a pure transform that reconstructs the group tree from the flat record list. `group_end` closes the matching `group_id` (so a `group_start` dropped under gap/backlog pressure does not mis-nest), record dispatch is an exhaustive switch, and each group node carries a precomputed `hasError` (a `runner_lost` in its subtree, a genuine failure; `stderr` is a channel, not an error) and subtree line count.
+  - `OutputLogRow` renders stdout/stderr (stderr gets a subtle left channel rule, not a background tint), `LogGroup` is a collapsible disclosure with running/duration/incomplete affordances and an inset error bar, the system markers render as timeline rows, and `LogView` is the top-level dispatcher with an empty state. Reviewed in a package-local Storybook captured by Argos (`client-logs`).
+  - `@shipfox/api-logs-dto` now measures UTF-8 byte length with `TextEncoder` instead of `node:buffer`, so this shared record contract is browser-safe for the client log viewer. Behavior is identical.
+  - `@shipfox/react-ui` gains two shared formatters in `utils`: `formatBytes` (new) and `formatDuration` (an ms-span, sub-second sibling to the existing `humanDuration`), so `client-logs` and future packages share one implementation instead of re-rolling them.
+
+- 0c6373a: Adds a React Query data layer for step logs that maps inline and presigned reads into one polling snapshot.
+
+### Patch Changes
+
+- dc3e434: Show logs inline under the active or selected workflow step attempt, including missing-stream retry for running attempts and stale-log retry states.
+- Updated dependencies [43d7996]
+- Updated dependencies [14e0bea]
+- Updated dependencies [a56748d]
+- Updated dependencies [9018f0b]
+- Updated dependencies [7fdfd72]
+- Updated dependencies [2a3193f]
+- Updated dependencies [f104ff2]
+- Updated dependencies [7341569]
+- Updated dependencies [68e4022]
+- Updated dependencies [f92122b]
+- Updated dependencies [4207772]
+- Updated dependencies [d49ee4c]
+- Updated dependencies [e4c6abf]
+- Updated dependencies [2883ab4]
+- Updated dependencies [5d0676a]
+- Updated dependencies [a35c2dc]
+- Updated dependencies [58f7aef]
+- Updated dependencies [5264a22]
+- Updated dependencies [9674879]
+- Updated dependencies [225c9a5]
+- Updated dependencies [bf8319f]
+- Updated dependencies [24f131b]
+- Updated dependencies [bb2a7bc]
+- Updated dependencies [5eb06d0]
+- Updated dependencies [4e13e5f]
+- Updated dependencies [e92150d]
+- Updated dependencies [8037501]
+- Updated dependencies [0fb6018]
+- Updated dependencies [c27a1ed]
+- Updated dependencies [b8e49ff]
+- Updated dependencies [8037501]
+- Updated dependencies [6c0da64]
+- Updated dependencies [07f8ff8]
+- Updated dependencies [e457582]
+- Updated dependencies [8b5c905]
+- Updated dependencies [f849131]
+- Updated dependencies [94bdcc5]
+- Updated dependencies [a34c8ea]
+- Updated dependencies [2933c33]
+- Updated dependencies [8ac4bf4]
+- Updated dependencies [3a0be6b]
+- Updated dependencies [d42baf4]
+- Updated dependencies [8037501]
+- Updated dependencies [54bb8a3]
+- Updated dependencies [f711e18]
+  - @shipfox/react-ui@0.3.0
+  - @shipfox/api-logs-dto@0.1.0
+  - @shipfox/client-api@0.0.1

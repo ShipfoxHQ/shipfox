@@ -1,5 +1,13 @@
 # @shipfox/vitest
 
+## 1.2.2
+
+### Patch Changes
+
+- 166d90b: Adds an environment-controlled Vitest worker cap to reduce CI CPU contention.
+- c73370c: Disables Rolldown plugin timing warnings in shared Vitest dependency optimization config.
+- c93fa59: Lets package Vitest configs override the shared CI worker cap so small suites can default to one worker while heavier suites keep targeted parallelism.
+
 ## 1.2.1
 
 ### Patch Changes
