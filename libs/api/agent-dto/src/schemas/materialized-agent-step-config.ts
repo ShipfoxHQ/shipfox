@@ -29,7 +29,6 @@ export const materializedAgentIntegrationSchema = z.strictObject({
   connectionId: z.string().min(1),
   connectionSlug: z.string().min(1),
   provider: z.string().min(1),
-  repos: z.array(z.string().min(1)).min(1),
   requiredScope: agentToolRequiredScopeSchema,
   tools: z.array(materializedAgentIntegrationToolSchema).min(1),
 });

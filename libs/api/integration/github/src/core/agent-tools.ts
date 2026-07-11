@@ -1,16 +1,29 @@
 import type {
+  AgentToolCallInput,
   AgentToolCatalogEntry,
   AgentToolCatalogMethod,
   AgentToolJsonSchema,
   AgentToolSelectionCatalog,
+  AgentToolSession,
   AgentToolsProvider,
   IntegrationConnection,
+  OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-core-dto';
+import {Octokit} from 'octokit';
+import {
+  createGithubInstallationTokenProvider,
+  type GithubInstallationTokenProvider,
+} from '#api/installation-token-provider.js';
+import type {GithubInstallation} from '#db/installations.js';
 import {DEFAULT_JOB_LOG_TAIL_LINES} from './actions-logs.js';
 import {buildGithubAgentToolSelectionCatalog} from './agent-tool-selection.js';
 import {GithubIntegrationProviderError} from './errors.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
+type GithubToolCallResult = {
+  isError?: boolean | undefined;
+  content: readonly {type: 'text'; text: string}[];
+};
 
 export type GithubAgentToolCategory = 'issues' | 'pull_requests' | 'actions';
 export type GithubAgentToolPermission = 'actions' | 'contents' | 'issues' | 'pull_requests';
@@ -770,8 +783,20 @@ export const githubAgentToolSelectionCatalog =
   buildGithubAgentToolSelectionCatalog(githubAgentToolCatalog);
 
 export class GithubAgentToolsProvider
-  implements AgentToolsProvider<GithubIntegrationConnection, GithubAgentToolRequiredScope>
+  implements
+    AgentToolsProvider<
+      GithubIntegrationConnection,
+      GithubAgentToolRequiredScope,
+      unknown,
+      GithubToolCallResult
+    >
 {
+  private readonly tokenProvider: GithubInstallationTokenProvider;
+
+  constructor(private readonly options: GithubAgentToolsProviderOptions = {}) {
+    this.tokenProvider = options.tokenProvider ?? createGithubInstallationTokenProvider();
+  }
+
   catalog(): readonly GithubAgentToolCatalogEntry[] {
     return githubAgentToolCatalog;
   }
@@ -780,14 +805,291 @@ export class GithubAgentToolsProvider
     return githubAgentToolSelectionCatalog;
   }
 
-  openSession(): Promise<never> {
-    return Promise.reject(
-      new GithubIntegrationProviderError(
-        'provider-unavailable',
-        'GitHub agent tool execution is not implemented yet',
-      ),
-    );
+  async openSession(
+    input: OpenAgentToolsSessionInput<GithubIntegrationConnection, GithubAgentToolRequiredScope>,
+  ): Promise<AgentToolSession<GithubToolCallResult>> {
+    const installation = await this.options.getInstallationByConnectionId?.(input.connection.id);
+    if (!installation) {
+      throw new GithubIntegrationProviderError(
+        'installation-not-found',
+        'GitHub installation is not connected to this integration',
+      );
+    }
+    const installationId = Number(installation.installationId);
+    if (!Number.isSafeInteger(installationId) || installationId < 1) {
+      throw new GithubIntegrationProviderError(
+        'malformed-provider-response',
+        'GitHub installation has an invalid installation ID',
+      );
+    }
+    let tokenPromise:
+      | ReturnType<GithubInstallationTokenProvider['getInstallationAccessToken']>
+      | undefined;
+
+    return {
+      call: async (call) => {
+        const tool = input.tools.find((candidate) => candidate.id === call.toolId);
+        if (!tool) return githubToolError(`Unknown GitHub tool: ${call.toolId}`);
+        const operation = resolveGithubOperation(tool, call);
+        if (operation === undefined) return githubToolError('Unknown GitHub tool operation');
+        const validationError = validateGithubToolArguments(tool, call.arguments);
+        if (validationError) return githubToolError(validationError);
+        tokenPromise ??= this.tokenProvider.getInstallationAccessToken(installationId);
+        const token = await tokenPromise;
+        if (!hasGrantedPermissions(token.permissions ?? {}, tool, call)) {
+          return githubToolError(
+            'GitHub installation token is missing permission for this operation',
+          );
+        }
+        const client = (this.options.createClient ?? createOctokitClient)(token.token);
+
+        try {
+          const response = await client.request(operation.route, operation.parameters);
+          return githubToolResult(response.data);
+        } catch (error) {
+          if (error instanceof GithubIntegrationProviderError)
+            return githubToolError(error.message);
+          throw error;
+        }
+      },
+    };
   }
+}
+
+export interface GithubAgentToolsProviderOptions {
+  getInstallationByConnectionId?:
+    | ((connectionId: string) => Promise<GithubInstallation | undefined>)
+    | undefined;
+  tokenProvider?: GithubInstallationTokenProvider | undefined;
+  createClient?: GithubToolClientFactory | undefined;
+}
+
+export interface GithubToolClient {
+  request(route: string, parameters: Record<string, unknown>): Promise<{data: unknown}>;
+}
+
+export type GithubToolClientFactory = (token: string) => GithubToolClient;
+
+interface GithubToolOperation {
+  route: string;
+  parameters: Record<string, unknown>;
+}
+
+function createOctokitClient(token: string): GithubToolClient {
+  const octokit = new Octokit({auth: token, retry: {enabled: false}});
+  return {
+    request: async (route, parameters) => await octokit.request(route, parameters),
+  };
+}
+
+function resolveGithubOperation(
+  tool: AgentToolCatalogEntry<GithubAgentToolRequiredScope>,
+  call: AgentToolCallInput,
+): GithubToolOperation | undefined {
+  const args = call.arguments;
+  const method = typeof args.method === 'string' ? args.method : undefined;
+  const params = {...args};
+  delete params.method;
+
+  if (tool.methods && !tool.methods.some((candidate) => candidate.id === method)) return undefined;
+
+  const toolId = tool.id as GithubAgentToolId;
+  const route = githubOperationRoute(toolId, method, params);
+  return route === undefined
+    ? undefined
+    : {route, parameters: projectGithubOperationParameters(toolId, method, params)};
+}
+
+function githubOperationRoute(
+  toolId: GithubAgentToolId,
+  method: string | undefined,
+  args: Record<string, unknown>,
+): string | undefined {
+  const owner = '{owner}';
+  const repo = '{repo}';
+  const issue = '{issue_number}';
+  const pull = '{pull_number}';
+  const run = '{run_id}';
+  const resource = '{resource_id}';
+  const repoPath = `/repos/${owner}/${repo}`;
+
+  switch (`${toolId}.${method ?? ''}`) {
+    case 'issue_read.get':
+      return `GET ${repoPath}/issues/${issue}`;
+    case 'issue_read.get_comments':
+      return `GET ${repoPath}/issues/${issue}/comments`;
+    case 'issue_read.get_sub_issues':
+      return `GET ${repoPath}/issues/${issue}/sub_issues`;
+    case 'issue_read.get_parent':
+      return `GET ${repoPath}/issues/${issue}/parent`;
+    case 'issue_read.get_labels':
+      return `GET ${repoPath}/issues/${issue}/labels`;
+    case 'list_issue_types.':
+      return args.repo === undefined
+        ? 'GET /orgs/{owner}/issue-types'
+        : `GET ${repoPath}/issue-types`;
+    case 'list_issues.':
+      return `GET ${repoPath}/issues`;
+    case 'search_issues.':
+      return 'GET /search/issues';
+    case 'add_issue_comment.':
+      if (args.comment_id !== undefined)
+        return `POST ${repoPath}/issues/comments/{comment_id}/reactions`;
+      return args.reaction !== undefined && args.body === undefined
+        ? `POST ${repoPath}/issues/${issue}/reactions`
+        : `POST ${repoPath}/issues/${issue}/comments`;
+    case 'issue_write.create':
+      return `POST ${repoPath}/issues`;
+    case 'issue_write.update':
+      return `PATCH ${repoPath}/issues/${issue}`;
+    case 'sub_issue_write.add':
+      return `POST ${repoPath}/issues/${issue}/sub_issues`;
+    case 'sub_issue_write.remove':
+      return `DELETE ${repoPath}/issues/${issue}/sub_issues/{sub_issue_id}`;
+    case 'sub_issue_write.reprioritize':
+      return `PATCH ${repoPath}/issues/${issue}/sub_issues/{sub_issue_id}`;
+    case 'pull_request_read.get':
+      return `GET ${repoPath}/pulls/${pull}`;
+    case 'pull_request_read.get_diff':
+      return `GET ${repoPath}/pulls/${pull}`;
+    case 'pull_request_read.get_status':
+      return `GET ${repoPath}/commits/{ref}/status`;
+    case 'pull_request_read.get_files':
+      return `GET ${repoPath}/pulls/${pull}/files`;
+    case 'pull_request_read.get_commits':
+      return `GET ${repoPath}/pulls/${pull}/commits`;
+    case 'pull_request_read.get_review_comments':
+      return `GET ${repoPath}/pulls/${pull}/comments`;
+    case 'pull_request_read.get_reviews':
+      return `GET ${repoPath}/pulls/${pull}/reviews`;
+    case 'pull_request_read.get_comments':
+      return `GET ${repoPath}/issues/${pull}/comments`;
+    case 'pull_request_read.get_check_runs':
+      return `GET ${repoPath}/commits/{ref}/check-runs`;
+    case 'list_pull_requests.':
+      return `GET ${repoPath}/pulls`;
+    case 'search_pull_requests.':
+      return 'GET /search/issues';
+    case 'create_pull_request.':
+      return `POST ${repoPath}/pulls`;
+    case 'update_pull_request.':
+      return `PATCH ${repoPath}/pulls/${pull}`;
+    case 'add_reply_to_pull_request_comment.':
+      return `POST ${repoPath}/pulls/{comment_id}/replies`;
+    case 'merge_pull_request.':
+      return `PUT ${repoPath}/pulls/${pull}/merge`;
+    case 'update_pull_request_branch.':
+      return `PUT ${repoPath}/pulls/${pull}/update-branch`;
+    case 'pull_request_review_write.create':
+      return `POST ${repoPath}/pulls/${pull}/reviews`;
+    case 'pull_request_review_write.submit_pending':
+      return `POST ${repoPath}/pulls/${pull}/reviews/{review_id}/events`;
+    case 'pull_request_review_write.delete_pending':
+      return `DELETE ${repoPath}/pulls/${pull}/reviews/{review_id}`;
+    case 'add_comment_to_pending_review.':
+      return `POST ${repoPath}/pulls/${pull}/comments`;
+    case 'actions_list.list_workflows':
+      return `GET ${repoPath}/actions/workflows`;
+    case 'actions_list.list_workflow_runs':
+      return `GET ${repoPath}/actions/workflows/${resource}/runs`;
+    case 'actions_list.list_workflow_jobs':
+      return `GET ${repoPath}/actions/runs/${resource}/jobs`;
+    case 'actions_list.list_workflow_run_artifacts':
+      return `GET ${repoPath}/actions/runs/${resource}/artifacts`;
+    case 'actions_get.get_workflow':
+      return `GET ${repoPath}/actions/workflows/${resource}`;
+    case 'actions_get.get_workflow_run':
+      return `GET ${repoPath}/actions/runs/${resource}`;
+    case 'actions_get.get_workflow_job':
+      return `GET ${repoPath}/actions/jobs/${resource}`;
+    case 'actions_get.download_workflow_run_artifact':
+      return `GET ${repoPath}/actions/artifacts/${resource}/{archive_format}`;
+    case 'actions_get.get_workflow_run_usage':
+      return `GET ${repoPath}/actions/runs/${resource}/timing`;
+    case 'actions_get.get_workflow_run_logs_url':
+      return `GET ${repoPath}/actions/runs/${resource}/logs`;
+    case 'actions_run_trigger.run_workflow':
+      return `POST ${repoPath}/actions/workflows/{workflow_id}/dispatches`;
+    case 'actions_run_trigger.rerun_workflow_run':
+      return `POST ${repoPath}/actions/runs/${run}/rerun`;
+    case 'actions_run_trigger.rerun_failed_jobs':
+      return `POST ${repoPath}/actions/runs/${run}/rerun-failed-jobs`;
+    case 'actions_run_trigger.cancel_workflow_run':
+      return `POST ${repoPath}/actions/runs/${run}/cancel`;
+    case 'actions_run_trigger.delete_workflow_run_logs':
+      return `DELETE ${repoPath}/actions/runs/${run}/logs`;
+    case 'get_job_logs.':
+      return `GET ${repoPath}/actions/jobs/{job_id}/logs`;
+    default:
+      return undefined;
+  }
+}
+
+function projectGithubOperationParameters(
+  toolId: GithubAgentToolId,
+  method: string | undefined,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const parameters = {...args};
+  if (toolId === 'add_issue_comment' && parameters.reaction !== undefined) {
+    parameters.content = parameters.reaction;
+    delete parameters.reaction;
+    if (parameters.body === undefined) delete parameters.body;
+  }
+  if (toolId === 'pull_request_read' && method === 'get_diff') {
+    parameters.headers = {accept: 'application/vnd.github.diff'};
+  }
+  return parameters;
+}
+
+function githubToolResult(data: unknown): GithubToolCallResult {
+  return {content: [{type: 'text', text: JSON.stringify(data)}]};
+}
+
+function githubToolError(message: string): GithubToolCallResult {
+  return {isError: true, content: [{type: 'text', text: message}]};
+}
+
+function validateGithubToolArguments(
+  tool: AgentToolCatalogEntry<GithubAgentToolRequiredScope>,
+  arguments_: Record<string, unknown>,
+): string | undefined {
+  const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : [];
+  for (const name of required) {
+    if (typeof name === 'string' && arguments_[name] === undefined) {
+      return `Missing required parameter: ${name}`;
+    }
+  }
+
+  const properties = tool.inputSchema.properties;
+  if (typeof properties !== 'object' || properties === null || Array.isArray(properties)) {
+    return undefined;
+  }
+  const propertySchemas = properties as Record<string, unknown>;
+  for (const [name, value] of Object.entries(arguments_)) {
+    const schema = propertySchemas[name];
+    if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) continue;
+    const type = (schema as {type?: unknown}).type;
+    if (type === 'integer' && (!Number.isInteger(value) || typeof value !== 'number')) {
+      return `Parameter ${name} must be an integer`;
+    }
+    if (type === 'array' && !Array.isArray(value)) return `Parameter ${name} must be an array`;
+  }
+  return undefined;
+}
+
+function hasGrantedPermissions(
+  granted: Record<string, 'read' | 'write' | 'admin'>,
+  tool: AgentToolCatalogEntry<GithubAgentToolRequiredScope>,
+  call: AgentToolCallInput,
+): boolean {
+  const method = typeof call.arguments.method === 'string' ? call.arguments.method : undefined;
+  const required =
+    tool.methods?.find((candidate) => candidate.id === method)?.requiredScope ?? tool.requiredScope;
+  return required.every(({permission, access}) => {
+    const actual = granted[permission];
+    return actual === 'write' || actual === 'admin' || actual === access;
+  });
 }
 
 function tool(input: GithubAgentToolCatalogInput): GithubAgentToolCatalogEntry {

@@ -89,7 +89,6 @@ function githubAgentToolContext(
       slug: 'github-main',
       provider: 'github',
     },
-    defaultRepositoryId: 'github:owner/repo',
   };
 }
 
@@ -270,7 +269,6 @@ describe('materializeJobExecutionSteps', () => {
         connectionId: 'connection-1',
         connectionSlug: 'github-main',
         provider: 'github',
-        repos: ['github:owner/repo'],
         requiredScope: [
           {permission: 'issues', access: 'write'},
           {permission: 'pull_requests', access: 'write'},
@@ -352,7 +350,6 @@ describe('materializeJobExecutionSteps', () => {
                   include: ['issue_read'],
                   exclude: ['issue_read.get_comments'],
                   allowWrite: false,
-                  repos: ['github:owner/explicit'],
                 },
               ],
             },
@@ -382,7 +379,6 @@ describe('materializeJobExecutionSteps', () => {
         connectionId: 'connection-1',
         connectionSlug: 'github-main',
         provider: 'github',
-        repos: ['github:owner/explicit'],
         requiredScope: [{permission: 'issues', access: 'read'}],
         tools: [
           {

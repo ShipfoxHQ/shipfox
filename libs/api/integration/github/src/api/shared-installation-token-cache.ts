@@ -127,6 +127,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
       await this.writeEnvelope(params.workspaceId, params.installationId, {
         token: envelope?.token,
         expiresAt: envelope?.expiresAt,
+        permissions: envelope?.permissions,
         backoffUntil: until,
         backoffReason: classified.reason,
       }).catch((writeError) => {
@@ -171,6 +172,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
       await this.writeEnvelope(params.workspaceId, params.installationId, {
         token: token.token,
         expiresAt: token.expiresAt,
+        permissions: token.permissions,
       });
     } catch (error) {
       logger().warn(
@@ -318,7 +320,11 @@ function tokenFromEnvelope(envelope: InstallationTokenEnvelope): GithubInstallat
       'GitHub installation token cache envelope is missing a token or expiry',
     );
   }
-  return {token: envelope.token, expiresAt: envelope.expiresAt};
+  return {
+    token: envelope.token,
+    expiresAt: envelope.expiresAt,
+    ...(envelope.permissions === undefined ? {} : {permissions: envelope.permissions}),
+  };
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

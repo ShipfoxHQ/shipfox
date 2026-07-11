@@ -201,7 +201,6 @@ describe('normalizeWorkflowDocument', () => {
                     'list_issues',
                   ],
                   exclude: ['issue_read.get', 'issue_read.get'],
-                  repos: ['ShipfoxHQ/shipfox', 'ShipfoxHQ/shipfox'],
                 },
               ],
             },
@@ -219,7 +218,6 @@ describe('normalizeWorkflowDocument', () => {
           include: ['issue_read', 'issue_read.*', 'issue_read.get', 'list_issues'],
           exclude: ['issue_read.get'],
           allowWrite: false,
-          repos: ['ShipfoxHQ/shipfox'],
         },
       ],
     });

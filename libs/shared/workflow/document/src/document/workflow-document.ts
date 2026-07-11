@@ -228,7 +228,6 @@ export const workflowDocumentStepIntegrationSchema = z.strictObject({
   include: workflowDocumentStepIntegrationSelectionSchema,
   exclude: workflowDocumentStepIntegrationSelectionSchema.optional(),
   allow_write: z.boolean().optional(),
-  repos: z.array(z.string().min(1)).min(1).optional(),
 });
 
 // A step is a run step (`run`) or an inline agent step (`prompt`), never

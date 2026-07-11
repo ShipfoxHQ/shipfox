@@ -75,7 +75,6 @@ function materializedIntegration(): MaterializedAgentIntegrationConfigDto {
     connectionId: 'connection-1',
     connectionSlug: 'github-main',
     provider: 'github',
-    repos: ['github:owner/repo'],
     requiredScope: [{permission: 'issues', access: 'read'}],
     tools: [
       {

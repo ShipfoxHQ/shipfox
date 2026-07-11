@@ -6,6 +6,7 @@ import type {
 } from '@shipfox/api-integration-core-dto';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
+import type {GithubInstallationTokenProvider} from '#api/installation-token-provider.js';
 import {deleteGithubInstallationTokenSecret} from '#api/installation-token-provider.js';
 import {GithubAgentToolsProvider} from '#core/agent-tools.js';
 import {GithubSourceControlProvider} from '#core/source-control.js';
@@ -19,6 +20,10 @@ import {
 import {createGithubWebhookRoutes} from '#presentation/routes/webhooks.js';
 
 export type {GithubApiClient} from '#api/client.js';
+export {
+  encodeInstallationTokenEnvelope,
+  githubInstallationTokenNamespace,
+} from '#api/installation-token-envelope.js';
 export {
   createGithubInstallationTokenProvider,
   type GithubInstallationTokenProvider,
@@ -60,6 +65,7 @@ export interface CreateGithubIntegrationProviderOptions
   deleteSecrets?:
     | ((params: {workspaceId: string; namespace: string}) => Promise<number>)
     | undefined;
+  agentTools?: {tokenProvider: GithubInstallationTokenProvider} | undefined;
 }
 
 export function createGithubIntegrationProvider(options: CreateGithubIntegrationProviderOptions) {
@@ -73,7 +79,10 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     displayName: 'GitHub',
     adapters: {
       source_control: new GithubSourceControlProvider(github),
-      agent_tools: new GithubAgentToolsProvider(),
+      agent_tools: new GithubAgentToolsProvider({
+        getInstallationByConnectionId: getInstallationByConnectionId,
+        tokenProvider: options.agentTools?.tokenProvider,
+      }),
     },
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);

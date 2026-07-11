@@ -33,7 +33,6 @@ export interface AgentToolMaterializationContext {
     readonly slug: string;
     readonly provider: IntegrationProviderKind;
   };
-  readonly defaultRepositoryId: string;
 }
 
 export interface AgentToolMaterializationSnapshot {
@@ -100,7 +99,6 @@ export async function loadAgentToolMaterializationContext(params: {
       slug: defaultConnection.slug,
       provider: defaultConnection.provider,
     },
-    defaultRepositoryId: project.sourceExternalRepositoryId,
   };
 }
 
@@ -188,7 +186,6 @@ function materializeAgentIntegration(params: {
     connectionId: connection.id,
     connectionSlug: connection.slug,
     provider: connection.provider,
-    repos: [...(params.integration.repos ?? [params.context.defaultRepositoryId])],
     requiredScope,
     tools,
   };
@@ -199,7 +196,6 @@ function copyMaterializedIntegration(
 ): MaterializedAgentIntegrationConfigDto {
   return {
     ...integration,
-    repos: [...integration.repos],
     requiredScope: [...integration.requiredScope],
     tools: integration.tools.map((tool) => ({
       ...tool,

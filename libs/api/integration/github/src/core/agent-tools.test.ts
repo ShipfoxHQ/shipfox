@@ -300,16 +300,90 @@ describe('github agent tool catalog', () => {
     expect(selectionCatalog).toBe(githubAgentToolSelectionCatalog);
   });
 
-  it('fails closed for execution until dispatch is implemented', async () => {
-    const provider = new GithubAgentToolsProvider();
-
-    const result = provider.openSession();
-
-    await expect(result).rejects.toMatchObject({
-      reason: 'provider-unavailable',
+  it('fails closed when the connection has no GitHub installation', async () => {
+    const provider = new GithubAgentToolsProvider({
+      getInstallationByConnectionId: vi.fn(() => Promise.resolve(undefined)),
     });
+
+    const result = provider.openSession({
+      connection: connection(),
+      tools: [githubAgentToolCatalog[0]],
+      scope: undefined,
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'installation-not-found'});
+  });
+
+  it('opens a provider-owned installation session and dispatches the selected operation', async () => {
+    const request = vi.fn(() => Promise.resolve({data: {number: 1}}));
+    let clientToken: string | undefined;
+    const provider = new GithubAgentToolsProvider({
+      getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
+      tokenProvider: {
+        getInstallationAccessToken: vi.fn(() =>
+          Promise.resolve({
+            token: 'installation-token',
+            expiresAt: new Date(),
+            permissions: {issues: 'read' as const},
+          }),
+        ),
+      },
+      createClient: vi.fn((token) => {
+        clientToken = token;
+        return {request};
+      }),
+    });
+
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [githubAgentToolCatalog[0]],
+      scope: undefined,
+    });
+    const result = await session.call({
+      toolId: 'issue_read',
+      arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+    });
+
+    expect(request).toHaveBeenCalledWith('GET /repos/{owner}/{repo}/issues/{issue_number}', {
+      owner: 'shipfox',
+      repo: 'platform',
+      issue_number: 1,
+    });
+    expect(clientToken).toBe('installation-token');
+    expect(result).toEqual({content: [{type: 'text', text: '{"number":1}'}]});
   });
 });
+
+function connection() {
+  return {
+    id: 'connection-1',
+    workspaceId: 'workspace-1',
+    provider: 'github' as const,
+    externalAccountId: 'github:1',
+    slug: 'github-main',
+    displayName: 'GitHub',
+    lifecycleStatus: 'active' as const,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function installation() {
+  return {
+    id: 'installation-row-1',
+    connectionId: 'connection-1',
+    installationId: '1',
+    accountLogin: 'shipfox',
+    accountType: 'Organization',
+    repositorySelection: 'all',
+    suspendedAt: null,
+    deletedAt: null,
+    latestEvent: {},
+    installerUserId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
 
 function createProvider() {
   return createGithubIntegrationProvider({

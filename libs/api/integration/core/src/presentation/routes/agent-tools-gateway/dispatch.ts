@@ -35,14 +35,12 @@ async function dispatchIntegrationToolCall(
       typeof input.authorizedTool.connection,
       unknown,
       typeof input.authorizedTool.integration,
-      unknown,
       CallToolResult
     >;
     session = await adapter.openSession({
       connection: input.authorizedTool.connection,
       tools: [agentToolCatalogEntry(input)],
       scope: input.authorizedTool.integration,
-      mintToken: async (requiredScope) => requiredScope,
     });
 
     return await session.call({

@@ -77,6 +77,7 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
     return {
       token: response.data.token,
       expiresAt,
+      ...(response.data.permissions === undefined ? {} : {permissions: response.data.permissions}),
     };
   }
 

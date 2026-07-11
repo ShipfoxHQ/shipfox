@@ -148,8 +148,10 @@ describe('buildAgentToolsMcpServer', () => {
     );
   });
 
-  it('rejects arguments that do not match the exposed input schema', async () => {
-    const dispatch = vi.fn();
+  it('leaves provider argument validation to the selected provider', async () => {
+    const dispatch = vi.fn(async () => ({
+      content: [{type: 'text' as const, text: 'called'}],
+    }));
     const records: Parameters<
       NonNullable<Parameters<typeof buildAgentToolsMcpServer>[0]['recordCall']>
     >[0][] = [];
@@ -171,9 +173,13 @@ describe('buildAgentToolsMcpServer', () => {
     );
     await close();
 
-    expect(result.isError).toBe(true);
-    expect(dispatch).not.toHaveBeenCalled();
-    expect(records).toMatchObject([{method: 'get', outcome: 'invalid-request'}]);
+    expect(result.isError).not.toBe(true);
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        arguments: expect.objectContaining({issue_number: 'not-an-integer'}),
+      }),
+    );
+    expect(records).toMatchObject([{method: 'get', outcome: 'success'}]);
   });
 
   it('records tool-error when dispatch returns an error result', async () => {

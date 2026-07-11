@@ -128,7 +128,6 @@ export interface WorkflowModelStepIntegration {
   readonly include: readonly string[];
   readonly exclude?: readonly string[];
   readonly allowWrite: boolean;
-  readonly repos?: readonly string[];
 }
 
 export interface WorkflowSourceLocation {

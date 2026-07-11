@@ -48,7 +48,6 @@ describe('LinearAgentToolsProvider', () => {
       connection: linearConnection({id: 'linear-connection-7'}),
       tools: [],
       scope: {provider: 'linear'},
-      mintToken: async (scope) => scope,
     });
 
     expect(getAccessToken).toHaveBeenCalledWith({connectionId: 'linear-connection-7'});
@@ -77,7 +76,6 @@ describe('LinearAgentToolsProvider', () => {
         connection: linearConnection(),
         tools: [],
         scope: {provider: 'linear'},
-        mintToken: async (scope) => scope,
       });
       const result = await session.call({toolId: 'get_issue', arguments: {id: 'ENG-875'}});
       await session.close?.();
@@ -114,7 +112,6 @@ describe('LinearAgentToolsProvider', () => {
       connection: linearConnection(),
       tools: [],
       scope: {provider: 'linear'},
-      mintToken: async (scope) => scope,
     });
 
     const readResult = await session.call({
@@ -156,7 +153,6 @@ describe('LinearAgentToolsProvider', () => {
       connection: linearConnection(),
       tools: [],
       scope: {provider: 'linear'},
-      mintToken: async (scope) => scope,
     });
 
     await expect(result).rejects.toBeInstanceOf(LinearAccessTokenMissingError);
@@ -177,7 +173,6 @@ describe('LinearAgentToolsProvider', () => {
       connection: linearConnection(),
       tools: [],
       scope: {provider: 'linear'},
-      mintToken: async (scope) => scope,
     });
 
     const result = session.call({toolId: 'get_issue', arguments: {id: 'ENG-875'}});
