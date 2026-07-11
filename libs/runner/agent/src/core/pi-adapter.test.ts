@@ -8,7 +8,10 @@ const {
   defineToolMock,
   promptMock,
   abortMock,
+  bindExtensionsMock,
   getLastAssistantTextMock,
+  disposeMock,
+  extensionShutdownMock,
 } = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
   createAgentSessionServicesMock: vi.fn(),
@@ -19,7 +22,10 @@ const {
   defineToolMock: vi.fn((tool) => tool),
   promptMock: vi.fn(),
   abortMock: vi.fn(),
+  bindExtensionsMock: vi.fn(),
   getLastAssistantTextMock: vi.fn(),
+  disposeMock: vi.fn(),
+  extensionShutdownMock: vi.fn(),
 }));
 const {authStorageCreateMock, authStorageInMemoryMock} = vi.hoisted(() => ({
   authStorageCreateMock: vi.fn(),
@@ -65,7 +71,7 @@ vi.mock('@shipfox/node-egress-guard', () => ({
       .filter(Boolean),
 }));
 
-import {appendFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
@@ -77,6 +83,7 @@ import {
 } from '@shipfox/api-agent-dto';
 import {AgentConfigError} from '#core/errors.js';
 import type {HarnessInvocation} from '#core/harness.js';
+import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
 import {piHarnessAdapter} from '#core/pi-adapter.js';
 
 function invocation(overrides: Partial<HarnessInvocation> = {}): HarnessInvocation {
@@ -106,6 +113,18 @@ function customProvider(
   };
 }
 
+function mcpBridge(overrides: Partial<IntegrationToolsBridge> = {}): IntegrationToolsBridge {
+  return {
+    name: 'shipfox_integration_tools',
+    server: {} as IntegrationToolsBridge['server'],
+    listTools: vi.fn(),
+    callTool: vi.fn(),
+    activateHttp: vi.fn().mockResolvedValue(new URL('http://127.0.0.1:43123/mcp')),
+    close: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe('piHarnessAdapter', () => {
   // Tracked so the temp dir is removed in afterEach even if an assertion throws first.
   let sessionDir: string | undefined;
@@ -123,7 +142,10 @@ describe('piHarnessAdapter', () => {
     defineToolMock.mockClear();
     promptMock.mockReset();
     abortMock.mockReset();
+    bindExtensionsMock.mockReset();
     getLastAssistantTextMock.mockReset();
+    disposeMock.mockReset();
+    extensionShutdownMock.mockReset();
     assertEgressAllowedMock.mockReset();
     authStorageCreateMock.mockReset();
     authStorageInMemoryMock.mockReset();
@@ -135,11 +157,14 @@ describe('piHarnessAdapter', () => {
     hasConfiguredAuthMock.mockReturnValue(true);
     promptMock.mockResolvedValue(undefined);
     getLastAssistantTextMock.mockReturnValue(undefined);
-    createAgentSessionServicesMock.mockResolvedValue({cwd: '/work'});
+    createAgentSessionServicesMock.mockResolvedValue({cwd: '/work', diagnostics: []});
     createAgentSessionMock.mockResolvedValue({
       session: {
         prompt: promptMock,
         abort: abortMock,
+        bindExtensions: bindExtensionsMock,
+        dispose: disposeMock,
+        extensionRunner: {emit: extensionShutdownMock},
         getLastAssistantText: getLastAssistantTextMock,
         messages: [],
       },
@@ -168,7 +193,11 @@ describe('piHarnessAdapter', () => {
       }),
     );
     expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({services: {cwd: '/work'}, thinkingLevel: 'high', model}),
+      expect.objectContaining({
+        services: expect.objectContaining({cwd: '/work'}),
+        thinkingLevel: 'high',
+        model,
+      }),
     );
     expect(promptMock).toHaveBeenCalledWith(expect.stringContaining('Fix it.'));
     expect(result).toEqual({response: ''});
@@ -183,6 +212,84 @@ describe('piHarnessAdapter', () => {
       }),
     );
     expect(createAgentSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('customTools');
+  });
+
+  it('configures eager loopback MCP proxy access in the job workspace', async () => {
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
+    const bridge = mcpBridge();
+    let configPath = '';
+    let config: unknown;
+    createAgentSessionServicesMock.mockImplementation((options) => {
+      configPath = options.extensionFlagValues.get('mcp-config');
+      config = JSON.parse(readFileSync(configPath, 'utf8'));
+      return {cwd: sessionDir, diagnostics: []};
+    });
+
+    await piHarnessAdapter.run(invocation({cwd: sessionDir, mcpServers: [bridge]}));
+
+    expect(bridge.activateHttp).toHaveBeenCalledTimes(1);
+    expect(bindExtensionsMock).toHaveBeenCalledWith(expect.objectContaining({mode: 'print'}));
+    expect(configPath).toMatch(`${sessionDir}/logs/pi-mcp-`);
+    expect(config).toEqual({
+      settings: {toolPrefix: 'none'},
+      mcpServers: {
+        shipfox_integration_tools: {
+          url: 'http://127.0.0.1:43123/mcp',
+          auth: false,
+          lifecycle: 'eager',
+          exposeResources: false,
+        },
+      },
+    });
+    expect(createAgentSessionServicesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceLoaderOptions: {
+          additionalExtensionPaths: ['pi-web-access', 'pi-mcp-adapter'],
+        },
+      }),
+    );
+    expect(extensionShutdownMock).toHaveBeenCalledWith({type: 'session_shutdown', reason: 'quit'});
+    expect(disposeMock).toHaveBeenCalledAfter(extensionShutdownMock);
+    expect(existsSync(configPath)).toBe(false);
+  });
+
+  it('aborts Pi while MCP extensions are binding', async () => {
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
+    const abortController = new AbortController();
+    let resolveBinding: (() => void) | undefined;
+    bindExtensionsMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveBinding = resolve;
+        }),
+    );
+
+    const result = piHarnessAdapter.run(
+      invocation({
+        cwd: sessionDir,
+        signal: abortController.signal,
+        mcpServers: [mcpBridge()],
+      }),
+    );
+    await vi.waitFor(() => expect(bindExtensionsMock).toHaveBeenCalledTimes(1));
+
+    abortController.abort();
+
+    expect(abortMock).toHaveBeenCalledTimes(1);
+    resolveBinding?.();
+    await expect(result).rejects.toThrow('Agent step aborted during pi session creation');
+  });
+
+  it('fails before creating a Pi session when extension setup reports an error', async () => {
+    createAgentSessionServicesMock.mockResolvedValue({
+      cwd: '/work',
+      diagnostics: [{type: 'error', message: 'Unknown option: --mcp-config'}],
+    });
+
+    await expect(piHarnessAdapter.run(invocation())).rejects.toThrow(
+      'Pi extension setup failed: Unknown option: --mcp-config',
+    );
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
   it('registers the output tool for steps with declared outputs', async () => {
@@ -205,6 +312,36 @@ describe('piHarnessAdapter', () => {
     );
   });
 
+  it('adds the MCP proxy once when native tools are explicitly selected', async () => {
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
+    await piHarnessAdapter.run(
+      invocation({
+        cwd: sessionDir,
+        mcpServers: [mcpBridge()],
+        tools: ['read', 'mcp', 'web_search'],
+      }),
+    );
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({tools: ['read', 'mcp', 'web_search']}),
+    );
+  });
+
+  it('appends the MCP proxy tool to an explicit tools list that omits it', async () => {
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
+    await piHarnessAdapter.run(
+      invocation({
+        cwd: sessionDir,
+        mcpServers: [mcpBridge()],
+        tools: ['read', 'web_search'],
+      }),
+    );
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({tools: ['read', 'web_search', 'mcp']}),
+    );
+  });
+
   it('omits the Pi tools option when no tools are selected', async () => {
     await piHarnessAdapter.run(invocation());
 
@@ -220,6 +357,26 @@ describe('piHarnessAdapter', () => {
       invocation({
         provider: 'local-ollama',
         model: 'llama',
+        customProvider: customProvider({models: [{id: 'llama', label: 'Llama'}]}),
+      }),
+    );
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({model, noTools: 'builtin'}),
+    );
+  });
+
+  it('preserves custom-provider builtin suppression when MCP is configured', async () => {
+    const model = {provider: 'local-ollama', id: 'llama'};
+    findMock.mockReturnValue(model);
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
+
+    await piHarnessAdapter.run(
+      invocation({
+        cwd: sessionDir,
+        provider: 'local-ollama',
+        model: 'llama',
+        mcpServers: [mcpBridge()],
         customProvider: customProvider({models: [{id: 'llama', label: 'Llama'}]}),
       }),
     );

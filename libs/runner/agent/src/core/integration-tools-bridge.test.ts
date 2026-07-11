@@ -1,6 +1,7 @@
 import {once} from 'node:events';
 import {createServer, type Server as HttpServer} from 'node:http';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -94,6 +95,66 @@ describe('createIntegrationToolsBridge', () => {
     });
     expect(gateway.authorizations).toContain('Bearer lease-initial');
     expect(gateway.authorizations.at(-1)).toBe('Bearer lease-next');
+  });
+
+  it('serves the MCP bridge over one loopback endpoint', async () => {
+    let leaseToken = 'lease-initial';
+    gateway = await startFakeGateway(() => leaseToken);
+    const bridge = createIntegrationToolsBridge({
+      name: 'shipfox_integration_tools',
+      url: gateway.url,
+      fetch: leaseFetch(() => leaseToken),
+    });
+
+    const [endpoint, concurrentEndpoint] = await Promise.all([
+      bridge.activateHttp(),
+      bridge.activateHttp(),
+    ]);
+    const probe = new Client({name: 'pi-mcp-probe', version: '2.1.2'});
+    await probe.connect(new StreamableHTTPClientTransport(endpoint) as unknown as Transport);
+    await probe.close();
+    const client = new Client({name: 'test-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(endpoint);
+    await client.connect(transport as unknown as Transport);
+    const tools = await client.listTools();
+    leaseToken = 'lease-next';
+    const result = await client.callTool(
+      {
+        name: 'github_main__issue_read',
+        arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 3},
+      },
+      CallToolResultSchema,
+    );
+    const invalidPath = await fetch(new URL('/other', endpoint));
+    const invalidOrigin = await fetch(endpoint, {headers: {Origin: 'http://outside.example.test'}});
+    await client.close();
+    await bridge.close();
+
+    expect(endpoint).toEqual(concurrentEndpoint);
+    expect(endpoint.hostname).toBe('127.0.0.1');
+    expect(endpoint.pathname).toBe('/mcp');
+    expect(tools.tools.map((tool) => tool.name)).toEqual(['github_main__issue_read']);
+    expect(result.structuredContent).toEqual({
+      name: 'github_main__issue_read',
+      method: 'get',
+      issue_number: 3,
+    });
+    expect(gateway.authorizations.at(-1)).toBe('Bearer lease-next');
+    expect(invalidPath.status).toBe(404);
+    expect(invalidOrigin.status).toBe(403);
+  });
+
+  it('allows repeated close before activation', async () => {
+    gateway = await startFakeGateway(() => 'lease');
+    const bridge = createIntegrationToolsBridge({
+      name: 'shipfox_integration_tools',
+      url: gateway.url,
+      fetch: leaseFetch(() => 'lease'),
+    });
+
+    await Promise.all([bridge.close(), bridge.close()]);
+
+    await expect(bridge.activateHttp()).rejects.toThrow('closed');
   });
 });
 

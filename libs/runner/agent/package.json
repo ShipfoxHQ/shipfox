@@ -52,6 +52,7 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/runner-execution": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*",
+    "pi-mcp-adapter": "2.11.0",
     "pi-web-access": "0.13.0",
     "typebox": "1.1.38",
     "zod": "4.4.3"
