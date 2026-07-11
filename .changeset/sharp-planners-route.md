@@ -1,5 +1,5 @@
 ---
-"@shipfox/expression": major
+"@shipfox/expression": minor
 "@shipfox/api-definitions": minor
 "@shipfox/api-workflows": patch
 ---
