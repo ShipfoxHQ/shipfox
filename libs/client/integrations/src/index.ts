@@ -7,6 +7,8 @@ export * from './hooks/api/integrations.js';
 export * from './integration-icon.js';
 export * from './pages/gitea-install-page.js';
 export * from './pages/github-install-page.js';
+export * from './pages/linear-callback-page.js';
+export * from './pages/linear-install-page.js';
 export * from './pages/sentry-callback-page.js';
 export * from './pages/sentry-install-page.js';
 export * from './pages/source-control-onboarding-page.js';

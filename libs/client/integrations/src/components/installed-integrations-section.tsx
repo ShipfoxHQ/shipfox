@@ -28,6 +28,7 @@ interface InstalledIntegrationsSectionProps {
   onUse: (connectionId: string) => void;
   onSetActive: (connection: IntegrationConnectionDto, active: boolean) => void;
   onDelete: (connectionId: string) => void;
+  providerDisplayName: (provider: string) => string | undefined;
 }
 
 const INSTALLED_SURFACE_CLASS =
@@ -40,6 +41,7 @@ export function InstalledIntegrationsSection({
   onUse,
   onSetActive,
   onDelete,
+  providerDisplayName,
 }: InstalledIntegrationsSectionProps) {
   return (
     <section className="flex flex-col gap-16" aria-label="Installed integrations">
@@ -78,6 +80,7 @@ export function InstalledIntegrationsSection({
               onUse={onUse}
               onSetActive={(nextActive) => onSetActive(connection, nextActive)}
               onDelete={onDelete}
+              providerDisplayName={providerDisplayName}
             />
           ))}
         </ul>
@@ -92,16 +95,19 @@ function InstalledRow({
   onUse,
   onSetActive,
   onDelete,
+  providerDisplayName,
 }: {
   connection: IntegrationConnectionDto;
   isMutating: boolean;
   onUse: (connectionId: string) => void;
   onSetActive: (active: boolean) => void;
   onDelete: (connectionId: string) => void;
+  providerDisplayName: (provider: string) => string | undefined;
 }) {
   const muted = connection.lifecycle_status === 'disabled';
   const active = connection.lifecycle_status === 'active';
   const recentEventsEvent = usageEventsForConnection(connection)[0]?.value ?? 'received';
+  const providerName = providerDisplayName(connection.provider);
 
   return (
     <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
@@ -138,6 +144,13 @@ function InstalledRow({
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {connection.external_url ? (
+            <DropdownMenuItem asChild>
+              <a href={connection.external_url} target="_blank" rel="noreferrer noopener">
+                {providerName ? `Open in ${providerName}` : 'Open provider settings'}
+              </a>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onSelect={() => onUse(connection.id)}>
             Use this integration
           </DropdownMenuItem>

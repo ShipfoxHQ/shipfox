@@ -5,7 +5,8 @@ import type {IconName} from '@shipfox/react-ui/icon';
 export type ProviderSetupPath =
   | '/workspaces/$wid/integrations/github'
   | '/workspaces/$wid/integrations/gitea'
-  | '/workspaces/$wid/integrations/sentry';
+  | '/workspaces/$wid/integrations/sentry'
+  | '/workspaces/$wid/integrations/linear';
 
 interface RouteProviderCatalogEntry {
   kind: 'redirect-install' | 'direct-connect';
@@ -30,6 +31,11 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     kind: 'redirect-install',
     iconName: 'sentry',
     setupPath: '/workspaces/$wid/integrations/sentry',
+  },
+  linear: {
+    kind: 'redirect-install',
+    iconName: 'linear',
+    setupPath: '/workspaces/$wid/integrations/linear',
   },
   gitea: {
     kind: 'direct-connect',

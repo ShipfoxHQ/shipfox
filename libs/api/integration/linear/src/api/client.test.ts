@@ -79,7 +79,7 @@ describe('createLinearApiClient.exchangeAuthorizationCode', () => {
     expect(body.get('client_secret')).toBe('test-client-secret');
     expect(body.get('code')).toBe('oauth-code');
     expect(body.get('redirect_uri')).toBe(
-      'https://api.example.com/integrations/linear/callback/api',
+      'https://shipfox.example.com/integrations/linear/callback',
     );
     expect(result).toEqual({
       accessToken: 'access-token',

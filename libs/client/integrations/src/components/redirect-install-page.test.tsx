@@ -2,14 +2,24 @@
 import '@testing-library/jest-dom/vitest';
 import {ApiError} from '@shipfox/client-api';
 import {screen, waitFor} from '@testing-library/react';
+import {StrictMode} from 'react';
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage} from '#test/render.js';
 import {RedirectInstallPage} from './redirect-install-page.js';
 
-function renderInstallPage(props: Parameters<typeof RedirectInstallPage>[0]) {
+function renderInstallPage(
+  props: Parameters<typeof RedirectInstallPage>[0],
+  options?: {strict?: boolean},
+) {
   return renderIntegrationsPage({
     path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations/github`,
     routePath: '/workspaces/$wid/integrations/github',
-    element: <RedirectInstallPage {...props} />,
+    element: options?.strict ? (
+      <StrictMode>
+        <RedirectInstallPage {...props} />
+      </StrictMode>
+    ) : (
+      <RedirectInstallPage {...props} />
+    ),
     extraRoutes: ['/workspaces/$wid/integrations'],
   });
 }
@@ -32,10 +42,7 @@ describe('RedirectInstallPage', () => {
     await waitFor(() =>
       expect(assignLocation).toHaveBeenCalledWith('https://provider.test/install'),
     );
-    expect(installRequest).toHaveBeenCalledWith(
-      {workspace_id: INTEGRATIONS_TEST_WID},
-      expect.anything(),
-    );
+    expect(installRequest).toHaveBeenCalledWith({workspace_id: INTEGRATIONS_TEST_WID});
     expect(beforeRedirect).toHaveBeenCalledWith(INTEGRATIONS_TEST_WID);
     expect(beforeRedirect.mock.invocationCallOrder[0]).toBeLessThan(
       installRequest.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
@@ -58,6 +65,23 @@ describe('RedirectInstallPage', () => {
     // Alert mounts via framer-motion (opacity 0 in jsdom), so assert presence.
     expect(await screen.findByText('Sentry app not configured')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Back to integrations'})).toBeVisible();
+  });
+
+  test('requests the install URL exactly once in Strict Mode', async () => {
+    const installRequest = vi
+      .fn()
+      .mockResolvedValue({install_url: 'https://provider.test/install'});
+
+    renderInstallPage(
+      {
+        installRequest,
+        errorFallbackMessage: 'Could not start install.',
+        assignLocation: vi.fn(),
+      },
+      {strict: true},
+    );
+
+    await waitFor(() => expect(installRequest).toHaveBeenCalledTimes(1));
   });
 
   test('falls back to the provided message for unknown errors', async () => {

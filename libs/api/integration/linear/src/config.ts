@@ -11,7 +11,7 @@ const linearConfigSchema = {
     desc: 'Secret used to verify incoming Linear webhooks. Must match the signing secret configured on the Linear app. Required.',
   }),
   LINEAR_OAUTH_REDIRECT_URL: url({
-    desc: 'Absolute callback URL Linear redirects to after OAuth authorization, such as https://shipfox.example.com/integrations/linear/callback/api. Required.',
+    desc: 'Public client callback URL Linear redirects to after OAuth authorization, such as https://shipfox.example.com/integrations/linear/callback. Required.',
   }),
 };
 

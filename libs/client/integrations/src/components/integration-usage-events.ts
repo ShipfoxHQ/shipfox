@@ -1,5 +1,6 @@
 import type {IntegrationConnectionDto, SentryIssueAction} from '@shipfox/api-integration-core-dto';
 import {SENTRY_ISSUE_ACTIONS} from '@shipfox/api-integration-core-dto';
+import {linearWebhookEventNames} from '@shipfox/api-integration-linear-dto';
 import {WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
 import type {IntegrationUsageEvent} from './integration-usage-modal.js';
 
@@ -97,6 +98,10 @@ export function usageEventsForConnection(
       value: `issue.${action}`,
       label: sentryIssueEventLabel(action),
     }));
+  }
+
+  if (connection.provider === 'linear') {
+    return linearWebhookEventNames.map((event) => ({value: event, label: event}));
   }
 
   if (connection.capabilities.includes('source_control')) {

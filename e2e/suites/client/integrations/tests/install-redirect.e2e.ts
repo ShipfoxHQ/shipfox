@@ -3,6 +3,7 @@ import {expect, test} from './test.js';
 
 const SENTRY_INSTALL_URL = 'https://sentry.io/sentry-apps/test-app/external-install/';
 const GITHUB_INSTALL_URL = 'https://github.com/apps/test-app/installations/new';
+const LINEAR_INSTALL_URL = 'https://linear.app/oauth/authorize?state=test-state';
 const SENTRY_INSTALL_WORKSPACE_KEY = 'shipfox.sentry-install.workspace-id';
 
 test('Sentry install redirects to Sentry and stores the workspace handoff', async ({
@@ -48,5 +49,21 @@ test('GitHub install redirects to GitHub', async ({page, auth, workspaces}) => {
     installEndpoint: '**/integrations/github/install',
     externalHost: 'https://github.com',
     expectedUrl: GITHUB_INSTALL_URL,
+  });
+});
+
+test('Linear install redirects to Linear', async ({page, auth, workspaces}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({
+    userId: user.user.id,
+    name: 'Linear Install Workspace',
+  });
+  await auth.loginAs(page, user);
+
+  await assertInstallRedirect(page, {
+    installPath: `/workspaces/${workspace.id}/integrations/linear`,
+    installEndpoint: '**/integrations/linear/install',
+    externalHost: 'https://linear.app',
+    expectedUrl: LINEAR_INSTALL_URL,
   });
 });

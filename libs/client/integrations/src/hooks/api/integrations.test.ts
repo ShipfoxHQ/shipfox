@@ -1,6 +1,10 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {configureApiClient} from '@shipfox/client-api';
-import {listSourceConnections} from './integrations.js';
+import {
+  completeLinearCallback,
+  createLinearInstall,
+  listSourceConnections,
+} from './integrations.js';
 
 function connection(overrides: Partial<IntegrationConnectionDto> = {}): IntegrationConnectionDto {
   return {
@@ -47,5 +51,55 @@ describe('listSourceConnections', () => {
 
     expect(requestedUrl).toContain('capability=source_control');
     expect(result.connections.map((connection) => connection.id)).toEqual(['active-1']);
+  });
+});
+
+describe('Linear transport', () => {
+  it('posts the install workspace and forwards an authenticated callback query', async () => {
+    const requests: Request[] = [];
+    const fetchImpl = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(new Request(input, init));
+      return Promise.resolve(
+        jsonResponse({
+          id: 'connection-1',
+          workspace_id: '11111111-1111-4111-8111-111111111111',
+          provider: 'linear',
+          external_account_id: 'linear-org',
+          slug: 'linear_org',
+          display_name: 'Linear org',
+          lifecycle_status: 'active',
+          capabilities: [],
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        }),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    await createLinearInstall({workspace_id: '11111111-1111-4111-8111-111111111111'});
+    await completeLinearCallback({
+      query: {code: 'grant code', state: 'signed state'},
+      token: 'session-token',
+    });
+    await completeLinearCallback({
+      query: {
+        error: 'access_denied',
+        error_description: 'User denied access',
+        state: 'signed error state',
+      },
+      token: 'session-token',
+    });
+
+    expect(requests[0]?.url).toBe('https://api.example.test/integrations/linear/install');
+    expect(await requests[0]?.json()).toEqual({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(requests[1]?.url).toBe(
+      'https://api.example.test/integrations/linear/callback/api?code=grant+code&state=signed+state',
+    );
+    expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
+    expect(requests[2]?.url).toBe(
+      'https://api.example.test/integrations/linear/callback/api?error=access_denied&error_description=User+denied+access&state=signed+error+state',
+    );
   });
 });

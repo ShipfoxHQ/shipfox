@@ -3660,6 +3660,9 @@ importers:
       '@shipfox/api-integration-github-dto':
         specifier: workspace:*
         version: link:../../api/integration/github-dto
+      '@shipfox/api-integration-linear-dto':
+        specifier: workspace:*
+        version: link:../../api/integration/linear-dto
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../../api/integration/sentry-dto

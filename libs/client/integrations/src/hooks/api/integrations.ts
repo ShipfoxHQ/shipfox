@@ -15,6 +15,12 @@ import type {
   CreateGithubInstallResponseDto,
 } from '@shipfox/api-integration-github-dto';
 import type {
+  CreateLinearInstallBodyDto,
+  CreateLinearInstallResponseDto,
+  LinearCallbackQueryDto,
+  LinearCallbackResponseDto,
+} from '@shipfox/api-integration-linear-dto';
+import type {
   CreateSentryInstallBodyDto,
   CreateSentryInstallResponseDto,
   SentryConnectBodyDto,
@@ -22,6 +28,7 @@ import type {
 } from '@shipfox/api-integration-sentry-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {useInfiniteQuery, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {serializeLinearCallbackQuery} from '#linear-callback.js';
 
 export const integrationsQueryKeys = {
   all: ['integrations'] as const,
@@ -113,6 +120,26 @@ export async function createSentryInstall(body: CreateSentryInstallBodyDto) {
     method: 'POST',
     body,
   });
+}
+
+export async function createLinearInstall(body: CreateLinearInstallBodyDto) {
+  return await apiRequest<CreateLinearInstallResponseDto>('/integrations/linear/install', {
+    method: 'POST',
+    body,
+  });
+}
+
+export async function completeLinearCallback({
+  query,
+  token,
+}: {
+  query: LinearCallbackQueryDto;
+  token: string;
+}) {
+  return await apiRequest<LinearCallbackResponseDto>(
+    `/integrations/linear/callback/api?${serializeLinearCallbackQuery(query)}`,
+    {headers: {authorization: `Bearer ${token}`}},
+  );
 }
 
 // Called from the callback route with an explicit bearer (same as the GitHub
@@ -219,6 +246,14 @@ export function useRepositoriesInfiniteQuery(
 
 export function useCreateGiteaConnectionMutation() {
   return useMutation({mutationFn: createGiteaConnection});
+}
+
+export function useCreateLinearInstallMutation() {
+  return useMutation({mutationFn: createLinearInstall});
+}
+
+export function useCompleteLinearCallbackMutation() {
+  return useMutation({mutationFn: completeLinearCallback});
 }
 
 export function useUpdateIntegrationConnectionMutation() {

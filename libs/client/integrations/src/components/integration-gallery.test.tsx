@@ -32,6 +32,7 @@ const SETUP_ROUTES = [
   '/workspaces/$wid/integrations/sentry',
   '/workspaces/$wid/settings/events',
 ];
+const EXTERNAL_SETTINGS_ACTION_RE = /Open.*settings/u;
 
 const defaultProviders = [
   {provider: 'github', display_name: 'GitHub', capabilities: ['source_control']},
@@ -310,6 +311,34 @@ describe('IntegrationGallery — installed section', () => {
     expect(screen.getByRole('menuitem', {name: 'View recent events'})).toBeVisible();
     expect(screen.getByRole('menuitem', {name: 'Disable integration'})).toBeVisible();
     expect(screen.getByRole('menuitem', {name: 'Delete integration'})).toBeVisible();
+  });
+
+  test('opens external provider settings safely when a connection exposes a URL', async () => {
+    renderGallery({}, {connections: [githubConnection]});
+
+    await openActions('Open acme-corp integration actions');
+
+    const externalAction = screen.getByRole('menuitem', {name: 'Open in GitHub'});
+    expect(externalAction).toHaveAttribute('href', githubConnection.external_url);
+    expect(externalAction).toHaveAttribute('target', '_blank');
+    expect(externalAction).toHaveAttribute('rel', 'noreferrer noopener');
+  });
+
+  test('uses generic external copy without provider metadata and omits it without a URL', async () => {
+    const gallery = renderGallery({}, {providers: [], connections: [githubConnection]});
+
+    await openActions('Open acme-corp integration actions');
+    expect(screen.getByRole('menuitem', {name: 'Open provider settings'})).toHaveAttribute(
+      'href',
+      githubConnection.external_url,
+    );
+
+    gallery.unmount();
+    renderGallery({}, {providers: [], connections: [webhookConnection]});
+    await openActions('Open Stripe production integration actions');
+    expect(
+      screen.queryByRole('menuitem', {name: EXTERNAL_SETTINGS_ACTION_RE}),
+    ).not.toBeInTheDocument();
   });
 
   test('opens the standard usage modal with webhook details', async () => {

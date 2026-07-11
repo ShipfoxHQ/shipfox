@@ -4,6 +4,7 @@ describe('getIntegrationIcon', () => {
   it('resolves cataloged providers to the icon they declare', () => {
     expect(getIntegrationIcon('github')).toBe('github');
     expect(getIntegrationIcon('sentry')).toBe('sentry');
+    expect(getIntegrationIcon('linear')).toBe('linear');
     expect(getIntegrationIcon('gitea')).toBe('gitea');
   });
 

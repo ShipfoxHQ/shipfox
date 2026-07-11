@@ -4,6 +4,13 @@ Shipfox API Integration Linear provides the Linear provider foundation, OAuth
 routes, signed webhook ingestion, hosted MCP adapter, and agent tool catalog. It
 is currently enabled behind `INTEGRATIONS_ENABLE_LINEAR_PROVIDER`.
 
+## OAuth callback
+
+Set `LINEAR_OAUTH_REDIRECT_URL` to the public client callback, for example
+`https://shipfox.example.com/integrations/linear/callback`. The client forwards
+the signed callback query to the authenticated API endpoint, while the API uses
+the same configured URL during the server-side token exchange.
+
 ## Webhooks
 
 Linear sends OAuth application webhooks to:
