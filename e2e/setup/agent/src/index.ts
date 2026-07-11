@@ -120,6 +120,10 @@ export type FakeModelProviderRequestAssertion = (
       kind: 'tool_present';
       name: string;
     }
+  | {
+      kind: 'message_content_includes';
+      value: string;
+    }
 ) & {minRequestIndex?: number | undefined};
 
 export interface FakeModelProviderScriptHandle {

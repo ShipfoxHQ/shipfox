@@ -492,6 +492,77 @@ describe('fake OpenAI model provider server', () => {
     });
   });
 
+  it.each([
+    [
+      'Anthropic tool-result blocks',
+      anthropicMessage,
+      anthropicRequest({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'toolu_1',
+                content: [{type: 'text', text: 'linear-read-result-marker'}],
+              },
+            ],
+          },
+        ],
+      }),
+    ],
+    [
+      'OpenAI tool-result messages',
+      chatCompletion,
+      openAiRequest({
+        messages: [{role: 'tool', content: 'linear-read-result-marker', tool_call_id: 'call_1'}],
+      }),
+    ],
+  ])('matches content returned through %s', async (_shape, requestModel, request) => {
+    await postScript(
+      server,
+      fakeScript({
+        id: `message-content-${_shape}`,
+        assertions: [{kind: 'message_content_includes', value: 'linear-read-result-marker'}],
+        responses: [{kind: 'message', content: 'done'}],
+      }),
+    );
+
+    const result = await requestModel(server, `message-content-${_shape}`, request);
+
+    expect(result.status).toBe(200);
+  });
+
+  it('does not consume a scripted response when returned tool content is missing', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'missing-message-content',
+        assertions: [{kind: 'message_content_includes', value: 'linear-read-result-marker'}],
+        responses: [{kind: 'message', content: 'done'}],
+      }),
+    );
+
+    const rejected = await chatCompletion(
+      server,
+      'missing-message-content',
+      openAiRequest({messages: [{role: 'tool', content: 'wrong marker', tool_call_id: 'call_1'}]}),
+    );
+    const accepted = await chatCompletion(
+      server,
+      'missing-message-content',
+      openAiRequest({
+        messages: [{role: 'tool', content: 'linear-read-result-marker', tool_call_id: 'call_1'}],
+      }),
+    );
+
+    expect(rejected.status).toBe(422);
+    expect(accepted.status).toBe(200);
+    await expect(accepted.json()).resolves.toMatchObject({
+      id: 'chatcmpl-fake-missing-message-content-0',
+    });
+  });
+
   it('records request diagnostics and clears them on reset', async () => {
     await postScript(
       server,
@@ -603,10 +674,12 @@ function adminHeaders(): Record<string, string> {
   };
 }
 
-function openAiRequest(params: {roles?: string[] | undefined} = {}) {
+function openAiRequest(
+  params: {roles?: string[] | undefined; messages?: unknown[] | undefined} = {},
+) {
   return {
     model: 'deterministic-output-agent',
-    messages: (params.roles ?? ['system', 'user']).map((role) => ({role})),
+    messages: params.messages ?? (params.roles ?? ['system', 'user']).map((role) => ({role})),
     tools: [
       {
         type: 'function',
@@ -618,11 +691,13 @@ function openAiRequest(params: {roles?: string[] | undefined} = {}) {
   };
 }
 
-function anthropicRequest(params: {model?: string | undefined} = {}) {
+function anthropicRequest(
+  params: {model?: string | undefined; messages?: unknown[] | undefined} = {},
+) {
   return {
     model: params.model ?? 'deterministic-output-agent',
     max_tokens: 128,
-    messages: [{role: 'user', content: 'Set the output'}],
+    messages: params.messages ?? [{role: 'user', content: 'Set the output'}],
     tools: [
       {
         name: 'mcp__shipfox_outputs__set_output',

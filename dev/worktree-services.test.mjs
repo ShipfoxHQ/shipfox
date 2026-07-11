@@ -32,6 +32,7 @@ describe('portsFromBase', () => {
       giteaSsh: 65_007,
       otelInstance: 65_008,
       otelService: 65_009,
+      linearMcp: 65_010,
     });
   });
 });
@@ -73,6 +74,7 @@ describe('appEnv', () => {
     assert.equal(env.SHIPFOX_RUNNER_API_URL, 'http://host.docker.internal:55291');
     assert.equal(env.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS, 'host.docker.internal:host-gateway');
     assert.equal(env.SHIPFOX_DOCS_PORT, '55294');
+    assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55300/mcp');
   });
 });
 
@@ -161,7 +163,7 @@ describe('parsePort', () => {
 
 describe('parseBasePort', () => {
   test('keeps the base port low enough for every service offset', () => {
-    assert.equal(parseBasePort('65526'), 65_526);
-    assert.equal(parseBasePort('65527'), undefined);
+    assert.equal(parseBasePort('65525'), 65_525);
+    assert.equal(parseBasePort('65526'), undefined);
   });
 });

@@ -136,6 +136,7 @@ export function portsFromBase(base) {
     giteaSsh: base + 7,
     otelInstance: base + 8,
     otelService: base + 9,
+    linearMcp: base + 10,
   };
 }
 
@@ -153,6 +154,7 @@ function portsFromEnv(env) {
     giteaSsh: numberFromEnv(env, 'SHIPFOX_GITEA_SSH_PORT'),
     otelInstance: numberFromEnv(env, 'SHIPFOX_OTEL_INSTANCE_METRICS_PORT'),
     otelService: numberFromEnv(env, 'SHIPFOX_OTEL_SERVICE_METRICS_PORT'),
+    linearMcp: optionalNumberFromEnv(env, 'SHIPFOX_LINEAR_MCP_PORT') ?? base + 10,
   };
   return ports;
 }
@@ -182,6 +184,7 @@ function portEnv(ports) {
     SHIPFOX_GITEA_SSH_PORT: String(ports.giteaSsh),
     SHIPFOX_OTEL_INSTANCE_METRICS_PORT: String(ports.otelInstance),
     SHIPFOX_OTEL_SERVICE_METRICS_PORT: String(ports.otelService),
+    SHIPFOX_LINEAR_MCP_PORT: String(ports.linearMcp),
   };
 }
 
@@ -208,6 +211,7 @@ export function appEnv(ports) {
     TEMPORAL_ADDRESS: `localhost:${ports.temporal}`,
     GITEA_BASE_URL: `http://localhost:${ports.giteaHttp}`,
     LOG_STORAGE_S3_ENDPOINT: `http://localhost:${ports.garageS3}`,
+    LINEAR_MCP_ENDPOINT: `http://127.0.0.1:${ports.linearMcp}/mcp`,
     OTEL_INSTANCE_METRICS_PORT: String(ports.otelInstance),
     OTEL_SERVICE_METRICS_PORT: String(ports.otelService),
     VITE_API_URL: apiUrl,
@@ -303,7 +307,7 @@ export function parsePort(raw) {
 
 export function parseBasePort(raw) {
   const port = parsePort(raw);
-  return port !== undefined && port <= 65_526 ? port : undefined;
+  return port !== undefined && port <= 65_525 ? port : undefined;
 }
 
 function writeEnvFile(file, values) {

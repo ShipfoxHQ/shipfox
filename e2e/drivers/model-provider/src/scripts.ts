@@ -39,6 +39,10 @@ export type FakeOpenAiRequestAssertion = (
       kind: 'tool_present';
       name: string;
     }
+  | {
+      kind: 'message_content_includes';
+      value: string;
+    }
 ) & {minRequestIndex?: number | undefined};
 
 export interface FakeOpenAiRecordedRequest {
@@ -310,13 +314,14 @@ export class FakeOpenAiScriptRegistry {
 
 interface ModelProviderRequestSummary {
   model: string | null;
+  messageContent: string[];
   tools: string[];
   messageRoles: string[];
 }
 
 function summarizeModelProviderRequest(body: unknown): ModelProviderRequestSummary {
   if (!body || typeof body !== 'object') {
-    return {model: null, tools: [], messageRoles: []};
+    return {model: null, messageContent: [], tools: [], messageRoles: []};
   }
 
   const request = body as {
@@ -327,9 +332,31 @@ function summarizeModelProviderRequest(body: unknown): ModelProviderRequestSumma
 
   return {
     model: typeof request.model === 'string' ? request.model : null,
+    messageContent: messageContent(request.messages),
     tools: toolNames(request.tools),
     messageRoles: messageRoles(request.messages),
   };
+}
+
+function messageContent(messages: unknown): string[] {
+  if (!Array.isArray(messages)) return [];
+
+  return messages.flatMap((message) => {
+    if (!message || typeof message !== 'object') return [];
+    return contentStrings((message as {content?: unknown}).content);
+  });
+}
+
+function contentStrings(content: unknown): string[] {
+  if (typeof content === 'string') return [content];
+  if (Array.isArray(content)) return content.flatMap(contentStrings);
+  if (!content || typeof content !== 'object') return [];
+
+  const {text, content: nestedContent} = content as {text?: unknown; content?: unknown};
+  return [
+    ...(typeof text === 'string' ? [text] : []),
+    ...(nestedContent === undefined ? [] : contentStrings(nestedContent)),
+  ];
 }
 
 function toolNames(tools: unknown): string[] {
@@ -373,6 +400,13 @@ function assertRequest(
 
     if (assertion.kind === 'tool_present' && !summary.tools.includes(assertion.name)) {
       return [`Expected tool ${assertion.name} to be present`];
+    }
+
+    if (
+      assertion.kind === 'message_content_includes' &&
+      !summary.messageContent.some((content) => content.includes(assertion.value))
+    ) {
+      return [`Expected message content to include ${assertion.value}`];
     }
 
     return [];

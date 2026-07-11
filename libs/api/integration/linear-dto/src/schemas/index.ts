@@ -108,3 +108,19 @@ export type LinearCallbackQueryDto = z.infer<typeof linearCallbackQuerySchema>;
 
 export const linearCallbackResponseSchema = integrationConnectionDtoSchema;
 export type LinearCallbackResponseDto = z.infer<typeof linearCallbackResponseSchema>;
+
+export const createE2eLinearConnectionBodySchema = z.object({
+  workspace_id: z.string().uuid(),
+  organization_id: z.string().min(1),
+  organization_url_key: z.string().min(1),
+  app_user_id: z.string().min(1),
+  display_name: z.string().min(1),
+  access_token: z.string().min(1),
+  scopes: z.array(z.string().min(1)).min(1).default(['read', 'write']),
+});
+export type CreateE2eLinearConnectionBodyDto = z.infer<typeof createE2eLinearConnectionBodySchema>;
+
+export const createE2eLinearConnectionResponseSchema = integrationConnectionDtoSchema;
+export type CreateE2eLinearConnectionResponseDto = z.infer<
+  typeof createE2eLinearConnectionResponseSchema
+>;

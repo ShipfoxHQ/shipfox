@@ -175,6 +175,7 @@ export async function createIntegrationsContext(
           }
         : undefined,
     }),
+    e2eRoutes: parts.flatMap((part) => part.e2eRoutes ?? []),
     publishers: [
       {name: 'integrations', table: integrationsOutbox, db, eventSchemas: integrationsEventSchemas},
     ],
