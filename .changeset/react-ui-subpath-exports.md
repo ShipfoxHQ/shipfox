@@ -1,5 +1,5 @@
 ---
-"@shipfox/react-ui": major
+"@shipfox/react-ui": minor
 ---
 
 Replace the root barrel with per-component subpath exports. Import from a subpath

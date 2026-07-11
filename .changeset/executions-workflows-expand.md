@@ -1,8 +1,8 @@
 ---
 "@shipfox/api-definitions": minor
-"@shipfox/api-auth-dto": major
-"@shipfox/api-runners-dto": major
-"@shipfox/api-workflows-dto": major
+"@shipfox/api-auth-dto": minor
+"@shipfox/api-runners-dto": minor
+"@shipfox/api-workflows-dto": minor
 "@shipfox/workflow-document": minor
 ---
 
