@@ -97,7 +97,7 @@ test('runs Linear read and write tools through the agent-step MCP path', async (
     ]);
   } finally {
     await Promise.all([
-      fakeModelProvider?.stop().catch((error: unknown) => {
+      fakeModelProvider?.stop()?.catch((error: unknown) => {
         process.stderr.write(
           `linear-agent-tools-e2e: stopFakeOpenAiModelProvider failed: ${String(error)}\n`,
         );

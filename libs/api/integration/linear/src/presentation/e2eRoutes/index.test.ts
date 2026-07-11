@@ -89,8 +89,8 @@ describe('Linear E2E routes', () => {
     expect(res.json()).toMatchObject({code: 'validation-error'});
   });
 
-  it('removes a newly-created connection when token storage fails', async () => {
-    const disconnectLinearInstallation = vi.fn(() => Promise.resolve());
+  it('preserves the token storage error when cleanup of a new connection fails', async () => {
+    const disconnectLinearInstallation = vi.fn(() => Promise.reject(new Error('cleanup failed')));
     const app = await createApp({
       routes: [
         createLinearE2eRoutes({

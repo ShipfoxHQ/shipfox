@@ -4,6 +4,7 @@ import {
   createE2eLinearConnectionResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {ConnectLinearInstallationInput} from '#core/install.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
@@ -59,7 +60,7 @@ export function createE2eLinearConnectionRoute(options: CreateE2eLinearConnectio
           accessToken: body.access_token,
         });
       } catch (error) {
-        if (!existing) await options.disconnectLinearInstallation({connectionId: connection.id});
+        if (!existing) await bestEffortDisconnectLinearInstallation(options, connection.id);
         throw error;
       }
 
@@ -67,4 +68,18 @@ export function createE2eLinearConnectionRoute(options: CreateE2eLinearConnectio
       return toIntegrationConnectionDto(connection, {capabilities: options.connectionCapabilities});
     },
   });
+}
+
+async function bestEffortDisconnectLinearInstallation(
+  options: CreateE2eLinearConnectionRouteOptions,
+  connectionId: string,
+): Promise<void> {
+  try {
+    await options.disconnectLinearInstallation({connectionId});
+  } catch (error) {
+    logger().warn(
+      {err: error, connectionId},
+      'Linear E2E connection compensation failed after token storage rejection',
+    );
+  }
 }

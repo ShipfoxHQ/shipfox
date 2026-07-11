@@ -9,5 +9,5 @@ process.env.LINEAR_OAUTH_CLIENT_ID = 'test-client-id';
 process.env.LINEAR_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.LINEAR_WEBHOOK_SIGNING_SECRET = 'test-webhook-secret';
 process.env.LINEAR_OAUTH_REDIRECT_URL = 'https://shipfox.example.com/integrations/linear/callback';
-process.env.LINEAR_MCP_ENDPOINT = 'https://mcp.linear.app/mcp';
+process.env.LINEAR_MCP_ENDPOINT = 'http://127.0.0.1:0/mcp';
 process.env.SECRETS_ENCRYPTION_KEK = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';

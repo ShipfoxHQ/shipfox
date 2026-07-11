@@ -12,6 +12,7 @@ describe('linear config', () => {
   });
 
   it('exports validated Linear config from the package root', async () => {
+    vi.stubEnv('LINEAR_MCP_ENDPOINT', undefined);
     vi.resetModules();
 
     const {config} = await import('#index.js');
