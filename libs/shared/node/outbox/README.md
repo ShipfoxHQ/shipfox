@@ -53,7 +53,7 @@ if (delivery) await outbox.acknowledge(delivery);
 ## Data Model
 
 `createPostgresOutboxTable` creates an `outbox` table in the given table namespace.
-It needs PostgreSQL 18 because its primary key uses `uuidv7()`.
+It needs PostgreSQL 18 because that release added the built-in `uuidv7()` function used by its primary key.
 
 | Columns | Purpose |
 | --- | --- |

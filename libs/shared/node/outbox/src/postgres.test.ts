@@ -26,9 +26,12 @@ const event = {
 
 class TestDeliveryError extends Error {
   readonly reason = 'rate-limited';
+  readonly retryAfterMs = 5_000n;
 
   constructor() {
-    super('delivery timed out', {cause: new Error('socket closed')});
+    const cause = new Error('socket closed');
+    cause.cause = cause;
+    super('delivery timed out', {cause});
     this.name = 'TestDeliveryError';
   }
 }
@@ -233,6 +236,25 @@ describe('PostgreSQL outbox contract', () => {
     expect(health.pendingCount).toBe(0);
   });
 
+  it('dead-letters an unleased row when maxAttempts is lowered below its attempt count', async () => {
+    await append({idempotencyKey: 'event-1', orderingKey: 'aggregate-1'});
+    const originalOutbox = createOutbox({maxAttempts: 5});
+    const [delivery] = await originalOutbox.claim({
+      batchSize: 1,
+      leaseDurationMs: 1_000,
+      now: start,
+    });
+    if (!delivery) throw new Error('Expected an outbox delivery');
+    await originalOutbox.retry({...delivery, delayMs: 0, failure: 'retry', now: start});
+    const loweredOutbox = createOutbox({maxAttempts: 1});
+
+    const claimed = await loweredOutbox.claim({batchSize: 1, leaseDurationMs: 1_000, now: start});
+    const health = await loweredOutbox.health({now: start});
+
+    expect(claimed).toEqual([]);
+    expect(health.pendingCount).toBe(0);
+  });
+
   it('does not let an older lease acknowledge or retry a newer claim', async () => {
     await append({idempotencyKey: 'event-1'});
     const outbox = createOutbox();
@@ -344,14 +366,33 @@ describe('PostgreSQL outbox contract', () => {
         name: 'TestDeliveryError',
         message: 'delivery timed out',
         reason: 'rate-limited',
+        retryAfterMs: '5000',
         stack: expect.stringContaining('TestDeliveryError: delivery timed out'),
         cause: expect.objectContaining({
           name: 'Error',
           message: 'socket closed',
           stack: expect.stringContaining('Error: socket closed'),
+          cause: '[Circular]',
         }),
       }),
     );
+  });
+
+  it('stores cyclic non-Error failures with bigint fields as JSON-safe data', async () => {
+    await append({idempotencyKey: 'event-1'});
+    const outbox = createOutbox();
+    const [delivery] = await outbox.claim({batchSize: 1, leaseDurationMs: 1_000, now: start});
+    if (!delivery) throw new Error('Expected an outbox delivery');
+    const failure: {attempts: bigint; self?: unknown} = {attempts: 3n};
+    failure.self = failure;
+
+    const retry = await outbox.retry({...delivery, delayMs: 0, failure, now: start});
+    const [stored] = await database
+      .select({lastFailure: outboxTable.lastDispatchError})
+      .from(outboxTable);
+
+    expect(retry).toEqual({status: 'retry-scheduled', nextAttemptAt: start});
+    expect(stored?.lastFailure).toEqual({attempts: '3', self: '[Circular]'});
   });
 
   it('reports the oldest pending event age and excludes acknowledged events', async () => {

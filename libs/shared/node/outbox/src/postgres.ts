@@ -91,7 +91,7 @@ export class PostgresOutbox<TSchema extends Record<string, unknown> = Record<str
             isNull(this.#table.dispatchedAt),
             isNull(this.#table.deadLetteredAt),
             gte(this.#table.dispatchAttempts, this.#maxAttempts),
-            lte(this.#table.leaseExpiresAt, now),
+            or(isNull(this.#table.leaseExpiresAt), lte(this.#table.leaseExpiresAt, now)),
           ),
         )
         .orderBy(asc(this.#table.leaseExpiresAt), asc(this.#table.createdAt), asc(this.#table.id))
@@ -297,18 +297,59 @@ function requireClaimValue<T>(value: T | null, name: string): T {
   return value;
 }
 
-function serializeFailure(failure: unknown, seen = new WeakSet<Error>()): unknown {
-  if (!(failure instanceof Error)) return failure ?? null;
-  if (seen.has(failure)) return {name: failure.name, message: failure.message};
-  seen.add(failure);
+function serializeFailure(failure: unknown): unknown {
+  return toJsonSafe(failure, new WeakSet<object>());
+}
 
+function toJsonSafe(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'undefined') return null;
+  if (typeof value === 'symbol' || typeof value === 'function') return String(value);
+
+  try {
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? String(value) : value.toISOString();
+    }
+    if (ancestors.has(value)) return '[Circular]';
+    ancestors.add(value);
+
+    const serialized =
+      value instanceof Error
+        ? serializeError(value, ancestors)
+        : Array.isArray(value)
+          ? value.map((item) => toJsonSafe(item, ancestors))
+          : serializeObject(value, ancestors);
+    ancestors.delete(value);
+    return serialized;
+  } catch (_error) {
+    ancestors.delete(value);
+    return '[Unserializable]';
+  }
+}
+
+function serializeError(error: Error, ancestors: WeakSet<object>): Record<string, unknown> {
+  const properties = serializeObject(error, ancestors);
   return {
-    ...Object.fromEntries(Object.entries(failure)),
-    name: failure.name,
-    message: failure.message,
-    ...(failure.stack ? {stack: failure.stack} : {}),
-    ...(failure.cause !== undefined ? {cause: serializeFailure(failure.cause, seen)} : {}),
+    ...properties,
+    name: error.name,
+    message: error.message,
+    ...(error.stack ? {stack: error.stack} : {}),
+    ...(error.cause !== undefined ? {cause: toJsonSafe(error.cause, ancestors)} : {}),
   };
+}
+
+function serializeObject(value: object, ancestors: WeakSet<object>): Record<string, unknown> {
+  const serialized: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    try {
+      serialized[key] = toJsonSafe((value as Record<string, unknown>)[key], ancestors);
+    } catch (_error) {
+      serialized[key] = '[Unserializable]';
+    }
+  }
+  return serialized;
 }
 
 function assertPositiveInteger(value: number, name: string): void {
