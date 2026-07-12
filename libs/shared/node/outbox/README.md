@@ -11,16 +11,18 @@ Typed transactional outbox helpers for Drizzle and PostgreSQL.
 - **`DomainEvent`**: Runtime event shape used by dispatchers.
 - **`EventMapLike`, `EventType`, `EventPayload`**: Type helpers for module event maps.
 
+## Public API
+
+Import the supported API from `@shipfox/node-outbox`. The package has no public subpath exports.
+
+The runtime exports are `PostgresOutbox`, `createPostgresOutbox`, `createPostgresOutboxTable`, `writeIdempotentOutboxEvent`, and the behavior-preserving legacy exports `createOutboxTable`, `writeOutboxEvent`, and `writeOutboxEvents`. The root also exports the matching option, event, result, health, table, and event-map types used by those functions. Query construction and internal serialization helpers are not public.
+
 ## Installation
 
-This package is private to the workspace. Add it to another workspace package:
+Use Node.js 24 or newer. Use PostgreSQL 18.
 
-```json
-{
-  "dependencies": {
-    "@shipfox/node-outbox": "workspace:*"
-  }
-}
+```sh
+pnpm add @shipfox/node-outbox @shipfox/node-drizzle @shipfox/node-postgres drizzle-orm
 ```
 
 ## Usage
@@ -66,6 +68,8 @@ It needs PostgreSQL 18 because that release added the built-in `uuidv7()` functi
 
 ## Behavior Notes
 
+- Insert an outbox event through the same Drizzle transaction as the domain write. A rollback then removes both writes.
+- The caller owns each stable idempotency key. Reusing a key keeps the first event and returns `duplicate`.
 - Claims use `FOR UPDATE SKIP LOCKED`. Concurrent workers receive different rows.
 - A non-empty ordering key blocks newer events in the same group until the oldest event finishes.
 - Each claim increments `dispatch_attempts` and gets a new lease token.
@@ -74,12 +78,28 @@ It needs PostgreSQL 18 because that release added the built-in `uuidv7()` functi
 - `maxRetryDelayMs` defaults to 30 minutes. Longer retry delays use that limit.
 - `createOutboxTable` stays separate, so current Shipfox modules need no schema or source change.
 
+## Connections and Migrations
+
+- Create and migrate the table before application startup. The package defines the Drizzle table but does not run migrations.
+- Use a direct PostgreSQL connection for migrations. Do not run migrations through a transaction pooler or serverless pool.
+- Runtime writes and dispatch may use a direct connection or a pool. The connection layer must keep each Drizzle transaction on one PostgreSQL connection and support `FOR UPDATE SKIP LOCKED`.
+- `createPostgresOutboxTable` uses PostgreSQL 18's built-in `uuidv7()` function. Older PostgreSQL versions are not supported.
+
+## Health and Shutdown
+
+`outbox.health()` checks database access and returns the pending count and oldest pending event age. It rejects database failures. It does not prove that a dispatcher is running, so monitor worker liveness separately.
+
+For a graceful shutdown, stop starting claims, let active deliveries finish, and then close the database pool. If a worker exits with an active delivery, do not acknowledge it during shutdown. Its lease expires and another worker can claim it with a new token. Choose a lease duration longer than normal delivery time and shorter than the maximum acceptable recovery delay.
+
 ## Development
 
 ```sh
 turbo check --filter=@shipfox/node-outbox
 turbo type --filter=@shipfox/node-outbox
+turbo type:emit --filter=@shipfox/node-outbox
+turbo build --filter=@shipfox/node-outbox
 turbo test --filter=@shipfox/node-outbox
+pnpm --filter=@shipfox/node-outbox test:external
 ```
 
 The PostgreSQL contract tests need the local PostgreSQL 18 service. Start it with `docker compose up -d`.

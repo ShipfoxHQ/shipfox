@@ -5704,7 +5704,7 @@ importers:
   libs/shared/node/outbox:
     dependencies:
       '@shipfox/node-drizzle':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../drizzle
       drizzle-orm:
         specifier: ^0.45.2
