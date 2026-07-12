@@ -65,6 +65,9 @@ describe('e2eEnv', () => {
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:55356');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
     assert.equal(env.INTEGRATIONS_ENABLE_LINEAR_PROVIDER, 'true');
+    assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
+    assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:55361/');
+    assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
     assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
     assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, undefined);
@@ -79,6 +82,7 @@ describe('e2eEnv', () => {
       E2E_GITEA_URL: 'http://localhost:3001',
       GITEA_CLONE_BASE_URL: 'http://localhost:3000',
       LINEAR_MCP_ENDPOINT: 'http://127.0.0.1:16120/mcp',
+      GITHUB_API_BASE_URL: 'http://127.0.0.1:16121',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -89,6 +93,7 @@ describe('e2eEnv', () => {
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:3001');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:3000');
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:16120/mcp');
+    assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:16121');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
   });
 
@@ -104,6 +109,13 @@ describe('e2eEnv', () => {
     assert.throws(
       () => e2eEnv({API_URL: 'http://localhost:65527'}),
       /Cannot derive a Linear MCP port/u,
+    );
+  });
+
+  test('rejects an API port that cannot reserve the GitHub API offset', () => {
+    assert.throws(
+      () => e2eEnv({API_URL: 'http://localhost:65526'}),
+      /Cannot derive a GitHub API port/u,
     );
   });
 });

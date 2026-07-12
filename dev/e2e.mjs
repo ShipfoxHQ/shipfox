@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {spawn, spawnSync} from 'node:child_process';
+import {generateKeyPairSync} from 'node:crypto';
 import {closeSync, openSync} from 'node:fs';
 import {cp, mkdir, readdir, stat} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
@@ -12,6 +13,7 @@ const defaultReadinessTimeoutMs = 60_000;
 const defaultShutdownTimeoutMs = 15_000;
 const defaultTurboTask = 'test:e2e';
 const trailingSlashPattern = /\/$/;
+let generatedGithubAppPrivateKey;
 
 if (isCliEntryPoint()) {
   main(process.argv.slice(2)).catch((error) => {
@@ -170,6 +172,7 @@ export function e2eEnv(sourceEnv) {
   const clientUrl = sourceEnv.CLIENT_URL ?? sourceEnv.CLIENT_BASE_URL ?? defaultClientUrl;
   const giteaUrl = sourceEnv.E2E_GITEA_URL ?? sourceEnv.GITEA_BASE_URL ?? 'http://localhost:3000';
   const linearMcpEndpoint = sourceEnv.LINEAR_MCP_ENDPOINT ?? e2eLinearMcpEndpoint(apiUrl);
+  const githubApiBaseUrl = sourceEnv.GITHUB_API_BASE_URL ?? e2eGithubApiBaseUrl(apiUrl);
   return {
     ...sourceEnv,
     API_URL: apiUrl,
@@ -180,6 +183,19 @@ export function e2eEnv(sourceEnv) {
     E2E_GITEA_URL: giteaUrl,
     GITEA_CLONE_BASE_URL: sourceEnv.GITEA_CLONE_BASE_URL ?? giteaUrl,
     HOST: sourceEnv.HOST ?? '0.0.0.0',
+    GITHUB_API_BASE_URL: githubApiBaseUrl,
+    GITHUB_APP_CLIENT_ID: sourceEnv.GITHUB_APP_CLIENT_ID ?? 'e2e-github-client-id',
+    GITHUB_APP_CLIENT_SECRET: sourceEnv.GITHUB_APP_CLIENT_SECRET ?? 'e2e-github-client-secret',
+    GITHUB_APP_ID: sourceEnv.GITHUB_APP_ID ?? '1',
+    GITHUB_APP_PRIVATE_KEY:
+      sourceEnv.GITHUB_APP_PRIVATE_KEY ?? e2eGithubAppPrivateKey(),
+    GITHUB_APP_SLUG: sourceEnv.GITHUB_APP_SLUG ?? 'shipfox-e2e',
+    GITHUB_APP_USERNAME: sourceEnv.GITHUB_APP_USERNAME ?? 'shipfox-e2e',
+    GITHUB_APP_WEBHOOK_SECRET:
+      sourceEnv.GITHUB_APP_WEBHOOK_SECRET ?? 'e2e-github-webhook-secret',
+    GITHUB_INSTALL_STATE_SECRET:
+      sourceEnv.GITHUB_INSTALL_STATE_SECRET ?? 'e2e-github-install-state-secret',
+    INTEGRATIONS_ENABLE_GITHUB_PROVIDER: sourceEnv.INTEGRATIONS_ENABLE_GITHUB_PROVIDER ?? 'true',
     INTEGRATIONS_ENABLE_LINEAR_PROVIDER: sourceEnv.INTEGRATIONS_ENABLE_LINEAR_PROVIDER ?? 'true',
     LINEAR_MCP_ENDPOINT: linearMcpEndpoint,
     LINEAR_OAUTH_CLIENT_ID: sourceEnv.LINEAR_OAUTH_CLIENT_ID ?? 'e2e-linear-client-id',
@@ -193,6 +209,30 @@ export function e2eEnv(sourceEnv) {
     VITE_ENABLE_TEST_VCS_PROVIDER: sourceEnv.VITE_ENABLE_TEST_VCS_PROVIDER ?? 'true',
     WEBHOOK_PUBLIC_URL: sourceEnv.WEBHOOK_PUBLIC_URL ?? apiUrl,
   };
+}
+
+export function e2eGithubApiBaseUrl(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  const githubApiPort = apiPort + 10;
+  if (githubApiPort > 65_535) {
+    throw new Error(`Cannot derive a GitHub API port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(githubApiPort);
+  endpoint.pathname = '/';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+function e2eGithubAppPrivateKey() {
+  generatedGithubAppPrivateKey ??= generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: {format: 'pem', type: 'pkcs8'},
+    publicKeyEncoding: {format: 'pem', type: 'spki'},
+  }).privateKey;
+  return generatedGithubAppPrivateKey;
 }
 
 export function e2eLinearMcpEndpoint(apiUrl) {

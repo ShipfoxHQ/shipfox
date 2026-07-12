@@ -121,6 +121,10 @@ export type FakeModelProviderRequestAssertion = (
       name: string;
     }
   | {
+      kind: 'tool_absent';
+      name: string;
+    }
+  | {
       kind: 'message_content_includes';
       value: string;
     }

@@ -11,7 +11,11 @@ vi.mock('octokit', () => ({
       rest: {apps: {createInstallationAccessToken: createInstallationAccessTokenMock}},
     };
   },
-  Octokit: class Octokit {},
+  Octokit: {
+    defaults(options: unknown) {
+      return {defaults: options};
+    },
+  },
   RequestError: class RequestError extends Error {},
 }));
 

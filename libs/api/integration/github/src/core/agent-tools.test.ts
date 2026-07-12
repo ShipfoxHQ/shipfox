@@ -350,7 +350,10 @@ describe('github agent tool catalog', () => {
       issue_number: 1,
     });
     expect(clientToken).toBe('installation-token');
-    expect(result).toEqual({content: [{type: 'text', text: '{"number":1}'}]});
+    expect(result).toEqual({
+      content: [{type: 'text', text: '{"number":1}'}],
+      structuredContent: {number: 1},
+    });
   });
 });
 

@@ -137,6 +137,7 @@ export function portsFromBase(base) {
     otelInstance: base + 8,
     otelService: base + 9,
     linearMcp: base + 10,
+    githubApi: base + 11,
   };
 }
 
@@ -155,6 +156,7 @@ function portsFromEnv(env) {
     otelInstance: numberFromEnv(env, 'SHIPFOX_OTEL_INSTANCE_METRICS_PORT'),
     otelService: numberFromEnv(env, 'SHIPFOX_OTEL_SERVICE_METRICS_PORT'),
     linearMcp: optionalNumberFromEnv(env, 'SHIPFOX_LINEAR_MCP_PORT') ?? base + 10,
+    githubApi: optionalNumberFromEnv(env, 'SHIPFOX_GITHUB_API_PORT') ?? base + 11,
   };
   return ports;
 }
@@ -185,6 +187,7 @@ function portEnv(ports) {
     SHIPFOX_OTEL_INSTANCE_METRICS_PORT: String(ports.otelInstance),
     SHIPFOX_OTEL_SERVICE_METRICS_PORT: String(ports.otelService),
     SHIPFOX_LINEAR_MCP_PORT: String(ports.linearMcp),
+    SHIPFOX_GITHUB_API_PORT: String(ports.githubApi),
   };
 }
 
@@ -210,6 +213,7 @@ export function appEnv(ports) {
     POSTGRES_DATABASE: 'api',
     TEMPORAL_ADDRESS: `localhost:${ports.temporal}`,
     GITEA_BASE_URL: `http://localhost:${ports.giteaHttp}`,
+    GITHUB_API_BASE_URL: `http://127.0.0.1:${ports.githubApi}`,
     LOG_STORAGE_S3_ENDPOINT: `http://localhost:${ports.garageS3}`,
     LINEAR_MCP_ENDPOINT: `http://127.0.0.1:${ports.linearMcp}/mcp`,
     OTEL_INSTANCE_METRICS_PORT: String(ports.otelInstance),

@@ -1,4 +1,4 @@
-import {createConfig, str} from '@shipfox/config';
+import {createConfig, str, url} from '@shipfox/config';
 
 export const config = createConfig({
   GITHUB_APP_ID: str({
@@ -22,6 +22,10 @@ export const config = createConfig({
   GITHUB_APP_USERNAME: str({
     desc: 'GitHub App username used as the Git commit author when checkout credentials are persisted. Set this to the app username, such as my-app. The [bot] suffix is added automatically. Leave unset to keep Git author identity unset.',
     default: undefined,
+  }),
+  GITHUB_API_BASE_URL: url({
+    desc: 'Base URL used for GitHub REST API requests. Set this only for GitHub Enterprise Server or a compatible test server.',
+    default: 'https://api.github.com',
   }),
   GITHUB_INSTALL_STATE_SECRET: str({
     desc: 'Secret used to sign the state token that protects the GitHub App install flow. Required.',

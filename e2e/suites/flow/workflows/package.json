@@ -13,6 +13,7 @@
     "#attachments.js": "./src/attachments.ts",
     "#create-project.js": "./src/create-project.ts",
     "#expect.js": "./src/expect.ts",
+    "#github-api.js": "./src/github-api.ts",
     "#listener-helpers.js": "./src/listener-helpers.ts",
     "#listener-jobs.js": "./src/listener-jobs.ts",
     "#linear-mcp.js": "./src/linear-mcp.ts",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-integration-webhook-dto": "workspace:*",
+    "@shipfox/api-integration-github-dto": "workspace:*",
     "@shipfox/api-integration-linear-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",

@@ -87,6 +87,7 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
         appId: config.GITHUB_APP_ID,
         privateKey: normalizedGithubPrivateKey(),
         Octokit: Octokit.defaults({
+          baseUrl: config.GITHUB_API_BASE_URL,
           throttle: {
             onRateLimit: (
               _retryAfter: number,

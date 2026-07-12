@@ -135,7 +135,10 @@ class OctokitGithubApiClient implements GithubApiClient {
     userAccessToken: string;
     cursor?: string | undefined;
   }): Promise<GithubUserInstallationPage> {
-    const octokit = new Octokit({auth: input.userAccessToken});
+    const octokit = new Octokit({
+      auth: input.userAccessToken,
+      baseUrl: config.GITHUB_API_BASE_URL,
+    });
     const page = cursorToPage(input.cursor);
     const response = await mapGithubError(() =>
       octokit.request('GET /user/installations', {
@@ -380,6 +383,7 @@ class OctokitGithubApiClient implements GithubApiClient {
       this.app = new App({
         appId: config.GITHUB_APP_ID,
         privateKey: normalizedGithubPrivateKey(),
+        Octokit: Octokit.defaults({baseUrl: config.GITHUB_API_BASE_URL}),
       });
     }
     return this.app;
