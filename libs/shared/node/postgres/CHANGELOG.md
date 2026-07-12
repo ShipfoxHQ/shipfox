@@ -1,5 +1,11 @@
 # @shipfox/node-pg
 
+## 0.4.0
+
+### Minor Changes
+
+- 6a1fb54: Adds verified TLS modes and serverless pool timeout configuration with safe duplicate initialization.
+
 ## 0.3.2
 
 ### Patch Changes

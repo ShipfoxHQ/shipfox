@@ -1,5 +1,11 @@
 # @shipfox/runner-agent
 
+## 0.1.1
+
+### Patch Changes
+
+- @shipfox/runner-execution@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes
