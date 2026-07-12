@@ -5713,6 +5713,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/node-postgres':
+        specifier: workspace:*
+        version: link:../postgres
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
