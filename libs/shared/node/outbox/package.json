@@ -7,8 +7,19 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/shared/node/outbox"
   },
-  "private": true,
+  "private": false,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map",
+    "dist/**/*.js",
+    "dist/**/*.js.map"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
@@ -32,12 +43,13 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
+    "test:external": "pnpm run build && pnpm run type:emit && node test/external/verify.mjs",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-drizzle": "workspace:^",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
