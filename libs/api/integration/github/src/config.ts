@@ -1,5 +1,7 @@
 import {createConfig, str, url} from '@shipfox/config';
 
+const trailingSlashesPattern = /\/+$/u;
+
 export const config = createConfig({
   GITHUB_APP_ID: str({
     desc: "Numeric ID of the GitHub App, found on the app's settings page. Required.",
@@ -34,4 +36,12 @@ export const config = createConfig({
 
 export function normalizedGithubPrivateKey(): string {
   return config.GITHUB_APP_PRIVATE_KEY.replaceAll('\\n', '\n');
+}
+
+export function normalizeGithubApiBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(trailingSlashesPattern, '');
+}
+
+export function normalizedGithubApiBaseUrl(): string {
+  return normalizeGithubApiBaseUrl(config.GITHUB_API_BASE_URL);
 }

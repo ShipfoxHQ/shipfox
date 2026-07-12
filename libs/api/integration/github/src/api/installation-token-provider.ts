@@ -1,6 +1,6 @@
 import type {GetIntegrationConnectionByIdFn} from '@shipfox/api-integration-core-dto';
 import {App, Octokit} from 'octokit';
-import {config, normalizedGithubPrivateKey} from '#config.js';
+import {config, normalizedGithubApiBaseUrl, normalizedGithubPrivateKey} from '#config.js';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 import {withInstallationTokenLock} from '#db/installation-token-lock.js';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
@@ -87,7 +87,7 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
         appId: config.GITHUB_APP_ID,
         privateKey: normalizedGithubPrivateKey(),
         Octokit: Octokit.defaults({
-          baseUrl: config.GITHUB_API_BASE_URL,
+          baseUrl: normalizedGithubApiBaseUrl(),
           throttle: {
             onRateLimit: (
               _retryAfter: number,

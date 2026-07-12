@@ -14,7 +14,7 @@ import {
   createGithubInstallationTokenProvider,
   type GithubInstallationTokenProvider,
 } from '#api/installation-token-provider.js';
-import {config} from '#config.js';
+import {normalizedGithubApiBaseUrl} from '#config.js';
 import type {GithubInstallation} from '#db/installations.js';
 import {DEFAULT_JOB_LOG_TAIL_LINES} from './actions-logs.js';
 import {buildGithubAgentToolSelectionCatalog} from './agent-tool-selection.js';
@@ -880,7 +880,7 @@ interface GithubToolOperation {
 function createOctokitClient(token: string): GithubToolClient {
   const octokit = new Octokit({
     auth: token,
-    baseUrl: config.GITHUB_API_BASE_URL,
+    baseUrl: normalizedGithubApiBaseUrl(),
     retry: {enabled: false},
   });
   return {
