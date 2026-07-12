@@ -1,7 +1,7 @@
 {
   "name": "@shipfox/redact",
   "license": "MIT",
-  "private": true,
+  "private": false,
   "version": "0.1.0",
   "repository": {
     "type": "git",
@@ -9,6 +9,15 @@
     "directory": "libs/shared/common/redact"
   },
   "type": "module",
+  "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map",
+    "dist/**/*.js",
+    "dist/**/*.js.map"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
@@ -31,6 +40,7 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
+    "test:external": "node test/external/verify.mjs",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
