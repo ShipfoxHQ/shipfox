@@ -1,6 +1,7 @@
 import type {GithubApiClient} from '#api/client.js';
 import {DEFAULT_JOB_LOG_TAIL_LINES} from '#core/actions-logs.js';
 import {
+  type GithubAgentToolId,
   GithubAgentToolsProvider,
   githubAgentToolCatalog,
   githubAgentToolSelectionCatalog,
@@ -355,7 +356,121 @@ describe('github agent tool catalog', () => {
       structuredContent: {number: 1},
     });
   });
+
+  it.each([
+    {
+      toolId: 'list_issue_types',
+      arguments: {owner: 'shipfox'},
+      data: [{id: 1}],
+      expected: {issue_types: [{id: 1}]},
+    },
+    {
+      toolId: 'list_issues',
+      arguments: {owner: 'shipfox', repo: 'platform'},
+      data: [{number: 1}],
+      expected: {issues: [{number: 1}]},
+    },
+    {
+      toolId: 'search_issues',
+      arguments: {query: 'is:open'},
+      data: {items: [{number: 1}], total_count: 1},
+      expected: {issues: [{number: 1}]},
+    },
+    {
+      toolId: 'list_pull_requests',
+      arguments: {owner: 'shipfox', repo: 'platform'},
+      data: [{number: 2}],
+      expected: {pull_requests: [{number: 2}]},
+    },
+    {
+      toolId: 'search_pull_requests',
+      arguments: {query: 'is:open'},
+      data: {items: [{number: 2}], total_count: 1},
+      expected: {pull_requests: [{number: 2}]},
+    },
+    {
+      toolId: 'create_pull_request',
+      arguments: {
+        owner: 'shipfox',
+        repo: 'platform',
+        title: 'Title',
+        head: 'feature',
+        base: 'main',
+      },
+      data: {number: 2},
+      expected: {pull_request: {number: 2}},
+    },
+    {
+      toolId: 'update_pull_request',
+      arguments: {owner: 'shipfox', repo: 'platform', pull_number: 2},
+      data: {number: 2, title: 'Updated'},
+      expected: {pull_request: {number: 2, title: 'Updated'}},
+    },
+    {
+      toolId: 'merge_pull_request',
+      arguments: {owner: 'shipfox', repo: 'platform', pull_number: 2},
+      data: {merged: true},
+      expected: {merge: {merged: true}},
+    },
+    {
+      toolId: 'pull_request_read',
+      arguments: {
+        method: 'get_diff',
+        owner: 'shipfox',
+        repo: 'platform',
+        pull_number: 2,
+      },
+      data: 'diff --git a/file b/file',
+      expected: {result: 'diff --git a/file b/file'},
+    },
+  ] satisfies Array<{
+    toolId: GithubAgentToolId;
+    arguments: Record<string, unknown>;
+    data: unknown;
+    expected: Record<string, unknown>;
+  }>)('projects $toolId responses to their output schema', async (testCase) => {
+    const result = await callGithubTool(testCase.toolId, testCase.arguments, testCase.data);
+
+    expect(result).toEqual({
+      content: [{type: 'text', text: JSON.stringify(testCase.expected)}],
+      structuredContent: testCase.expected,
+    });
+  });
 });
+
+async function callGithubTool(
+  toolId: GithubAgentToolId,
+  arguments_: Record<string, unknown>,
+  data: unknown,
+) {
+  const tool = githubAgentToolCatalog.find((entry) => entry.id === toolId);
+  if (!tool) throw new Error(`Missing GitHub tool: ${toolId}`);
+  const provider = new GithubAgentToolsProvider({
+    getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
+    tokenProvider: {
+      getInstallationAccessToken: vi.fn(() =>
+        Promise.resolve({
+          token: 'installation-token',
+          expiresAt: new Date(),
+          permissions: {
+            actions: 'write' as const,
+            contents: 'write' as const,
+            issues: 'write' as const,
+            pull_requests: 'write' as const,
+          },
+        }),
+      ),
+    },
+    createClient: vi.fn(() => ({request: vi.fn(() => Promise.resolve({data}))})),
+  });
+  const session = await provider.openSession({
+    connection: connection(),
+    tools: [tool],
+    scope: undefined,
+  });
+
+  return await session.call({toolId, arguments: arguments_});
+}
 
 function connection() {
   return {

@@ -847,7 +847,7 @@ export class GithubAgentToolsProvider
 
         try {
           const response = await client.request(operation.route, operation.parameters);
-          return githubToolResult(response.data);
+          return githubToolResult(tool.id as GithubAgentToolId, response.data);
         } catch (error) {
           if (error instanceof GithubIntegrationProviderError)
             return githubToolError(error.message);
@@ -1048,11 +1048,41 @@ function projectGithubOperationParameters(
   return parameters;
 }
 
-function githubToolResult(data: unknown): GithubToolCallResult {
+function githubToolResult(toolId: GithubAgentToolId, data: unknown): GithubToolCallResult {
+  const structuredContent = projectGithubToolOutput(toolId, data);
   return {
-    content: [{type: 'text', text: JSON.stringify(data)}],
-    structuredContent: isRecord(data) ? data : {result: data},
+    content: [{type: 'text', text: JSON.stringify(structuredContent)}],
+    structuredContent,
   };
+}
+
+function projectGithubToolOutput(
+  toolId: GithubAgentToolId,
+  data: unknown,
+): Record<string, unknown> {
+  switch (toolId) {
+    case 'list_issue_types':
+      return {issue_types: data};
+    case 'list_issues':
+      return {issues: data};
+    case 'search_issues':
+      return {issues: githubSearchItems(data)};
+    case 'list_pull_requests':
+      return {pull_requests: data};
+    case 'search_pull_requests':
+      return {pull_requests: githubSearchItems(data)};
+    case 'create_pull_request':
+    case 'update_pull_request':
+      return {pull_request: data};
+    case 'merge_pull_request':
+      return {merge: data};
+    default:
+      return isRecord(data) ? data : {result: data};
+  }
+}
+
+function githubSearchItems(data: unknown): unknown {
+  return isRecord(data) ? data.items : data;
 }
 
 function githubToolError(message: string): GithubToolCallResult {
