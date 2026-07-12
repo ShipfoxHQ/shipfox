@@ -56,11 +56,21 @@ try {
     );
   }
 
+  const publishedExport = manifest.exports?.['.']?.default;
+  if (
+    !publishedExport ||
+    typeof publishedExport !== 'object' ||
+    typeof publishedExport.default !== 'string' ||
+    typeof publishedExport.types !== 'string'
+  ) {
+    throw new Error('Expected root runtime and declaration export targets');
+  }
+
   for (const relativePath of [
     'CHANGELOG.md',
     'README.md',
-    manifest.exports['.'].default.default,
-    manifest.exports['.'].default.types,
+    publishedExport.default,
+    publishedExport.types,
   ]) {
     await access(resolve(installedRoot, relativePath));
   }

@@ -22,7 +22,7 @@ The runtime exports are `PostgresOutbox`, `createPostgresOutbox`, `createPostgre
 Use Node.js 24 or newer. Use PostgreSQL 18.
 
 ```sh
-pnpm add @shipfox/node-outbox @shipfox/node-drizzle @shipfox/node-postgres drizzle-orm
+pnpm add @shipfox/node-outbox @shipfox/node-drizzle drizzle-orm
 ```
 
 ## Usage
