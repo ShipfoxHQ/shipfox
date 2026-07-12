@@ -1,8 +1,9 @@
 import {getTableConfig, pgTableCreator} from 'drizzle-orm/pg-core';
-import {createOutboxTable} from './schema.js';
-import {writeOutboxEvent, writeOutboxEvents} from './write.js';
+import {createOutboxTable, createPostgresOutboxTable} from './schema.js';
+import {writeIdempotentOutboxEvent, writeOutboxEvent, writeOutboxEvents} from './write.js';
 
 const outboxTable = createOutboxTable(pgTableCreator((name) => name));
+const postgresOutboxTable = createPostgresOutboxTable(pgTableCreator((name) => name));
 
 interface TestEventMap {
   'thing.created': {id: string};
@@ -29,6 +30,29 @@ describe('createOutboxTable', () => {
       retentionIndex?.config.columns.map((column) => ('name' in column ? column.name : null)),
     ).toEqual(['dispatched_at', 'id']);
     expect(retentionIndex?.config.where).toBeDefined();
+  });
+});
+
+describe('createPostgresOutboxTable', () => {
+  it('adds idempotency and lease columns without changing the legacy table factory', () => {
+    expect(postgresOutboxTable.idempotencyKey.name).toBe('idempotency_key');
+    expect(postgresOutboxTable.leaseToken.name).toBe('lease_token');
+    expect(postgresOutboxTable.leaseExpiresAt.name).toBe('lease_expires_at');
+    expect('idempotencyKey' in outboxTable).toBe(false);
+  });
+
+  it('enforces unique idempotency keys and lease tokens', () => {
+    const indexes = getTableConfig(postgresOutboxTable).indexes.map((index) => ({
+      name: index.config.name,
+      unique: index.config.unique,
+    }));
+
+    expect(indexes).toEqual(
+      expect.arrayContaining([
+        {name: 'outbox_idempotency_key_idx', unique: true},
+        {name: 'outbox_lease_token_idx', unique: true},
+      ]),
+    );
   });
 });
 
@@ -93,5 +117,50 @@ describe('writeOutboxEvent', () => {
     expect(values).toHaveBeenCalledWith([
       {eventType: 'thing.created', orderingKey: null, payload: {id: 'a'}},
     ]);
+  });
+});
+
+describe('writeIdempotentOutboxEvent', () => {
+  function fakeIdempotentTx(inserted: Array<{id: string}>) {
+    const returning = vi.fn().mockResolvedValue(inserted);
+    const onConflictDoNothing = vi.fn(() => ({returning}));
+    const values = vi.fn(() => ({onConflictDoNothing}));
+    const insert = vi.fn(() => ({values}));
+    return {tx: {insert}, values, onConflictDoNothing, returning};
+  }
+
+  it.each([
+    ['created', [{id: '018f0000-0000-7000-8000-000000000000'}]],
+    ['duplicate', []],
+  ] as const)('returns %s from the conflict-safe insert', async (status, inserted) => {
+    const {tx, onConflictDoNothing, returning} = fakeIdempotentTx([...inserted]);
+
+    const result = await writeIdempotentOutboxEvent(tx, postgresOutboxTable, {
+      idempotencyKey: ' event-1 ',
+      type: ' thing.created ',
+      orderingKey: ' aggregate-1 ',
+      payload: {id: 'a'},
+    });
+
+    expect(result).toEqual({status});
+    expect(onConflictDoNothing).toHaveBeenCalledWith({
+      target: postgresOutboxTable.idempotencyKey,
+    });
+    expect(returning).toHaveBeenCalledWith({id: postgresOutboxTable.id});
+  });
+
+  it.each([
+    ['idempotencyKey', {idempotencyKey: ' ', type: 'thing.created'}],
+    ['type', {idempotencyKey: 'event-1', type: ' '}],
+  ] as const)('rejects an empty %s before inserting', async (name, event) => {
+    const {tx, values} = fakeIdempotentTx([]);
+
+    const write = writeIdempotentOutboxEvent(tx, postgresOutboxTable, {
+      ...event,
+      payload: {id: 'a'},
+    });
+
+    await expect(write).rejects.toThrow(`${name} must not be empty`);
+    expect(values).not.toHaveBeenCalled();
   });
 });

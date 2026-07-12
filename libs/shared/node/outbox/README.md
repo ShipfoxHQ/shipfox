@@ -1,50 +1,88 @@
 # Shipfox Outbox
 
-Typed outbox helpers for Shipfox modules. Use this package when a database write needs to record a domain event in the same transaction.
+Typed transactional outbox helpers for Drizzle and PostgreSQL.
 
 ## What it does
 
-- **`createOutboxTable(pgTable)`**: Creates a Drizzle table named `outbox` for a module table namespace.
-- **`writeOutboxEvent(tx, outboxTable, event)`**: Inserts a typed event into an outbox table.
+- **Legacy module helpers**: `createOutboxTable`, `writeOutboxEvent`, and `writeOutboxEvents` keep the current Shipfox module contract.
+- **`createPostgresOutboxTable(pgTable)`**: Creates an outbox table with idempotency keys and delivery leases.
+- **`writeIdempotentOutboxEvent(tx, table, event)`**: Adds one event inside a Drizzle transaction and reports if the key was new.
+- **`createPostgresOutbox(options)`**: Claims events, records retries, rejects stale deliveries, and reports pending age.
 - **`DomainEvent`**: Runtime event shape used by dispatchers.
 - **`EventMapLike`, `EventType`, `EventPayload`**: Type helpers for module event maps.
+
+## Installation
+
+This package is private to the workspace. Add it to another workspace package:
+
+```json
+{
+  "dependencies": {
+    "@shipfox/node-outbox": "workspace:*"
+  }
+}
+```
 
 ## Usage
 
 ```ts
-import {createOutboxTable, writeOutboxEvent} from '@shipfox/node-outbox';
+import {
+  createPostgresOutbox,
+  createPostgresOutboxTable,
+  writeIdempotentOutboxEvent,
+} from '@shipfox/node-outbox';
 import {pgTableCreator} from 'drizzle-orm/pg-core';
 
 const pgTable = pgTableCreator((name) => `projects_${name}`);
-export const outbox = createOutboxTable(pgTable);
-
-interface ProjectEventMap {
-  'project.created': {projectId: string};
-}
+const outboxTable = createPostgresOutboxTable(pgTable);
+const outbox = createPostgresOutbox({database: db, table: outboxTable});
 
 await db.transaction(async (tx) => {
   await tx.insert(projects).values({id: projectId});
-  await writeOutboxEvent<ProjectEventMap>(tx, outbox, {
+  await writeIdempotentOutboxEvent(tx, outboxTable, {
+    idempotencyKey: `project-created:${projectId}`,
     type: 'project.created',
     payload: {projectId},
   });
 });
+
+const [delivery] = await outbox.claim({batchSize: 100, leaseDurationMs: 30_000});
+if (delivery) await outbox.acknowledge(delivery);
 ```
 
-Each row also carries bounded-retry and dead-letter columns: `dispatch_attempts`,
-`next_dispatch_at`, `last_dispatch_error`, `last_dispatch_failed_at`, and
-`dead_lettered_at`. A dispatcher records failures, backs off `next_dispatch_at`,
-and dead-letters a row once it exhausts its attempts.
+## Data Model
 
-The table includes a pending-event index on `(next_dispatch_at, created_at)` for
-rows where `dispatched_at` and `dead_lettered_at` are both null.
+`createPostgresOutboxTable` creates an `outbox` table in the given table namespace.
+It needs PostgreSQL 18 because its primary key uses `uuidv7()`.
+
+| Columns | Purpose |
+| --- | --- |
+| `id`, `idempotency_key` | Keep the row key separate from the caller's unique event key. |
+| `event_type`, `ordering_key`, `payload`, `created_at` | Store the event and its order group. |
+| `lease_token`, `lease_expires_at` | Give one delivery attempt time-bound authority. |
+| `dispatch_attempts`, `next_dispatch_at` | Count claims and schedule retries. |
+| `last_dispatch_error`, `last_dispatch_failed_at` | Store the last failure. |
+| `dispatched_at`, `dead_lettered_at` | Store terminal delivery state. |
+
+## Behavior Notes
+
+- Claims use `FOR UPDATE SKIP LOCKED`. Concurrent workers receive different rows.
+- A non-empty ordering key blocks newer events in the same group until the oldest event finishes.
+- Each claim increments `dispatch_attempts` and gets a new lease token.
+- Acknowledgement and retry require the current unexpired token. A stale call returns `stale` and changes nothing.
+- `maxAttempts` defaults to 5. The last failed attempt moves the event to the dead letter state.
+- `maxRetryDelayMs` defaults to 30 minutes. Longer retry delays use that limit.
+- `createOutboxTable` stays separate, so current Shipfox modules need no schema or source change.
 
 ## Development
 
 ```sh
 turbo check --filter=@shipfox/node-outbox
 turbo type --filter=@shipfox/node-outbox
+turbo test --filter=@shipfox/node-outbox
 ```
+
+The PostgreSQL contract tests need the local PostgreSQL 18 service. Start it with `docker compose up -d`.
 
 ## License
 
