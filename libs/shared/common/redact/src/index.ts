@@ -5,7 +5,7 @@ const CIRCULAR_PLACEHOLDER = '[Circular]';
 const SENSITIVE_KEY =
   /(?:authorization|cookie|credential|password|private[_-]?key|secret|signature|token|api[_-]?key)/i;
 const SENSITIVE_URL_FIELD =
-  /^(?:access[_-]?token|authorization|awsaccesskeyid|client[_-]?secret|code|credential|googleaccessid|id[_-]?token|password|policy|refresh[_-]?token|secret|signature|sig|token|x-amz-(?:algorithm|credential|date|expires|security-token|signature|signedheaders)|x-goog-(?:algorithm|credential|date|expires|signature|signedheaders)|x-oss-(?:credential|signature))$/i;
+  /^(?:access[_-]?token|authorization|awsaccesskeyid|client[_-]?secret|code|credential|googleaccessid|id[_-]?token|password|policy|refresh[_-]?token|secret|signature|sig|temp_url_sig|token|x-amz-(?:algorithm|credential|date|expires|security-token|signature|signedheaders)|x-goog-(?:algorithm|credential|date|expires|signature|signedheaders)|x-oss-(?:credential|signature))$/i;
 const SENSITIVE_TEXT_PAIR =
   /(\b(?:access[_-]?token|api[_-]?key|authorization|client[_-]?secret|code|credential|id[_-]?token|password|refresh[_-]?token|secret|signature|sig|token|x-amz-signature)\b)\s*[:=]\s*[^\s,;&#]+/gi;
 const SCHEME_URL = /[a-z][a-z0-9+.-]{0,31}:\/\/[^\s"'<>]+/gi;
@@ -16,8 +16,14 @@ export interface StructuredRedactionOptions {
 }
 
 export interface Redactor {
-  /** Returns a redacted copy of `value`. Caller-owned objects are never mutated. */
-  redact<T>(value: T): T;
+  /**
+   * Returns a redacted copy of `value`. String, URL, and Date inputs become
+   * strings. Other inputs return `unknown` because keys, values, errors, and
+   * circular references can change representation. Caller-owned values are
+   * never mutated.
+   */
+  redact(value: string | Date | URL): string;
+  redact(value: unknown): unknown;
 }
 
 // Bounded scheme length keeps the match linear: an unbounded `*` before the
@@ -295,7 +301,9 @@ export function createRedactor(options: StructuredRedactionOptions = {}): Redact
     if (typeof value === 'string') return redactText(value);
     if (value === null || typeof value !== 'object') return value;
     if (value instanceof URL) return redactSensitiveUrl(redactText(value.toString()));
-    if (value instanceof Date) return value.toISOString();
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? value.toString() : value.toISOString();
+    }
     if (ancestors.has(value)) return CIRCULAR_PLACEHOLDER;
 
     ancestors.add(value);
@@ -304,7 +312,7 @@ export function createRedactor(options: StructuredRedactionOptions = {}): Redact
         return {
           cause: value.cause === undefined ? undefined : visit(value.cause, ancestors),
           message: redactText(value.message),
-          name: value.name,
+          name: redactText(value.name),
           stack: value.stack ? redactText(value.stack) : undefined,
         };
       }
@@ -312,7 +320,7 @@ export function createRedactor(options: StructuredRedactionOptions = {}): Redact
 
       return Object.fromEntries(
         Object.entries(value).map(([key, item]) => [
-          key,
+          redactText(key),
           SENSITIVE_KEY.test(key) ? REDACTION_PLACEHOLDER : visit(item, ancestors),
         ]),
       );
@@ -321,7 +329,11 @@ export function createRedactor(options: StructuredRedactionOptions = {}): Redact
     }
   }
 
-  return {
-    redact: <T>(value: T): T => visit(value, new WeakSet()) as T,
-  };
+  function redact(value: string | Date | URL): string;
+  function redact(value: unknown): unknown;
+  function redact(value: unknown): unknown {
+    return visit(value, new WeakSet());
+  }
+
+  return {redact};
 }

@@ -27,7 +27,9 @@ across Shipfox so they cannot drift.
 - **`createRedactor(options)`** returns a provider-independent recursive
   redactor for strings, arrays, JSON-like objects, `Error`, `URL`, and `Date`
   values. It returns copies instead of mutating input and safely replaces
-  circular references with `[Circular]`.
+  circular references with `[Circular]`. String, `URL`, and `Date` inputs return
+  strings; other structured inputs return `unknown` because their keys and
+  values can change representation during redaction.
 - **`secretWireForms(secret)`** derives every wire form one secret can appear as
   in captured output: the literal, its base64 and base64url forms (all three
   phase alignments, so a secret embedded in a larger encoded blob is masked too),

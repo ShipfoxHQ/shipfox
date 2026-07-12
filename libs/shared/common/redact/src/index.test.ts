@@ -36,6 +36,17 @@ describe('redactSensitiveUrl', () => {
     expect(result).toContain('state=public');
   });
 
+  it('redacts OpenStack Swift temporary URL signatures', () => {
+    const input =
+      'https://objects.example/v1/account/container/object?temp_url_sig=secret-signature&temp_url_expires=1783886400';
+
+    const result = redactSensitiveUrl(input);
+
+    expect(result).not.toContain('secret-signature');
+    expect(result).toContain('temp_url_sig=***');
+    expect(result).toContain('temp_url_expires=1783886400');
+  });
+
   it.each(['postgres', 'redis', 'ftp'])('redacts %s URL credentials', (scheme) => {
     const result = redactSensitiveUrl(`${scheme}://user:password@example.com/resource`);
 
@@ -80,9 +91,10 @@ describe('createRedactor', () => {
     };
 
     const result = createRedactor().redact(input);
+    const resultRecord = result as {nested: unknown};
 
     expect(result).not.toBe(input);
-    expect(result.nested).not.toBe(input.nested);
+    expect(resultRecord.nested).not.toBe(input.nested);
     expect(JSON.stringify(result)).not.toContain('project-token');
     expect(JSON.stringify(result)).not.toContain('password');
     expect(JSON.stringify(result)).not.toContain('plain-token');
@@ -94,6 +106,7 @@ describe('createRedactor', () => {
     const error = new Error(`Request failed with ${secret}`, {
       cause: new Error('Authorization: Basic encoded-credentials'),
     });
+    error.name = `Custom${secret}`;
     const input = {
       date: new Date('2026-07-12T12:00:00.000Z'),
       error,
@@ -110,6 +123,38 @@ describe('createRedactor', () => {
     expect(serialized).toContain('Error');
   });
 
+  it('redacts configured secrets used as object keys', () => {
+    const secret = 'dynamic-property-secret-with-entropy';
+    const input = {[secret]: 'public value'};
+
+    const result = createRedactor({secrets: [secret]}).redact(input);
+    const serialized = JSON.stringify(result);
+
+    expect(serialized).not.toContain(secret);
+    expect(serialized).toContain(REDACTION_PLACEHOLDER);
+    expect(input).toHaveProperty(secret);
+  });
+
+  it('serializes invalid Date values without throwing', () => {
+    const input = new Date(Number.NaN);
+
+    const result = createRedactor().redact(input);
+
+    expect(result).toBe('Invalid Date');
+  });
+
+  it('types transformed structured values as unknown', () => {
+    const redactor = createRedactor();
+
+    const text = redactor.redact('public');
+    const date = redactor.redact(new Date());
+    const structured = redactor.redact({value: 'public'});
+
+    expectTypeOf(text).toEqualTypeOf<string>();
+    expectTypeOf(date).toEqualTypeOf<string>();
+    expectTypeOf(structured).toEqualTypeOf<unknown>();
+  });
+
   it('replaces circular references while preserving repeated non-circular values', () => {
     const shared = {value: 'public'};
     const input: {self?: unknown; first: typeof shared; second: typeof shared} = {
@@ -119,11 +164,12 @@ describe('createRedactor', () => {
     input.self = input;
 
     const result = createRedactor().redact(input);
+    const resultRecord = result as Record<string, unknown>;
 
-    expect(result.self).toBe('[Circular]');
-    expect(result.first).toEqual(shared);
-    expect(result.second).toEqual(shared);
-    expect(result.first).not.toBe(result.second);
+    expect(resultRecord.self).toBe('[Circular]');
+    expect(resultRecord.first).toEqual(shared);
+    expect(resultRecord.second).toEqual(shared);
+    expect(resultRecord.first).not.toBe(resultRecord.second);
   });
 });
 
