@@ -1,5 +1,16 @@
 # @shipfox/api-integration-linear
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [ec75cd5]
+- Updated dependencies [6a1fb54]
+  - @shipfox/node-drizzle@0.2.0
+  - @shipfox/node-postgres@0.4.0
+  - @shipfox/api-secrets@0.1.1
+  - @shipfox/api-workspaces@0.1.1
+
 ## 1.0.0
 
 ### Patch Changes

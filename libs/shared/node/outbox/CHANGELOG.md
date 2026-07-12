@@ -1,5 +1,12 @@
 # @shipfox/node-outbox
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [ec75cd5]
+  - @shipfox/node-drizzle@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

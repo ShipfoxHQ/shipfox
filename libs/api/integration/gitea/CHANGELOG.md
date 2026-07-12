@@ -1,5 +1,14 @@
 # @shipfox/api-integration-gitea
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [ec75cd5]
+- Updated dependencies [6a1fb54]
+  - @shipfox/node-drizzle@0.2.0
+  - @shipfox/node-postgres@0.4.0
+
 ## 0.0.1
 
 ### Patch Changes

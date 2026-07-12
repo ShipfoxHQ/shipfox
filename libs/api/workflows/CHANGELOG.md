@@ -1,5 +1,24 @@
 # @shipfox/api-workflows
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [ec75cd5]
+- Updated dependencies [6a1fb54]
+  - @shipfox/node-drizzle@0.2.0
+  - @shipfox/node-postgres@0.4.0
+  - @shipfox/api-agent@0.1.1
+  - @shipfox/annotations@0.0.2
+  - @shipfox/api-auth@0.1.1
+  - @shipfox/api-definitions@0.1.1
+  - @shipfox/api-integration-core@0.1.1
+  - @shipfox/api-projects@0.1.1
+  - @shipfox/api-runners@0.1.1
+  - @shipfox/api-secrets@0.1.1
+  - @shipfox/node-module@0.1.1
+  - @shipfox/node-outbox@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

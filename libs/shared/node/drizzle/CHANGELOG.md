@@ -1,5 +1,16 @@
 # @shipfox/node-drizzle
 
+## 0.2.0
+
+### Minor Changes
+
+- ec75cd5: Publishes the supported Drizzle helpers with migration safety, keyset cursor coverage, and external consumer documentation.
+
+### Patch Changes
+
+- Updated dependencies [6a1fb54]
+  - @shipfox/node-postgres@0.4.0
+
 ## 0.1.0
 
 ### Minor Changes

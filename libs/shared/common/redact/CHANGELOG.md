@@ -1,5 +1,11 @@
 # @shipfox/redact
 
+## 0.2.0
+
+### Minor Changes
+
+- 68b8d03: Publishes the supported redaction helpers for external ESM consumers with public package metadata and packed-install coverage.
+
 ## 0.1.0
 
 ### Minor Changes
