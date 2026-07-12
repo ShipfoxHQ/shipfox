@@ -1,6 +1,31 @@
 /** Replacement written in place of any redacted secret or URL credential. */
 export const REDACTION_PLACEHOLDER = '***';
 
+const CIRCULAR_PLACEHOLDER = '[Circular]';
+const SENSITIVE_KEY =
+  /(?:authorization|cookie|credential|password|private[_-]?key|secret|signature|token|api[_-]?key)/i;
+const SENSITIVE_URL_FIELD =
+  /^(?:access[_-]?token|authorization|awsaccesskeyid|client[_-]?secret|code|credential|googleaccessid|id[_-]?token|password|policy|refresh[_-]?token|secret|signature|sig|temp_url_sig|token|x-amz-(?:algorithm|credential|date|expires|security-token|signature|signedheaders)|x-goog-(?:algorithm|credential|date|expires|signature|signedheaders)|x-oss-(?:credential|signature))$/i;
+const SENSITIVE_TEXT_PAIR =
+  /(\b(?:access[_-]?token|api[_-]?key|authorization|client[_-]?secret|code|credential|id[_-]?token|password|refresh[_-]?token|secret|signature|sig|token|x-amz-signature)\b)\s*[:=]\s*[^\s,;&#]+/gi;
+const SCHEME_URL = /[a-z][a-z0-9+.-]{0,31}:\/\/[^\s"'<>]+/gi;
+
+export interface StructuredRedactionOptions {
+  /** Secrets to redact in their literal, encoded, base64, base64url, and hex forms. */
+  readonly secrets?: readonly string[];
+}
+
+export interface Redactor {
+  /**
+   * Returns a redacted copy of `value`. String, URL, and Date inputs become
+   * strings. Other inputs return `unknown` because keys, values, errors, and
+   * circular references can change representation. Caller-owned values are
+   * never mutated.
+   */
+  redact(value: string | Date | URL): string;
+  redact(value: unknown): unknown;
+}
+
 // Bounded scheme length keeps the match linear: an unbounded `*` before the
 // `://` literal backtracks O(n) per start position (O(n^2) overall) on long
 // adversarial input, while a capped repetition stays O(n). No real URL scheme
@@ -69,7 +94,7 @@ export function stripUrlCredentials(url: string): string {
  * real, high-entropy secrets only; a trivially short literal (e.g. a single
  * character) would scrub unrelated text.
  */
-export function redactSecrets(text: string, secrets: string[]): string {
+export function redactSecrets(text: string, secrets: readonly string[]): string {
   let redacted = text;
   // Remove longer secrets first: scrubbing a shorter secret that is a substring
   // of a longer one would otherwise leave the longer secret's tail visible.
@@ -193,4 +218,122 @@ export function secretWireForms(secret: string): string[] {
   ].filter((form) => form.length >= MIN_DERIVED_FORM_LENGTH);
   // The literal always masks; only its derived forms are length-gated.
   return [...new Set([secret, ...derived])].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Redacts credentials and sensitive query or fragment fields from one URL.
+ * Parseable URLs keep their non-sensitive fields. Malformed values fall back to
+ * the free-text URL-credential scrubber.
+ */
+export function redactSensitiveUrl(url: string | URL): string {
+  const input = url.toString();
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    return redactUrlCredentials(input);
+  }
+
+  if (parsed.username || parsed.password) {
+    parsed.username = REDACTION_PLACEHOLDER;
+    parsed.password = '';
+  }
+
+  for (const key of [...parsed.searchParams.keys()]) {
+    if (SENSITIVE_URL_FIELD.test(key)) {
+      parsed.searchParams.set(key, REDACTION_PLACEHOLDER);
+    }
+  }
+
+  if (parsed.hash) {
+    parsed.hash = parsed.hash.slice(1).replace(SENSITIVE_TEXT_PAIR, `$1=${REDACTION_PLACEHOLDER}`);
+  }
+
+  return parsed.toString();
+}
+
+function configuredSecretWireForms(secrets: readonly string[]): string[] {
+  return [...new Set(secrets.flatMap((secret) => secretWireForms(secret)))];
+}
+
+function redactSensitiveTextWithWireForms(text: string, wireForms: readonly string[]): string {
+  let redacted = text.replace(
+    /\b(Bearer|Basic|Digest|AWS4-HMAC-SHA256)\s+[^\s,;]+/gi,
+    `$1 ${REDACTION_PLACEHOLDER}`,
+  );
+  redacted = redacted.replace(
+    /Authorization\s*[:=]\s*[^\r\n]+/gi,
+    `Authorization: ${REDACTION_PLACEHOLDER}`,
+  );
+  redacted = redacted.replace(
+    /((?:set-)?cookie|x-hub-signature(?:-256)?|x-webhook-signature)\s*[:=]\s*[^\r\n]+/gi,
+    `$1: ${REDACTION_PLACEHOLDER}`,
+  );
+  redacted = redacted.replace(SCHEME_URL, (url) => redactSensitiveUrl(url));
+  redacted = redacted.replace(SENSITIVE_TEXT_PAIR, `$1=${REDACTION_PLACEHOLDER}`);
+  return redactSecrets(redacted, wireForms);
+}
+
+/**
+ * Redacts common credential forms from free text, including authorization and
+ * cookie headers, webhook signatures, sensitive key-value pairs, URLs, and any
+ * configured secrets in the wire forms returned by {@link secretWireForms}.
+ */
+export function redactSensitiveText(
+  text: string,
+  options: StructuredRedactionOptions = {},
+): string {
+  const wireForms = configuredSecretWireForms(options.secrets ?? []);
+  return redactSensitiveTextWithWireForms(text, wireForms);
+}
+
+/**
+ * Creates a provider-independent redactor for log messages and structured
+ * values. Arrays and objects are copied recursively; `URL` and `Date` become
+ * strings; `Error` becomes a plain object; circular references become
+ * `[Circular]`.
+ */
+export function createRedactor(options: StructuredRedactionOptions = {}): Redactor {
+  const wireForms = configuredSecretWireForms(options.secrets ?? []);
+  const redactText = (text: string): string => redactSensitiveTextWithWireForms(text, wireForms);
+
+  function visit(value: unknown, ancestors: WeakSet<object>): unknown {
+    if (typeof value === 'string') return redactText(value);
+    if (value === null || typeof value !== 'object') return value;
+    if (value instanceof URL) return redactSensitiveUrl(redactText(value.toString()));
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? value.toString() : value.toISOString();
+    }
+    if (ancestors.has(value)) return CIRCULAR_PLACEHOLDER;
+
+    ancestors.add(value);
+    try {
+      if (value instanceof Error) {
+        return {
+          cause: value.cause === undefined ? undefined : visit(value.cause, ancestors),
+          message: redactText(value.message),
+          name: redactText(value.name),
+          stack: value.stack ? redactText(value.stack) : undefined,
+        };
+      }
+      if (Array.isArray(value)) return value.map((item) => visit(item, ancestors));
+
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [
+          redactText(key),
+          SENSITIVE_KEY.test(key) ? REDACTION_PLACEHOLDER : visit(item, ancestors),
+        ]),
+      );
+    } finally {
+      ancestors.delete(value);
+    }
+  }
+
+  function redact(value: string | Date | URL): string;
+  function redact(value: unknown): unknown;
+  function redact(value: unknown): unknown {
+    return visit(value, new WeakSet());
+  }
+
+  return {redact};
 }

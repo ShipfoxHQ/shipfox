@@ -18,6 +18,18 @@ across Shipfox so they cannot drift.
   secret, then applies `redactUrlCredentials`. The helper only removes the
   literals it is given, so pass every wire form a secret takes; use
   `secretWireForms` to derive them.
+- **`redactSensitiveUrl(url)`** redacts userinfo plus sensitive query and
+  fragment fields in one parseable URL. It covers signed S3-compatible URLs,
+  OAuth callbacks, and non-HTTP schemes such as `postgres`, `redis`, and `ftp`.
+- **`redactSensitiveText(text, options)`** redacts URLs, Authorization schemes,
+  cookies, webhook signatures, sensitive key-value pairs, and configured
+  secrets from free text.
+- **`createRedactor(options)`** returns a provider-independent recursive
+  redactor for strings, arrays, JSON-like objects, `Error`, `URL`, and `Date`
+  values. It returns copies instead of mutating input and safely replaces
+  circular references with `[Circular]`. String, `URL`, and `Date` inputs return
+  strings; other structured inputs return `unknown` because their keys and
+  values can change representation during redaction.
 - **`secretWireForms(secret)`** derives every wire form one secret can appear as
   in captured output: the literal, its base64 and base64url forms (all three
   phase alignments, so a secret embedded in a larger encoded blob is masked too),
@@ -43,7 +55,10 @@ pnpm add @shipfox/redact
 
 ```ts
 import {
+  createRedactor,
   redactSecrets,
+  redactSensitiveText,
+  redactSensitiveUrl,
   redactUrlCredentials,
   secretWireForms,
   stripUrlCredentials,
@@ -61,6 +76,21 @@ redactSecrets("Authorization: Basic dXNlcjp0b2tlbg==", ["dXNlcjp0b2tlbg=="]);
 // Mask a token in every form it might appear as (base64, hex, URL-encoded, ...).
 redactSecrets("digest=" + tokenAsHex, secretWireForms(token));
 // -> "digest=***"
+
+redactSensitiveUrl(
+  "https://objects.example/file?X-Amz-Credential=credential&X-Amz-Signature=signature",
+);
+// -> "https://objects.example/file?X-Amz-Credential=***&X-Amz-Signature=***"
+
+redactSensitiveText("Authorization: AWS4-HMAC-SHA256 signed-credentials");
+// -> "Authorization: ***"
+
+const redactor = createRedactor({secrets: [runtimeSecret]});
+redactor.redact({
+  databaseUrl: `postgres://user:${runtimeSecret}@db/glint`,
+  token: "project-token",
+});
+// -> {databaseUrl: "postgres://***@db/glint", token: "***"}
 ```
 
 ## Development
