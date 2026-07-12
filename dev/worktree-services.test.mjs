@@ -33,6 +33,7 @@ describe('portsFromBase', () => {
       otelInstance: 65_008,
       otelService: 65_009,
       linearMcp: 65_010,
+      githubApi: 65_011,
     });
   });
 });
@@ -75,6 +76,7 @@ describe('appEnv', () => {
     assert.equal(env.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS, 'host.docker.internal:host-gateway');
     assert.equal(env.SHIPFOX_DOCS_PORT, '55294');
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55300/mcp');
+    assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:55301');
   });
 });
 

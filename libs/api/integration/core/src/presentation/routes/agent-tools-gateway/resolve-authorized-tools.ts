@@ -7,7 +7,7 @@ import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {ClientError} from '@shipfox/node-fastify';
 import type {IntegrationConnection} from '#core/entities/connection.js';
 import type {IntegrationProviderKind} from '#core/entities/provider.js';
-import type {AgentToolCatalogEntry, AgentToolJsonSchema} from '#core/providers/agent-tools.js';
+import type {AgentToolJsonSchema} from '#core/providers/agent-tools.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
 
@@ -93,7 +93,7 @@ export async function resolveAuthorizedIntegrationTools(
         connection,
         // The live catalog enriches display metadata only. Frozen step config remains the allowlist.
         description: catalogTool?.description ?? tool.id,
-        inputSchema: tool.methods ? toolInputSchema(tool, catalogTool) : tool.inputSchema,
+        inputSchema: tool.methods ? toolInputSchema(tool) : tool.inputSchema,
         outputSchema: tool.outputSchema ?? catalogTool?.outputSchema,
       });
     }
@@ -113,7 +113,6 @@ export function mcpToolName(connectionSlug: string, toolId: string): string {
 export function narrowMethodEnum(
   inputSchema: AgentToolJsonSchema,
   authorizedMethods: readonly string[],
-  methodDescriptions: ReadonlyMap<string, string> = new Map(),
 ): AgentToolJsonSchema {
   const schema = cloneSchema(inputSchema);
   const methodSchema = getObjectProperty(schema, 'method');
@@ -121,43 +120,16 @@ export function narrowMethodEnum(
     narrowEnumOrConst(methodSchema, authorizedMethods);
   }
 
-  const oneOf = schema.oneOf;
-  if (Array.isArray(oneOf)) {
-    schema.oneOf = oneOf.filter((entry) => {
-      if (!isRecord(entry)) return true;
-      const entryMethod = getObjectProperty(entry, 'method');
-      if (!entryMethod) return true;
-      const methodConst = entryMethod?.const;
-      if (typeof methodConst !== 'string') return true;
-      if (!authorizedMethods.includes(methodConst)) return false;
-
-      const description = methodDescriptions.get(methodConst);
-      if (description) entryMethod.description = description;
-      return true;
-    });
-  } else if (methodDescriptions.size > 0) {
-    schema.oneOf = authorizedMethods.map((method) => ({
-      properties: {
-        method: {
-          const: method,
-          description: methodDescriptions.get(method) ?? method,
-        },
-      },
-    }));
-  }
+  // Claude rejects MCP tools with a top-level oneOf. The narrowed method enum remains the
+  // authority boundary, while provider validation enforces method-specific argument shapes.
+  delete schema.oneOf;
 
   return schema;
 }
 
-function toolInputSchema(
-  tool: MaterializedAgentIntegrationToolConfigDto,
-  catalogTool: AgentToolCatalogEntry | undefined,
-): AgentToolJsonSchema {
+function toolInputSchema(tool: MaterializedAgentIntegrationToolConfigDto): AgentToolJsonSchema {
   const authorizedMethods = tool.methods?.map((method) => method.id) ?? [];
-  const methodDescriptions = new Map(
-    catalogTool?.methods?.map((method) => [method.id, method.description]) ?? [],
-  );
-  return narrowMethodEnum(tool.inputSchema, authorizedMethods, methodDescriptions);
+  return narrowMethodEnum(tool.inputSchema, authorizedMethods);
 }
 
 function parseAgentIntegrations(

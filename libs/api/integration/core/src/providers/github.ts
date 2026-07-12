@@ -33,6 +33,7 @@ async function loadGithubModuleParts(
 ): Promise<IntegrationModuleParts> {
   const {
     createGithubInstallationTokenProvider,
+    createGithubE2eRoutes,
     encodeInstallationTokenEnvelope,
     createGithubIntegrationProvider,
     getGithubInstallationByInstallationId,
@@ -127,6 +128,13 @@ async function loadGithubModuleParts(
       deleteSecrets: options.secrets?.deleteSecrets,
       agentTools: {tokenProvider},
     }),
+    e2eRoutes: [
+      createGithubE2eRoutes({
+        getExistingGithubConnection,
+        connectGithubInstallation,
+        connectionCapabilities: ['source_control', 'agent_tools'],
+      }),
+    ],
     database: {
       db: githubDb,
       migrationsPath: githubMigrationsPath,

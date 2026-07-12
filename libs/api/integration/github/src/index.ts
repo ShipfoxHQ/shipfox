@@ -14,6 +14,10 @@ import {closeDb, db} from '#db/db.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 import {
+  type CreateGithubE2eRoutesOptions,
+  createGithubE2eRoutes,
+} from '#presentation/e2eRoutes/index.js';
+import {
   type CreateGithubIntegrationRoutesOptions,
   createGithubIntegrationRoutes,
 } from '#presentation/routes/install.js';
@@ -51,7 +55,7 @@ export {
   getGithubInstallationByInstallationId,
   upsertGithubInstallation,
 } from '#db/installations.js';
-export {closeDb, db, migrationsPath};
+export {type CreateGithubE2eRoutesOptions, closeDb, createGithubE2eRoutes, db, migrationsPath};
 
 export interface CreateGithubIntegrationProviderOptions
   extends Omit<CreateGithubIntegrationRoutesOptions, 'github'> {

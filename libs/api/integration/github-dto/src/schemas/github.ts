@@ -21,3 +21,17 @@ export type GithubCallbackQueryDto = z.infer<typeof githubCallbackQuerySchema>;
 
 export const githubCallbackResponseSchema = integrationConnectionDtoSchema;
 export type GithubCallbackResponseDto = z.infer<typeof githubCallbackResponseSchema>;
+
+export const createE2eGithubConnectionBodySchema = z.object({
+  workspace_id: z.string().uuid(),
+  installation_id: z.number().int().positive(),
+  account_login: z.string().min(1),
+  display_name: z.string().min(1),
+  installer_user_id: z.string().uuid(),
+});
+export type CreateE2eGithubConnectionBodyDto = z.infer<typeof createE2eGithubConnectionBodySchema>;
+
+export const createE2eGithubConnectionResponseSchema = integrationConnectionDtoSchema;
+export type CreateE2eGithubConnectionResponseDto = z.infer<
+  typeof createE2eGithubConnectionResponseSchema
+>;

@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-core-dto';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {App, Octokit, RequestError} from 'octokit';
-import {config, normalizedGithubPrivateKey} from '#config.js';
+import {config, normalizedGithubApiBaseUrl, normalizedGithubPrivateKey} from '#config.js';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 
 const NEXT_PAGE_RE = /[?&]page=(\d+)/;
@@ -135,7 +135,10 @@ class OctokitGithubApiClient implements GithubApiClient {
     userAccessToken: string;
     cursor?: string | undefined;
   }): Promise<GithubUserInstallationPage> {
-    const octokit = new Octokit({auth: input.userAccessToken});
+    const octokit = new Octokit({
+      auth: input.userAccessToken,
+      baseUrl: normalizedGithubApiBaseUrl(),
+    });
     const page = cursorToPage(input.cursor);
     const response = await mapGithubError(() =>
       octokit.request('GET /user/installations', {
@@ -380,6 +383,7 @@ class OctokitGithubApiClient implements GithubApiClient {
       this.app = new App({
         appId: config.GITHUB_APP_ID,
         privateKey: normalizedGithubPrivateKey(),
+        Octokit: Octokit.defaults({baseUrl: normalizedGithubApiBaseUrl()}),
       });
     }
     return this.app;

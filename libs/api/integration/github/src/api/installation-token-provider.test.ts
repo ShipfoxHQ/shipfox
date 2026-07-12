@@ -190,6 +190,7 @@ describe('GithubInstallationTokenProvider', () => {
       expect.objectContaining({
         Octokit: {
           defaults: {
+            baseUrl: 'https://api.github.com',
             throttle: {
               onRateLimit: expect.any(Function),
               onSecondaryRateLimit: expect.any(Function),

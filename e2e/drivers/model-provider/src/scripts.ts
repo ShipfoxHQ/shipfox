@@ -40,6 +40,10 @@ export type FakeOpenAiRequestAssertion = (
       name: string;
     }
   | {
+      kind: 'tool_absent';
+      name: string;
+    }
+  | {
       kind: 'message_content_includes';
       value: string;
     }
@@ -399,7 +403,13 @@ function assertRequest(
     }
 
     if (assertion.kind === 'tool_present' && !summary.tools.includes(assertion.name)) {
-      return [`Expected tool ${assertion.name} to be present`];
+      return [
+        `Expected tool ${assertion.name} to be present; received ${summary.tools.join(', ') || '<none>'}`,
+      ];
+    }
+
+    if (assertion.kind === 'tool_absent' && summary.tools.includes(assertion.name)) {
+      return [`Expected tool ${assertion.name} to be absent`];
     }
 
     if (

@@ -14,6 +14,7 @@ import {
   createGithubInstallationTokenProvider,
   type GithubInstallationTokenProvider,
 } from '#api/installation-token-provider.js';
+import {normalizedGithubApiBaseUrl} from '#config.js';
 import type {GithubInstallation} from '#db/installations.js';
 import {DEFAULT_JOB_LOG_TAIL_LINES} from './actions-logs.js';
 import {buildGithubAgentToolSelectionCatalog} from './agent-tool-selection.js';
@@ -23,6 +24,7 @@ type GithubIntegrationConnection = IntegrationConnection<'github'>;
 type GithubToolCallResult = {
   isError?: boolean | undefined;
   content: readonly {type: 'text'; text: string}[];
+  structuredContent?: Record<string, unknown> | undefined;
 };
 
 export type GithubAgentToolCategory = 'issues' | 'pull_requests' | 'actions';
@@ -845,7 +847,7 @@ export class GithubAgentToolsProvider
 
         try {
           const response = await client.request(operation.route, operation.parameters);
-          return githubToolResult(response.data);
+          return githubToolResult(tool.id as GithubAgentToolId, response.data);
         } catch (error) {
           if (error instanceof GithubIntegrationProviderError)
             return githubToolError(error.message);
@@ -876,7 +878,11 @@ interface GithubToolOperation {
 }
 
 function createOctokitClient(token: string): GithubToolClient {
-  const octokit = new Octokit({auth: token, retry: {enabled: false}});
+  const octokit = new Octokit({
+    auth: token,
+    baseUrl: normalizedGithubApiBaseUrl(),
+    retry: {enabled: false},
+  });
   return {
     request: async (route, parameters) => await octokit.request(route, parameters),
   };
@@ -1042,12 +1048,49 @@ function projectGithubOperationParameters(
   return parameters;
 }
 
-function githubToolResult(data: unknown): GithubToolCallResult {
-  return {content: [{type: 'text', text: JSON.stringify(data)}]};
+function githubToolResult(toolId: GithubAgentToolId, data: unknown): GithubToolCallResult {
+  const structuredContent = projectGithubToolOutput(toolId, data);
+  return {
+    content: [{type: 'text', text: JSON.stringify(structuredContent)}],
+    structuredContent,
+  };
+}
+
+function projectGithubToolOutput(
+  toolId: GithubAgentToolId,
+  data: unknown,
+): Record<string, unknown> {
+  switch (toolId) {
+    case 'list_issue_types':
+      return {issue_types: data};
+    case 'list_issues':
+      return {issues: data};
+    case 'search_issues':
+      return {issues: githubSearchItems(data)};
+    case 'list_pull_requests':
+      return {pull_requests: data};
+    case 'search_pull_requests':
+      return {pull_requests: githubSearchItems(data)};
+    case 'create_pull_request':
+    case 'update_pull_request':
+      return {pull_request: data};
+    case 'merge_pull_request':
+      return {merge: data};
+    default:
+      return isRecord(data) ? data : {result: data};
+  }
+}
+
+function githubSearchItems(data: unknown): unknown {
+  return isRecord(data) ? data.items : data;
 }
 
 function githubToolError(message: string): GithubToolCallResult {
   return {isError: true, content: [{type: 'text', text: message}]};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function validateGithubToolArguments(

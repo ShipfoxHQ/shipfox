@@ -16,7 +16,7 @@ import {
 } from './resolve-authorized-tools.js';
 
 describe('resolveAuthorizedIntegrationTools', () => {
-  it('resolves namespaced tools with live descriptions and narrowed method schemas', async () => {
+  it('resolves namespaced tools with live descriptions and Anthropic-compatible method schemas', async () => {
     const request = {};
     const lease = leaseContext();
     const integration = materializedIntegration({connectionId: 'connection-1'});
@@ -43,11 +43,7 @@ describe('resolveAuthorizedIntegrationTools', () => {
     expect(properties.method).toMatchObject({
       enum: ['get', 'get_comments'],
     });
-    expect(authorizedTool?.inputSchema.oneOf).toHaveLength(2);
-    const oneOf = authorizedTool?.inputSchema.oneOf as unknown[];
-    expect(oneOf[0]).toMatchObject({
-      properties: {method: {const: 'get', description: 'Get one issue.'}},
-    });
+    expect(authorizedTool?.inputSchema.oneOf).toBeUndefined();
   });
 
   it('fails closed when the lease has no current step', async () => {

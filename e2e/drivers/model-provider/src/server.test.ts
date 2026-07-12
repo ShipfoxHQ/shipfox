@@ -486,7 +486,31 @@ describe('fake OpenAI model provider server', () => {
     expect(workflowResult.status).toBe(422);
     await expect(workflowResult.json()).resolves.toEqual({
       error: {
-        message: 'Expected tool set_output to be present',
+        message: 'Expected tool set_output to be present; received <none>',
+        type: 'script_assertion_failed',
+      },
+    });
+  });
+
+  it('rejects requests that advertise an explicitly absent tool', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'absent-tool',
+        assertions: [{kind: 'tool_absent', name: 'add_issue_comment'}],
+      }),
+    );
+
+    const result = await chatCompletion(server, 'absent-tool', {
+      model: 'deterministic-output-agent',
+      messages: [{role: 'user'}],
+      tools: [{type: 'function', function: {name: 'add_issue_comment', parameters: {}}}],
+    });
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      error: {
+        message: 'Expected tool add_issue_comment to be absent',
         type: 'script_assertion_failed',
       },
     });

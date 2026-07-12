@@ -750,6 +750,9 @@ importers:
 
   e2e/setup/integrations:
     dependencies:
+      '@shipfox/api-integration-github-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/github-dto
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../../../libs/api/integration/linear-dto
@@ -1153,6 +1156,9 @@ importers:
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/definitions-dto
+      '@shipfox/api-integration-github-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/github-dto
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/integration/linear-dto
