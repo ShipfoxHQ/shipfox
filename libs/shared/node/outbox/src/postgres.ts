@@ -306,7 +306,13 @@ function toJsonSafe(value: unknown, ancestors: WeakSet<object>): unknown {
   if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
   if (typeof value === 'bigint') return value.toString();
   if (typeof value === 'undefined') return null;
-  if (typeof value === 'symbol' || typeof value === 'function') return String(value);
+  if (typeof value === 'symbol' || typeof value === 'function') {
+    try {
+      return String(value);
+    } catch (_error) {
+      return '[Unserializable]';
+    }
+  }
 
   try {
     if (value instanceof Date) {
@@ -344,12 +350,25 @@ function serializeObject(value: object, ancestors: WeakSet<object>): Record<stri
   const serialized: Record<string, unknown> = {};
   for (const key of Object.keys(value)) {
     try {
-      serialized[key] = toJsonSafe((value as Record<string, unknown>)[key], ancestors);
+      defineOwnProperty(
+        serialized,
+        key,
+        toJsonSafe((value as Record<string, unknown>)[key], ancestors),
+      );
     } catch (_error) {
-      serialized[key] = '[Unserializable]';
+      defineOwnProperty(serialized, key, '[Unserializable]');
     }
   }
   return serialized;
+}
+
+function defineOwnProperty(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
 }
 
 function assertPositiveInteger(value: number, name: string): void {

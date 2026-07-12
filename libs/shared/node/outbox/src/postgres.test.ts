@@ -395,6 +395,44 @@ describe('PostgreSQL outbox contract', () => {
     expect(stored?.lastFailure).toEqual({attempts: '3', self: '[Circular]'});
   });
 
+  it('schedules a retry when failure string conversion throws', async () => {
+    await append({idempotencyKey: 'event-1'});
+    const outbox = createOutbox();
+    const [delivery] = await outbox.claim({batchSize: 1, leaseDurationMs: 1_000, now: start});
+    if (!delivery) throw new Error('Expected an outbox delivery');
+    const failure = Object.assign(() => undefined, {
+      toString: () => {
+        throw new Error('cannot stringify');
+      },
+    });
+
+    const retry = await outbox.retry({...delivery, delayMs: 0, failure, now: start});
+    const [stored] = await database
+      .select({lastFailure: outboxTable.lastDispatchError})
+      .from(outboxTable);
+
+    expect(retry).toEqual({status: 'retry-scheduled', nextAttemptAt: start});
+    expect(stored?.lastFailure).toBe('[Unserializable]');
+  });
+
+  it('preserves a failure property named __proto__', async () => {
+    await append({idempotencyKey: 'event-1'});
+    const outbox = createOutbox();
+    const [delivery] = await outbox.claim({batchSize: 1, leaseDurationMs: 1_000, now: start});
+    if (!delivery) throw new Error('Expected an outbox delivery');
+    const failure = Object.fromEntries([['__proto__', {message: 'prototype failure'}]]);
+
+    await outbox.retry({...delivery, delayMs: 0, failure, now: start});
+    const [stored] = await database
+      .select({lastFailure: outboxTable.lastDispatchError})
+      .from(outboxTable);
+
+    expect(Object.hasOwn(stored?.lastFailure as object, '__proto__')).toBe(true);
+    expect((stored?.lastFailure as Record<string, unknown>).__proto__).toEqual({
+      message: 'prototype failure',
+    });
+  });
+
   it('reports the oldest pending event age and excludes acknowledged events', async () => {
     const createdAt = new Date(start.getTime() - 5_000);
     await append({idempotencyKey: 'event-1', createdAt, availableAt: createdAt});
