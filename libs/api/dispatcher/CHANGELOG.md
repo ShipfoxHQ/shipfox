@@ -1,5 +1,13 @@
 # @shipfox/api-dispatcher
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [705dd43]
+  - @shipfox/node-outbox@0.2.0
+  - @shipfox/node-module@0.1.2
+
 ## 0.0.2
 
 ### Patch Changes

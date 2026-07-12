@@ -1,5 +1,11 @@
 # @shipfox/api-integration-sentry
 
+## 0.1.2
+
+### Patch Changes
+
+- @shipfox/node-module@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/api-integration-github
 
+## 0.1.2
+
+### Patch Changes
+
+- @shipfox/api-workspaces@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

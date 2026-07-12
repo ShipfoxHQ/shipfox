@@ -1,5 +1,12 @@
 # @shipfox/api-integration-linear
 
+## 1.0.2
+
+### Patch Changes
+
+- @shipfox/api-secrets@0.1.2
+- @shipfox/api-workspaces@0.1.2
+
 ## 1.0.1
 
 ### Patch Changes
