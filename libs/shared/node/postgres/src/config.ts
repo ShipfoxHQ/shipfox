@@ -41,9 +41,20 @@ export const postgresConfigSchema = {
 };
 
 export function loadPostgresConfig(update?: Partial<NodeJS.ProcessEnv>) {
-  return createConfig(postgresConfigSchema, update);
+  const loadedConfig = createConfig(postgresConfigSchema, update);
+
+  validateTimeout('POSTGRES_CONNECTION_TIMEOUT_MS', loadedConfig.POSTGRES_CONNECTION_TIMEOUT_MS);
+  validateTimeout('POSTGRES_IDLE_TIMEOUT_MS', loadedConfig.POSTGRES_IDLE_TIMEOUT_MS);
+
+  return loadedConfig;
 }
 
 export type PostgresConfig = ReturnType<typeof loadPostgresConfig>;
 
 export const config = loadPostgresConfig();
+
+function validateTimeout(name: string, value: number) {
+  if (value < 0) {
+    throw new Error(`${name} must be 0 or greater`);
+  }
+}
