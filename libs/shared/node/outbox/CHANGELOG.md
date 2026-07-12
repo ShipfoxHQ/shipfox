@@ -1,5 +1,11 @@
 # @shipfox/node-outbox
 
+## 0.2.0
+
+### Minor Changes
+
+- 705dd43: Publishes the supported PostgreSQL outbox API with external-consumer verification and operational documentation.
+
 ## 0.1.1
 
 ### Patch Changes

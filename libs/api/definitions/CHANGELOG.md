@@ -1,5 +1,15 @@
 # @shipfox/api-definitions
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [705dd43]
+  - @shipfox/node-outbox@0.2.0
+  - @shipfox/api-integration-core@0.1.2
+  - @shipfox/api-projects@0.1.2
+  - @shipfox/node-module@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

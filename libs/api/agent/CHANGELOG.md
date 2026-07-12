@@ -1,5 +1,12 @@
 # @shipfox/api-agent
 
+## 0.1.2
+
+### Patch Changes
+
+- @shipfox/api-secrets@0.1.2
+- @shipfox/node-module@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
