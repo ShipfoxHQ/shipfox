@@ -5747,6 +5747,9 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0
