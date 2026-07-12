@@ -34,7 +34,7 @@ pnpm add @shipfox/redact
 ```ts
 import {createRedactor, redactSensitiveUrl} from '@shipfox/redact';
 
-const redact = createRedactor({secrets: [process.env.API_TOKEN ?? '']});
+const redact = createRedactor({secrets: ['your-api-token']});
 
 const attributes = redact.redact({
   authorization: 'Bearer project-token',
