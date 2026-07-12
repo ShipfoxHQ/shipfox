@@ -5343,7 +5343,7 @@ importers:
   libs/shared/node/drizzle:
     dependencies:
       '@shipfox/node-postgres':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../postgres
       drizzle-orm:
         specifier: ^0.45.2
@@ -5361,6 +5361,9 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
 
   libs/shared/node/egress-guard:
     dependencies:
