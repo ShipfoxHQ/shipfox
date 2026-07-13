@@ -49,12 +49,24 @@ describe('loadTemporalConfig', () => {
       'TEMPORAL_API_KEY is required when TEMPORAL_ADDRESS points to Temporal Cloud',
     );
   });
+
+  it('rejects an API key for a non-Cloud address', () => {
+    const load = () => loadConfig({TEMPORAL_API_KEY: 'cloud-secret'});
+
+    expect(load).toThrow(
+      'TEMPORAL_API_KEY must be unset when TEMPORAL_ADDRESS does not point to Temporal Cloud',
+    );
+  });
 });
 
 describe('temporalConnectionError', () => {
   it('keeps API key material out of the actionable error message', () => {
     const cause = new Error('unauthenticated');
-    const config = loadConfig({TEMPORAL_API_KEY: 'cloud-secret'});
+    const config = loadConfig({
+      TEMPORAL_ADDRESS: 'shipfox.account.tmprl.cloud:7233',
+      TEMPORAL_NAMESPACE: 'shipfox.account',
+      TEMPORAL_API_KEY: 'cloud-secret',
+    });
 
     const result = temporalConnectionError(cause, config);
 

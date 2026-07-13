@@ -16,16 +16,22 @@ export const temporalConfigSchema = {
     default: 'shipfox',
   }),
   TEMPORAL_API_KEY: str({
-    desc: 'API key used to authenticate with Temporal Cloud. Store it as a secret. It is required when TEMPORAL_ADDRESS uses a tmprl.cloud endpoint.',
+    desc: 'API key used to authenticate with Temporal Cloud. Store it as a secret. It is required for tmprl.cloud endpoints and must be unset for other endpoints.',
     default: undefined,
   }),
 };
 
 export function loadTemporalConfig(update?: Partial<NodeJS.ProcessEnv>) {
   const loadedConfig = createConfig(temporalConfigSchema, update);
+  const usesTemporalCloud = isTemporalCloudAddress(loadedConfig.TEMPORAL_ADDRESS);
 
-  if (isTemporalCloudAddress(loadedConfig.TEMPORAL_ADDRESS) && !loadedConfig.TEMPORAL_API_KEY) {
+  if (usesTemporalCloud && !loadedConfig.TEMPORAL_API_KEY) {
     throw new Error('TEMPORAL_API_KEY is required when TEMPORAL_ADDRESS points to Temporal Cloud');
+  }
+  if (!usesTemporalCloud && loadedConfig.TEMPORAL_API_KEY) {
+    throw new Error(
+      'TEMPORAL_API_KEY must be unset when TEMPORAL_ADDRESS does not point to Temporal Cloud',
+    );
   }
 
   return loadedConfig;

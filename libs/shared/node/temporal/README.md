@@ -54,8 +54,9 @@ await worker.run();
 ## Behavior notes
 
 - Local connections use no authentication or Transport Layer Security (TLS).
-- Setting `TEMPORAL_API_KEY` enables TLS for clients and workers.
+- Setting `TEMPORAL_API_KEY` for a `tmprl.cloud` address enables TLS for clients and workers.
 - A `tmprl.cloud` address without `TEMPORAL_API_KEY` stops startup with a configuration error.
+- A non-Cloud address with `TEMPORAL_API_KEY` also stops startup so the key cannot be sent to it.
 - This package does not configure mutual TLS (mTLS) client certificates.
 
 ## Development
