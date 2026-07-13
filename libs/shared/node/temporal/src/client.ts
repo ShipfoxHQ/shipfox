@@ -1,15 +1,18 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {Client, Connection} from '@temporalio/client';
 import {config} from './config.js';
+import {getTemporalConnectionOptions, temporalConnectionError} from './connection-options.js';
 import {getClientInterceptors} from './interceptors.js';
 
 let _connection: Connection | undefined;
 let _client: Client | undefined;
 
 export async function createTemporalClient(): Promise<Client> {
-  _connection = await Connection.connect({
-    address: config.TEMPORAL_ADDRESS,
-  });
+  try {
+    _connection = await Connection.connect(getTemporalConnectionOptions());
+  } catch (error) {
+    throw temporalConnectionError(error);
+  }
 
   _client = new Client({
     connection: _connection,

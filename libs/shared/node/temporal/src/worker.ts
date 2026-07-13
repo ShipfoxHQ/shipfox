@@ -1,6 +1,7 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {NativeConnection, Worker} from '@temporalio/worker';
 import {config} from './config.js';
+import {getTemporalConnectionOptions, temporalConnectionError} from './connection-options.js';
 import {getWorkerInterceptors, getWorkflowInterceptorModules} from './interceptors.js';
 
 export interface CreateWorkerOptions {
@@ -12,9 +13,12 @@ export interface CreateWorkerOptions {
 }
 
 export async function createTemporalWorker(options: CreateWorkerOptions): Promise<Worker> {
-  const connection = await NativeConnection.connect({
-    address: config.TEMPORAL_ADDRESS,
-  });
+  let connection: NativeConnection;
+  try {
+    connection = await NativeConnection.connect(getTemporalConnectionOptions());
+  } catch (error) {
+    throw temporalConnectionError(error);
+  }
 
   const taskQueue = options.taskQueue ?? config.TEMPORAL_TASK_QUEUE;
 
