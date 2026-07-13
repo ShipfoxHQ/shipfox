@@ -1,6 +1,6 @@
 # Shipfox Temporal
 
-Temporal client and worker helpers for Shipfox Node services. It keeps connection settings, worker defaults, health checks, and interceptor hooks in one place.
+Temporal client and worker helpers for Shipfox Node services.
 
 ## What it does
 
@@ -11,13 +11,11 @@ Temporal client and worker helpers for Shipfox Node services. It keeps connectio
 - **`createTemporalWorker(options)`**: Creates a worker with Shipfox defaults.
 - **Interceptor helpers**: Return client, worker, and workflow settings.
 
-Environment variables:
+## Installation
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal frontend address. |
-| `TEMPORAL_NAMESPACE` | `default` | Temporal namespace. |
-| `TEMPORAL_TASK_QUEUE` | `shipfox` | Default task queue for workers. |
+```sh
+pnpm add @shipfox/node-temporal
+```
 
 ## Usage
 
@@ -44,11 +42,29 @@ const worker = await createTemporalWorker({
 await worker.run();
 ```
 
+## Environment
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal frontend address. |
+| `TEMPORAL_NAMESPACE` | `default` | Temporal namespace. |
+| `TEMPORAL_TASK_QUEUE` | `shipfox` | Default task queue for workers. |
+| `TEMPORAL_API_KEY` | none | API key used to connect to Temporal Cloud. Store it as a secret. |
+
+## Behavior notes
+
+- Local connections use no authentication or Transport Layer Security (TLS).
+- Setting `TEMPORAL_API_KEY` for a `tmprl.cloud` address enables TLS for clients and workers.
+- A `tmprl.cloud` address without `TEMPORAL_API_KEY` stops startup with a configuration error.
+- A non-Cloud address with `TEMPORAL_API_KEY` also stops startup so the key cannot be sent to it.
+- This package does not configure mutual TLS (mTLS) client certificates.
+
 ## Development
 
 ```sh
 turbo check --filter=@shipfox/node-temporal
 turbo type --filter=@shipfox/node-temporal
+turbo test --filter=@shipfox/node-temporal
 ```
 
 ## License

@@ -35,7 +35,7 @@
         "OTEL_SERVICE_METRICS_PORT",
         "POSTGRES_*",
         "SHIPFOX_*",
-        "TEMPORAL_ADDRESS",
+        "TEMPORAL_*",
         "VITE_*"
       ]
     },
@@ -72,7 +72,7 @@
         "OTEL_SERVICE_METRICS_PORT",
         "POSTGRES_*",
         "SHIPFOX_*",
-        "TEMPORAL_ADDRESS",
+        "TEMPORAL_*",
         "VITE_API_URL"
       ],
       "dependsOn": ["^build", "build"]
