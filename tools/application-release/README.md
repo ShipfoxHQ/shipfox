@@ -65,6 +65,9 @@ the same file.
 The current workflow stores releases in
 `ghcr.io/shipfoxhq/application-releases`. The artifact and JSON file use
 `application/vnd.shipfox.application-release.v1+json` as their media type.
+The first successful publish owns the full source revision tag. A workflow
+rerun reuses that artifact and only moves `latest`, so the revision tag does
+not change.
 
 `build.startedAt` records when CI starts. `publishedAt` records when all image
 checks finish.

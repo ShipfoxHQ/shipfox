@@ -4,6 +4,7 @@ import addFormats from 'ajv-formats';
 
 export const APPLICATION_RELEASE_KIND = 'shipfox.application-release';
 export const APPLICATION_RELEASE_API_VERSION = 'v1';
+const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/;
 
 /**
  * Required v1 components. Keeping this list explicit prevents a newly published
@@ -104,9 +105,16 @@ function createManifestValidator(): ValidateFunction<ApplicationReleaseManifest>
 }
 
 function timestamp(value: string, label: string): string {
+  if (!UTC_TIMESTAMP_PATTERN.test(value)) {
+    throw new Error(`${label} must be a valid UTC timestamp`);
+  }
+
+  const canonicalValue = value.includes('.') ? value : `${value.slice(0, -1)}.000Z`;
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) throw new Error(`${label} must be an ISO 8601 timestamp`);
-  return parsed.toISOString();
+  const isValid = !Number.isNaN(parsed.getTime()) && parsed.toISOString() === canonicalValue;
+
+  if (!isValid) throw new Error(`${label} must be a valid UTC timestamp`);
+  return canonicalValue;
 }
 
 function formatErrors(validator: ValidateFunction): string {

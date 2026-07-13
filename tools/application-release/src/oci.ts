@@ -58,7 +58,7 @@ export function resolveImage(
   const taggedReference = `${repository}:${tag}`;
   const descriptor = registry.fetchDescriptor(taggedReference);
   const digest = assertDigest(descriptor.digest, `Digest for ${taggedReference}`);
-  const manifest = registry.fetchManifest(taggedReference);
+  const manifest = registry.fetchManifest(`${repository}@${digest}`);
   const platformDescriptors = manifest.manifests?.filter(hasRunnablePlatform);
 
   if (!platformDescriptors?.length) {

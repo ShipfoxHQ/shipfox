@@ -18,6 +18,7 @@ function registry(options = {}) {
     descriptorDigest = digest('a'),
     indexManifest,
     labelRevision = revision,
+    manifestReferences,
     omitConfigDigest = false,
   } = options;
   const platformDigests = [digest('b'), digest('c')];
@@ -40,7 +41,8 @@ function registry(options = {}) {
       return {digest: descriptorDigest};
     },
     fetchManifest(reference) {
-      if (reference.includes(':build-')) {
+      manifestReferences?.push(reference);
+      if (reference.endsWith(`@${descriptorDigest}`)) {
         return indexManifest ?? defaultIndexManifest;
       }
 
@@ -56,7 +58,9 @@ function registry(options = {}) {
 
 describe('resolveApplicationImages', () => {
   test('resolves the complete image set by immutable digest', () => {
-    const images = resolveApplicationImages('build-42', revision, registry());
+    const manifestReferences = [];
+
+    const images = resolveApplicationImages('build-42', revision, registry({manifestReferences}));
 
     assert.deepEqual(Object.keys(images), ['api', 'client', 'provisioner', 'runner']);
     assert.deepEqual(images.api, {
@@ -68,6 +72,8 @@ describe('resolveApplicationImages', () => {
         sbom: {status: 'not-published'},
       },
     });
+    assert.equal(manifestReferences[0], `ghcr.io/shipfoxhq/api@${digest('a')}`);
+    assert.equal(manifestReferences.includes('ghcr.io/shipfoxhq/api:build-42'), false);
   });
 
   test('rejects an image whose OCI revision does not match the release', () => {

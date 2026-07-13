@@ -284,13 +284,43 @@ jobs:
 
       - name: Log in to GHCR
         run: |
+          set -euo pipefail
           printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
             | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
 
+      - name: Resolve existing application release
+        id: application-release
+        env:
+          APPLICATION_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/application-releases
+        run: |
+          set -euo pipefail
+          resolve_error="$(mktemp)"
+          trap 'rm -f "$resolve_error"' EXIT
+
+          set +e
+          existing_digest="$(oras resolve "$APPLICATION_RELEASE_REPOSITORY:$GITHUB_SHA" 2>"$resolve_error")"
+          resolve_status=$?
+          set -e
+
+          if (( resolve_status == 0 )); then
+            if [[ ! "$existing_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "Existing application release returned an invalid digest: $existing_digest" >&2
+              exit 1
+            fi
+            echo "digest=$existing_digest" >> "$GITHUB_OUTPUT"
+          elif grep -Eiq 'not found|404' "$resolve_error"; then
+            echo 'digest=' >> "$GITHUB_OUTPUT"
+          else
+            cat "$resolve_error" >&2
+            exit "$resolve_status"
+          fi
+
       - name: Build application release tool
+        if: steps.application-release.outputs.digest == ''
         run: turbo build --filter=@shipfox/application-release
 
       - name: Create application release
+        if: steps.application-release.outputs.digest == ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -311,12 +341,24 @@ jobs:
           published_at="$(jq -r '.publishedAt' application-release.json)"
           echo "APPLICATION_RELEASE_PUBLISHED_AT=$published_at" >> "$GITHUB_ENV"
 
-      # ORAS pushes one complete artifact and applies both tags to that object.
-      # No discoverable release tag exists until image resolution and label checks pass.
+      # The first successful push owns the revision tag. Reruns reuse its digest
+      # and only move latest, so the revision-addressed manifest stays immutable.
       - name: Publish application release
         env:
+          APPLICATION_RELEASE_EXISTING_DIGEST: ${{ steps.application-release.outputs.digest }}
           APPLICATION_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/application-releases
         run: |
+          set -euo pipefail
+
+          if [[ -n "$APPLICATION_RELEASE_EXISTING_DIGEST" ]]; then
+            oras tag \
+              "$APPLICATION_RELEASE_REPOSITORY@$APPLICATION_RELEASE_EXISTING_DIGEST" \
+              latest
+            echo "Reused $APPLICATION_RELEASE_REPOSITORY@$APPLICATION_RELEASE_EXISTING_DIGEST" \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           oras push \
             --artifact-type application/vnd.shipfox.application-release.v1+json \
             --annotation "org.opencontainers.image.created=$APPLICATION_RELEASE_PUBLISHED_AT" \

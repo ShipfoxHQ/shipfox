@@ -18,6 +18,9 @@ const schema = JSON.parse(
 const schemaValidator = new Ajv2020({strict: true});
 addFormats(schemaValidator);
 const validateManifest = schemaValidator.compile(schema);
+const portableSchemaValidator = new Ajv2020({strict: true, validateFormats: false});
+const validatePortableManifest = portableSchemaValidator.compile(schema);
+const invalidBuildTimestampError = /Build start time must be a valid UTC timestamp/;
 
 function image(repository, character) {
   return {
@@ -87,6 +90,42 @@ describe('createApplicationReleaseManifest', () => {
     manifest.deployment = {provider: 'example-cloud'};
 
     const valid = validateManifest(manifest);
+
+    assert.equal(valid, false);
+  });
+
+  test('rejects a calendar date that JavaScript would normalize', () => {
+    const releaseInput = input();
+    releaseInput.build.startedAt = '2024-02-30T15:30:00Z';
+
+    const create = () => createApplicationReleaseManifest(releaseInput);
+
+    assert.throws(create, invalidBuildTimestampError);
+  });
+
+  test('accepts a valid leap-day timestamp', () => {
+    const releaseInput = input();
+    releaseInput.publishedAt = '2024-02-29T16:00:00Z';
+
+    const manifest = createApplicationReleaseManifest(releaseInput);
+
+    assert.equal(manifest.publishedAt, '2024-02-29T16:00:00.000Z');
+  });
+
+  test('schema rejects malformed timestamps without format assertions', () => {
+    const manifest = createApplicationReleaseManifest(input());
+    manifest.publishedAt = '2023-02-29T16:00:00.000Z';
+
+    const valid = validatePortableManifest(manifest);
+
+    assert.equal(valid, false);
+  });
+
+  test('schema rejects malformed URIs without format assertions', () => {
+    const manifest = createApplicationReleaseManifest(input());
+    manifest.build.url = 'https:not-a-hierarchical-url';
+
+    const valid = validatePortableManifest(manifest);
 
     assert.equal(valid, false);
   });
