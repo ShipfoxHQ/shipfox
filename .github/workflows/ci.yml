@@ -255,3 +255,121 @@ jobs:
           # appending its base to IMAGE_REGISTRIES and adding a matching login step.
           export IMAGE_REGISTRIES="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           turbo image --filter "${{ matrix.package }}"
+
+  publish-application-release:
+    name: Publish application release
+    needs: [publish-images]
+    if: github.ref == 'refs/heads/main' && needs.publish-images.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1
+        with:
+          version: 1.3.3
+
+      - name: Log in to GHCR
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Resolve existing application release
+        id: application-release
+        env:
+          APPLICATION_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/application-releases
+        run: |
+          set -euo pipefail
+          resolve_error="$(mktemp)"
+          trap 'rm -f "$resolve_error"' EXIT
+
+          set +e
+          existing_digest="$(oras resolve "$APPLICATION_RELEASE_REPOSITORY:$GITHUB_SHA" 2>"$resolve_error")"
+          resolve_status=$?
+          set -e
+
+          if (( resolve_status == 0 )); then
+            if [[ ! "$existing_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "Existing application release returned an invalid digest: $existing_digest" >&2
+              exit 1
+            fi
+            echo "digest=$existing_digest" >> "$GITHUB_OUTPUT"
+          elif grep -Eiq 'not found|404' "$resolve_error"; then
+            echo 'digest=' >> "$GITHUB_OUTPUT"
+          else
+            cat "$resolve_error" >&2
+            exit "$resolve_status"
+          fi
+
+      - name: Build application release tool
+        if: steps.application-release.outputs.digest == ''
+        run: turbo build --filter=@shipfox/application-release
+
+      - name: Create application release
+        if: steps.application-release.outputs.digest == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          build_started_at="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.run_started_at')"
+
+          node tools/application-release/bin/application-release.js create \
+            --source-repository "https://github.com/$GITHUB_REPOSITORY" \
+            --revision "$GITHUB_SHA" \
+            --build-system github-actions \
+            --build-id "$GITHUB_RUN_ID" \
+            --build-number "$GITHUB_RUN_NUMBER" \
+            --build-attempt "$GITHUB_RUN_ATTEMPT" \
+            --build-started-at "$build_started_at" \
+            --build-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --image-tag "build-$GITHUB_RUN_NUMBER" \
+            --output application-release.json
+
+          published_at="$(jq -r '.publishedAt' application-release.json)"
+          echo "APPLICATION_RELEASE_PUBLISHED_AT=$published_at" >> "$GITHUB_ENV"
+
+      # The first successful push owns the revision tag. Reruns reuse its digest
+      # and only move latest, so the revision-addressed manifest stays immutable.
+      - name: Publish application release
+        env:
+          APPLICATION_RELEASE_EXISTING_DIGEST: ${{ steps.application-release.outputs.digest }}
+          APPLICATION_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/application-releases
+        run: |
+          set -euo pipefail
+
+          if [[ -n "$APPLICATION_RELEASE_EXISTING_DIGEST" ]]; then
+            oras tag \
+              "$APPLICATION_RELEASE_REPOSITORY@$APPLICATION_RELEASE_EXISTING_DIGEST" \
+              latest
+            echo "Reused $APPLICATION_RELEASE_REPOSITORY@$APPLICATION_RELEASE_EXISTING_DIGEST" \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          oras push \
+            --artifact-type application/vnd.shipfox.application-release.v1+json \
+            --annotation "org.opencontainers.image.created=$APPLICATION_RELEASE_PUBLISHED_AT" \
+            --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --annotation "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --format json \
+            "$APPLICATION_RELEASE_REPOSITORY:$GITHUB_SHA,latest" \
+            application-release.json:application/vnd.shipfox.application-release.v1+json \
+            | tee application-release-publication.json
+
+          published_reference="$(jq -r '.reference' application-release-publication.json)"
+          test -n "$published_reference"
+          test "$published_reference" != "null"
+          echo "Published $published_reference" >> "$GITHUB_STEP_SUMMARY"

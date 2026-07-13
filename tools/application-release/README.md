@@ -1,0 +1,86 @@
+# @shipfox/application-release
+
+Creates a manifest for one complete Shipfox app release.
+
+## What it does
+
+- **Release contract**: Records the source, build, publish time, and image
+  digests.
+- **OCI image checks**: Finds each digest and checks the source label on every
+  platform.
+- **Version 1 schema**: Rejects missing images, extra fields, and deployment
+  data.
+
+## Installation
+
+```sh
+pnpm add -D @shipfox/application-release
+```
+
+The command needs [ORAS](https://oras.land/) on `PATH`. ORAS reads images from
+an Open Container Initiative (OCI) registry. Log in before reading a private
+registry.
+
+## Usage
+
+```sh
+shipfox-application-release create \
+  --source-repository https://github.com/ShipfoxHQ/shipfox \
+  --revision 0123456789abcdef0123456789abcdef01234567 \
+  --build-system github-actions \
+  --build-id 123456789 \
+  --build-number 42 \
+  --build-attempt 1 \
+  --build-started-at 2026-07-13T15:30:00Z \
+  --build-url https://github.com/ShipfoxHQ/shipfox/actions/runs/123456789 \
+  --image-tag build-42 \
+  --output application-release.json
+```
+
+## Manifest contract
+
+[`schema/v1.schema.json`](schema/v1.schema.json) defines version 1. The manifest
+uses `kind: shipfox.application-release` and `apiVersion: v1` as its type.
+
+The contract contains these required image repositories:
+
+- `ghcr.io/shipfoxhq/api`
+- `ghcr.io/shipfoxhq/client`
+- `ghcr.io/shipfoxhq/provisioner-docker`
+- `ghcr.io/shipfoxhq/runner`
+
+Changing this required set creates a new contract version. Publishing another
+image in CI does not add it to this contract.
+
+Each image has a repository, digest, platform list, and attestation state. The
+image build does not publish provenance or a software bill of materials (SBOM)
+today. Both fields use `status: not-published` until those OCI artifacts exist.
+
+## Behavior Notes
+
+The command only writes JSON. CI decides where to store the file. It uses the
+full source revision as the OCI artifact tag. Another OCI registry can store
+the same file.
+
+The current workflow stores releases in
+`ghcr.io/shipfoxhq/application-releases`. The artifact and JSON file use
+`application/vnd.shipfox.application-release.v1+json` as their media type.
+The first successful publish owns the full source revision tag. A workflow
+rerun reuses that artifact and only moves `latest`, so the revision tag does
+not change.
+
+`build.startedAt` records when CI starts. `publishedAt` records when all image
+checks finish.
+
+## Development
+
+```sh
+turbo check --filter=@shipfox/application-release
+turbo type --filter=@shipfox/application-release
+turbo test --filter=@shipfox/application-release
+turbo build --filter=@shipfox/application-release
+```
+
+## License
+
+MIT
