@@ -6052,6 +6052,31 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
+  tools/application-release:
+    dependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.20.0)
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../typescript
+      '@types/node':
+        specifier: 25.9.3
+        version: 25.9.3
+
   tools/biome:
     dependencies:
       '@biomejs/biome':

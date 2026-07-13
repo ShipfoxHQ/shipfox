@@ -255,3 +255,79 @@ jobs:
           # appending its base to IMAGE_REGISTRIES and adding a matching login step.
           export IMAGE_REGISTRIES="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           turbo image --filter "${{ matrix.package }}"
+
+  publish-application-release:
+    name: Publish application release
+    needs: [publish-images]
+    if: github.ref == 'refs/heads/main' && needs.publish-images.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1
+        with:
+          version: 1.3.3
+
+      - name: Log in to GHCR
+        run: |
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Build application release tool
+        run: turbo build --filter=@shipfox/application-release
+
+      - name: Create application release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          build_started_at="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.run_started_at')"
+
+          node tools/application-release/bin/application-release.js create \
+            --source-repository "https://github.com/$GITHUB_REPOSITORY" \
+            --revision "$GITHUB_SHA" \
+            --build-system github-actions \
+            --build-id "$GITHUB_RUN_ID" \
+            --build-number "$GITHUB_RUN_NUMBER" \
+            --build-attempt "$GITHUB_RUN_ATTEMPT" \
+            --build-started-at "$build_started_at" \
+            --build-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --image-tag "build-$GITHUB_RUN_NUMBER" \
+            --output application-release.json
+
+          published_at="$(jq -r '.publishedAt' application-release.json)"
+          echo "APPLICATION_RELEASE_PUBLISHED_AT=$published_at" >> "$GITHUB_ENV"
+
+      # ORAS pushes one complete artifact and applies both tags to that object.
+      # No discoverable release tag exists until image resolution and label checks pass.
+      - name: Publish application release
+        env:
+          APPLICATION_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/application-releases
+        run: |
+          oras push \
+            --artifact-type application/vnd.shipfox.application-release.v1+json \
+            --annotation "org.opencontainers.image.created=$APPLICATION_RELEASE_PUBLISHED_AT" \
+            --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --annotation "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --format json \
+            "$APPLICATION_RELEASE_REPOSITORY:$GITHUB_SHA,latest" \
+            application-release.json:application/vnd.shipfox.application-release.v1+json \
+            | tee application-release-publication.json
+
+          published_reference="$(jq -r '.reference' application-release-publication.json)"
+          test -n "$published_reference"
+          test "$published_reference" != "null"
+          echo "Published $published_reference" >> "$GITHUB_STEP_SUMMARY"

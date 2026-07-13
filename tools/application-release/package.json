@@ -1,0 +1,39 @@
+{
+  "name": "@shipfox/application-release",
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "tools/application-release"
+  },
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "files": [
+    "bin",
+    "dist",
+    "schema"
+  ],
+  "bin": {
+    "shipfox-application-release": "./bin/application-release.js"
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test": "pnpm run build && node --test test/*.test.mjs",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@types/node": "25.9.3"
+  }
+}
