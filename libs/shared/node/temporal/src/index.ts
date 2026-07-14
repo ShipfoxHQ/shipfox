@@ -1,5 +1,5 @@
 export type * from '@temporalio/client';
-export type {Worker, WorkerOptions} from '@temporalio/worker';
+export type {NativeConnection, Worker, WorkerOptions} from '@temporalio/worker';
 export {
   closeTemporalClient,
   createTemporalClient,
@@ -12,4 +12,8 @@ export {
   getWorkerInterceptors,
   getWorkflowInterceptorModules,
 } from './interceptors.js';
-export {type CreateWorkerOptions, createTemporalWorker} from './worker.js';
+export {
+  type CreateWorkerOptions,
+  createTemporalWorker,
+  createTemporalWorkerConnection,
+} from './worker.js';
