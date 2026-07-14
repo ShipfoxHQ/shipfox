@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   logger: {info: vi.fn()},
   getTemporalConnectionOptions: vi.fn(),
   temporalConnectionError: vi.fn(),
+  temporalConfig: {
+    TEMPORAL_NAMESPACE: 'test-namespace',
+    TEMPORAL_TASK_QUEUE: 'test-queue',
+  },
 }));
 
 vi.mock('@temporalio/worker', () => ({
@@ -23,6 +27,8 @@ vi.mock('./connection-options.js', () => ({
   getTemporalConnectionOptions: mocks.getTemporalConnectionOptions,
   temporalConnectionError: mocks.temporalConnectionError,
 }));
+
+vi.mock('./config.js', () => ({config: mocks.temporalConfig}));
 
 function workerOptions(overrides: Partial<CreateWorkerOptions> = {}): CreateWorkerOptions {
   return {
@@ -88,7 +94,11 @@ describe('createTemporalWorker', () => {
     await createTemporalWorker(workerOptions());
 
     expect(mocks.workerCreate).toHaveBeenCalledWith(
-      expect.objectContaining({connection, taskQueue: 'shipfox'}),
+      expect.objectContaining({
+        connection,
+        namespace: 'test-namespace',
+        taskQueue: 'test-queue',
+      }),
     );
   });
 
