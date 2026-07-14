@@ -24,7 +24,10 @@
   "types": "dist/index.d.ts",
   "imports": {
     "#test/*": "./test/*",
-    "#*": "./src/*"
+    "#*": {
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {

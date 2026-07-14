@@ -7,13 +7,16 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/api/integration/linear-dto"
   },
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
     "#test/*": "./test/*",
-    "#*": "./src/*"
+    "#*": {
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {

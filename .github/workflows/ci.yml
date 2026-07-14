@@ -46,6 +46,9 @@ jobs:
       - name: Run static verification
         run: turbo check type build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
+      - name: Verify packed API runtime closure
+        run: pnpm --filter=@shipfox/application-release test:external
+
   tests:
     name: Unit and story tests
     runs-on: ubuntu-latest

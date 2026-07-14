@@ -17,7 +17,10 @@
   ],
   "imports": {
     "#test/*": "./test/*",
-    "#*": "./src/*"
+    "#*": {
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {

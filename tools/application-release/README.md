@@ -5,7 +5,7 @@ Creates a manifest for one complete Shipfox app release.
 ## What it does
 
 - **Release contract**: Records the source, build, publish time, and image
-  digests.
+  digests, plus the exact published package name/version set.
 - **OCI image checks**: Finds each digest and checks the source label on every
   platform.
 - **Version 1 schema**: Rejects missing images, extra fields, and deployment
@@ -52,6 +52,18 @@ The contract contains these required image repositories:
 Changing this required set creates a new contract version. Publishing another
 image in CI does not add it to this contract.
 
+The repository-level [`publication-closure.json`](../../publication-closure.json)
+declares the API publication roots and the expected recursive runtime package
+closure. Release creation recalculates that closure from workspace runtime
+dependencies, optional dependencies, and peer dependencies, rejects drift, and
+records each package's current version.
+Versions from different application-release artifacts are not a supported set.
+
+The same validation rejects a public package with a private runtime workspace
+dependency. CI packs every package in the closure, installs all tarballs in a
+temporary consumer outside the workspace, resolves every public declaration
+entry point, and imports every runtime entry point.
+
 Each image has a repository, digest, platform list, and attestation state. The
 image build does not publish provenance or a software bill of materials (SBOM)
 today. Both fields use `status: not-published` until those OCI artifacts exist.
@@ -79,6 +91,7 @@ turbo check --filter=@shipfox/application-release
 turbo type --filter=@shipfox/application-release
 turbo test --filter=@shipfox/application-release
 turbo build --filter=@shipfox/application-release
+pnpm --filter=@shipfox/application-release test:external
 ```
 
 ## License

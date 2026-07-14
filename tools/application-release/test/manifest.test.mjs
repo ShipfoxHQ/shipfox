@@ -53,6 +53,10 @@ function input() {
       provisioner: image('ghcr.io/shipfoxhq/provisioner-docker', 'c'),
       runner: image('ghcr.io/shipfoxhq/runner', 'd'),
     },
+    packages: [
+      {name: '@shipfox/api-auth', version: '0.1.2'},
+      {name: '@shipfox/node-module', version: '0.1.2'},
+    ],
   };
 }
 
@@ -65,6 +69,7 @@ describe('createApplicationReleaseManifest', () => {
     assert.equal(manifest.source.revision, revision);
     assert.equal(manifest.build.startedAt, '2026-07-13T15:30:00.000Z');
     assert.equal(manifest.publishedAt, '2026-07-13T16:00:00.000Z');
+    assert.deepEqual(manifest.packages, input().packages);
     assert.equal('publication' in manifest, false);
   });
 
@@ -79,6 +84,15 @@ describe('createApplicationReleaseManifest', () => {
   test('schema rejects an incomplete image set', () => {
     const manifest = createApplicationReleaseManifest(input());
     delete manifest.images.runner;
+
+    const valid = validateManifest(manifest);
+
+    assert.equal(valid, false);
+  });
+
+  test('schema rejects an invalid package version', () => {
+    const manifest = createApplicationReleaseManifest(input());
+    manifest.packages[0].version = 'workspace:*';
 
     const valid = validateManifest(manifest);
 

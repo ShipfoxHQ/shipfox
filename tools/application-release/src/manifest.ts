@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import Ajv2020, {type ValidateFunction} from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import type {ApplicationReleasePackage} from './package-closure.js';
 
 export const APPLICATION_RELEASE_KIND = 'shipfox.application-release';
 export const APPLICATION_RELEASE_API_VERSION = 'v1';
@@ -55,6 +56,7 @@ export interface ApplicationReleaseInput {
   };
   publishedAt: string;
   images: ApplicationImageSet;
+  packages: ApplicationReleasePackage[];
 }
 
 export interface ApplicationReleaseManifest {
@@ -67,6 +69,7 @@ export interface ApplicationReleaseManifest {
   build: ApplicationReleaseInput['build'];
   publishedAt: string;
   images: ApplicationImageSet;
+  packages: ApplicationReleasePackage[];
 }
 
 const validateManifest = createManifestValidator();
@@ -87,6 +90,7 @@ export function createApplicationReleaseManifest(
     },
     publishedAt: timestamp(input.publishedAt, 'Publication time'),
     images: input.images,
+    packages: input.packages,
   };
 
   if (!validateManifest(manifest)) {
