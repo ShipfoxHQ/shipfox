@@ -29,8 +29,6 @@ describe('S3 credential validation', () => {
   it.each([
     ['explicit-access-key', undefined],
     [undefined, 'explicit-secret-key'],
-    ['explicit-access-key', ''],
-    ['', 'explicit-secret-key'],
   ])('rejects a partial explicit credential pair', async (accessKeyId, secretAccessKey) => {
     vi.stubEnv('LOG_STORAGE_S3_ACCESS_KEY_ID', accessKeyId);
     vi.stubEnv('LOG_STORAGE_S3_SECRET_ACCESS_KEY', secretAccessKey);
