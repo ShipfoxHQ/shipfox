@@ -6,8 +6,6 @@ Creates a manifest for one complete Shipfox app release.
 
 - **Release contract**: Records the source, build, publish time, and image
   digests.
-- **Compatibility contract**: Records the API features that a deployment can
-  require before it starts the image.
 - **OCI image checks**: Finds each digest and checks the source label on every
   platform.
 - **Version 1 schema**: Rejects missing images, extra fields, and deployment
@@ -57,11 +55,6 @@ image in CI does not add it to this contract.
 Each image has a repository, digest, platform list, and attestation state. The
 image build does not publish provenance or a software bill of materials (SBOM)
 today. Both fields use `status: not-published` until those OCI artifacts exist.
-
-The `compatibility.api.logStorage.s3CredentialModes` field lists `explicit` and
-`ambient`. The release tool also checks the matching API image label on every
-platform. A deployment can use this field to require AWS SDK ambient credentials
-before it starts the API image.
 
 ## Behavior Notes
 

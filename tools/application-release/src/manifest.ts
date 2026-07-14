@@ -4,9 +4,6 @@ import addFormats from 'ajv-formats';
 
 export const APPLICATION_RELEASE_KIND = 'shipfox.application-release';
 export const APPLICATION_RELEASE_API_VERSION = 'v1';
-export const API_S3_CREDENTIAL_MODES_OCI_LABEL =
-  'io.shipfox.compatibility.log-storage.s3-credential-modes';
-export const API_S3_CREDENTIAL_MODES = ['explicit', 'ambient'] as const;
 const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/;
 
 /**
@@ -57,13 +54,6 @@ export interface ApplicationReleaseInput {
     url: string;
   };
   publishedAt: string;
-  compatibility: {
-    api: {
-      logStorage: {
-        s3CredentialModes: [...typeof API_S3_CREDENTIAL_MODES];
-      };
-    };
-  };
   images: ApplicationImageSet;
 }
 
@@ -96,13 +86,6 @@ export function createApplicationReleaseManifest(
       startedAt: timestamp(input.build.startedAt, 'Build start time'),
     },
     publishedAt: timestamp(input.publishedAt, 'Publication time'),
-    compatibility: {
-      api: {
-        logStorage: {
-          s3CredentialModes: [...API_S3_CREDENTIAL_MODES],
-        },
-      },
-    },
     images: input.images,
   };
 

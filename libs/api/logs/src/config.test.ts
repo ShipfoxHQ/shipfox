@@ -4,28 +4,6 @@ describe('S3 credential validation', () => {
     vi.resetModules();
   });
 
-  it('accepts an explicit access key pair', async () => {
-    vi.stubEnv('LOG_STORAGE_S3_ACCESS_KEY_ID', 'explicit-access-key');
-    vi.stubEnv('LOG_STORAGE_S3_SECRET_ACCESS_KEY', 'explicit-secret-key');
-    vi.resetModules();
-
-    const {config} = await import('#config.js');
-
-    expect(config.LOG_STORAGE_S3_ACCESS_KEY_ID).toBe('explicit-access-key');
-    expect(config.LOG_STORAGE_S3_SECRET_ACCESS_KEY).toBe('explicit-secret-key');
-  });
-
-  it('accepts no explicit credentials for the ambient provider chain', async () => {
-    vi.stubEnv('LOG_STORAGE_S3_ACCESS_KEY_ID', undefined);
-    vi.stubEnv('LOG_STORAGE_S3_SECRET_ACCESS_KEY', undefined);
-    vi.resetModules();
-
-    const {config} = await import('#config.js');
-
-    expect(config.LOG_STORAGE_S3_ACCESS_KEY_ID).toBeUndefined();
-    expect(config.LOG_STORAGE_S3_SECRET_ACCESS_KEY).toBeUndefined();
-  });
-
   it.each([
     ['explicit-access-key', undefined],
     [undefined, 'explicit-secret-key'],

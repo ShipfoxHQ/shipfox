@@ -12,17 +12,12 @@ const invalidIndexDigestError =
   /Digest for ghcr\.io\/shipfoxhq\/api:build-42 must be a sha256 digest/;
 const missingConfigDigestError =
   /Config digest for ghcr\.io\/shipfoxhq\/api:build-42 must be a sha256 digest/;
-const s3CredentialModesLabel = 'io.shipfox.compatibility.log-storage.s3-credential-modes';
-const missingS3CredentialModesError = new RegExp(
-  `has OCI label ${s3CredentialModesLabel.replaceAll('.', '\\.')}`,
-);
 
 function registry(options = {}) {
   const {
     descriptorDigest = digest('a'),
     indexManifest,
     labelRevision = revision,
-    s3CredentialModes = 'explicit,ambient',
     manifestReferences,
     omitConfigDigest = false,
   } = options;
@@ -56,14 +51,7 @@ function registry(options = {}) {
       return {config: {digest: configDigests[platformIndex]}};
     },
     fetchBlob() {
-      return {
-        config: {
-          Labels: {
-            'org.opencontainers.image.revision': labelRevision,
-            [s3CredentialModesLabel]: s3CredentialModes,
-          },
-        },
-      };
+      return {config: {Labels: {'org.opencontainers.image.revision': labelRevision}}};
     },
   };
 }
@@ -93,13 +81,6 @@ describe('resolveApplicationImages', () => {
       resolveApplicationImages('build-42', revision, registry({labelRevision: 'other-revision'}));
 
     assert.throws(resolve, mismatchedRevisionError);
-  });
-
-  test('rejects an API image without ambient S3 credential compatibility', () => {
-    const resolve = () =>
-      resolveApplicationImages('build-42', revision, registry({s3CredentialModes: null}));
-
-    assert.throws(resolve, missingS3CredentialModesError);
   });
 
   test('rejects a single-platform image manifest', () => {
