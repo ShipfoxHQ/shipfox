@@ -48,7 +48,8 @@ LABEL org.opencontainers.image.title="@shipfox/api" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source=$IMAGE_SOURCE \
       org.opencontainers.image.revision=$IMAGE_REVISION \
-      org.opencontainers.image.created=$IMAGE_CREATED
+      org.opencontainers.image.created=$IMAGE_CREATED \
+      io.shipfox.compatibility.log-storage.s3-credential-modes="explicit,ambient"
 
 # --enable-source-maps maps stack traces back to TypeScript. The two --import
 # flags preload OpenTelemetry then Sentry before the app graph loads.

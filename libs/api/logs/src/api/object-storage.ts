@@ -7,10 +7,37 @@ import {
   ListObjectsV2Command,
   S3Client,
 } from '@aws-sdk/client-s3';
+import {defaultProvider} from '@aws-sdk/credential-provider-node';
 import {Upload} from '@aws-sdk/lib-storage';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import {config} from '#config.js';
 import {type LogObjectKeyParams, logObjectKey} from '#core/entities/log-object.js';
+
+const awsCredentialProvider = defaultProvider({
+  logger: {
+    trace: () => undefined,
+    debug: () => undefined,
+    info: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
+  },
+});
+
+const ambientS3Credentials: ReturnType<typeof defaultProvider> = async (options) => {
+  try {
+    return await awsCredentialProvider(options);
+  } catch {
+    throw new Error('Object storage credentials are unavailable');
+  }
+};
+
+const s3Credentials =
+  config.LOG_STORAGE_S3_ACCESS_KEY_ID && config.LOG_STORAGE_S3_SECRET_ACCESS_KEY
+    ? {
+        accessKeyId: config.LOG_STORAGE_S3_ACCESS_KEY_ID,
+        secretAccessKey: config.LOG_STORAGE_S3_SECRET_ACCESS_KEY,
+      }
+    : ambientS3Credentials;
 
 let _client: S3Client | undefined;
 
@@ -21,10 +48,7 @@ export function s3Client(): S3Client {
       endpoint: config.LOG_STORAGE_S3_ENDPOINT,
       region: config.LOG_STORAGE_S3_REGION,
       forcePathStyle: config.LOG_STORAGE_S3_FORCE_PATH_STYLE,
-      credentials: {
-        accessKeyId: config.LOG_STORAGE_S3_ACCESS_KEY_ID,
-        secretAccessKey: config.LOG_STORAGE_S3_SECRET_ACCESS_KEY,
-      },
+      credentials: s3Credentials,
       // Fail fast: a slow or black-holed endpoint must not hang callers behind
       // SDK backoff. One retry, short connect/request timeouts.
       maxAttempts: 2,
@@ -63,10 +87,7 @@ export function uploadS3Client(): S3Client {
       endpoint: config.LOG_STORAGE_S3_ENDPOINT,
       region: config.LOG_STORAGE_S3_REGION,
       forcePathStyle: config.LOG_STORAGE_S3_FORCE_PATH_STYLE,
-      credentials: {
-        accessKeyId: config.LOG_STORAGE_S3_ACCESS_KEY_ID,
-        secretAccessKey: config.LOG_STORAGE_S3_SECRET_ACCESS_KEY,
-      },
+      credentials: s3Credentials,
       maxAttempts: 3,
       requestHandler: {connectionTimeout: 5_000, requestTimeout: 0},
     });

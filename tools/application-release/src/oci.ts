@@ -1,11 +1,14 @@
 import {execFileSync} from 'node:child_process';
 import {
+  API_S3_CREDENTIAL_MODES,
+  API_S3_CREDENTIAL_MODES_OCI_LABEL,
   APPLICATION_RELEASE_IMAGES,
   type ApplicationImage,
   type ApplicationImageSet,
 } from './manifest.js';
 
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const API_S3_CREDENTIAL_MODES_OCI_VALUE = API_S3_CREDENTIAL_MODES.join(',');
 
 interface OciDescriptor {
   digest?: string;
@@ -42,7 +45,9 @@ export function resolveApplicationImages(
   registry: OciRegistry = orasRegistry(),
 ): ApplicationImageSet {
   return {
-    api: resolveImage(APPLICATION_RELEASE_IMAGES.api, tag, revision, registry),
+    api: resolveImage(APPLICATION_RELEASE_IMAGES.api, tag, revision, registry, {
+      [API_S3_CREDENTIAL_MODES_OCI_LABEL]: API_S3_CREDENTIAL_MODES_OCI_VALUE,
+    }),
     client: resolveImage(APPLICATION_RELEASE_IMAGES.client, tag, revision, registry),
     provisioner: resolveImage(APPLICATION_RELEASE_IMAGES.provisioner, tag, revision, registry),
     runner: resolveImage(APPLICATION_RELEASE_IMAGES.runner, tag, revision, registry),
@@ -54,6 +59,7 @@ export function resolveImage(
   tag: string,
   revision: string,
   registry: OciRegistry,
+  requiredLabels: Record<string, string> = {},
 ): ApplicationImage {
   const taggedReference = `${repository}:${tag}`;
   const descriptor = registry.fetchDescriptor(taggedReference);
@@ -83,6 +89,14 @@ export function resolveImage(
       throw new Error(
         `${taggedReference} (${platform}) has OCI revision ${JSON.stringify(actualRevision)}; expected ${revision}`,
       );
+    }
+    for (const [label, expectedValue] of Object.entries(requiredLabels)) {
+      const actualValue = config.config?.Labels?.[label];
+      if (actualValue !== expectedValue) {
+        throw new Error(
+          `${taggedReference} (${platform}) has OCI label ${label}=${JSON.stringify(actualValue)}; expected ${JSON.stringify(expectedValue)}`,
+        );
+      }
     }
 
     return platform;

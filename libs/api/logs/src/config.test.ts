@@ -1,3 +1,47 @@
+describe('S3 credential validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('accepts an explicit access key pair', async () => {
+    vi.stubEnv('LOG_STORAGE_S3_ACCESS_KEY_ID', 'explicit-access-key');
+    vi.stubEnv('LOG_STORAGE_S3_SECRET_ACCESS_KEY', 'explicit-secret-key');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.LOG_STORAGE_S3_ACCESS_KEY_ID).toBe('explicit-access-key');
+    expect(config.LOG_STORAGE_S3_SECRET_ACCESS_KEY).toBe('explicit-secret-key');
+  });
+
+  it('accepts no explicit credentials for the ambient provider chain', async () => {
+    vi.stubEnv('LOG_STORAGE_S3_ACCESS_KEY_ID', undefined);
+    vi.stubEnv('LOG_STORAGE_S3_SECRET_ACCESS_KEY', undefined);
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.LOG_STORAGE_S3_ACCESS_KEY_ID).toBeUndefined();
+    expect(config.LOG_STORAGE_S3_SECRET_ACCESS_KEY).toBeUndefined();
+  });
+
+  it.each([
+    ['explicit-access-key', undefined],
+    [undefined, 'explicit-secret-key'],
+    ['explicit-access-key', ''],
+    ['', 'explicit-secret-key'],
+  ])('rejects a partial explicit credential pair', async (accessKeyId, secretAccessKey) => {
+    vi.stubEnv('LOG_STORAGE_S3_ACCESS_KEY_ID', accessKeyId);
+    vi.stubEnv('LOG_STORAGE_S3_SECRET_ACCESS_KEY', secretAccessKey);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(
+      'LOG_STORAGE_S3_ACCESS_KEY_ID and LOG_STORAGE_S3_SECRET_ACCESS_KEY must be set together',
+    );
+  });
+});
+
 describe('LOG_RETENTION_DAYS validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

@@ -20,12 +20,12 @@ export const config = createConfig({
     default: 'logs',
   }),
   LOG_STORAGE_S3_ACCESS_KEY_ID: str({
-    desc: 'Access key id used to authenticate to the object store. Defaults to the local-development Garage key; set real credentials for production.',
-    default: 'GK000000000000000000000000',
+    desc: 'Optional access key ID used to authenticate to the object store. Set it together with LOG_STORAGE_S3_SECRET_ACCESS_KEY for an explicit credential pair, or leave both unset to use the standard AWS SDK credential provider chain.',
+    default: undefined,
   }),
   LOG_STORAGE_S3_SECRET_ACCESS_KEY: str({
-    desc: 'Secret access key used to authenticate to the object store. Defaults to the local-development Garage secret; set real credentials for production.',
-    default: '0000000000000000000000000000000000000000000000000000000000000000',
+    desc: 'Optional secret access key used to authenticate to the object store. Set it together with LOG_STORAGE_S3_ACCESS_KEY_ID for an explicit credential pair, or leave both unset to use the standard AWS SDK credential provider chain.',
+    default: undefined,
   }),
   LOG_STORAGE_S3_FORCE_PATH_STYLE: bool({
     desc: 'Whether to address the bucket as a path (endpoint/bucket) instead of a subdomain. Set it to true for Garage and MinIO; false works for AWS S3.',
@@ -72,6 +72,14 @@ export const config = createConfig({
     default: 90,
   }),
 });
+
+const hasS3AccessKeyId = Boolean(config.LOG_STORAGE_S3_ACCESS_KEY_ID);
+const hasS3SecretAccessKey = Boolean(config.LOG_STORAGE_S3_SECRET_ACCESS_KEY);
+if (hasS3AccessKeyId !== hasS3SecretAccessKey) {
+  throw new Error(
+    'LOG_STORAGE_S3_ACCESS_KEY_ID and LOG_STORAGE_S3_SECRET_ACCESS_KEY must be set together or both left unset.',
+  );
+}
 
 // SigV4 caps a presigned URL's lifetime at 7 days, so a larger TTL would fail at signing
 // time on every cold read. Reject out-of-range values at startup rather than per request.

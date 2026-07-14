@@ -65,6 +65,9 @@ describe('createApplicationReleaseManifest', () => {
     assert.equal(manifest.source.revision, revision);
     assert.equal(manifest.build.startedAt, '2026-07-13T15:30:00.000Z');
     assert.equal(manifest.publishedAt, '2026-07-13T16:00:00.000Z');
+    assert.deepEqual(manifest.compatibility, {
+      api: {logStorage: {s3CredentialModes: ['explicit', 'ambient']}},
+    });
     assert.equal('publication' in manifest, false);
   });
 
@@ -88,6 +91,15 @@ describe('createApplicationReleaseManifest', () => {
   test('schema rejects deployment-provider data', () => {
     const manifest = createApplicationReleaseManifest(input());
     manifest.deployment = {provider: 'example-cloud'};
+
+    const valid = validateManifest(manifest);
+
+    assert.equal(valid, false);
+  });
+
+  test('schema requires ambient S3 credential compatibility', () => {
+    const manifest = createApplicationReleaseManifest(input());
+    manifest.compatibility.api.logStorage.s3CredentialModes = ['explicit'];
 
     const valid = validateManifest(manifest);
 
