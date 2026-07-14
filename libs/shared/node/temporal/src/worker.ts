@@ -5,6 +5,7 @@ import {getTemporalConnectionOptions, temporalConnectionError} from './connectio
 import {getWorkerInterceptors, getWorkflowInterceptorModules} from './interceptors.js';
 
 export interface CreateWorkerOptions {
+  connection?: NativeConnection;
   taskQueue?: string;
   workflowsPath: string;
   activities: object;
@@ -12,14 +13,16 @@ export interface CreateWorkerOptions {
   maxConcurrentWorkflowTaskExecutions?: number;
 }
 
-export async function createTemporalWorker(options: CreateWorkerOptions): Promise<Worker> {
-  let connection: NativeConnection;
+export async function createTemporalWorkerConnection(): Promise<NativeConnection> {
   try {
-    connection = await NativeConnection.connect(getTemporalConnectionOptions());
+    return await NativeConnection.connect(getTemporalConnectionOptions());
   } catch (error) {
     throw temporalConnectionError(error);
   }
+}
 
+export async function createTemporalWorker(options: CreateWorkerOptions): Promise<Worker> {
+  const connection = options.connection ?? (await createTemporalWorkerConnection());
   const taskQueue = options.taskQueue ?? config.TEMPORAL_TASK_QUEUE;
 
   const worker = await Worker.create({

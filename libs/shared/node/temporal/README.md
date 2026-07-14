@@ -8,6 +8,7 @@ Temporal client and worker helpers for Shipfox Node services.
 - **`temporalClient()`**: Returns the current client or throws if it has not been created.
 - **`closeTemporalClient()`**: Closes the Temporal connection.
 - **`isTemporalHealthy()`**: Checks the Temporal connection health service.
+- **`createTemporalWorkerConnection()`**: Creates a Temporal worker connection for a caller that owns its lifecycle.
 - **`createTemporalWorker(options)`**: Creates a worker with Shipfox defaults.
 - **Interceptor helpers**: Return client, worker, and workflow settings.
 
@@ -23,6 +24,7 @@ pnpm add @shipfox/node-temporal
 import {
   createTemporalClient,
   createTemporalWorker,
+  createTemporalWorkerConnection,
   temporalClient,
 } from '@shipfox/node-temporal';
 
@@ -40,6 +42,20 @@ const worker = await createTemporalWorker({
 });
 
 await worker.run();
+```
+
+To share and close a connection outside the worker, create it explicitly and pass it to each worker:
+
+```ts
+const connection = await createTemporalWorkerConnection();
+const worker = await createTemporalWorker({
+  connection,
+  workflowsPath: new URL('./workflows.js', import.meta.url).pathname,
+  activities: {syncActivity},
+});
+
+await worker.shutdown();
+await connection.close();
 ```
 
 ## Environment
