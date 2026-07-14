@@ -4,5 +4,6 @@
 # layer cache, then re-include out/. The /** line is required because
 # re-including a directory does not re-include its contents (moby/moby#30018).
 *
+!docker-entrypoint.sh
 !out
 !out/**
