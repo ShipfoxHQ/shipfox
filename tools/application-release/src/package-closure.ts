@@ -229,6 +229,7 @@ function validatePublishedPackage(
     internalImports !== undefined &&
     (typeof internalImports !== 'object' ||
       internalImports === null ||
+      (internalImports as Record<string, unknown>)['workspace-source'] !== './src/*' ||
       (internalImports as Record<string, unknown>).development !== './src/*' ||
       (internalImports as Record<string, unknown>).default !== './dist/*')
   ) {

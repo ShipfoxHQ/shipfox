@@ -16,6 +16,7 @@
   ],
   "imports": {
     "#*": {
+      "workspace-source": "./src/*",
       "development": "./src/*",
       "default": "./dist/*"
     }

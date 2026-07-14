@@ -56,6 +56,7 @@
 "@shipfox/node-temporal": patch
 "@shipfox/redact": patch
 "@shipfox/regex": patch
+"@shipfox/ts-config": patch
 "@shipfox/workflow-document": patch
 ---
 

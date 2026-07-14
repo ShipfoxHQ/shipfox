@@ -13,6 +13,7 @@
   "types": "dist/index.d.ts",
   "imports": {
     "#*": {
+      "workspace-source": "./src/*",
       "development": "./src/*",
       "default": "./dist/*"
     }

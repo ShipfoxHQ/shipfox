@@ -5,6 +5,7 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "customConditions": ["workspace-source"],
     "types": ["node"]
   }
 }

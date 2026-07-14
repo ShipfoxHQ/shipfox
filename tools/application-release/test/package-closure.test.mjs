@@ -36,7 +36,13 @@ function workspacePackage(name, options = {}) {
         url: 'git+https://github.com/ShipfoxHQ/shipfox.git',
         directory: directory.slice('/repo/'.length),
       },
-      imports: {'#*': {development: './src/*', default: './dist/*'}},
+      imports: {
+        '#*': {
+          'workspace-source': './src/*',
+          development: './src/*',
+          default: './dist/*',
+        },
+      },
       exports: {'.': './dist/index.js'},
       scripts: {build: 'build', type: 'type', 'type:emit': 'type:emit'},
       dependencies: options.dependencies,
