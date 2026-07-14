@@ -96,8 +96,19 @@ export function createApplicationReleaseManifest(
   if (!validateManifest(manifest)) {
     throw new Error(`Invalid application release manifest: ${formatErrors(validateManifest)}`);
   }
+  assertUniquePackageNames(manifest.packages);
 
   return manifest;
+}
+
+function assertUniquePackageNames(packages: readonly ApplicationReleasePackage[]): void {
+  const names = new Set<string>();
+  for (const {name} of packages) {
+    if (names.has(name)) {
+      throw new Error(`Invalid application release manifest: duplicate package name ${name}`);
+    }
+    names.add(name);
+  }
 }
 
 function createManifestValidator(): ValidateFunction<ApplicationReleaseManifest> {

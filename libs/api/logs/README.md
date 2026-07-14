@@ -140,14 +140,10 @@ lease window (`LOG_STREAM_REAP_AFTER_SECONDS`), the backstop for a stream the on
 
 ## Setup
 
-This package is private to the workspace. Add it to another workspace package with:
+Install the package from the registry:
 
-```json
-{
-  "dependencies": {
-    "@shipfox/api-logs": "workspace:*"
-  }
-}
+```sh
+pnpm add @shipfox/api-logs
 ```
 
 Configuration lives in `src/config.ts` (object storage for compacted logs, the per-job budget,

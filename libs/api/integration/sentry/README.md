@@ -7,8 +7,14 @@ installation to a Shipfox workspace.
 
 ## Setup
 
-This package is private to the workspace. Enable the provider from the
-integrations core package with:
+This package is published as part of the API runtime closure. Install it from
+the registry:
+
+```sh
+pnpm add @shipfox/api-integration-sentry
+```
+
+Enable the provider from the integrations core package with:
 
 ```sh
 INTEGRATIONS_ENABLE_SENTRY_PROVIDER=true

@@ -20,6 +20,7 @@ const MISSING_ROOT_ERROR = /Publication root is not a workspace package: @shipfo
 const MISSING_RUNTIME_ERROR = /missing: @shipfox\/runtime/u;
 const PRIVATE_RUNTIME_ERROR = /Publication closure package is private: @shipfox\/private-runtime/u;
 const UNEXPECTED_RUNTIME_ERROR = /unexpected: @shipfox\/runtime/u;
+const INVALID_VERSION_ERROR = /has invalid version/u;
 
 function workspacePackage(name, options = {}) {
   const directory = `/repo/libs/${name.slice('@shipfox/'.length)}`;
@@ -133,6 +134,15 @@ describe('publication closure', () => {
 
     assert.throws(validate, MISSING_RUNTIME_ERROR);
   });
+
+  for (const version of ['01.2.3', '1.2.3-.', '1.2.3-01']) {
+    test(`rejects invalid application-release package version ${version}`, () => {
+      const validate = () =>
+        assertApplicationReleasePackages([{name: '@shipfox/root', version}], ['@shipfox/root']);
+
+      assert.throws(validate, INVALID_VERSION_ERROR);
+    });
+  }
 
   test('classifies JavaScript, type-only, and non-module exports', () => {
     const entryPoints = listPublicPackageEntryPoints('@shipfox/example', {

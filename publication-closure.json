@@ -16,12 +16,9 @@
     "@shipfox/api-workspaces",
     "@shipfox/node-error-monitoring",
     "@shipfox/node-fastify",
-    "@shipfox/node-jwt",
     "@shipfox/node-module",
     "@shipfox/node-opentelemetry",
-    "@shipfox/node-postgres",
-    "@shipfox/node-rate-limit",
-    "@shipfox/node-tokens"
+    "@shipfox/node-postgres"
   ],
   "packages": [
     "@shipfox/annotations",

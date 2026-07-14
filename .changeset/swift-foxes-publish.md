@@ -44,6 +44,7 @@
 "@shipfox/runner-labels": minor
 "@shipfox/application-release": minor
 "@shipfox/config": patch
+"@shipfox/expression": patch
 "@shipfox/node-drizzle": patch
 "@shipfox/node-email": patch
 "@shipfox/node-error-monitoring": patch

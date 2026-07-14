@@ -8,7 +8,8 @@ const RUNTIME_DEPENDENCY_FIELDS = [
   'optionalDependencies',
   'peerDependencies',
 ] as const;
-const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const SEMVER_PATTERN =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$/;
 const RUNTIME_MODULE_PATTERN = /\.(?:[cm]?js|node)$/u;
 const TYPE_DECLARATION_PATTERN = /\.d\.[cm]?ts$/u;
 const REPOSITORY_URL = 'git+https://github.com/ShipfoxHQ/shipfox.git';
