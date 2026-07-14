@@ -27,14 +27,10 @@ This adds:
 
 ## Setup
 
-This package is private to the workspace. Add it to another workspace package with:
+Install the package from the registry:
 
-```json
-{
-  "dependencies": {
-    "@shipfox/api-auth": "workspace:*"
-  }
-}
+```sh
+pnpm add @shipfox/api-auth
 ```
 
 Required environment:

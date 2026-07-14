@@ -21,6 +21,8 @@ const validateManifest = schemaValidator.compile(schema);
 const portableSchemaValidator = new Ajv2020({strict: true, validateFormats: false});
 const validatePortableManifest = portableSchemaValidator.compile(schema);
 const invalidBuildTimestampError = /Build start time must be a valid UTC timestamp/;
+const duplicatePackageNameError =
+  /Invalid application release manifest: duplicate package name @shipfox\/api-auth/u;
 
 function image(repository, character) {
   return {
@@ -53,6 +55,10 @@ function input() {
       provisioner: image('ghcr.io/shipfoxhq/provisioner-docker', 'c'),
       runner: image('ghcr.io/shipfoxhq/runner', 'd'),
     },
+    packages: [
+      {name: '@shipfox/api-auth', version: '0.1.2'},
+      {name: '@shipfox/node-module', version: '0.1.2'},
+    ],
   };
 }
 
@@ -65,6 +71,7 @@ describe('createApplicationReleaseManifest', () => {
     assert.equal(manifest.source.revision, revision);
     assert.equal(manifest.build.startedAt, '2026-07-13T15:30:00.000Z');
     assert.equal(manifest.publishedAt, '2026-07-13T16:00:00.000Z');
+    assert.deepEqual(manifest.packages, input().packages);
     assert.equal('publication' in manifest, false);
   });
 
@@ -83,6 +90,35 @@ describe('createApplicationReleaseManifest', () => {
     const valid = validateManifest(manifest);
 
     assert.equal(valid, false);
+  });
+
+  for (const version of ['workspace:*', '01.2.3', '1.2.3-.', '1.2.3-01']) {
+    test(`schema rejects invalid package version ${version}`, () => {
+      const manifest = createApplicationReleaseManifest(input());
+      manifest.packages[0].version = version;
+
+      const valid = validateManifest(manifest);
+
+      assert.equal(valid, false);
+    });
+  }
+
+  test('schema accepts a semantic prerelease version', () => {
+    const manifest = createApplicationReleaseManifest(input());
+    manifest.packages[0].version = '1.2.3-alpha.1';
+
+    const valid = validateManifest(manifest);
+
+    assert.equal(valid, true, JSON.stringify(validateManifest.errors));
+  });
+
+  test('rejects duplicate package names', () => {
+    const releaseInput = input();
+    releaseInput.packages.push({name: '@shipfox/api-auth', version: '0.2.0'});
+
+    const create = () => createApplicationReleaseManifest(releaseInput);
+
+    assert.throws(create, duplicatePackageNameError);
   });
 
   test('schema rejects deployment-provider data', () => {

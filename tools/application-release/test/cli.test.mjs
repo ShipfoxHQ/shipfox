@@ -41,6 +41,15 @@ describe('parseCreateOptions', () => {
     assert.equal(options.buildAttempt, 1);
     assert.equal(options.imageTag, 'build-42');
     assert.equal(options.output, 'application-release.json');
+    assert.equal(options.publicationConfig, 'publication-closure.json');
+  });
+
+  test('accepts an explicit publication closure config', () => {
+    const input = [...args(), '--publication-config', '/tmp/publication-closure.json'];
+
+    const options = parseCreateOptions(input);
+
+    assert.equal(options.publicationConfig, '/tmp/publication-closure.json');
   });
 
   test('rejects a missing required argument', () => {

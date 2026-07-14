@@ -1,7 +1,13 @@
 import {writeFileSync} from 'node:fs';
+import {dirname, resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {createApplicationReleaseManifest} from './manifest.js';
 import {resolveApplicationImages} from './oci.js';
+import {
+  createApplicationReleasePackages,
+  readPublicationClosureConfig,
+  readWorkspacePackages,
+} from './package-closure.js';
 
 const POSITIVE_DECIMAL_PATTERN = /^[1-9]\d*$/;
 
@@ -16,6 +22,7 @@ export interface CreateOptions {
   buildUrl: string;
   imageTag: string;
   output: string;
+  publicationConfig: string;
 }
 
 export function parseCreateOptions(args: string[]): CreateOptions {
@@ -34,6 +41,7 @@ export function parseCreateOptions(args: string[]): CreateOptions {
       'build-url': {type: 'string'},
       'image-tag': {type: 'string'},
       output: {type: 'string'},
+      'publication-config': {type: 'string'},
     },
   });
 
@@ -52,11 +60,19 @@ export function parseCreateOptions(args: string[]): CreateOptions {
     buildUrl: required(values['build-url'], '--build-url'),
     imageTag: required(values['image-tag'], '--image-tag'),
     output: required(values.output, '--output'),
+    publicationConfig: values['publication-config'] ?? 'publication-closure.json',
   };
 }
 
 export function createApplicationRelease(options: CreateOptions): void {
   const images = resolveApplicationImages(options.imageTag, options.revision);
+  const publicationConfigPath = resolve(options.publicationConfig);
+  const repositoryRoot = dirname(publicationConfigPath);
+  const packages = createApplicationReleasePackages(
+    readWorkspacePackages(repositoryRoot),
+    readPublicationClosureConfig(publicationConfigPath),
+    repositoryRoot,
+  );
   const manifest = createApplicationReleaseManifest({
     sourceRepository: options.sourceRepository,
     revision: options.revision,
@@ -70,6 +86,7 @@ export function createApplicationRelease(options: CreateOptions): void {
     },
     publishedAt: new Date().toISOString(),
     images,
+    packages,
   });
 
   writeFileSync(options.output, `${JSON.stringify(manifest, null, 2)}\n`);

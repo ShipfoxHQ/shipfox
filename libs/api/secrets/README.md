@@ -13,14 +13,10 @@
 
 ## Installation / Setup
 
-This package is private to the workspace. Add it to another workspace package with:
+Install the package from the registry:
 
-```json
-{
-  "dependencies": {
-    "@shipfox/api-secrets": "workspace:*"
-  }
-}
+```sh
+pnpm add @shipfox/api-secrets
 ```
 
 Register `secretsModule` before modules that read or write secrets so its migrations run first.

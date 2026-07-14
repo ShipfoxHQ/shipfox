@@ -7,7 +7,7 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/api/auth-context"
   },
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

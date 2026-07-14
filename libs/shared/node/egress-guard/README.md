@@ -11,12 +11,8 @@ A small rule for calls set by a user.
 
 ## Installation / Setup
 
-```json
-{
-  "dependencies": {
-    "@shipfox/node-egress-guard": "workspace:*"
-  }
-}
+```sh
+pnpm add @shipfox/node-egress-guard
 ```
 
 ## Usage

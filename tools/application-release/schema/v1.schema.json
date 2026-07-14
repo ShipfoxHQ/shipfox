@@ -4,7 +4,7 @@
   "title": "Shipfox application release v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "apiVersion", "source", "build", "publishedAt", "images"],
+  "required": ["kind", "apiVersion", "source", "build", "publishedAt", "images", "packages"],
   "properties": {
     "kind": { "const": "shipfox.application-release" },
     "apiVersion": { "const": "v1" },
@@ -41,9 +41,31 @@
         "provisioner": { "$ref": "#/$defs/provisionerImage" },
         "runner": { "$ref": "#/$defs/runnerImage" }
       }
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version"],
+        "properties": {
+          "name": { "$ref": "#/$defs/packageName" },
+          "version": { "$ref": "#/$defs/packageVersion" }
+        }
+      }
     }
   },
   "$defs": {
+    "packageName": {
+      "type": "string",
+      "pattern": "^@shipfox/[a-z0-9][a-z0-9._-]*$"
+    },
+    "packageVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$"
+    },
     "timestamp": {
       "type": "string",
       "format": "date-time",

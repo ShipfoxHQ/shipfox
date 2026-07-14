@@ -94,15 +94,10 @@ App is subscribed to in its Permissions & events settings.
 
 ## Setup
 
-This package is private to the workspace. Add it to another workspace
-package with:
+Install the package from the registry:
 
-```json
-{
-  "dependencies": {
-    "@shipfox/api-triggers": "workspace:*"
-  }
-}
+```sh
+pnpm add @shipfox/api-triggers
 ```
 
 The matching HTTP contract lives in

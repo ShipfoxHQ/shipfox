@@ -12,12 +12,8 @@ Tools for Shipfox Node code that must stop too many calls in a short time. The a
 
 ## Installation
 
-```json
-{
-  "dependencies": {
-    "@shipfox/node-rate-limit": "workspace:*"
-  }
-}
+```sh
+pnpm add @shipfox/node-rate-limit
 ```
 
 ## Usage
