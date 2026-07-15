@@ -1,5 +1,5 @@
-import cookie from '@fastify/cookie';
 import type {RouteGroup} from '@shipfox/node-fastify';
+import {authCookiePlugin} from '#presentation/auth/refresh-cookie.js';
 import {verifyEmailConfirmRoute} from './email-verification/verify-email-confirm.js';
 import {verifyEmailResendRoute} from './email-verification/verify-email-resend.js';
 import {changePasswordRoute} from './password/change-password.js';
@@ -13,7 +13,7 @@ import {refreshRoute} from './session/refresh.js';
 
 export const authRoutes: RouteGroup = {
   prefix: '/auth',
-  plugins: [cookie],
+  plugins: [authCookiePlugin],
   routes: [
     signupRoute,
     verifyEmailConfirmRoute,

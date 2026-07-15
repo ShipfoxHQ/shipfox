@@ -10,7 +10,7 @@ export const users = pgTable(
   {
     id: uuidv7PrimaryKey(),
     email: text('email').notNull(),
-    hashedPassword: text('hashed_password').notNull(),
+    hashedPassword: text('hashed_password'),
     name: text('name'),
     emailVerifiedAt: timestamp('email_verified_at', {withTimezone: true}),
     status: userStatusEnum('status').notNull().default('active'),

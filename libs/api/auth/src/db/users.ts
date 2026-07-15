@@ -6,9 +6,14 @@ import {toUser, type UserDb, users} from './schema/users.js';
 
 export interface CreateUserParams {
   email: string;
-  hashedPassword: string;
+  hashedPassword: string | null;
   name?: string | null;
   emailVerifiedAt?: Date | null;
+}
+
+export interface ProvisionUserParams {
+  email: string;
+  name?: string | null;
 }
 
 // Drizzle wraps the underlying Postgres error; walk `.cause` to reach it.
@@ -45,6 +50,26 @@ export async function createUser(params: CreateUserParams): Promise<User> {
   const row = rows[0];
   if (!row) throw new Error('Insert returned no rows');
   return toUser(row);
+}
+
+export async function provisionUser(params: ProvisionUserParams): Promise<User> {
+  const rows = await db()
+    .insert(users)
+    .values({
+      email: params.email,
+      hashedPassword: null,
+      name: params.name ?? null,
+      emailVerifiedAt: new Date(),
+    })
+    .onConflictDoNothing({target: users.email})
+    .returning();
+
+  const row = rows[0];
+  if (row) return toUser(row);
+
+  const existing = await findUserByEmail({email: params.email});
+  if (existing) return existing;
+  throw new Error('Provisioning user conflict returned no user');
 }
 
 export async function findUserByEmail(params: {email: string}): Promise<User | undefined> {

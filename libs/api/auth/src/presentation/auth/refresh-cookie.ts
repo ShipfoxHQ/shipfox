@@ -1,7 +1,10 @@
+import cookie from '@fastify/cookie';
 import type {FastifyReply, FastifyRequest} from 'fastify';
 import {config} from '#config.js';
 
 const REFRESH_COOKIE_PATH = '/auth';
+
+export const authCookiePlugin = cookie;
 
 function refreshCookieMaxAgeSeconds(): number {
   return config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS * 24 * 60 * 60;

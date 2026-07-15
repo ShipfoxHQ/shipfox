@@ -236,6 +236,61 @@ It also exports lower-level pieces for tests and advanced integration:
 - `getClientContext(request)`: reads the authenticated user context from a Fastify request.
 - Entity types: `User`, `UserStatus`, `RefreshToken`, `EmailVerification`, and `PasswordReset`.
 
+### External identity callbacks
+
+An external identity route can use these APIs to provision a user. It can then
+create a normal Shipfox session and set its refresh cookie:
+
+```ts
+import {
+  authCookiePlugin,
+  createSessionForUser,
+  provisionUser,
+  setRefreshTokenCookie,
+} from '@shipfox/api-auth';
+import type {FastifyReply} from 'fastify';
+
+export const callbackRoutePlugins = [authCookiePlugin];
+
+export async function completeProviderCallback(
+  reply: FastifyReply,
+  profile: {email: string; name?: string},
+): Promise<string> {
+  const user = await provisionUser(profile);
+  const session = await createSessionForUser({userId: user.id});
+
+  setRefreshTokenCookie(reply, session.refreshToken);
+  return session.token;
+}
+```
+
+The provider must prove it owns `profile.email` before calling `provisionUser`.
+For OAuth providers, require a verified-email claim such as `email_verified`.
+`provisionUser` matches existing emails, and `createSessionForUser` can mint a
+session for any active, verified account. An unverified provider email could
+otherwise sign in as an existing password account with the same address.
+
+Add `authCookiePlugin` to the callback route group before calling a cookie
+helper. `getRefreshTokenCookie`, `setRefreshTokenCookie`, and
+`clearRefreshTokenCookie` use the configured cookie name and the `/auth` path.
+
+`provisionUser({email, name?})` uses the same email schema as the auth routes.
+It makes an active, verified user with no password hash. If the email already
+exists, it returns that user unchanged. It does not change the name, email,
+status, verification state, or password. Repeated and concurrent callbacks are
+safe.
+
+`createSessionForUser` accepts either a `userId` or an `email`. It only creates
+a session for an active, verified user. It can throw `UserNotFoundError`,
+`EmailNotVerifiedError`, `InvalidCredentialsError`, or
+`AuthDependencyUnavailableError`. `CreateSessionForUserParams`,
+`CreateSessionForUserResult`, and `CreateSessionForUserError` describe that
+public contract.
+
+`createJwtAuthMethod`, `createRunnerSessionAuthMethod`, and
+`createLeaseTokenAuthMethod` make request-auth methods. They do not add a
+user-facing login method.
+
 ## Data Model
 
 The module creates tables with the `auth_` prefix:
@@ -251,7 +306,7 @@ Passwords use Argon2id. Email verification tokens, password reset tokens, and re
 ## Behavior Notes
 
 - Signup sends a verification email and returns the new user.
-- Login only succeeds for active users with verified email addresses.
+- Login only succeeds for active users with verified email addresses and a password hash.
 - Refresh tokens rotate on each refresh.
 - Password reset and email verification consume their tokens once.
 - Password change revokes other refresh sessions. It keeps the current session when the current refresh cookie is valid.

@@ -1,4 +1,4 @@
-import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
+import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS, emailSchema} from '@shipfox/api-auth-dto';
 import {
   acceptWorkspaceInvitation,
   InvitationEmailMismatchError,
@@ -29,6 +29,7 @@ import {
   findUserByEmail,
   findUserById,
   markEmailVerified,
+  provisionUser as provisionDbUser,
   updateUserPassword,
 } from '#db/users.js';
 import {type AuthTokenRefreshOutcome, recordTokenRefreshed} from '#metrics/index.js';
@@ -123,6 +124,22 @@ export interface SignupParams {
   email: string;
   password: string;
   name?: string | undefined;
+}
+
+export interface ProvisionUserParams {
+  email: string;
+  name?: string | null | undefined;
+}
+
+/**
+ * Creates a verified, password-less user for an external identity provider.
+ * Existing users are returned unchanged, including their password and profile.
+ */
+export async function provisionUser(params: ProvisionUserParams): Promise<User> {
+  return await provisionDbUser({
+    email: emailSchema.parse(params.email),
+    name: params.name ?? null,
+  });
 }
 
 export async function signup(params: SignupParams): Promise<User> {
@@ -271,8 +288,12 @@ export async function login(params: LoginParams): Promise<LoginResult> {
     throw new InvalidCredentialsError();
   }
 
-  const ok = await verifyPassword({password: params.password, hash: user.hashedPassword});
-  if (!ok || user.status !== 'active') {
+  const hasPassword = user.hashedPassword !== null;
+  const ok = await verifyPassword({
+    password: params.password,
+    hash: user.hashedPassword ?? (await getDummyHash()),
+  });
+  if (!hasPassword || !ok || user.status !== 'active') {
     throw new InvalidCredentialsError();
   }
 
@@ -291,9 +312,21 @@ export interface CreateSessionForUserParams {
   email?: string | undefined;
 }
 
+export interface CreateSessionForUserResult {
+  token: string;
+  refreshToken: string;
+  user: User;
+}
+
+export type CreateSessionForUserError =
+  | AuthDependencyUnavailableError
+  | EmailNotVerifiedError
+  | InvalidCredentialsError
+  | UserNotFoundError;
+
 export async function createSessionForUser(
   params: CreateSessionForUserParams,
-): Promise<LoginResult> {
+): Promise<CreateSessionForUserResult> {
   const user = params.userId
     ? await findUserById({id: params.userId})
     : params.email
@@ -426,7 +459,7 @@ export async function resendEmailVerification(params: {
 
 export async function requestPasswordReset(params: {email: string}): Promise<void> {
   const user = await findUserByEmail({email: params.email});
-  if (user?.status !== 'active') {
+  if (user?.status !== 'active' || user.hashedPassword === null) {
     return;
   }
 
@@ -458,6 +491,11 @@ export async function confirmPasswordReset(params: {
     throw new TokenInvalidError('Reset token is invalid or expired');
   }
 
+  const existingUser = await findUserById({id: consumed.userId});
+  if (existingUser?.status !== 'active' || existingUser.hashedPassword === null) {
+    throw new TokenInvalidError('Reset token is invalid or expired');
+  }
+
   const hashedPassword = await hashPassword({password: params.newPassword});
   const user = await updateUserPassword({userId: consumed.userId, hashedPassword});
   if (user?.status !== 'active') {
@@ -483,11 +521,12 @@ export async function changePassword(params: {
     throw new UserNotFoundError(params.userId);
   }
 
+  const hasPassword = user.hashedPassword !== null;
   const ok = await verifyPassword({
     password: params.currentPassword,
-    hash: user.hashedPassword,
+    hash: user.hashedPassword ?? (await getDummyHash()),
   });
-  if (!ok) {
+  if (!hasPassword || !ok) {
     throw new InvalidCredentialsError();
   }
 

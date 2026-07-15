@@ -10,9 +10,11 @@ import {
   changePassword,
   confirmEmailVerification,
   confirmPasswordReset,
+  createSessionForUser,
   getCurrentUser,
   login,
   logout,
+  provisionUser,
   refreshAccessToken,
   requestPasswordReset,
   resendEmailVerification,
@@ -31,6 +33,7 @@ import {db} from '#db/db.js';
 import * as refreshTokenDb from '#db/refresh-tokens.js';
 import {emailVerifications} from '#db/schema/email-verifications.js';
 import {authOutbox} from '#db/schema/outbox.js';
+import {passwordResets} from '#db/schema/password-resets.js';
 import {refreshTokens} from '#db/schema/refresh-tokens.js';
 import {users} from '#db/schema/users.js';
 import {findUserByEmail, findUserById} from '#db/users.js';
@@ -142,6 +145,51 @@ describe('auth core', () => {
     await expect(promise).rejects.toBeInstanceOf(EmailTakenError);
   });
 
+  test('provisionUser creates a verified, password-less user with a normalized email', async () => {
+    const email = `Provision-${crypto.randomUUID()}@EXAMPLE.COM`;
+
+    const user = await provisionUser({email, name: 'Provisioned User'});
+
+    expect(user.email).toBe(email.toLowerCase());
+    expect(user.name).toBe('Provisioned User');
+    expect(user.hashedPassword).toBeNull();
+    expect(user.emailVerifiedAt).toBeInstanceOf(Date);
+    expect(user.status).toBe('active');
+  });
+
+  test('provisionUser returns existing unverified and suspended users unchanged', async () => {
+    const unverified = await userFactory.create();
+    const suspended = await userFactory.create({emailVerifiedAt: new Date()});
+    await db().update(users).set({status: 'suspended'}).where(eq(users.id, suspended.id));
+    const storedUnverified = await findUserById({id: unverified.id});
+    const storedSuspended = await findUserById({id: suspended.id});
+
+    const existingUnverified = await provisionUser({
+      email: unverified.email.toUpperCase(),
+      name: 'Replacement Name',
+    });
+    const existingSuspended = await provisionUser({
+      email: suspended.email.toUpperCase(),
+      name: 'Replacement Name',
+    });
+
+    expect(existingUnverified).toEqual(storedUnverified);
+    expect(existingSuspended).toEqual(storedSuspended);
+  });
+
+  test('provisionUser returns one unchanged user for concurrent callbacks', async () => {
+    const email = `concurrent-provision-${crypto.randomUUID()}@example.com`;
+
+    const results = await Promise.all(
+      Array.from({length: 8}, (_, index) => provisionUser({email, name: `Provider ${index}`})),
+    );
+    const stored = await findUserByEmail({email});
+
+    expect(new Set(results.map((user) => user.id)).size).toBe(1);
+    expect(stored?.id).toBe(results[0]?.id);
+    expect(stored?.hashedPassword).toBeNull();
+  });
+
   test('login returns a token for verified users and rejects invalid credentials', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
 
@@ -167,6 +215,46 @@ describe('auth core', () => {
     const promise = login({email: user.email, password: user.plainPassword});
 
     await expect(promise).rejects.toBeInstanceOf(EmailNotVerifiedError);
+  });
+
+  test('password login and reset flows refuse password-less users', async () => {
+    const user = await provisionUser({
+      email: `password-less-${crypto.randomUUID()}@example.com`,
+    });
+    const resetToken = `password-less-reset-${crypto.randomUUID()}`;
+    await db()
+      .insert(passwordResets)
+      .values({
+        userId: user.id,
+        hashedToken: hashOpaqueToken(resetToken),
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+    const passwordLogin = login({email: user.email, password: 'not a configured password'});
+    await expect(passwordLogin).rejects.toBeInstanceOf(InvalidCredentialsError);
+
+    await requestPasswordReset({email: user.email});
+    expect(await outboxEventsTo(user.email, AUTH_PASSWORD_RESET_SEND_REQUESTED)).toHaveLength(0);
+
+    const passwordReset = confirmPasswordReset({
+      token: resetToken,
+      newPassword: 'a valid replacement password',
+    });
+    await expect(passwordReset).rejects.toBeInstanceOf(TokenInvalidError);
+    expect((await findUserById({id: user.id}))?.hashedPassword).toBeNull();
+  });
+
+  test('createSessionForUser only creates sessions for active verified users', async () => {
+    const unverified = await userFactory.create();
+    const suspended = await userFactory.create({emailVerifiedAt: new Date()});
+    await db().update(users).set({status: 'suspended'}).where(eq(users.id, suspended.id));
+
+    await expect(createSessionForUser({userId: unverified.id})).rejects.toBeInstanceOf(
+      EmailNotVerifiedError,
+    );
+    await expect(createSessionForUser({userId: suspended.id})).rejects.toBeInstanceOf(
+      InvalidCredentialsError,
+    );
   });
 
   test('refreshAccessToken rotates the refresh token', async () => {
