@@ -161,8 +161,20 @@ export async function createIntegrationsContext(
     getIntegrationConnectionById,
   });
 
+  async function runStartupTasks(): Promise<void> {
+    for (const task of parts.flatMap((part) => part.startupTasks ?? [])) {
+      // A provider convenience must never gate API boot.
+      try {
+        await task();
+      } catch (error) {
+        logger().error({err: error}, 'Integration startup task failed, continuing boot');
+      }
+    }
+  }
+
   const module: ShipfoxModule = {
     name: 'integrations',
+    startupTasks: runStartupTasks,
     database: [
       {db, migrationsPath},
       ...parts.flatMap((part) => (part.database ? [part.database] : [])),
@@ -195,17 +207,6 @@ export async function createIntegrationsContext(
       ...parts.flatMap((part) => part.workers ?? []),
     ],
   };
-
-  async function runStartupTasks(): Promise<void> {
-    for (const task of parts.flatMap((part) => part.startupTasks ?? [])) {
-      // A provider convenience must never gate API boot.
-      try {
-        await task();
-      } catch (error) {
-        logger().error({err: error}, 'Integration startup task failed, continuing boot');
-      }
-    }
-  }
 
   return {module, registry, capabilities: {sourceControl}, sourceControl, runStartupTasks};
 }

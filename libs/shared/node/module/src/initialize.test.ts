@@ -1,9 +1,11 @@
-import {registerModuleMetrics, startModuleWorkers} from './initialize.js';
+import {registerModuleMetrics, runModuleStartupTasks, startModuleWorkers} from './initialize.js';
 import type {ModuleWorker, ShipfoxModule} from './types.js';
 
 const mocks = vi.hoisted(() => ({
+  closeTemporalClient: vi.fn(),
   createTemporalClient: vi.fn(),
   createTemporalWorker: vi.fn(),
+  createTemporalWorkerConnection: vi.fn(),
   workflowStart: vi.fn(),
   logger: {
     error: vi.fn(),
@@ -13,8 +15,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@shipfox/node-temporal', () => ({
+  closeTemporalClient: mocks.closeTemporalClient,
   createTemporalClient: mocks.createTemporalClient,
   createTemporalWorker: mocks.createTemporalWorker,
+  createTemporalWorkerConnection: mocks.createTemporalWorkerConnection,
   temporalClient: () => ({workflow: {start: mocks.workflowStart}}),
 }));
 
@@ -64,6 +68,49 @@ describe('registerModuleMetrics', () => {
   });
 });
 
+describe('runModuleStartupTasks', () => {
+  it('runs startup tasks sequentially in module order', async () => {
+    const calls: string[] = [];
+    const modules: ShipfoxModule[] = [
+      {
+        name: 'first',
+        startupTasks: async () => {
+          calls.push('first:start');
+          await Promise.resolve();
+          calls.push('first:end');
+        },
+      },
+      {name: 'none'},
+      {
+        name: 'second',
+        startupTasks: () => {
+          calls.push('second');
+          return Promise.resolve();
+        },
+      },
+    ];
+
+    await runModuleStartupTasks({modules});
+
+    expect(calls).toEqual(['first:start', 'first:end', 'second']);
+  });
+
+  it('propagates a startup task failure without running later tasks', async () => {
+    const failure = new Error('task failed');
+    const later = vi.fn();
+
+    const result = runModuleStartupTasks({
+      modules: [
+        {name: 'failing', startupTasks: async () => Promise.reject(failure)},
+        {name: 'later', startupTasks: later},
+      ],
+    });
+
+    await expect(result).rejects.toBe(failure);
+    expect(later).not.toHaveBeenCalled();
+  });
+});
+
 function moduleWorker(overrides: Partial<ModuleWorker> = {}): ModuleWorker {
   return {
     taskQueue: 'test-queue',
@@ -77,6 +124,7 @@ function moduleWorker(overrides: Partial<ModuleWorker> = {}): ModuleWorker {
 function temporalWorker(runResult: Promise<void> = new Promise(() => undefined)) {
   return {
     run: vi.fn(() => runResult),
+    shutdown: vi.fn(),
   };
 }
 
@@ -93,20 +141,48 @@ async function flushMicrotasks(): Promise<void> {
 
 describe('startModuleWorkers', () => {
   beforeEach(() => {
+    mocks.closeTemporalClient.mockReset();
     mocks.createTemporalClient.mockReset();
     mocks.createTemporalWorker.mockReset();
+    mocks.createTemporalWorkerConnection.mockReset();
     mocks.workflowStart.mockReset();
     mocks.logger.error.mockReset();
     mocks.logger.info.mockReset();
+    mocks.logger.warn.mockReset();
+    mocks.closeTemporalClient.mockResolvedValue(undefined);
     mocks.createTemporalClient.mockResolvedValue({});
+    mocks.createTemporalWorkerConnection.mockResolvedValue({close: vi.fn()});
     mocks.createTemporalWorker.mockResolvedValue(temporalWorker());
     mocks.workflowStart.mockResolvedValue({});
   });
 
-  it('does not create a Temporal client when no workers are declared', async () => {
-    await startModuleWorkers({workers: []});
+  it('returns a no-op handle without Temporal resources when no workers are declared', async () => {
+    const handle = await startModuleWorkers({workers: []});
+
+    await handle.stop();
 
     expect(mocks.createTemporalClient).not.toHaveBeenCalled();
+    expect(mocks.createTemporalWorkerConnection).not.toHaveBeenCalled();
+    expect(mocks.closeTemporalClient).not.toHaveBeenCalled();
+  });
+
+  it('shares one Temporal worker connection across workers', async () => {
+    const connection = {close: vi.fn()};
+    mocks.createTemporalWorkerConnection.mockResolvedValue(connection);
+
+    await startModuleWorkers({
+      workers: [moduleWorker({taskQueue: 'first'}), moduleWorker({taskQueue: 'second'})],
+    });
+
+    expect(mocks.createTemporalWorkerConnection).toHaveBeenCalledOnce();
+    expect(mocks.createTemporalWorker).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({connection}),
+    );
+    expect(mocks.createTemporalWorker).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({connection}),
+    );
   });
 
   it('rejects when Temporal client creation fails', async () => {
@@ -116,6 +192,16 @@ describe('startModuleWorkers', () => {
     const result = startModuleWorkers({workers: [moduleWorker()]});
 
     await expect(result).rejects.toBe(failure);
+  });
+
+  it('closes the Temporal client when worker connection creation fails', async () => {
+    const failure = new Error('worker connection unavailable');
+    mocks.createTemporalWorkerConnection.mockRejectedValueOnce(failure);
+
+    const result = startModuleWorkers({workers: [moduleWorker()]});
+
+    await expect(result).rejects.toBe(failure);
+    expect(mocks.closeTemporalClient).toHaveBeenCalledOnce();
   });
 
   it('wraps worker creation failures with the task queue and original cause', async () => {
@@ -201,7 +287,9 @@ describe('startModuleWorkers', () => {
 
   it('wraps unexpected workflow start failures with the task queue and original cause', async () => {
     const failure = new Error('workflow service unavailable');
+    const worker = temporalWorker();
     mocks.workflowStart.mockRejectedValueOnce(failure);
+    mocks.createTemporalWorker.mockResolvedValueOnce(worker);
 
     const result = startModuleWorkers({
       workers: [
@@ -216,6 +304,8 @@ describe('startModuleWorkers', () => {
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).cause).toBe(failure);
     });
+    expect(worker.shutdown).toHaveBeenCalledOnce();
+    expect(mocks.closeTemporalClient).toHaveBeenCalledOnce();
   });
 
   it('calls the runtime failure callback when a started worker stops unexpectedly', async () => {
@@ -264,11 +354,65 @@ describe('startModuleWorkers', () => {
     );
   });
 
+  it('stops every worker, logs deliberate-stop failures, and closes Temporal resources in order', async () => {
+    const failure = new Error('forced shutdown timeout');
+    const shutdownFailure = new Error('worker not running');
+    const connection = {close: vi.fn().mockResolvedValue(undefined)};
+    let rejectRun: (error: Error) => void = () => undefined;
+    const runPromise = new Promise<void>((_resolve, reject) => {
+      rejectRun = reject;
+    });
+    const firstWorker = temporalWorker(runPromise);
+    firstWorker.shutdown.mockImplementation(() => {
+      throw shutdownFailure;
+    });
+    const secondWorker = temporalWorker(Promise.resolve());
+    const onWorkerFailure = vi.fn();
+    mocks.createTemporalWorkerConnection.mockResolvedValue(connection);
+    mocks.createTemporalWorker
+      .mockResolvedValueOnce(firstWorker)
+      .mockResolvedValueOnce(secondWorker);
+
+    const handle = await startModuleWorkers({
+      workers: [moduleWorker({taskQueue: 'first'}), moduleWorker({taskQueue: 'second'})],
+      onWorkerFailure,
+    });
+    const firstStop = handle.stop();
+    const secondStop = handle.stop();
+
+    await flushMicrotasks();
+
+    expect(connection.close).not.toHaveBeenCalled();
+    rejectRun(failure);
+
+    await firstStop;
+
+    expect(secondStop).toBe(firstStop);
+    expect(firstWorker.shutdown).toHaveBeenCalledOnce();
+    expect(secondWorker.shutdown).toHaveBeenCalledOnce();
+    expect(onWorkerFailure).not.toHaveBeenCalled();
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {err: shutdownFailure},
+      'Failed to shut down module worker',
+    );
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      {err: failure},
+      'Module worker stopped with an error',
+    );
+    expect(connection.close.mock.invocationCallOrder[0]).toBeGreaterThan(
+      secondWorker.shutdown.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(mocks.closeTemporalClient.mock.invocationCallOrder[0]).toBeGreaterThan(
+      connection.close.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
   it('identifies the failing task queue when a later worker fails to start', async () => {
     const failure = new Error('second worker missing');
-    mocks.createTemporalWorker
-      .mockResolvedValueOnce(temporalWorker())
-      .mockRejectedValueOnce(failure);
+    const connection = {close: vi.fn().mockResolvedValue(undefined)};
+    const firstWorker = temporalWorker(Promise.resolve());
+    mocks.createTemporalWorkerConnection.mockResolvedValue(connection);
+    mocks.createTemporalWorker.mockResolvedValueOnce(firstWorker).mockRejectedValueOnce(failure);
 
     const result = startModuleWorkers({
       workers: [moduleWorker({taskQueue: 'first'}), moduleWorker({taskQueue: 'second'})],
@@ -279,5 +423,8 @@ describe('startModuleWorkers', () => {
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).cause).toBe(failure);
     });
+    expect(firstWorker.shutdown).toHaveBeenCalledOnce();
+    expect(connection.close).toHaveBeenCalledOnce();
+    expect(mocks.closeTemporalClient).toHaveBeenCalledOnce();
   });
 });

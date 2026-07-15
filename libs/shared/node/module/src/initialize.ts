@@ -1,7 +1,15 @@
 import {runMigrations} from '@shipfox/node-drizzle';
 import type {AuthMethod, RouteExport} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
-import {createTemporalClient, createTemporalWorker, temporalClient} from '@shipfox/node-temporal';
+import {
+  closeTemporalClient,
+  createTemporalClient,
+  createTemporalWorker,
+  createTemporalWorkerConnection,
+  type NativeConnection,
+  temporalClient,
+  type Worker,
+} from '@shipfox/node-temporal';
 import {registerPublisher} from './publisher-registry.js';
 import {subscribe} from './registry.js';
 import type {ModuleDatabase, ModuleWorker, ShipfoxModule} from './types.js';
@@ -20,6 +28,15 @@ export interface InitializedModules {
 export interface StartModuleWorkersOptions {
   workers: ModuleWorker[];
   onWorkerFailure?: (error: unknown, worker: ModuleWorker) => void | Promise<void>;
+}
+
+export interface ModuleWorkersHandle {
+  stop(): Promise<void>;
+}
+
+interface StartedModuleWorker {
+  worker: Worker;
+  runPromise?: Promise<void>;
 }
 
 /**
@@ -114,58 +131,144 @@ export function registerModuleMetrics(options: {modules: ShipfoxModule[]}): void
   }
 }
 
+export async function runModuleStartupTasks(options: {modules: ShipfoxModule[]}): Promise<void> {
+  for (const mod of options.modules) {
+    await mod.startupTasks?.();
+  }
+}
+
 /**
  * Creates Temporal workers for all module-declared workers and starts their workflows.
  * Call this after `initializeModules` so that all publishers/subscribers are registered.
  */
-export async function startModuleWorkers(options: StartModuleWorkersOptions): Promise<void> {
-  if (options.workers.length === 0) return;
+export async function startModuleWorkers(
+  options: StartModuleWorkersOptions,
+): Promise<ModuleWorkersHandle> {
+  if (options.workers.length === 0) return {stop: async () => undefined};
 
   await createTemporalClient();
+  let connection: NativeConnection | undefined;
+  const workers: StartedModuleWorker[] = [];
+  let stopping = false;
+  let stopPromise: Promise<void> | undefined;
 
-  for (const workerDef of options.workers) {
-    try {
-      const worker = await createTemporalWorker({
-        taskQueue: workerDef.taskQueue,
-        workflowsPath: workerDef.workflowsPath,
-        activities: workerDef.activities(),
-      });
+  try {
+    connection = await createTemporalWorkerConnection();
 
-      for (const workflow of workerDef.workflows) {
-        try {
-          await temporalClient().workflow.start(workflow.name, {
-            taskQueue: workerDef.taskQueue,
-            workflowId: workflow.id,
-            ...(workflow.args ? {args: workflow.args} : {}),
-            ...(workflow.cronSchedule ? {cronSchedule: workflow.cronSchedule} : {}),
-          });
-        } catch (error) {
-          if (error instanceof Error && error.name === 'WorkflowExecutionAlreadyStartedError') {
-            logger().info({workflowId: workflow.id}, 'Workflow already running, skipping start');
-          } else {
-            throw error;
+    for (const workerDef of options.workers) {
+      try {
+        const worker = await createTemporalWorker({
+          connection,
+          taskQueue: workerDef.taskQueue,
+          workflowsPath: workerDef.workflowsPath,
+          activities: workerDef.activities(),
+        });
+        const startedWorker: StartedModuleWorker = {worker};
+        workers.push(startedWorker);
+
+        for (const workflow of workerDef.workflows) {
+          try {
+            await temporalClient().workflow.start(workflow.name, {
+              taskQueue: workerDef.taskQueue,
+              workflowId: workflow.id,
+              ...(workflow.args ? {args: workflow.args} : {}),
+              ...(workflow.cronSchedule ? {cronSchedule: workflow.cronSchedule} : {}),
+            });
+          } catch (error) {
+            if (error instanceof Error && error.name === 'WorkflowExecutionAlreadyStartedError') {
+              logger().info({workflowId: workflow.id}, 'Workflow already running, skipping start');
+            } else {
+              throw error;
+            }
           }
         }
-      }
 
-      worker.run().catch((error) => {
-        if (options.onWorkerFailure) {
-          void Promise.resolve(options.onWorkerFailure(error, workerDef)).catch((handlerError) => {
-            logger().error(
-              {err: handlerError, workerErr: error, taskQueue: workerDef.taskQueue},
-              'Module worker failure handler failed',
+        const runPromise = worker.run();
+        startedWorker.runPromise = runPromise;
+        runPromise.catch((error) => {
+          if (stopping) return;
+          if (options.onWorkerFailure) {
+            void Promise.resolve(options.onWorkerFailure(error, workerDef)).catch(
+              (handlerError) => {
+                logger().error(
+                  {err: handlerError, workerErr: error, taskQueue: workerDef.taskQueue},
+                  'Module worker failure handler failed',
+                );
+              },
             );
-          });
-          return;
-        }
-        logger().error({err: error, taskQueue: workerDef.taskQueue}, 'Worker stopped unexpectedly');
-      });
+            return;
+          }
+          logger().error(
+            {err: error, taskQueue: workerDef.taskQueue},
+            'Worker stopped unexpectedly',
+          );
+        });
 
-      logger().info({taskQueue: workerDef.taskQueue}, 'Module worker started');
-    } catch (error) {
-      throw new Error(`Failed to start module worker for task queue ${workerDef.taskQueue}`, {
-        cause: error,
-      });
+        logger().info({taskQueue: workerDef.taskQueue}, 'Module worker started');
+      } catch (error) {
+        throw new Error(`Failed to start module worker for task queue ${workerDef.taskQueue}`, {
+          cause: error,
+        });
+      }
     }
+  } catch (error) {
+    stopping = true;
+    await cleanUpFailedModuleWorkerStartup({error, workers, connection});
+    throw error;
+  }
+
+  return {
+    stop: () => {
+      stopping = true;
+      stopPromise ??= stopModuleWorkers({workers, connection});
+      return stopPromise;
+    },
+  };
+}
+
+async function stopModuleWorkers(options: {
+  workers: StartedModuleWorker[];
+  connection: NativeConnection;
+}): Promise<void> {
+  for (const {worker} of options.workers) {
+    try {
+      worker.shutdown();
+    } catch (error) {
+      logger().warn({err: error}, 'Failed to shut down module worker');
+    }
+  }
+
+  const results = await Promise.allSettled(
+    options.workers.flatMap(({runPromise}) => (runPromise ? [runPromise] : [])),
+  );
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      logger().error({err: result.reason}, 'Module worker stopped with an error');
+    }
+  }
+
+  try {
+    await options.connection.close();
+  } finally {
+    await closeTemporalClient();
+  }
+}
+
+async function cleanUpFailedModuleWorkerStartup(options: {
+  error: unknown;
+  workers: StartedModuleWorker[];
+  connection: NativeConnection | undefined;
+}): Promise<void> {
+  try {
+    if (options.connection) {
+      await stopModuleWorkers({workers: options.workers, connection: options.connection});
+    } else {
+      await closeTemporalClient();
+    }
+  } catch (cleanupError) {
+    logger().error(
+      {err: cleanupError, workerErr: options.error},
+      'Failed to clean up module worker startup resources',
+    );
   }
 }
