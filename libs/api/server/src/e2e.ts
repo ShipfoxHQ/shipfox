@@ -13,7 +13,7 @@ export interface E2eConfig {
   E2E_ADMIN_API_KEY?: string | undefined;
 }
 
-const BEARER_RE = /^Bearer /u;
+const BEARER_RE = /^Bearer /iu;
 
 export function shouldMountE2eRoutes(config: E2eConfig): boolean {
   return config.E2E_ENABLED && Boolean(config.E2E_ADMIN_API_KEY);

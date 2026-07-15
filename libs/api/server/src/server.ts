@@ -30,10 +30,10 @@ export interface ServerHandle {
 }
 
 export async function createServer(options: CreateServerOptions): Promise<ServerHandle> {
-  startServiceMetrics({serviceName: 'api'});
-  createPostgresClient();
-
   try {
+    startServiceMetrics({serviceName: 'api'});
+    createPostgresClient();
+
     const {auth, routes, e2eRoutes, workers} = await initializeModules({modules: options.modules});
     registerModuleMetrics({modules: options.modules});
     await runModuleStartupTasks({modules: options.modules});
@@ -49,10 +49,13 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     });
 
     let workersHandle: ModuleWorkersHandle | undefined;
+    let startPromise: Promise<string> | undefined;
     let stopPromise: Promise<void> | undefined;
 
-    return {
-      async start(): Promise<string> {
+    const start = (): Promise<string> => {
+      if (stopPromise) return Promise.reject(new Error('Cannot start a stopped API server'));
+
+      startPromise ??= (async () => {
         logger().info('Starting module workers');
         workersHandle = await startModuleWorkers({
           workers,
@@ -60,28 +63,43 @@ export async function createServer(options: CreateServerOptions): Promise<Server
             handleModuleWorkerFailure(error, worker, options.onWorkerFailure),
         });
 
+        if (stopPromise) throw new Error('API server stopped during startup');
+
         logger().info('Starting HTTP server');
         const address =
           config.API_PORT === undefined ? await listen() : await listen({port: config.API_PORT});
         logger().info({address}, 'HTTP server listening');
         return address;
-      },
-      stop: () =>
-        (stopPromise ??= (async () => {
-          await closeApp();
-          await workersHandle?.stop();
-          await shutdownServiceMetrics();
-          await closePostgresClient();
-          resetPublishers();
-          resetSubscribers();
-          await closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS);
-        })()),
+      })();
+      return startPromise;
     };
+
+    const stop = (): Promise<void> =>
+      (stopPromise ??= (async () => {
+        await startPromise?.catch(() => undefined);
+        const cleanupErrors = await runCleanupSteps([
+          () => closeApp(),
+          () => workersHandle?.stop(),
+          () => shutdownServiceMetrics(),
+          () => closePostgresClient(),
+          () => resetPublishers(),
+          () => resetSubscribers(),
+          () => closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS),
+        ]);
+        throwCleanupErrors(cleanupErrors, 'Failed to stop API server');
+      })());
+
+    return {start, stop};
   } catch (error) {
-    await shutdownServiceMetrics();
-    await closePostgresClient();
-    resetPublishers();
-    resetSubscribers();
+    const cleanupErrors = await runCleanupSteps([
+      () => shutdownServiceMetrics(),
+      () => closePostgresClient(),
+      () => resetPublishers(),
+      () => resetSubscribers(),
+    ]);
+    for (const cleanupError of cleanupErrors) {
+      logger().error({err: cleanupError, bootError: error}, 'Failed to clean up API server boot');
+    }
     throw error;
   }
 }
@@ -94,7 +112,14 @@ export async function runServer(options: {modules: ShipfoxModule[]}): Promise<Se
   try {
     await handle.start();
   } catch (error) {
-    await handle.stop();
+    try {
+      await handle.stop();
+    } catch (cleanupError) {
+      logger().error(
+        {err: cleanupError, startError: error},
+        'Failed to clean up API server startup',
+      );
+    }
     throw error;
   }
 
@@ -103,6 +128,26 @@ export async function runServer(options: {modules: ShipfoxModule[]}): Promise<Se
   process.once('SIGINT', stopAndExit);
 
   return handle;
+}
+
+type CleanupStep = () => void | Promise<void>;
+
+async function runCleanupSteps(steps: CleanupStep[]): Promise<unknown[]> {
+  const cleanupErrors: unknown[] = [];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  return cleanupErrors;
+}
+
+function throwCleanupErrors(cleanupErrors: unknown[], message: string): void {
+  if (cleanupErrors.length === 0) return;
+  if (cleanupErrors.length === 1) throw cleanupErrors[0];
+  throw new AggregateError(cleanupErrors, message);
 }
 
 async function handleModuleWorkerFailure(

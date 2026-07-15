@@ -222,6 +222,24 @@ describe('createServer', () => {
     expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
   });
 
+  it('preserves a boot failure when cleanup steps fail', async () => {
+    const failure = new Error('migration failed');
+    const cleanupFailure = new Error('metrics shutdown failed');
+    mocks.initializeModules.mockRejectedValueOnce(failure);
+    mocks.shutdownServiceMetrics.mockRejectedValueOnce(cleanupFailure);
+
+    const result = createServer({modules: [module()]});
+
+    await expect(result).rejects.toBe(failure);
+    expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
+    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
+    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      {err: cleanupFailure, bootError: failure},
+      'Failed to clean up API server boot',
+    );
+  });
+
   it('stops once when stop is called twice', async () => {
     const server = await createServer({modules: [module()]});
     await server.start();
@@ -253,6 +271,33 @@ describe('createServer', () => {
     expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
   });
 
+  it('waits for worker startup before stopping', async () => {
+    const server = await createServer({modules: [module()]});
+    let resolveWorkers: ((handle: ModuleWorkersHandle) => void) | undefined;
+    const workersStarted = new Promise<void>((resolve) => {
+      mocks.startModuleWorkers.mockImplementationOnce(
+        () =>
+          new Promise<ModuleWorkersHandle>((innerResolve) => {
+            resolveWorkers = innerResolve;
+            resolve();
+          }),
+      );
+    });
+
+    const start = server.start();
+    await workersStarted;
+    const stop = server.stop();
+
+    expect(mocks.closeApp).not.toHaveBeenCalled();
+
+    resolveWorkers?.(mocks.workersHandle);
+    await expect(start).rejects.toThrow('API server stopped during startup');
+    await stop;
+
+    expect(mocks.listen).not.toHaveBeenCalled();
+    expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
+  });
+
   it('stops resources in lifecycle order', async () => {
     const server = await createServer({modules: [module()]});
     await server.start();
@@ -274,6 +319,32 @@ describe('createServer', () => {
     expect(mocks.resetSubscribers.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.closeErrorMonitoring.mock.invocationCallOrder[0] ?? 0,
     );
+  });
+
+  it('continues teardown after an earlier cleanup failure', async () => {
+    const server = await createServer({modules: [module()]});
+    await server.start();
+    mocks.closeApp.mockRejectedValueOnce(new Error('close app failed'));
+    mocks.workersHandle.stop.mockRejectedValueOnce(new Error('stop workers failed'));
+    mocks.shutdownServiceMetrics.mockRejectedValueOnce(new Error('shutdown metrics failed'));
+    mocks.closePostgresClient.mockRejectedValueOnce(new Error('close Postgres failed'));
+    mocks.resetPublishers.mockImplementationOnce(() => {
+      throw new Error('reset publishers failed');
+    });
+    mocks.resetSubscribers.mockImplementationOnce(() => {
+      throw new Error('reset subscribers failed');
+    });
+    mocks.closeErrorMonitoring.mockRejectedValueOnce(new Error('close monitoring failed'));
+
+    const result = server.stop();
+
+    await expect(result).rejects.toBeInstanceOf(AggregateError);
+    expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
+    expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
+    expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
+    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
+    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
+    expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
   });
 
   it('reports worker failures after closing HTTP and error monitoring', async () => {

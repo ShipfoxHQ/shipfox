@@ -82,4 +82,20 @@ describe('E2E route gating', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ok: true});
   });
+
+  it('allows a mixed-case E2E admin bearer scheme', async () => {
+    const app = await createApp({
+      auth: [createE2eAdminAuthMethod({E2E_ENABLED: true, E2E_ADMIN_API_KEY: 'secret'})],
+      routes: createE2eRouteGroup([pingRoute], {E2E_ENABLED: true, E2E_ADMIN_API_KEY: 'secret'}),
+      swagger: false,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/__e2e/ping',
+      headers: {authorization: 'bEaReR secret'},
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
 });

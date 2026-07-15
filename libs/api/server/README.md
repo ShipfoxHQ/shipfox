@@ -33,8 +33,8 @@ node --import @shipfox/api-server/instrumentation ./dist/index.js
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `E2E_ENABLED` | `false` | Turns on routes under `/__e2e`. |
-| `E2E_ADMIN_API_KEY` | none | Protects E2E routes. |
+| `E2E_ENABLED` | `false` | Enables routes under `/__e2e` when `E2E_ADMIN_API_KEY` is set. |
+| `E2E_ADMIN_API_KEY` | none | Required to enable and protect E2E routes. |
 | `API_PORT` | shared `PORT` | Sets the listener port. |
 | `API_TRUST_PROXY` | `false` | Sets proxy IP checks. |
 
