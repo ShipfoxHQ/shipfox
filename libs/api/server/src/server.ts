@@ -19,6 +19,8 @@ import {createE2eAdminAuthMethod, createE2eRouteGroup} from './e2e.js';
 const WORKER_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS = 10_000;
 const ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS = 2_000;
 
+let hasActiveServer = false;
+
 export interface CreateServerOptions {
   modules: ShipfoxModule[];
   onWorkerFailure?: (error: unknown, worker: ModuleWorker) => void | Promise<void>;
@@ -30,6 +32,11 @@ export interface ServerHandle {
 }
 
 export async function createServer(options: CreateServerOptions): Promise<ServerHandle> {
+  if (hasActiveServer) {
+    throw new Error('Cannot create a second API server before the existing server stops');
+  }
+  hasActiveServer = true;
+
   try {
     startServiceMetrics({serviceName: 'api'});
     createPostgresClient();
@@ -51,9 +58,11 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     let workersHandle: ModuleWorkersHandle | undefined;
     let startPromise: Promise<string> | undefined;
     let stopPromise: Promise<void> | undefined;
+    let stopped = false;
 
     const start = (): Promise<string> => {
-      if (stopPromise) return Promise.reject(new Error('Cannot start a stopped API server'));
+      if (stopPromise || stopped)
+        return Promise.reject(new Error('Cannot start a stopped API server'));
 
       startPromise ??= (async () => {
         logger().info('Starting module workers');
@@ -74,20 +83,30 @@ export async function createServer(options: CreateServerOptions): Promise<Server
       return startPromise;
     };
 
-    const stop = (): Promise<void> =>
-      (stopPromise ??= (async () => {
-        await startPromise?.catch(() => undefined);
-        const cleanupErrors = await runCleanupSteps([
-          () => closeApp(),
-          () => workersHandle?.stop(),
-          () => shutdownServiceMetrics(),
-          () => closePostgresClient(),
-          () => resetPublishers(),
-          () => resetSubscribers(),
-          () => closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS),
-        ]);
-        throwCleanupErrors(cleanupErrors, 'Failed to stop API server');
-      })());
+    const stop = (): Promise<void> => {
+      if (stopped) return Promise.resolve();
+
+      stopPromise ??= (async () => {
+        try {
+          await startPromise?.catch(() => undefined);
+          const cleanupErrors = await runCleanupSteps([
+            () => closeApp(),
+            () => workersHandle?.stop(),
+            () => shutdownServiceMetrics(),
+            () => closePostgresClient(),
+            () => resetPublishers(),
+            () => resetSubscribers(),
+            () => closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS),
+          ]);
+          throwCleanupErrors(cleanupErrors, 'Failed to stop API server');
+          stopped = true;
+          hasActiveServer = false;
+        } finally {
+          stopPromise = undefined;
+        }
+      })();
+      return stopPromise;
+    };
 
     return {start, stop};
   } catch (error) {
@@ -100,6 +119,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     for (const cleanupError of cleanupErrors) {
       logger().error({err: cleanupError, bootError: error}, 'Failed to clean up API server boot');
     }
+    hasActiveServer = false;
     throw error;
   }
 }
