@@ -1,5 +1,6 @@
 import {listMembershipsByWorkspace} from '#db/memberships.js';
 import {userFactory, workspaceFactory} from '#test/index.js';
+import {WorkspaceNotFoundError} from './errors.js';
 import {ensureMembership} from './memberships.js';
 
 describe('ensureMembership', () => {
@@ -20,6 +21,19 @@ describe('ensureMembership', () => {
       userName: user.name,
       workspaceId: workspace.id,
     });
+  });
+
+  test('rejects a missing workspace with WorkspaceNotFoundError', async () => {
+    const user = userFactory.build();
+
+    const membership = ensureMembership({
+      userId: user.userId,
+      userEmail: user.email,
+      userName: user.name,
+      workspaceId: crypto.randomUUID(),
+    });
+
+    await expect(membership).rejects.toBeInstanceOf(WorkspaceNotFoundError);
   });
 
   test('returns the existing membership without refreshing its profile snapshot', async () => {

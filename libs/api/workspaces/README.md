@@ -46,9 +46,9 @@ The package also uses the shared mailer configuration when it sends invitation e
 Routes mount under `/workspaces`. They make and list workspaces, manage members,
 and make, list, view, accept, or revoke invites.
 
-The module creates tables with the `workspaces_` prefix:
+The module creates these tables:
 
-- `workspaces_workspaces`
+- `workspaces`
 - `workspaces_memberships`
 - `workspaces_invitations`
 - `workspaces_outbox`
