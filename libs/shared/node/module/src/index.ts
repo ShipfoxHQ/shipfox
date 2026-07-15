@@ -3,9 +3,15 @@ export {boundedMap} from './bounded-map.js';
 export type {
   InitializedModules,
   InitializeModulesOptions,
+  ModuleWorkersHandle,
   StartModuleWorkersOptions,
 } from './initialize.js';
-export {initializeModules, registerModuleMetrics, startModuleWorkers} from './initialize.js';
+export {
+  initializeModules,
+  registerModuleMetrics,
+  runModuleStartupTasks,
+  startModuleWorkers,
+} from './initialize.js';
 export type {
   DrainAllOptions,
   DrainAllResult,
@@ -35,6 +41,7 @@ export type {
   ModuleDatabase,
   ModuleMetricsRegistration,
   ModulePublisher,
+  ModuleStartupTasks,
   ModuleWorker,
   ShipfoxModule,
   WorkflowStart,

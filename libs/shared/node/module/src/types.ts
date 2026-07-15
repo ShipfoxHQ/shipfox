@@ -57,6 +57,8 @@ export interface ModuleWorker {
  */
 export type ModuleMetricsRegistration = () => void;
 
+export type ModuleStartupTasks = () => Promise<void>;
+
 export interface ShipfoxModule {
   name: string;
   database?: ModuleDatabase | ModuleDatabase[];
@@ -67,4 +69,5 @@ export interface ShipfoxModule {
   subscribers?: ModuleSubscriber[];
   workers?: ModuleWorker[];
   metrics?: ModuleMetricsRegistration;
+  startupTasks?: ModuleStartupTasks;
 }
