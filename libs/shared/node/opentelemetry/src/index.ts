@@ -29,7 +29,7 @@ export {contextWithMetadata, enrichSpanWithMetadata, getContextMetadata} from '.
 export {getFastifyInstrumentation, startInstanceInstrumentation} from './instance.js';
 export {logger} from './logger.js';
 export {extractContextFromAttributes, injectContextToAttributes} from './propagation.js';
-export {startServiceMetrics} from './service.js';
+export {shutdownServiceMetrics, startServiceMetrics} from './service.js';
 
 export async function shutdownInstrumentation() {
   await shutdownInstanceInstrumentation();

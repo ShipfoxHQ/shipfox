@@ -2919,6 +2919,82 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/vitest
 
+  libs/api/server:
+    dependencies:
+      '@shipfox/annotations':
+        specifier: workspace:*
+        version: link:../annotations
+      '@shipfox/api-agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@shipfox/api-auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@shipfox/api-definitions':
+        specifier: workspace:*
+        version: link:../definitions
+      '@shipfox/api-dispatcher':
+        specifier: workspace:*
+        version: link:../dispatcher
+      '@shipfox/api-integration-core':
+        specifier: workspace:*
+        version: link:../integration/core
+      '@shipfox/api-logs':
+        specifier: workspace:*
+        version: link:../logs
+      '@shipfox/api-projects':
+        specifier: workspace:*
+        version: link:../projects
+      '@shipfox/api-runners':
+        specifier: workspace:*
+        version: link:../runners
+      '@shipfox/api-secrets':
+        specifier: workspace:*
+        version: link:../secrets
+      '@shipfox/api-triggers':
+        specifier: workspace:*
+        version: link:../triggers
+      '@shipfox/api-workflows':
+        specifier: workspace:*
+        version: link:../workflows
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../workspaces
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../shared/node/error-monitoring
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../shared/node/fastify
+      '@shipfox/node-module':
+        specifier: workspace:*
+        version: link:../../shared/node/module
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+      '@shipfox/node-postgres':
+        specifier: workspace:*
+        version: link:../../shared/node/postgres
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   libs/api/triggers:
     dependencies:
       '@shipfox/api-auth-context':
