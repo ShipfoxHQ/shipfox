@@ -22,6 +22,7 @@ export {
   WorkspaceNotFoundError,
 } from '#core/errors.js';
 export {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitations.js';
+export {type EnsureMembershipParams, ensureMembership} from '#core/memberships.js';
 export {getWorkspace, requireWorkspaceMembership} from '#core/workspaces.js';
 export {db, migrationsPath} from '#db/index.js';
 export {listMembershipsByUser} from '#db/memberships.js';

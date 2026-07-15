@@ -13,21 +13,47 @@ export interface CreateMembershipParams {
   workspaceId: string;
 }
 
+export interface EnsureMembershipParams {
+  userId: string;
+  userEmail: string;
+  userName: string | null;
+  workspaceId: string;
+}
+
+export function membershipValues(params: CreateMembershipParams) {
+  return {
+    userId: params.userId,
+    userEmail: params.userEmail ?? `user-${params.userId}@example.local`,
+    userName: params.userName ?? null,
+    workspaceId: params.workspaceId,
+  };
+}
+
 export async function createMembership(params: CreateMembershipParams): Promise<Membership> {
-  const rows = await db()
-    .insert(memberships)
-    .values({
-      userId: params.userId,
-      userEmail: params.userEmail ?? `user-${params.userId}@example.local`,
-      userName: params.userName ?? null,
-      workspaceId: params.workspaceId,
-    })
-    .returning();
+  const rows = await db().insert(memberships).values(membershipValues(params)).returning();
 
   const row = rows[0];
   if (!row) throw new Error('Insert returned no rows');
   recordWorkspaceMembershipChanged('added');
   return toMembership(row);
+}
+
+export async function ensureMembership(params: EnsureMembershipParams): Promise<Membership> {
+  const rows = await db()
+    .insert(memberships)
+    .values(membershipValues(params))
+    .onConflictDoNothing({target: [memberships.userId, memberships.workspaceId]})
+    .returning();
+
+  const row = rows[0];
+  if (row) {
+    recordWorkspaceMembershipChanged('added');
+    return toMembership(row);
+  }
+
+  const existing = await findMembership(params);
+  if (existing) return existing;
+  throw new Error('Membership conflict returned no membership');
 }
 
 export interface MembershipWithWorkspace extends Membership {

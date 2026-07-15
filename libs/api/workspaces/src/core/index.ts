@@ -22,6 +22,7 @@ export {
   previewInvitation,
   revokeWorkspaceInvitation,
 } from './invitations.js';
+export {type EnsureMembershipParams, ensureMembership} from './memberships.js';
 export {
   createWorkspaceForUser,
   getWorkspace,

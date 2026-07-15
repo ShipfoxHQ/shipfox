@@ -13,6 +13,7 @@ import {
   recordWorkspaceMembershipChanged,
 } from '#metrics/instance.js';
 import {db} from './db.js';
+import {membershipValues} from './memberships.js';
 import {invitations, toInvitation} from './schema/invitations.js';
 import {memberships, toMembership} from './schema/memberships.js';
 import {workspacesOutbox} from './schema/outbox.js';
@@ -196,12 +197,14 @@ export async function acceptInvitation(
     } else {
       const created = await tx
         .insert(memberships)
-        .values({
-          userId: params.acceptedByUserId,
-          userEmail: invRow.email,
-          userName: params.acceptedByUserName ?? null,
-          workspaceId: invRow.workspaceId,
-        })
+        .values(
+          membershipValues({
+            userId: params.acceptedByUserId,
+            userEmail: invRow.email,
+            userName: params.acceptedByUserName ?? null,
+            workspaceId: invRow.workspaceId,
+          }),
+        )
         .returning();
       const createdRow = created[0];
       if (!createdRow) throw new Error('Insert returned no rows');

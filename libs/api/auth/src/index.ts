@@ -20,7 +20,20 @@ import {
 } from '#presentation/subscribers/index.js';
 
 export type {JobLeaseTokenClaims, RunnerSessionTokenClaims} from '@shipfox/api-auth-dto';
+export type {
+  CreateSessionForUserError,
+  CreateSessionForUserParams,
+  CreateSessionForUserResult,
+  ProvisionUserParams,
+} from '#core/auth.js';
+export {createSessionForUser, provisionUser} from '#core/auth.js';
 export type {User, UserStatus} from '#core/entities/user.js';
+export {
+  AuthDependencyUnavailableError,
+  EmailNotVerifiedError,
+  InvalidCredentialsError,
+  UserNotFoundError,
+} from '#core/errors.js';
 export {
   issueJobLeaseToken,
   jobLeaseParamsFrom,
@@ -30,7 +43,14 @@ export {
   issueRunnerSessionToken,
   verifyRunnerSessionToken,
 } from '#core/runner-session-token.js';
+export {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 export {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
+export {
+  authCookiePlugin,
+  clearRefreshTokenCookie,
+  getRefreshTokenCookie,
+  setRefreshTokenCookie,
+} from '#presentation/auth/refresh-cookie.js';
 export {createRunnerSessionAuthMethod} from '#presentation/auth/runner-session-auth.js';
 
 const subscriber = subscriberFactory<AuthEventMap>();

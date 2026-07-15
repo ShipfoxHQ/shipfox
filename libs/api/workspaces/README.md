@@ -1,0 +1,87 @@
+# Shipfox API Workspaces
+
+Shipfox API Workspaces manages who can use a workspace and send or accept invites.
+
+## What it does
+
+- **`workspacesModule`**: Adds table changes, API routes, outbox events, and metrics.
+- **`ensureMembership`**: Adds a user to a workspace or returns the row that is there.
+- **Invitation helpers**: Make, view, accept, list, and revoke invites.
+- **Workspace helpers**: Read workspaces and check a signed-in user's access.
+
+## Installation / Setup
+
+```sh
+pnpm add @shipfox/api-workspaces
+```
+
+Set `CLIENT_BASE_URL` to the public client URL. Invite emails use this URL for
+their accept links. Set up the shared mailer when invite email must be sent.
+
+## Usage
+
+Call `ensureMembership` after an identity callback has the user profile:
+
+```ts
+import {ensureMembership} from '@shipfox/api-workspaces';
+
+const membership = await ensureMembership({
+  userId: user.id,
+  userEmail: user.email,
+  userName: user.name,
+  workspaceId,
+});
+```
+
+## Environment
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in workspace invitation links. |
+
+The package also uses the shared mailer configuration when it sends invitation email.
+
+## Routes / API / Data Model
+
+Routes mount under `/workspaces`. They make and list workspaces, manage members,
+and make, list, view, accept, or revoke invites.
+
+The module creates these tables:
+
+- `workspaces`
+- `workspaces_memberships`
+- `workspaces_invitations`
+- `workspaces_outbox`
+
+## Behavior Notes
+
+`ensureMembership` uses a unique database rule to keep one row for `user_id`
+and `workspace_id`. Calls at the same time get the same row. It saves the email
+and name only for a new row. Later calls do not change saved values. The metric
+counts only new rows.
+
+Invite acceptance keeps its current transaction. It does not change a row that
+is already there.
+
+`ensureMembership` fails when its workspace does not exist. Workspace checks
+throw `WorkspaceNotFoundError` or `MembershipRequiredError`. Invite helpers
+throw their exported token and email mismatch errors when an invite cannot be
+used.
+
+## Development
+
+```sh
+turbo check --filter=@shipfox/api-workspaces
+turbo type --filter=@shipfox/api-workspaces
+turbo test --filter=@shipfox/api-workspaces
+```
+
+Tests use Vitest and PostgreSQL. Start local services before the suite:
+
+```sh
+docker compose up -d
+```
+
+## License
+
+MIT
