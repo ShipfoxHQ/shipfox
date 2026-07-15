@@ -323,7 +323,13 @@ describe('createServer', () => {
     await stop;
 
     expect(mocks.listen).not.toHaveBeenCalled();
+    expect(mocks.closeApp).toHaveBeenCalledOnce();
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
+    expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
+    expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
+    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
+    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
+    expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
   });
 
   it('stops resources in lifecycle order', async () => {
