@@ -15,6 +15,7 @@ describe('generated composition router', () => {
     await router.navigate({
       to: '/workspaces/$wid/projects/$pid/overview',
       params: {wid: 'workspace', pid: 'project'},
+      search: {tab: 'overview'},
     });
 
     expect(await screen.findByText('Search route')).toBeVisible();

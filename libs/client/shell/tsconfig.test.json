@@ -1,6 +1,11 @@
 {
   "extends": "./tsconfig.build.json",
-  "compilerOptions": { "rootDir": "." },
+  "compilerOptions": {
+    "rootDir": ".",
+    "paths": {
+      "@shipfox/client-shell": ["./src/index.ts"]
+    }
+  },
   "include": ["src", "test", "vitest.config.ts", "node_modules/@shipfox/vitest/globals.d.ts"],
   "exclude": []
 }
