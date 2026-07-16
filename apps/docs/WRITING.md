@@ -307,7 +307,7 @@ these provider-specific homes:
 | Availability, purpose, authentication method, required access, integration connection slug pattern, and capability summary | Provider overview (`index.mdx`) | Provider registry capabilities, provider `src/config.ts`, and `libs/api/integration/core/src/config.ts` availability flags. |
 | Shipfox event names, emission conditions, and fields Shipfox normalizes or exposes on `event` | Provider events page (`events.mdx`) | `libs/api/integration/core-dto/src/events.ts`, each provider's `src/core/webhook.ts`, and its webhook DTO schemas. |
 | Raw pass-through webhook payload fields | The provider's upstream webhook reference | The provider owns and versions this schema. Link to it from `events.mdx`; do not reproduce it. |
-| Tool selectors, methods, sensitivity, sensitive status, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's public `*-dto/src/agent-tools/catalog.ts` catalog and its schemas. For GitHub, use `github-dto/src/agent-tools/catalog.ts`. |
+| Tool selectors, methods, sensitivity, sensitive status, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's `src/core/agent-tools.ts` catalog and its schemas. |
 | Trigger `source`, `event`, `filter`, and `with` fields, plus the agent `integrations:` block | [Workflow schema reference](/reference/workflow-schema) | The workflow schema. Link to it instead of restating the contract. |
 | Inspecting, pausing, or deleting an integration connection | The matching `how-to/set-up-work/manage-*` guide | The connection lifecycle implementation. |
 
@@ -506,11 +506,10 @@ connections and tools](/understand/integrations-connections-and-tools).>
 Keep the table compact and scannable. Group it by the provider's tool category
 when that makes a large catalog easier to scan. Wrap the tool accordions in one
 `<Accordions>` and use one `<Accordion>` per tool or tool family for methods,
-inputs, and outputs. The provider's public `*-dto/src/agent-tools/catalog.ts`
-catalog owns these schemas, so reproduce them here rather than linking to an
-upstream schema. `sensitivity` describes read or write behavior. `sensitive`
-states whether the tool needs sensitive handling; it is not a separate approval
-policy.
+inputs, and outputs. The provider's `src/core/agent-tools.ts` catalog owns these
+schemas, so reproduce them here rather than linking to an upstream schema.
+`sensitivity` describes read or write behavior. `sensitive` states whether the
+tool needs sensitive handling; it is not a separate approval policy.
 
 ### New provider checklist
 
