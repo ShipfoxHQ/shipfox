@@ -2,15 +2,15 @@ import {type LogRecord, parseLogRecordLine, type ReadLogsResponseDto} from '@shi
 import {type ApiFetch, createApiClient, E2eApiError} from '@shipfox/e2e-core';
 
 const NDJSON_LINE_SPLIT_RE = /\r?\n/u;
-const MISSING_STREAM_RETRY_ATTEMPTS = 5;
 const MISSING_STREAM_RETRY_DELAY_MS = 750;
+const MISSING_STREAM_RETRY_TIMEOUT_MS = 60_000;
 
 export interface FetchStepLogsOptions {
   apiUrl?: string | undefined;
   attempt: number;
   fetch?: ApiFetch | undefined;
-  missingStreamRetryAttempts?: number | undefined;
   missingStreamRetryDelayMs?: number | undefined;
+  missingStreamRetryTimeoutMs?: number | undefined;
   signal?: AbortSignal | undefined;
   stepId: string;
   token: string;
@@ -54,11 +54,10 @@ export async function fetchStepLogs(options: FetchStepLogsOptions): Promise<Step
   let cursor = 0;
   let ndjson = '';
   let truncated = false;
-  let missingStreamRetries = 0;
-  const missingStreamRetryAttempts =
-    options.missingStreamRetryAttempts ?? MISSING_STREAM_RETRY_ATTEMPTS;
   const missingStreamRetryDelayMs =
     options.missingStreamRetryDelayMs ?? MISSING_STREAM_RETRY_DELAY_MS;
+  const missingStreamRetryDeadline =
+    Date.now() + (options.missingStreamRetryTimeoutMs ?? MISSING_STREAM_RETRY_TIMEOUT_MS);
 
   while (true) {
     options.signal?.throwIfAborted();
@@ -71,13 +70,11 @@ export async function fetchStepLogs(options: FetchStepLogsOptions): Promise<Step
         {signal: options.signal},
       );
     } catch (error) {
-      if (
-        cursor === 0 &&
-        missingStreamRetries < missingStreamRetryAttempts &&
-        isMissingStreamError(error)
-      ) {
-        missingStreamRetries += 1;
-        await delay(missingStreamRetryDelayMs, options.signal);
+      if (cursor === 0 && isMissingStreamError(error) && Date.now() < missingStreamRetryDeadline) {
+        await delay(
+          Math.min(missingStreamRetryDelayMs, missingStreamRetryDeadline - Date.now()),
+          options.signal,
+        );
         continue;
       }
       throw error;

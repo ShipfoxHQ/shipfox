@@ -101,8 +101,8 @@ describe('fetchStepLogs', () => {
         statuses.push(response.status);
         return Promise.resolve(response);
       },
-      missingStreamRetryAttempts: 2,
       missingStreamRetryDelayMs: 0,
+      missingStreamRetryTimeoutMs: 1_000,
       stepId,
       token: 'user-token',
     });
@@ -111,12 +111,33 @@ describe('fetchStepLogs', () => {
     expect(result.records).toEqual([output('eventual logs\n')]);
   });
 
+  test('keeps waiting beyond five missing-stream responses', async () => {
+    const statuses: number[] = [];
+    const result = await fetchStepLogs({
+      attempt: 1,
+      fetch: () => {
+        const response =
+          statuses.length < 6
+            ? Response.json({code: 'not-found'}, {status: 404})
+            : Response.json(inline({ndjson: line(output('delayed logs\n'))}));
+        statuses.push(response.status);
+        return Promise.resolve(response);
+      },
+      missingStreamRetryDelayMs: 0,
+      stepId,
+      token: 'user-token',
+    });
+
+    expect(statuses).toEqual([404, 404, 404, 404, 404, 404, 200]);
+    expect(result.records).toEqual([output('delayed logs\n')]);
+  });
+
   test('keeps the missing stream failure readable after retry exhaustion', async () => {
     const result = fetchStepLogs({
       attempt: 1,
       fetch: () => Response.json({code: 'not-found'}, {status: 404}),
-      missingStreamRetryAttempts: 1,
       missingStreamRetryDelayMs: 0,
+      missingStreamRetryTimeoutMs: 0,
       stepId,
       token: 'user-token',
     });
