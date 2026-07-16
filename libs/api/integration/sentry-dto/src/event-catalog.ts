@@ -19,7 +19,10 @@ export const sentryEventCatalog = {
   events: SENTRY_ISSUE_ACTIONS.map((action) => ({
     name: `issue.${action}`,
     summary: sentryIssueActionSummaries[action],
-    emittedWhen: `Sentry sends an issue webhook with the ${action} action.`,
+    emittedWhen:
+      action === 'archived'
+        ? 'Sentry sends an issue webhook with the archived or ignored action.'
+        : `Sentry sends an issue webhook with the ${action} action.`,
     payloadKind: 'shipfox-normalized',
     payloadDocUrl: sentryIssueWebhookDocsUrl,
   })),

@@ -31,7 +31,23 @@ const config = {
     ];
   },
   redirects() {
-    const rules = [];
+    const rules = [
+      {
+        source: '/how-to/set-up-work/connect-github',
+        destination: '/integrations/github/setup',
+        permanent: true,
+      },
+      {
+        source: '/how-to/set-up-work/connect-sentry',
+        destination: '/integrations/sentry/setup',
+        permanent: true,
+      },
+      {
+        source: '/how-to/set-up-work/create-custom-webhook',
+        destination: '/integrations/webhooks/setup',
+        permanent: true,
+      },
+    ];
     if (!basePath) {
       // In dev there is no basePath, so redirect /docs-prefixed URLs back to the
       // unprefixed route so production URLs copied into a local browser still work.

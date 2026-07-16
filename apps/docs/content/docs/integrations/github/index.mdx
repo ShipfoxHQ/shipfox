@@ -1,0 +1,40 @@
+---
+title: "GitHub integration"
+sidebarTitle: "GitHub"
+description: "Look up the GitHub integration's availability, access model, integration connection identity, and capabilities."
+---
+
+GitHub connects repository work to Shipfox. It provides source control, events,
+and agent tools.
+
+**Availability:** Available.
+
+## Authentication
+
+Shipfox connects through a GitHub App. Install the App on the target account or
+organization. Grant it access only to the repositories Shipfox needs.
+
+## Integration connection identity
+
+A GitHub integration connection slug defaults to `github_<account>`, such as
+`github_acme`. Use the workspace integration connection slug as a workflow
+trigger `source`.
+
+```yaml
+triggers:
+  on_push:
+    source: github_acme
+    event: push
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Capabilities
+
+| Capability | Availability |
+| --- | --- |
+| Source control | Available. Use the integration connection when you [create a project](/how-to/set-up-work/create-project). |
+| Events | Available. [View GitHub events](/integrations/github/events). |
+| Agent tools | Available. [View GitHub agent tools](/integrations/github/tools). |
+
+[Connect GitHub](/integrations/github/setup) to create an integration connection.

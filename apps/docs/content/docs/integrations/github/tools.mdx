@@ -1,0 +1,24 @@
+---
+title: "GitHub agent tools"
+sidebarTitle: "Tools"
+description: "Look up the GitHub tools, selectors, permissions, inputs, and outputs available to agent steps."
+---
+
+import GithubTools from '../../../generated/integrations/github/tools.mdx';
+
+This reference lists the shipped GitHub agent-tool catalog. See the [GitHub
+overview](/integrations/github) for availability and setup.
+
+## Selectors
+
+Use a tool family, `family.method`, or `family.*` in an agent step's
+`integrations:` block. For the agent integration contract, see the [workflow
+schema reference](/reference/workflow-schema#agent-integration-fields).
+
+## Tool catalog
+
+Grant the GitHub App only the repository permissions required by selected tools.
+The catalog states each tool's read or write sensitivity and its required GitHub
+permissions.
+
+<GithubTools />

@@ -1,0 +1,35 @@
+---
+title: "GitHub events"
+sidebarTitle: "Events"
+description: "Look up the GitHub event names Shipfox delivers and the raw payload behavior for each event."
+---
+
+import GithubEvents from '../../../generated/integrations/github/events.mdx';
+
+This reference lists GitHub event names that Shipfox delivers to a GitHub
+integration connection. See the [GitHub overview](/integrations/github) for
+availability and setup.
+
+## Payload
+
+Shipfox passes the raw GitHub webhook payload to a run as `event`. GitHub owns
+the payload schema and can add fields. Use the [GitHub webhook events and
+payloads](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+reference for its full schema.
+
+## Trigger fragment
+
+Replace `github_acme` with the integration connection slug:
+
+```yaml
+triggers:
+  on_push:
+    source: github_acme
+    event: push
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Event catalog
+
+<GithubEvents />

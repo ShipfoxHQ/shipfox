@@ -14,6 +14,10 @@ const pages = (await filesUnder(contentRoot)).filter((file) => file.endsWith('.m
 const routes = new Set(pages.map(routeFor));
 const generatedFragmentsByRoute = new Map([
   ['/reference/model-providers', ['reference/model-providers.mdx']],
+  ['/integrations/github/events', ['integrations/github/events.mdx']],
+  ['/integrations/github/tools', ['integrations/github/tools.mdx']],
+  ['/integrations/sentry/events', ['integrations/sentry/events.mdx']],
+  ['/integrations/webhooks/events', ['integrations/webhooks/events.mdx']],
 ]);
 const generatedFragments = (await filesUnder(generatedRoot)).filter((file) =>
   file.endsWith('.mdx'),
