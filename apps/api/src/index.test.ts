@@ -4,7 +4,13 @@ const mocks = vi.hoisted(() => ({
   logger: {
     error: vi.fn(),
   },
-  run: vi.fn(),
+  defaultModules: vi.fn(),
+  runServer: vi.fn(),
+}));
+
+vi.mock('@shipfox/api-server', () => ({
+  defaultModules: mocks.defaultModules,
+  runServer: mocks.runServer,
 }));
 
 vi.mock('@shipfox/node-error-monitoring', () => ({
@@ -16,18 +22,16 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
   logger: () => mocks.logger,
 }));
 
-vi.mock('#core/run.js', () => ({
-  run: mocks.run,
-}));
-
 describe('index', () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.captureException.mockReset();
     mocks.closeErrorMonitoring.mockReset();
     mocks.logger.error.mockReset();
-    mocks.run.mockReset();
+    mocks.defaultModules.mockReset();
+    mocks.runServer.mockReset();
     mocks.closeErrorMonitoring.mockResolvedValue(true);
+    mocks.defaultModules.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -39,7 +43,7 @@ describe('index', () => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
       throw new Error(`exit ${code}`);
     }) as never);
-    mocks.run.mockRejectedValueOnce(failure);
+    mocks.runServer.mockRejectedValueOnce(failure);
 
     const result = import('./index.js');
 

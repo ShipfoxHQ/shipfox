@@ -8,12 +8,9 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "imports": {
-    "#*": "./src/*"
-  },
   "scripts": {
     "build": "shipfox-swc",
-    "dev": "tsx watch --conditions=development --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local --import ./src/instrumentation.ts src/index.ts",
+    "dev": "tsx watch --conditions=development --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local --import @shipfox/api-server/instrumentation src/index.ts",
     "image": "shipfox-docker --setup-context --image api",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
@@ -23,27 +20,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/annotations": "workspace:*",
-    "@shipfox/api-agent": "workspace:*",
-    "@shipfox/api-auth": "workspace:*",
-    "@shipfox/api-definitions": "workspace:*",
-    "@shipfox/api-dispatcher": "workspace:*",
-    "@shipfox/api-integration-core": "workspace:*",
-    "@shipfox/api-logs": "workspace:*",
-    "@shipfox/api-projects": "workspace:*",
-    "@shipfox/api-runners": "workspace:*",
-    "@shipfox/api-secrets": "workspace:*",
-    "@shipfox/api-triggers": "workspace:*",
-    "@shipfox/api-workspaces": "workspace:*",
-    "@shipfox/api-workflows": "workspace:*",
-    "@shipfox/config": "workspace:*",
-    "@shipfox/node-module": "workspace:*",
-    "@shipfox/node-temporal": "workspace:*",
-    "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/api-server": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
-    "@shipfox/node-fastify": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/node-postgres": "workspace:*"
+    "@shipfox/node-opentelemetry": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
