@@ -8,6 +8,46 @@ import {defineClientFeature} from '#contract.js';
 const route = {path: '/projects', parent: 'root' as const, impl: '#test/default-route-impl.js'};
 
 describe('composition validation', () => {
+  test('accepts non-conflicting feature contributions', () => {
+    const features = [
+      defineClientFeature({
+        id: 'acme.projects',
+        routes: [
+          route,
+          {
+            path: '/workspaces/$wid/settings/members',
+            parent: 'workspaceSettings',
+            impl: '#test/default-route-impl.js',
+          },
+        ],
+        providers: [{id: 'acme-theme', Component: () => null}],
+        navigation: [{id: 'projects', scope: 'workspace', label: 'Projects', to: '/projects'}],
+        settingsSections: [
+          {id: 'members', pathSegment: 'members', label: 'Members', icon: 'users'},
+        ],
+        configShape: {projectId: z.string()},
+      }),
+    ];
+
+    expect(() => composeRoutes(features)).not.toThrow();
+    const routes = composeRoutes(features);
+
+    expect(() => validateProviderIds(features)).not.toThrow();
+    expect(() =>
+      validateNavigation(
+        features,
+        routes.map(({path}) => path),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateSettingsSections(
+        features,
+        routes.map(({path}) => path),
+      ),
+    ).not.toThrow();
+    expect(() => mergeConfigShapes(features)).not.toThrow();
+  });
+
   test('reports route collisions with both feature ids', () => {
     const features = [
       defineClientFeature({id: 'shipfox.projects', routes: [route]}),

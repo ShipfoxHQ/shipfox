@@ -41,7 +41,7 @@ export function generateAppModule({
       (route, index) => `const route${index} = createRoute({
   getParentRoute: () => ${route.parent === 'root' ? 'skeleton.rootRoute' : `skeleton.${route.parent}`},
   path: ${literal(route.routePath)},
-  ...route${index}Impl.options,
+  ...routeOptions(route${index}Impl, ${literal(route.impl)}, ${literal(route.path)}),
 });`,
     )
     .join('\n\n');
@@ -55,8 +55,15 @@ export function generateAppModule({
 // biome-ignore-all format: generated code has stable, reviewable output.
 // biome-ignore-all assist/source/organizeImports: generated imports follow route order.
 import {createRoute, createRouter} from '@tanstack/react-router';
-import {buildAnchorSkeleton, type RouterContext} from '@shipfox/client-shell';
+import {buildAnchorSkeleton, isRouteImpl, type RouteImpl, type RouterContext} from '@shipfox/client-shell';
 ${imports}
+
+function routeOptions<T extends RouteImpl>(routeImpl: T, impl: string, path: string): T['options'] {
+  if (!isRouteImpl(routeImpl)) {
+    throw new TypeError(\`Route implementation "\${impl}" for "\${path}" must export default defineRoute(...).\`);
+  }
+  return routeImpl.options;
+}
 
 const skeleton = buildAnchorSkeleton({
   navigation: ${indentedLiteral(navigation, 2)},

@@ -8,8 +8,25 @@ import {shipfoxClientComposition} from './plugin.js';
 const fixtureFeatures = fileURLToPath(new URL('../../test/fixtures/features.ts', import.meta.url));
 const testDirectory = fileURLToPath(new URL('../../test', import.meta.url));
 
+type HookHandler<T> = T extends {handler: infer Handler} ? Handler : T;
+type BuildStartOptions = Parameters<HookHandler<NonNullable<Plugin['buildStart']>>>[0];
+type ConfigResolvedHandler = (config: ResolvedConfig) => void | Promise<void>;
+
+function hookHandler<T>(hook: T): HookHandler<T> {
+  return (
+    typeof hook === 'object' && hook !== null && 'handler' in hook ? hook.handler : hook
+  ) as HookHandler<T>;
+}
+
+function configResolvedHandler(hook: NonNullable<Plugin['configResolved']>): ConfigResolvedHandler {
+  return hookHandler(hook) as ConfigResolvedHandler;
+}
+
 function configure(plugin: Plugin): void {
-  (plugin.configResolved as (config: ResolvedConfig) => void)({
+  if (!plugin.configResolved) {
+    throw new Error('Expected the composition plugin to implement configResolved.');
+  }
+  configResolvedHandler(plugin.configResolved)({
     root: process.cwd(),
   } as ResolvedConfig);
 }
@@ -34,7 +51,15 @@ function pluginContext() {
 }
 
 async function build(plugin: Plugin, context: ReturnType<typeof pluginContext>): Promise<void> {
-  await (plugin.buildStart as unknown as (this: typeof context) => Promise<void>).call(context);
+  if (!plugin.buildStart) {
+    throw new Error('Expected the composition plugin to implement buildStart.');
+  }
+  await (
+    hookHandler(plugin.buildStart) as unknown as (
+      this: typeof context,
+      options: BuildStartOptions,
+    ) => Promise<void>
+  ).call(context, {} as BuildStartOptions);
 }
 
 describe('shipfoxClientComposition', () => {

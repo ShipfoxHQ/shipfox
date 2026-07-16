@@ -2,10 +2,17 @@
 // biome-ignore-all format: generated code has stable, reviewable output.
 // biome-ignore-all assist/source/organizeImports: generated imports follow route order.
 import {createRoute, createRouter} from '@tanstack/react-router';
-import {buildAnchorSkeleton, type RouterContext} from '@shipfox/client-shell';
+import {buildAnchorSkeleton, isRouteImpl, type RouteImpl, type RouterContext} from '@shipfox/client-shell';
 import route0Impl from "#test/search-route-impl.js";
 import route1Impl from "#test/default-route-impl.js";
 import route2Impl from "#test/named-route-impl.js";
+
+function routeOptions<T extends RouteImpl>(routeImpl: T, impl: string, path: string): T['options'] {
+  if (!isRouteImpl(routeImpl)) {
+    throw new TypeError(`Route implementation "${impl}" for "${path}" must export default defineRoute(...).`);
+  }
+  return routeImpl.options;
+}
 
 const skeleton = buildAnchorSkeleton({
   navigation: [
@@ -38,19 +45,19 @@ const skeleton = buildAnchorSkeleton({
 const route0 = createRoute({
   getParentRoute: () => skeleton.projectLayout,
   path: "/overview",
-  ...route0Impl.options,
+  ...routeOptions(route0Impl, "#test/search-route-impl.js", "/workspaces/$wid/projects/$pid/overview"),
 });
 
 const route1 = createRoute({
   getParentRoute: () => skeleton.workspaceSettings,
   path: "/members",
-  ...route1Impl.options,
+  ...routeOptions(route1Impl, "#test/default-route-impl.js", "/workspaces/$wid/settings/members"),
 });
 
 const route2 = createRoute({
   getParentRoute: () => skeleton.workspaceLayout,
   path: "/insights",
-  ...route2Impl.options,
+  ...routeOptions(route2Impl, "#test/named-route-impl.js", "/workspaces/$wid/insights"),
 });
 
 const projectLayout = skeleton.projectLayout.addChildren([route0]);
