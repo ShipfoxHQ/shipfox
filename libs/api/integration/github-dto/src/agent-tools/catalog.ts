@@ -434,9 +434,7 @@ export const githubAgentToolCatalog = [
           'Action to specify what pull request data needs to be retrieved from GitHub',
         ),
         pull_number: integerSchema('Pull request number'),
-        ref: stringSchema(
-          'Git reference to inspect. Required for get_status and get_check_runs',
-        ),
+        ref: stringSchema('Git reference to inspect. Required for get_status and get_check_runs'),
         cursor: stringSchema('Cursor for review comment pagination'),
         ...pageProperties,
       },
