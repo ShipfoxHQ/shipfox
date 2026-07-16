@@ -1,6 +1,6 @@
 import {createRoute} from '@tanstack/react-router';
 import type {ComposedRoute} from '#compose/compose-routes.js';
-import {buildAnchorSkeleton} from '#runtime/anchors.js';
+import {buildAnchorSkeleton, routePathForAnchor} from '#runtime/anchors.js';
 import type {RouteImpl} from '#runtime/define-route.js';
 
 export type ResolveRouteImpl = (specifier: string) => RouteImpl | Promise<RouteImpl>;
@@ -21,7 +21,7 @@ export async function assembleRouteTree(
         parent: route.parent,
         route: createRoute({
           getParentRoute: () => skeleton.anchors[route.parent] as never,
-          path: route.path,
+          path: routePathForAnchor(route.parent, route.path),
           ...impl.options,
         } as never),
       };

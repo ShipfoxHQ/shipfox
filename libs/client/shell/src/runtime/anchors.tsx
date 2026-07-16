@@ -3,6 +3,22 @@ import {NavTabs} from '#components/nav-tabs.js';
 import {SettingsNav} from '#components/settings-nav.js';
 import type {NavTabEntry, SettingsSectionEntry} from '#contract.js';
 
+const anchorPaths = {
+  root: '/',
+  workspaceLayout: '/workspaces/$wid',
+  projectLayout: '/workspaces/$wid/projects/$pid',
+  workspaceSettings: '/workspaces/$wid/settings',
+} as const;
+
+export function routePathForAnchor(anchor: keyof typeof anchorPaths, fullPath: string): string {
+  const anchorPath = anchorPaths[anchor];
+  if (anchor === 'root') return fullPath;
+  if (!fullPath.startsWith(`${anchorPath}/`)) {
+    throw new Error(`Route "${fullPath}" must be nested under anchor "${anchor}" (${anchorPath}).`);
+  }
+  return fullPath.slice(anchorPath.length);
+}
+
 export function buildAnchorSkeleton({
   navigation,
   settingsSections,
@@ -13,7 +29,7 @@ export function buildAnchorSkeleton({
   const rootRoute = createRootRoute({component: Outlet});
   const workspaceLayout = createRoute({
     getParentRoute: () => rootRoute,
-    id: 'workspace-layout',
+    path: anchorPaths.workspaceLayout,
     component: () => (
       <>
         <NavTabs entries={navigation} scope="workspace" />
@@ -23,7 +39,7 @@ export function buildAnchorSkeleton({
   });
   const projectLayout = createRoute({
     getParentRoute: () => workspaceLayout,
-    id: 'project-layout',
+    path: '/projects/$pid',
     component: () => (
       <>
         <NavTabs entries={navigation} scope="project" />
@@ -33,7 +49,7 @@ export function buildAnchorSkeleton({
   });
   const workspaceSettings = createRoute({
     getParentRoute: () => workspaceLayout,
-    id: 'workspace-settings',
+    path: '/settings',
     component: () => (
       <>
         <SettingsNav entries={settingsSections} />

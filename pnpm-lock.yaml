@@ -4467,6 +4467,9 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
+      jiti:
+        specifier: ^2.7.0
+        version: 2.7.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -4522,6 +4525,9 @@ importers:
       react-dom:
         specifier: ^19.1.1
         version: 19.2.7(react@19.2.7)
+      vite:
+        specifier: ^8.0.3
+        version: 8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
   libs/client/test-setup:
     dependencies:

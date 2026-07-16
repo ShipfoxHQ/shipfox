@@ -1,3 +1,3 @@
-import {defineRoute} from '#runtime/define-route.js';
+import {defineRoute} from '@shipfox/client-shell';
 
-export const Route = defineRoute({component: () => <div>Named route</div>});
+export default defineRoute({component: () => <div>Named route</div>});

@@ -72,11 +72,9 @@ export function composeClientApp({features}: {features: readonly ClientFeature[]
 
 export async function resolveDynamicRouteImpl(specifier: string): Promise<RouteImpl> {
   const module = await import(specifier);
-  const implementation = module.default ?? module.Route;
+  const implementation = module.default;
   if (implementation && typeof implementation === 'object' && 'options' in implementation) {
     return implementation as RouteImpl;
   }
-  throw new Error(
-    `Route implementation module "${specifier}" must export a default RouteImpl or Route.`,
-  );
+  throw new Error(`Route implementation module "${specifier}" must export a default RouteImpl.`);
 }
