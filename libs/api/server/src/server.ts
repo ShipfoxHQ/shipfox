@@ -31,6 +31,11 @@ export interface ServerHandle {
   stop(): Promise<void>;
 }
 
+export interface RunServerOptions {
+  modules: ShipfoxModule[];
+  onStartupFailure?: (error: unknown) => void | Promise<void>;
+}
+
 export async function createServer(options: CreateServerOptions): Promise<ServerHandle> {
   if (hasActiveServer) {
     throw new Error('Cannot create a second API server before the existing server stops');
@@ -124,14 +129,22 @@ export async function createServer(options: CreateServerOptions): Promise<Server
   }
 }
 
-export async function runServer(options: {modules: ShipfoxModule[]}): Promise<ServerHandle> {
-  const handle = await createServer({
-    modules: options.modules,
-    onWorkerFailure: () => process.exit(1),
-  });
+export async function runServer(options: RunServerOptions): Promise<ServerHandle> {
+  let handle: ServerHandle;
+  try {
+    handle = await createServer({
+      modules: options.modules,
+      onWorkerFailure: () => process.exit(1),
+    });
+  } catch (error) {
+    await reportStartupFailure(error, options.onStartupFailure);
+    throw error;
+  }
+
   try {
     await handle.start();
   } catch (error) {
+    await reportStartupFailure(error, options.onStartupFailure);
     try {
       await handle.stop();
     } catch (cleanupError) {
@@ -148,6 +161,20 @@ export async function runServer(options: {modules: ShipfoxModule[]}): Promise<Se
   process.once('SIGINT', stopAndExit);
 
   return handle;
+}
+
+async function reportStartupFailure(
+  error: unknown,
+  onStartupFailure: RunServerOptions['onStartupFailure'],
+): Promise<void> {
+  try {
+    await onStartupFailure?.(error);
+  } catch (reportingError) {
+    logger().error(
+      {err: reportingError, startError: error},
+      'Failed to report API server startup error',
+    );
+  }
 }
 
 type CleanupStep = () => void | Promise<void>;
