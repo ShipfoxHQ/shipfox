@@ -259,6 +259,278 @@ facts.
 5. Include minimal examples only when they clarify representation or usage.
 6. Link to a how-to guide for a complete task and to Understand for rationale.
 
+## Integration provider pages
+
+An integration provider uses a predictable set of focused pages. Each page has
+exactly one Diataxis type. Keep setup actions in the how-to page and product
+facts in the reference pages.
+
+| File | Route | Type | Create it when |
+| --- | --- | --- | --- |
+| `index.mdx` | `/integrations/<provider>` | Reference | Always. |
+| `setup.mdx` | `/integrations/<provider>/setup` | How-to | The provider is connectable, including an available preview. |
+| `events.mdx` | `/integrations/<provider>/events` | Reference | The provider stamps Shipfox event names into deliveries. |
+| `tools.mdx` | `/integrations/<provider>/tools` | Reference | Its registry-derived `capabilities[]` includes `agent_tools`. |
+| `meta.json` | None | None | Always. List only the pages that exist, in the order `index`, `setup`, `events`, `tools`. |
+
+Put these files in `content/docs/integrations/<provider>/`. Register the provider
+directory in `content/docs/integrations/meta.json`. The provider's `meta.json`
+groups its pages so the integrations sidebar can nest the pages under one
+provider entry instead of flattening every page into the top level.
+
+### Capabilities and availability
+
+Do not create an empty capability page. Create `events.mdx` only when Shipfox
+assigns an event name to the provider's deliveries. Create `tools.mdx` only
+when the provider advertises `agent_tools`. The overview's fixed
+`## Capabilities` block states every absent capability as **Not available**.
+Never omit a row silently.
+
+A provider that is not connectable has only an overview with `status: "soon"`.
+Open it with a callout, label its examples as illustrative, and do not describe
+unshipped behavior as available. A connectable Preview provider may have a
+setup page, but its overview still makes the Preview status clear. Follow
+[Schema fields: document only shipped surface](#schema-fields-document-only-shipped-surface)
+when deciding what to document.
+
+### Canonical homes for provider facts
+
+Extend the [one canonical home per fact](#one-canonical-home-per-fact) rule with
+these provider-specific homes:
+
+| Fact | Canonical page | Source of truth |
+| --- | --- | --- |
+| Availability, purpose, authentication method, required access, integration connection slug pattern, and capability summary | Provider overview (`index.mdx`) | Provider registry capabilities, provider `src/config.ts`, and `libs/api/integration/core/src/config.ts` availability flags. |
+| Shipfox event names, emission conditions, and fields Shipfox normalizes or exposes on `event` | Provider events page (`events.mdx`) | `libs/api/integration/core-dto/src/events.ts`, each provider's `src/core/webhook.ts`, and its webhook DTO schemas. |
+| Raw pass-through webhook payload fields | The provider's upstream webhook reference | The provider owns and versions this schema. Link to it from `events.mdx`; do not reproduce it. |
+| Tool selectors, methods, sensitivity, approval, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's `src/core/agent-tools.ts` catalog and its schemas. |
+| Trigger `source`, `event`, `filter`, and `with` fields, plus the agent `integrations:` block | [Workflow schema reference](/reference/workflow-schema) | The workflow schema. Link to it instead of restating the contract. |
+| Inspecting, pausing, or deleting an integration connection | The matching `how-to/set-up-work/manage-*` guide | The connection lifecycle implementation. |
+
+Shipfox owns the event name, emission condition, and any payload shape it
+normalizes. For a pass-through provider, Shipfox does not own or version the raw
+body handed to a run as `event`. An upstream link prevents a copied schema from
+drifting or implying false ownership.
+
+### Provider overview template (Reference)
+
+Use the overview to answer what the provider is, whether it is available, and
+what it can do. It is the hub for all provider pages.
+
+````mdx
+---
+title: "<Provider> integration"
+sidebarTitle: "<Provider>"
+status: "soon"
+description: "<State the provider surface this reference describes.>"
+---
+
+<Callout type="info">
+  **Coming soon.** <State the availability and make any examples illustrative.>
+</Callout>
+
+<One sentence that states the provider's purpose.>
+
+**Availability:** Available | Preview | Coming soon.
+
+## Authentication
+
+<State the authentication method and the least provider access required.>
+
+## Integration connection identity
+
+<State the default integration connection slug pattern.>
+
+```yaml
+triggers:
+  on_provider_event:
+    source: <provider>_acme
+    event: <event-name>
+```
+
+## Capabilities
+
+| Capability | Availability |
+| --- | --- |
+| Source control | <Link to the relevant reference, or **Not available**.> |
+| Events | [View events](/integrations/<provider>/events) or **Not available**. |
+| Agent tools | [View agent tools](/integrations/<provider>/tools) or **Not available**. |
+
+[Set up this integration](/integrations/<provider>/setup)
+````
+
+For a generally available provider, omit the `status` line and callout, then keep
+the purpose and availability statement as the opening block. For an unavailable
+provider, use the callout before any prose and replace the setup link with an
+explicit statement that setup is not available. The fixed capability rows make
+every missing capability a deliberate answer. The overview always covers purpose,
+availability, authentication method, required access, integration connection slug
+behavior, capability summary, and links to its available pages.
+
+### Provider setup template (How-to)
+
+Use the setup page to connect one provider and prove that the integration
+connection works. Link back to the overview in context.
+
+```mdx
+---
+title: "Connect <Provider> to a Shipfox workspace"
+sidebarTitle: "Setup"
+description: "<State the connection result and when this guide fits.>"
+---
+
+<State the goal, fit, and link to the [<Provider> overview](/integrations/<provider>).>
+
+## Before you begin
+
+<List the required workspace access, provider account access, and prerequisites.>
+
+## Connect <Provider>
+
+<Steps>
+  <Step>
+
+    **Start the integration connection**
+
+    <Give the action that starts the connection.>
+  </Step>
+  <Step>
+
+    **Grant the least required access**
+
+    <State the provider permissions and scope to grant.>
+  </Step>
+  <Step>
+
+    **Record the integration connection slug**
+
+    <State where to find the slug and how workflows use it.>
+  </Step>
+</Steps>
+
+## Verify the integration connection
+
+<Verify both observable Shipfox state and the expected provider-side state.>
+```
+
+The final verification must cover both systems. Keep event names, payload fields,
+and workflow schema details on their reference pages.
+
+### Provider events template (Reference)
+
+Use this page only for a provider that emits Shipfox-named events. Link back to
+the overview and to the workflow schema reference.
+
+````mdx
+---
+title: "<Provider> events"
+sidebarTitle: "Events"
+description: "<State the provider event surface this reference describes.>"
+---
+
+<State the event surface and link to the [<Provider> overview](/integrations/<provider>).>
+
+## Event names
+
+| Shipfox event name | Emitted when | Upstream reference |
+| --- | --- | --- |
+| `<event-name>` | <State the exact emission condition.> | <Link to the provider reference when it owns the raw payload.> |
+
+## Payload
+
+<State whether Shipfox normalizes the payload or passes it through. List the
+fields Shipfox exposes on `event`. For a pass-through payload, link to the
+provider-owned schema instead of copying it.>
+
+## Trigger fragment
+
+Replace `<provider>_acme` with the integration connection slug:
+
+```yaml
+triggers:
+  on_provider_event:
+    source: <provider>_acme
+    event: <event-name>
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+````
+
+The event-name table records exact Shipfox names and their emission conditions.
+The payload section distinguishes Shipfox-owned normalized fields from a raw
+provider payload, which remains provider-owned.
+
+### Provider tools template (Reference)
+
+Use this page only when `capabilities[]` includes `agent_tools`. Link back to
+the overview and to the workflow schema reference.
+
+```mdx
+---
+title: "<Provider> agent tools"
+sidebarTitle: "Tools"
+description: "<State the provider tools this reference describes.>"
+---
+
+<State the tool surface and link to the [<Provider> overview](/integrations/<provider>).>
+
+## Selectors
+
+Use `family`, `family.method`, `family.*`, or a standalone selector. For the
+agent `integrations:` contract, see the [workflow schema reference](/reference/workflow-schema#agent-integration-fields).
+
+## Tool catalog
+
+<State the least-access and write opt-in model, with a link to [Integration
+connections and tools](/understand/integrations-connections-and-tools).>
+
+| Selector token | Sensitivity | Approval | Required provider scope |
+| --- | --- | --- | --- |
+| `<family>` | Read | <State whether approval is required.> | `<scope>` |
+
+<Accordions type="single">
+  <Accordion title="<family>">
+    **Methods:** `<family.method>`
+
+    **Inputs:** <List the Shipfox-owned input fields.>
+
+    **Outputs:** <List the Shipfox-owned output fields.>
+  </Accordion>
+</Accordions>
+```
+
+Keep the table compact and scannable. Group it by the provider's tool category
+when that makes a large catalog easier to scan. Wrap the tool accordions in one
+`<Accordions>` and use one `<Accordion>` per tool or tool family for methods,
+inputs, and outputs. The provider's `agent-tools.ts`
+catalog owns these schemas, so reproduce them here rather than linking to an
+upstream schema.
+
+### New provider checklist
+
+1. Read the provider registry's `capabilities[]` and enabled flag, then decide
+   whether the provider is Available, Preview, or Coming soon.
+2. Write `index.mdx` with purpose, availability, authentication method, required
+   access, integration connection slug behavior, the fixed capability block, and
+   links to every available sibling page.
+3. Write `setup.mdx` when the provider is connectable. Do not create it for an
+   unavailable provider.
+4. Write `events.mdx` only when the provider emits Shipfox-named events.
+   Otherwise, make the Events row in the overview say **Not available**.
+5. Write `tools.mdx` only when `capabilities[]` includes `agent_tools`.
+   Otherwise, make the Agent tools row in the overview say **Not available**.
+6. Add the provider `meta.json`, list only the existing pages in order, and
+   register the provider directory in `integrations/meta.json`.
+7. Run the docs checks before review.
+
+### Authored and generated reference
+
+Keep setup prose authored. The events `## Event names` table and tools
+`## Tool catalog` table are candidates for generated regions sourced from
+provider catalogs. This structure does not add generation. Add the
+`{/* generated:<id>:start */}` marker only in the same change that wires the
+generator to that source of truth.
+
 ## Schema fields: document only shipped surface
 
 Document a schema field only when its feature works end to end on `main`. A field
