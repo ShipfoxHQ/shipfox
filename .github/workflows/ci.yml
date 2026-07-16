@@ -85,6 +85,9 @@ jobs:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
         run: turbo test --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
+      - name: Verify packed API server boot
+        run: pnpm --filter=@shipfox/api-server test:external
+
   e2e:
     name: E2E tests
     runs-on: ubuntu-latest

@@ -35,6 +35,12 @@ export async function createTemporalWorker(options: CreateWorkerOptions): Promis
       ...getWorkerInterceptors(),
       workflowModules: getWorkflowInterceptorModules(),
     },
+    bundlerOptions: {
+      webpackConfigHook: (webpackConfig) => ({
+        ...webpackConfig,
+        mode: 'production',
+      }),
+    },
     maxConcurrentActivityTaskExecutions: options.maxConcurrentActivityTaskExecutions ?? 10,
     maxConcurrentWorkflowTaskExecutions: options.maxConcurrentWorkflowTaskExecutions ?? 10,
   });

@@ -14,6 +14,9 @@
     "dist",
     "schema"
   ],
+  "exports": {
+    "./package-closure": "./dist/package-closure.js"
+  },
   "bin": {
     "shipfox-application-release": "./bin/application-release.js"
   },
