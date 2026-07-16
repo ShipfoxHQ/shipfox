@@ -13,7 +13,9 @@ export {
   getWorkflowInterceptorModules,
 } from './interceptors.js';
 export {
+  bundleProductionWorkflow,
   type CreateWorkerOptions,
   createTemporalWorker,
   createTemporalWorkerConnection,
+  productionWorkflowBundlerOptions,
 } from './worker.js';

@@ -1,5 +1,5 @@
 import {logger} from '@shipfox/node-opentelemetry';
-import {NativeConnection, Worker} from '@temporalio/worker';
+import {type BundleOptions, bundleWorkflowCode, NativeConnection, Worker} from '@temporalio/worker';
 import {config} from './config.js';
 import {getTemporalConnectionOptions, temporalConnectionError} from './connection-options.js';
 import {getWorkerInterceptors, getWorkflowInterceptorModules} from './interceptors.js';
@@ -11,6 +11,34 @@ export interface CreateWorkerOptions {
   activities: object;
   maxConcurrentActivityTaskExecutions?: number;
   maxConcurrentWorkflowTaskExecutions?: number;
+}
+
+const productionWorkflowConditionNames = ['webpack', 'production', 'node', 'import', 'require'];
+
+/**
+ * Makes Temporal's runtime workflow bundler resolve first-party packages from compiled output.
+ */
+export function productionWorkflowBundlerOptions(): Pick<BundleOptions, 'webpackConfigHook'> {
+  return {
+    webpackConfigHook: (webpackConfig) => ({
+      ...webpackConfig,
+      resolve: {
+        ...webpackConfig.resolve,
+        conditionNames: productionWorkflowConditionNames,
+      },
+    }),
+  };
+}
+
+/**
+ * Bundles a workflow entrypoint with the same production resolution used by Temporal workers.
+ */
+export function bundleProductionWorkflow(workflowsPath: string) {
+  return bundleWorkflowCode({
+    workflowsPath,
+    workflowInterceptorModules: getWorkflowInterceptorModules(),
+    ...productionWorkflowBundlerOptions(),
+  });
 }
 
 export async function createTemporalWorkerConnection(): Promise<NativeConnection> {
@@ -35,6 +63,9 @@ export async function createTemporalWorker(options: CreateWorkerOptions): Promis
       ...getWorkerInterceptors(),
       workflowModules: getWorkflowInterceptorModules(),
     },
+    ...(process.env.NODE_ENV === 'production'
+      ? {bundlerOptions: productionWorkflowBundlerOptions()}
+      : {}),
     maxConcurrentActivityTaskExecutions: options.maxConcurrentActivityTaskExecutions ?? 10,
     maxConcurrentWorkflowTaskExecutions: options.maxConcurrentWorkflowTaskExecutions ?? 10,
   });

@@ -52,6 +52,7 @@ try {
   const tsc = resolve(repositoryRoot, 'tools/typescript/node_modules/typescript/bin/tsc');
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
+  await run(process.execPath, ['workflow-bundles.mjs'], fixtureRoot);
 } finally {
   await rm(fixtureRoot, {recursive: true, force: true});
 }
@@ -118,6 +119,10 @@ void createServer({
     writeFile(
       join(root, 'runtime-imports.mjs'),
       `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconst {createServer, defaultModules} = await import('@shipfox/api-server');\nif (typeof createServer !== 'function' || typeof defaultModules !== 'function')\n  throw new Error('Packed API server does not export its composition API.');\nconst modules = [...(await defaultModules()), {name: 'external-dummy'}];\nif (modules.at(-1)?.name !== 'external-dummy')\n  throw new Error('Could not append an external module to the packed API server defaults.');\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points and composed API modules.\`);\nprocess.exit(0);\n`,
+    ),
+    writeFile(
+      join(root, 'workflow-bundles.mjs'),
+      `Object.assign(process.env, {...${JSON.stringify(runtimeEnvironment(), null, 2)}, NODE_ENV: 'production'});\n\nconst {defaultModules} = await import('@shipfox/api-server');\nconst {bundleProductionWorkflow} = await import('@shipfox/node-temporal');\nconst modules = await defaultModules();\nconst workflowPaths = new Set(\n  modules.flatMap((module) => module.workers ?? []).map((worker) => worker.workflowsPath),\n);\n\nif (!workflowPaths.size) throw new Error('Packed API server declares no workflow entrypoints.');\n\nfor (const workflowsPath of workflowPaths) {\n  const workflowBundle = await bundleProductionWorkflow(workflowsPath);\n  if (/@shipfox[/\\\\][^/\\\\]+[/\\\\]src[/\\\\]/u.test(workflowBundle.code)) {\n    throw new Error(\n      \`Workflow bundle for \${workflowsPath} resolved a first-party source path.\`,\n    );\n  }\n}\n\nconsole.log(\`Bundled \${workflowPaths.size} packed API workflow entrypoints with production resolution.\`);\n`,
     ),
   ]);
 }
