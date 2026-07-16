@@ -4,6 +4,8 @@ sidebarTitle: "Sentry"
 description: "Look up Sentry integration connection slugs, issue event names, event fields, and filters."
 ---
 
+import SentryEvents from '../../generated/integrations/sentry-events.mdx';
+
 Shipfox receives issue events through a Sentry App. [Connect
 Sentry](/how-to/set-up-work/connect-sentry) creates the integration connection used here.
 
@@ -23,57 +25,7 @@ triggers:
 
 ## Events
 
-{/* generated:sentry-events:start */}
-### `issue.created`
-
-A Sentry issue is created.
-
-**Emitted when:** Sentry sends an issue webhook with the created action.
-
-**Payload:** Shipfox-normalized payload.
-
-[Provider payload documentation](https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/)
-
-### `issue.resolved`
-
-A Sentry issue is resolved.
-
-**Emitted when:** Sentry sends an issue webhook with the resolved action.
-
-**Payload:** Shipfox-normalized payload.
-
-[Provider payload documentation](https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/)
-
-### `issue.assigned`
-
-A Sentry issue is assigned.
-
-**Emitted when:** Sentry sends an issue webhook with the assigned action.
-
-**Payload:** Shipfox-normalized payload.
-
-[Provider payload documentation](https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/)
-
-### `issue.archived`
-
-A Sentry issue is archived.
-
-**Emitted when:** Sentry sends an issue webhook with the archived action.
-
-**Payload:** Shipfox-normalized payload.
-
-[Provider payload documentation](https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/)
-
-### `issue.unresolved`
-
-A resolved Sentry issue becomes unresolved.
-
-**Emitted when:** Sentry sends an issue webhook with the unresolved action.
-
-**Payload:** Shipfox-normalized payload.
-
-[Provider payload documentation](https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/)
-{/* generated:sentry-events:end */}
+<SentryEvents />
 
 ## Normalized event payload
 

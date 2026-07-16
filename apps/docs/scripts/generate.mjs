@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
@@ -15,30 +15,22 @@ import {slugForHeading} from './lib/slug.mjs';
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const check = process.argv.includes('--check');
 const regions = [
-  ['content/docs/reference/model-providers.mdx', 'model-providers', renderModelProvidersTable],
+  ['content/generated/reference/model-providers.mdx', renderModelProvidersTable],
   [
-    'content/docs/integrations/github.mdx',
-    'github-events',
+    'content/generated/integrations/github-events.mdx',
     () => renderEventCatalog(githubEventCatalog),
-    (body) => assertEvents(githubEventCatalog, body),
   ],
   [
-    'content/docs/integrations/github.mdx',
-    'github-tools',
+    'content/generated/integrations/github-tools.mdx',
     () => renderToolCatalog(githubAgentToolCatalog, githubAgentToolSelectionCatalog),
-    (body) => assertTools(githubAgentToolCatalog, githubAgentToolSelectionCatalog, body),
   ],
   [
-    'content/docs/integrations/sentry.mdx',
-    'sentry-events',
+    'content/generated/integrations/sentry-events.mdx',
     () => renderEventCatalog(sentryEventCatalog),
-    (body) => assertEvents(sentryEventCatalog, body),
   ],
   [
-    'content/docs/integrations/webhooks.mdx',
-    'webhook-events',
+    'content/generated/integrations/webhook-events.mdx',
     () => renderEventCatalog(webhookEventCatalog),
-    (body) => assertEvents(webhookEventCatalog, body),
   ],
 ];
 
@@ -247,42 +239,21 @@ function objects(value) {
   return Array.isArray(value) ? value.map(object) : [];
 }
 
-function applyRegion(source, id, body) {
-  const start = `{/* generated:${id}:start`;
-  const end = `{/* generated:${id}:end */}`;
-  const startIndex = source.indexOf(start);
-  const endIndex = source.indexOf(end);
-  if (startIndex === -1 || endIndex === -1) throw new Error(`Missing generated:${id} sentinels`);
-  const startLineEnd = source.indexOf('\n', startIndex);
-  return `${source.slice(0, startLineEnd + 1)}${body}\n${source.slice(endIndex)}`;
-}
-
-function regionBody(source, id) {
-  const start = `{/* generated:${id}:start`;
-  const end = `{/* generated:${id}:end */}`;
-  const startIndex = source.indexOf(start);
-  const endIndex = source.indexOf(end);
-  if (startIndex === -1 || endIndex === -1) throw new Error(`Missing generated:${id} sentinels`);
-  return source.slice(source.indexOf('\n', startIndex) + 1, endIndex).trim();
-}
-
 let drift = false;
-for (const [file, id, render, assert] of regions) {
+for (const [file, render] of regions) {
   const path = join(docsRoot, file);
-  const current = readFileSync(path, 'utf8');
-  const next = applyRegion(current, id, render());
-  if (check) assert?.(regionBody(current, id));
+  mkdirSync(dirname(path), {recursive: true});
+  const next = `${render()}\n`;
+  const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
   if (next === current) continue;
   if (check) {
     drift = true;
     // biome-ignore lint/suspicious/noConsole: CLI diagnostics
-    console.error(
-      `✗ ${file} (generated:${id}) is stale. Run: pnpm --filter=@shipfox/docs generate`,
-    );
+    console.error(`✗ ${file} is stale. Run: pnpm --filter=@shipfox/docs generate`);
   } else {
     writeFileSync(path, next);
     // biome-ignore lint/suspicious/noConsole: CLI diagnostics
-    console.log(`✓ wrote generated:${id} → ${file}`);
+    console.log(`✓ wrote ${file}`);
   }
 }
 if (check && drift) process.exit(1);

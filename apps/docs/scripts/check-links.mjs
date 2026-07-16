@@ -5,24 +5,31 @@ import {GithubSlugger} from './lib/slug.mjs';
 
 const docsRoot = fileURLToPath(new URL('..', import.meta.url));
 const contentRoot = path.join(docsRoot, 'content', 'docs');
+const generatedRoot = path.join(docsRoot, 'content', 'generated');
 const internalLinkPattern = /(?:\]\(|href=["'])((?:\/|#)[^)"'\s]+)(?:\)|["'])/g;
 const mdxExtensionPattern = /\.mdx$/;
 const headingPattern = /^#{1,6}\s+(.+?)\s*#*\s*$/gm;
 const trailingSlashPattern = /\/$/;
 const pages = (await filesUnder(contentRoot)).filter((file) => file.endsWith('.mdx'));
 const routes = new Set(pages.map(routeFor));
+const generatedFragmentsByRoute = new Map([
+  ['/reference/model-providers', ['reference/model-providers.mdx']],
+  ['/integrations/github', ['integrations/github-events.mdx', 'integrations/github-tools.mdx']],
+  ['/integrations/sentry', ['integrations/sentry-events.mdx']],
+  ['/integrations/webhooks', ['integrations/webhook-events.mdx']],
+]);
+const pageContents = new Map(
+  await Promise.all(pages.map(async (file) => [file, await contentFor(file)])),
+);
 const anchorsByRoute = new Map(
   await Promise.all(
-    pages.map(async (file) => {
-      const content = await readFile(file, 'utf8');
-      return [routeFor(file), anchorsFor(content)];
-    }),
+    pages.map(async (file) => [routeFor(file), anchorsFor(pageContents.get(file) ?? '')]),
   ),
 );
 const violations = [];
 
 for (const file of pages) {
-  const content = await readFile(file, 'utf8');
+  const content = pageContents.get(file) ?? '';
   for (const match of content.matchAll(internalLinkPattern)) {
     const target = match[1];
     if (!target || target.startsWith('/img/')) continue;
@@ -36,6 +43,15 @@ for (const file of pages) {
       violations.push(`${path.relative(docsRoot, file)} -> ${target} (missing heading)`);
     }
   }
+}
+
+async function contentFor(file) {
+  const fragments = generatedFragmentsByRoute.get(routeFor(file)) ?? [];
+  const content = await readFile(file, 'utf8');
+  const generated = await Promise.all(
+    fragments.map(async (fragment) => await readFile(path.join(generatedRoot, fragment), 'utf8')),
+  );
+  return [content, ...generated].join('\n');
 }
 
 if (violations.length > 0) {

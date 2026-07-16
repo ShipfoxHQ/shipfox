@@ -4,6 +4,8 @@ sidebarTitle: "Custom Webhook"
 description: "Look up custom webhook requests, delivery IDs, responses, and event fields."
 ---
 
+import WebhookEvents from '../../generated/integrations/webhook-events.mdx';
+
 A custom webhook has an ingest URL. Each accepted request creates a `received`
 event. [Create and verify a custom
 webhook](/how-to/set-up-work/create-custom-webhook) shows how to make one and
@@ -25,15 +27,7 @@ triggers:
 
 ## Events
 
-{/* generated:webhook-events:start */}
-### `received`
-
-A custom webhook request is accepted.
-
-**Emitted when:** Shipfox accepts a request at the integration connection ingest URL.
-
-**Payload:** Shipfox-normalized payload.
-{/* generated:webhook-events:end */}
+<WebhookEvents />
 
 ## Request contract
 

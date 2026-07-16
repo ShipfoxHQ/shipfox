@@ -4,6 +4,8 @@ sidebarTitle: "Model Providers"
 description: "The complete Shipfox model provider catalog, including provider IDs, default models, compatible harnesses, and resolution rules."
 ---
 
+import ModelProviders from '../../generated/reference/model-providers.mdx';
+
 Agent steps run against an **AI provider**. This page is the canonical list of every
 supported provider, the `provider` ID you use in workflow YAML, its compatible
 harnesses, and the default model Shipfox uses when a step doesn't name one. For
@@ -15,41 +17,7 @@ Each provider is configured per workspace with its credentials. The **default
 model** is used when an agent step names the provider but not a `model`. A step
 fails when it selects a provider that is not compatible with its harness.
 
-{/* generated:model-providers:start: do not edit by hand; run `pnpm --filter=@shipfox/docs generate` */}
-| Provider | `provider` ID | Default model | Compatible harnesses |
-|---|---|---|---|
-| Anthropic | `anthropic` | `claude-opus-4-8` | `pi`, `claude` |
-| Ant Ling | `ant-ling` | `Ring-2.6-1T` | `pi` |
-| Azure OpenAI | `azure-openai-responses` | `gpt-5.5-pro` | `pi` |
-| OpenAI | `openai` | `gpt-5.5-pro` | `pi` |
-| DeepSeek | `deepseek` | `deepseek-v4-pro` | `pi` |
-| NVIDIA | `nvidia` | `nvidia/nemotron-3-ultra-550b-a55b` | `pi` |
-| Google AI Studio | `google` | `gemini-3.1-pro-preview` | `pi` |
-| Mistral | `mistral` | `mistral-large-latest` | `pi` |
-| Groq | `groq` | `openai/gpt-oss-120b` | `pi` |
-| Cerebras | `cerebras` | `gpt-oss-120b` | `pi` |
-| Cloudflare AI Gateway | `cloudflare-ai-gateway` | `claude-opus-4-8` | `pi` |
-| Cloudflare Workers AI | `cloudflare-workers-ai` | `@cf/moonshotai/kimi-k2.7-code` | `pi` |
-| xAI | `xai` | `grok-4.3` | `pi` |
-| OpenRouter | `openrouter` | `anthropic/claude-opus-4.8` | `pi` |
-| Vercel AI Gateway | `vercel-ai-gateway` | `anthropic/claude-opus-4.8` | `pi` |
-| Z.ai | `zai` | `glm-5.2` | `pi` |
-| Z.ai Coding CN | `zai-coding-cn` | `glm-5.2` | `pi` |
-| OpenCode | `opencode` | `claude-opus-4-8` | `pi` |
-| OpenCode Go | `opencode-go` | `kimi-k2.7-code` | `pi` |
-| Hugging Face | `huggingface` | `deepseek-ai/DeepSeek-V4-Pro` | `pi` |
-| Fireworks | `fireworks` | `accounts/fireworks/models/deepseek-v4-pro` | `pi` |
-| Together AI | `together` | `deepseek-ai/DeepSeek-V4-Pro` | `pi` |
-| Kimi Coding | `kimi-coding` | `k2p7` | `pi` |
-| MiniMax | `minimax` | `MiniMax-M3` | `pi` |
-| MiniMax CN | `minimax-cn` | `MiniMax-M3` | `pi` |
-| Moonshot AI | `moonshotai` | `kimi-k2.7-code` | `pi` |
-| Moonshot AI CN | `moonshotai-cn` | `kimi-k2.7-code` | `pi` |
-| Xiaomi | `xiaomi` | `mimo-v2.5-pro` | `pi` |
-| Xiaomi Token Plan CN | `xiaomi-token-plan-cn` | `mimo-v2.5-pro` | `pi` |
-| Xiaomi Token Plan AMS | `xiaomi-token-plan-ams` | `mimo-v2.5-pro` | `pi` |
-| Xiaomi Token Plan SGP | `xiaomi-token-plan-sgp` | `mimo-v2.5-pro` | `pi` |
-{/* generated:model-providers:end */}
+<ModelProviders />
 
 Custom model providers are workspace-specific, so they do not appear in this
 table. They are compatible with the `pi` harness. Use [Add a custom
