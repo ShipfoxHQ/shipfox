@@ -22,7 +22,7 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "pnpm run build && node --test test/*.test.mjs",
-    "test:external": "node test/external/verify.mjs",
+    "test:external": "pnpm run build && node test/external/verify.mjs",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },

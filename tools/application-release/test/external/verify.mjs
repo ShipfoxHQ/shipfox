@@ -18,6 +18,7 @@ const REGISTRY_SHIPFOX_PACKAGE_PATTERN = /^@shipfox\+[^@]+@\d/u;
 const config = readPublicationClosureConfig(resolve(repositoryRoot, 'publication-closure.json'));
 const workspacePackages = readWorkspacePackages(repositoryRoot);
 const closure = validatePublicationState(workspacePackages, config, repositoryRoot);
+await emitDeclarationFiles(closure);
 const fixtureRoot = await mkdtemp(join(tmpdir(), 'shipfox-api-runtime-'));
 const tarballRoot = join(fixtureRoot, 'tarballs');
 
@@ -107,7 +108,7 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
     ),
     writeFile(
       join(root, 'runtime-imports.mjs'),
-      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points.\`);\n`,
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points.\`);\nprocess.exit(0);\n`,
     ),
   ]);
 }
@@ -207,6 +208,14 @@ function runtimeEnvironment() {
 
 function safePackageName(name) {
   return name.replace('@shipfox/', '').replaceAll('/', '-');
+}
+
+async function emitDeclarationFiles(packageNames) {
+  await run(
+    'pnpm',
+    ['exec', 'turbo', 'type:emit', ...packageNames.map((name) => `--filter=${name}`)],
+    repositoryRoot,
+  );
 }
 
 async function mapWithConcurrency(values, concurrency, mapper) {

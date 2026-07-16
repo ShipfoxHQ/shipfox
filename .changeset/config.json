@@ -36,6 +36,7 @@
       "@shipfox/api-runners-dto",
       "@shipfox/api-secrets",
       "@shipfox/api-secrets-dto",
+      "@shipfox/api-server",
       "@shipfox/api-triggers",
       "@shipfox/api-triggers-dto",
       "@shipfox/api-workflows",
