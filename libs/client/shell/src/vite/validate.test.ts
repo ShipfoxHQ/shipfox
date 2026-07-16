@@ -29,7 +29,6 @@ describe('composition validation', () => {
       }),
     ];
 
-    expect(() => composeRoutes(features)).not.toThrow();
     const routes = composeRoutes(features);
 
     expect(() => validateProviderIds(features)).not.toThrow();

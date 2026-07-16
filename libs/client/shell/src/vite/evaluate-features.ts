@@ -8,6 +8,7 @@ import type {ClientFeature} from '#contract.js';
 const require = createRequire(import.meta.url);
 const importPattern =
   /(?:\b(?:import|export)\s+(?:[^'"]*?\s+from\s+)?|\bimport\s*\(\s*)['"]([^'"]+)['"]/g;
+const nodeModulesPathPattern = /[\\/]node_modules[\\/]/;
 
 export interface EvaluatedFeatures {
   features: readonly ClientFeature[];
@@ -39,7 +40,7 @@ async function staticallyImportedModules(
 
   async function visit(file: string): Promise<void> {
     const path = file.startsWith('file:') ? fileURLToPath(file) : file;
-    if (path.startsWith('node:') || path.includes('/node_modules/') || files.has(path)) return;
+    if (path.startsWith('node:') || nodeModulesPathPattern.test(path) || files.has(path)) return;
     const resolvedPath = await realpath(path).catch(() => path);
     files.add(resolvedPath);
     const source = await readFile(resolvedPath, 'utf8').catch(() => undefined);
