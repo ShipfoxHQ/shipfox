@@ -140,7 +140,7 @@ const expectedCatalogRows = [
     sensitivity: 'write',
     sensitive: false,
     requiredScope: [{permission: 'pull_requests', access: 'write'}],
-    methods: ['create', 'submit_pending', 'delete_pending', 'resolve_thread', 'unresolve_thread'],
+    methods: ['create', 'submit_pending', 'delete_pending'],
   },
   {
     id: 'add_comment_to_pending_review',
@@ -259,6 +259,7 @@ describe('github agent tool catalog', () => {
     const addIssueCommentSchema = inputSchemaFor('add_issue_comment');
     const updatePullRequestSchema = inputSchemaFor('update_pull_request');
     const addReplySchema = inputSchemaFor('add_reply_to_pull_request_comment');
+    const pullRequestReadSchema = inputSchemaFor('pull_request_read');
     const actionsRunTriggerSchema = inputSchemaFor('actions_run_trigger');
     const getJobLogsSchema = inputSchemaFor('get_job_logs');
 
@@ -272,6 +273,17 @@ describe('github agent tool catalog', () => {
     expect(addReplySchema.anyOf).toEqual([
       {required: ['pull_number', 'body']},
       {required: ['reaction']},
+    ]);
+    expect(pullRequestReadSchema.oneOf).toEqual([
+      {properties: {method: {const: 'get'}}, required: []},
+      {properties: {method: {const: 'get_diff'}}, required: []},
+      {properties: {method: {const: 'get_status'}}, required: ['ref']},
+      {properties: {method: {const: 'get_files'}}, required: []},
+      {properties: {method: {const: 'get_commits'}}, required: []},
+      {properties: {method: {const: 'get_review_comments'}}, required: []},
+      {properties: {method: {const: 'get_reviews'}}, required: []},
+      {properties: {method: {const: 'get_comments'}}, required: []},
+      {properties: {method: {const: 'get_check_runs'}}, required: ['ref']},
     ]);
     expect(actionsRunTriggerSchema.oneOf).toEqual([
       {properties: {method: {const: 'run_workflow'}}, required: ['workflow_id', 'ref']},
@@ -357,6 +369,19 @@ describe('github agent tool catalog', () => {
     });
   });
 
+  it('requires a ref for pull request status and check-run reads', async () => {
+    const result = await callGithubTool(
+      'pull_request_read',
+      {method: 'get_status', owner: 'shipfox', repo: 'platform', pull_number: 2},
+      {state: 'success'},
+    );
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'Missing required parameter: ref'}],
+    });
+  });
+
   it.each([
     {
       toolId: 'list_issue_types',
@@ -422,6 +447,18 @@ describe('github agent tool catalog', () => {
       },
       data: 'diff --git a/file b/file',
       expected: {result: 'diff --git a/file b/file'},
+    },
+    {
+      toolId: 'pull_request_read',
+      arguments: {
+        method: 'get_check_runs',
+        owner: 'shipfox',
+        repo: 'platform',
+        pull_number: 2,
+        ref: 'abc123',
+      },
+      data: {total_count: 1},
+      expected: {total_count: 1},
     },
   ] satisfies Array<{
     toolId: GithubAgentToolId;

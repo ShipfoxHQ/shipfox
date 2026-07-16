@@ -194,20 +194,6 @@ const pullRequestReviewWriteMethods = [
     false,
     scopes.pullRequestsWrite,
   ),
-  method(
-    'resolve_thread',
-    'Resolve a pull request review thread.',
-    'write',
-    false,
-    scopes.pullRequestsWrite,
-  ),
-  method(
-    'unresolve_thread',
-    'Unresolve a pull request review thread.',
-    'write',
-    false,
-    scopes.pullRequestsWrite,
-  ),
 ] as const satisfies readonly GithubAgentToolCatalogMethod[];
 
 const actionsListMethods = [
@@ -448,10 +434,26 @@ export const githubAgentToolCatalog = [
           'Action to specify what pull request data needs to be retrieved from GitHub',
         ),
         pull_number: integerSchema('Pull request number'),
+        ref: stringSchema(
+          'Git reference to inspect. Required for get_status and get_check_runs',
+        ),
         cursor: stringSchema('Cursor for review comment pagination'),
         ...pageProperties,
       },
       ['method', 'pull_number'],
+      {
+        oneOf: [
+          methodRequiredSchema('get', []),
+          methodRequiredSchema('get_diff', []),
+          methodRequiredSchema('get_status', ['ref']),
+          methodRequiredSchema('get_files', []),
+          methodRequiredSchema('get_commits', []),
+          methodRequiredSchema('get_review_comments', []),
+          methodRequiredSchema('get_reviews', []),
+          methodRequiredSchema('get_comments', []),
+          methodRequiredSchema('get_check_runs', ['ref']),
+        ],
+      },
     ),
     outputSchema: openObjectSchema('Pull request read result'),
   }),
@@ -636,7 +638,6 @@ export const githubAgentToolCatalog = [
         body: stringSchema('Review comment text'),
         event: enumSchema(['APPROVE', 'REQUEST_CHANGES', 'COMMENT'], 'Review action to perform'),
         commit_id: stringSchema('SHA of commit to review'),
-        thread_id: stringSchema('The node ID of the review thread'),
       },
       ['method', 'pull_number'],
     ),

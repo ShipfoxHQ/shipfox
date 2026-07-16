@@ -368,6 +368,11 @@ function validateGithubToolArguments(
     }
   }
 
+  const methodRequired = methodRequiredParameters(tool.inputSchema, arguments_);
+  for (const name of methodRequired) {
+    if (arguments_[name] === undefined) return `Missing required parameter: ${name}`;
+  }
+
   const properties = tool.inputSchema.properties;
   if (typeof properties !== 'object' || properties === null || Array.isArray(properties)) {
     return undefined;
@@ -383,6 +388,25 @@ function validateGithubToolArguments(
     if (type === 'array' && !Array.isArray(value)) return `Parameter ${name} must be an array`;
   }
   return undefined;
+}
+
+function methodRequiredParameters(
+  inputSchema: AgentToolCatalogEntry<GithubAgentToolRequiredScope>['inputSchema'],
+  arguments_: Record<string, unknown>,
+): string[] {
+  const method = arguments_.method;
+  if (typeof method !== 'string' || !Array.isArray(inputSchema.oneOf)) return [];
+
+  for (const candidate of inputSchema.oneOf) {
+    if (!isRecord(candidate) || !isRecord(candidate.properties)) continue;
+    const methodSchema = candidate.properties.method;
+    if (!isRecord(methodSchema) || methodSchema.const !== method) continue;
+    return Array.isArray(candidate.required)
+      ? candidate.required.filter((name): name is string => typeof name === 'string')
+      : [];
+  }
+
+  return [];
 }
 
 function hasGrantedPermissions(

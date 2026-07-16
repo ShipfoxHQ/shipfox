@@ -107,6 +107,8 @@ function headingText(heading) {
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]+>/g, '')
+    .replace(/(^|[^\p{Letter}\p{Number}])__([\s\S]+?)__($|[^\p{Letter}\p{Number}])/gu, '$1$2$3')
+    .replace(/(^|[^\p{Letter}\p{Number}])_([\s\S]+?)_($|[^\p{Letter}\p{Number}])/gu, '$1$2$3')
     .replace(/[`*~]/g, '');
 }
 
