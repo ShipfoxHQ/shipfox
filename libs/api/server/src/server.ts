@@ -130,21 +130,21 @@ export async function createServer(options: CreateServerOptions): Promise<Server
 }
 
 export async function runServer(options: RunServerOptions): Promise<ServerHandle> {
-  const handle = await createServer({
-    modules: options.modules,
-    onWorkerFailure: () => process.exit(1),
-  });
+  let handle: ServerHandle;
+  try {
+    handle = await createServer({
+      modules: options.modules,
+      onWorkerFailure: () => process.exit(1),
+    });
+  } catch (error) {
+    await reportStartupFailure(error, options.onStartupFailure);
+    throw error;
+  }
+
   try {
     await handle.start();
   } catch (error) {
-    try {
-      await options.onStartupFailure?.(error);
-    } catch (reportingError) {
-      logger().error(
-        {err: reportingError, startError: error},
-        'Failed to report API server startup error',
-      );
-    }
+    await reportStartupFailure(error, options.onStartupFailure);
     try {
       await handle.stop();
     } catch (cleanupError) {
@@ -161,6 +161,20 @@ export async function runServer(options: RunServerOptions): Promise<ServerHandle
   process.once('SIGINT', stopAndExit);
 
   return handle;
+}
+
+async function reportStartupFailure(
+  error: unknown,
+  onStartupFailure: RunServerOptions['onStartupFailure'],
+): Promise<void> {
+  try {
+    await onStartupFailure?.(error);
+  } catch (reportingError) {
+    logger().error(
+      {err: reportingError, startError: error},
+      'Failed to report API server startup error',
+    );
+  }
 }
 
 type CleanupStep = () => void | Promise<void>;

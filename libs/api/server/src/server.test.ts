@@ -470,6 +470,18 @@ describe('runServer', () => {
     vi.restoreAllMocks();
   });
 
+  it('reports a server-construction error', async () => {
+    const failure = new Error('module initialization failed');
+    const onStartupFailure = vi.fn();
+    mocks.initializeModules.mockRejectedValueOnce(failure);
+
+    const result = runServer({modules: [module()], onStartupFailure});
+
+    await expect(result).rejects.toBe(failure);
+    expect(onStartupFailure).toHaveBeenCalledWith(failure);
+    expect(mocks.closeErrorMonitoring).not.toHaveBeenCalled();
+  });
+
   it('reports its startup error before releasing the server', async () => {
     const failure = new Error('listener unavailable');
     const onStartupFailure = vi.fn();
