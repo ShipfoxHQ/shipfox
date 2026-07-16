@@ -34,6 +34,10 @@
   },
   "devDependencies": {
     "@shipfox/api-agent-dto": "workspace:*",
+    "@shipfox/api-integration-core-dto": "workspace:*",
+    "@shipfox/api-integration-github-dto": "workspace:*",
+    "@shipfox/api-integration-sentry-dto": "workspace:*",
+    "@shipfox/api-integration-webhook-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
@@ -41,6 +45,7 @@
     "@types/mdx": "^2.0.13",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
+    "github-slugger": "2.0.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.21.0"

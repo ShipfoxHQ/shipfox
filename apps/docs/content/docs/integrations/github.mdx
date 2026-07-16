@@ -23,15 +23,129 @@ triggers:
 
 ## Events
 
-The common event is `push`. Shipfox also forwards GitHub App events. Their names
-use `<resource>` or `<resource>.<action>`. Examples include
-`pull_request.opened`, `issues.opened`, and `release.published`.
+{/* generated:github-events:start */}
+Shipfox forwards additional raw GitHub webhook events. See [the complete GitHub event reference](https://docs.github.com/en/webhooks/webhook-events-and-payloads) for the upstream catalog.
 
-GitHub owns the complete event catalog and payload definitions:
+### `push`
 
-<Card title="GitHub webhook events and payloads" href="https://docs.github.com/en/webhooks/webhook-events-and-payloads">
-  The authoritative GitHub event and payload reference.
-</Card>
+A Git reference receives one or more commits.
+
+**Emitted when:** GitHub sends a push webhook to the connected GitHub App.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `pull_request.opened`
+
+A pull request opens.
+
+**Emitted when:** GitHub sends a pull_request webhook with the opened action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `pull_request.closed`
+
+A pull request closes or merges.
+
+**Emitted when:** GitHub sends a pull_request webhook with the closed action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `pull_request.synchronize`
+
+A pull request head branch receives commits.
+
+**Emitted when:** GitHub sends a pull_request webhook with the synchronize action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `pull_request.reopened`
+
+A closed pull request reopens.
+
+**Emitted when:** GitHub sends a pull_request webhook with the reopened action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `issues.opened`
+
+An issue opens.
+
+**Emitted when:** GitHub sends an issues webhook with the opened action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `issues.closed`
+
+An issue closes.
+
+**Emitted when:** GitHub sends an issues webhook with the closed action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `issues.reopened`
+
+A closed issue reopens.
+
+**Emitted when:** GitHub sends an issues webhook with the reopened action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `issues.edited`
+
+An issue title or body changes.
+
+**Emitted when:** GitHub sends an issues webhook with the edited action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `issues.labeled`
+
+A label is added to an issue.
+
+**Emitted when:** GitHub sends an issues webhook with the labeled action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `issues.unlabeled`
+
+A label is removed from an issue.
+
+**Emitted when:** GitHub sends an issues webhook with the unlabeled action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+
+### `release.published`
+
+A release is published.
+
+**Emitted when:** GitHub sends a release webhook with the published action.
+
+**Payload:** Raw provider payload.
+
+[Provider payload documentation](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+{/* generated:github-events:end */}
 
 ## Event payload
 
@@ -40,6 +154,1097 @@ includes the full Git ref. It also includes the head commit, repository, and
 default branch fields sent by GitHub.
 
 The branch ref uses the full Git form, such as `refs/heads/main`.
+
+## Agent tools
+
+{/* generated:github-tools:start */}
+### issues
+
+#### `issue_read`
+
+Get information about a specific issue in a GitHub repository.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+**Selector tokens:** [`issue_read`](#issue_read), [`issue_read.*`](#issue_read), [`issue_read.get`](#issue_readget), [`issue_read.get_comments`](#issue_readget_comments), [`issue_read.get_sub_issues`](#issue_readget_sub_issues), [`issue_read.get_parent`](#issue_readget_parent), [`issue_read.get_labels`](#issue_readget_labels)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `get`, `get_comments`, `get_sub_issues`, `get_parent`, `get_labels` | Required | The read operation to perform on a single issue |
+| `issue_number` | integer | Required | The number of the issue |
+| `page` | integer | Optional | Page number for pagination |
+| `per_page` | integer | Optional | Results per page for pagination |
+
+##### `issue_read.get`
+
+Get information about a specific issue.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+This method has no additional required input.
+
+##### `issue_read.get_comments`
+
+Get comments on a specific issue.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+This method has no additional required input.
+
+##### `issue_read.get_sub_issues`
+
+Get sub-issues for a specific issue.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+This method has no additional required input.
+
+##### `issue_read.get_parent`
+
+Get the parent issue for a specific issue.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+This method has no additional required input.
+
+##### `issue_read.get_labels`
+
+Get labels assigned to a specific issue.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+This method has no additional required input.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `list_issue_types`
+
+List supported issue types for a repository or its owner organization. When repo is omitted, returns org-level issue types directly.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+**Selector tokens:** [`list_issue_types`](#list_issue_types)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | The account owner of the repository or organization |
+| `repo` | string | Optional | The name of the repository |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `issue_types` | array | Required |  |
+
+#### `list_issues`
+
+List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+**Selector tokens:** [`list_issues`](#list_issues)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `state` | string: `OPEN`, `CLOSED` | Optional | Filter by state |
+| `labels` | array | Optional |  |
+| `orderBy` | string: `CREATED_AT`, `UPDATED_AT`, `COMMENTS` | Optional | Order issues by field |
+| `direction` | string: `ASC`, `DESC` | Optional | Order direction |
+| `since` | string | Optional | Filter by date (ISO 8601 timestamp) |
+| `after` | string | Optional | Pagination cursor |
+| `first` | integer | Optional | Number of issues to return |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `issues` | array | Required |  |
+
+#### `search_issues`
+
+Search for issues in GitHub repositories using issues search syntax already scoped to is:issue
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+**Selector tokens:** [`search_issues`](#search_issues)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | Required | Search query using GitHub issues search syntax |
+| `owner` | string | Optional | Optional repository owner |
+| `repo` | string | Optional | Optional repository name |
+| `sort` | string: `comments`, `reactions`, `reactions-+1`, `reactions--1`, `reactions-smile`, `reactions-thinking_face`, `reactions-heart`, `reactions-tada`, `interactions`, `created`, `updated` | Optional | Sort field |
+| `order` | string: `asc`, `desc` | Optional | Sort order |
+| `page` | integer | Optional | Page number for pagination |
+| `per_page` | integer | Optional | Results per page for pagination |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `issues` | array | Required |  |
+
+#### `add_issue_comment`
+
+Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well, but only if the user is not asking specifically to add or react to review comments. At least one of body or reaction is required.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+**Selector tokens:** [`add_issue_comment`](#add_issue_comment)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `issue_number` | integer | Conditional | Issue or pull request number to comment on or react to |
+| `comment_id` | integer | Conditional | The numeric ID of the issue or pull request comment to react to |
+| `body` | string | Conditional | Comment content. Required unless reaction is provided |
+| `reaction` | string: `+1`, `-1`, `laugh`, `confused`, `heart`, `hooray`, `rocket`, `eyes` | Conditional | Emoji reaction to add. Required unless body is provided |
+
+At least one of these input combinations is required: `issue_number` and `body`; `issue_number` and `reaction`; `comment_id` and `reaction`.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `issue_write`
+
+Create a new or update an existing issue in a GitHub repository.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+**Selector tokens:** [`issue_write`](#issue_write), [`issue_write.*`](#issue_write), [`issue_write.create`](#issue_writecreate), [`issue_write.update`](#issue_writeupdate)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `create`, `update` | Required | Write operation to perform on a single issue |
+| `issue_number` | integer | Optional | Issue number to update |
+| `title` | string | Optional | Issue title |
+| `body` | string | Optional | Issue body content |
+| `assignees` | array | Optional |  |
+| `labels` | array | Optional |  |
+| `milestone` | integer | Optional | Milestone number |
+| `issue_type` | string | Optional | Type of this issue |
+| `state` | string: `open`, `closed` | Optional | New state |
+| `state_reason` | string: `completed`, `not_planned`, `duplicate` | Optional | Reason for the state change |
+| `duplicate_of` | integer | Optional | Issue number that this issue is a duplicate of |
+
+##### `issue_write.create`
+
+Create a new issue.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+This method has no additional required input.
+
+##### `issue_write.update`
+
+Update an existing issue.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+This method has no additional required input.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `sub_issue_write`
+
+Add, remove, or reprioritize a sub-issue under a parent issue in a GitHub repository.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+**Selector tokens:** [`sub_issue_write`](#sub_issue_write), [`sub_issue_write.*`](#sub_issue_write), [`sub_issue_write.add`](#sub_issue_writeadd), [`sub_issue_write.remove`](#sub_issue_writeremove), [`sub_issue_write.reprioritize`](#sub_issue_writereprioritize)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `add`, `remove`, `reprioritize` | Required | The action to perform on a single sub-issue |
+| `issue_number` | integer | Required | The number of the parent issue |
+| `sub_issue_id` | integer | Required | The ID of the sub-issue |
+| `replace_parent` | boolean | Optional | Replace the sub-issue's current parent issue |
+| `after_id` | integer | Optional | The ID of the sub-issue to be prioritized after |
+| `before_id` | integer | Optional | The ID of the sub-issue to be prioritized before |
+
+##### `sub_issue_write.add`
+
+Add a sub-issue to a parent issue.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+This method has no additional required input.
+
+##### `sub_issue_write.remove`
+
+Remove a sub-issue from a parent issue.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+This method has no additional required input.
+
+##### `sub_issue_write.reprioritize`
+
+Reprioritize a sub-issue under its parent issue.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:write`
+
+This method has no additional required input.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+### pull requests
+
+#### `pull_request_read`
+
+Get information on a specific pull request in a GitHub repository.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`, `issues:read`
+
+**Selector tokens:** [`pull_request_read`](#pull_request_read), [`pull_request_read.*`](#pull_request_read), [`pull_request_read.get`](#pull_request_readget), [`pull_request_read.get_diff`](#pull_request_readget_diff), [`pull_request_read.get_status`](#pull_request_readget_status), [`pull_request_read.get_files`](#pull_request_readget_files), [`pull_request_read.get_commits`](#pull_request_readget_commits), [`pull_request_read.get_review_comments`](#pull_request_readget_review_comments), [`pull_request_read.get_reviews`](#pull_request_readget_reviews), [`pull_request_read.get_comments`](#pull_request_readget_comments), [`pull_request_read.get_check_runs`](#pull_request_readget_check_runs)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `get`, `get_diff`, `get_status`, `get_files`, `get_commits`, `get_review_comments`, `get_reviews`, `get_comments`, `get_check_runs` | Required | Action to specify what pull request data needs to be retrieved from GitHub |
+| `pull_number` | integer | Required | Pull request number |
+| `cursor` | string | Optional | Cursor for review comment pagination |
+| `page` | integer | Optional | Page number for pagination |
+| `per_page` | integer | Optional | Results per page for pagination |
+
+##### `pull_request_read.get`
+
+Get information about a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_diff`
+
+Get the diff for a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_status`
+
+Get status information for a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_files`
+
+Get files changed in a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_commits`
+
+Get commits in a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_review_comments`
+
+Get review comments for a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_reviews`
+
+Get reviews for a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_comments`
+
+Get conversation comments for a specific pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `issues:read`
+
+This method has no additional required input.
+
+##### `pull_request_read.get_check_runs`
+
+Get check runs for the head commit of a pull request.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+This method has no additional required input.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `list_pull_requests`
+
+List pull requests in a GitHub repository. If the user specifies an author, then do not use this tool and use the search_pull_requests tool instead.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+**Selector tokens:** [`list_pull_requests`](#list_pull_requests)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `state` | string: `open`, `closed`, `all` | Optional | Filter by state |
+| `head` | string | Optional | Filter by head user/org and branch |
+| `base` | string | Optional | Filter by base branch |
+| `sort` | string: `created`, `updated`, `popularity`, `long-running` | Optional | Sort by |
+| `direction` | string: `asc`, `desc` | Optional | Sort direction |
+| `page` | integer | Optional | Page number for pagination |
+| `per_page` | integer | Optional | Results per page for pagination |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `pull_requests` | array | Required |  |
+
+#### `search_pull_requests`
+
+Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:read`
+
+**Selector tokens:** [`search_pull_requests`](#search_pull_requests)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | Required | Search query using GitHub pull request search syntax |
+| `owner` | string | Optional | Optional repository owner |
+| `repo` | string | Optional | Optional repository name |
+| `sort` | string: `comments`, `reactions`, `reactions-+1`, `reactions--1`, `reactions-smile`, `reactions-thinking_face`, `reactions-heart`, `reactions-tada`, `interactions`, `created`, `updated` | Optional | Sort field |
+| `order` | string: `asc`, `desc` | Optional | Sort order |
+| `page` | integer | Optional | Page number for pagination |
+| `per_page` | integer | Optional | Results per page for pagination |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `pull_requests` | array | Required |  |
+
+#### `create_pull_request`
+
+Create a new pull request in a GitHub repository.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+**Selector tokens:** [`create_pull_request`](#create_pull_request)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `title` | string | Required | PR title |
+| `body` | string | Optional | PR description |
+| `head` | string | Required | Branch containing changes |
+| `base` | string | Required | Branch to merge into |
+| `draft` | boolean | Optional | Create as draft PR |
+| `maintainer_can_modify` | boolean | Optional | Allow maintainer edits |
+| `reviewers` | array | Optional |  |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `pull_request` | object | Required | Created GitHub pull request |
+
+#### `update_pull_request`
+
+Update an existing pull request in a GitHub repository.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+**Selector tokens:** [`update_pull_request`](#update_pull_request)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `pull_number` | integer | Required | Pull request number to update |
+| `title` | string | Optional | New title |
+| `body` | string | Optional | New description |
+| `state` | string: `open`, `closed` | Optional | New state |
+| `base` | string | Optional | New base branch name |
+| `maintainer_can_modify` | boolean | Optional | Allow maintainer edits |
+| `reviewers` | array | Optional |  |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `pull_request` | object | Required | Updated GitHub pull request |
+
+#### `add_reply_to_pull_request_comment`
+
+Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+**Selector tokens:** [`add_reply_to_pull_request_comment`](#add_reply_to_pull_request_comment)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `pull_number` | integer | Conditional | Pull request number. Required when body is provided |
+| `comment_id` | integer | Required | The numeric ID of the pull request review comment to reply or react to |
+| `body` | string | Conditional | The text of the reply |
+| `reaction` | string: `+1`, `-1`, `laugh`, `confused`, `heart`, `hooray`, `rocket`, `eyes` | Conditional | Emoji reaction to add |
+
+At least one of these input combinations is required: `pull_number` and `body`; `reaction`.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `merge_pull_request`
+
+Merge a pull request in a GitHub repository.
+
+**Sensitivity:** write.
+
+**Sensitive:** Yes.
+
+**Required permissions:** `pull_requests:write`, `contents:write`
+
+**Selector tokens:** [`merge_pull_request`](#merge_pull_request)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `pull_number` | integer | Required | Pull request number |
+| `commit_title` | string | Optional | Title for merge commit |
+| `commit_message` | string | Optional | Extra detail for merge commit |
+| `merge_method` | string: `merge`, `squash`, `rebase` | Optional | Merge method |
+
+##### Output
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `merge` | object | Required | Merge result |
+
+#### `update_pull_request_branch`
+
+Update the branch of a pull request with the latest changes from the base branch.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+**Selector tokens:** [`update_pull_request_branch`](#update_pull_request_branch)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `pull_number` | integer | Required | Pull request number |
+| `expected_head_sha` | string | Optional | The expected SHA of the pull request's HEAD ref |
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `pull_request_review_write`
+
+Create and/or submit, delete review of a pull request.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+**Selector tokens:** [`pull_request_review_write`](#pull_request_review_write), [`pull_request_review_write.*`](#pull_request_review_write), [`pull_request_review_write.create`](#pull_request_review_writecreate), [`pull_request_review_write.submit_pending`](#pull_request_review_writesubmit_pending), [`pull_request_review_write.delete_pending`](#pull_request_review_writedelete_pending), [`pull_request_review_write.resolve_thread`](#pull_request_review_writeresolve_thread), [`pull_request_review_write.unresolve_thread`](#pull_request_review_writeunresolve_thread)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `create`, `submit_pending`, `delete_pending`, `resolve_thread`, `unresolve_thread` | Required | The write operation to perform on pull request review |
+| `pull_number` | integer | Required | Pull request number |
+| `body` | string | Optional | Review comment text |
+| `event` | string: `APPROVE`, `REQUEST_CHANGES`, `COMMENT` | Optional | Review action to perform |
+| `commit_id` | string | Optional | SHA of commit to review |
+| `thread_id` | string | Optional | The node ID of the review thread |
+
+##### `pull_request_review_write.create`
+
+Create a pending pull request review.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+This method has no additional required input.
+
+##### `pull_request_review_write.submit_pending`
+
+Submit the latest pending pull request review.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+This method has no additional required input.
+
+##### `pull_request_review_write.delete_pending`
+
+Delete the latest pending pull request review.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+This method has no additional required input.
+
+##### `pull_request_review_write.resolve_thread`
+
+Resolve a pull request review thread.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+This method has no additional required input.
+
+##### `pull_request_review_write.unresolve_thread`
+
+Unresolve a pull request review thread.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+This method has no additional required input.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `add_comment_to_pending_review`
+
+Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `pull_requests:write`
+
+**Selector tokens:** [`add_comment_to_pending_review`](#add_comment_to_pending_review)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `pull_number` | integer | Required | Pull request number |
+| `path` | string | Required | The relative path to the file that necessitates a comment |
+| `body` | string | Required | The text of the review comment |
+| `subject_type` | string: `LINE`, `FILE` | Optional | The level at which the comment is targeted |
+| `line` | integer | Optional | The line of the blob in the pull request diff |
+| `side` | string: `LEFT`, `RIGHT` | Optional | The side of the diff to comment on |
+| `start_line` | integer | Optional | The first line of a multi-line comment range |
+| `start_side` | string: `LEFT`, `RIGHT` | Optional | The starting side of a multi-line comment range |
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+### actions
+
+#### `actions_list`
+
+Tools for listing GitHub Actions resources. Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+**Selector tokens:** [`actions_list`](#actions_list), [`actions_list.*`](#actions_list), [`actions_list.list_workflows`](#actions_listlist_workflows), [`actions_list.list_workflow_runs`](#actions_listlist_workflow_runs), [`actions_list.list_workflow_jobs`](#actions_listlist_workflow_jobs), [`actions_list.list_workflow_run_artifacts`](#actions_listlist_workflow_run_artifacts)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `list_workflows`, `list_workflow_runs`, `list_workflow_jobs`, `list_workflow_run_artifacts` | Required | The action to perform |
+| `resource_id` | string | Optional | The unique identifier of the resource |
+| `workflow_runs_filter` | object | Optional | Filters for workflow runs |
+| `workflow_jobs_filter` | object | Optional | Filters for workflow jobs |
+| `page` | integer | Optional | Page number for pagination |
+| `per_page` | integer | Optional | Results per page for pagination |
+
+##### `actions_list.list_workflows`
+
+List workflows in a repository.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_list.list_workflow_runs`
+
+List workflow runs in a repository or for a workflow.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_list.list_workflow_jobs`
+
+List jobs for a workflow run.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_list.list_workflow_run_artifacts`
+
+List artifacts for a workflow run.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `actions_get`
+
+Get details about specific GitHub Actions resources. Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+**Selector tokens:** [`actions_get`](#actions_get), [`actions_get.*`](#actions_get), [`actions_get.get_workflow`](#actions_getget_workflow), [`actions_get.get_workflow_run`](#actions_getget_workflow_run), [`actions_get.get_workflow_job`](#actions_getget_workflow_job), [`actions_get.download_workflow_run_artifact`](#actions_getdownload_workflow_run_artifact), [`actions_get.get_workflow_run_usage`](#actions_getget_workflow_run_usage), [`actions_get.get_workflow_run_logs_url`](#actions_getget_workflow_run_logs_url)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `get_workflow`, `get_workflow_run`, `get_workflow_job`, `download_workflow_run_artifact`, `get_workflow_run_usage`, `get_workflow_run_logs_url` | Required | The method to execute |
+| `resource_id` | string | Required | The unique identifier of the resource |
+
+##### `actions_get.get_workflow`
+
+Get details for a workflow.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_get.get_workflow_run`
+
+Get details for a workflow run.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_get.get_workflow_job`
+
+Get details for a workflow job.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_get.download_workflow_run_artifact`
+
+Download a workflow run artifact.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_get.get_workflow_run_usage`
+
+Get workflow run usage.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### `actions_get.get_workflow_run_logs_url`
+
+Get a workflow run logs download URL.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+This method has no additional required input.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `actions_run_trigger`
+
+Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs.
+
+**Sensitivity:** write.
+
+**Sensitive:** Yes.
+
+**Required permissions:** `actions:write`
+
+**Selector tokens:** [`actions_run_trigger`](#actions_run_trigger), [`actions_run_trigger.*`](#actions_run_trigger), [`actions_run_trigger.run_workflow`](#actions_run_triggerrun_workflow), [`actions_run_trigger.rerun_workflow_run`](#actions_run_triggerrerun_workflow_run), [`actions_run_trigger.rerun_failed_jobs`](#actions_run_triggerrerun_failed_jobs), [`actions_run_trigger.cancel_workflow_run`](#actions_run_triggercancel_workflow_run), [`actions_run_trigger.delete_workflow_run_logs`](#actions_run_triggerdelete_workflow_run_logs)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `method` | string: `run_workflow`, `rerun_workflow_run`, `rerun_failed_jobs`, `cancel_workflow_run`, `delete_workflow_run_logs` | Required | The method to execute |
+| `workflow_id` | string | Conditional | The workflow ID or workflow file name. Required for run_workflow |
+| `ref` | string | Conditional | The git reference for the workflow. Required for run_workflow |
+| `inputs` | object | Optional | Inputs the workflow accepts. Only used for run_workflow |
+| `run_id` | integer | Conditional | The ID of the workflow run. Required for all methods except run_workflow |
+
+##### `actions_run_trigger.run_workflow`
+
+Trigger a workflow_dispatch run.
+
+**Sensitivity:** write.
+
+**Sensitive:** Yes.
+
+**Required permissions:** `actions:write`
+
+**Required input for this method:** `workflow_id`, `ref`.
+
+##### `actions_run_trigger.rerun_workflow_run`
+
+Rerun a workflow run.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:write`
+
+**Required input for this method:** `run_id`.
+
+##### `actions_run_trigger.rerun_failed_jobs`
+
+Rerun failed jobs in a workflow run.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:write`
+
+**Required input for this method:** `run_id`.
+
+##### `actions_run_trigger.cancel_workflow_run`
+
+Cancel a workflow run.
+
+**Sensitivity:** write.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:write`
+
+**Required input for this method:** `run_id`.
+
+##### `actions_run_trigger.delete_workflow_run_logs`
+
+Delete logs for a workflow run.
+
+**Sensitivity:** write.
+
+**Sensitive:** Yes.
+
+**Required permissions:** `actions:write`
+
+**Required input for this method:** `run_id`.
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+
+#### `get_job_logs`
+
+Get logs for GitHub Actions workflow jobs. Use this tool to retrieve logs for a specific job or all failed jobs in a workflow run. For single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.
+
+**Sensitivity:** read.
+
+**Sensitive:** No.
+
+**Required permissions:** `actions:read`
+
+**Selector tokens:** [`get_job_logs`](#get_job_logs)
+
+##### Input
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `owner` | string | Required | Repository owner |
+| `repo` | string | Required | Repository name |
+| `job_id` | number | Optional | The unique identifier of the workflow job. Required when getting logs for a single job. |
+| `run_id` | number | Optional | The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run. |
+| `failed_only` | boolean | Optional | When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. |
+| `return_content` | boolean | Optional | Returns actual log content instead of URLs |
+| `tail_lines` | number | Optional | Number of lines to return from the end of the log |
+
+##### Output
+
+This schema accepts an object with provider-defined fields.
+{/* generated:github-tools:end */}
 
 ## Filtering
 

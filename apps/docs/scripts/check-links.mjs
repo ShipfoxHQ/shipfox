@@ -1,6 +1,7 @@
 import {readdir, readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {GithubSlugger} from './lib/slug.mjs';
 
 const docsRoot = fileURLToPath(new URL('..', import.meta.url));
 const contentRoot = path.join(docsRoot, 'content', 'docs');
@@ -61,30 +62,23 @@ function routeFor(file) {
 
 function anchorsFor(content) {
   const anchors = new Set();
-  const counts = new Map();
+  const slugger = new GithubSlugger();
 
   for (const match of content.matchAll(headingPattern)) {
     const heading = match[1];
     if (!heading) continue;
-    const base = slugForHeading(heading);
-    const count = counts.get(base) ?? 0;
-    counts.set(base, count + 1);
-    anchors.add(count === 0 ? base : `${base}-${count}`);
+    anchors.add(slugger.slug(headingText(heading)));
   }
 
   return anchors;
 }
 
-function slugForHeading(heading) {
+function headingText(heading) {
   return heading
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]+>/g, '')
-    .replace(/[`*_~]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{Letter}\p{Number}\s-]/gu, '')
-    .replace(/\s+/g, '-');
+    .replace(/[`*~]/g, '');
 }
 
 async function filesUnder(directory) {

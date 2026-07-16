@@ -1,9 +1,14 @@
+export * from './event-catalog.js';
+
 import {connectionSlugSchema} from '@shipfox/api-integration-core-dto';
 import {z} from 'zod';
+import {WEBHOOK_RESERVED_SLUGS} from './constants.js';
 
-export const WEBHOOK_PROVIDER = 'webhook' as const;
-export const WEBHOOK_RECEIVED_EVENT = 'received' as const;
-export const WEBHOOK_RESERVED_SLUGS = ['github', 'gitea', 'sentry', 'manual', 'cron'] as const;
+export {
+  WEBHOOK_PROVIDER,
+  WEBHOOK_RECEIVED_EVENT,
+  WEBHOOK_RESERVED_SLUGS,
+} from './constants.js';
 
 const webhookReservedSlugSet = new Set<string>(WEBHOOK_RESERVED_SLUGS);
 

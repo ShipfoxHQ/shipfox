@@ -23,6 +23,18 @@ triggers:
     event: received
 ```
 
+## Events
+
+{/* generated:webhook-events:start */}
+### `received`
+
+A custom webhook request is accepted.
+
+**Emitted when:** Shipfox accepts a request at the integration connection ingest URL.
+
+**Payload:** Shipfox-normalized payload.
+{/* generated:webhook-events:end */}
+
 ## Request contract
 
 Send an HTTP `POST` request to the integration connection's ingest URL. The body can contain

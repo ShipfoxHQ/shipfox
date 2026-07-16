@@ -161,6 +161,18 @@ importers:
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../../libs/api/agent-dto
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/core-dto
+      '@shipfox/api-integration-github-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/github-dto
+      '@shipfox/api-integration-sentry-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/sentry-dto
+      '@shipfox/api-integration-webhook-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/webhook-dto
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../tools/biome
@@ -182,6 +194,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.1.7
         version: 19.2.3(@types/react@19.2.17)
+      github-slugger:
+        specifier: 2.0.0
+        version: 2.0.0
       postcss:
         specifier: ^8.5.6
         version: 8.5.15
