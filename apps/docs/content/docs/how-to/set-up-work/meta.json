@@ -2,9 +2,6 @@
   "title": "Set Up Work",
   "pages": [
     "index",
-    "connect-github",
-    "connect-sentry",
-    "create-custom-webhook",
     "create-project",
     "manage-integration-connections",
     "disable-integration-connection",

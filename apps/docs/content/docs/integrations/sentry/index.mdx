@@ -1,0 +1,39 @@
+---
+title: "Sentry integration"
+sidebarTitle: "Sentry"
+description: "Look up the Sentry integration's availability, authentication, integration connection identity, and capabilities."
+---
+
+Sentry sends issue lifecycle events to Shipfox.
+
+**Availability:** Available.
+
+## Authentication
+
+Shipfox connects through a Sentry App. Install the App in the target Sentry
+organization and authorize its requested access.
+
+## Integration connection identity
+
+A Sentry integration connection slug defaults to `sentry_<organization>`, such
+as `sentry_acme`. Use the workspace integration connection slug as a workflow
+trigger `source`.
+
+```yaml
+triggers:
+  on_issue:
+    source: sentry_acme
+    event: issue.created
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Capabilities
+
+| Capability | Availability |
+| --- | --- |
+| Source control | **Not available.** |
+| Events | Available. [View Sentry events](/integrations/sentry/events). |
+| Agent tools | **Not available.** |
+
+[Connect Sentry](/integrations/sentry/setup) to create an integration connection.

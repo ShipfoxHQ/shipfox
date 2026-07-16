@@ -1,0 +1,39 @@
+---
+title: "Slack integration"
+sidebarTitle: "Slack"
+status: "soon"
+description: "Check the Slack integration's current availability and the custom webhook alternative for Slack events."
+---
+
+<Callout type="info">
+  **Coming soon.** The Slack integration is not available. Shipfox cannot
+  create Slack integration connections yet.
+</Callout>
+
+The planned Slack integration is intended to receive Slack events in Shipfox.
+Its event and agent-tool capabilities are not available.
+
+**Availability:** Coming soon.
+
+## Authentication
+
+Not available.
+
+## Integration connection identity
+
+Slack integration connection slugs are not available.
+
+## Capabilities
+
+| Capability | Availability |
+| --- | --- |
+| Source control | **Not available.** |
+| Events | **Not available.** |
+| Agent tools | **Not available.** |
+
+## Available alternative
+
+Use a [custom webhook](/integrations/webhooks) for Slack events today. Create
+a webhook integration connection, point a Slack outgoing webhook or automation
+at its ingest URL, and trigger workflows on `received`. Shipfox passes the
+request payload to the run as `event`.

@@ -1,15 +1,16 @@
 ---
-title: "Connect Sentry to a Shipfox Workspace"
-sidebarTitle: "Connect Sentry"
+title: "Connect Sentry to a Shipfox workspace"
+sidebarTitle: "Setup"
 description: "Install the Sentry App, choose an organization, and verify issue delivery with a workflow run."
 ---
 
-Connect Sentry when a new issue should start a Shipfox workflow.
+Connect Sentry when a new issue should start a Shipfox workflow. See the
+[Sentry overview](/integrations/sentry) for its capabilities.
 
 ## Before you begin
 
 You need access to workspace integration settings. You must also be able to
-install an app in the target Sentry organization.
+install an App in the target Sentry organization.
 
 To verify a run, you also need a project that can sync workflows and an online
 runner with the `ubuntu-latest` label.
@@ -76,7 +77,6 @@ Open the new issue event and its linked run. Confirm that the log prints the
 same issue ID and title. This proves the App delivered the issue and the trigger
 used the saved integration connection slug.
 
-Use the [Sentry reference](/integrations/sentry) for event names and event
-fields instead of copying Sentry's event catalog. The [Sentry triage
-recipe](/how-to/recipes/triage-sentry-issues) turns a delivered issue into an
-agent run.
+The [Sentry events reference](/integrations/sentry/events) lists event names and
+normalized event fields. The [Sentry triage recipe](/how-to/recipes/triage-sentry-issues)
+turns a delivered issue into an agent run.

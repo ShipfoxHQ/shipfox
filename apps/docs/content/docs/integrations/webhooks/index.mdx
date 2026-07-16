@@ -1,0 +1,39 @@
+---
+title: "Custom webhook integration"
+sidebarTitle: "Custom webhook"
+description: "Look up the custom webhook integration's availability, authentication model, integration connection identity, and capabilities."
+---
+
+A custom webhook accepts HTTP requests from systems without a built-in Shipfox
+integration.
+
+**Availability:** Available.
+
+## Authentication
+
+Custom webhooks do not use a provider account. The generated ingest URL is the
+credential. Keep it secret because anyone with the URL can send events.
+
+## Integration connection identity
+
+Choose a unique integration connection slug in the workspace, such as
+`deploy_hook`. Use the slug as a workflow trigger `source`.
+
+```yaml
+triggers:
+  on_webhook:
+    source: deploy_hook
+    event: received
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Capabilities
+
+| Capability | Availability |
+| --- | --- |
+| Source control | **Not available.** |
+| Events | Available. [View custom webhook events](/integrations/webhooks/events). |
+| Agent tools | **Not available.** |
+
+[Create a custom webhook](/integrations/webhooks/setup) to create an integration connection.
