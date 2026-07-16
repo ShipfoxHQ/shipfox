@@ -15,12 +15,9 @@ const routes = new Set(pages.map(routeFor));
 const generatedFragmentsByRoute = new Map([
   ['/reference/model-providers', ['reference/model-providers.mdx']],
 ]);
-const standaloneGeneratedFragments = [
-  'integrations/github/events.mdx',
-  'integrations/github/tools.mdx',
-  'integrations/sentry/events.mdx',
-  'integrations/webhooks/events.mdx',
-];
+const generatedFragments = (await filesUnder(generatedRoot)).filter((file) =>
+  file.endsWith('.mdx'),
+);
 const pageContents = new Map(
   await Promise.all(pages.map(async (file) => [file, await contentFor(file)])),
 );
@@ -48,15 +45,15 @@ for (const file of pages) {
   }
 }
 
-for (const fragment of standaloneGeneratedFragments) {
-  const content = await readFile(path.join(generatedRoot, fragment), 'utf8');
+for (const fragment of generatedFragments) {
+  const content = await readFile(fragment, 'utf8');
   const anchors = anchorsFor(content);
   for (const match of content.matchAll(internalLinkPattern)) {
     const target = match[1];
     if (!target?.startsWith('#')) continue;
     const anchor = decodeURIComponent(target.slice(1));
     if (!anchors.has(anchor)) {
-      violations.push(`content/generated/${fragment} -> ${target} (missing heading)`);
+      violations.push(`${path.relative(docsRoot, fragment)} -> ${target} (missing heading)`);
     }
   }
 }

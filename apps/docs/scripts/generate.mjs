@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {mkdirSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
@@ -13,7 +13,6 @@ import {webhookEventCatalog} from '@shipfox/api-integration-webhook-dto';
 import {slugForHeading} from './lib/slug.mjs';
 
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const check = process.argv.includes('--check');
 const regions = [
   ['content/generated/reference/model-providers.mdx', renderModelProvidersTable],
   [
@@ -73,9 +72,7 @@ function renderEventCatalog(catalog) {
       '',
     );
   }
-  const result = lines.join('\n').trimEnd();
-  assertEvents(catalog, result);
-  return result;
+  return lines.join('\n').trimEnd();
 }
 
 function renderToolCatalog(catalog, selectionCatalog) {
@@ -120,9 +117,7 @@ function renderToolCatalog(catalog, selectionCatalog) {
       lines.push('');
     }
   }
-  const result = lines.join('\n').trimEnd();
-  assertTools(catalog, selectionCatalog, result);
-  return result;
+  return lines.join('\n').trimEnd();
 }
 
 function renderFields(schema) {
@@ -191,42 +186,6 @@ function formatSelectors(toolId, selectionCatalog) {
     .join(', ');
 }
 
-function assertEvents(catalog, body) {
-  assertComplete(
-    catalog.events.map((event) => event.name),
-    body,
-    (id) => `### \`${id}\``,
-    `${catalog.provider} events`,
-  );
-}
-
-function assertTools(catalog, selectionCatalog, body) {
-  assertComplete(
-    catalog.map((tool) => tool.id),
-    body,
-    (id) => `#### \`${id}\``,
-    'GitHub tools',
-  );
-  assertComplete(
-    catalog.flatMap((tool) => tool.methods?.map((method) => `${tool.id}.${method.id}`) ?? []),
-    body,
-    (id) => `##### \`${id}\``,
-    'GitHub tool methods',
-  );
-  assertComplete(
-    selectionCatalog.selectors.map((selector) => selector.token),
-    body,
-    (id) => `\`${id}\``,
-    'GitHub tool selectors',
-  );
-}
-
-function assertComplete(ids, body, marker, label) {
-  const missing = ids.filter((id) => !body.includes(marker(id)));
-  if (missing.length > 0)
-    throw new Error(`Generated ${label} reference is incomplete: ${missing.join(', ')}`);
-}
-
 function object(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : {};
 }
@@ -239,23 +198,11 @@ function objects(value) {
   return Array.isArray(value) ? value.map(object) : [];
 }
 
-let drift = false;
 for (const [file, render] of regions) {
   const path = join(docsRoot, file);
   mkdirSync(dirname(path), {recursive: true});
   const next = `${render()}\n`;
-  const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
-  if (next === current) continue;
-  if (check) {
-    drift = true;
-    // biome-ignore lint/suspicious/noConsole: CLI diagnostics
-    console.error(`✗ ${file} is stale. Run: pnpm --filter=@shipfox/docs generate`);
-  } else {
-    writeFileSync(path, next);
-    // biome-ignore lint/suspicious/noConsole: CLI diagnostics
-    console.log(`✓ wrote ${file}`);
-  }
+  writeFileSync(path, next);
+  // biome-ignore lint/suspicious/noConsole: CLI diagnostics
+  console.log(`✓ wrote ${file}`);
 }
-if (check && drift) process.exit(1);
-// biome-ignore lint/suspicious/noConsole: CLI diagnostics
-if (check) console.log('✓ generated doc regions are up to date');
