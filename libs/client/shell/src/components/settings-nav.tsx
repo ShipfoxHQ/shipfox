@@ -1,0 +1,30 @@
+import {Button} from '@shipfox/react-ui/button';
+import {Icon} from '@shipfox/react-ui/icon';
+import {Link, useMatchRoute, useParams} from '@tanstack/react-router';
+import type {SettingsSectionEntry} from '#contract.js';
+
+export function SettingsNav({entries}: {entries: readonly SettingsSectionEntry[]}) {
+  const params = useParams({strict: false}) as {wid?: string};
+  const matchRoute = useMatchRoute();
+  if (!params.wid) return null;
+  return (
+    <nav aria-label="Workspace settings" className="flex flex-col gap-4">
+      {entries.map((entry) => {
+        const to = `/workspaces/$wid/settings/${entry.pathSegment}`;
+        const active = Boolean(matchRoute({to: to as never, params: {wid: params.wid} as never}));
+        return (
+          <Button key={entry.id} asChild variant={active ? 'secondary' : 'transparent'}>
+            <Link
+              to={to as never}
+              params={{wid: params.wid} as never}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon name={entry.icon} />
+              {entry.label}
+            </Link>
+          </Button>
+        );
+      })}
+    </nav>
+  );
+}

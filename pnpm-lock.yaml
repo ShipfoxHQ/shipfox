@@ -4453,6 +4453,76 @@ importers:
         specifier: ^4.1.5
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.0)(@vitest/browser-playwright@4.1.9)(happy-dom@20.10.6)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  libs/client/shell:
+    dependencies:
+      '@shipfox/client-auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@shipfox/client-config':
+        specifier: workspace:*
+        version: link:../config
+      '@shipfox/react-ui':
+        specifier: workspace:*
+        version: link:../../shared/react/ui
+      '@swc/helpers':
+        specifier: ^0.5.17
+        version: 0.5.23
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/client-test-setup':
+        specifier: workspace:*
+        version: link:../test-setup
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+      '@storybook/react':
+        specifier: ^10.0.0
+        version: 10.4.6(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)
+      '@tanstack/react-query':
+        specifier: ^5.101.0
+        version: 5.101.0(react@19.2.7)
+      '@tanstack/react-router':
+        specifier: ^1.170.16
+        version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@testing-library/jest-dom':
+        specifier: ^6.6.3
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@types/react':
+        specifier: ^19.1.11
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.1.7
+        version: 19.2.3(@types/react@19.2.17)
+      jotai:
+        specifier: ^2.19.1
+        version: 2.20.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.17)(react@19.2.7)
+      jsdom:
+        specifier: ^29.0.0
+        version: 29.1.1
+      react:
+        specifier: ^19.1.1
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.7(react@19.2.7)
+
   libs/client/test-setup:
     dependencies:
       '@shipfox/client-api':
