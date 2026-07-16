@@ -32,8 +32,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 FROM base AS runtime
 ENV NODE_ENV=production
 
-# Run unprivileged: the service only reads its own files and never writes them.
-RUN groupadd --system shipfox && useradd --system --gid shipfox --no-create-home shipfox
+# Install the OS trust store for native TLS clients, then run unprivileged.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system shipfox \
+    && useradd --system --gid shipfox --no-create-home shipfox
 
 COPY --from=build /prod ./
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/shipfox-entrypoint
