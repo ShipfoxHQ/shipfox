@@ -278,6 +278,12 @@ directory in `content/docs/integrations/meta.json`. The provider's `meta.json`
 groups its pages so the integrations sidebar can nest the pages under one
 provider entry instead of flattening every page into the top level.
 
+This guide defines the structure only. A follow-up migration creates
+`integrations/<provider>/{index,setup,events,tools}.mdx` as each provider needs
+them, then imports generated event and tool fragments into the canonical
+`events.mdx` and `tools.mdx` pages. Do not create, move, or redirect provider
+pages as part of a guidance-only change.
+
 ### Capabilities and availability
 
 Do not create an empty capability page. Create `events.mdx` only when Shipfox
@@ -303,7 +309,7 @@ these provider-specific homes:
 | Availability, purpose, authentication method, required access, integration connection slug pattern, and capability summary | Provider overview (`index.mdx`) | Provider registry capabilities, provider `src/config.ts`, and `libs/api/integration/core/src/config.ts` availability flags. |
 | Shipfox event names, emission conditions, and fields Shipfox normalizes or exposes on `event` | Provider events page (`events.mdx`) | `libs/api/integration/core-dto/src/events.ts`, each provider's `src/core/webhook.ts`, and its webhook DTO schemas. |
 | Raw pass-through webhook payload fields | The provider's upstream webhook reference | The provider owns and versions this schema. Link to it from `events.mdx`; do not reproduce it. |
-| Tool selectors, methods, sensitivity, approval, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's `src/core/agent-tools.ts` catalog and its schemas. |
+| Tool selectors, methods, sensitivity, sensitive status, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's public `*-dto/src/agent-tools/catalog.ts` catalog and its schemas. For GitHub, use `github-dto/src/agent-tools/catalog.ts`. |
 | Trigger `source`, `event`, `filter`, and `with` fields, plus the agent `integrations:` block | [Workflow schema reference](/reference/workflow-schema) | The workflow schema. Link to it instead of restating the contract. |
 | Inspecting, pausing, or deleting an integration connection | The matching `how-to/set-up-work/manage-*` guide | The connection lifecycle implementation. |
 
@@ -484,9 +490,9 @@ agent `integrations:` contract, see the [workflow schema reference](/reference/w
 <State the least-access and write opt-in model, with a link to [Integration
 connections and tools](/understand/integrations-connections-and-tools).>
 
-| Selector token | Sensitivity | Approval | Required provider scope |
+| Selector token | Sensitivity | Sensitive | Required provider scope |
 | --- | --- | --- | --- |
-| `<family>` | Read | <State whether approval is required.> | `<scope>` |
+| `<family>` | Read | No | `<scope>` |
 
 <Accordions type="single">
   <Accordion title="<family>">
@@ -502,9 +508,11 @@ connections and tools](/understand/integrations-connections-and-tools).>
 Keep the table compact and scannable. Group it by the provider's tool category
 when that makes a large catalog easier to scan. Wrap the tool accordions in one
 `<Accordions>` and use one `<Accordion>` per tool or tool family for methods,
-inputs, and outputs. The provider's `agent-tools.ts`
+inputs, and outputs. The provider's public `*-dto/src/agent-tools/catalog.ts`
 catalog owns these schemas, so reproduce them here rather than linking to an
-upstream schema.
+upstream schema. `sensitivity` describes read or write behavior. `sensitive`
+states whether the tool needs sensitive handling; it is not a separate approval
+policy.
 
 ### New provider checklist
 
@@ -526,10 +534,13 @@ upstream schema.
 ### Authored and generated reference
 
 Keep setup prose authored. The events `## Event names` table and tools
-`## Tool catalog` table are candidates for generated regions sourced from
-provider catalogs. This structure does not add generation. Add the
-`{/* generated:<id>:start */}` marker only in the same change that wires the
-generator to that source of truth.
+`## Tool catalog` table are candidates for Git-ignored MDX fragments generated
+from provider catalogs. The tracked `events.mdx` and `tools.mdx` pages import
+those fragments, keeping their navigation and authored context in the canonical
+page. Docs development, build, and test commands must generate the fragments
+before they read, build, or check those pages. This structure does not add
+generation or inline markers; wire the generator and its command lifecycle in
+the same follow-up that adds the fragments.
 
 ## Schema fields: document only shipped surface
 
