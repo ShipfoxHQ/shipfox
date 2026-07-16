@@ -1,5 +1,16 @@
 # @shipfox/client-triggers
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [1b0d344]
+  - @shipfox/api-triggers-dto@2.0.0
+  - @shipfox/client-ui@0.1.1
+  - @shipfox/client-integrations@0.1.1
+  - @shipfox/client-api@0.0.1
+  - @shipfox/react-ui@0.3.0
+
 ## 0.1.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # @shipfox/api-integration-gitea-dto
 
+## 2.0.0
+
+### Minor Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
+### Patch Changes
+
+- Updated dependencies [1b0d344]
+  - @shipfox/api-integration-core-dto@2.0.0
+
 ## 0.0.1
 
 ### Patch Changes

@@ -1,5 +1,35 @@
 # @shipfox/api-runners
 
+## 2.0.0
+
+### Minor Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
+### Patch Changes
+
+- Updated dependencies [0cd6dd4]
+- Updated dependencies [a68458a]
+- Updated dependencies [6eba800]
+- Updated dependencies [c31a7e0]
+- Updated dependencies [1b0d344]
+- Updated dependencies [521e006]
+  - @shipfox/node-module@0.2.0
+  - @shipfox/node-temporal@0.2.0
+  - @shipfox/api-auth@2.0.0
+  - @shipfox/api-auth-context@2.0.0
+  - @shipfox/api-runners-dto@2.0.0
+  - @shipfox/api-workflows-dto@2.0.0
+  - @shipfox/node-rate-limit@0.2.0
+  - @shipfox/node-tokens@0.2.0
+  - @shipfox/runner-labels@0.1.0
+  - @shipfox/config@1.2.1
+  - @shipfox/node-drizzle@0.2.1
+  - @shipfox/node-fastify@0.2.1
+  - @shipfox/node-opentelemetry@0.5.0
+  - @shipfox/node-outbox@0.2.1
+  - @shipfox/node-postgres@0.4.1
+
 ## 0.1.2
 
 ### Patch Changes

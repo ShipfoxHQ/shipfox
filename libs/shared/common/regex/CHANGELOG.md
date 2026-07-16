@@ -1,5 +1,11 @@
 # @shipfox/regex
 
+## 0.2.1
+
+### Patch Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
 ## 0.2.0
 
 ### Minor Changes

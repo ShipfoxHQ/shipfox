@@ -1,5 +1,16 @@
 # @shipfox/node-fastify
 
+## 0.2.1
+
+### Patch Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+- Updated dependencies [1b0d344]
+- Updated dependencies [521e006]
+  - @shipfox/config@1.2.1
+  - @shipfox/node-error-monitoring@0.1.2
+  - @shipfox/node-opentelemetry@0.5.0
+
 ## 0.2.0
 
 ### Minor Changes

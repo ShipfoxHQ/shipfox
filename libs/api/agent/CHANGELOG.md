@@ -1,5 +1,28 @@
 # @shipfox/api-agent
 
+## 2.0.0
+
+### Minor Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
+### Patch Changes
+
+- Updated dependencies [0cd6dd4]
+- Updated dependencies [1b0d344]
+- Updated dependencies [521e006]
+  - @shipfox/node-module@0.2.0
+  - @shipfox/api-agent-dto@2.0.0
+  - @shipfox/api-auth-context@2.0.0
+  - @shipfox/api-secrets@2.0.0
+  - @shipfox/node-egress-guard@0.1.0
+  - @shipfox/config@1.2.1
+  - @shipfox/node-drizzle@0.2.1
+  - @shipfox/node-fastify@0.2.1
+  - @shipfox/node-opentelemetry@0.5.0
+  - @shipfox/node-postgres@0.4.1
+  - @shipfox/redact@0.2.1
+
 ## 0.1.2
 
 ### Patch Changes

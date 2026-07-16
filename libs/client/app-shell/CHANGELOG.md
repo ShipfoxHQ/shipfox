@@ -1,5 +1,13 @@
 # @shipfox/client-app-shell
 
+## 0.0.4
+
+### Patch Changes
+
+- @shipfox/client-auth@0.0.4
+- @shipfox/client-projects@0.0.4
+- @shipfox/react-ui@0.3.0
+
 ## 0.0.3
 
 ### Patch Changes

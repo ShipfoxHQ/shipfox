@@ -1,5 +1,18 @@
 # @shipfox/api-auth-context
 
+## 2.0.0
+
+### Minor Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
+### Patch Changes
+
+- Updated dependencies [1b0d344]
+  - @shipfox/api-auth-dto@2.0.0
+  - @shipfox/api-workspaces-dto@2.0.0
+  - @shipfox/node-fastify@0.2.1
+
 ## 0.1.0
 
 ### Minor Changes
