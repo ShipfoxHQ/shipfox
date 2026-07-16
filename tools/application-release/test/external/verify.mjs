@@ -90,7 +90,7 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
             strict: true,
             target: 'ES2024',
           },
-          include: ['types.ts'],
+          include: ['types.ts', 'composition.ts'],
         },
         null,
         2,
@@ -107,8 +107,17 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
         )}\n\n${typeEntryPoints.map((_, index) => `void (0 as unknown as typeof Entry${index});`).join('\n')}\n`,
     ),
     writeFile(
+      join(root, 'composition.ts'),
+      `import {createServer, defaultModules} from '@shipfox/api-server';
+
+void createServer({
+  modules: [...(await defaultModules()), {name: 'external-dummy'}],
+});
+`,
+    ),
+    writeFile(
       join(root, 'runtime-imports.mjs'),
-      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points.\`);\nprocess.exit(0);\n`,
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconst {createServer, defaultModules} = await import('@shipfox/api-server');\nif (typeof createServer !== 'function' || typeof defaultModules !== 'function')\n  throw new Error('Packed API server does not export its composition API.');\nconst modules = [...(await defaultModules()), {name: 'external-dummy'}];\nif (modules.at(-1)?.name !== 'external-dummy')\n  throw new Error('Could not append an external module to the packed API server defaults.');\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points and composed API modules.\`);\nprocess.exit(0);\n`,
     ),
   ]);
 }

@@ -45,7 +45,6 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
-    "test:external": "pnpm exec turbo build --filter=@shipfox/api-server --filter=@shipfox/application-release && node test/external/verify.mjs",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
@@ -72,7 +71,6 @@
     "@shipfox/node-postgres": "workspace:*"
   },
   "devDependencies": {
-    "@shipfox/application-release": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
