@@ -278,11 +278,9 @@ directory in `content/docs/integrations/meta.json`. The provider's `meta.json`
 groups its pages so the integrations sidebar can nest the pages under one
 provider entry instead of flattening every page into the top level.
 
-This guide defines the structure only. A follow-up migration creates
-`integrations/<provider>/{index,setup,events,tools}.mdx` as each provider needs
-them, then imports generated event and tool fragments into the canonical
-`events.mdx` and `tools.mdx` pages. Do not create, move, or redirect provider
-pages as part of a guidance-only change.
+Provider pages use `integrations/<provider>/{index,setup,events,tools}.mdx`.
+The canonical `events.mdx` and `tools.mdx` pages import generated event and tool
+fragments.
 
 ### Capabilities and availability
 
@@ -538,9 +536,7 @@ Keep setup prose authored. The events `## Event names` table and tools
 from provider catalogs. The tracked `events.mdx` and `tools.mdx` pages import
 those fragments, keeping their navigation and authored context in the canonical
 page. Docs development, build, and test commands must generate the fragments
-before they read, build, or check those pages. This structure does not add
-generation or inline markers; wire the generator and its command lifecycle in
-the same follow-up that adds the fragments.
+before they read, build, or check those pages. Do not use inline markers.
 
 ## Schema fields: document only shipped surface
 
