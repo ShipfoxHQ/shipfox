@@ -4,9 +4,6 @@ sidebarTitle: "GitHub"
 description: "Look up GitHub integration connection slugs, event names, payload behavior, and filters."
 ---
 
-import GithubEvents from '../../generated/integrations/github-events.mdx';
-import GithubTools from '../../generated/integrations/github-tools.mdx';
-
 Shipfox receives repository events through a GitHub App. [Connect
 GitHub](/how-to/set-up-work/connect-github) creates the integration connection used here.
 
@@ -26,7 +23,15 @@ triggers:
 
 ## Events
 
-<GithubEvents />
+The common event is `push`. Shipfox also forwards GitHub App events. Their names
+use `<resource>` or `<resource>.<action>`. Examples include
+`pull_request.opened`, `issues.opened`, and `release.published`.
+
+GitHub owns the complete event catalog and payload definitions:
+
+<Card title="GitHub webhook events and payloads" href="https://docs.github.com/en/webhooks/webhook-events-and-payloads">
+  The authoritative GitHub event and payload reference.
+</Card>
 
 ## Event payload
 
@@ -35,10 +40,6 @@ includes the full Git ref. It also includes the head commit, repository, and
 default branch fields sent by GitHub.
 
 The branch ref uses the full Git form, such as `refs/heads/main`.
-
-## Agent tools
-
-<GithubTools />
 
 ## Filtering
 

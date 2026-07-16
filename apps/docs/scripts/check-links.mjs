@@ -14,9 +14,6 @@ const pages = (await filesUnder(contentRoot)).filter((file) => file.endsWith('.m
 const routes = new Set(pages.map(routeFor));
 const generatedFragmentsByRoute = new Map([
   ['/reference/model-providers', ['reference/model-providers.mdx']],
-  ['/integrations/github', ['integrations/github-events.mdx', 'integrations/github-tools.mdx']],
-  ['/integrations/sentry', ['integrations/sentry-events.mdx']],
-  ['/integrations/webhooks', ['integrations/webhook-events.mdx']],
 ]);
 const pageContents = new Map(
   await Promise.all(pages.map(async (file) => [file, await contentFor(file)])),

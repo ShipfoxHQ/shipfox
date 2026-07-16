@@ -4,8 +4,6 @@ sidebarTitle: "Custom Webhook"
 description: "Look up custom webhook requests, delivery IDs, responses, and event fields."
 ---
 
-import WebhookEvents from '../../generated/integrations/webhook-events.mdx';
-
 A custom webhook has an ingest URL. Each accepted request creates a `received`
 event. [Create and verify a custom
 webhook](/how-to/set-up-work/create-custom-webhook) shows how to make one and
@@ -24,10 +22,6 @@ triggers:
     source: deploy_hook # Replace with your webhook integration connection slug.
     event: received
 ```
-
-## Events
-
-<WebhookEvents />
 
 ## Request contract
 

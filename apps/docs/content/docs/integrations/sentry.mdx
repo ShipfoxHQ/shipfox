@@ -4,8 +4,6 @@ sidebarTitle: "Sentry"
 description: "Look up Sentry integration connection slugs, issue event names, event fields, and filters."
 ---
 
-import SentryEvents from '../../generated/integrations/sentry-events.mdx';
-
 Shipfox receives issue events through a Sentry App. [Connect
 Sentry](/how-to/set-up-work/connect-sentry) creates the integration connection used here.
 
@@ -25,7 +23,19 @@ triggers:
 
 ## Events
 
-<SentryEvents />
+Shipfox records these Sentry issue events:
+
+- `issue.created`
+- `issue.resolved`
+- `issue.assigned`
+- `issue.archived`
+- `issue.unresolved`
+
+Sentry owns the lifecycle meaning and original webhook payload:
+
+<Card title="Sentry issue webhooks" href="https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/">
+  The authoritative Sentry issue webhook reference.
+</Card>
 
 ## Normalized event payload
 

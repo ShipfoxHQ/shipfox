@@ -17,19 +17,19 @@ const check = process.argv.includes('--check');
 const regions = [
   ['content/generated/reference/model-providers.mdx', renderModelProvidersTable],
   [
-    'content/generated/integrations/github-events.mdx',
+    'content/generated/integrations/github/events.mdx',
     () => renderEventCatalog(githubEventCatalog),
   ],
   [
-    'content/generated/integrations/github-tools.mdx',
+    'content/generated/integrations/github/tools.mdx',
     () => renderToolCatalog(githubAgentToolCatalog, githubAgentToolSelectionCatalog),
   ],
   [
-    'content/generated/integrations/sentry-events.mdx',
+    'content/generated/integrations/sentry/events.mdx',
     () => renderEventCatalog(sentryEventCatalog),
   ],
   [
-    'content/generated/integrations/webhook-events.mdx',
+    'content/generated/integrations/webhooks/events.mdx',
     () => renderEventCatalog(webhookEventCatalog),
   ],
 ];
