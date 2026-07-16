@@ -1,5 +1,15 @@
 # @shipfox/client-ui
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [1b0d344]
+  - @shipfox/annotations-dto@2.0.0
+  - @shipfox/regex@0.2.1
+  - @shipfox/client-api@0.0.1
+  - @shipfox/react-ui@0.3.0
+
 ## 0.1.0
 
 ### Minor Changes

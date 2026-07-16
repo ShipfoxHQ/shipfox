@@ -1,5 +1,11 @@
 # @shipfox/ts-config
 
+## 1.3.8
+
+### Patch Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
 ## 1.3.7
 
 ### Patch Changes

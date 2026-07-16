@@ -1,5 +1,20 @@
 # @shipfox/node-opentelemetry
 
+## 0.5.0
+
+### Minor Changes
+
+- 521e006: Adds the @shipfox/api-server package with server lifecycle, default module composition, and an
+  instrumentation preload entry, and exposes shutdownServiceMetrics from @shipfox/node-opentelemetry.
+
+### Patch Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+- Updated dependencies [1b0d344]
+  - @shipfox/config@1.2.1
+  - @shipfox/node-log@0.3.3
+  - @shipfox/regex@0.2.1
+
 ## 0.4.2
 
 ### Patch Changes

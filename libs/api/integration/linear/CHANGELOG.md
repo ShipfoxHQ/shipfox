@@ -1,5 +1,27 @@
 # @shipfox/api-integration-linear
 
+## 2.0.0
+
+### Minor Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
+### Patch Changes
+
+- Updated dependencies [c31a7e0]
+- Updated dependencies [1b0d344]
+- Updated dependencies [521e006]
+  - @shipfox/api-workspaces@2.0.0
+  - @shipfox/api-auth-context@2.0.0
+  - @shipfox/api-integration-core-dto@2.0.0
+  - @shipfox/api-integration-linear-dto@2.0.0
+  - @shipfox/api-secrets@2.0.0
+  - @shipfox/config@1.2.1
+  - @shipfox/node-drizzle@0.2.1
+  - @shipfox/node-fastify@0.2.1
+  - @shipfox/node-opentelemetry@0.5.0
+  - @shipfox/node-postgres@0.4.1
+
 ## 1.0.2
 
 ### Patch Changes

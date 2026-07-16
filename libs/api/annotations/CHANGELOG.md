@@ -1,5 +1,23 @@
 # @shipfox/annotations
 
+## 2.0.0
+
+### Minor Changes
+
+- 1b0d344: Publishes the complete API runtime closure with packed-consumer-safe internal imports and records its exact package set in application releases.
+
+### Patch Changes
+
+- Updated dependencies [0cd6dd4]
+- Updated dependencies [1b0d344]
+  - @shipfox/node-module@0.2.0
+  - @shipfox/annotations-dto@2.0.0
+  - @shipfox/api-auth-context@2.0.0
+  - @shipfox/config@1.2.1
+  - @shipfox/node-drizzle@0.2.1
+  - @shipfox/node-fastify@0.2.1
+  - @shipfox/node-postgres@0.4.1
+
 ## 0.0.3
 
 ### Patch Changes
