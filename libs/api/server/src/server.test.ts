@@ -470,19 +470,25 @@ describe('runServer', () => {
     vi.restoreAllMocks();
   });
 
-  it('releases its server when startup fails', async () => {
+  it('reports its startup error before releasing the server', async () => {
     const failure = new Error('listener unavailable');
+    const onStartupFailure = vi.fn();
     mocks.listen.mockRejectedValueOnce(failure);
 
-    const result = runServer({modules: [module()]});
+    const result = runServer({modules: [module()], onStartupFailure});
 
     await expect(result).rejects.toBe(failure);
+    expect(onStartupFailure).toHaveBeenCalledWith(failure);
     expect(mocks.closeApp).toHaveBeenCalledOnce();
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
     expect(mocks.resetPublishers).toHaveBeenCalledOnce();
     expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
+    expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
+    expect(onStartupFailure.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.closeErrorMonitoring.mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
   it('installs SIGTERM and SIGINT handlers that stop before exiting successfully', async () => {
