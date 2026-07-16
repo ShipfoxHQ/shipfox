@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 const docsRoot = fileURLToPath(new URL('..', import.meta.url));
 const files = [
   ...(await filesUnder(path.join(docsRoot, 'content', 'docs'))),
+  ...(await filesUnder(path.join(docsRoot, 'content', 'generated'))),
   path.join(docsRoot, 'WRITING.md'),
   path.join(docsRoot, '..', '..', 'WRITING.md'),
 ];

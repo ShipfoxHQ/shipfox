@@ -1,27 +1,35 @@
 import {readdir, readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {GithubSlugger} from './lib/slug.mjs';
 
 const docsRoot = fileURLToPath(new URL('..', import.meta.url));
 const contentRoot = path.join(docsRoot, 'content', 'docs');
+const generatedRoot = path.join(docsRoot, 'content', 'generated');
 const internalLinkPattern = /(?:\]\(|href=["'])((?:\/|#)[^)"'\s]+)(?:\)|["'])/g;
 const mdxExtensionPattern = /\.mdx$/;
 const headingPattern = /^#{1,6}\s+(.+?)\s*#*\s*$/gm;
 const trailingSlashPattern = /\/$/;
 const pages = (await filesUnder(contentRoot)).filter((file) => file.endsWith('.mdx'));
 const routes = new Set(pages.map(routeFor));
+const generatedFragmentsByRoute = new Map([
+  ['/reference/model-providers', ['reference/model-providers.mdx']],
+]);
+const generatedFragments = (await filesUnder(generatedRoot)).filter((file) =>
+  file.endsWith('.mdx'),
+);
+const pageContents = new Map(
+  await Promise.all(pages.map(async (file) => [file, await contentFor(file)])),
+);
 const anchorsByRoute = new Map(
   await Promise.all(
-    pages.map(async (file) => {
-      const content = await readFile(file, 'utf8');
-      return [routeFor(file), anchorsFor(content)];
-    }),
+    pages.map(async (file) => [routeFor(file), anchorsFor(pageContents.get(file) ?? '')]),
   ),
 );
 const violations = [];
 
 for (const file of pages) {
-  const content = await readFile(file, 'utf8');
+  const content = pageContents.get(file) ?? '';
   for (const match of content.matchAll(internalLinkPattern)) {
     const target = match[1];
     if (!target || target.startsWith('/img/')) continue;
@@ -35,6 +43,28 @@ for (const file of pages) {
       violations.push(`${path.relative(docsRoot, file)} -> ${target} (missing heading)`);
     }
   }
+}
+
+for (const fragment of generatedFragments) {
+  const content = await readFile(fragment, 'utf8');
+  const anchors = anchorsFor(content);
+  for (const match of content.matchAll(internalLinkPattern)) {
+    const target = match[1];
+    if (!target?.startsWith('#')) continue;
+    const anchor = decodeURIComponent(target.slice(1));
+    if (!anchors.has(anchor)) {
+      violations.push(`${path.relative(docsRoot, fragment)} -> ${target} (missing heading)`);
+    }
+  }
+}
+
+async function contentFor(file) {
+  const fragments = generatedFragmentsByRoute.get(routeFor(file)) ?? [];
+  const content = await readFile(file, 'utf8');
+  const generated = await Promise.all(
+    fragments.map(async (fragment) => await readFile(path.join(generatedRoot, fragment), 'utf8')),
+  );
+  return [content, ...generated].join('\n');
 }
 
 if (violations.length > 0) {
@@ -61,30 +91,25 @@ function routeFor(file) {
 
 function anchorsFor(content) {
   const anchors = new Set();
-  const counts = new Map();
+  const slugger = new GithubSlugger();
 
   for (const match of content.matchAll(headingPattern)) {
     const heading = match[1];
     if (!heading) continue;
-    const base = slugForHeading(heading);
-    const count = counts.get(base) ?? 0;
-    counts.set(base, count + 1);
-    anchors.add(count === 0 ? base : `${base}-${count}`);
+    anchors.add(slugger.slug(headingText(heading)));
   }
 
   return anchors;
 }
 
-function slugForHeading(heading) {
+function headingText(heading) {
   return heading
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]+>/g, '')
-    .replace(/[`*_~]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{Letter}\p{Number}\s-]/gu, '')
-    .replace(/\s+/g, '-');
+    .replace(/(^|[^\p{Letter}\p{Number}])__([\s\S]+?)__($|[^\p{Letter}\p{Number}])/gu, '$1$2$3')
+    .replace(/(^|[^\p{Letter}\p{Number}])_([\s\S]+?)_($|[^\p{Letter}\p{Number}])/gu, '$1$2$3')
+    .replace(/[`*~]/g, '');
 }
 
 async function filesUnder(directory) {

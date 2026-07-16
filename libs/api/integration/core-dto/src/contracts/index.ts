@@ -1,4 +1,9 @@
 export type {
+  IntegrationEventCatalog,
+  IntegrationEventDoc,
+  IntegrationEventPayloadKind,
+} from './event-catalog.js';
+export type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
   AgentToolCatalogMethod,
