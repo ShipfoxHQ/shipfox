@@ -70,7 +70,7 @@ export function composeClientApp({features}: {features: readonly ClientFeature[]
   };
 }
 
-async function resolveDynamicRouteImpl(specifier: string): Promise<RouteImpl> {
+export async function resolveDynamicRouteImpl(specifier: string): Promise<RouteImpl> {
   const module = await import(specifier);
   const implementation = module.default ?? module.Route;
   if (implementation && typeof implementation === 'object' && 'options' in implementation) {
