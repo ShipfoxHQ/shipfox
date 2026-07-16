@@ -1,8 +1,14 @@
 import type {NativeConnection} from '@temporalio/worker';
 import type {CreateWorkerOptions} from './worker.js';
-import {createTemporalWorker, createTemporalWorkerConnection} from './worker.js';
+import {
+  bundleProductionWorkflow,
+  createTemporalWorker,
+  createTemporalWorkerConnection,
+  productionWorkflowBundlerOptions,
+} from './worker.js';
 
 const mocks = vi.hoisted(() => ({
+  bundleWorkflowCode: vi.fn(),
   nativeConnectionConnect: vi.fn(),
   workerCreate: vi.fn(),
   logger: {info: vi.fn()},
@@ -15,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@temporalio/worker', () => ({
+  bundleWorkflowCode: mocks.bundleWorkflowCode,
   NativeConnection: {connect: mocks.nativeConnectionConnect},
   Worker: {create: mocks.workerCreate},
 }));
@@ -77,6 +84,8 @@ describe('createTemporalWorkerConnection', () => {
 
 describe('createTemporalWorker', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
+    mocks.bundleWorkflowCode.mockReset();
     mocks.nativeConnectionConnect.mockReset();
     mocks.workerCreate.mockReset();
     mocks.logger.info.mockReset();
@@ -113,5 +122,62 @@ describe('createTemporalWorker', () => {
     expect(mocks.nativeConnectionConnect).not.toHaveBeenCalled();
     expect(mocks.workerCreate).toHaveBeenCalledWith(expect.objectContaining({connection}));
     expect(connection.close).not.toHaveBeenCalled();
+  });
+
+  it('keeps workspace development workflow resolution unchanged', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+
+    await createTemporalWorker(workerOptions());
+
+    expect(mocks.workerCreate).toHaveBeenCalledWith(
+      expect.not.objectContaining({bundlerOptions: expect.anything()}),
+    );
+  });
+
+  it('uses production workflow resolution in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
+    await createTemporalWorker(workerOptions());
+
+    expect(mocks.workerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bundlerOptions: expect.objectContaining({webpackConfigHook: expect.any(Function)}),
+      }),
+    );
+  });
+});
+
+describe('productionWorkflowBundlerOptions', () => {
+  it('uses production conditions without replacing Temporal resolution settings', () => {
+    const extensions = ['.ts', '.js'];
+    const extensionAlias = {'.js': ['.ts', '.js']};
+    const webpackConfig = {resolve: {extensions, extensionAlias}};
+
+    const result = productionWorkflowBundlerOptions().webpackConfigHook?.(webpackConfig);
+
+    expect(result?.resolve).toEqual(
+      expect.objectContaining({
+        extensions,
+        extensionAlias,
+        conditionNames: expect.arrayContaining(['webpack', 'production', 'node', 'import']),
+      }),
+    );
+    expect(result?.resolve?.conditionNames).not.toContain('development');
+    expect(result?.resolve?.conditionNames).not.toContain('workspace-source');
+  });
+});
+
+describe('bundleProductionWorkflow', () => {
+  it('uses the same production bundler options as a production worker', async () => {
+    mocks.bundleWorkflowCode.mockResolvedValue({code: 'workflow bundle'});
+
+    await bundleProductionWorkflow('/tmp/workflows.js');
+
+    expect(mocks.bundleWorkflowCode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowsPath: '/tmp/workflows.js',
+        webpackConfigHook: expect.any(Function),
+      }),
+    );
   });
 });
