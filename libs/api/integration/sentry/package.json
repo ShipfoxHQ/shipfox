@@ -32,7 +32,7 @@
     }
   },
   "scripts": {
-    "build": "shipfox-swc",
+    "build": "shipfox-swc && shipfox-temporal-bundle dist/temporal/workflows/index.js",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
@@ -57,6 +57,7 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/node-temporal": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",

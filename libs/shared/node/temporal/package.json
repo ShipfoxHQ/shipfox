@@ -19,6 +19,9 @@
       "default": "./dist/*"
     }
   },
+  "bin": {
+    "shipfox-temporal-bundle": "./bin/bundle.js"
+  },
   "exports": {
     ".": {
       "development": {

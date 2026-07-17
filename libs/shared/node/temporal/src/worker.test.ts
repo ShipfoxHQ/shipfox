@@ -1,19 +1,16 @@
 import type {NativeConnection} from '@temporalio/worker';
 import type {CreateWorkerOptions} from './worker.js';
-import {
-  bundleProductionWorkflow,
-  createTemporalWorker,
-  createTemporalWorkerConnection,
-  productionWorkflowBundlerOptions,
-} from './worker.js';
+import {createTemporalWorker, createTemporalWorkerConnection} from './worker.js';
 
 const mocks = vi.hoisted(() => ({
-  bundleWorkflowCode: vi.fn(),
   nativeConnectionConnect: vi.fn(),
   workerCreate: vi.fn(),
   logger: {info: vi.fn()},
   getTemporalConnectionOptions: vi.fn(),
   temporalConnectionError: vi.fn(),
+  getWorkerInterceptors: vi.fn(),
+  getWorkflowInterceptorModules: vi.fn(),
+  loadProductionWorkflowBundle: vi.fn(),
   temporalConfig: {
     TEMPORAL_NAMESPACE: 'test-namespace',
     TEMPORAL_TASK_QUEUE: 'test-queue',
@@ -21,7 +18,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@temporalio/worker', () => ({
-  bundleWorkflowCode: mocks.bundleWorkflowCode,
   NativeConnection: {connect: mocks.nativeConnectionConnect},
   Worker: {create: mocks.workerCreate},
 }));
@@ -36,6 +32,15 @@ vi.mock('./connection-options.js', () => ({
 }));
 
 vi.mock('./config.js', () => ({config: mocks.temporalConfig}));
+
+vi.mock('./bundle.js', () => ({
+  loadProductionWorkflowBundle: mocks.loadProductionWorkflowBundle,
+}));
+
+vi.mock('./interceptors.js', () => ({
+  getWorkerInterceptors: mocks.getWorkerInterceptors,
+  getWorkflowInterceptorModules: mocks.getWorkflowInterceptorModules,
+}));
 
 function workerOptions(overrides: Partial<CreateWorkerOptions> = {}): CreateWorkerOptions {
   return {
@@ -85,15 +90,20 @@ describe('createTemporalWorkerConnection', () => {
 describe('createTemporalWorker', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
-    mocks.bundleWorkflowCode.mockReset();
     mocks.nativeConnectionConnect.mockReset();
     mocks.workerCreate.mockReset();
     mocks.logger.info.mockReset();
     mocks.getTemporalConnectionOptions.mockReset();
     mocks.temporalConnectionError.mockReset();
+    mocks.getWorkerInterceptors.mockReset();
+    mocks.getWorkflowInterceptorModules.mockReset();
+    mocks.loadProductionWorkflowBundle.mockReset();
     mocks.nativeConnectionConnect.mockResolvedValue({});
     mocks.workerCreate.mockResolvedValue({});
     mocks.getTemporalConnectionOptions.mockReturnValue({address: 'temporal.example.test:7233'});
+    mocks.getWorkerInterceptors.mockReturnValue({activity: []});
+    mocks.getWorkflowInterceptorModules.mockReturnValue(['/tmp/workflow-interceptor.js']);
+    mocks.loadProductionWorkflowBundle.mockReturnValue({codePath: '/tmp/workflows.bundle.js'});
   });
 
   it('creates a connection when one is not provided', async () => {
@@ -124,60 +134,33 @@ describe('createTemporalWorker', () => {
     expect(connection.close).not.toHaveBeenCalled();
   });
 
-  it('keeps workspace development workflow resolution unchanged', async () => {
+  it('keeps workspace development workflow resolution source-based', async () => {
     vi.stubEnv('NODE_ENV', 'development');
 
     await createTemporalWorker(workerOptions());
 
-    expect(mocks.workerCreate).toHaveBeenCalledWith(
-      expect.not.objectContaining({bundlerOptions: expect.anything()}),
-    );
+    const createdWorkerOptions = mocks.workerCreate.mock.calls[0]?.[0];
+    expect(createdWorkerOptions).toMatchObject({
+      workflowsPath: '/tmp/workflows.js',
+      interceptors: {activity: [], workflowModules: ['/tmp/workflow-interceptor.js']},
+    });
+    expect(createdWorkerOptions).not.toHaveProperty('workflowBundle');
+    expect(mocks.loadProductionWorkflowBundle).not.toHaveBeenCalled();
   });
 
-  it('uses production workflow resolution in production', async () => {
+  it('uses a prebuilt workflow bundle in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
 
     await createTemporalWorker(workerOptions());
 
-    expect(mocks.workerCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        bundlerOptions: expect.objectContaining({webpackConfigHook: expect.any(Function)}),
-      }),
-    );
-  });
-});
-
-describe('productionWorkflowBundlerOptions', () => {
-  it('uses production conditions without replacing Temporal resolution settings', () => {
-    const extensions = ['.ts', '.js'];
-    const extensionAlias = {'.js': ['.ts', '.js']};
-    const webpackConfig = {resolve: {extensions, extensionAlias}};
-
-    const result = productionWorkflowBundlerOptions().webpackConfigHook?.(webpackConfig);
-
-    expect(result?.resolve).toEqual(
-      expect.objectContaining({
-        extensions,
-        extensionAlias,
-        conditionNames: expect.arrayContaining(['webpack', 'production', 'node', 'import']),
-      }),
-    );
-    expect(result?.resolve?.conditionNames).not.toContain('development');
-    expect(result?.resolve?.conditionNames).not.toContain('workspace-source');
-  });
-});
-
-describe('bundleProductionWorkflow', () => {
-  it('uses the same production bundler options as a production worker', async () => {
-    mocks.bundleWorkflowCode.mockResolvedValue({code: 'workflow bundle'});
-
-    await bundleProductionWorkflow('/tmp/workflows.js');
-
-    expect(mocks.bundleWorkflowCode).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowsPath: '/tmp/workflows.js',
-        webpackConfigHook: expect.any(Function),
-      }),
-    );
+    const createdWorkerOptions = mocks.workerCreate.mock.calls[0]?.[0];
+    expect(createdWorkerOptions).toMatchObject({
+      workflowBundle: {codePath: '/tmp/workflows.bundle.js'},
+      interceptors: {activity: []},
+    });
+    expect(createdWorkerOptions).not.toHaveProperty('workflowsPath');
+    expect(createdWorkerOptions).not.toHaveProperty('bundlerOptions');
+    expect(createdWorkerOptions?.interceptors).not.toHaveProperty('workflowModules');
+    expect(mocks.loadProductionWorkflowBundle).toHaveBeenCalledWith('/tmp/workflows.js');
   });
 });

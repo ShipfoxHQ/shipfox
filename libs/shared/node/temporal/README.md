@@ -10,6 +10,7 @@ Temporal client and worker helpers for Shipfox Node services.
 - **`isTemporalHealthy()`**: Checks the Temporal connection health service.
 - **`createTemporalWorkerConnection()`**: Creates a Temporal worker connection for a caller that owns its lifecycle.
 - **`createTemporalWorker(options)`**: Creates a worker with Shipfox defaults.
+- **Prebuilt workflow bundles**: Builds and loads production workflow artifacts without bundling at worker startup.
 - **Interceptor helpers**: Return client, worker, and workflow settings.
 
 ## Installation
@@ -74,6 +75,9 @@ await connection.close();
 - A `tmprl.cloud` address without `TEMPORAL_API_KEY` stops startup with a configuration error.
 - A non-Cloud address with `TEMPORAL_API_KEY` also stops startup so the key cannot be sent to it.
 - This package does not configure mutual TLS (mTLS) client certificates.
+- Production packages run `shipfox-temporal-bundle` after SWC emits a workflow entrypoint. The command writes sibling `*.bundle.js` and `*.bundle.meta.json` files.
+- Production workers load the bundle instead of compiling it. Startup fails when an artifact is missing. It also fails when the `@temporalio/worker` version differs from the runtime version.
+- Development workers keep using `workflowsPath`. The bundle build includes workflow interceptors. Production workers do not pass workflow interceptor modules.
 
 ## Development
 

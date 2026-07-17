@@ -2265,6 +2265,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/node-temporal':
+        specifier: workspace:*
+        version: link:../../../shared/node/temporal
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc

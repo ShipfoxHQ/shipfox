@@ -1,3 +1,8 @@
+import {mkdtemp, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join, resolve} from 'node:path';
+import {bundleProductionWorkflow} from '@shipfox/node-temporal';
+import {Worker} from '@temporalio/worker';
 import {
   callsNamed,
   dagJob,
@@ -11,6 +16,9 @@ import {
   teardownEnv,
   testEnv,
 } from './test-env.js';
+
+const PREBUILT_WORKFLOW_TASK_QUEUE = 'test-prebuilt-workflow-bundle';
+const WORKFLOWS_PATH = resolve(import.meta.dirname, '../../../dist/temporal/workflows/index.js');
 
 beforeAll(async () => {
   await setupEnv();
@@ -308,4 +316,33 @@ describe('jobExecutionOrchestration', () => {
     await handle.signal('job-finished', {status: 'failed'});
     await handle.result();
   }, 15_000);
+});
+
+describe('prebuilt workflow bundle', () => {
+  it('starts a worker from a prebuilt workflow bundle', async () => {
+    const bundleDirectory = await mkdtemp(join(tmpdir(), 'shipfox-prebuilt-workflow-'));
+    const codePath = join(bundleDirectory, 'workflows.bundle.js');
+    let prebuiltWorker: Worker | undefined;
+    let workerRunPromise: Promise<void> | undefined;
+
+    try {
+      const workflowBundle = await bundleProductionWorkflow(WORKFLOWS_PATH);
+      await writeFile(codePath, workflowBundle.code);
+      prebuiltWorker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        taskQueue: PREBUILT_WORKFLOW_TASK_QUEUE,
+        workflowBundle: {codePath},
+        activities: {},
+      });
+      workerRunPromise = prebuiltWorker.run();
+
+      await new Promise<void>((resolvePromise) => setImmediate(resolvePromise));
+
+      expect(prebuiltWorker.getStatus().runState).toBe('RUNNING');
+    } finally {
+      prebuiltWorker?.shutdown();
+      await workerRunPromise;
+      await rm(bundleDirectory, {recursive: true, force: true});
+    }
+  }, 10_000);
 });

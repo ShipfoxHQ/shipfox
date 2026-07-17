@@ -32,7 +32,7 @@
     }
   },
   "scripts": {
-    "build": "shipfox-swc",
+    "build": "shipfox-swc && shipfox-temporal-bundle dist/temporal/workflows/dispatch.js",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
