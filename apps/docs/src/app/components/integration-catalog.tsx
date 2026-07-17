@@ -3,11 +3,10 @@
 import {Combobox, type ComboboxOption} from '@shipfox/react-ui/combobox';
 import {Webhook} from 'lucide-react';
 import Link from 'next/link';
-import {useMemo, useState} from 'react';
+import {type ReactNode, useMemo, useState} from 'react';
 import {siGithub, siLinear, siSentry, siSlack} from 'simple-icons';
 import {
   type CatalogAvailability,
-  type CatalogCapability,
   type CatalogIcon,
   type CatalogProvider,
   catalogAvailabilityLabels,
@@ -25,6 +24,16 @@ const capabilityOptions: ComboboxOption[] = INTEGRATION_CATALOG_CAPABILITIES.map
   value: capability,
   label: catalogCapabilityLabels[capability],
 }));
+const availabilityOptions: ComboboxOption[] = INTEGRATION_CATALOG_AVAILABILITIES.map(
+  (availability) => ({
+    value: availability,
+    label: catalogAvailabilityLabels[availability],
+  }),
+);
+const categoryOptions: ComboboxOption[] = INTEGRATION_CATALOG_CATEGORIES.map((category) => ({
+  value: category,
+  label: catalogCategoryLabels[category],
+}));
 
 const availabilityClasses: Record<CatalogAvailability, string> = {
   available: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
@@ -38,6 +47,7 @@ interface IntegrationCatalogProps {
 
 export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
   const [filters, setFilters] = useState(emptyCatalogFilters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const filteredProviders = useMemo(
     () => filterProviders(providers, filters),
     [filters, providers],
@@ -47,73 +57,108 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
     filters.availability.length > 0 ||
     filters.capability.length > 0 ||
     filters.category.length > 0;
+  const activeFilterCount =
+    filters.availability.length + filters.capability.length + filters.category.length;
 
   return (
     <section aria-label="Integration catalog" className="not-prose my-8 space-y-6">
       <div className="space-y-4 rounded-lg border border-fd-border bg-fd-card p-4 sm:p-5">
-        <div>
-          <label
-            htmlFor="integration-catalog-search"
-            className="text-sm font-medium text-fd-foreground"
+        <div className="lg:grid lg:grid-cols-[minmax(14rem,1fr)_repeat(3,minmax(0,11rem))] lg:items-end lg:gap-3">
+          <div>
+            <label
+              htmlFor="integration-catalog-search"
+              className="text-sm font-medium text-fd-foreground"
+            >
+              Search integrations
+            </label>
+            <input
+              id="integration-catalog-search"
+              type="search"
+              value={filters.query}
+              onChange={(event) =>
+                setFilters((current) => ({...current, query: event.target.value}))
+              }
+              placeholder="Search by provider, category, or related term"
+              className="mt-2 min-h-11 w-full rounded-md border border-fd-border bg-fd-background px-3 text-sm text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
+            />
+          </div>
+          <div className="mt-4 flex justify-end lg:hidden">
+            <button
+              type="button"
+              aria-controls="integration-catalog-filters"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen((open) => !open)}
+              className="min-h-11 rounded-md border border-fd-border px-3 text-sm font-medium text-fd-foreground outline-none hover:bg-fd-muted focus-visible:ring-2 focus-visible:ring-fd-ring"
+            >
+              {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : 'Filters'}
+            </button>
+          </div>
+          <div
+            id="integration-catalog-filters"
+            className={`${filtersOpen ? 'grid' : 'hidden'} mt-4 gap-4 sm:grid-cols-2 lg:!grid lg:mt-0 lg:grid-cols-3 lg:gap-3`}
           >
-            Search integrations
-          </label>
-          <input
-            id="integration-catalog-search"
-            type="search"
-            value={filters.query}
-            onChange={(event) => setFilters((current) => ({...current, query: event.target.value}))}
-            placeholder="Search by provider, category, or related term"
-            className="mt-2 min-h-11 w-full rounded-md border border-fd-border bg-fd-background px-3 text-sm text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
-          />
+            <CatalogFilterField label="Availability" htmlFor="integration-catalog-availability">
+              <Combobox
+                id="integration-catalog-availability"
+                multiple
+                options={availabilityOptions}
+                value={[...filters.availability]}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    availability: toCatalogValues(value, INTEGRATION_CATALOG_AVAILABILITIES),
+                  }))
+                }
+                placeholder="All availability"
+                searchPlaceholder="Search availability"
+                emptyState="No availability found."
+                className="integration-catalog-combobox mt-2"
+                popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
+                maxVisibleChips={2}
+              />
+            </CatalogFilterField>
+            <CatalogFilterField label="Capability" htmlFor="integration-catalog-capabilities">
+              <Combobox
+                id="integration-catalog-capabilities"
+                multiple
+                options={capabilityOptions}
+                value={[...filters.capability]}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    capability: toCatalogValues(value, INTEGRATION_CATALOG_CAPABILITIES),
+                  }))
+                }
+                placeholder="All capabilities"
+                searchPlaceholder="Search capabilities"
+                emptyState="No capabilities found."
+                className="integration-catalog-combobox mt-2"
+                popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
+                maxVisibleChips={2}
+              />
+            </CatalogFilterField>
+            <CatalogFilterField label="Category" htmlFor="integration-catalog-category">
+              <Combobox
+                id="integration-catalog-category"
+                multiple
+                options={categoryOptions}
+                value={[...filters.category]}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    category: toCatalogValues(value, INTEGRATION_CATALOG_CATEGORIES),
+                  }))
+                }
+                placeholder="All categories"
+                searchPlaceholder="Search categories"
+                emptyState="No categories found."
+                className="integration-catalog-combobox mt-2"
+                popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
+                maxVisibleChips={2}
+              />
+            </CatalogFilterField>
+          </div>
         </div>
-        <FilterGroup
-          label="Availability"
-          values={INTEGRATION_CATALOG_AVAILABILITIES}
-          selected={filters.availability}
-          labels={catalogAvailabilityLabels}
-          onToggle={(value) =>
-            setFilters((current) => ({
-              ...current,
-              availability: toggleFilter(current.availability, value),
-            }))
-          }
-        />
-        <div>
-          <label
-            htmlFor="integration-catalog-capabilities"
-            className="text-sm font-medium text-fd-foreground"
-          >
-            Capability
-          </label>
-          <Combobox
-            id="integration-catalog-capabilities"
-            multiple
-            options={capabilityOptions}
-            value={[...filters.capability]}
-            onValueChange={(value) =>
-              setFilters((current) => ({...current, capability: toCatalogCapabilities(value)}))
-            }
-            placeholder="Select capabilities"
-            searchPlaceholder="Search capabilities"
-            emptyState="No capabilities found."
-            className="integration-catalog-combobox mt-2"
-            popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
-            maxVisibleChips={2}
-          />
-        </div>
-        <FilterGroup
-          label="Category"
-          values={INTEGRATION_CATALOG_CATEGORIES}
-          selected={filters.category}
-          labels={catalogCategoryLabels}
-          onToggle={(value) =>
-            setFilters((current) => ({
-              ...current,
-              category: toggleFilter(current.category, value),
-            }))
-          }
-        />
       </div>
 
       <p aria-live="polite" className="text-sm text-fd-muted-foreground">
@@ -171,45 +216,20 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
   );
 }
 
-interface FilterGroupProps<Value extends string> {
+interface CatalogFilterFieldProps {
   label: string;
-  values: readonly Value[];
-  selected: readonly Value[];
-  labels: Record<Value, string>;
-  onToggle: (value: Value) => void;
+  htmlFor: string;
+  children: ReactNode;
 }
 
-function FilterGroup<Value extends string>({
-  label,
-  values,
-  selected,
-  labels,
-  onToggle,
-}: FilterGroupProps<Value>) {
+function CatalogFilterField({label, htmlFor, children}: CatalogFilterFieldProps) {
   return (
-    <fieldset>
-      <legend className="text-sm font-medium text-fd-foreground">{label}</legend>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {values.map((value) => {
-          const isSelected = selected.includes(value);
-          return (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={isSelected}
-              onClick={() => onToggle(value)}
-              className={`min-h-11 rounded-md border px-3 text-sm outline-none transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-fd-ring ${
-                isSelected
-                  ? 'border-fd-primary/25 bg-fd-primary/10 text-fd-primary'
-                  : 'border-fd-border text-fd-muted-foreground hover:bg-fd-muted hover:text-fd-foreground'
-              }`}
-            >
-              {labels[value]}
-            </button>
-          );
-        })}
-      </div>
-    </fieldset>
+    <div>
+      <label htmlFor={htmlFor} className="text-sm font-medium text-fd-foreground">
+        {label}
+      </label>
+      {children}
+    </div>
   );
 }
 
@@ -269,9 +289,12 @@ function IntegrationCard({provider}: {provider: CatalogProvider}) {
   );
 }
 
-function toCatalogCapabilities(values: string[]): CatalogCapability[] {
-  return values.filter((value): value is CatalogCapability =>
-    INTEGRATION_CATALOG_CAPABILITIES.some((capability) => capability === value),
+function toCatalogValues<Value extends string>(
+  values: string[],
+  allowed: readonly Value[],
+): Value[] {
+  return values.filter((value): value is Value =>
+    allowed.some((allowedValue) => allowedValue === value),
   );
 }
 
@@ -297,8 +320,4 @@ function ProviderIcon({icon}: {icon: CatalogIcon}) {
       <path d={brandIcon.path} />
     </svg>
   );
-}
-
-function toggleFilter<Value>(values: readonly Value[], value: Value): Value[] {
-  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
