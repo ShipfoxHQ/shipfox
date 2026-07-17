@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {mkdirSync, writeFileSync} from 'node:fs';
+import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
@@ -10,9 +10,11 @@ import {
 } from '@shipfox/api-integration-github-dto';
 import {sentryEventCatalog} from '@shipfox/api-integration-sentry-dto';
 import {webhookEventCatalog} from '@shipfox/api-integration-webhook-dto';
+import {buildWorkflowJsonSchema, thinkingLevelsForHarness} from '@shipfox/workflow-document';
 import {slugForHeading} from './lib/slug.mjs';
 
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const markdownLinkPattern = /^\[([^\]]+)\]\(([^)]*)\)$/;
 const regions = [
   ['content/generated/reference/model-providers.mdx', renderModelProvidersTable],
   [
@@ -31,6 +33,14 @@ const regions = [
     'content/generated/integrations/webhooks/events.mdx',
     () => renderEventCatalog(webhookEventCatalog),
   ],
+];
+const inPageRegions = [
+  {
+    file: 'content/docs/reference/workflow-schema.mdx',
+    start: '{/* @generated:workflow-schema start */}',
+    end: '{/* @generated:workflow-schema end */}',
+    render: renderWorkflowSchemaReference,
+  },
 ];
 
 function renderModelProvidersTable() {
@@ -198,6 +208,216 @@ function objects(value) {
   return Array.isArray(value) ? value.map(object) : [];
 }
 
+function renderWorkflowSchemaReference() {
+  const schema = buildWorkflowJsonSchema();
+  const root = object(schema.properties);
+  const jobs = object(object(root.jobs).additionalProperties);
+  const steps = object(object(object(jobs.properties).steps).items);
+  const listening = object(object(jobs.properties).listening);
+  const integrations = object(steps.properties).integrations;
+  const integration = object(integrations.items);
+  const gate = object(steps.properties).gate;
+  const checkout = object(jobs.properties).checkout;
+  const checkoutPermissions = object(checkout.properties).permissions;
+  const gateFailure = object(gate.properties).on_failure;
+  const triggers = object(root.triggers);
+  const trigger = object(triggers.additionalProperties);
+  const outputs = object(steps.properties).outputs;
+  const batch = object(listening.properties).batch;
+
+  return [
+    section('Top-level fields', root, {
+      required: ['name', 'jobs'],
+      nested: {
+        env: '#environment-variables',
+        triggers: '#trigger-fields',
+        jobs: '#job-fields',
+      },
+    }),
+    section('Trigger fields', object(trigger.properties), {required: ['source', 'event']}),
+    section('Job fields', object(jobs.properties), {
+      required: ['steps'],
+      nested: {
+        checkout: '#checkout-fields',
+        listening: '#listening-fields',
+      },
+    }),
+    section('Checkout fields', object(checkout.properties), {
+      nested: {permissions: '#checkout-permissions-fields'},
+    }),
+    section('Checkout permissions fields', object(checkoutPermissions.properties), {}, 3),
+    '## Step fields',
+    '',
+    'Each step is either a run step or an agent step. The schema rejects unknown fields and invalid field combinations.',
+    '',
+    section(
+      'Run step fields',
+      object(steps.properties),
+      {
+        fields: ['key', 'if', 'name', 'run', 'gate', 'env', 'outputs'],
+        required: ['run'],
+        nested: {
+          gate: '#gate-fields',
+          env: '#environment-variables',
+          outputs: '#step-outputs',
+        },
+      },
+      3,
+    ),
+    section(
+      'Agent step fields',
+      object(steps.properties),
+      {
+        fields: [
+          'key',
+          'if',
+          'name',
+          'prompt',
+          'model',
+          'harness',
+          'thinking',
+          'provider',
+          'tools',
+          'integrations',
+          'gate',
+          'outputs',
+        ],
+        required: ['prompt'],
+        nested: {
+          integrations: '#agent-integration-fields',
+          gate: '#gate-fields',
+          outputs: '#step-outputs',
+        },
+        defaults: {
+          harness: 'pi',
+          thinking: 'xhigh',
+        },
+        types: {
+          thinking: thinkingType(),
+        },
+      },
+      3,
+    ),
+    section('Agent integration fields', object(integration.properties), {required: ['include']}),
+    section('Gate fields', object(gate.properties), {
+      nested: {on_failure: '#gate-failure-fields'},
+    }),
+    section('Gate failure fields', object(gateFailure.properties), {}, 3),
+    section('Step outputs', outputFields(outputs), {
+      required: ['type'],
+      types: {type: codeType('string | number | boolean | json')},
+    }),
+    section('Listening fields', object(listening.properties), {
+      required: ['on'],
+      nested: {
+        on: '#trigger-fields',
+        until: '#trigger-fields',
+        batch: '#listening-batch-fields',
+      },
+    }),
+    section('Listening batch fields', object(batch.properties), {}, 3),
+    section('Environment variables', environmentFields()),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function section(title, properties, options = {}, level = 2) {
+  return [`${'#'.repeat(level)} ${title}`, '', renderTypeTable(properties, options)].join('\n');
+}
+
+function renderTypeTable(properties, options) {
+  const required = new Set(options.required ?? []);
+  const names = options.fields ?? Object.keys(properties);
+  const rows = names.flatMap((name) => {
+    const property = properties[name];
+    if (!property) return [];
+    return [
+      `    ${JSON.stringify(name)}: {`,
+      `      type: ${options.types?.[name] ?? typeFor(property)},`,
+      `      description: ${descriptionFor(property.description)},`,
+      ...(required.has(name) ? ['      required: true,'] : []),
+      ...(options.defaults?.[name] ? [`      default: ${codeType(options.defaults[name])},`] : []),
+      ...(options.nested?.[name]
+        ? [`      typeDescriptionLink: ${JSON.stringify(options.nested[name])},`]
+        : []),
+      '    },',
+    ];
+  });
+
+  return ['<TypeTable', '  type={{', ...rows, '  }}', '/>'].join('\n');
+}
+
+function typeFor(schema) {
+  if (Array.isArray(schema.enum)) return enumType(schema.enum);
+  if (schema.type === 'array') return codeType(`${typeText(object(schema.items))}[]`);
+  if (schema.type === 'object' && schema.additionalProperties)
+    return codeType('Record<string, value>');
+  if (Array.isArray(schema.anyOf)) {
+    return codeType(schema.anyOf.map((option) => typeText(object(option))).join(' | '));
+  }
+  return codeType(typeof schema.type === 'string' ? schema.type : 'value');
+}
+
+function typeText(schema) {
+  if (Array.isArray(schema.enum)) return schema.enum.join(' | ');
+  if (schema.type === 'array') return `${typeText(object(schema.items))}[]`;
+  if (schema.type === 'object')
+    return schema.additionalProperties ? 'Record<string, value>' : 'object';
+  return typeof schema.type === 'string' ? schema.type : 'value';
+}
+
+function thinkingType() {
+  return [
+    '<>',
+    ...['pi', 'claude'].flatMap((harness, index) => [
+      ...(index > 0 ? [' | '] : []),
+      `<code>{${JSON.stringify(`${harness}: ${thinkingLevelsForHarness(harness).join(', ')}`)}}</code>`,
+    ]),
+    '</>',
+  ].join('');
+}
+
+function enumType(values) {
+  return `<>${values.map((value, index) => `${index > 0 ? ' | ' : ''}<code>{${JSON.stringify(String(value))}}</code>`).join('')}</>`;
+}
+
+function codeType(value) {
+  return `<code>{${JSON.stringify(value)}}</code>`;
+}
+
+function descriptionFor(description) {
+  const value = typeof description === 'string' ? description : '';
+  const parts = value.split(/(\[[^\]]+\]\([^)]*\)|`[^`]+`)/g).filter(Boolean);
+  return `<>${parts
+    .map((part) => {
+      const link = markdownLinkPattern.exec(part);
+      if (link) return `<a href=${JSON.stringify(link[2])}>{${JSON.stringify(link[1])}}</a>`;
+      if (part.startsWith('`') && part.endsWith('`')) return codeType(part.slice(1, -1));
+      return `{${JSON.stringify(part)}}`;
+    })
+    .join('')}</>`;
+}
+
+function outputFields(outputs) {
+  const declaration = object(outputs.additionalProperties);
+  const objectDeclaration = objects(declaration.anyOf).find((option) => option.type === 'object');
+  return object(objectDeclaration?.properties);
+}
+
+function environmentFields() {
+  return {
+    name: {
+      type: 'string',
+      description: 'POSIX environment variable name: `[A-Za-z_][A-Za-z0-9_]*`.',
+    },
+    value: {
+      type: 'string | number | boolean',
+      description: 'Environment variable value.',
+    },
+  };
+}
+
 for (const [file, render] of regions) {
   const path = join(docsRoot, file);
   mkdirSync(dirname(path), {recursive: true});
@@ -205,4 +425,19 @@ for (const [file, render] of regions) {
   writeFileSync(path, next);
   // biome-ignore lint/suspicious/noConsole: CLI diagnostics
   console.log(`✓ wrote ${file}`);
+}
+
+for (const region of inPageRegions) {
+  const path = join(docsRoot, region.file);
+  const content = readFileSync(path, 'utf8');
+  const start = content.indexOf(region.start);
+  const end = content.indexOf(region.end);
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`Missing or invalid generated region markers in ${region.file}.`);
+  }
+  const generated = `${region.start}\n\n${region.render()}\n\n${region.end}`;
+  const next = `${content.slice(0, start)}${generated}${content.slice(end + region.end.length)}`;
+  writeFileSync(path, next);
+  // biome-ignore lint/suspicious/noConsole: CLI diagnostics
+  console.log(`✓ wrote ${region.file}`);
 }

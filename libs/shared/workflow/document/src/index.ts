@@ -2,6 +2,8 @@ export {
   type AgentThinking,
   agentThinkingByHarness,
   agentThinkingSchema,
+  type BuildWorkflowJsonSchemaOptions,
+  buildWorkflowJsonSchema,
   claudeAgentThinkingSchema,
   DEFAULT_AGENT_THINKING,
   DEFAULT_HARNESS,
