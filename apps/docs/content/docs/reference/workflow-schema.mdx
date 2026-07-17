@@ -21,19 +21,12 @@ import {
   TriggerFields,
 } from '../../generated/reference/workflow-schema.mdx';
 
-This reference is generated from the strict workflow schema. Workflow files live
-at `.shipfox/workflows/*.yml`, where unknown keys are rejected.
+Use this reference to find the fields allowed in a Shipfox workflow and the
+values each field accepts.
 
 <Callout title="Enable editor autocomplete" type="info">
-  Add this header to a workflow file:
-
-  ```yaml
-  # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-  ```
-
-  In VS Code, you can instead map
-  `https://www.shipfox.io/docs/workflow.schema.json` to
-  `.shipfox/workflows/*.yml` with `yaml.schemas`.
+  Add `# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json`
+  as the first line of a workflow file.
 </Callout>
 
 ## Top-level fields
