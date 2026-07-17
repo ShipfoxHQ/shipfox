@@ -30,6 +30,16 @@
         "default": "./dist/index.js"
       }
     },
+    "./runtime": {
+      "development": {
+        "types": "./src/runtime/index.ts",
+        "default": "./src/runtime/index.ts"
+      },
+      "default": {
+        "types": "./dist/runtime/index.d.ts",
+        "default": "./dist/runtime/index.js"
+      }
+    },
     "./testing": {
       "development": {
         "types": "./src/testing/index.tsx",

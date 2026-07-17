@@ -158,6 +158,7 @@ function validateDefaultInternalImports(name, manifest) {
 async function validateDefaultPackageResolution(root) {
   const specifiers = [
     '@shipfox/client-shell',
+    '@shipfox/client-shell/runtime',
     '@shipfox/client-shell/testing',
     '@shipfox/client-shell/vite',
     '@shipfox/client-shell-fixture-feature',

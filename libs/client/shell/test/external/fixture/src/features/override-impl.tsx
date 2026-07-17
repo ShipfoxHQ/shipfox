@@ -1,4 +1,4 @@
-import {defineRoute} from '@shipfox/client-shell';
+import {defineRoute} from '@shipfox/client-shell/runtime';
 
 function OverriddenInsights() {
   return <h1>Overridden insights</h1>;

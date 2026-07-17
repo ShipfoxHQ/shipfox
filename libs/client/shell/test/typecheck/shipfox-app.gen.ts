@@ -2,7 +2,7 @@
 // biome-ignore-all format: generated code has stable, reviewable output.
 // biome-ignore-all assist/source/organizeImports: generated imports follow route order.
 import {createRoute, createRouter} from '@tanstack/react-router';
-import {buildAnchorSkeleton, isRouteImpl, type RouteImpl, type RouterContext} from '@shipfox/client-shell';
+import {buildAnchorSkeleton, isRouteImpl, type RouteImpl, type RouterContext} from '@shipfox/client-shell/runtime';
 import route0Impl from "#test/search-route-impl.js";
 import route1Impl from "#test/default-route-impl.js";
 import route2Impl from "#test/named-route-impl.js";

@@ -1,4 +1,4 @@
-import {defineRoute} from '@shipfox/client-shell';
+import {defineRoute} from '@shipfox/client-shell/runtime';
 
 function ToyInsights() {
   return <h1>Toy insights</h1>;

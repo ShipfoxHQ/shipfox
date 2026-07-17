@@ -2,9 +2,8 @@ import {
   ConfigErrorScreen,
   getWindowRuntimeConfig,
   loadConfig,
-  setLoadedConfig,
 } from '@shipfox/client-config';
-import {mergeConfigShapes} from '@shipfox/client-shell';
+import {mergeConfigShapes} from '@shipfox/client-shell/runtime';
 import {ShellProviders} from '@shipfox/client-shell/testing';
 import {
   type ProviderProbeEntry,
@@ -25,9 +24,8 @@ export function createClientAppElement({
     build: import.meta.env,
   });
   if (!config.ok) return <ConfigErrorScreen errors={config.errors} />;
-  setLoadedConfig(config.config);
   return (
-    <ShellProviders features={features}>
+    <ShellProviders features={features} config={config.config}>
       {onProviders ? <ProviderProbeObserver onChange={onProviders} /> : null}
       <RouterProvider router={router} />
     </ShellProviders>
