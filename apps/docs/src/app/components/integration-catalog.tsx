@@ -1,17 +1,16 @@
 'use client';
 
-import {Combobox} from '@shipfox/react-ui/combobox';
-import {Webhook} from 'lucide-react';
+import {Search, Webhook, X} from 'lucide-react';
 import Link from 'next/link';
-import {type ReactNode, useMemo, useState} from 'react';
+import {useMemo, useState} from 'react';
 import {siGithub, siLinear, siSentry, siSlack} from 'simple-icons';
 import {
-  type CatalogAvailability,
   type CatalogIcon,
   type CatalogProvider,
   catalogAvailabilityLabels,
   catalogCapabilityLabels,
   catalogCategoryLabels,
+  countFacetValues,
   emptyCatalogFilters,
   filterProviders,
   INTEGRATION_CATALOG_AVAILABILITIES,
@@ -20,33 +19,6 @@ import {
 } from '@/lib/integration-catalog';
 
 const availabilitySections = INTEGRATION_CATALOG_AVAILABILITIES;
-type CatalogComboboxOption = {
-  value: string;
-  label: string;
-};
-
-const capabilityOptions: CatalogComboboxOption[] = INTEGRATION_CATALOG_CAPABILITIES.map(
-  (capability) => ({
-    value: capability,
-    label: catalogCapabilityLabels[capability],
-  }),
-);
-const availabilityOptions: CatalogComboboxOption[] = INTEGRATION_CATALOG_AVAILABILITIES.map(
-  (availability) => ({
-    value: availability,
-    label: catalogAvailabilityLabels[availability],
-  }),
-);
-const categoryOptions: CatalogComboboxOption[] = INTEGRATION_CATALOG_CATEGORIES.map((category) => ({
-  value: category,
-  label: catalogCategoryLabels[category],
-}));
-
-const availabilityClasses: Record<CatalogAvailability, string> = {
-  available: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  preview: 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  'coming-soon': 'border-fd-border bg-fd-muted text-fd-muted-foreground',
-};
 
 interface IntegrationCatalogProps {
   providers: CatalogProvider[];
@@ -59,184 +31,258 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
     () => filterProviders(providers, filters),
     [filters, providers],
   );
-  const hasFilters =
-    filters.query.length > 0 ||
-    filters.availability.length > 0 ||
-    filters.capability.length > 0 ||
-    filters.category.length > 0;
-  const activeFilterCount =
-    filters.availability.length + filters.capability.length + filters.category.length;
+  const facetCounts = useMemo(() => countFacetValues(providers, filters), [filters, providers]);
+  const activeFilterCount = filters.capability.length + filters.category.length;
+  const hasFilters = filters.query.length > 0 || activeFilterCount > 0;
+
+  function clearFilters() {
+    setFilters(emptyCatalogFilters);
+  }
 
   return (
-    <section aria-label="Integration catalog" className="not-prose my-8 space-y-6">
-      <div className="space-y-4 rounded-lg border border-fd-border bg-fd-card p-4 sm:p-5">
-        <div className="lg:grid lg:grid-cols-[minmax(14rem,1fr)_repeat(3,minmax(0,11rem))] lg:items-end lg:gap-3">
-          <div>
-            <label
-              htmlFor="integration-catalog-search"
-              className="text-sm font-medium text-fd-foreground"
-            >
-              Search integrations
-            </label>
-            <input
-              id="integration-catalog-search"
-              type="search"
-              value={filters.query}
-              onChange={(event) =>
-                setFilters((current) => ({...current, query: event.target.value}))
-              }
-              placeholder="Search by provider, category, or related term"
-              className="mt-2 min-h-11 w-full rounded-md border border-fd-border bg-fd-background px-3 text-sm text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
-            />
-          </div>
-          <div className="mt-4 flex justify-end lg:hidden">
+    <section
+      aria-label="Integration catalog"
+      className="not-prose my-8 grid gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_240px]"
+    >
+      <div className="lg:col-start-1">
+        <label htmlFor="integration-catalog-search" className="sr-only">
+          Search integrations
+        </label>
+        <div className="relative">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fd-muted-foreground"
+          />
+          <input
+            id="integration-catalog-search"
+            type="search"
+            value={filters.query}
+            onChange={(event) => setFilters((current) => ({...current, query: event.target.value}))}
+            placeholder="Search by provider, category, or related term"
+            className="h-11 w-full rounded-md border border-fd-border bg-fd-background py-2 pr-9 pl-10 text-sm text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
+          />
+          {filters.query.length > 0 ? (
             <button
               type="button"
-              aria-controls="integration-catalog-filters"
-              aria-expanded={filtersOpen}
-              onClick={() => setFiltersOpen((open) => !open)}
-              className="min-h-11 rounded-md border border-fd-border px-3 text-sm font-medium text-fd-foreground outline-none hover:bg-fd-muted focus-visible:ring-2 focus-visible:ring-fd-ring"
+              aria-label="Clear search"
+              onClick={() => setFilters((current) => ({...current, query: ''}))}
+              className="absolute top-1/2 right-2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded text-fd-muted-foreground outline-none hover:text-fd-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
             >
-              {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : 'Filters'}
+              <X aria-hidden="true" className="size-4" />
             </button>
-          </div>
-          <div
-            id="integration-catalog-filters"
-            className={`${filtersOpen ? 'grid' : 'hidden'} mt-4 gap-4 sm:grid-cols-2 lg:!grid lg:col-span-3 lg:mt-0 lg:grid-cols-3 lg:gap-3`}
-          >
-            <CatalogFilterField label="Availability" htmlFor="integration-catalog-availability">
-              <Combobox
-                id="integration-catalog-availability"
-                multiple
-                options={availabilityOptions}
-                value={[...filters.availability]}
-                onValueChange={(value) =>
-                  setFilters((current) => ({
-                    ...current,
-                    availability: toCatalogValues(value, INTEGRATION_CATALOG_AVAILABILITIES),
-                  }))
-                }
-                placeholder="All availability"
-                searchPlaceholder="Search availability"
-                emptyState="No availability found."
-                className="integration-catalog-combobox mt-2"
-                popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
-                maxVisibleChips={2}
-              />
-            </CatalogFilterField>
-            <CatalogFilterField label="Capability" htmlFor="integration-catalog-capabilities">
-              <Combobox
-                id="integration-catalog-capabilities"
-                multiple
-                options={capabilityOptions}
-                value={[...filters.capability]}
-                onValueChange={(value) =>
-                  setFilters((current) => ({
-                    ...current,
-                    capability: toCatalogValues(value, INTEGRATION_CATALOG_CAPABILITIES),
-                  }))
-                }
-                placeholder="All capabilities"
-                searchPlaceholder="Search capabilities"
-                emptyState="No capabilities found."
-                className="integration-catalog-combobox mt-2"
-                popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
-                maxVisibleChips={2}
-              />
-            </CatalogFilterField>
-            <CatalogFilterField label="Category" htmlFor="integration-catalog-category">
-              <Combobox
-                id="integration-catalog-category"
-                multiple
-                options={categoryOptions}
-                value={[...filters.category]}
-                onValueChange={(value) =>
-                  setFilters((current) => ({
-                    ...current,
-                    category: toCatalogValues(value, INTEGRATION_CATALOG_CATEGORIES),
-                  }))
-                }
-                placeholder="All categories"
-                searchPlaceholder="Search categories"
-                emptyState="No categories found."
-                className="integration-catalog-combobox mt-2"
-                popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
-                maxVisibleChips={2}
-              />
-            </CatalogFilterField>
-          </div>
+          ) : null}
         </div>
+
+        <button
+          type="button"
+          aria-controls="integration-catalog-filters"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen((open) => !open)}
+          className="mt-4 min-h-11 w-full rounded-md border border-fd-border px-3 text-sm font-medium text-fd-foreground outline-none hover:bg-fd-muted focus-visible:ring-2 focus-visible:ring-fd-ring lg:hidden"
+        >
+          {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : 'Filters'}
+        </button>
       </div>
 
-      <p aria-live="polite" className="text-sm text-fd-muted-foreground">
-        {filteredProviders.length} {filteredProviders.length === 1 ? 'integration' : 'integrations'}{' '}
-        found
-      </p>
-
-      {filteredProviders.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-fd-border px-6 py-10 text-center">
-          <p className="text-sm font-medium text-fd-foreground">
-            No integrations match these filters
-          </p>
-          <p className="mt-2 text-sm text-fd-muted-foreground">
-            Try another term or remove a filter.
-          </p>
-          {hasFilters && (
+      <aside
+        id="integration-catalog-filters"
+        aria-label="Filter integrations"
+        className={`${filtersOpen ? 'block' : 'hidden'} border-t border-fd-border pt-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:!block lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto lg:border-t-0 lg:border-l lg:pl-8 lg:pt-0`}
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-fd-foreground">Filters</p>
+          {activeFilterCount > 0 ? (
             <button
               type="button"
-              onClick={() => setFilters(emptyCatalogFilters)}
-              className="mt-4 min-h-11 rounded-md px-3 text-sm font-medium text-fd-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
+              onClick={clearFilters}
+              className="text-xs text-fd-muted-foreground outline-none hover:text-fd-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
             >
-              Clear filters
+              Clear all
             </button>
-          )}
+          ) : null}
         </div>
-      ) : (
-        availabilitySections.map((availability) => {
-          const sectionProviders = filteredProviders.filter(
-            (provider) => provider.availability === availability,
-          );
-          if (sectionProviders.length === 0) return null;
+        <div className="mt-6 space-y-6">
+          <FacetGroup
+            label="Capability"
+            values={INTEGRATION_CATALOG_CAPABILITIES}
+            selected={filters.capability}
+            labels={catalogCapabilityLabels}
+            counts={facetCounts.capability}
+            onToggle={(value) =>
+              setFilters((current) => ({
+                ...current,
+                capability: toggleFilter(current.capability, value),
+              }))
+            }
+          />
+          <FacetGroup
+            label="Category"
+            values={INTEGRATION_CATALOG_CATEGORIES}
+            selected={filters.category}
+            labels={catalogCategoryLabels}
+            counts={facetCounts.category}
+            onToggle={(value) =>
+              setFilters((current) => ({
+                ...current,
+                category: toggleFilter(current.category, value),
+              }))
+            }
+          />
+        </div>
+      </aside>
 
-          return (
-            <section
-              key={availability}
-              aria-labelledby={`${availability}-integrations`}
-              className="space-y-3"
-            >
-              <h2
-                id={`${availability}-integrations`}
-                className="text-lg font-semibold text-fd-foreground"
+      <div className="lg:col-start-1">
+        <p aria-live="polite" className="text-sm text-fd-muted-foreground">
+          {filteredProviders.length}{' '}
+          {filteredProviders.length === 1 ? 'integration' : 'integrations'} found
+        </p>
+        {activeFilterCount > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {filters.capability.map((capability) => (
+              <FilterChip
+                key={capability}
+                label={catalogCapabilityLabels[capability]}
+                onRemove={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    capability: removeFilter(current.capability, capability),
+                  }))
+                }
+              />
+            ))}
+            {filters.category.map((category) => (
+              <FilterChip
+                key={category}
+                label={catalogCategoryLabels[category]}
+                onRemove={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    category: removeFilter(current.category, category),
+                  }))
+                }
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {filteredProviders.length === 0 ? (
+          <div className="mt-6 rounded-lg border border-dashed border-fd-border px-6 py-10 text-center">
+            <p className="text-sm font-medium text-fd-foreground">
+              No integrations match these filters
+            </p>
+            <p className="mt-2 text-sm text-fd-muted-foreground">
+              Try another term or remove a filter.
+            </p>
+            {hasFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-4 min-h-11 rounded-md px-3 text-sm font-medium text-fd-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
               >
-                {catalogAvailabilityLabels[availability]}
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {sectionProviders.map((provider) => (
-                  <IntegrationCard key={provider.slug} provider={provider} />
-                ))}
-              </div>
-            </section>
-          );
-        })
-      )}
+                Clear filters
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-6 space-y-8">
+            {availabilitySections.map((availability) => {
+              const sectionProviders = filteredProviders.filter(
+                (provider) => provider.availability === availability,
+              );
+              if (sectionProviders.length === 0) return null;
+
+              return (
+                <section
+                  key={availability}
+                  aria-labelledby={`${availability}-integrations`}
+                  className="space-y-3"
+                >
+                  <h2
+                    id={`${availability}-integrations`}
+                    className="text-lg font-semibold text-fd-foreground"
+                  >
+                    {catalogAvailabilityLabels[availability]}
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {sectionProviders.map((provider) => (
+                      <IntegrationCard key={provider.slug} provider={provider} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
-interface CatalogFilterFieldProps {
+interface FacetGroupProps<Value extends string> {
   label: string;
-  htmlFor: string;
-  children: ReactNode;
+  values: readonly Value[];
+  selected: readonly Value[];
+  labels: Record<Value, string>;
+  counts: Record<Value, number>;
+  onToggle: (value: Value) => void;
 }
 
-function CatalogFilterField({label, htmlFor, children}: CatalogFilterFieldProps) {
+function FacetGroup<Value extends string>({
+  label,
+  values,
+  selected,
+  labels,
+  counts,
+  onToggle,
+}: FacetGroupProps<Value>) {
   return (
-    <div>
-      <label htmlFor={htmlFor} className="text-sm font-medium text-fd-foreground">
+    <fieldset>
+      <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-fd-muted-foreground">
         {label}
-      </label>
-      {children}
-    </div>
+      </legend>
+      <div>
+        {values.map((value) => {
+          const count = counts[value];
+          const optionLabel = labels[value];
+          const isSelected = selected.includes(value);
+
+          return (
+            <label
+              key={value}
+              className={`flex cursor-pointer items-center gap-2 py-1.5 text-sm ${
+                count === 0 ? 'text-fd-muted-foreground' : 'text-fd-foreground'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggle(value)}
+                aria-label={`${optionLabel}, ${count} results`}
+                className="size-4 shrink-0 rounded border-fd-border accent-fd-primary focus-visible:ring-2 focus-visible:ring-fd-ring"
+              />
+              <span>{optionLabel}</span>
+              <span className="ml-auto tabular-nums text-xs text-fd-muted-foreground">{count}</span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+function FilterChip({label, onRemove}: {label: string; onRemove: () => void}) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-fd-border bg-fd-muted px-2.5 py-1 text-xs text-fd-foreground">
+      {label}
+      <button
+        type="button"
+        aria-label={`Remove ${label} filter`}
+        onClick={onRemove}
+        className="inline-flex size-4 items-center justify-center rounded text-fd-muted-foreground outline-none hover:text-fd-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
+      >
+        <X aria-hidden="true" className="size-3" />
+      </button>
+    </span>
   );
 }
 
@@ -254,24 +300,17 @@ function IntegrationCard({provider}: {provider: CatalogProvider}) {
           </Link>
           <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">{provider.summary}</p>
         </div>
-        {provider.setupHref && (
+        {provider.setupHref ? (
           <Link
             href={provider.setupHref}
             className="-mt-2 -mr-2 inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm font-medium text-fd-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
           >
             Set up
           </Link>
-        )}
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {provider.availability !== 'available' && (
-          <span
-            className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${availabilityClasses[provider.availability]}`}
-          >
-            {catalogAvailabilityLabels[provider.availability]}
-          </span>
-        )}
         {provider.capabilities.map((capability) => (
           <span
             key={capability}
@@ -282,7 +321,7 @@ function IntegrationCard({provider}: {provider: CatalogProvider}) {
         ))}
       </div>
 
-      {(provider.eventCount > 0 || provider.toolCount > 0) && (
+      {provider.eventCount > 0 || provider.toolCount > 0 ? (
         <p className="mt-3 text-xs text-fd-muted-foreground">
           {[
             provider.eventCount > 0 && `${provider.eventCount} events`,
@@ -291,18 +330,17 @@ function IntegrationCard({provider}: {provider: CatalogProvider}) {
             .filter(Boolean)
             .join(' · ')}
         </p>
-      )}
+      ) : null}
     </article>
   );
 }
 
-function toCatalogValues<Value extends string>(
-  values: string[],
-  allowed: readonly Value[],
-): Value[] {
-  return values.filter((value): value is Value =>
-    allowed.some((allowedValue) => allowedValue === value),
-  );
+function toggleFilter<Value>(values: readonly Value[], value: Value): Value[] {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+function removeFilter<Value>(values: readonly Value[], value: Value): Value[] {
+  return values.filter((item) => item !== value);
 }
 
 function ProviderIcon({icon}: {icon: CatalogIcon}) {
