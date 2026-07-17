@@ -81,6 +81,7 @@ vi.mock('#config.js', () => ({
     AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
     AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,
     AUTH_REFRESH_COOKIE_NAME: 'shipfox_refresh_token',
+    AUTH_PASSWORD_ENABLED: true,
     CLIENT_BASE_URL: testConfig.clientBaseUrl,
   },
   mailer: testConfig.mailer,

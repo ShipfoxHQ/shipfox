@@ -6,6 +6,7 @@ import {
 } from '@shipfox/api-auth-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {subscriberFactory} from '@shipfox/node-module';
+import {config} from '#config.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {authOutbox} from '#db/schema/outbox.js';
@@ -18,6 +19,7 @@ import {
   onEmailVerificationSendRequested,
   onPasswordResetSendRequested,
 } from '#presentation/subscribers/index.js';
+import {passwordLoginMethods} from './login-methods.js';
 
 export type {JobLeaseTokenClaims, RunnerSessionTokenClaims} from '@shipfox/api-auth-dto';
 export type {
@@ -59,6 +61,7 @@ export const authModule: ShipfoxModule = {
   name: 'auth',
   database: {db, migrationsPath},
   auth: [createJwtAuthMethod(), createLeaseTokenAuthMethod(), createRunnerSessionAuthMethod()],
+  loginMethods: passwordLoginMethods(config.AUTH_PASSWORD_ENABLED),
   routes: [authRoutes],
   e2eRoutes: [authE2eRoutes],
   publishers: [{name: 'auth', table: authOutbox, db, eventSchemas: authEventSchemas}],

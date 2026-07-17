@@ -4,6 +4,7 @@ import {
   authEventSchemas,
 } from '@shipfox/api-auth-dto';
 import {authModule} from './index.js';
+import {passwordLoginMethods} from './login-methods.js';
 
 vi.mock('#config.js', () => ({
   config: {
@@ -14,12 +15,19 @@ vi.mock('#config.js', () => ({
     AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
     AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,
     AUTH_REFRESH_COOKIE_NAME: 'shipfox_refresh_token',
+    AUTH_PASSWORD_ENABLED: true,
     CLIENT_BASE_URL: 'https://app.example.test',
   },
   mailer: {send: vi.fn()},
 }));
 
 describe('authModule', () => {
+  test('declares password login only when password login is enabled', () => {
+    expect(passwordLoginMethods(true)).toEqual([{id: 'password'}]);
+    expect(passwordLoginMethods(false)).toEqual([]);
+    expect(authModule.loginMethods).toEqual([{id: 'password'}]);
+  });
+
   test('registers auth email outbox publisher and subscribers', () => {
     const publisher = authModule.publishers?.find((pub) => pub.name === 'auth');
     const events = authModule.subscribers?.map((subscriber) => subscriber.event);

@@ -1,6 +1,7 @@
 import {captureException, closeErrorMonitoring} from '@shipfox/node-error-monitoring';
 import {closeApp, createApp, listen} from '@shipfox/node-fastify';
 import {
+  aggregateLoginMethods,
   initializeModules,
   type ModuleWorker,
   type ModuleWorkersHandle,
@@ -43,6 +44,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
   hasActiveServer = true;
 
   try {
+    aggregateLoginMethods({modules: options.modules});
     startServiceMetrics({serviceName: 'api'});
     createPostgresClient();
 

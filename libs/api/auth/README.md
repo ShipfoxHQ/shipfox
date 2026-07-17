@@ -46,6 +46,7 @@ Required environment:
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |
 | `AUTH_REFRESH_ROTATION_GRACE_SECONDS` | `30` | Grace window for accepting a just-rotated refresh token during concurrent refreshes. |
 | `AUTH_REFRESH_COOKIE_NAME` | `shipfox_refresh_token` | HTTP cookie name for refresh sessions. |
+| `AUTH_PASSWORD_ENABLED` | `true` | Enables password and email-verification routes. Set to `false` when another module provides login. Server construction fails if no login method is available. |
 | `RATE_LIMIT_IDENTIFIER_SECRET` | none | Optional secret used to HMAC identifiers before storing rate-limit counters. When unset, the module derives a stable key from `AUTH_JWT_SECRET`. |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in email verification and password reset links. |
 | `MAILER_TRANSPORT` | `console` | Mail transport. Set to `smtp` to send real mail. |
@@ -54,6 +55,8 @@ Required environment:
 | `SMTP_PORT` | `587` | SMTP server port. |
 | `SMTP_USER` | none | Optional SMTP user. |
 | `SMTP_PASSWORD` | none | Optional SMTP password. |
+
+When `AUTH_PASSWORD_ENABLED=false`, the module does not register signup, login, password-reset, password-change, or email-verification routes. Refresh, logout, and current-session routes stay available. Another module must contribute a login method before the API server starts.
 
 ## Security model
 
@@ -197,6 +200,8 @@ All routes are mounted under `/auth`.
 
 Protected routes use the `Authorization: Bearer <token>` header. The refresh flow uses an HTTP-only cookie on the `/auth` path.
 
+When password login is disabled, the password and email-verification rows in this table return `404`. Refresh, logout, and `me` remain registered.
+
 > [!IMPORTANT]
 > Refresh cookies are set with `secure: true`, `httpOnly: true`, and `sameSite: "lax"`. Local browser tests need HTTPS or a test path that handles secure cookies.
 
@@ -279,6 +284,8 @@ It makes an active, verified user with no password hash. If the email already
 exists, it returns that user unchanged. It does not change the name, email,
 status, verification state, or password. Repeated and concurrent callbacks are
 safe.
+
+This pre-verified user state lets an external login method create a session when password login and email-verification routes are disabled.
 
 `createSessionForUser` accepts either a `userId` or an `email`. It only creates
 a session for an active, verified user. It can throw `UserNotFoundError`,

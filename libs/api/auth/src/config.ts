@@ -1,4 +1,4 @@
-import {createConfig, num, str} from '@shipfox/config';
+import {bool, createConfig, num, str} from '@shipfox/config';
 import {createConsoleMailer, createSmtpMailer, type Mailer} from '@shipfox/node-mailer';
 
 export const config = createConfig({
@@ -34,6 +34,10 @@ export const config = createConfig({
   AUTH_REFRESH_COOKIE_NAME: str({
     desc: 'Name of the browser cookie that stores the refresh token.',
     default: 'shipfox_refresh_token',
+  }),
+  AUTH_PASSWORD_ENABLED: bool({
+    desc: 'Whether password login is available. Use true or false. Defaults to true. When false, password and email-verification routes are not registered, and server startup requires another module to contribute a login method.',
+    default: true,
   }),
   RATE_LIMIT_IDENTIFIER_SECRET: str({
     desc: 'Optional secret used to HMAC identifiers before storing rate-limit counters. Leave it unset to derive a stable key from AUTH_JWT_SECRET.',
