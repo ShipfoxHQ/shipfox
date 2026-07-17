@@ -228,6 +228,11 @@ function renderWorkflowSchemaReference() {
         triggers: '#trigger-fields',
         jobs: '#job-fields',
       },
+      types: {
+        env: namedType('Environment'),
+        triggers: recordType('Trigger'),
+        jobs: recordType('Job'),
+      },
     }),
     component('TriggerFields', object(trigger.properties), {required: ['source', 'event']}),
     component('JobFields', object(jobs.properties), {
@@ -236,9 +241,17 @@ function renderWorkflowSchemaReference() {
         checkout: '#checkout-fields',
         listening: '#listening-fields',
       },
+      types: {
+        outputs: recordType('string'),
+        checkout: namedType('Checkout'),
+        listening: namedType('Listening'),
+        env: namedType('Environment'),
+        steps: codeType('Step[]'),
+      },
     }),
     component('CheckoutFields', object(checkout.properties), {
       nested: {permissions: '#checkout-permissions-fields'},
+      types: {permissions: namedType('CheckoutPermissions')},
     }),
     component('CheckoutPermissionsFields', object(checkoutPermissions.properties)),
     component('RunStepFields', object(steps.properties), {
@@ -248,6 +261,11 @@ function renderWorkflowSchemaReference() {
         gate: '#gate-fields',
         env: '#environment-variables',
         outputs: '#step-outputs',
+      },
+      types: {
+        gate: namedType('Gate'),
+        env: namedType('Environment'),
+        outputs: recordType('Output'),
       },
     }),
     component('AgentStepFields', object(steps.properties), {
@@ -277,11 +295,15 @@ function renderWorkflowSchemaReference() {
       },
       types: {
         thinking: thinkingType(),
+        integrations: codeType('Integration[]'),
+        gate: namedType('Gate'),
+        outputs: recordType('Output'),
       },
     }),
     component('AgentIntegrationFields', object(integration.properties), {required: ['include']}),
     component('GateFields', object(gate.properties), {
       nested: {on_failure: '#gate-failure-fields'},
+      types: {on_failure: namedType('GateFailure')},
     }),
     component('GateFailureFields', object(gateFailure.properties)),
     component('StepOutputs', outputFields(outputs), {
@@ -294,6 +316,11 @@ function renderWorkflowSchemaReference() {
         on: '#trigger-fields',
         until: '#trigger-fields',
         batch: '#listening-batch-fields',
+      },
+      types: {
+        on: codeType('Trigger[]'),
+        until: codeType('Trigger[]'),
+        batch: namedType('ListeningBatch'),
       },
     }),
     component('ListeningBatchFields', object(batch.properties)),
@@ -369,6 +396,14 @@ function enumType(values) {
 
 function codeType(value) {
   return `<code>{${JSON.stringify(value)}}</code>`;
+}
+
+function namedType(name) {
+  return codeType(name);
+}
+
+function recordType(valueType) {
+  return codeType(`Record<string, ${valueType}>`);
 }
 
 function descriptionFor(description) {
