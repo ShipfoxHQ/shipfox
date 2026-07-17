@@ -7,5 +7,5 @@
     }
   },
   "include": ["src", "test", "vitest.config.ts", "node_modules/@shipfox/vitest/globals.d.ts"],
-  "exclude": []
+  "exclude": ["test/external"]
 }

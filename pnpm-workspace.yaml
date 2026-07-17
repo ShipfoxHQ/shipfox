@@ -20,5 +20,6 @@ packages:
   - "infra/**"
   - "tools/**"
   - "turbo/**"
+  - "!libs/client/shell/test/external/fixture/**"
   - "!**/vite/types/**"
   - "!**/node_modules/**"
