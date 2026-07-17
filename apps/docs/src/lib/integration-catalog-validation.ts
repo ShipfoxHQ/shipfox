@@ -4,6 +4,12 @@ export function validateIntegrationCatalog(
   providers: readonly CatalogProvider[],
   expectedCapabilitiesBySlug: Record<string, readonly CatalogCapability[]> = {},
 ): void {
+  const providerSlugs = new Set(providers.map((provider) => provider.slug));
+  for (const slug of Object.keys(expectedCapabilitiesBySlug)) {
+    if (!providerSlugs.has(slug))
+      throw new Error(`Generated DTO catalog for "${slug}" has no matching provider page.`);
+  }
+
   for (const provider of providers) {
     const prefix = `Integration catalog provider "${provider.slug}"`;
     const expectedCapabilities = expectedCapabilitiesBySlug[provider.slug] ?? [];

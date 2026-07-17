@@ -72,6 +72,10 @@ assert.throws(
   /declares events but its event count is 0/,
 );
 assert.throws(
+  () => validateIntegrationCatalog([{...providers[0], toolCount: 0}]),
+  /declares agent tools but its tool count is 0/,
+);
+assert.throws(
   () => validateIntegrationCatalog([{...providers[2], capabilities: ['events'], eventCount: 1}]),
   /coming soon but declares capabilities/,
 );
@@ -82,4 +86,8 @@ assert.throws(
 assert.throws(
   () => validateIntegrationCatalog([providers[1]], {sentry: ['events', 'agent_tools']}),
   /has a agent_tools DTO catalog but omits that capability/,
+);
+assert.throws(
+  () => validateIntegrationCatalog(providers, {unknown: ['events']}),
+  /Generated DTO catalog.*no matching provider page/,
 );
