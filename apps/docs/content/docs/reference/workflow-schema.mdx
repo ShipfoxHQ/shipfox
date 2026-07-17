@@ -81,7 +81,7 @@ A gate must define `success`, `on_failure`, or both.
 <StepOutputs />
 
 Each output declaration can be its type directly (for example, `sha: string`) or
-an object with required `type` and optional `schema`.
+an object with required `type`. Only `json` declarations can include `schema`.
 
 ## Listening fields
 

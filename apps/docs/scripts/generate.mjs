@@ -414,9 +414,9 @@ function descriptionFor(description) {
 function outputFields() {
   return {
     OUTPUT_NAME: {
-      type: 'string | number | boolean | json | {type: string | number | boolean | json; schema?: value}',
+      type: 'string | number | boolean | json | {type: string | number | boolean} | {type: json; schema?: value}',
       description:
-        'Output declaration. Use a type directly (for example, `sha: string`) or an object with required `type` and optional `schema`.',
+        'Output declaration. Use a type directly (for example, `sha: string`) or an object with required `type`. Only `json` declarations can include `schema`.',
     },
   };
 }

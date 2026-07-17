@@ -31,7 +31,7 @@ for (const anchor of requiredAnchors) {
 for (const file of await filesUnder(contentRoot)) {
   if (!file.endsWith('.mdx')) continue;
   const content = await readFile(file, 'utf8');
-  for (const match of content.matchAll(/^([ \t]*)```yaml\n([\s\S]*?)^\1```/gm)) {
+  for (const match of content.matchAll(/^([ \t]*)```yaml[ \t]*\n([\s\S]*?)^\1```[ \t]*$/gm)) {
     const body = dedent(match[2] ?? '', match[1] ?? '');
     if (!/^(?:name|jobs):/m.test(body)) continue;
     if (!body.startsWith(`${schemaHeader}\n`)) {

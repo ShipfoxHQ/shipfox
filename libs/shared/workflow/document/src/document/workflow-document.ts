@@ -316,6 +316,16 @@ export const workflowDocumentStepIntegrationSchema = z.strictObject({
   }),
 });
 
+export const workflowDocumentAgentStepFields = [
+  'model',
+  'prompt',
+  'harness',
+  'thinking',
+  'provider',
+  'tools',
+  'integrations',
+] as const;
+
 // A step is a run step (`run`) or an inline agent step (`prompt`), never
 // both. They share one strict object so an unknown key is still rejected; the
 // `superRefine` discriminates by which payload keys are present and emits one
@@ -393,15 +403,7 @@ export const workflowDocumentStepSchema = z
     }
 
     if (step.run !== undefined) {
-      for (const key of [
-        'model',
-        'prompt',
-        'harness',
-        'thinking',
-        'provider',
-        'tools',
-        'integrations',
-      ] as const) {
+      for (const key of workflowDocumentAgentStepFields) {
         if (step[key] !== undefined) {
           ctx.addIssue({
             code: 'custom',
@@ -413,14 +415,7 @@ export const workflowDocumentStepSchema = z
       return;
     }
 
-    const isAgent =
-      step.model !== undefined ||
-      step.prompt !== undefined ||
-      step.harness !== undefined ||
-      step.thinking !== undefined ||
-      step.provider !== undefined ||
-      step.tools !== undefined ||
-      step.integrations !== undefined;
+    const isAgent = workflowDocumentAgentStepFields.some((field) => step[field] !== undefined);
 
     if (!isAgent) {
       ctx.addIssue({

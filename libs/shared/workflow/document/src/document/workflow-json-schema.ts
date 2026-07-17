@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {thinkingLevelsForHarness} from './step-enums.js';
-import {workflowDocumentSchema} from './workflow-document.js';
+import {workflowDocumentAgentStepFields, workflowDocumentSchema} from './workflow-document.js';
 
 type JsonSchema = Record<string, unknown>;
 
@@ -55,24 +55,17 @@ export function buildWorkflowJsonSchema({
 function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema) {
   const rootProperties = propertiesOf(schema);
   const jobs = object(rootProperties.jobs);
+  const triggers = object(rootProperties.triggers);
   jobs.minProperties = 1;
+  triggers.minProperties = 1;
 
-  const agentFields = [
-    'model',
-    'prompt',
-    'harness',
-    'thinking',
-    'provider',
-    'tools',
-    'integrations',
-  ];
   stepSchema.allOf = [
     ...objects(stepSchema.allOf),
     {
       oneOf: [
         {
           required: ['run'],
-          not: {anyOf: agentFields.map((field) => ({required: [field]}))},
+          not: {anyOf: workflowDocumentAgentStepFields.map((field) => ({required: [field]}))},
         },
         {
           required: ['prompt'],
@@ -83,6 +76,8 @@ function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema) {
   ];
 
   const job = object(jobs.additionalProperties);
+  const jobOutputs = object(propertiesOf(job).outputs);
+  jobOutputs.minProperties = 1;
   const listening = object(propertiesOf(job).listening);
   const batch = object(propertiesOf(listening).batch);
   addAtLeastOneConstraint(batch, ['debounce', 'max_size', 'max_wait']);

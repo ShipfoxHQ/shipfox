@@ -48,12 +48,16 @@ describe('buildWorkflowJsonSchema', () => {
   it('projects job and step validation rules', () => {
     const schema = buildWorkflowJsonSchema();
     const jobs = object(object(schema.properties).jobs);
+    const triggers = object(object(schema.properties).triggers);
+    const jobOutputs = jobOutputsSchemaFor(schema);
     const step = stepSchemaFor(schema);
     const gate = object(object(step.properties).gate);
     const batch = batchSchemaFor(schema);
     const discriminator = objects(step.allOf).find((constraint) => 'oneOf' in constraint);
 
     expect(jobs.minProperties).toBe(1);
+    expect(triggers.minProperties).toBe(1);
+    expect(jobOutputs.minProperties).toBe(1);
     expect(discriminator).toMatchObject({
       oneOf: [{required: ['run']}, {required: ['prompt']}],
     });
@@ -80,6 +84,12 @@ function batchSchemaFor(schema: JsonSchema): JsonSchema {
   const job = object(jobs.additionalProperties);
   const listening = object(object(job.properties).listening);
   return object(object(listening.properties).batch);
+}
+
+function jobOutputsSchemaFor(schema: JsonSchema): JsonSchema {
+  const jobs = object(object(schema.properties).jobs);
+  const job = object(jobs.additionalProperties);
+  return object(object(job.properties).outputs);
 }
 
 function requiredAlternatives(schema: JsonSchema): unknown {
