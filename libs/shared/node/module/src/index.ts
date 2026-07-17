@@ -12,6 +12,11 @@ export {
   runModuleStartupTasks,
   startModuleWorkers,
 } from './initialize.js';
+export {
+  aggregateLoginMethods,
+  DuplicateLoginMethodError,
+  NoLoginMethodError,
+} from './login-methods.js';
 export type {
   DrainAllOptions,
   DrainAllResult,
@@ -38,6 +43,7 @@ export {getSubscribers, resetSubscribers, subscribe} from './registry.js';
 export type {ModuleSubscriber} from './subscriber.js';
 export {subscriberFactory} from './subscriber.js';
 export type {
+  LoginMethod,
   ModuleDatabase,
   ModuleMetricsRegistration,
   ModulePublisher,

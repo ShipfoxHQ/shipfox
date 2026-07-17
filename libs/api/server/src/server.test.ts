@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
     createE2eAdminAuthMethod: vi.fn(),
     createE2eRouteGroup: vi.fn(),
     createPostgresClient: vi.fn(),
+    aggregateLoginMethods: vi.fn(),
     initializeModules: vi.fn(),
     listen: vi.fn(),
     logger: {error: vi.fn(), info: vi.fn()},
@@ -47,6 +48,7 @@ vi.mock('@shipfox/node-fastify', () => ({
   listen: mocks.listen,
 }));
 vi.mock('@shipfox/node-module', () => ({
+  aggregateLoginMethods: mocks.aggregateLoginMethods,
   initializeModules: mocks.initializeModules,
   registerModuleMetrics: mocks.registerModuleMetrics,
   resetPublishers: mocks.resetPublishers,
@@ -73,7 +75,7 @@ vi.mock('./e2e.js', () => ({
 }));
 
 function module(): ShipfoxModule {
-  return {name: 'test'};
+  return {name: 'test', loginMethods: [{id: 'test-login'}]};
 }
 
 function worker(taskQueue = 'runtime-queue'): ModuleWorker {
@@ -101,6 +103,7 @@ function resetMocks(): void {
   mocks.createE2eAdminAuthMethod.mockReset();
   mocks.createE2eRouteGroup.mockReset();
   mocks.createPostgresClient.mockReset();
+  mocks.aggregateLoginMethods.mockReset();
   mocks.initializeModules.mockReset();
   mocks.listen.mockReset();
   mocks.logger.error.mockReset();
@@ -122,6 +125,7 @@ function resetMocks(): void {
   mocks.closeErrorMonitoring.mockResolvedValue(true);
   mocks.closePostgresClient.mockResolvedValue(undefined);
   mocks.createApp.mockResolvedValue({});
+  mocks.aggregateLoginMethods.mockReturnValue([{id: 'test-login'}]);
   mocks.createE2eRouteGroup.mockReturnValue([]);
   mocks.initializeModules.mockResolvedValue({
     auth: [],
@@ -166,6 +170,7 @@ describe('createServer', () => {
     await createTestServer({modules});
 
     expect(mocks.startServiceMetrics).toHaveBeenCalledWith({serviceName: 'api'});
+    expect(mocks.aggregateLoginMethods).toHaveBeenCalledWith({modules});
     expect(mocks.createPostgresClient).toHaveBeenCalledOnce();
     expect(mocks.initializeModules).toHaveBeenCalledWith({modules});
     expect(mocks.registerModuleMetrics).toHaveBeenCalledWith({modules});
@@ -175,6 +180,28 @@ describe('createServer', () => {
       routes: [],
       fastifyOptions: {trustProxy: false},
     });
+  });
+
+  it('fails before startup side effects when no login method is configured', async () => {
+    const failure = new Error('No login methods are configured');
+    mocks.aggregateLoginMethods.mockImplementationOnce(() => {
+      throw failure;
+    });
+
+    const result = createTestServer({modules: [module()]});
+
+    await expect(result).rejects.toBe(failure);
+    expect(mocks.startServiceMetrics).not.toHaveBeenCalled();
+    expect(mocks.createPostgresClient).not.toHaveBeenCalled();
+  });
+
+  it('constructs and starts when a module contributes a login method', async () => {
+    const server = await createTestServer({modules: [module()]});
+
+    await server.start();
+
+    expect(mocks.startModuleWorkers).toHaveBeenCalledOnce();
+    expect(mocks.listen).toHaveBeenCalledOnce();
   });
 
   it('starts module workers before listening for HTTP requests', async () => {

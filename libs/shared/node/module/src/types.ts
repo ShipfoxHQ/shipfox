@@ -59,10 +59,20 @@ export type ModuleMetricsRegistration = () => void;
 
 export type ModuleStartupTasks = () => Promise<void>;
 
+/**
+ * A user-facing mechanism that establishes a standard Shipfox session.
+ * This is distinct from an `AuthMethod`, which authenticates requests after a
+ * session has been established.
+ */
+export interface LoginMethod {
+  id: string;
+}
+
 export interface ShipfoxModule {
   name: string;
   database?: ModuleDatabase | ModuleDatabase[];
   auth?: AuthMethod[];
+  loginMethods?: LoginMethod[];
   routes?: RouteExport[];
   e2eRoutes?: RouteExport[];
   publishers?: ModulePublisher[];
