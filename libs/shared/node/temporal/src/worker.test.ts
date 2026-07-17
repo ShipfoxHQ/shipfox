@@ -163,4 +163,18 @@ describe('createTemporalWorker', () => {
     expect(createdWorkerOptions?.interceptors).not.toHaveProperty('workflowModules');
     expect(mocks.loadProductionWorkflowBundle).toHaveBeenCalledWith('/tmp/workflows.js');
   });
+
+  it('validates a production bundle before opening an internally owned connection', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const failure = new Error('missing workflow bundle');
+    mocks.loadProductionWorkflowBundle.mockImplementation(() => {
+      throw failure;
+    });
+
+    const result = createTemporalWorker(workerOptions());
+
+    await expect(result).rejects.toThrow(failure);
+    expect(mocks.nativeConnectionConnect).not.toHaveBeenCalled();
+    expect(mocks.workerCreate).not.toHaveBeenCalled();
+  });
 });

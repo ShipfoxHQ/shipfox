@@ -36,10 +36,10 @@ export async function createTemporalWorkerConnection(): Promise<NativeConnection
 }
 
 export async function createTemporalWorker(options: CreateWorkerOptions): Promise<Worker> {
-  const connection = options.connection ?? (await createTemporalWorkerConnection());
   const taskQueue = options.taskQueue ?? config.TEMPORAL_TASK_QUEUE;
   const workflowSource = resolveWorkflowSource(options.workflowsPath);
   const {interceptors: workflowInterceptors, ...workflowOptions} = workflowSource;
+  const connection = options.connection ?? (await createTemporalWorkerConnection());
 
   const worker = await Worker.create({
     connection,
