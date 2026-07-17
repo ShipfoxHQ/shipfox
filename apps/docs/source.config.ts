@@ -1,5 +1,11 @@
 import {defineConfig, defineDocs, frontmatterSchema, metaSchema} from 'fumadocs-mdx/config';
 import {z} from 'zod';
+import {
+  INTEGRATION_CATALOG_AVAILABILITIES,
+  INTEGRATION_CATALOG_CAPABILITIES,
+  INTEGRATION_CATALOG_CATEGORIES,
+  INTEGRATION_CATALOG_ICONS,
+} from './src/lib/integration-catalog';
 
 export type {z} from 'zod';
 
@@ -12,6 +18,16 @@ export const docs = defineDocs({
     schema: frontmatterSchema.extend({
       sidebarTitle: z.string().optional(),
       status: z.string().optional(),
+      catalog: z
+        .object({
+          summary: z.string(),
+          availability: z.enum(INTEGRATION_CATALOG_AVAILABILITIES),
+          capabilities: z.array(z.enum(INTEGRATION_CATALOG_CAPABILITIES)),
+          categories: z.array(z.enum(INTEGRATION_CATALOG_CATEGORIES)),
+          aliases: z.array(z.string()),
+          icon: z.enum(INTEGRATION_CATALOG_ICONS),
+        })
+        .optional(),
     }),
     postprocess: {
       includeProcessedMarkdown: true,

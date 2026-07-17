@@ -33,8 +33,33 @@ const regions = [
     'content/generated/integrations/webhooks/events.mdx',
     () => renderEventCatalog(webhookEventCatalog),
   ],
+  ['content/generated/integrations/catalog.json', renderIntegrationCatalogData],
   ['content/generated/reference/workflow-schema.mdx', renderWorkflowSchemaReference],
 ];
+
+function renderIntegrationCatalogData() {
+  return JSON.stringify(
+    {
+      github: {
+        capabilities: ['events', 'agent_tools'],
+        eventCount: githubEventCatalog.events.length,
+        toolCount: githubAgentToolCatalog.length,
+      },
+      sentry: {
+        capabilities: ['events'],
+        eventCount: sentryEventCatalog.events.length,
+        toolCount: 0,
+      },
+      webhooks: {
+        capabilities: ['events'],
+        eventCount: webhookEventCatalog.events.length,
+        toolCount: 0,
+      },
+    },
+    null,
+    2,
+  );
+}
 
 function renderModelProvidersTable() {
   const supported = MODEL_PROVIDER_CATALOG_SEED.filter((p) => p.support_status === 'supported');

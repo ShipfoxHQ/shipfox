@@ -1,0 +1,85 @@
+import assert from 'node:assert/strict';
+import {emptyCatalogFilters, filterProviders} from '@/lib/integration-catalog';
+import {validateIntegrationCatalog} from '@/lib/integration-catalog-validation';
+
+const providers = [
+  {
+    slug: 'github',
+    name: 'GitHub',
+    summary: 'Connect repositories and automation.',
+    availability: 'available',
+    capabilities: ['source_control', 'events', 'agent_tools'],
+    categories: ['source-control'],
+    aliases: ['git', 'vcs', 'ci'],
+    icon: 'github',
+    overviewHref: '/integrations/github',
+    setupHref: '/integrations/github/setup',
+    eventCount: 12,
+    toolCount: 24,
+  },
+  {
+    slug: 'sentry',
+    name: 'Sentry',
+    summary: 'Route error monitoring events.',
+    availability: 'available',
+    capabilities: ['events'],
+    categories: ['observability'],
+    aliases: ['errors', 'monitoring', 'crash'],
+    icon: 'sentry',
+    overviewHref: '/integrations/sentry',
+    setupHref: '/integrations/sentry/setup',
+    eventCount: 5,
+    toolCount: 0,
+  },
+  {
+    slug: 'linear',
+    name: 'Linear',
+    summary: 'Planned issue tracking integration.',
+    availability: 'coming-soon',
+    capabilities: [],
+    categories: ['issue-tracking'],
+    aliases: ['issues', 'tickets'],
+    icon: 'linear',
+    overviewHref: '/integrations/linear',
+    eventCount: 0,
+    toolCount: 0,
+  },
+];
+
+assert.deepEqual(filterProviders(providers, emptyCatalogFilters), providers);
+assert.deepEqual(
+  filterProviders(providers, {...emptyCatalogFilters, query: 'monitoring'}).map(({slug}) => slug),
+  ['sentry'],
+);
+assert.deepEqual(
+  filterProviders(providers, {
+    ...emptyCatalogFilters,
+    capability: ['events', 'agent_tools'],
+    category: ['source-control'],
+  }).map(({slug}) => slug),
+  ['github'],
+);
+assert.deepEqual(
+  filterProviders(providers, {
+    ...emptyCatalogFilters,
+    availability: ['available', 'coming-soon'],
+  }).map(({slug}) => slug),
+  ['github', 'sentry', 'linear'],
+);
+
+assert.throws(
+  () => validateIntegrationCatalog([{...providers[0], eventCount: 0}]),
+  /declares events but its event count is 0/,
+);
+assert.throws(
+  () => validateIntegrationCatalog([{...providers[2], capabilities: ['events'], eventCount: 1}]),
+  /coming soon but declares capabilities/,
+);
+assert.throws(
+  () => validateIntegrationCatalog([{...providers[0], setupHref: undefined}]),
+  /available but has no setup page/,
+);
+assert.throws(
+  () => validateIntegrationCatalog([providers[1]], {sentry: ['events', 'agent_tools']}),
+  /has a agent_tools DTO catalog but omits that capability/,
+);

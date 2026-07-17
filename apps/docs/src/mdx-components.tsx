@@ -9,6 +9,8 @@ import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type {MDXComponents} from 'mdx/types';
 import {DocsImage} from '@/app/components/docs-image';
 import {DocsVideo} from '@/app/components/docs-video';
+import {IntegrationCatalog as IntegrationCatalogClient} from '@/app/components/integration-catalog';
+import {getIntegrationCatalog} from '@/lib/integration-catalog-source';
 
 // The MDX seam: Fumadocs UI primitives plus the door to embedding
 // @shipfox/react-ui components in docs pages.
@@ -19,6 +21,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     Cards,
     DocsImage,
     DocsVideo,
+    IntegrationCatalog,
     Callout,
     Steps,
     Step,
@@ -35,4 +38,8 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     ),
     ...components,
   };
+}
+
+function IntegrationCatalog() {
+  return <IntegrationCatalogClient providers={getIntegrationCatalog()} />;
 }
