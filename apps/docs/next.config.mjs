@@ -12,7 +12,7 @@ const basePath = process.env.VERCEL_ENV === 'production' ? '/docs' : '';
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
-  transpilePackages: ['@shipfox/react-ui', '@shipfox/workflow-document'],
+  transpilePackages: ['@shipfox/workflow-document'],
   basePath: basePath || undefined,
   env: {NEXT_PUBLIC_BASE_PATH: basePath},
   // Pin the workspace root so Turbopack does not misinfer it from sibling lockfiles
@@ -20,7 +20,8 @@ const config = {
   turbopack: {
     root: workspaceRoot,
     resolveAlias: {
-      '#utils/cn.js': '../../libs/shared/react/ui/src/utils/cn.ts',
+      '@shipfox/react-ui/combobox': '../../libs/shared/react/ui/dist/components/combobox/index.js',
+      '#utils/cn.js': '../../libs/shared/react/ui/dist/utils/cn.js',
     },
   },
   rewrites() {
