@@ -1,11 +1,9 @@
 import {defineClientFeature} from '@shipfox/client-shell';
-import {recordProvider} from '@shipfox/client-shell-fixture-feature';
-import {useQueryClient} from '@tanstack/react-query';
-import type {PropsWithChildren} from 'react';
+import {ProviderProbe} from '@shipfox/client-shell-fixture-feature';
+import {createElement, type PropsWithChildren} from 'react';
 
 function AppFeatureProvider({children}: PropsWithChildren) {
-  recordProvider('app-feature', useQueryClient());
-  return children;
+  return createElement(ProviderProbe, {id: 'app-feature'}, children);
 }
 
 export const overrideFeature = defineClientFeature({

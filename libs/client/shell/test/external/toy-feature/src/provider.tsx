@@ -1,25 +1,33 @@
 import {type QueryClient, useQueryClient} from '@tanstack/react-query';
-import type {PropsWithChildren} from 'react';
+import {createContext, type PropsWithChildren, useContext, useEffect, useMemo} from 'react';
 
-export const providerProbe: {
-  order: string[];
-  queryClients: QueryClient[];
-} = {
-  order: [],
-  queryClients: [],
-};
-
-export function resetProviderProbe(): void {
-  providerProbe.order.length = 0;
-  providerProbe.queryClients.length = 0;
+export interface ProviderProbeEntry {
+  id: string;
+  queryClient: QueryClient;
 }
 
-export function recordProvider(id: string, queryClient: QueryClient): void {
-  providerProbe.order.push(id);
-  providerProbe.queryClients.push(queryClient);
+const ProviderProbeContext = createContext<readonly ProviderProbeEntry[]>([]);
+
+export function ProviderProbe({id, children}: PropsWithChildren<{id: string}>) {
+  const parentEntries = useContext(ProviderProbeContext);
+  const queryClient = useQueryClient();
+  const entries = useMemo(
+    () => [...parentEntries, {id, queryClient}],
+    [id, parentEntries, queryClient],
+  );
+  return <ProviderProbeContext value={entries}>{children}</ProviderProbeContext>;
+}
+
+export function ProviderProbeObserver({
+  onChange,
+}: {
+  onChange: (entries: readonly ProviderProbeEntry[]) => void;
+}) {
+  const entries = useContext(ProviderProbeContext);
+  useEffect(() => onChange(entries), [entries, onChange]);
+  return null;
 }
 
 export function ToyFeatureProvider({children}: PropsWithChildren) {
-  recordProvider('toy-feature', useQueryClient());
-  return children;
+  return <ProviderProbe id="toy-feature">{children}</ProviderProbe>;
 }

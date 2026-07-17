@@ -6,12 +6,20 @@ import {
 } from '@shipfox/client-config';
 import {mergeConfigShapes} from '@shipfox/client-shell';
 import {ShellProviders} from '@shipfox/client-shell/testing';
+import {
+  type ProviderProbeEntry,
+  ProviderProbeObserver,
+} from '@shipfox/client-shell-fixture-feature';
 import {RouterProvider} from '@tanstack/react-router';
 import {createRoot} from 'react-dom/client';
 import {features} from './features.js';
 import {router} from './shipfox-app.gen.js';
 
-export function ClientApp() {
+export function createClientAppElement({
+  onProviders,
+}: {
+  onProviders?: (entries: readonly ProviderProbeEntry[]) => void;
+} = {}) {
   const config = loadConfig(mergeConfigShapes(features), {
     runtime: getWindowRuntimeConfig(),
     build: import.meta.env,
@@ -20,10 +28,11 @@ export function ClientApp() {
   setLoadedConfig(config.config);
   return (
     <ShellProviders features={features}>
+      {onProviders ? <ProviderProbeObserver onChange={onProviders} /> : null}
       <RouterProvider router={router} />
     </ShellProviders>
   );
 }
 
 const root = document.getElementById('root');
-if (root) createRoot(root).render(<ClientApp />);
+if (root) createRoot(root).render(createClientAppElement());

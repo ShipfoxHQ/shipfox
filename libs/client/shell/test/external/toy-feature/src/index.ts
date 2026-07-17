@@ -2,7 +2,11 @@ import {defineClientFeature} from '@shipfox/client-shell';
 import {toyConfigShape} from './config.js';
 import {ToyFeatureProvider} from './provider.js';
 
-export {providerProbe, recordProvider, resetProviderProbe} from './provider.js';
+export {
+  ProviderProbe,
+  type ProviderProbeEntry,
+  ProviderProbeObserver,
+} from './provider.js';
 
 export const toyFeature = defineClientFeature({
   id: 'fixture.toy-feature',

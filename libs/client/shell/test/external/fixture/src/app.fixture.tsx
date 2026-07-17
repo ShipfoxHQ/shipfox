@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import {getLoadedConfig} from '@shipfox/client-config';
-import {providerProbe, resetProviderProbe} from '@shipfox/client-shell-fixture-feature';
+import type {ProviderProbeEntry} from '@shipfox/client-shell-fixture-feature';
 import {QueryClient} from '@tanstack/react-query';
 import {createMemoryHistory} from '@tanstack/react-router';
-import {act, render, screen} from '@testing-library/react';
-import {ClientApp} from './main.js';
+import {act, render, screen, waitFor} from '@testing-library/react';
+import {createClientAppElement} from './main.js';
 import {router} from './shipfox-app.gen.js';
 
 test('proves the external composition contract', async () => {
@@ -20,18 +20,25 @@ test('proves the external composition contract', async () => {
   }));
   window.scrollTo = vi.fn();
   window.__SHIPFOX_CONFIG__ = undefined;
-  const missingConfig = render(<ClientApp />);
+  const missingConfig = render(createClientAppElement(), {reactStrictMode: true});
 
   expect(await screen.findByRole('heading', {name: 'Configuration error'})).toBeVisible();
   expect(screen.getByText('fixtureGreeting')).toBeVisible();
   missingConfig.unmount();
 
   window.__SHIPFOX_CONFIG__ = {FIXTURE_GREETING: 'Hello from the fixture'};
-  resetProviderProbe();
+  let providers: readonly ProviderProbeEntry[] = [];
   router.update({
     history: createMemoryHistory({initialEntries: ['/workspaces/workspace/insights']}),
   });
-  render(<ClientApp />);
+  render(
+    createClientAppElement({
+      onProviders: (entries) => {
+        providers = entries;
+      },
+    }),
+    {reactStrictMode: true},
+  );
 
   expect(await screen.findByRole('heading', {name: 'Overridden insights'})).toBeVisible();
   expect(screen.queryByRole('heading', {name: 'Toy insights'})).not.toBeInTheDocument();
@@ -39,10 +46,11 @@ test('proves the external composition contract', async () => {
     'Insights first',
     'Insights second',
   ]);
-  expect(providerProbe.order).toEqual(['toy-feature', 'app-feature']);
-  expect(providerProbe.queryClients).toHaveLength(2);
-  expect(providerProbe.queryClients[0]).toBeInstanceOf(QueryClient);
-  expect(providerProbe.queryClients[1]).toBe(providerProbe.queryClients[0]);
+  await waitFor(() => expect(providers.map(({id}) => id)).toEqual(['toy-feature', 'app-feature']));
+  const queryClients = providers.map(({queryClient}) => queryClient);
+  expect(queryClients).toHaveLength(2);
+  expect(queryClients[0]).toBeInstanceOf(QueryClient);
+  expect(queryClients[1]).toBe(queryClients[0]);
   expect(getLoadedConfig<{fixtureGreeting: string}>().fixtureGreeting).toBe(
     'Hello from the fixture',
   );
