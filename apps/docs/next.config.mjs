@@ -2,6 +2,7 @@ import {fileURLToPath} from 'node:url';
 import {createMDX} from 'fumadocs-mdx/next';
 
 const withMDX = createMDX();
+const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 // The production docs deployment is mounted behind the cloud landing app at
 // www.shipfox.io/docs. Vercel previews stay rooted at / so preview URLs work
@@ -17,7 +18,7 @@ const config = {
   // Pin the workspace root so Turbopack does not misinfer it from sibling lockfiles
   // (git worktrees expose more than one pnpm-workspace.yaml).
   turbopack: {
-    root: fileURLToPath(new URL('../..', import.meta.url)),
+    root: workspaceRoot,
   },
   rewrites() {
     return [

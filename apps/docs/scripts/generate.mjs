@@ -15,26 +15,61 @@ import {slugForHeading} from './lib/slug.mjs';
 
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const markdownLinkPattern = /^\[([^\]]+)\]\(([^)]*)\)$/;
+const integrationCatalogProviders = [
+  {
+    slug: 'github',
+    capabilities: ['events', 'agent_tools'],
+    eventCatalog: githubEventCatalog,
+    toolCatalog: githubAgentToolCatalog,
+    toolSelectionCatalog: githubAgentToolSelectionCatalog,
+  },
+  {
+    slug: 'sentry',
+    capabilities: ['events'],
+    eventCatalog: sentryEventCatalog,
+  },
+  {
+    slug: 'webhooks',
+    capabilities: ['events'],
+    eventCatalog: webhookEventCatalog,
+  },
+];
 const regions = [
   ['content/generated/reference/model-providers.mdx', renderModelProvidersTable],
-  [
-    'content/generated/integrations/github/events.mdx',
-    () => renderEventCatalog(githubEventCatalog),
-  ],
-  [
-    'content/generated/integrations/github/tools.mdx',
-    () => renderToolCatalog(githubAgentToolCatalog, githubAgentToolSelectionCatalog),
-  ],
-  [
-    'content/generated/integrations/sentry/events.mdx',
-    () => renderEventCatalog(sentryEventCatalog),
-  ],
-  [
-    'content/generated/integrations/webhooks/events.mdx',
-    () => renderEventCatalog(webhookEventCatalog),
-  ],
+  ...integrationCatalogProviders.flatMap((provider) => [
+    [
+      `content/generated/integrations/${provider.slug}/events.mdx`,
+      () => renderEventCatalog(provider.eventCatalog),
+    ],
+    ...(provider.toolCatalog
+      ? [
+          [
+            `content/generated/integrations/${provider.slug}/tools.mdx`,
+            () => renderToolCatalog(provider.toolCatalog, provider.toolSelectionCatalog),
+          ],
+        ]
+      : []),
+  ]),
+  ['content/generated/integrations/catalog.json', renderIntegrationCatalogData],
   ['content/generated/reference/workflow-schema.mdx', renderWorkflowSchemaReference],
 ];
+
+function renderIntegrationCatalogData() {
+  return JSON.stringify(
+    Object.fromEntries(
+      integrationCatalogProviders.map((provider) => [
+        provider.slug,
+        {
+          capabilities: provider.capabilities,
+          eventCount: provider.eventCatalog.events.length,
+          toolCount: provider.toolCatalog?.length ?? 0,
+        },
+      ]),
+    ),
+    null,
+    2,
+  );
+}
 
 function renderModelProvidersTable() {
   const supported = MODEL_PROVIDER_CATALOG_SEED.filter((p) => p.support_status === 'supported');

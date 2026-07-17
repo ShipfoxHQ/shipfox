@@ -12,11 +12,11 @@
     "build": "pnpm generate && next build",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "dev": "pnpm generate && next dev --turbo --port ${SHIPFOX_DOCS_PORT:-3500}",
+    "dev": "node -e \"require('node:fs').rmSync('.next', {recursive: true, force: true})\" && pnpm generate && next dev --turbo --port ${SHIPFOX_DOCS_PORT:-3500}",
     "start": "next start --port ${SHIPFOX_DOCS_PORT:-3500}",
     "type": "shipfox-tsc-check",
     "generate": "tsx --conditions=development scripts/generate.mjs",
-    "test": "pnpm generate && pnpm test:unit && tsx scripts/check-writing.mjs && tsx scripts/check-links.mjs && tsx scripts/check-workflow-schema.mjs",
+    "test": "pnpm generate && pnpm test:unit && tsx scripts/check-writing.mjs && tsx scripts/check-links.mjs && tsx scripts/check-workflow-schema.mjs && tsx scripts/check-catalog.mjs",
     "test:unit": "tsx --test",
     "postinstall": "fumadocs-mdx"
   },
