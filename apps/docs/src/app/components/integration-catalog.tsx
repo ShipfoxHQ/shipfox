@@ -95,7 +95,7 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
           </div>
           <div
             id="integration-catalog-filters"
-            className={`${filtersOpen ? 'grid' : 'hidden'} mt-4 gap-4 sm:grid-cols-2 lg:!grid lg:mt-0 lg:grid-cols-3 lg:gap-3`}
+            className={`${filtersOpen ? 'grid' : 'hidden'} mt-4 gap-4 sm:grid-cols-2 lg:!grid lg:col-span-3 lg:mt-0 lg:grid-cols-3 lg:gap-3`}
           >
             <CatalogFilterField label="Availability" htmlFor="integration-catalog-availability">
               <Combobox
