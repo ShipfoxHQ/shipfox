@@ -215,7 +215,6 @@ function renderWorkflowSchemaReference() {
   const gateFailure = object(gate.properties).on_failure;
   const triggers = object(root.triggers);
   const trigger = object(triggers.additionalProperties);
-  const outputs = object(steps.properties).outputs;
   const batch = object(listening.properties).batch;
 
   return [
@@ -289,10 +288,6 @@ function renderWorkflowSchemaReference() {
         gate: '#gate-fields',
         outputs: '#step-outputs',
       },
-      defaults: {
-        harness: 'pi',
-        thinking: 'xhigh',
-      },
       types: {
         thinking: thinkingType(),
         integrations: codeType('Integration[]'),
@@ -305,11 +300,8 @@ function renderWorkflowSchemaReference() {
       nested: {on_failure: '#gate-failure-fields'},
       types: {on_failure: namedType('GateFailure')},
     }),
-    component('GateFailureFields', object(gateFailure.properties)),
-    component('StepOutputs', outputFields(outputs), {
-      required: ['type'],
-      types: {type: codeType('string | number | boolean | json')},
-    }),
+    component('GateFailureFields', object(gateFailure.properties), {required: ['restart_from']}),
+    component('StepOutputs', outputFields()),
     component('ListeningFields', object(listening.properties), {
       required: ['on'],
       nested: {
@@ -419,21 +411,21 @@ function descriptionFor(description) {
     .join('')}</>`;
 }
 
-function outputFields(outputs) {
-  const declaration = object(outputs.additionalProperties);
-  const objectDeclaration = objects(declaration.anyOf).find((option) => option.type === 'object');
-  return object(objectDeclaration?.properties);
+function outputFields() {
+  return {
+    OUTPUT_NAME: {
+      type: 'string | number | boolean | json | {type: string | number | boolean | json; schema?: value}',
+      description:
+        'Output declaration. Use a type directly (for example, `sha: string`) or an object with required `type` and optional `schema`.',
+    },
+  };
 }
 
 function environmentFields() {
   return {
-    name: {
-      type: 'string',
-      description: 'POSIX environment variable name: `[A-Za-z_][A-Za-z0-9_]*`.',
-    },
-    value: {
+    '[A-Za-z_][A-Za-z0-9_]*': {
       type: 'string | number | boolean',
-      description: 'Environment variable value.',
+      description: 'Environment variable value. For example, `NODE_ENV: production`.',
     },
   };
 }

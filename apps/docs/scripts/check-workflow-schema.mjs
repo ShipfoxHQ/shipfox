@@ -31,8 +31,8 @@ for (const anchor of requiredAnchors) {
 for (const file of await filesUnder(contentRoot)) {
   if (!file.endsWith('.mdx')) continue;
   const content = await readFile(file, 'utf8');
-  for (const match of content.matchAll(/```yaml\n([\s\S]*?)```/g)) {
-    const body = match[1] ?? '';
+  for (const match of content.matchAll(/^([ \t]*)```yaml\n([\s\S]*?)^\1```/gm)) {
+    const body = dedent(match[2] ?? '', match[1] ?? '');
     if (!/^(?:name|jobs):/m.test(body)) continue;
     if (!body.startsWith(`${schemaHeader}\n`)) {
       violations.push(
@@ -40,6 +40,14 @@ for (const file of await filesUnder(contentRoot)) {
       );
     }
   }
+}
+
+function dedent(content, indentation) {
+  if (indentation.length === 0) return content;
+  return content
+    .split('\n')
+    .map((line) => (line.startsWith(indentation) ? line.slice(indentation.length) : line))
+    .join('\n');
 }
 
 if (violations.length > 0) {

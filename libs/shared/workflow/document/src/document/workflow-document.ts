@@ -350,11 +350,12 @@ export const workflowDocumentStepSchema = z
       description: 'Prompt for an agent step. It is required when any agent-only field is set.',
     }),
     harness: harnessSchema.optional().meta({
-      description: 'Agent harness. Use `pi` by default, or `claude` for Claude Code.',
+      description:
+        'Agent harness. When omitted, Shipfox uses the workspace default harness, or `pi` when none is configured.',
     }),
     thinking: agentThinkingSchema.optional().meta({
       description:
-        'Reasoning effort for an agent step. Supported values depend on `harness`; defaults to `xhigh`.',
+        'Reasoning effort for an agent step. Supported values depend on the resolved harness. When omitted, Shipfox uses the provider default, or `xhigh` when none is configured.',
     }),
     provider: z.string().min(1).optional().meta({
       description:

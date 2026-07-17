@@ -40,14 +40,25 @@ describe('buildWorkflowJsonSchema', () => {
       'xhigh',
       'max',
     ]);
-    expect(thinkingValuesForMissingHarness(conditionals)).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-    ]);
+    expect(conditionals).not.toContainEqual(
+      expect.objectContaining({if: {not: {required: ['harness']}}}),
+    );
+  });
+
+  it('projects job and step validation rules', () => {
+    const schema = buildWorkflowJsonSchema();
+    const jobs = object(object(schema.properties).jobs);
+    const step = stepSchemaFor(schema);
+    const gate = object(object(step.properties).gate);
+    const batch = batchSchemaFor(schema);
+    const discriminator = objects(step.allOf).find((constraint) => 'oneOf' in constraint);
+
+    expect(jobs.minProperties).toBe(1);
+    expect(discriminator).toMatchObject({
+      oneOf: [{required: ['run']}, {required: ['prompt']}],
+    });
+    expect(requiredAlternatives(gate)).toEqual(['success', 'on_failure']);
+    expect(requiredAlternatives(batch)).toEqual(['debounce', 'max_size', 'max_wait']);
   });
 
   it('describes every JSON Schema property', () => {
@@ -64,16 +75,21 @@ function stepSchemaFor(schema: JsonSchema): JsonSchema {
   return object(steps.items);
 }
 
+function batchSchemaFor(schema: JsonSchema): JsonSchema {
+  const jobs = object(object(schema.properties).jobs);
+  const job = object(jobs.additionalProperties);
+  const listening = object(object(job.properties).listening);
+  return object(object(listening.properties).batch);
+}
+
+function requiredAlternatives(schema: JsonSchema): unknown {
+  const constraint = objects(schema.allOf).find((candidate) => 'anyOf' in candidate);
+  return objects(constraint?.anyOf).map((alternative) => strings(alternative.required)[0]);
+}
+
 function thinkingValuesFor(conditionals: JsonSchema[], harness: string): unknown {
   const conditional = conditionals.find(
     (candidate) => object(object(object(candidate.if).properties).harness).const === harness,
-  );
-  return object(object(object(conditional?.then).properties).thinking).enum;
-}
-
-function thinkingValuesForMissingHarness(conditionals: JsonSchema[]): unknown {
-  const conditional = conditionals.find((candidate) =>
-    Array.isArray(object(object(candidate.if).not).required),
   );
   return object(object(object(conditional?.then).properties).thinking).enum;
 }
@@ -111,6 +127,12 @@ function object(value: unknown): JsonSchema {
 
 function objects(value: unknown): JsonSchema[] {
   return Array.isArray(value) ? value.filter(isObject) : [];
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 function isObject(value: unknown): value is JsonSchema {

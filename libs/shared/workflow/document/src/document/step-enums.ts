@@ -1,7 +1,8 @@
 import {z} from 'zod';
 
 export const harnessSchema = z.enum(['pi', 'claude']).meta({
-  description: 'Agent harness. Use `pi` by default, or `claude` for Claude Code.',
+  description:
+    'Agent harness. When omitted, Shipfox uses the workspace default harness, or `pi` when none is configured.',
 });
 export type Harness = z.infer<typeof harnessSchema>;
 export const DEFAULT_HARNESS = 'pi' as const satisfies Harness;
@@ -12,7 +13,7 @@ export const agentThinkingSchema = z
   .enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
   .meta({
     description:
-      'Reasoning effort for an agent step. Supported values depend on `harness`; defaults to `xhigh`.',
+      'Reasoning effort for an agent step. Supported values depend on the resolved harness. When omitted, Shipfox uses the provider default, or `xhigh` when none is configured.',
   });
 
 export type AgentThinking = z.infer<typeof agentThinkingSchema>;

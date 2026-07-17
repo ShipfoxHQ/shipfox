@@ -20,6 +20,7 @@ export function buildWorkflowJsonSchema({
   const thinkingSchema = object(stepProperties.thinking);
 
   delete stepProperties.agent;
+  projectWorkflowValidation(schema, stepSchema);
   const thinkingConditionals = (['pi', 'claude'] as const).map((harness) => {
     const conditional: JsonSchema = {
       if: {
@@ -43,10 +44,7 @@ export function buildWorkflowJsonSchema({
     };
     return conditional;
   });
-  stepSchema.allOf = [
-    ...thinkingConditionals,
-    thinkingConditionalForMissingHarness(thinkingSchema),
-  ];
+  stepSchema.allOf = [...objects(stepSchema.allOf), ...thinkingConditionals];
   schema.$schema = 'https://json-schema.org/draft/2020-12/schema';
   schema.$id = id;
   schema.title = 'Shipfox Workflow';
@@ -54,20 +52,47 @@ export function buildWorkflowJsonSchema({
   return schema;
 }
 
-function thinkingConditionalForMissingHarness(thinkingSchema: JsonSchema): JsonSchema {
-  const conditional: JsonSchema = {
-    if: {not: {required: ['harness']}},
-  };
-  // biome-ignore lint/suspicious/noThenProperty: JSON Schema uses "then" for a conditional branch.
-  conditional.then = {
-    properties: {
-      thinking: {
-        ...thinkingSchema,
-        enum: [...thinkingLevelsForHarness('pi')],
-      },
+function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema) {
+  const rootProperties = propertiesOf(schema);
+  const jobs = object(rootProperties.jobs);
+  jobs.minProperties = 1;
+
+  const agentFields = [
+    'model',
+    'prompt',
+    'harness',
+    'thinking',
+    'provider',
+    'tools',
+    'integrations',
+  ];
+  stepSchema.allOf = [
+    ...objects(stepSchema.allOf),
+    {
+      oneOf: [
+        {
+          required: ['run'],
+          not: {anyOf: agentFields.map((field) => ({required: [field]}))},
+        },
+        {
+          required: ['prompt'],
+          not: {anyOf: [{required: ['run']}, {required: ['env']}]},
+        },
+      ],
     },
-  };
-  return conditional;
+  ];
+
+  const job = object(jobs.additionalProperties);
+  const listening = object(propertiesOf(job).listening);
+  const batch = object(propertiesOf(listening).batch);
+  addAtLeastOneConstraint(batch, ['debounce', 'max_size', 'max_wait']);
+
+  const gate = object(propertiesOf(stepSchema).gate);
+  addAtLeastOneConstraint(gate, ['success', 'on_failure']);
+}
+
+function addAtLeastOneConstraint(schema: JsonSchema, fields: string[]) {
+  schema.allOf = [...objects(schema.allOf), {anyOf: fields.map((field) => ({required: [field]}))}];
 }
 
 function stepSchemaFor(schema: JsonSchema): JsonSchema {
@@ -87,4 +112,13 @@ function object(value: unknown): JsonSchema {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as JsonSchema)
     : {};
+}
+
+function objects(value: unknown): JsonSchema[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is JsonSchema =>
+          typeof item === 'object' && item !== null && !Array.isArray(item),
+      )
+    : [];
 }

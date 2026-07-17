@@ -70,6 +70,8 @@ fields and invalid field combinations.
 
 <GateFields />
 
+A gate must define `success`, `on_failure`, or both.
+
 ### Gate failure fields
 
 <GateFailureFields />
@@ -78,6 +80,9 @@ fields and invalid field combinations.
 
 <StepOutputs />
 
+Each output declaration can be its type directly (for example, `sha: string`) or
+an object with required `type` and optional `schema`.
+
 ## Listening fields
 
 <ListeningFields />
@@ -85,6 +90,8 @@ fields and invalid field combinations.
 ### Listening batch fields
 
 <ListeningBatchFields />
+
+A batch must set at least one of `debounce`, `max_size`, or `max_wait`.
 
 ## Environment variables
 
