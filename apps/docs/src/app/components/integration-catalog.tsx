@@ -1,6 +1,6 @@
 'use client';
 
-import {Combobox, type ComboboxOption} from '@shipfox/react-ui/combobox';
+import {Combobox} from '@shipfox/react-ui/combobox';
 import {Webhook} from 'lucide-react';
 import Link from 'next/link';
 import {type ReactNode, useMemo, useState} from 'react';
@@ -20,17 +20,24 @@ import {
 } from '@/lib/integration-catalog';
 
 const availabilitySections = INTEGRATION_CATALOG_AVAILABILITIES;
-const capabilityOptions: ComboboxOption[] = INTEGRATION_CATALOG_CAPABILITIES.map((capability) => ({
-  value: capability,
-  label: catalogCapabilityLabels[capability],
-}));
-const availabilityOptions: ComboboxOption[] = INTEGRATION_CATALOG_AVAILABILITIES.map(
+type CatalogComboboxOption = {
+  value: string;
+  label: string;
+};
+
+const capabilityOptions: CatalogComboboxOption[] = INTEGRATION_CATALOG_CAPABILITIES.map(
+  (capability) => ({
+    value: capability,
+    label: catalogCapabilityLabels[capability],
+  }),
+);
+const availabilityOptions: CatalogComboboxOption[] = INTEGRATION_CATALOG_AVAILABILITIES.map(
   (availability) => ({
     value: availability,
     label: catalogAvailabilityLabels[availability],
   }),
 );
-const categoryOptions: ComboboxOption[] = INTEGRATION_CATALOG_CATEGORIES.map((category) => ({
+const categoryOptions: CatalogComboboxOption[] = INTEGRATION_CATALOG_CATEGORIES.map((category) => ({
   value: category,
   label: catalogCategoryLabels[category],
 }));
