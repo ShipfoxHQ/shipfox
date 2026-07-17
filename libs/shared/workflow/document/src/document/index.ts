@@ -44,3 +44,7 @@ export {
   invalidWorkflowDocumentErrorCode,
   parseWorkflowDocument,
 } from './workflow-document-parser.js';
+export {
+  type BuildWorkflowJsonSchemaOptions,
+  buildWorkflowJsonSchema,
+} from './workflow-json-schema.js';

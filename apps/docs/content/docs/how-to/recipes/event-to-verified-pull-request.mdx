@@ -30,6 +30,7 @@ Create `.shipfox/workflows/sentry-issue-to-pr.yml`. Replace `sentry_acme`
 with your Sentry integration connection slug. This is a complete workflow:
 
 ```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
 name: Turn a Sentry issue into a verified pull request
 runner: ubuntu-latest
 

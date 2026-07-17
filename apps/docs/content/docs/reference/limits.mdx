@@ -15,7 +15,7 @@ can change the values marked configurable.
 | Gate attempts per gating step | 3 (one initial run + two restarts) | No | When the cap is exhausted and the gate still fails, the step is marked failed and the job stops. See [Feedback loops](/understand/feedback-loops#loop-bounds). |
 | Job `execution_timeout` | 6 hours | Per job, in YAML | Wall-clock bound on one job execution, including gate retries. See [Job fields](/reference/workflow-schema#job-fields). |
 | Run timeout | 30 days | No (not authorable) | Outer bound on a whole run, including its listening jobs. A listening job's `timeout` is capped by it. |
-| Manual triggers per workflow | 1 | No | See [Validation rules](/reference/workflow-schema#validation-rules). |
+| Manual triggers per workflow | 1 | No | See [Trigger fields](/reference/workflow-schema#trigger-fields). |
 
 ## Step outputs
 

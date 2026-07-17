@@ -10,9 +10,11 @@ import {
 } from '@shipfox/api-integration-github-dto';
 import {sentryEventCatalog} from '@shipfox/api-integration-sentry-dto';
 import {webhookEventCatalog} from '@shipfox/api-integration-webhook-dto';
+import {buildWorkflowJsonSchema, thinkingLevelsForHarness} from '@shipfox/workflow-document';
 import {slugForHeading} from './lib/slug.mjs';
 
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const markdownLinkPattern = /^\[([^\]]+)\]\(([^)]*)\)$/;
 const regions = [
   ['content/generated/reference/model-providers.mdx', renderModelProvidersTable],
   [
@@ -31,6 +33,7 @@ const regions = [
     'content/generated/integrations/webhooks/events.mdx',
     () => renderEventCatalog(webhookEventCatalog),
   ],
+  ['content/generated/reference/workflow-schema.mdx', renderWorkflowSchemaReference],
 ];
 
 function renderModelProvidersTable() {
@@ -196,6 +199,235 @@ function strings(value) {
 
 function objects(value) {
   return Array.isArray(value) ? value.map(object) : [];
+}
+
+function renderWorkflowSchemaReference() {
+  const schema = buildWorkflowJsonSchema();
+  const root = object(schema.properties);
+  const jobs = object(object(root.jobs).additionalProperties);
+  const steps = object(object(object(jobs.properties).steps).items);
+  const listening = object(object(jobs.properties).listening);
+  const integrations = object(steps.properties).integrations;
+  const integration = object(integrations.items);
+  const gate = object(steps.properties).gate;
+  const checkout = object(jobs.properties).checkout;
+  const checkoutPermissions = object(checkout.properties).permissions;
+  const gateFailure = object(gate.properties).on_failure;
+  const triggers = object(root.triggers);
+  const trigger = object(triggers.additionalProperties);
+  const batch = object(listening.properties).batch;
+
+  return [
+    "import {TypeTable} from 'fumadocs-ui/components/type-table';",
+    '',
+    component('TopLevelFields', root, {
+      required: ['name', 'jobs'],
+      nested: {
+        env: '#environment-variables',
+        triggers: '#trigger-fields',
+        jobs: '#job-fields',
+      },
+      types: {
+        env: namedType('Environment'),
+        triggers: recordType('Trigger'),
+        jobs: recordType('Job'),
+      },
+    }),
+    component('TriggerFields', object(trigger.properties), {required: ['source', 'event']}),
+    component('JobFields', object(jobs.properties), {
+      required: ['steps'],
+      nested: {
+        checkout: '#checkout-fields',
+        listening: '#listening-fields',
+      },
+      types: {
+        outputs: recordType('string'),
+        checkout: namedType('Checkout'),
+        listening: namedType('Listening'),
+        env: namedType('Environment'),
+        steps: codeType('Step[]'),
+      },
+    }),
+    component('CheckoutFields', object(checkout.properties), {
+      nested: {permissions: '#checkout-permissions-fields'},
+      types: {permissions: namedType('CheckoutPermissions')},
+    }),
+    component('CheckoutPermissionsFields', object(checkoutPermissions.properties)),
+    component('RunStepFields', object(steps.properties), {
+      fields: ['key', 'if', 'name', 'run', 'gate', 'env', 'outputs'],
+      required: ['run'],
+      nested: {
+        gate: '#gate-fields',
+        env: '#environment-variables',
+        outputs: '#step-outputs',
+      },
+      types: {
+        gate: namedType('Gate'),
+        env: namedType('Environment'),
+        outputs: recordType('Output'),
+      },
+    }),
+    component('AgentStepFields', object(steps.properties), {
+      fields: [
+        'key',
+        'if',
+        'name',
+        'prompt',
+        'model',
+        'harness',
+        'thinking',
+        'provider',
+        'tools',
+        'integrations',
+        'gate',
+        'outputs',
+      ],
+      required: ['prompt'],
+      nested: {
+        integrations: '#agent-integration-fields',
+        gate: '#gate-fields',
+        outputs: '#step-outputs',
+      },
+      types: {
+        thinking: thinkingType(),
+        integrations: codeType('Integration[]'),
+        gate: namedType('Gate'),
+        outputs: recordType('Output'),
+      },
+    }),
+    component('AgentIntegrationFields', object(integration.properties), {required: ['include']}),
+    component('GateFields', object(gate.properties), {
+      nested: {on_failure: '#gate-failure-fields'},
+      types: {on_failure: namedType('GateFailure')},
+    }),
+    component('GateFailureFields', object(gateFailure.properties), {required: ['restart_from']}),
+    component('StepOutputs', outputFields()),
+    component('ListeningFields', object(listening.properties), {
+      required: ['on'],
+      nested: {
+        on: '#trigger-fields',
+        until: '#trigger-fields',
+        batch: '#listening-batch-fields',
+      },
+      types: {
+        on: codeType('Trigger[]'),
+        until: codeType('Trigger[]'),
+        batch: namedType('ListeningBatch'),
+      },
+    }),
+    component('ListeningBatchFields', object(batch.properties)),
+    component('EnvironmentVariables', environmentFields()),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function component(name, properties, options = {}) {
+  const table = renderTypeTable(properties, options)
+    .split('\n')
+    .map((line) => `    ${line}`)
+    .join('\n');
+  return [`export function ${name}() {`, '  return (', table, '  );', '}'].join('\n');
+}
+
+function renderTypeTable(properties, options) {
+  const required = new Set(options.required ?? []);
+  const names = options.fields ?? Object.keys(properties);
+  const rows = names.flatMap((name) => {
+    const property = properties[name];
+    if (!property) return [];
+    return [
+      `    ${JSON.stringify(name)}: {`,
+      `      type: ${options.types?.[name] ?? typeFor(property)},`,
+      `      description: ${descriptionFor(property.description)},`,
+      ...(required.has(name) ? ['      required: true,'] : []),
+      ...(options.defaults?.[name] ? [`      default: ${codeType(options.defaults[name])},`] : []),
+      ...(options.nested?.[name]
+        ? [`      typeDescriptionLink: ${JSON.stringify(options.nested[name])},`]
+        : []),
+      '    },',
+    ];
+  });
+
+  return ['<TypeTable', '  type={{', ...rows, '  }}', '/>'].join('\n');
+}
+
+function typeFor(schema) {
+  if (Array.isArray(schema.enum)) return enumType(schema.enum);
+  if (schema.type === 'array') return codeType(`${typeText(object(schema.items))}[]`);
+  if (schema.type === 'object' && schema.additionalProperties)
+    return codeType('Record<string, value>');
+  if (Array.isArray(schema.anyOf)) {
+    return codeType(schema.anyOf.map((option) => typeText(object(option))).join(' | '));
+  }
+  return codeType(typeof schema.type === 'string' ? schema.type : 'value');
+}
+
+function typeText(schema) {
+  if (Array.isArray(schema.enum)) return schema.enum.join(' | ');
+  if (schema.type === 'array') return `${typeText(object(schema.items))}[]`;
+  if (schema.type === 'object')
+    return schema.additionalProperties ? 'Record<string, value>' : 'object';
+  return typeof schema.type === 'string' ? schema.type : 'value';
+}
+
+function thinkingType() {
+  return [
+    '<>',
+    ...['pi', 'claude'].flatMap((harness, index) => [
+      ...(index > 0 ? [' | '] : []),
+      `<code>{${JSON.stringify(`${harness}: ${thinkingLevelsForHarness(harness).join(', ')}`)}}</code>`,
+    ]),
+    '</>',
+  ].join('');
+}
+
+function enumType(values) {
+  return `<>${values.map((value, index) => `${index > 0 ? ' | ' : ''}<code>{${JSON.stringify(String(value))}}</code>`).join('')}</>`;
+}
+
+function codeType(value) {
+  return `<code>{${JSON.stringify(value)}}</code>`;
+}
+
+function namedType(name) {
+  return codeType(name);
+}
+
+function recordType(valueType) {
+  return codeType(`Record<string, ${valueType}>`);
+}
+
+function descriptionFor(description) {
+  const value = typeof description === 'string' ? description : '';
+  const parts = value.split(/(\[[^\]]+\]\([^)]*\)|`[^`]+`)/g).filter(Boolean);
+  return `<>${parts
+    .map((part) => {
+      const link = markdownLinkPattern.exec(part);
+      if (link) return `<a href=${JSON.stringify(link[2])}>{${JSON.stringify(link[1])}}</a>`;
+      if (part.startsWith('`') && part.endsWith('`')) return codeType(part.slice(1, -1));
+      return `{${JSON.stringify(part)}}`;
+    })
+    .join('')}</>`;
+}
+
+function outputFields() {
+  return {
+    OUTPUT_NAME: {
+      type: 'string | number | boolean | json | {type: string | number | boolean} | {type: json; schema?: value}',
+      description:
+        'Output declaration. Use a type directly (for example, `sha: string`) or an object with required `type`. Only `json` declarations can include `schema`.',
+    },
+  };
+}
+
+function environmentFields() {
+  return {
+    '[A-Za-z_][A-Za-z0-9_]*': {
+      type: 'string | number | boolean',
+      description: 'Environment variable value. For example, `NODE_ENV: production`.',
+    },
+  };
 }
 
 for (const [file, render] of regions) {

@@ -57,6 +57,7 @@ An evaluation error also skips, recorded with a distinct reason.
 This job fragment belongs under an existing workflow's `jobs` map:
 
 ```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
 jobs:
   deploy:
     if: ${{ event.ref == "refs/heads/main" }}
@@ -94,6 +95,7 @@ job resolves with no executions:
 This job fragment belongs under an existing workflow's `jobs` map:
 
 ```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
 jobs:
   build:
     success: '!executions.exists(e, e.status == "failed")'
@@ -128,6 +130,7 @@ run or step with a typed error instead of passing empty text through.
 This job fragment belongs under an existing workflow's `jobs` map:
 
 ```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
 jobs:
   build:
     env:

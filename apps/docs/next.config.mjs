@@ -11,6 +11,7 @@ const basePath = process.env.VERCEL_ENV === 'production' ? '/docs' : '';
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  transpilePackages: ['@shipfox/workflow-document'],
   basePath: basePath || undefined,
   env: {NEXT_PUBLIC_BASE_PATH: basePath},
   // Pin the workspace root so Turbopack does not misinfer it from sibling lockfiles

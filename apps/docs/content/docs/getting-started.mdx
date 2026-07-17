@@ -44,6 +44,7 @@ run (`runner`), and what to do (`jobs` and `steps`). Create
 `.shipfox/workflows/hello.yaml`. This is a complete workflow:
 
 ```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
 name: Inspect the repository
 runner: ubuntu-latest      # label of the runner that executes the jobs
 triggers:

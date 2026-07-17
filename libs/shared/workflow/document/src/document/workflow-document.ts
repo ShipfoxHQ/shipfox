@@ -41,18 +41,33 @@ export const workflowDocumentEnvSchema = z
         message: `Env cannot serialize to more than ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} bytes.`,
       });
     }
+  })
+  .meta({
+    description: `Environment variables as string, number, or boolean values. Each map allows up to ${WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES} entries and ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} serialized bytes.`,
   });
 
 const workflowDocumentStepOutputKeyPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
-const workflowDocumentStepOutputTypeSchema = z.enum(workflowDocumentStepOutputTypes);
+const workflowDocumentStepOutputTypeSchema = z.enum(workflowDocumentStepOutputTypes).meta({
+  description: 'Declared output type. Use `json` when the output has a JSON Schema.',
+});
 
 const workflowDocumentStepOutputDeclarationSchema = z
   .union([
     workflowDocumentStepOutputTypeSchema.transform((type) => ({type})),
     z.strictObject({
       type: workflowDocumentStepOutputTypeSchema,
-      schema: z.unknown().optional(),
+      schema: z
+        .unknown()
+        .optional()
+        .meta({
+          description:
+            'JSON Schema for a `json` output. It allows up to ' +
+            WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES +
+            ' serialized bytes and ' +
+            WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH +
+            ' nesting levels.',
+        }),
     }),
   ])
   .superRefine((declaration, ctx) => {
@@ -115,19 +130,38 @@ export const workflowDocumentStepOutputsSchema = z
         message: 'Output keys must be CEL identifiers.',
       });
     }
+  })
+  .meta({
+    description: `Named step outputs. Keys must be CEL identifiers and each step allows up to ${WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES} declarations.`,
   });
 
 const workflowDocumentTriggerBaseSchema = {
-  source: z.string().min(1),
-  with: z.record(z.string(), z.unknown()).optional(),
-  filter: z.string().min(1).optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
+  source: z.string().min(1).meta({
+    description:
+      'Integration connection slug or built-in trigger source. See [Trigger sources](/reference/trigger-sources).',
+  }),
+  with: z.record(z.string(), z.unknown()).optional().meta({
+    description:
+      'Provider-specific values used to match or configure the trigger. See [expressions](/reference/expressions#context-available).',
+  }),
+  filter: z.string().min(1).optional().meta({
+    description:
+      'CEL condition that filters matching events. It is not supported for `manual` or `cron` triggers. See [trigger filters](/reference/expressions#trigger-filters).',
+  }),
+  config: z.record(z.string(), z.unknown()).optional().meta({
+    description:
+      'Source-specific configuration. It is supported only for top-level triggers with a known built-in source. See [cron triggers](/reference/trigger-sources#cron).',
+  }),
 } satisfies z.ZodRawShape;
 
 export const triggerSourceConfigSchemas = {
   cron: z.strictObject({
-    schedule: z.string().min(1).optional(),
-    timezone: z.string().min(1).optional(),
+    schedule: z.string().min(1).optional().meta({
+      description: 'Cron expression that schedules the workflow.',
+    }),
+    timezone: z.string().min(1).optional().meta({
+      description: 'IANA time zone used to evaluate `schedule`.',
+    }),
   }),
 } satisfies Record<string, z.ZodType>;
 const triggerSourceConfigSchemaRegistry: Readonly<Record<string, z.ZodType>> =
@@ -136,7 +170,9 @@ const triggerSourceConfigSchemaRegistry: Readonly<Record<string, z.ZodType>> =
 export const workflowDocumentTriggerSchema = z
   .strictObject({
     ...workflowDocumentTriggerBaseSchema,
-    event: z.string().min(1),
+    event: z.string().min(1).meta({
+      description: 'Provider event name that starts the workflow.',
+    }),
   })
   .superRefine((trigger, ctx) => {
     if (trigger.config === undefined) return;
@@ -164,15 +200,32 @@ export const workflowDocumentTriggerSchema = z
 
 const workflowDocumentListeningSchema = z
   .strictObject({
-    on: z.array(workflowDocumentTriggerSchema).min(1),
-    until: z.array(workflowDocumentTriggerSchema).min(1).optional(),
-    timeout: z.string().min(1).optional(),
-    max_executions: z.number().int().positive().optional(),
+    on: z.array(workflowDocumentTriggerSchema).min(1).meta({
+      description: 'Events that start listening. Listening triggers cannot use `config`.',
+    }),
+    until: z.array(workflowDocumentTriggerSchema).min(1).optional().meta({
+      description:
+        'Events that resolve listening. Listening jobs need this, `timeout`, or `max_executions`; these triggers cannot use `config`.',
+    }),
+    timeout: z.string().min(1).optional().meta({
+      description:
+        'Maximum duration to listen before resolving. A listening job needs this, `until`, or `max_executions`.',
+    }),
+    max_executions: z.number().int().positive().optional().meta({
+      description:
+        'Maximum number of matching events before resolving. A listening job needs this, `until`, or `timeout`.',
+    }),
     batch: z
       .strictObject({
-        debounce: z.string().min(1).optional(),
-        max_size: z.number().int().positive().optional(),
-        max_wait: z.string().min(1).optional(),
+        debounce: z.string().min(1).optional().meta({
+          description: 'Quiet period to wait for more matching events before processing a batch.',
+        }),
+        max_size: z.number().int().positive().optional().meta({
+          description: 'Maximum number of matching events in one batch.',
+        }),
+        max_wait: z.string().min(1).optional().meta({
+          description: 'Maximum time to wait before processing a partial batch.',
+        }),
       })
       .refine(
         (value) =>
@@ -181,8 +234,14 @@ const workflowDocumentListeningSchema = z
           value.max_wait !== undefined,
         {message: 'Expected debounce, max_size, or max_wait'},
       )
-      .optional(),
-    on_resolve: z.enum(['finish', 'cancel']).optional(),
+      .optional()
+      .meta({
+        description:
+          'Optional batching policy. Set at least one of `debounce`, `max_size`, or `max_wait`.',
+      }),
+    on_resolve: z.enum(['finish', 'cancel']).optional().meta({
+      description: 'How the job resolves when its listening condition is met.',
+    }),
   })
   .superRefine((listening, ctx) => {
     for (const field of ['on', 'until'] as const) {
@@ -200,13 +259,25 @@ const workflowDocumentListeningSchema = z
 
 const workflowDocumentStepGateSchema = z
   .strictObject({
-    success: z.string().min(1).optional(),
+    success: z.string().min(1).optional().meta({
+      description:
+        'CEL expression that must evaluate to true for the step to succeed. See [gate outcomes](/understand/feedback-loops#gate-outcomes).',
+    }),
     on_failure: z
       .strictObject({
-        restart_from: z.string().min(1),
-        feedback: z.string().min(1).optional(),
+        restart_from: z.string().min(1).meta({
+          description:
+            'Key of an earlier step in the same job to restart from after a failed gate.',
+        }),
+        feedback: z.string().min(1).optional().meta({
+          description: 'Feedback supplied when the gate fails before restarting.',
+        }),
       })
-      .optional(),
+      .optional()
+      .meta({
+        description:
+          'Restart behavior when the success gate fails. See [feedback loops](/understand/feedback-loops).',
+      }),
   })
   .refine((value) => value.success !== undefined || value.on_failure !== undefined, {
     message: 'Expected success or on_failure',
@@ -215,20 +286,45 @@ const workflowDocumentStepGateSchema = z
 export const workflowDocumentCheckoutSchema = z.strictObject({
   permissions: z
     .strictObject({
-      contents: z.enum(['read', 'write']).optional(),
+      contents: z.enum(['read', 'write']).optional().meta({
+        description: 'Repository contents permission granted to checkout.',
+      }),
     })
-    .optional(),
-  'persist-credentials': z.boolean().optional(),
+    .optional()
+    .meta({
+      description: 'Repository permissions used during checkout.',
+    }),
+  'persist-credentials': z.boolean().optional().meta({
+    description: 'Whether checkout credentials remain available to later run steps.',
+  }),
 });
 
 export const workflowDocumentStepIntegrationSelectionSchema = z.array(z.string().min(1)).min(1);
 
 export const workflowDocumentStepIntegrationSchema = z.strictObject({
-  connection: z.string().min(1).optional(),
-  include: workflowDocumentStepIntegrationSelectionSchema,
-  exclude: workflowDocumentStepIntegrationSelectionSchema.optional(),
-  allow_write: z.boolean().optional(),
+  connection: z.string().min(1).optional().meta({
+    description: 'Integration connection slug to use for these tools.',
+  }),
+  include: workflowDocumentStepIntegrationSelectionSchema.meta({
+    description: 'Tool selectors to make available to the agent.',
+  }),
+  exclude: workflowDocumentStepIntegrationSelectionSchema.optional().meta({
+    description: 'Tool selectors to remove from the included tools.',
+  }),
+  allow_write: z.boolean().optional().meta({
+    description: 'Allows write-capable integration tools. Omit or set false for read-only access.',
+  }),
 });
+
+export const workflowDocumentAgentStepFields = [
+  'model',
+  'prompt',
+  'harness',
+  'thinking',
+  'provider',
+  'tools',
+  'integrations',
+] as const;
 
 // A step is a run step (`run`) or an inline agent step (`prompt`), never
 // both. They share one strict object so an unknown key is still rejected; the
@@ -238,21 +334,63 @@ export const workflowDocumentStepIntegrationSchema = z.strictObject({
 // case produces a clear message instead of a generic "unrecognized key".
 export const workflowDocumentStepSchema = z
   .strictObject({
-    key: z.string().min(1).optional(),
-    if: z.string().min(1).optional(),
-    name: z.string().min(1).optional(),
-    run: z.string().min(1).optional(),
-    model: z.string().min(1).optional(),
-    prompt: z.string().min(1).optional(),
-    harness: harnessSchema.optional(),
-    thinking: agentThinkingSchema.optional(),
-    provider: z.string().min(1).optional(),
-    tools: z.array(z.string().min(1)).min(1).optional(),
-    integrations: z.array(workflowDocumentStepIntegrationSchema).min(1).optional(),
-    agent: z.unknown().optional(),
-    gate: workflowDocumentStepGateSchema.optional(),
-    env: workflowDocumentEnvSchema.optional(),
-    outputs: workflowDocumentStepOutputsSchema.optional(),
+    key: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({description: 'Stable step key for dependencies and outputs.'}),
+    if: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          'CEL condition wrapped in exactly one $' +
+          '{{ }} interpolation. See [conditionals](/reference/expressions#conditionals-if).',
+      }),
+    name: z.string().min(1).optional().meta({description: 'Human-readable step name.'}),
+    run: z.string().min(1).optional().meta({
+      description: 'Shell command for a run step. Do not combine it with agent-only fields.',
+    }),
+    model: z.string().min(1).optional().meta({
+      description:
+        'Model ID for an agent step. It requires `prompt` and is not valid on a run step.',
+    }),
+    prompt: z.string().min(1).optional().meta({
+      description: 'Prompt for an agent step. It is required when any agent-only field is set.',
+    }),
+    harness: harnessSchema.optional().meta({
+      description:
+        'Agent harness. When omitted, Shipfox uses the workspace default harness, or `pi` when none is configured.',
+    }),
+    thinking: agentThinkingSchema.optional().meta({
+      description:
+        'Reasoning effort for an agent step. Supported values depend on the resolved harness. When omitted, Shipfox uses the provider default, or `xhigh` when none is configured.',
+    }),
+    provider: z.string().min(1).optional().meta({
+      description:
+        'Model provider ID for an agent step. It requires `prompt` and is not valid on a run step.',
+    }),
+    tools: z.array(z.string().min(1)).min(1).optional().meta({
+      description:
+        'Built-in tool IDs for an agent step. It requires `prompt` and is not valid on a run step.',
+    }),
+    integrations: z.array(workflowDocumentStepIntegrationSchema).min(1).optional().meta({
+      description:
+        'Integration tools available to an agent step. It requires `prompt` and is not valid on a run step. See [integration tools](/how-to/author-workflows/use-integration-tools).',
+    }),
+    agent: z.unknown().optional().meta({
+      description: 'Reserved keyword. It is rejected; use `prompt` to define an agent step.',
+    }),
+    gate: workflowDocumentStepGateSchema.optional().meta({
+      description: 'Success gate and optional restart behavior after the step runs.',
+    }),
+    env: workflowDocumentEnvSchema.optional().meta({
+      description: 'Environment variables for a run step. They are not valid on an agent step.',
+    }),
+    outputs: workflowDocumentStepOutputsSchema.optional().meta({
+      description: 'Named output declarations produced by this step.',
+    }),
   })
   .superRefine((step, ctx) => {
     if (step.agent !== undefined) {
@@ -265,15 +403,7 @@ export const workflowDocumentStepSchema = z
     }
 
     if (step.run !== undefined) {
-      for (const key of [
-        'model',
-        'prompt',
-        'harness',
-        'thinking',
-        'provider',
-        'tools',
-        'integrations',
-      ] as const) {
+      for (const key of workflowDocumentAgentStepFields) {
         if (step[key] !== undefined) {
           ctx.addIssue({
             code: 'custom',
@@ -285,14 +415,7 @@ export const workflowDocumentStepSchema = z
       return;
     }
 
-    const isAgent =
-      step.model !== undefined ||
-      step.prompt !== undefined ||
-      step.harness !== undefined ||
-      step.thinking !== undefined ||
-      step.provider !== undefined ||
-      step.tools !== undefined ||
-      step.integrations !== undefined;
+    const isAgent = workflowDocumentAgentStepFields.some((field) => step[field] !== undefined);
 
     if (!isAgent) {
       ctx.addIssue({
@@ -319,25 +442,66 @@ export const workflowDocumentStepSchema = z
   });
 
 export const workflowDocumentJobSchema = z.strictObject({
-  needs: stringOrStringArraySchema.optional(),
-  if: z.string().min(1).optional(),
-  runner: stringOrStringArraySchema.optional(),
-  success: z.string().min(1).optional(),
-  outputs: nonEmptyRecordSchema(z.string().min(1)).optional(),
-  execution_timeout: z.string().min(1).optional(),
-  checkout: workflowDocumentCheckoutSchema.optional(),
-  listening: workflowDocumentListeningSchema.optional(),
-  name: z.string().min(1).optional(),
-  env: workflowDocumentEnvSchema.optional(),
-  steps: z.array(workflowDocumentStepSchema).min(1),
+  needs: stringOrStringArraySchema.optional().meta({
+    description: 'Job key or keys that must complete before this job starts.',
+  }),
+  if: z
+    .string()
+    .min(1)
+    .optional()
+    .meta({
+      description:
+        'CEL condition wrapped in exactly one $' +
+        '{{ }} interpolation. See [conditionals](/reference/expressions#conditionals-if).',
+    }),
+  runner: stringOrStringArraySchema.optional().meta({
+    description:
+      'Runner label or ordered fallback labels for this job. See [runners and execution environments](/understand/runners-and-execution-environments).',
+  }),
+  success: z.string().min(1).optional().meta({
+    description:
+      'CEL expression that determines whether the job succeeds. See [job success](/reference/expressions#job-success-success).',
+  }),
+  outputs: nonEmptyRecordSchema(z.string().min(1)).optional().meta({
+    description: 'Named job outputs mapped from step values.',
+  }),
+  execution_timeout: z.string().min(1).optional().meta({
+    description: 'Maximum duration for one job execution.',
+  }),
+  checkout: workflowDocumentCheckoutSchema.optional().meta({
+    description: 'Checkout settings for repository content and credentials.',
+  }),
+  listening: workflowDocumentListeningSchema.optional().meta({
+    description:
+      'Event-listening configuration for this job. See [listening jobs](/understand/listening-jobs).',
+  }),
+  name: z.string().min(1).optional().meta({description: 'Human-readable job name.'}),
+  env: workflowDocumentEnvSchema.optional().meta({
+    description:
+      'Environment variables for run steps in this job. They do not apply to agent steps. See [secrets and variables](/reference/secrets-variables).',
+  }),
+  steps: z.array(workflowDocumentStepSchema).min(1).meta({
+    description: 'Ordered run or agent steps. Each job needs at least one step.',
+  }),
 });
 
 export const workflowDocumentSchema = z.strictObject({
-  name: z.string().min(1),
-  runner: stringOrStringArraySchema.optional(),
-  env: workflowDocumentEnvSchema.optional(),
-  triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional(),
-  jobs: nonEmptyRecordSchema(workflowDocumentJobSchema),
+  name: z.string().min(1).meta({description: 'Human-readable workflow name.'}),
+  runner: stringOrStringArraySchema.optional().meta({
+    description:
+      'Default runner label or ordered fallback labels for run jobs. See [runners and execution environments](/understand/runners-and-execution-environments).',
+  }),
+  env: workflowDocumentEnvSchema.optional().meta({
+    description:
+      'Workflow-level environment variables for run steps. They do not apply to agent steps. See [secrets and variables](/reference/secrets-variables).',
+  }),
+  triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional().meta({
+    description:
+      'Named events that start workflow runs. A workflow can have at most one `manual` trigger.',
+  }),
+  jobs: nonEmptyRecordSchema(workflowDocumentJobSchema).meta({
+    description: 'Named jobs that make up the workflow. At least one job is required.',
+  }),
 });
 
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
