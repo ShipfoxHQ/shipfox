@@ -21,6 +21,7 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@shipfox/react-ui": "workspace:*",
     "@shipfox/workflow-document": "workspace:*",
     "fumadocs-core": "16.7.10",
     "fumadocs-mdx": "14.2.11",

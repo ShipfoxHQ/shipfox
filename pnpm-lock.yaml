@@ -124,6 +124,9 @@ importers:
 
   apps/docs:
     dependencies:
+      '@shipfox/react-ui':
+        specifier: workspace:*
+        version: link:../../libs/shared/react/ui
       '@shipfox/workflow-document':
         specifier: workspace:*
         version: link:../../libs/shared/workflow/document

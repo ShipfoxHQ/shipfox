@@ -1,11 +1,13 @@
 'use client';
 
+import {Combobox, type ComboboxOption} from '@shipfox/react-ui/combobox';
 import {Webhook} from 'lucide-react';
 import Link from 'next/link';
 import {useMemo, useState} from 'react';
 import {siGithub, siLinear, siSentry, siSlack} from 'simple-icons';
 import {
   type CatalogAvailability,
+  type CatalogCapability,
   type CatalogIcon,
   type CatalogProvider,
   catalogAvailabilityLabels,
@@ -19,6 +21,10 @@ import {
 } from '@/lib/integration-catalog';
 
 const availabilitySections = INTEGRATION_CATALOG_AVAILABILITIES;
+const capabilityOptions: ComboboxOption[] = INTEGRATION_CATALOG_CAPABILITIES.map((capability) => ({
+  value: capability,
+  label: catalogCapabilityLabels[capability],
+}));
 
 const availabilityClasses: Record<CatalogAvailability, string> = {
   available: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
@@ -73,18 +79,29 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
             }))
           }
         />
-        <FilterGroup
-          label="Capability"
-          values={INTEGRATION_CATALOG_CAPABILITIES}
-          selected={filters.capability}
-          labels={catalogCapabilityLabels}
-          onToggle={(value) =>
-            setFilters((current) => ({
-              ...current,
-              capability: toggleFilter(current.capability, value),
-            }))
-          }
-        />
+        <div>
+          <label
+            htmlFor="integration-catalog-capabilities"
+            className="text-sm font-medium text-fd-foreground"
+          >
+            Capability
+          </label>
+          <Combobox
+            id="integration-catalog-capabilities"
+            multiple
+            options={capabilityOptions}
+            value={[...filters.capability]}
+            onValueChange={(value) =>
+              setFilters((current) => ({...current, capability: toCatalogCapabilities(value)}))
+            }
+            placeholder="Select capabilities"
+            searchPlaceholder="Search capabilities"
+            emptyState="No capabilities found."
+            className="integration-catalog-combobox mt-2"
+            popoverClassName="integration-catalog-combobox integration-catalog-combobox-popover"
+            maxVisibleChips={2}
+          />
+        </div>
         <FilterGroup
           label="Category"
           values={INTEGRATION_CATALOG_CATEGORIES}
@@ -199,27 +216,39 @@ function FilterGroup<Value extends string>({
 function IntegrationCard({provider}: {provider: CatalogProvider}) {
   return (
     <article className="flex min-h-56 flex-col rounded-lg border border-fd-border bg-fd-card p-5">
-      <div className="min-w-0">
-        <Link
-          href={provider.overviewHref}
-          className="flex items-start gap-3 font-semibold text-fd-foreground outline-none hover:text-fd-primary hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
-        >
-          <ProviderIcon icon={provider.icon} />
-          <span>{provider.name}</span>
-        </Link>
-        <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">{provider.summary}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <Link
+            href={provider.overviewHref}
+            className="flex items-start gap-3 font-semibold text-fd-foreground outline-none hover:text-fd-primary hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
+          >
+            <ProviderIcon icon={provider.icon} />
+            <span>{provider.name}</span>
+          </Link>
+          <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">{provider.summary}</p>
+        </div>
+        {provider.setupHref && (
+          <Link
+            href={provider.setupHref}
+            className="-mt-2 -mr-2 inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm font-medium text-fd-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
+          >
+            Set up
+          </Link>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span
-          className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${availabilityClasses[provider.availability]}`}
-        >
-          {catalogAvailabilityLabels[provider.availability]}
-        </span>
+        {provider.availability !== 'available' && (
+          <span
+            className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${availabilityClasses[provider.availability]}`}
+          >
+            {catalogAvailabilityLabels[provider.availability]}
+          </span>
+        )}
         {provider.capabilities.map((capability) => (
           <span
             key={capability}
-            className="rounded border border-fd-border bg-fd-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-fd-muted-foreground"
+            className="rounded border border-fd-border bg-fd-muted px-1 py-0 text-[9px] font-medium uppercase tracking-wide text-fd-muted-foreground"
           >
             {catalogCapabilityLabels[capability]}
           </span>
@@ -236,16 +265,13 @@ function IntegrationCard({provider}: {provider: CatalogProvider}) {
             .join(' · ')}
         </p>
       )}
-
-      {provider.setupHref && (
-        <Link
-          href={provider.setupHref}
-          className="mt-auto pt-4 text-sm font-medium text-fd-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
-        >
-          Set up
-        </Link>
-      )}
     </article>
+  );
+}
+
+function toCatalogCapabilities(values: string[]): CatalogCapability[] {
+  return values.filter((value): value is CatalogCapability =>
+    INTEGRATION_CATALOG_CAPABILITIES.some((capability) => capability === value),
   );
 }
 
