@@ -5918,16 +5918,16 @@ importers:
         specifier: workspace:*
         version: link:../opentelemetry
       '@temporalio/client':
-        specifier: ^1.16.1
+        specifier: 1.18.1
         version: 1.18.1
       '@temporalio/common':
-        specifier: ^1.16.1
+        specifier: 1.18.1
         version: 1.18.1
       '@temporalio/interceptors-opentelemetry':
-        specifier: ^1.16.1
+        specifier: 1.18.1
         version: 1.18.1(@temporalio/common@1.18.1)(@temporalio/workflow@1.18.1)
       '@temporalio/worker':
-        specifier: ^1.16.1
+        specifier: 1.18.1
         version: 1.18.1(@swc/helpers@0.5.23)(tslib@2.8.1)
     devDependencies:
       '@shipfox/biome':
