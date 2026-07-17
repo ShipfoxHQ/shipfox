@@ -26,6 +26,25 @@ interface DocsVideoProps {
   height?: number;
 }
 
+interface VideoMedia {
+  src?: string;
+  poster?: string;
+}
+
+export function selectVideoMedia({
+  mounted,
+  resolvedTheme,
+  light,
+  dark,
+}: {
+  mounted: boolean;
+  resolvedTheme?: string;
+  light: VideoMedia;
+  dark: VideoMedia;
+}): VideoMedia {
+  return mounted && resolvedTheme === 'dark' ? dark : light;
+}
+
 /**
  * Autoplaying, muted, looping product clip that sits inline like an image and
  * opens a larger lightbox on click (Escape or a backdrop click closes it),
@@ -43,6 +62,7 @@ export function DocsVideo({
   height,
 }: DocsVideoProps) {
   const [expanded, setExpanded] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const {resolvedTheme} = useTheme();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -51,10 +71,15 @@ export function DocsVideo({
   const resolvedLightPoster = withBase(lightPoster ?? poster ?? darkPoster);
   const resolvedDarkPoster = withBase(darkPoster ?? poster ?? lightPoster);
   const hasDarkVariant = resolvedDarkSrc !== resolvedLightSrc;
-  const activeSrc = hasDarkVariant && resolvedTheme === 'dark' ? resolvedDarkSrc : resolvedLightSrc;
-  const activePoster =
-    hasDarkVariant && resolvedTheme === 'dark' ? resolvedDarkPoster : resolvedLightPoster;
+  const activeMedia = selectVideoMedia({
+    mounted,
+    resolvedTheme: hasDarkVariant ? resolvedTheme : undefined,
+    light: {src: resolvedLightSrc, poster: resolvedLightPoster},
+    dark: {src: resolvedDarkSrc, poster: resolvedDarkPoster},
+  });
   const dialogLabel = label ?? 'Enlarged video';
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!expanded) return;
@@ -102,9 +127,9 @@ export function DocsVideo({
         className="group relative my-6 block w-full cursor-zoom-in appearance-none border-0 bg-transparent p-0"
       >
         <ThemedVideo
-          key={activeSrc}
-          src={activeSrc}
-          poster={activePoster}
+          key={activeMedia.src}
+          src={activeMedia.src}
+          poster={activeMedia.poster}
           width={width}
           height={height}
         />
@@ -130,7 +155,12 @@ export function DocsVideo({
               aria-label="Close the enlarged video"
               className="absolute inset-0 cursor-zoom-out appearance-none border-0 bg-black/80 p-0 backdrop-blur-sm"
             />
-            <ThemedVideo key={activeSrc} src={activeSrc} poster={activePoster} expanded />
+            <ThemedVideo
+              key={activeMedia.src}
+              src={activeMedia.src}
+              poster={activeMedia.poster}
+              expanded
+            />
           </div>,
           document.body,
         )}
