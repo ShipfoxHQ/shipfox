@@ -46,6 +46,13 @@ Build a specific package and its dependencies:
 turbo build --filter=@shipfox/api...
 ```
 
+## Dependency versions
+
+Read the [dependency version policy](docs/policies/dependency-versions.md) before
+adding, updating, or exempting a dependency. It defines catalog range rules,
+peer compatibility, coordinated Renovate families, and the transitive exception
+format.
+
 ## Local Tooling
 
 ### Mise Tasks
