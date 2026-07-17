@@ -1,11 +1,12 @@
 import type {ClientFeature} from '#contract.js';
 import {NavCompositionError, SettingsCompositionError} from './errors.js';
+import {normalizeRoutePath} from './normalize-route-path.js';
 
 export function validateNavigation(
   features: readonly ClientFeature[],
   routePaths: Iterable<string>,
 ): void {
-  const routes = new Set(routePaths);
+  const routes = new Set([...routePaths].map(normalizeRoutePath));
   const entries = new Map<string, string>();
   for (const feature of features) {
     for (const entry of feature.navigation ?? []) {
@@ -17,10 +18,11 @@ export function validateNavigation(
           [existingFeatureId, feature.id],
         );
       }
-      if (!routes.has(entry.to)) {
+      const target = normalizeRoutePath(entry.to);
+      if (!routes.has(target)) {
         throw new NavCompositionError(
           entry.id,
-          `Navigation entry "${entry.id}" in feature "${feature.id}" targets missing route "${entry.to}".`,
+          `Navigation entry "${entry.id}" in feature "${feature.id}" targets missing route "${target}".`,
           [feature.id],
         );
       }

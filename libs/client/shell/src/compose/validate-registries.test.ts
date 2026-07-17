@@ -38,6 +38,20 @@ describe('registry validation', () => {
     ).toThrow(missingNavigationMessage);
   });
 
+  test('normalizes navigation targets before checking route existence', () => {
+    expect(() =>
+      validateNavigation(
+        [
+          {
+            id: 'acme.two',
+            navigation: [{id: 'insights', scope: 'workspace', label: 'Insights', to: '/insights/'}],
+          },
+        ],
+        ['/insights'],
+      ),
+    ).not.toThrow();
+  });
+
   test('names the id and both features for a duplicate settings section', () => {
     expect(() =>
       validateSettingsSections(

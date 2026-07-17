@@ -55,7 +55,7 @@ export function generateAppModule({
 // biome-ignore-all format: generated code has stable, reviewable output.
 // biome-ignore-all assist/source/organizeImports: generated imports follow route order.
 import {createRoute, createRouter} from '@tanstack/react-router';
-import {buildAnchorSkeleton, isRouteImpl, type RouteImpl, type RouterContext} from '@shipfox/client-shell';
+import {buildAnchorSkeleton, isRouteImpl, type RouteImpl, type RouterContext} from '@shipfox/client-shell/runtime';
 ${imports}
 
 function routeOptions<T extends RouteImpl>(routeImpl: T, impl: string, path: string): T['options'] {

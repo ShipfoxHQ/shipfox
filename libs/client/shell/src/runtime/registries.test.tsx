@@ -13,7 +13,7 @@ describe('composition registries', () => {
             id: 'first-a',
             scope: 'workspace',
             label: 'First A',
-            to: '/workspaces/$wid/first-a',
+            to: '/workspaces/$wid/first-a/',
             order: 100,
           },
           {
@@ -79,6 +79,10 @@ describe('composition registries', () => {
       'First B',
       'Second',
     ]);
+    expect((await screen.findAllByRole('tab'))[0]).toHaveAttribute(
+      'href',
+      '/workspaces/workspace/first-a',
+    );
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
       'First setting',
       'Second setting',

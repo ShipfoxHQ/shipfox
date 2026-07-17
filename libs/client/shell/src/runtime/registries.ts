@@ -1,3 +1,4 @@
+import {normalizeRoutePath} from '#compose/normalize-route-path.js';
 import type {ClientFeature, NavTabEntry, SettingsSectionEntry} from '#contract.js';
 
 interface Ordered<T> {
@@ -24,7 +25,7 @@ export function navigationEntries(features: readonly ClientFeature[]): NavTabEnt
       })),
     )
     .sort(byOrder)
-    .map(({entry}) => entry);
+    .map(({entry}) => ({...entry, to: normalizeRoutePath(entry.to)}));
 }
 
 export function settingsEntries(features: readonly ClientFeature[]): SettingsSectionEntry[] {

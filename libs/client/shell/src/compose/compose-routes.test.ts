@@ -41,6 +41,18 @@ describe('composeRoutes', () => {
     ).toThrow(collisionMessage);
   });
 
+  test('normalizes trailing slashes before collision checks', () => {
+    expect(() =>
+      composeRoutes([
+        base,
+        {
+          id: 'acme.insights',
+          routes: [{path: '/projects/', parent: 'root', impl: 'next'}],
+        },
+      ]),
+    ).toThrow(collisionMessage);
+  });
+
   test('names the path and feature for a dangling override', () => {
     expect(() =>
       composeRoutes([
@@ -66,5 +78,35 @@ describe('composeRoutes', () => {
         },
       ]),
     ).toThrow(competingOverridesMessage);
+  });
+
+  test('rejects an override that changes the route anchor', () => {
+    expect(() =>
+      composeRoutes([
+        {
+          id: 'shipfox.projects',
+          routes: [
+            {
+              path: '/workspaces/$wid/projects',
+              parent: 'workspaceLayout',
+              impl: 'base',
+            },
+          ],
+        },
+        {
+          id: 'acme.projects',
+          routes: [
+            {
+              path: '/workspaces/$wid/projects',
+              parent: 'root',
+              override: true,
+              impl: 'override',
+            },
+          ],
+        },
+      ]),
+    ).toThrow(
+      'Route override for "/workspaces/$wid/projects" from feature "acme.projects" cannot change anchor from "workspaceLayout" in feature "shipfox.projects" to "root".',
+    );
   });
 });

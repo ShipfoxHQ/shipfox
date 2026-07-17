@@ -1,4 +1,4 @@
-import {defineRoute} from '@shipfox/client-shell';
+import {defineRoute} from '@shipfox/client-shell/runtime';
 
 export default defineRoute({
   component: () => <div>Search route</div>,
