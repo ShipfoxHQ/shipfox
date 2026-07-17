@@ -31,7 +31,7 @@ export const catalogAvailabilityLabels: Record<CatalogAvailability, string> = {
 };
 
 export const catalogCapabilityLabels: Record<CatalogCapability, string> = {
-  source_control: 'Source control',
+  source_control: 'Code checkout',
   events: 'Events',
   agent_tools: 'Agent tools',
 };
@@ -39,7 +39,7 @@ export const catalogCapabilityLabels: Record<CatalogCapability, string> = {
 export const catalogCategoryLabels: Record<CatalogCategory, string> = {
   'source-control': 'Source control',
   observability: 'Observability',
-  custom: 'Custom',
+  custom: 'Webhook',
   'issue-tracking': 'Issue tracking',
   messaging: 'Messaging',
 };

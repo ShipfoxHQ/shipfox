@@ -58,7 +58,7 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
             type="search"
             value={filters.query}
             onChange={(event) => setFilters((current) => ({...current, query: event.target.value}))}
-            placeholder="Search by provider, category, or related term"
+            placeholder="Search by provider, type, or related term"
             className="h-11 w-full rounded-md border border-fd-border bg-fd-background py-2 pr-9 pl-10 text-sm text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
           />
           {filters.query.length > 0 ? (
@@ -103,7 +103,7 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
         </div>
         <div className="mt-6 space-y-6">
           <FacetGroup
-            label="Capability"
+            label="What it does"
             values={INTEGRATION_CATALOG_CAPABILITIES}
             selected={filters.capability}
             labels={catalogCapabilityLabels}
@@ -116,7 +116,7 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
             }
           />
           <FacetGroup
-            label="Category"
+            label="Type"
             values={INTEGRATION_CATALOG_CATEGORIES}
             selected={filters.category}
             labels={catalogCategoryLabels}
