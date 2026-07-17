@@ -4482,6 +4482,9 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
+      '@tanstack/router-core':
+        specifier: ^1.171.13
+        version: 1.171.13
       jiti:
         specifier: ^2.7.0
         version: 2.7.0
@@ -4543,6 +4546,43 @@ importers:
       vite:
         specifier: ^8.0.3
         version: 8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  libs/client/shell/test/external/toy-feature:
+    dependencies:
+      '@shipfox/client-shell':
+        specifier: workspace:*
+        version: link:../../..
+      '@swc/helpers':
+        specifier: ^0.5.17
+        version: 0.5.23
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../../../tools/typescript
+      '@tanstack/react-query':
+        specifier: ^5.101.0
+        version: 5.101.0(react@19.2.7)
+      '@tanstack/react-router':
+        specifier: ^1.170.16
+        version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@types/react':
+        specifier: ^19.1.11
+        version: 19.2.17
+      react:
+        specifier: ^19.1.1
+        version: 19.2.7
 
   libs/client/test-setup:
     dependencies:

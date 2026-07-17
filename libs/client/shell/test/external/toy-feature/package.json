@@ -1,23 +1,10 @@
 {
-  "name": "@shipfox/client-config",
-  "license": "MIT",
+  "name": "@shipfox/client-shell-fixture-feature",
   "version": "0.0.1",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/client/config"
-  },
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "imports": {
-    "#*": {
-      "workspace-source": "./src/*",
-      "development": "./src/*",
-      "default": "./dist/*"
-    }
-  },
   "exports": {
     ".": {
       "development": {
@@ -28,39 +15,43 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./routes/*": {
+      "development": {
+        "types": "./src/routes/*.tsx",
+        "default": "./src/routes/*.tsx"
+      },
+      "default": {
+        "types": "./dist/routes/*.d.ts",
+        "default": "./dist/routes/*.js"
+      }
     }
   },
   "scripts": {
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "test": "shipfox-vitest-run",
-    "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/react-ui": "workspace:*",
+    "@shipfox/client-shell": "workspace:*",
     "@swc/helpers": "^0.5.17",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-router": "^1.170.16",
+    "react": "^19.0.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
-    "@shipfox/client-test-setup": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
+    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-router": "^1.170.16",
     "@types/react": "^19.1.11",
-    "@types/react-dom": "^19.1.7",
-    "jsdom": "^29.0.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react": "^19.1.1"
   }
 }

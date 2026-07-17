@@ -12,7 +12,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*",
+    "#*": {
+      "workspace-source": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    },
     "#test/*": "./test/*"
   },
   "exports": {
@@ -61,6 +65,7 @@
     "@shipfox/client-config": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
+    "@tanstack/router-core": "^1.171.13",
     "jiti": "^2.7.0",
     "zod": "^4.4.3"
   },
