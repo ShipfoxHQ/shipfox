@@ -19,10 +19,6 @@ const config = {
   // (git worktrees expose more than one pnpm-workspace.yaml).
   turbopack: {
     root: workspaceRoot,
-    resolveAlias: {
-      '@shipfox/react-ui/combobox': '../../libs/shared/react/ui/dist/components/combobox/index.js',
-      '#utils/cn.js': '../../libs/shared/react/ui/dist/utils/cn.js',
-    },
   },
   rewrites() {
     return [

@@ -63,6 +63,12 @@ const providers: CatalogProvider[] = [
 ];
 
 describe('filterProviders', () => {
+  it('returns every provider when no filters are selected', () => {
+    const filtered = filterProviders(providers, emptyCatalogFilters);
+
+    assert.deepEqual(filtered, providers);
+  });
+
   it('filters providers by query and selected facet groups', () => {
     const filtered = filterProviders(providers, {
       ...emptyCatalogFilters,
@@ -74,6 +80,18 @@ describe('filterProviders', () => {
     assert.deepEqual(
       filtered.map((provider) => provider.slug),
       ['github'],
+    );
+  });
+
+  it('matches any selected capability within a facet group', () => {
+    const filtered = filterProviders(providers, {
+      ...emptyCatalogFilters,
+      capability: ['events', 'agent_tools'],
+    });
+
+    assert.deepEqual(
+      filtered.map((provider) => provider.slug),
+      ['github', 'sentry', 'webhooks'],
     );
   });
 });

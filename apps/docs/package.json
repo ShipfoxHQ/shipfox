@@ -12,7 +12,7 @@
     "build": "pnpm generate && next build",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "dev": "rm -rf .next && pnpm --filter=@shipfox/react-ui build && pnpm generate && next dev --turbo --port ${SHIPFOX_DOCS_PORT:-3500}",
+    "dev": "rm -rf .next && pnpm generate && next dev --turbo --port ${SHIPFOX_DOCS_PORT:-3500}",
     "start": "next start --port ${SHIPFOX_DOCS_PORT:-3500}",
     "type": "shipfox-tsc-check",
     "generate": "tsx --conditions=development scripts/generate.mjs",
@@ -21,7 +21,6 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
-    "@shipfox/react-ui": "workspace:*",
     "@shipfox/workflow-document": "workspace:*",
     "fumadocs-core": "16.7.10",
     "fumadocs-mdx": "14.2.11",

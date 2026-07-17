@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import {emptyCatalogFilters, filterProviders} from '@/lib/integration-catalog';
 import {validateIntegrationCatalog} from '@/lib/integration-catalog-validation';
 
 const providers = [
@@ -45,27 +44,6 @@ const providers = [
     toolCount: 0,
   },
 ];
-
-assert.deepEqual(filterProviders(providers, emptyCatalogFilters), providers);
-assert.deepEqual(
-  filterProviders(providers, {...emptyCatalogFilters, query: 'monitoring'}).map(({slug}) => slug),
-  ['sentry'],
-);
-assert.deepEqual(
-  filterProviders(providers, {
-    ...emptyCatalogFilters,
-    capability: ['events', 'agent_tools'],
-    category: ['source-control'],
-  }).map(({slug}) => slug),
-  ['github'],
-);
-assert.deepEqual(
-  filterProviders(providers, {
-    ...emptyCatalogFilters,
-    availability: ['available', 'coming-soon'],
-  }).map(({slug}) => slug),
-  ['github', 'sentry', 'linear'],
-);
 
 assert.throws(
   () => validateIntegrationCatalog([{...providers[0], eventCount: 0}]),
