@@ -1,6 +1,15 @@
 export type * from '@temporalio/client';
 export type {NativeConnection, Worker, WorkerOptions} from '@temporalio/worker';
 export {
+  bundleProductionWorkflow,
+  loadProductionWorkflowBundle,
+  MissingWorkflowBundleError,
+  productionWorkflowBundlePaths,
+  productionWorkflowBundlerOptions,
+  type WorkflowBundleMeta,
+  WorkflowBundleVersionMismatchError,
+} from './bundle.js';
+export {
   closeTemporalClient,
   createTemporalClient,
   isTemporalHealthy,
@@ -13,9 +22,7 @@ export {
   getWorkflowInterceptorModules,
 } from './interceptors.js';
 export {
-  bundleProductionWorkflow,
   type CreateWorkerOptions,
   createTemporalWorker,
   createTemporalWorkerConnection,
-  productionWorkflowBundlerOptions,
 } from './worker.js';

@@ -19,6 +19,9 @@
       "default": "./dist/*"
     }
   },
+  "bin": {
+    "shipfox-temporal-bundle": "./bin/bundle.js"
+  },
   "exports": {
     ".": {
       "development": {
@@ -43,10 +46,10 @@
   "dependencies": {
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
-    "@temporalio/client": "^1.16.1",
-    "@temporalio/common": "^1.16.1",
-    "@temporalio/interceptors-opentelemetry": "^1.16.1",
-    "@temporalio/worker": "^1.16.1"
+    "@temporalio/client": "1.18.1",
+    "@temporalio/common": "1.18.1",
+    "@temporalio/interceptors-opentelemetry": "1.18.1",
+    "@temporalio/worker": "1.18.1"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

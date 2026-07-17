@@ -167,6 +167,18 @@ module.exports = {
         ]
       : []),
     ...currentE2eRules,
+    ...(currentPackage.name === '@shipfox/node-temporal'
+      ? [
+          {
+            name: 'temporal-bundle-build-path-stays-config-free',
+            comment:
+              'Temporal bundle production runs during package builds and must not import runtime config, connection helpers, or the worker boundary.',
+            severity: 'error',
+            from: {path: '^src/(?:bundle\\.ts|bin/)'},
+            to: {path: '^src/(?:config|connection-options|worker)\\.ts$'},
+          },
+        ]
+      : []),
   ],
   options: {
     doNotFollow: {
