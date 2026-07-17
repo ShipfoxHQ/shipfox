@@ -4,6 +4,23 @@ sidebarTitle: "Workflow Schema"
 description: "Complete reference for the Shipfox workflow YAML schema: top-level fields, triggers, jobs, run and agent steps, gates, environment variables, and validation rules."
 ---
 
+import {
+  AgentIntegrationFields,
+  AgentStepFields,
+  CheckoutFields,
+  CheckoutPermissionsFields,
+  EnvironmentVariables,
+  GateFailureFields,
+  GateFields,
+  JobFields,
+  ListeningBatchFields,
+  ListeningFields,
+  RunStepFields,
+  StepOutputs,
+  TopLevelFields,
+  TriggerFields,
+} from '../../generated/reference/workflow-schema.mdx';
+
 This reference is generated from the strict workflow schema. Workflow files live
 at `.shipfox/workflows/*.yml`, where unknown keys are rejected.
 
@@ -19,395 +36,66 @@ at `.shipfox/workflows/*.yml`, where unknown keys are rejected.
   `.shipfox/workflows/*.yml` with `yaml.schemas`.
 </Callout>
 
-{/* @generated:workflow-schema start */}
-
 ## Top-level fields
 
-<TypeTable
-  type={{
-    "name": {
-      type: <code>{"string"}</code>,
-      description: <>{"Human-readable workflow name."}</>,
-      required: true,
-    },
-    "runner": {
-      type: <code>{"string | string[]"}</code>,
-      description: <>{"Default runner label or ordered fallback labels for run jobs. See "}<a href="/understand/runners-and-execution-environments">{"runners and execution environments"}</a>{"."}</>,
-    },
-    "env": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Workflow-level environment variables for run steps. They do not apply to agent steps. See "}<a href="/reference/secrets-variables">{"secrets and variables"}</a>{"."}</>,
-      typeDescriptionLink: "#environment-variables",
-    },
-    "triggers": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Named events that start workflow runs. A workflow can have at most one "}<code>{"manual"}</code>{" trigger."}</>,
-      typeDescriptionLink: "#trigger-fields",
-    },
-    "jobs": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Named jobs that make up the workflow. At least one job is required."}</>,
-      required: true,
-      typeDescriptionLink: "#job-fields",
-    },
-  }}
-/>
+<TopLevelFields />
 
 ## Trigger fields
 
-<TypeTable
-  type={{
-    "source": {
-      type: <code>{"string"}</code>,
-      description: <>{"Integration connection slug or built-in trigger source. See "}<a href="/reference/trigger-sources">{"Trigger sources"}</a>{"."}</>,
-      required: true,
-    },
-    "with": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Provider-specific values used to match or configure the trigger. See "}<a href="/reference/expressions#context-available">{"expressions"}</a>{"."}</>,
-    },
-    "filter": {
-      type: <code>{"string"}</code>,
-      description: <>{"CEL condition that filters matching events. It is not supported for "}<code>{"manual"}</code>{" or "}<code>{"cron"}</code>{" triggers. See "}<a href="/reference/expressions#trigger-filters">{"trigger filters"}</a>{"."}</>,
-    },
-    "config": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Source-specific configuration. It is supported only for top-level triggers with a known built-in source. See "}<a href="/reference/trigger-sources#cron">{"cron triggers"}</a>{"."}</>,
-    },
-    "event": {
-      type: <code>{"string"}</code>,
-      description: <>{"Provider event name that starts the workflow."}</>,
-      required: true,
-    },
-  }}
-/>
+<TriggerFields />
 
 ## Job fields
 
-<TypeTable
-  type={{
-    "needs": {
-      type: <code>{"string | string[]"}</code>,
-      description: <>{"Job key or keys that must complete before this job starts."}</>,
-    },
-    "if": {
-      type: <code>{"string"}</code>,
-      description: <>{"CEL condition wrapped in exactly one ${{ }} interpolation. See "}<a href="/reference/expressions#conditionals-if">{"conditionals"}</a>{"."}</>,
-    },
-    "runner": {
-      type: <code>{"string | string[]"}</code>,
-      description: <>{"Runner label or ordered fallback labels for this job. See "}<a href="/understand/runners-and-execution-environments">{"runners and execution environments"}</a>{"."}</>,
-    },
-    "success": {
-      type: <code>{"string"}</code>,
-      description: <>{"CEL expression that determines whether the job succeeds. See "}<a href="/reference/expressions#job-success-success">{"job success"}</a>{"."}</>,
-    },
-    "outputs": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Named job outputs mapped from step values."}</>,
-    },
-    "execution_timeout": {
-      type: <code>{"string"}</code>,
-      description: <>{"Maximum duration for one job execution."}</>,
-    },
-    "checkout": {
-      type: <code>{"object"}</code>,
-      description: <>{"Checkout settings for repository content and credentials."}</>,
-      typeDescriptionLink: "#checkout-fields",
-    },
-    "listening": {
-      type: <code>{"object"}</code>,
-      description: <>{"Event-listening configuration for this job. See "}<a href="/understand/listening-jobs">{"listening jobs"}</a>{"."}</>,
-      typeDescriptionLink: "#listening-fields",
-    },
-    "name": {
-      type: <code>{"string"}</code>,
-      description: <>{"Human-readable job name."}</>,
-    },
-    "env": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Environment variables for run steps in this job. They do not apply to agent steps. See "}<a href="/reference/secrets-variables">{"secrets and variables"}</a>{"."}</>,
-    },
-    "steps": {
-      type: <code>{"object[]"}</code>,
-      description: <>{"Ordered run or agent steps. Each job needs at least one step."}</>,
-      required: true,
-    },
-  }}
-/>
+<JobFields />
 
 ## Checkout fields
 
-<TypeTable
-  type={{
-    "permissions": {
-      type: <code>{"object"}</code>,
-      description: <>{"Repository permissions used during checkout."}</>,
-      typeDescriptionLink: "#checkout-permissions-fields",
-    },
-    "persist-credentials": {
-      type: <code>{"boolean"}</code>,
-      description: <>{"Whether checkout credentials remain available to later run steps."}</>,
-    },
-  }}
-/>
+<CheckoutFields />
 
 ### Checkout permissions fields
 
-<TypeTable
-  type={{
-    "contents": {
-      type: <><code>{"read"}</code> | <code>{"write"}</code></>,
-      description: <>{"Repository contents permission granted to checkout."}</>,
-    },
-  }}
-/>
+<CheckoutPermissionsFields />
 
 ## Step fields
 
-Each step is either a run step or an agent step. The schema rejects unknown fields and invalid field combinations.
+Each step is either a run step or an agent step. The schema rejects unknown
+fields and invalid field combinations.
 
 ### Run step fields
 
-<TypeTable
-  type={{
-    "key": {
-      type: <code>{"string"}</code>,
-      description: <>{"Stable step key for dependencies and outputs."}</>,
-    },
-    "if": {
-      type: <code>{"string"}</code>,
-      description: <>{"CEL condition wrapped in exactly one ${{ }} interpolation. See "}<a href="/reference/expressions#conditionals-if">{"conditionals"}</a>{"."}</>,
-    },
-    "name": {
-      type: <code>{"string"}</code>,
-      description: <>{"Human-readable step name."}</>,
-    },
-    "run": {
-      type: <code>{"string"}</code>,
-      description: <>{"Shell command for a run step. Do not combine it with agent-only fields."}</>,
-      required: true,
-    },
-    "gate": {
-      type: <code>{"object"}</code>,
-      description: <>{"Success gate and optional restart behavior after the step runs."}</>,
-      typeDescriptionLink: "#gate-fields",
-    },
-    "env": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Environment variables for a run step. They are not valid on an agent step."}</>,
-      typeDescriptionLink: "#environment-variables",
-    },
-    "outputs": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Named output declarations produced by this step."}</>,
-      typeDescriptionLink: "#step-outputs",
-    },
-  }}
-/>
+<RunStepFields />
 
 ### Agent step fields
 
-<TypeTable
-  type={{
-    "key": {
-      type: <code>{"string"}</code>,
-      description: <>{"Stable step key for dependencies and outputs."}</>,
-    },
-    "if": {
-      type: <code>{"string"}</code>,
-      description: <>{"CEL condition wrapped in exactly one ${{ }} interpolation. See "}<a href="/reference/expressions#conditionals-if">{"conditionals"}</a>{"."}</>,
-    },
-    "name": {
-      type: <code>{"string"}</code>,
-      description: <>{"Human-readable step name."}</>,
-    },
-    "prompt": {
-      type: <code>{"string"}</code>,
-      description: <>{"Prompt for an agent step. It is required when any agent-only field is set."}</>,
-      required: true,
-    },
-    "model": {
-      type: <code>{"string"}</code>,
-      description: <>{"Model ID for an agent step. It requires "}<code>{"prompt"}</code>{" and is not valid on a run step."}</>,
-    },
-    "harness": {
-      type: <><code>{"pi"}</code> | <code>{"claude"}</code></>,
-      description: <>{"Agent harness. Use "}<code>{"pi"}</code>{" by default, or "}<code>{"claude"}</code>{" for Claude Code."}</>,
-      default: <code>{"pi"}</code>,
-    },
-    "thinking": {
-      type: <><code>{"pi: off, minimal, low, medium, high, xhigh"}</code> | <code>{"claude: low, medium, high, xhigh, max"}</code></>,
-      description: <>{"Reasoning effort for an agent step. Supported values depend on "}<code>{"harness"}</code>{"; defaults to "}<code>{"xhigh"}</code>{"."}</>,
-      default: <code>{"xhigh"}</code>,
-    },
-    "provider": {
-      type: <code>{"string"}</code>,
-      description: <>{"Model provider ID for an agent step. It requires "}<code>{"prompt"}</code>{" and is not valid on a run step."}</>,
-    },
-    "tools": {
-      type: <code>{"string[]"}</code>,
-      description: <>{"Built-in tool IDs for an agent step. It requires "}<code>{"prompt"}</code>{" and is not valid on a run step."}</>,
-    },
-    "integrations": {
-      type: <code>{"object[]"}</code>,
-      description: <>{"Integration tools available to an agent step. It requires "}<code>{"prompt"}</code>{" and is not valid on a run step. See "}<a href="/how-to/author-workflows/use-integration-tools">{"integration tools"}</a>{"."}</>,
-      typeDescriptionLink: "#agent-integration-fields",
-    },
-    "gate": {
-      type: <code>{"object"}</code>,
-      description: <>{"Success gate and optional restart behavior after the step runs."}</>,
-      typeDescriptionLink: "#gate-fields",
-    },
-    "outputs": {
-      type: <code>{"Record<string, value>"}</code>,
-      description: <>{"Named output declarations produced by this step."}</>,
-      typeDescriptionLink: "#step-outputs",
-    },
-  }}
-/>
+<AgentStepFields />
 
 ## Agent integration fields
 
-<TypeTable
-  type={{
-    "connection": {
-      type: <code>{"string"}</code>,
-      description: <>{"Integration connection slug to use for these tools."}</>,
-    },
-    "include": {
-      type: <code>{"string[]"}</code>,
-      description: <>{"Tool selectors to make available to the agent."}</>,
-      required: true,
-    },
-    "exclude": {
-      type: <code>{"string[]"}</code>,
-      description: <>{"Tool selectors to remove from the included tools."}</>,
-    },
-    "allow_write": {
-      type: <code>{"boolean"}</code>,
-      description: <>{"Allows write-capable integration tools. Omit or set false for read-only access."}</>,
-    },
-  }}
-/>
+<AgentIntegrationFields />
 
 ## Gate fields
 
-<TypeTable
-  type={{
-    "success": {
-      type: <code>{"string"}</code>,
-      description: <>{"CEL expression that must evaluate to true for the step to succeed. See "}<a href="/understand/feedback-loops#gate-outcomes">{"gate outcomes"}</a>{"."}</>,
-    },
-    "on_failure": {
-      type: <code>{"object"}</code>,
-      description: <>{"Restart behavior when the success gate fails. See "}<a href="/understand/feedback-loops">{"feedback loops"}</a>{"."}</>,
-      typeDescriptionLink: "#gate-failure-fields",
-    },
-  }}
-/>
+<GateFields />
 
 ### Gate failure fields
 
-<TypeTable
-  type={{
-    "restart_from": {
-      type: <code>{"string"}</code>,
-      description: <>{"Key of an earlier step in the same job to restart from after a failed gate."}</>,
-    },
-    "feedback": {
-      type: <code>{"string"}</code>,
-      description: <>{"Feedback supplied when the gate fails before restarting."}</>,
-    },
-  }}
-/>
+<GateFailureFields />
 
 ## Step outputs
 
-<TypeTable
-  type={{
-    "type": {
-      type: <code>{"string | number | boolean | json"}</code>,
-      description: <>{"Declared output type. Use "}<code>{"json"}</code>{" when the output has a JSON Schema."}</>,
-      required: true,
-    },
-    "schema": {
-      type: <code>{"value"}</code>,
-      description: <>{"JSON Schema for a "}<code>{"json"}</code>{" output. It allows up to 32768 serialized bytes and 64 nesting levels."}</>,
-    },
-  }}
-/>
+<StepOutputs />
 
 ## Listening fields
 
-<TypeTable
-  type={{
-    "on": {
-      type: <code>{"object[]"}</code>,
-      description: <>{"Events that start listening. Listening triggers cannot use "}<code>{"config"}</code>{"."}</>,
-      required: true,
-      typeDescriptionLink: "#trigger-fields",
-    },
-    "until": {
-      type: <code>{"object[]"}</code>,
-      description: <>{"Events that resolve listening. Listening jobs need this, "}<code>{"timeout"}</code>{", or "}<code>{"max_executions"}</code>{"; these triggers cannot use "}<code>{"config"}</code>{"."}</>,
-      typeDescriptionLink: "#trigger-fields",
-    },
-    "timeout": {
-      type: <code>{"string"}</code>,
-      description: <>{"Maximum duration to listen before resolving. A listening job needs this, "}<code>{"until"}</code>{", or "}<code>{"max_executions"}</code>{"."}</>,
-    },
-    "max_executions": {
-      type: <code>{"integer"}</code>,
-      description: <>{"Maximum number of matching events before resolving. A listening job needs this, "}<code>{"until"}</code>{", or "}<code>{"timeout"}</code>{"."}</>,
-    },
-    "batch": {
-      type: <code>{"object"}</code>,
-      description: <>{"Optional batching policy. Set at least one of "}<code>{"debounce"}</code>{", "}<code>{"max_size"}</code>{", or "}<code>{"max_wait"}</code>{"."}</>,
-      typeDescriptionLink: "#listening-batch-fields",
-    },
-    "on_resolve": {
-      type: <><code>{"finish"}</code> | <code>{"cancel"}</code></>,
-      description: <>{"How the job resolves when its listening condition is met."}</>,
-    },
-  }}
-/>
+<ListeningFields />
 
 ### Listening batch fields
 
-<TypeTable
-  type={{
-    "debounce": {
-      type: <code>{"string"}</code>,
-      description: <>{"Quiet period to wait for more matching events before processing a batch."}</>,
-    },
-    "max_size": {
-      type: <code>{"integer"}</code>,
-      description: <>{"Maximum number of matching events in one batch."}</>,
-    },
-    "max_wait": {
-      type: <code>{"string"}</code>,
-      description: <>{"Maximum time to wait before processing a partial batch."}</>,
-    },
-  }}
-/>
+<ListeningBatchFields />
 
 ## Environment variables
 
-<TypeTable
-  type={{
-    "name": {
-      type: <code>{"string"}</code>,
-      description: <>{"POSIX environment variable name: "}<code>{"[A-Za-z_][A-Za-z0-9_]*"}</code>{"."}</>,
-    },
-    "value": {
-      type: <code>{"string | number | boolean"}</code>,
-      description: <>{"Environment variable value."}</>,
-    },
-  }}
-/>
-
-{/* @generated:workflow-schema end */}
+<EnvironmentVariables />
 
 ## Related pages
 

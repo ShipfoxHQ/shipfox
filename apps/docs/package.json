@@ -16,7 +16,7 @@
     "start": "next start --port ${SHIPFOX_DOCS_PORT:-3500}",
     "type": "shipfox-tsc-check",
     "generate": "tsx --conditions=development scripts/generate.mjs",
-    "test": "pnpm generate && tsx scripts/check-writing.mjs && tsx scripts/check-links.mjs && tsx scripts/check-workflow-schema.mjs && tsx scripts/check-generated.mjs",
+    "test": "pnpm generate && tsx scripts/check-writing.mjs && tsx scripts/check-links.mjs && tsx scripts/check-workflow-schema.mjs",
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {mkdirSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
@@ -33,14 +33,7 @@ const regions = [
     'content/generated/integrations/webhooks/events.mdx',
     () => renderEventCatalog(webhookEventCatalog),
   ],
-];
-const inPageRegions = [
-  {
-    file: 'content/docs/reference/workflow-schema.mdx',
-    start: '{/* @generated:workflow-schema start */}',
-    end: '{/* @generated:workflow-schema end */}',
-    render: renderWorkflowSchemaReference,
-  },
+  ['content/generated/reference/workflow-schema.mdx', renderWorkflowSchemaReference],
 ];
 
 function renderModelProvidersTable() {
@@ -226,7 +219,9 @@ function renderWorkflowSchemaReference() {
   const batch = object(listening.properties).batch;
 
   return [
-    section('Top-level fields', root, {
+    "import {TypeTable} from 'fumadocs-ui/components/type-table';",
+    '',
+    component('TopLevelFields', root, {
       required: ['name', 'jobs'],
       nested: {
         env: '#environment-variables',
@@ -234,80 +229,66 @@ function renderWorkflowSchemaReference() {
         jobs: '#job-fields',
       },
     }),
-    section('Trigger fields', object(trigger.properties), {required: ['source', 'event']}),
-    section('Job fields', object(jobs.properties), {
+    component('TriggerFields', object(trigger.properties), {required: ['source', 'event']}),
+    component('JobFields', object(jobs.properties), {
       required: ['steps'],
       nested: {
         checkout: '#checkout-fields',
         listening: '#listening-fields',
       },
     }),
-    section('Checkout fields', object(checkout.properties), {
+    component('CheckoutFields', object(checkout.properties), {
       nested: {permissions: '#checkout-permissions-fields'},
     }),
-    section('Checkout permissions fields', object(checkoutPermissions.properties), {}, 3),
-    '## Step fields',
-    '',
-    'Each step is either a run step or an agent step. The schema rejects unknown fields and invalid field combinations.',
-    '',
-    section(
-      'Run step fields',
-      object(steps.properties),
-      {
-        fields: ['key', 'if', 'name', 'run', 'gate', 'env', 'outputs'],
-        required: ['run'],
-        nested: {
-          gate: '#gate-fields',
-          env: '#environment-variables',
-          outputs: '#step-outputs',
-        },
+    component('CheckoutPermissionsFields', object(checkoutPermissions.properties)),
+    component('RunStepFields', object(steps.properties), {
+      fields: ['key', 'if', 'name', 'run', 'gate', 'env', 'outputs'],
+      required: ['run'],
+      nested: {
+        gate: '#gate-fields',
+        env: '#environment-variables',
+        outputs: '#step-outputs',
       },
-      3,
-    ),
-    section(
-      'Agent step fields',
-      object(steps.properties),
-      {
-        fields: [
-          'key',
-          'if',
-          'name',
-          'prompt',
-          'model',
-          'harness',
-          'thinking',
-          'provider',
-          'tools',
-          'integrations',
-          'gate',
-          'outputs',
-        ],
-        required: ['prompt'],
-        nested: {
-          integrations: '#agent-integration-fields',
-          gate: '#gate-fields',
-          outputs: '#step-outputs',
-        },
-        defaults: {
-          harness: 'pi',
-          thinking: 'xhigh',
-        },
-        types: {
-          thinking: thinkingType(),
-        },
+    }),
+    component('AgentStepFields', object(steps.properties), {
+      fields: [
+        'key',
+        'if',
+        'name',
+        'prompt',
+        'model',
+        'harness',
+        'thinking',
+        'provider',
+        'tools',
+        'integrations',
+        'gate',
+        'outputs',
+      ],
+      required: ['prompt'],
+      nested: {
+        integrations: '#agent-integration-fields',
+        gate: '#gate-fields',
+        outputs: '#step-outputs',
       },
-      3,
-    ),
-    section('Agent integration fields', object(integration.properties), {required: ['include']}),
-    section('Gate fields', object(gate.properties), {
+      defaults: {
+        harness: 'pi',
+        thinking: 'xhigh',
+      },
+      types: {
+        thinking: thinkingType(),
+      },
+    }),
+    component('AgentIntegrationFields', object(integration.properties), {required: ['include']}),
+    component('GateFields', object(gate.properties), {
       nested: {on_failure: '#gate-failure-fields'},
     }),
-    section('Gate failure fields', object(gateFailure.properties), {}, 3),
-    section('Step outputs', outputFields(outputs), {
+    component('GateFailureFields', object(gateFailure.properties)),
+    component('StepOutputs', outputFields(outputs), {
       required: ['type'],
       types: {type: codeType('string | number | boolean | json')},
     }),
-    section('Listening fields', object(listening.properties), {
+    component('ListeningFields', object(listening.properties), {
       required: ['on'],
       nested: {
         on: '#trigger-fields',
@@ -315,15 +296,19 @@ function renderWorkflowSchemaReference() {
         batch: '#listening-batch-fields',
       },
     }),
-    section('Listening batch fields', object(batch.properties), {}, 3),
-    section('Environment variables', environmentFields()),
+    component('ListeningBatchFields', object(batch.properties)),
+    component('EnvironmentVariables', environmentFields()),
   ]
     .filter(Boolean)
     .join('\n\n');
 }
 
-function section(title, properties, options = {}, level = 2) {
-  return [`${'#'.repeat(level)} ${title}`, '', renderTypeTable(properties, options)].join('\n');
+function component(name, properties, options = {}) {
+  const table = renderTypeTable(properties, options)
+    .split('\n')
+    .map((line) => `    ${line}`)
+    .join('\n');
+  return [`export function ${name}() {`, '  return (', table, '  );', '}'].join('\n');
 }
 
 function renderTypeTable(properties, options) {
@@ -425,19 +410,4 @@ for (const [file, render] of regions) {
   writeFileSync(path, next);
   // biome-ignore lint/suspicious/noConsole: CLI diagnostics
   console.log(`✓ wrote ${file}`);
-}
-
-for (const region of inPageRegions) {
-  const path = join(docsRoot, region.file);
-  const content = readFileSync(path, 'utf8');
-  const start = content.indexOf(region.start);
-  const end = content.indexOf(region.end);
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error(`Missing or invalid generated region markers in ${region.file}.`);
-  }
-  const generated = `${region.start}\n\n${region.render()}\n\n${region.end}`;
-  const next = `${content.slice(0, start)}${generated}${content.slice(end + region.end.length)}`;
-  writeFileSync(path, next);
-  // biome-ignore lint/suspicious/noConsole: CLI diagnostics
-  console.log(`✓ wrote ${region.file}`);
 }
