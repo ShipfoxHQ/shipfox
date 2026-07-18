@@ -50,6 +50,7 @@ function callbackParams(
   const slack: SlackApiClient = {
     exchangeAuthorizationCode: vi.fn(() => Promise.resolve(authorization())),
     revokeToken: vi.fn(() => Promise.resolve()),
+    callMethod: vi.fn(() => Promise.resolve({ok: true})),
   };
   return {
     slack,
@@ -101,6 +102,7 @@ describe('handleSlackCallback', () => {
         Promise.resolve(authorization({scopes: ['chat:write']})),
       ),
       revokeToken: vi.fn(() => Promise.resolve()),
+      callMethod: vi.fn(() => Promise.resolve({ok: true})),
     };
     const params = callbackParams({slack});
 

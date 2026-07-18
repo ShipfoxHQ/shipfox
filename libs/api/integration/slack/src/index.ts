@@ -2,6 +2,8 @@ import {SLACK_PROVIDER} from '@shipfox/api-integration-slack-dto';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createSlackApiClient, type SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';
+import {SlackAgentToolsProvider} from '#core/agent-tools-provider.js';
+import type {SlackTokenStore} from '#core/tokens.js';
 import {closeDb, db} from '#db/db.js';
 import {getSlackInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -22,8 +24,23 @@ type SlackRouteOptions = Partial<SlackInstallationRouteOptions> &
   Partial<CreateSlackWebhookRoutesOptions>;
 
 export type {SlackProvider} from '@shipfox/api-integration-slack-dto';
-export type {SlackApiClient, SlackAuthorization} from '#api/client.js';
+export type {SlackApiClient, SlackAuthorization, SlackWebApiResponse} from '#api/client.js';
 export {createSlackApiClient} from '#api/client.js';
+export type {
+  SlackAgentToolCatalogEntry,
+  SlackAgentToolId,
+  SlackAgentToolRequiredScope,
+} from '#core/agent-tools.js';
+export {
+  SLACK_TOOL_METHODS,
+  slackAgentToolCatalog,
+  slackAgentToolSelectionCatalog,
+} from '#core/agent-tools.js';
+export type {
+  SlackAgentToolsProviderOptions,
+  SlackToolCallResult,
+} from '#core/agent-tools-provider.js';
+export {SlackAgentToolsProvider} from '#core/agent-tools-provider.js';
 export {
   type DisconnectSlackInstallationParams,
   disconnectSlackInstallation,
@@ -94,6 +111,7 @@ export {closeDb, config, db, migrationsPath};
 
 export interface CreateSlackIntegrationProviderOptions {
   slack?: SlackApiClient | undefined;
+  agentTools?: {tokenStore: Pick<SlackTokenStore, 'getAccessToken'>} | undefined;
   getSlackInstallationByConnectionId?: typeof getSlackInstallationByConnectionId | undefined;
   routes?: SlackRouteOptions | undefined;
 }
@@ -104,6 +122,14 @@ export function createSlackIntegrationProvider(
   const slack = options.slack ?? createSlackApiClient();
   const getInstallationByConnectionId =
     options.getSlackInstallationByConnectionId ?? getSlackInstallationByConnectionId;
+  const adapters = options.agentTools
+    ? {
+        agent_tools: new SlackAgentToolsProvider({
+          slack,
+          tokenStore: options.agentTools.tokenStore,
+        }),
+      }
+    : {};
   if (
     options.routes &&
     !hasSlackInstallationRoutesOptions(options.routes) &&
@@ -122,7 +148,7 @@ export function createSlackIntegrationProvider(
     routes.push(
       createSlackIntegrationRoutes({
         slack,
-        connectionCapabilities: [],
+        connectionCapabilities: adapters.agent_tools ? ['agent_tools'] : [],
         tokenStore,
         getExistingSlackConnection,
         connectSlackInstallation,
@@ -137,7 +163,7 @@ export function createSlackIntegrationProvider(
   return {
     provider: SLACK_PROVIDER,
     displayName: 'Slack',
-    adapters: {},
+    adapters,
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);
       if (!installation) return undefined;

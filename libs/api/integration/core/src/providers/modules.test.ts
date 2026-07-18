@@ -49,8 +49,8 @@ describe('loadEnabledProviderModules', () => {
     expect(parts[0]?.provider).toMatchObject({
       provider: 'slack',
       displayName: 'Slack',
-      adapters: {},
     });
+    expect(parts[0]?.provider.adapters?.agent_tools).toBeDefined();
   });
 
   it('loads Jira when the provider is enabled', async () => {

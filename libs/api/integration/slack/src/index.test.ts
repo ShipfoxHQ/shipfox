@@ -1,4 +1,4 @@
-import {createSlackIntegrationProvider} from '#index.js';
+import {createSlackIntegrationProvider, slackAgentToolCatalog} from '#index.js';
 
 describe('createSlackIntegrationProvider', () => {
   it('does not mount webhook routes without route options', () => {
@@ -11,5 +11,15 @@ describe('createSlackIntegrationProvider', () => {
     expect(() => createSlackIntegrationProvider({routes: {}})).toThrow(
       'Slack webhook routes require every core persistence dependency',
     );
+  });
+
+  it('exposes the Slack agent-tools adapter when token access is configured', () => {
+    const provider = createSlackIntegrationProvider({
+      agentTools: {tokenStore: {getAccessToken: async () => 'xoxb-token'}},
+    });
+
+    const catalog = provider.adapters.agent_tools?.catalog();
+
+    expect(catalog).toBe(slackAgentToolCatalog);
   });
 });
