@@ -1,0 +1,13 @@
+[Unit]
+Description=Shipfox runner Spot interruption watchdog
+After=network-online.target shipfox-runner.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/shipfox-runner/scripts/runtime/spot-watchdog.sh
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

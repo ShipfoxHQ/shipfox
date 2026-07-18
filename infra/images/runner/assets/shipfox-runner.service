@@ -1,0 +1,25 @@
+[Unit]
+Description=Shipfox platform runner
+After=cloud-final.service shipfox-runner-env.service
+Wants=cloud-final.service
+Requires=shipfox-runner-env.service
+SuccessAction=poweroff-immediate
+FailureAction=poweroff-immediate
+
+[Service]
+User=shipfox
+EnvironmentFile=-/etc/environment
+EnvironmentFile=/etc/shipfox/runner.env
+Environment=AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS=false
+WorkingDirectory=/opt/runner
+ExecStart=/usr/local/bin/node --enable-source-maps dist/index.js
+Restart=no
+KillSignal=SIGTERM
+KillMode=control-group
+TimeoutStopSec=90s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=shipfox-runner
+
+[Install]
+WantedBy=multi-user.target

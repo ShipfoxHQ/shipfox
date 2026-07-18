@@ -1,0 +1,9 @@
+[Unit]
+Description=Validate Shipfox runner environment file
+After=cloud-final.service
+Wants=cloud-final.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/test -s /etc/shipfox/runner.env
+RemainAfterExit=yes
