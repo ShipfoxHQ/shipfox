@@ -1,11 +1,10 @@
 source "amazon-ebs" "build_image" {
   ami_name                    = "shipfox-runner-${var.image_os}-${var.architecture}-${var.build_number}"
   ami_virtualization_type     = "hvm"
-  ami_regions                 = var.push_image ? [] : null
   associate_public_ip_address = true
   encrypt_boot                = true
   imds_support                = "v2.0"
-  instance_type               = "t3.large"
+  instance_type               = var.architecture == "amd64" ? "t3.large" : "t4g.large"
   region                      = "us-east-1"
   shutdown_behavior           = "terminate"
   ssh_username                = "ubuntu"

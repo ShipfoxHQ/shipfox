@@ -8,7 +8,7 @@ if [ -z "$lockfile" ]; then
   exit 1
 fi
 cd "$(dirname "$lockfile")"
-corepack prepare pnpm@11.6.0 --activate
+corepack prepare pnpm@11.7.0 --activate
 pnpm install --frozen-lockfile
 pnpm --filter=@shipfox/runner deploy --prod --legacy --config.strict-peer-dependencies=false /opt/runner
 chown -R shipfox:shipfox /opt/runner

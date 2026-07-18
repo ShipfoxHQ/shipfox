@@ -1,17 +1,15 @@
-import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 
-export function qemuImagePath(rootDir: string): string {
-  const image = process.env.SHIPFOX_QEMU_SOURCE_IMAGE;
-  if (!image) {
-    throw new Error('SHIPFOX_QEMU_SOURCE_IMAGE is required for a QEMU image build.');
-  }
-  return image.startsWith('/') ? image : join(rootDir, image);
-}
+export function qemuSourceImageArgs(rootDir: string, env = process.env): string[] {
+  const image = env.SHIPFOX_QEMU_SOURCE_IMAGE;
+  if (!image) return [];
 
-export function qemuBootImagePath(rootDir: string): string {
-  const image = join(rootDir, 'output', 'machine.raw');
-  if (!existsSync(image))
-    throw new Error(`QEMU image not found at ${image}. Build the image first.`);
-  return image;
+  const checksum = env.SHIPFOX_QEMU_SOURCE_CHECKSUM;
+  if (!checksum) {
+    throw new Error(
+      'SHIPFOX_QEMU_SOURCE_CHECKSUM is required when SHIPFOX_QEMU_SOURCE_IMAGE is set.',
+    );
+  }
+  const source = image.startsWith('/') ? image : join(rootDir, image);
+  return ['-var', `qemu_source_image=${source}`, '-var', `qemu_source_checksum=${checksum}`];
 }

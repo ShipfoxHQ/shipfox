@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {getProjectRootPath} from '@shipfox/tool-utils';
 import {findProducedAmiId} from './aws.js';
-import {qemuImagePath} from './qemu.js';
+import {qemuSourceImageArgs} from './qemu.js';
 
 const WHITESPACE_PATTERN = /\s+/;
 
@@ -49,7 +49,7 @@ export function packerBuildArgs(
     '-var',
     `runner_workspace=${workspacePath}`,
   ];
-  if (build.platform === 'qemu') args.push('-var', `qemu_source_image=${qemuImagePath(rootDir)}`);
+  if (build.platform === 'qemu') args.push(...qemuSourceImageArgs(rootDir));
   return [...args, ...build.extraPackerArgs, '.'];
 }
 
@@ -64,7 +64,7 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
       stdio: 'inherit',
     });
     execFileSync('packer', ['init', '.'], {cwd: rootDir, stdio: 'inherit'});
-    const output = execFileSync('packer', packerBuildArgs(build, workspacePath), {
+    const output = execFileSync('packer', packerBuildArgs(build, workspacePath, rootDir), {
       cwd: rootDir,
       encoding: 'utf8',
     });

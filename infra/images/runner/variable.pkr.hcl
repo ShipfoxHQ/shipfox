@@ -33,11 +33,6 @@ variable "platform" {
   }
 }
 
-variable "push_image" {
-  type    = bool
-  default = false
-}
-
 variable "runner_workspace" {
   type = string
 }

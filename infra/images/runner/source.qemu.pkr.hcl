@@ -1,11 +1,13 @@
 source "qemu" "build_image" {
-  accelerator      = "kvm"
+  accelerator      = var.qemu_accelerator
+  cd_files         = ["${path.root}/assets/qemu/cloud-init/meta-data", "${path.root}/assets/qemu/cloud-init/user-data"]
+  cd_label         = "cidata"
   disk_image       = true
   disk_size        = "${var.os_disk_size_gb}G"
   format           = "raw"
   headless         = var.qemu_headless
-  iso_checksum     = "none"
-  iso_url          = var.qemu_source_image
+  iso_checksum     = local.qemu_source_checksum
+  iso_url          = local.qemu_source_image
   net_device       = "virtio-net"
   output_directory = "output"
   qemu_binary      = local.qemu_binary

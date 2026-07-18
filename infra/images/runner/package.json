@@ -14,7 +14,6 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "image:build": "build-runner-image ubuntu24 aws",
-    "image:build:push": "build-runner-image ubuntu24 aws -var push_image=true",
     "test": "shipfox-vitest-run",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"

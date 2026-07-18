@@ -1,6 +1,11 @@
 import {execFileSync} from 'node:child_process';
 import {findProducedAmiId} from '#aws.js';
+import {parseBuildRunnerImageArgs} from '#build-runner-image.js';
 import {packerBuildArgs, readMiseNodeVersion} from '#runner-image.js';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('readMiseNodeVersion', () => {
   it('reads the selected Node version from mise', () => {
@@ -19,7 +24,7 @@ describe('packerBuildArgs', () => {
         architecture: 'amd64',
         buildNumber: '42',
         nodeVersion: '24.17.0',
-        extraPackerArgs: ['-var', 'push_image=true'],
+        extraPackerArgs: [],
       },
       '/tmp/workspace',
     );
@@ -40,10 +45,48 @@ describe('packerBuildArgs', () => {
       'platform=aws',
       '-var',
       'runner_workspace=/tmp/workspace',
-      '-var',
-      'push_image=true',
       '.',
     ]);
+  });
+
+  it('passes a checked custom QEMU source relative to the project root', () => {
+    vi.stubEnv('SHIPFOX_QEMU_SOURCE_IMAGE', 'test-images/ubuntu.raw');
+    vi.stubEnv('SHIPFOX_QEMU_SOURCE_CHECKSUM', 'sha256:abc123');
+
+    const args = packerBuildArgs(
+      {
+        os: 'ubuntu24',
+        platform: 'qemu',
+        architecture: 'amd64',
+        buildNumber: '42',
+        nodeVersion: '24.17.0',
+        extraPackerArgs: [],
+      },
+      '/tmp/workspace',
+      '/repo',
+    );
+
+    expect(args).toContain('qemu_source_image=/repo/test-images/ubuntu.raw');
+    expect(args).toContain('qemu_source_checksum=sha256:abc123');
+  });
+
+  it('rejects an unchecked custom QEMU source', () => {
+    vi.stubEnv('SHIPFOX_QEMU_SOURCE_IMAGE', '/images/ubuntu.raw');
+    vi.stubEnv('SHIPFOX_QEMU_SOURCE_CHECKSUM', '');
+
+    expect(() =>
+      packerBuildArgs(
+        {
+          os: 'ubuntu24',
+          platform: 'qemu',
+          architecture: 'amd64',
+          buildNumber: '42',
+          nodeVersion: '24.17.0',
+          extraPackerArgs: [],
+        },
+        '/tmp/workspace',
+      ),
+    ).toThrow('SHIPFOX_QEMU_SOURCE_CHECKSUM');
   });
 });
 
@@ -54,6 +97,37 @@ describe('findProducedAmiId', () => {
     );
 
     expect(amiId).toBe('ami-0fedcba9876543210');
+  });
+
+  it('does not mistake a shortened identifier for an AMI', () => {
+    const amiId = findProducedAmiId('AMIs were created: ami-0123abc');
+
+    expect(amiId).toBeNull();
+  });
+});
+
+describe('parseBuildRunnerImageArgs', () => {
+  it('parses the build target and forwards Packer options', () => {
+    const build = parseBuildRunnerImageArgs(
+      ['ubuntu24', 'qemu', '-var', 'qemu_accelerator=tcg'],
+      {BUILD_ARCH: 'amd64', BUILD_NUMBER: '42'},
+      '24.17.0',
+    );
+
+    expect(build).toEqual({
+      os: 'ubuntu24',
+      platform: 'qemu',
+      architecture: 'amd64',
+      buildNumber: '42',
+      nodeVersion: '24.17.0',
+      extraPackerArgs: ['-var', 'qemu_accelerator=tcg'],
+    });
+  });
+
+  it('rejects missing required build metadata', () => {
+    expect(() => parseBuildRunnerImageArgs(['ubuntu24', 'aws'], {}, '24.17.0')).toThrow(
+      'BUILD_NUMBER is not set.',
+    );
   });
 });
 

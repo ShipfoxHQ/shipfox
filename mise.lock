@@ -110,3 +110,35 @@ url = "https://github.com/ollama/ollama/releases/download/v0.30.11/ollama-darwin
 [tools.ollama."platforms.windows-x64"]
 checksum = "sha256:43d534c10040ea676c99af19836377a315daa8cb3bb6c3d9d609b4c23dd37b88"
 url = "https://github.com/ollama/ollama/releases/download/v0.30.11/ollama-windows-amd64.zip"
+
+[[tools.packer]]
+version = "1.15.4"
+backend = "aqua:hashicorp/packer"
+
+[tools.packer."platforms.linux-arm64"]
+checksum = "sha256:23e6d2e596dd9e2527e0f7bea9aedd26059729375a0d17c462c2621f1b97b82d"
+url = "https://releases.hashicorp.com/packer/1.15.4/packer_1.15.4_linux_arm64.zip"
+
+[tools.packer."platforms.linux-arm64-musl"]
+checksum = "sha256:23e6d2e596dd9e2527e0f7bea9aedd26059729375a0d17c462c2621f1b97b82d"
+url = "https://releases.hashicorp.com/packer/1.15.4/packer_1.15.4_linux_arm64.zip"
+
+[tools.packer."platforms.linux-x64"]
+checksum = "sha256:15f97a6a99645c7d5308c609973b5280837b38e112beac413ccbce80da927cf1"
+url = "https://releases.hashicorp.com/packer/1.15.4/packer_1.15.4_linux_amd64.zip"
+
+[tools.packer."platforms.linux-x64-musl"]
+checksum = "sha256:15f97a6a99645c7d5308c609973b5280837b38e112beac413ccbce80da927cf1"
+url = "https://releases.hashicorp.com/packer/1.15.4/packer_1.15.4_linux_amd64.zip"
+
+[tools.packer."platforms.macos-arm64"]
+checksum = "sha256:d95ba177dd2ebb84d7d155493b4188ec2a519d2c3b041528db5b63a6aff9da80"
+url = "https://releases.hashicorp.com/packer/1.15.4/packer_1.15.4_darwin_arm64.zip"
+
+[tools.packer."platforms.macos-x64"]
+checksum = "sha256:b3be60b44dcb74e7962afe22cc10b89a09c74b626fcd52f49ecee32b07b99e71"
+url = "https://releases.hashicorp.com/packer/1.15.4/packer_1.15.4_darwin_amd64.zip"
+
+[tools.packer."platforms.windows-x64"]
+checksum = "sha256:a50db29fae2972f5e5d05ecee23f80e303d605f8132dc2167848fc89184f044b"
+url = "https://releases.hashicorp.com/packer/1.15.4/packer_1.15.4_windows_amd64.zip"

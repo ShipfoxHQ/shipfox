@@ -40,6 +40,10 @@ build {
     ]
   }
 
+  provisioner "shell" {
+    inline = ["sudo passwd --lock ubuntu"]
+  }
+
   provisioner "file" {
     destination = "/tmp/shipfox-spot-watchdog.service"
     source      = abspath("${path.root}/assets/shipfox-spot-watchdog.service")
