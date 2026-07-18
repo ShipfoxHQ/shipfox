@@ -1,7 +1,9 @@
 import {
   createE2eSlackConnectionBodySchema,
   createSlackInstallBodySchema,
+  SLACK_APP_UNINSTALLED_EVENT,
   SLACK_PROVIDER,
+  SLACK_TOKENS_REVOKED_EVENT,
   slackApiEventTypes,
   slackCallbackQuerySchema,
   slackEventBaseEnvelopeSchema,
@@ -9,8 +11,10 @@ import {
   slackEventNames,
   slackEventPayloadSchema,
   slackEventsRequestSchema,
+  slackLifecycleEventTypes,
   slackSlashCommandPayloadSchema,
   slackSlashCommandSchema,
+  slackTokensRevokedEventSchema,
   slackUrlVerificationSchema,
 } from './index.js';
 
@@ -45,6 +49,15 @@ describe('Slack event vocabulary', () => {
     expect(slackEventNames).toEqual(['app_mention', 'message', 'reaction_added', 'slash_command']);
     expect(slackApiEventTypes).not.toContain('slash_command');
   });
+
+  it('keeps lifecycle events out of published event names', () => {
+    expect(slackLifecycleEventTypes).toEqual([
+      SLACK_APP_UNINSTALLED_EVENT,
+      SLACK_TOKENS_REVOKED_EVENT,
+    ]);
+    expect(slackApiEventTypes).not.toContain(SLACK_APP_UNINSTALLED_EVENT);
+    expect(slackApiEventTypes).not.toContain(SLACK_TOKENS_REVOKED_EVENT);
+  });
 });
 
 describe('Slack event schemas', () => {
@@ -62,6 +75,15 @@ describe('Slack event schemas', () => {
 
     expect(slackEventEnvelopeSchema.safeParse(unsupportedEvent).success).toBe(false);
     expect(slackEventBaseEnvelopeSchema.safeParse(unsupportedEvent).success).toBe(true);
+  });
+
+  it.each([
+    {type: SLACK_TOKENS_REVOKED_EVENT, tokens: {bot: ['UBOT']}},
+    {type: SLACK_TOKENS_REVOKED_EVENT, tokens: {oauth: ['UOAUTH']}},
+  ])('accepts a tokens_revoked event', (event) => {
+    const result = slackTokensRevokedEventSchema.parse(event);
+
+    expect(result.type).toBe(SLACK_TOKENS_REVOKED_EVENT);
   });
 
   it('accepts the URL verification handshake', () => {

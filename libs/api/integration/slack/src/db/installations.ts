@@ -1,5 +1,5 @@
 import {isUniqueViolation} from '@shipfox/node-drizzle';
-import {eq} from 'drizzle-orm';
+import {and, eq, sql} from 'drizzle-orm';
 import {
   SlackConnectionAlreadyLinkedError,
   SlackInstallationAlreadyLinkedError,
@@ -18,6 +18,7 @@ export interface SlackInstallation {
   botUserId: string;
   scopes: string[];
   status: SlackInstallationStatus;
+  generation: number;
   tokenExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -69,6 +70,7 @@ export async function upsertSlackInstallation(
           botUserId: params.botUserId,
           scopes: params.scopes,
           status: params.status,
+          generation: sql`${slackInstallations.generation} + 1`,
           tokenExpiresAt: params.tokenExpiresAt ?? null,
           updatedAt: now,
         },
@@ -128,13 +130,19 @@ export async function deleteSlackInstallationByConnectionId(
 
 export async function markSlackInstallationRevoked(
   connectionId: string,
-  options: {tx?: unknown} = {},
+  options: {tx?: unknown; expectedGeneration?: number | undefined} = {},
 ): Promise<SlackInstallation | undefined> {
   const executor = (options.tx ?? db()) as SlackDb | SlackTx;
+  const expectedInstallation = options.expectedGeneration
+    ? and(
+        eq(slackInstallations.connectionId, connectionId),
+        eq(slackInstallations.generation, options.expectedGeneration),
+      )
+    : eq(slackInstallations.connectionId, connectionId);
   const [row] = await executor
     .update(slackInstallations)
     .set({status: 'revoked', updatedAt: new Date()})
-    .where(eq(slackInstallations.connectionId, connectionId))
+    .where(expectedInstallation)
     .returning();
   if (!row) return undefined;
   return toSlackInstallation(row);

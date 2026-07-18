@@ -189,6 +189,7 @@ function hasSlackWebhookRoutesOptions(
 ): routes is CreateSlackWebhookRoutesOptions {
   return (
     routes.coreDb !== undefined &&
+    routes.claimWebhookDelivery !== undefined &&
     routes.publishIntegrationEventReceived !== undefined &&
     routes.recordDeliveryOnly !== undefined &&
     routes.getIntegrationConnectionById !== undefined

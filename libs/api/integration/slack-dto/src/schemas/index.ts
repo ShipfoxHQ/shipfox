@@ -6,9 +6,16 @@ export type SlackProvider = typeof SLACK_PROVIDER;
 
 export const slackApiEventTypes = ['app_mention', 'message', 'reaction_added'] as const;
 export const SLACK_SLASH_COMMAND_EVENT = 'slash_command' as const;
+export const SLACK_APP_UNINSTALLED_EVENT = 'app_uninstalled' as const;
+export const SLACK_TOKENS_REVOKED_EVENT = 'tokens_revoked' as const;
+export const slackLifecycleEventTypes = [
+  SLACK_APP_UNINSTALLED_EVENT,
+  SLACK_TOKENS_REVOKED_EVENT,
+] as const;
 export const slackEventNames = [...slackApiEventTypes, SLACK_SLASH_COMMAND_EVENT] as const;
 
 export type SlackApiEventType = (typeof slackApiEventTypes)[number];
+export type SlackLifecycleEventType = (typeof slackLifecycleEventTypes)[number];
 export type SlackEventName = (typeof slackEventNames)[number];
 
 export const slackInnerEventBaseSchema = z
@@ -22,6 +29,19 @@ export const slackInnerEventSchema = z
     type: z.enum(slackApiEventTypes),
   })
   .passthrough();
+
+export const slackTokensRevokedEventSchema = z
+  .object({
+    type: z.literal(SLACK_TOKENS_REVOKED_EVENT),
+    tokens: z
+      .object({
+        oauth: z.array(z.string()).optional(),
+        bot: z.array(z.string()).optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+export type SlackTokensRevokedEventDto = z.infer<typeof slackTokensRevokedEventSchema>;
 
 export const slackEventBaseEnvelopeSchema = z.object({
   type: z.literal('event_callback'),
