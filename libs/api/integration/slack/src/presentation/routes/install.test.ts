@@ -8,6 +8,7 @@ import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {SlackApiClient} from '#api/client.js';
+import {SlackTokenRotationUnsupportedError} from '#core/errors.js';
 import type {ConnectSlackInstallationInput} from '#core/install.js';
 import {verifySlackInstallState} from '#core/state.js';
 import type {SlackTokenStore} from '#core/tokens.js';
@@ -178,5 +179,34 @@ describe('Slack integration routes', () => {
       botToken: 'xoxb-token',
       editedBy: 'user-1',
     });
+  });
+
+  it('rejects a callback whose OAuth response enables token rotation', async () => {
+    const tokenStore = {storeTokens: vi.fn(() => Promise.resolve())};
+    const slack = slackClient({
+      exchangeAuthorizationCode: vi.fn(() =>
+        Promise.reject(new SlackTokenRotationUnsupportedError()),
+      ),
+    });
+    const app = await createTestApp({slack, tokenStore});
+    const workspaceId = '00000000-0000-4000-8000-000000000002';
+    authenticatedMemberships = [{workspaceId, role: 'admin'}];
+    const install = await app.inject({
+      method: 'POST',
+      url: '/integrations/slack/install',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId},
+    });
+    const state = new URL(install.json().install_url).searchParams.get('state');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/slack/callback/api?code=code&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('slack-token-rotation-unsupported');
+    expect(tokenStore.storeTokens).not.toHaveBeenCalled();
   });
 });

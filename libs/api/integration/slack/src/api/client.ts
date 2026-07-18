@@ -4,6 +4,7 @@ import {config} from '#config.js';
 import {
   SlackEnterpriseInstallUnsupportedError,
   SlackIntegrationProviderError,
+  SlackTokenRotationUnsupportedError,
 } from '#core/errors.js';
 
 const SLACK_API_TIMEOUT_MS = 10_000;
@@ -31,6 +32,8 @@ interface SlackOAuthAccessResponse {
   team?: {id?: unknown; name?: unknown} | null | undefined;
   scope?: unknown;
   is_enterprise_install?: unknown;
+  expires_in?: unknown;
+  refresh_token?: unknown;
 }
 
 export function createSlackApiClient(): SlackApiClient {
@@ -73,6 +76,12 @@ function parseOAuthAccess(body: SlackOAuthAccessResponse): SlackAuthorization {
   if (body.is_enterprise_install === true || body.team == null) {
     throw new SlackEnterpriseInstallUnsupportedError();
   }
+  // The bot-token store has no refresh path, so a rotating (expiring) token must never be persisted.
+  // Slack omits both fields when rotation is off, so presence of either signals rotation.
+  // The rejected token self-expires, matching the Enterprise Grid rejection path.
+  if (body.expires_in !== undefined || body.refresh_token !== undefined) {
+    throw new SlackTokenRotationUnsupportedError();
+  }
   const {access_token: accessToken, bot_user_id: botUserId, app_id: appId, team, scope} = body;
   if (
     typeof accessToken !== 'string' ||
@@ -87,7 +96,6 @@ function parseOAuthAccess(body: SlackOAuthAccessResponse): SlackAuthorization {
       'Slack authorization response did not include the required installation details',
     );
   }
-  // Token rotation is intentionally unsupported until ENG-997 adds a rejection guard.
   return {
     accessToken,
     botUserId,

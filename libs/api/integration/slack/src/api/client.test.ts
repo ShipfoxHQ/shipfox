@@ -2,6 +2,7 @@ import {HTTPError, TimeoutError} from 'ky';
 import {
   SlackEnterpriseInstallUnsupportedError,
   SlackIntegrationProviderError,
+  SlackTokenRotationUnsupportedError,
 } from '#core/errors.js';
 import {createSlackApiClient} from './client.js';
 
@@ -104,6 +105,29 @@ describe('createSlackApiClient', () => {
     const result = createSlackApiClient().exchangeAuthorizationCode({code: 'oauth-code'});
 
     await expect(result).rejects.toBeInstanceOf(SlackEnterpriseInstallUnsupportedError);
+  });
+
+  it.each([
+    oauthSuccess({expires_in: 43_200}),
+    oauthSuccess({refresh_token: 'xoxe-1-refresh'}),
+  ])('rejects rotation-enabled OAuth responses', async (body) => {
+    mocks.post.mockReturnValue(resolves(body));
+
+    const result = createSlackApiClient().exchangeAuthorizationCode({code: 'oauth-code'});
+
+    await expect(result).rejects.toBeInstanceOf(SlackTokenRotationUnsupportedError);
+  });
+
+  it('never embeds a rotating token value in the thrown error', async () => {
+    mocks.post.mockReturnValue(resolves(oauthSuccess({refresh_token: 'xoxe-secret-refresh'})));
+
+    const error = await createSlackApiClient()
+      .exchangeAuthorizationCode({code: 'oauth-code'})
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(SlackTokenRotationUnsupportedError);
+    expect((error as Error).message).toBe('Slack token rotation is not supported');
+    expect(String(error)).not.toContain('xoxe-secret-refresh');
   });
 
   it.each([
