@@ -46,6 +46,12 @@ jobs:
       - name: Check direct dependency catalog policy
         run: pnpm check:dependencies
 
+      - name: Test repository tooling
+        run: pnpm test
+
+      - name: Audit dependency lockfile
+        run: pnpm check:lockfile
+
       - name: Run static verification
         run: turbo check type build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 

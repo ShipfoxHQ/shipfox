@@ -167,6 +167,9 @@ catalog:
   "yaml": "^2.8.3"
   "zod": "^4.4.3"
 
+overrides:
+  "@types/pg": "catalog:"
+
 strictPeerDependencies: true
 dedupePeerDependents: true
 nodeLinker: isolated
