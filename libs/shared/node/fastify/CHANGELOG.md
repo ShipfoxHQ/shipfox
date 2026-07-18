@@ -1,5 +1,12 @@
 # @shipfox/node-fastify
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [7a71e7d]
+  - @shipfox/node-opentelemetry@0.5.1
+
 ## 0.2.1
 
 ### Patch Changes

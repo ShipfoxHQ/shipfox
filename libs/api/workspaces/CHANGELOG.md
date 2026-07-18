@@ -1,5 +1,17 @@
 # @shipfox/api-workspaces
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [3976f8c]
+- Updated dependencies [7a71e7d]
+  - @shipfox/node-module@0.3.0
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/node-fastify@0.2.2
+  - @shipfox/node-mailer@0.1.3
+  - @shipfox/api-auth-context@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

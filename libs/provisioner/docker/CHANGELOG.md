@@ -1,5 +1,13 @@
 # @shipfox/provisioner-docker-provider
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [7a71e7d]
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/provisioner-core@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes

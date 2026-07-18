@@ -1,5 +1,11 @@
 # @shipfox/node-opentelemetry
 
+## 0.5.1
+
+### Patch Changes
+
+- 7a71e7d: Aligns published dependency ranges with the workspace catalog policy.
+
 ## 0.5.0
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @shipfox/node-temporal
 
+## 0.3.0
+
+### Minor Changes
+
+- c5ee18f: Makes Temporal workflow bundling and Docker runtime import maps resolve compiled production files.
+- 08fc93b: Adds prebuilt production Temporal workflow bundles to API packages and removes runtime workflow compilation.
+
+### Patch Changes
+
+- Updated dependencies [7a71e7d]
+  - @shipfox/node-opentelemetry@0.5.1
+
 ## 0.2.0
 
 ### Minor Changes

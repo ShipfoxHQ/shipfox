@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 0.3.1
+
+### Patch Changes
+
+- c18d624: Fixes compiled internal imports so external consumers resolve the package's dist artifacts.
+
 ## 0.3.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @shipfox/docker
 
+## 0.1.1
+
+### Patch Changes
+
+- c5ee18f: Makes Temporal workflow bundling and Docker runtime import maps resolve compiled production files.
+
 ## 0.1.0
 
 ### Minor Changes

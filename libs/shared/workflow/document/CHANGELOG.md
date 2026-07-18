@@ -1,5 +1,11 @@
 # @shipfox/workflow-document
 
+## 2.1.0
+
+### Minor Changes
+
+- 7ce5c9e: Adds generated JSON Schema metadata for Shipfox workflow documents.
+
 ## 2.0.1
 
 ### Patch Changes

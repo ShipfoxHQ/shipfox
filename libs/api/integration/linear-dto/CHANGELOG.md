@@ -1,5 +1,12 @@
 # @shipfox/api-integration-linear-dto
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [6b23868]
+  - @shipfox/api-integration-core-dto@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

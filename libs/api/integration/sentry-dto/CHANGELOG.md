@@ -1,5 +1,17 @@
 # @shipfox/api-integration-sentry-dto
 
+## 3.0.0
+
+### Minor Changes
+
+- 6b23868: Adds provider event and GitHub agent-tool catalogs for generated integration reference documentation.
+
+### Patch Changes
+
+- 60e7bf5: Clarifies that ignored Sentry issue webhooks produce archived integration events.
+- Updated dependencies [6b23868]
+  - @shipfox/api-integration-core-dto@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

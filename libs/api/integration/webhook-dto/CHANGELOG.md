@@ -1,5 +1,16 @@
 # @shipfox/api-integration-webhook-dto
 
+## 3.0.0
+
+### Minor Changes
+
+- 6b23868: Adds provider event and GitHub agent-tool catalogs for generated integration reference documentation.
+
+### Patch Changes
+
+- Updated dependencies [6b23868]
+  - @shipfox/api-integration-core-dto@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

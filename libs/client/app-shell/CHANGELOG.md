@@ -1,5 +1,14 @@
 # @shipfox/client-app-shell
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [c18d624]
+  - @shipfox/react-ui@0.3.1
+  - @shipfox/client-projects@0.0.5
+  - @shipfox/client-auth@0.0.5
+
 ## 0.0.4
 
 ### Patch Changes

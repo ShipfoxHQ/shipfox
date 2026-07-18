@@ -1,5 +1,33 @@
 # @shipfox/api-server
 
+## 3.0.0
+
+### Minor Changes
+
+- 3976f8c: Adds module login-method declarations, validates server compositions before startup, and adds password-login route configuration.
+
+### Patch Changes
+
+- Updated dependencies [3976f8c]
+- Updated dependencies [7a71e7d]
+- Updated dependencies [08fc93b]
+  - @shipfox/node-module@0.3.0
+  - @shipfox/api-auth@3.0.0
+  - @shipfox/api-agent@3.0.0
+  - @shipfox/api-definitions@3.0.0
+  - @shipfox/api-dispatcher@3.0.0
+  - @shipfox/api-integration-core@3.0.0
+  - @shipfox/api-logs@3.0.0
+  - @shipfox/api-projects@3.0.0
+  - @shipfox/api-runners@3.0.0
+  - @shipfox/api-triggers@3.0.0
+  - @shipfox/api-workflows@3.0.0
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/annotations@3.0.0
+  - @shipfox/api-secrets@3.0.0
+  - @shipfox/api-workspaces@3.0.0
+  - @shipfox/node-fastify@0.2.2
+
 ## 2.0.0
 
 ### Minor Changes
