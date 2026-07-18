@@ -10,6 +10,7 @@
   "type": "module",
   "scripts": {
     "check:dependencies": "syncpack lint --no-ansi",
+    "check:lockfile": "node dev/dependency-lockfile-audit.mjs",
     "fix:dependencies": "syncpack fix --no-ansi",
     "test": "node --test dev/*.test.mjs",
     "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@types/node": "catalog:",
-    "syncpack": "catalog:"
+    "syncpack": "catalog:",
+    "yaml": "catalog:"
   }
 }

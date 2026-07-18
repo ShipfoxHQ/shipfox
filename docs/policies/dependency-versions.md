@@ -185,56 +185,29 @@ A shared vendor scope does not create a family. OpenTelemetry packages use
 several upstream release trains. Do not force that whole scope to one numeric
 version.
 
-## Transitive duplicate exceptions
+## Transitive duplicate reporting
 
-Transitive duplicates need a reviewed baseline. The baseline must conform to
-[`dependency-exceptions.schema.json`](dependency-exceptions.schema.json). Each
-entry covers one exact package name. It also covers one exact observed version
-set. Globs and semver ranges are not allowed.
+Transitive duplicates are informational. They are usually controlled by
+upstream dependency ranges, so an ordinary duplicate does not fail validation
+and does not need an exception entry.
 
-| Field | Rule |
-| --- | --- |
-| `package` | Exact npm package name. |
-| `allowedVersions` | Sorted set of exact normalized versions present in the lockfile. |
-| `classification` | `temporary-compatibility`, `permanent-platform`, or `permanent-toolchain`. |
-| `reason` | Why the versions must coexist. Name the incompatible ranges, platform boundary, or toolchain boundary. |
-| `removalCondition` | A concrete event that makes the exception removable. Permanent entries still state when the platform or toolchain case ends. |
-| `trackingIssue` | Must be set for a temporary compatibility exception. |
-| `owner` | Must be set for a temporary compatibility exception. |
-| `evidence` | Optional repository paths or stable links that support the reason. |
+Run `pnpm check:lockfile -- --verbose` to print every package that resolves to
+more than one version. The report reads the committed lockfile, removes
+peer-context suffixes from snapshot keys, and sorts packages and versions. The
+default command prints only the duplicate count so pull-request logs stay
+concise.
 
-This example shows the format. It does not approve either package:
+### Curated singletons
 
-```json
-{
-  "$schema": "./docs/policies/dependency-exceptions.schema.json",
-  "schemaVersion": 1,
-  "transitiveExceptions": [
-    {
-      "package": "example-parser",
-      "allowedVersions": ["2.4.0", "3.1.0"],
-      "classification": "temporary-compatibility",
-      "reason": "One upstream consumer still requires the 2.x parser API.",
-      "removalCondition": "Remove 2.4.0 when the upstream consumer accepts parser 3.x.",
-      "trackingIssue": "ENG-123",
-      "owner": "engineering",
-      "evidence": ["libs/example/package.json"]
-    },
-    {
-      "package": "example-build-tool",
-      "allowedVersions": ["4.2.0", "5.0.1"],
-      "classification": "permanent-toolchain",
-      "reason": "Two supported build targets require separate compiler lines.",
-      "removalCondition": "Remove 4.2.0 when the older build target is dropped."
-    }
-  ]
-}
-```
+A root override declares a curated singleton. The override must reference the
+package's catalog entry, and the lockfile audit requires the package to resolve
+to exactly one version. Do not add an override only because a duplicate exists.
+The pull request must explain why one version is compatible with every consumer
+and run focused checks for those consumers.
 
-The lockfile audit compares the exact version set. A new package fails until a
-reviewer updates the exception. A new version or a larger set also fails.
-Separate native package names are separate packages. They are not duplicate
-versions of one package.
+`@types/pg` is the first singleton. OpenTelemetry pins an older 8.x type package.
+Shipfox database packages use the catalog release. The override affects only
+types. Focused OpenTelemetry and PostgreSQL checks cover both uses.
 
 ## Deterministic pull-request checks
 
@@ -256,6 +229,6 @@ not resolve a new version.
 ## Changing the policy
 
 A policy change must include the reason. It must name the affected package
-scopes and include a migration plan. A temporary exception needs an owner and
-tracking issue. It also needs a removal condition. Remove an exception with the
-extra version or legacy direct specification.
+scopes and include a migration plan. A temporary direct-version exception needs
+an owner, a tracking issue, and a removal condition. Remove the exception with
+the legacy direct specification.
