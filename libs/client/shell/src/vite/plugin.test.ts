@@ -31,6 +31,16 @@ function configure(plugin: Plugin): void {
   } as ResolvedConfig);
 }
 
+function resolveRouteImplementation(source: string): string | undefined {
+  const files: Record<string, string> = {
+    '#test/default-route-impl.js': join(testDirectory, 'default-route-impl.tsx'),
+    '#test/named-route-impl.js': join(testDirectory, 'named-route-impl.tsx'),
+    '#test/not-route-impl.js': join(testDirectory, 'not-route-impl.ts'),
+    '#test/search-route-impl.js': join(testDirectory, 'search-route-impl.tsx'),
+  };
+  return files[source];
+}
+
 function pluginContext() {
   const watchedFiles: string[] = [];
   return {
@@ -39,13 +49,16 @@ function pluginContext() {
       watchedFiles.push(file);
     },
     resolve(source: string) {
-      const files: Record<string, string> = {
-        '#test/default-route-impl.js': join(testDirectory, 'default-route-impl.tsx'),
-        '#test/named-route-impl.js': join(testDirectory, 'named-route-impl.tsx'),
-        '#test/not-route-impl.js': join(testDirectory, 'not-route-impl.ts'),
-        '#test/search-route-impl.js': join(testDirectory, 'search-route-impl.tsx'),
-      };
-      return files[source] ? {id: files[source]} : null;
+      const id = resolveRouteImplementation(source);
+      return Promise.resolve(id ? {id} : null);
+    },
+    environment: {
+      pluginContainer: {
+        resolveId(source: string) {
+          const id = resolveRouteImplementation(source);
+          return Promise.resolve(id ? {id} : null);
+        },
+      },
     },
   };
 }
@@ -143,13 +156,24 @@ export const features = [feature];`,
       contribution,
       `export const feature = {id: 'acme.reports', routes: [{path: '/reports', parent: 'root', impl: '#test/default-route-impl.js'}]};`,
     );
+    const hotUpdateContext = {environment: context.environment};
     await (
       plugin.hotUpdate as unknown as (
-        this: typeof context,
-        options: {file: string},
+        this: typeof hotUpdateContext,
+        options: {
+          file: string;
+          server: {watcher: {add(file: string): void}};
+        },
       ) => Promise<void>
-    ).call(context, {
+    ).call(hotUpdateContext, {
       file: contribution,
+      server: {
+        watcher: {
+          add(file: string) {
+            context.watchedFiles.push(file);
+          },
+        },
+      },
     });
 
     await expect(readFile(out, 'utf8')).resolves.toContain('path: "/reports"');

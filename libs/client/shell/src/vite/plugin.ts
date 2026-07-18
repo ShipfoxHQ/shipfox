@@ -16,6 +16,8 @@ export interface ShipfoxClientCompositionOptions {
   out?: string;
 }
 
+type RouteResolver = (source: string, importer?: string) => Promise<{id: string} | null>;
+
 function hasDefaultExport(source: string): boolean {
   return defaultExportPattern.test(source);
 }
@@ -31,11 +33,11 @@ export function shipfoxClientComposition({
   const featuresPath = () => resolve(config?.root ?? process.cwd(), features);
 
   async function assertDefaultRouteExports(
-    context: {resolve(source: string, importer?: string): Promise<{id: string} | null>},
+    resolveRoute: RouteResolver,
     routes: ReturnType<typeof composeRoutes>,
   ): Promise<void> {
     for (const route of routes) {
-      const resolvedRoute = await context.resolve(route.impl, outputPath());
+      const resolvedRoute = await resolveRoute(route.impl, outputPath());
       if (!resolvedRoute) {
         throw new Error(
           `Could not resolve route implementation "${route.impl}" for "${route.path}".`,
@@ -50,9 +52,12 @@ export function shipfoxClientComposition({
     }
   }
 
-  async function generate(context: {
+  async function generate({
+    addWatchFile,
+    resolveRoute,
+  }: {
     addWatchFile(file: string): void;
-    resolve(source: string, importer?: string): Promise<{id: string} | null>;
+    resolveRoute: RouteResolver;
   }): Promise<void> {
     invalidateFeatures(watchedFiles);
     const evaluated = await evaluateFeatures(featuresPath());
@@ -67,10 +72,10 @@ export function shipfoxClientComposition({
       routes.map((route) => route.path),
     );
     mergeConfigShapes(evaluated.features);
-    await assertDefaultRouteExports(context, routes);
+    await assertDefaultRouteExports(resolveRoute, routes);
 
     watchedFiles = new Set(evaluated.loadedFiles);
-    for (const file of watchedFiles) context.addWatchFile(file);
+    for (const file of watchedFiles) addWatchFile(file);
 
     const output = generateAppModule({
       routes,
@@ -90,12 +95,20 @@ export function shipfoxClientComposition({
       config = resolvedConfig;
     },
     async buildStart() {
-      await generate(this);
+      await generate({
+        addWatchFile: this.addWatchFile.bind(this),
+        resolveRoute: this.resolve.bind(this),
+      });
     },
-    async hotUpdate({file}) {
+    async hotUpdate({file, server}) {
       const resolvedFile = await realpath(file).catch(() => resolve(file));
       if (!watchedFiles.has(resolvedFile)) return;
-      await generate(this as unknown as Parameters<typeof generate>[0]);
+      await generate({
+        addWatchFile: server.watcher.add.bind(server.watcher),
+        resolveRoute: this.environment.pluginContainer.resolveId.bind(
+          this.environment.pluginContainer,
+        ),
+      });
     },
   };
 }
