@@ -40,6 +40,10 @@ export const config = createConfig({
     desc: 'Value injected into each runner as SHIPFOX_POLL_MAX_DURATION_MS: how long a started runner keeps polling for a job before exiting, in milliseconds. Use 0 for runners that should poll forever.',
     default: 300_000,
   }),
+  SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS: num({
+    desc: 'Hard maximum lifetime injected into each runner as SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS, in seconds. Set it above the longest permitted job so a runner always self-terminates if the provisioner is unavailable.',
+    default: 3600,
+  }),
 });
 
 // wait_seconds, max_reservations, and the batch size are sent to integer-typed API
@@ -89,5 +93,14 @@ if (
 if (config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS < 0) {
   throw new Error(
     `SHIPFOX_RUNNER_POLL_MAX_DURATION_MS must be greater than or equal to 0; got ${config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS}.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS) ||
+  config.SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS <= 0
+) {
+  throw new Error(
+    `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS must be a positive integer; got ${config.SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS}.`,
   );
 }

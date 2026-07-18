@@ -219,6 +219,7 @@ export const buildRunnerEnv: RunnerEnvFactory<unknown> = ({template, registratio
   SHIPFOX_RUNNER_REGISTRATION_TOKEN: registrationToken,
   SHIPFOX_RUNNER_LABELS: template.labels.join(','),
   SHIPFOX_POLL_MAX_DURATION_MS: String(config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS),
+  SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS: String(config.SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS),
 });
 
 export function nextBackoffInterval(ms: number): number {

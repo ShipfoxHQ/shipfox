@@ -61,6 +61,30 @@ jobs:
       - name: Verify packed API runtime closure
         run: pnpm --filter=@shipfox/application-release test:external
 
+  validate-runner-image:
+    name: Validate runner image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Validate Packer configuration
+        run: |
+          mkdir -p /tmp/shipfox-runner-workspace
+          packer init infra/images/runner
+          packer fmt -check infra/images/runner
+          packer validate \
+            -var build_number=ci \
+            -var node_version=24.17.0 \
+            -var platform=aws \
+            -var runner_workspace=/tmp/shipfox-runner-workspace \
+            infra/images/runner
+
   tests:
     name: Unit and story tests
     runs-on: ubuntu-latest

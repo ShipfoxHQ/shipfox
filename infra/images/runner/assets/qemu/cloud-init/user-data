@@ -1,0 +1,6 @@
+#cloud-config
+chpasswd:
+  expire: false
+  list: |
+    ubuntu:packer
+ssh_pwauth: true

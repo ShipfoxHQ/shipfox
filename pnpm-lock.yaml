@@ -1746,6 +1746,31 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
 
+  infra/images/runner:
+    dependencies:
+      '@shipfox/runner':
+        specifier: workspace:*
+        version: link:../../../apps/runner
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/tool-utils':
+        specifier: workspace:*
+        version: link:../../../tools/utils
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   libs/api/agent:
     dependencies:
       '@earendil-works/pi-ai':

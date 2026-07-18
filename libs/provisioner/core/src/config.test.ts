@@ -74,6 +74,13 @@ describe('provisioner core config validation', () => {
     await expect(import('#config.js')).rejects.toThrow('SHIPFOX_RUNNER_POLL_MAX_DURATION_MS');
   });
 
+  it('rejects a non-positive runner maximum lifetime', async () => {
+    vi.stubEnv('SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS', '0');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS');
+  });
+
   it('accepts the documented defaults', async () => {
     vi.resetModules();
 
@@ -83,5 +90,6 @@ describe('provisioner core config validation', () => {
     expect(config.SHIPFOX_PROVISIONER_MAX_RESERVATIONS).toBe(250);
     expect(config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE).toBe(250);
     expect(config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS).toBe(300_000);
+    expect(config.SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS).toBe(3600);
   });
 });
