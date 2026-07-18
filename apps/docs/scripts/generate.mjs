@@ -11,36 +11,38 @@ import {
 import {sentryEventCatalog} from '@shipfox/api-integration-sentry-dto';
 import {webhookEventCatalog} from '@shipfox/api-integration-webhook-dto';
 import {buildWorkflowJsonSchema, thinkingLevelsForHarness} from '@shipfox/workflow-document';
+import {registeredIntegrationProviders} from '@/lib/registered-integration-providers';
 import {slugForHeading} from './lib/slug.mjs';
 
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const markdownLinkPattern = /^\[([^\]]+)\]\(([^)]*)\)$/;
-const integrationCatalogProviders = [
-  {
-    slug: 'github',
-    capabilities: ['events', 'agent_tools'],
+const dtoCatalogBySlug = {
+  github: {
     eventCatalog: githubEventCatalog,
     toolCatalog: githubAgentToolCatalog,
     toolSelectionCatalog: githubAgentToolSelectionCatalog,
   },
-  {
-    slug: 'sentry',
-    capabilities: ['events'],
+  sentry: {
     eventCatalog: sentryEventCatalog,
   },
-  {
-    slug: 'webhooks',
-    capabilities: ['events'],
+  webhooks: {
     eventCatalog: webhookEventCatalog,
   },
-];
+};
+const integrationCatalogProviders = registeredIntegrationProviders
+  .filter((provider) => provider.kind === 'catalog')
+  .map((provider) => ({...provider, ...dtoCatalogBySlug[provider.slug]}));
 const regions = [
   ['content/generated/reference/model-providers.mdx', renderModelProvidersTable],
   ...integrationCatalogProviders.flatMap((provider) => [
-    [
-      `content/generated/integrations/${provider.slug}/events.mdx`,
-      () => renderEventCatalog(provider.eventCatalog),
-    ],
+    ...(provider.eventCatalog
+      ? [
+          [
+            `content/generated/integrations/${provider.slug}/events.mdx`,
+            () => renderEventCatalog(provider.eventCatalog),
+          ],
+        ]
+      : []),
     ...(provider.toolCatalog
       ? [
           [
@@ -60,8 +62,9 @@ function renderIntegrationCatalogData() {
       integrationCatalogProviders.map((provider) => [
         provider.slug,
         {
+          availability: provider.availability,
           capabilities: provider.capabilities,
-          eventCount: provider.eventCatalog.events.length,
+          eventCount: provider.eventCatalog?.events.length ?? 0,
           toolCount: provider.toolCatalog?.length ?? 0,
         },
       ]),
