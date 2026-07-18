@@ -61,6 +61,24 @@ describe('Syncpack catalog policy', () => {
     });
   });
 
+  test('rejects a direct source without a named exception', async () => {
+    await withFixture(async ({consumerFile, directory, writePackage}) => {
+      await writePackage(consumerFile, {
+        dependencies: {
+          '@fixture/local': 'workspace:*',
+          zod: 'git+https://github.com/colinhacks/zod.git',
+        },
+        name: '@fixture/consumer',
+        version: '1.0.0',
+      });
+
+      const bannedSource = runSyncpack(directory, 'lint');
+
+      assert.equal(bannedSource.status, 1, bannedSource.stderr);
+      assert.match(bannedSource.stderr, /Direct sources require a named exception/);
+    });
+  });
+
   test('fix restores a catalog reference without changing unrelated manifest fields', async () => {
     await withFixture(async ({consumerFile, directory, writePackage}) => {
       await writePackage(consumerFile, {
