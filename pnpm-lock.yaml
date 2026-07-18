@@ -692,6 +692,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: 'catalog:'
         version: 4.3.2
+      '@types/js-yaml':
+        specifier: 'catalog:'
+        version: 4.0.9
       '@types/mdx':
         specifier: 'catalog:'
         version: 2.0.14
@@ -704,6 +707,9 @@ importers:
       github-slugger:
         specifier: 'catalog:'
         version: 2.0.0
+      js-yaml:
+        specifier: 'catalog:'
+        version: 4.2.0
       postcss:
         specifier: 'catalog:'
         version: 8.5.15
