@@ -97,6 +97,7 @@ describe('loadEc2Templates', () => {
           iamInstanceProfile: 'shipfox-runner',
           associatePublicIp: false,
           rootVolumeGb: 100,
+          rootDeviceName: '/dev/sda1',
         },
       },
       {
@@ -113,6 +114,7 @@ describe('loadEc2Templates', () => {
           securityGroups: ['sg-runner'],
           associatePublicIp: true,
           rootVolumeGb: 120,
+          rootDeviceName: '/dev/sda1',
         },
       },
     ]);
@@ -124,6 +126,15 @@ describe('loadEc2Templates', () => {
     const [loaded] = loadEc2Templates(path);
 
     expect(loaded?.spec.spotMaxPrice).toBeNull();
+  });
+
+  it('uses the default root device name and preserves an explicit value', () => {
+    const path = writeTemplates(template({}, '    root_device_name: /dev/xvda\n'));
+
+    const templates = loadEc2Templates(path);
+
+    expect(templates[0]?.spec.rootDeviceName).toBe('/dev/xvda');
+    expect(loadEc2Templates(writeTemplates(template()))[0]?.spec.rootDeviceName).toBe('/dev/sda1');
   });
 
   it('canonicalizes labels (lowercase, dedupe, sort)', () => {
@@ -171,6 +182,12 @@ describe('loadEc2Templates', () => {
     const path = writeTemplates(template({}, '    iam_instance_profile: "   "\n'));
 
     expect(() => loadEc2Templates(path)).toThrow('iam_instance_profile');
+  });
+
+  it('throws when root_device_name is blank', () => {
+    const path = writeTemplates(template({}, '    root_device_name: "   "\n'));
+
+    expect(() => loadEc2Templates(path)).toThrow('root_device_name');
   });
 
   it('throws when max_concurrency exceeds the limit', () => {
