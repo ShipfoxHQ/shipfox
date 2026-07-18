@@ -9,6 +9,7 @@ import {
   slackEventNames,
   slackEventPayloadSchema,
   slackEventsRequestSchema,
+  slackSlashCommandPayloadSchema,
   slackSlashCommandSchema,
   slackUrlVerificationSchema,
 } from './index.js';
@@ -94,6 +95,12 @@ describe('Slack slash command schema', () => {
     const {command: _command, ...commandWithoutCommand} = slashCommand;
 
     expect(slackSlashCommandSchema.safeParse(commandWithoutCommand).success).toBe(false);
+  });
+
+  it('omits the Slack verification token from published command payloads', () => {
+    const result = slackSlashCommandPayloadSchema.parse(slashCommand);
+
+    expect(result).not.toHaveProperty('token');
   });
 });
 

@@ -45,8 +45,11 @@
     "@shipfox/api-integration-slack-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-fastify": "workspace:*",
+    "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "@shipfox/api-secrets": "workspace:*"

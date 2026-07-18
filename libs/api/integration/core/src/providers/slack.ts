@@ -1,4 +1,7 @@
 import {config} from '#config.js';
+import {getIntegrationConnectionById} from '#db/connections.js';
+import {db} from '#db/db.js';
+import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 const SLACK_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_slack';
@@ -11,7 +14,14 @@ async function loadSlackModuleParts(): Promise<IntegrationModuleParts> {
   } = await import('@shipfox/api-integration-slack');
 
   return {
-    provider: createSlackIntegrationProvider(),
+    provider: createSlackIntegrationProvider({
+      routes: {
+        coreDb: db,
+        publishIntegrationEventReceived,
+        recordDeliveryOnly,
+        getIntegrationConnectionById,
+      },
+    }),
     database: {
       db: slackDb,
       migrationsPath: slackMigrationsPath,
