@@ -14,10 +14,13 @@ export function NavTabs({
   const tabs = entries.filter((entry) => entry.scope === scope);
   const tabClassName = `h-40 inline-flex items-center px-4 text-sm font-medium transition-colors ${reduced ? '' : 'transition-[border-color]'}`;
   const activeProps = {
-    className: 'border-b-2 border-border-highlights-interactive',
-    'aria-selected': true,
+    className: 'border-b-2 border-border-highlights-interactive text-foreground-neutral-base',
+    'aria-selected': 'true' as const,
   };
-  const inactiveProps = {className: 'border-b-2 border-transparent', 'aria-selected': false};
+  const inactiveProps = {
+    className: 'border-b-2 border-transparent text-foreground-neutral-muted',
+    'aria-selected': 'false' as const,
+  };
 
   return (
     <div
