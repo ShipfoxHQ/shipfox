@@ -64,10 +64,10 @@
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
     "@shipfox/runner-labels": "workspace:*",
-    "@temporalio/common": "^1.16.1",
-    "@temporalio/workflow": "^1.16.1",
-    "drizzle-orm": "^0.45.2",
-    "zod": "^4.4.3"
+    "@temporalio/common": "catalog:",
+    "@temporalio/workflow": "catalog:",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/api-auth-dto": "workspace:*",
@@ -78,14 +78,14 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@temporalio/activity": "^1.16.1",
-    "@temporalio/client": "^1.16.1",
-    "@temporalio/testing": "^1.16.1",
-    "@temporalio/worker": "^1.16.1",
-    "@types/pg": "^8.15.5",
-    "drizzle-kit": "^0.31.10",
-    "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0",
-    "fishery": "^2.2.2"
+    "@temporalio/activity": "catalog:",
+    "@temporalio/client": "catalog:",
+    "@temporalio/testing": "catalog:",
+    "@temporalio/worker": "catalog:",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "fastify": "catalog:",
+    "fastify-type-provider-zod": "catalog:",
+    "fishery": "catalog:"
   }
 }

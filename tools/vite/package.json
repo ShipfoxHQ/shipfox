@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",
-    "vite": "^8.0.3"
+    "vite": "catalog:"
   },
   "devDependencies": {
     "@shipfox/swc": "workspace:*",

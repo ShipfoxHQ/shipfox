@@ -19,13 +19,13 @@
     "build": "shipfox-swc"
   },
   "dependencies": {
-    "dependency-cruiser": "^17.3.10",
+    "dependency-cruiser": "catalog:",
     "@shipfox/tool-utils": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@types/node": "25.9.3"
+    "@types/node": "catalog:"
   }
 }

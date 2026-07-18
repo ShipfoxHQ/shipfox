@@ -41,7 +41,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "ipaddr.js": "2.3.0"
+    "ipaddr.js": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

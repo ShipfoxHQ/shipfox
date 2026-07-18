@@ -38,9 +38,9 @@
   "dependencies": {
     "@shipfox/client-api": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@swc/helpers": "^0.5.17",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0"
+    "@swc/helpers": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -51,10 +51,10 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@types/react": "^19.1.11",
-    "@types/react-dom": "^19.1.7",
-    "jsdom": "^29.0.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }

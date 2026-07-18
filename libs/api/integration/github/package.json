@@ -41,7 +41,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@octokit/webhooks": "^14.2.0",
+    "@octokit/webhooks": "catalog:",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-github-dto": "workspace:*",
@@ -51,10 +51,10 @@
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "ky": "^2.0.0",
-    "octokit": "^5.0.3",
-    "zod": "^4.4.3"
+    "drizzle-orm": "catalog:",
+    "ky": "catalog:",
+    "octokit": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -62,10 +62,10 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/pg": "^8.15.5",
-    "drizzle-kit": "^0.31.10",
-    "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0",
-    "fishery": "^2.2.2"
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "fastify": "catalog:",
+    "fastify-type-provider-zod": "catalog:",
+    "fishery": "catalog:"
   }
 }

@@ -37,12 +37,12 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.200",
-    "@anthropic-ai/sdk": "0.110.0",
-    "@earendil-works/pi-ai": "0.79.9",
-    "@earendil-works/pi-coding-agent": "0.79.6",
-    "@earendil-works/pi-tui": "0.79.9",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@anthropic-ai/sdk": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@earendil-works/pi-tui": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
@@ -52,10 +52,10 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/runner-execution": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*",
-    "pi-mcp-adapter": "2.11.0",
-    "pi-web-access": "0.13.0",
-    "typebox": "1.1.38",
-    "zod": "4.4.3"
+    "pi-mcp-adapter": "catalog:",
+    "pi-web-access": "catalog:",
+    "typebox": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

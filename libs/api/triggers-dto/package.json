@@ -40,7 +40,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

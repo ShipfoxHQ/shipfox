@@ -20,9 +20,9 @@
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",
-    "@swc/cli": "^0.8.0",
-    "@swc/core": "^1.11.24",
-    "date-fns": "^4.1.0"
+    "@swc/cli": "catalog:",
+    "@swc/core": "catalog:",
+    "date-fns": "catalog:"
   },
   "devDependencies": {
     "@shipfox/ts-config": "workspace:*"

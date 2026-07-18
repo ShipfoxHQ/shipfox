@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",
-    "typescript": "~6.0.1-rc"
+    "typescript": "catalog:"
   },
   "devDependencies": {
     "@shipfox/swc": "workspace:*",

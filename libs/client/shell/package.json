@@ -74,10 +74,10 @@
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-config": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "^0.5.17",
-    "@tanstack/router-core": "^1.171.13",
-    "jiti": "^2.7.0",
-    "zod": "^4.4.3"
+    "@swc/helpers": "catalog:",
+    "@tanstack/router-core": "catalog:",
+    "jiti": "catalog:",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.101.0",
@@ -94,17 +94,17 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@storybook/react": "^10.0.0",
-    "@tanstack/react-query": "^5.101.0",
-    "@tanstack/react-router": "^1.170.16",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@types/react": "^19.1.11",
-    "@types/react-dom": "^19.1.7",
-    "jotai": "^2.19.1",
-    "jsdom": "^29.0.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "vite": "^8.0.3"
+    "@storybook/react": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jotai": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "vite": "catalog:"
   }
 }

@@ -40,7 +40,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "envalid": "^8.0.0"
+    "envalid": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

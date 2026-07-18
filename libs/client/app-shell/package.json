@@ -40,8 +40,8 @@
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "^0.5.17",
-    "framer-motion": "^12.23.24"
+    "@swc/helpers": "catalog:",
+    "framer-motion": "catalog:"
   },
   "peerDependencies": {
     "@tanstack/react-router": "^1.170.16",
@@ -55,13 +55,13 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@tanstack/react-router": "^1.170.16",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@types/react": "^19.1.11",
-    "@types/react-dom": "^19.1.7",
-    "jsdom": "^29.0.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "@tanstack/react-router": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }

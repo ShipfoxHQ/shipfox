@@ -25,11 +25,11 @@
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-router": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "^0.5.17",
-    "@tanstack/react-query": "^5.101.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "zod": "^4.4.3"
+    "@swc/helpers": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -37,11 +37,11 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vite": "workspace:*",
-    "@tailwindcss/vite": "^4.1.13",
-    "tailwindcss": "^4.1.13",
-    "@types/react": "^19.1.11",
-    "@types/react-dom": "^19.1.7",
-    "@vitejs/plugin-react": "^6.0.0",
-    "vite": "^8.0.3"
+    "@tailwindcss/vite": "catalog:",
+    "tailwindcss": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "vite": "catalog:"
   }
 }

@@ -41,9 +41,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1068.0",
-    "@aws-sdk/lib-storage": "^3.1068.0",
-    "@aws-sdk/s3-request-presigner": "^3.1068.0",
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/lib-storage": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
@@ -57,10 +57,10 @@
     "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
-    "@temporalio/activity": "^1.16.1",
-    "@temporalio/workflow": "^1.16.1",
-    "drizzle-orm": "^0.45.2",
-    "zod": "^4.4.3"
+    "@temporalio/activity": "catalog:",
+    "@temporalio/workflow": "catalog:",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/api-auth": "workspace:*",
@@ -71,14 +71,14 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@temporalio/client": "^1.16.1",
-    "@temporalio/common": "^1.16.1",
-    "@temporalio/testing": "^1.16.1",
-    "@temporalio/worker": "^1.16.1",
-    "@types/pg": "^8.15.5",
-    "drizzle-kit": "^0.31.10",
-    "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0",
-    "fishery": "^2.2.2"
+    "@temporalio/client": "catalog:",
+    "@temporalio/common": "catalog:",
+    "@temporalio/testing": "catalog:",
+    "@temporalio/worker": "catalog:",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "fastify": "catalog:",
+    "fastify-type-provider-zod": "catalog:",
+    "fishery": "catalog:"
   }
 }
