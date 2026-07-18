@@ -15,4 +15,5 @@ export {
   type TimestampIdPage,
   timestampIdCursorWhere,
 } from './cursor.js';
+export {isUniqueViolation} from './errors.js';
 export {uuidv7PrimaryKey} from './schema.js';

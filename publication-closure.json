@@ -43,6 +43,8 @@
     "@shipfox/api-integration-linear-dto",
     "@shipfox/api-integration-sentry",
     "@shipfox/api-integration-sentry-dto",
+    "@shipfox/api-integration-slack",
+    "@shipfox/api-integration-slack-dto",
     "@shipfox/api-integration-webhook",
     "@shipfox/api-integration-webhook-dto",
     "@shipfox/api-logs",

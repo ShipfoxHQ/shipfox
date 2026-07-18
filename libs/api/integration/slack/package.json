@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/api-integration-core",
+  "name": "@shipfox/api-integration-slack",
   "license": "MIT",
   "version": "3.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/api/integration/core"
+    "directory": "libs/api/integration/slack"
   },
   "private": false,
   "type": "module",
@@ -32,7 +32,7 @@
     }
   },
   "scripts": {
-    "build": "shipfox-swc && shipfox-temporal-bundle dist/temporal/workflows/index.js",
+    "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
@@ -41,30 +41,15 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:",
-    "@shipfox/api-agent-dto": "workspace:*",
-    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
-    "@shipfox/api-integration-gitea": "workspace:*",
-    "@shipfox/api-integration-github": "workspace:*",
-    "@shipfox/api-integration-linear": "workspace:*",
-    "@shipfox/api-integration-sentry": "workspace:*",
-    "@shipfox/api-integration-slack": "workspace:*",
-    "@shipfox/api-integration-webhook": "workspace:*",
+    "@shipfox/api-integration-slack-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
-    "@shipfox/node-fastify": "workspace:*",
-    "@shipfox/node-module": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
-    "@shipfox/node-temporal": "workspace:*",
-    "@shipfox/regex": "workspace:*",
-    "@shipfox/redact": "workspace:*",
-    "@temporalio/workflow": "catalog:",
-    "ajv": "catalog:",
-    "drizzle-orm": "catalog:",
-    "zod": "catalog:"
+    "drizzle-orm": "catalog:"
+  },
+  "peerDependencies": {
+    "@shipfox/api-secrets": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -72,15 +57,8 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@temporalio/activity": "catalog:",
-    "@temporalio/client": "catalog:",
-    "@temporalio/common": "catalog:",
-    "@temporalio/testing": "catalog:",
-    "@temporalio/worker": "catalog:",
     "@types/pg": "catalog:",
     "drizzle-kit": "catalog:",
-    "fastify": "catalog:",
-    "fastify-type-provider-zod": "catalog:",
     "fishery": "catalog:"
   }
 }

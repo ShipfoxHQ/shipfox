@@ -3,6 +3,7 @@ import {giteaProviderModule} from '#providers/gitea.js';
 import {githubProviderModule} from '#providers/github.js';
 import {linearProviderModule} from '#providers/linear.js';
 import {sentryProviderModule} from '#providers/sentry.js';
+import {slackProviderModule} from '#providers/slack.js';
 import type {
   IntegrationModuleParts,
   IntegrationProviderModuleLoadOptions,
@@ -14,6 +15,7 @@ import {webhookProviderModule} from '#providers/webhook.js';
 const providerModules = [
   githubProviderModule,
   linearProviderModule,
+  slackProviderModule,
   sentryProviderModule,
   giteaProviderModule,
   cronProviderModule,

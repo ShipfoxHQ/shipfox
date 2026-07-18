@@ -2316,6 +2316,9 @@ importers:
       '@shipfox/api-integration-sentry':
         specifier: workspace:*
         version: link:../sentry
+      '@shipfox/api-integration-slack':
+        specifier: workspace:*
+        version: link:../slack
       '@shipfox/api-integration-webhook':
         specifier: workspace:*
         version: link:../webhook
@@ -2830,6 +2833,55 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+
+  libs/api/integration/slack:
+    dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
+      '@shipfox/api-integration-slack-dto':
+        specifier: workspace:*
+        version: link:../slack-dto
+      '@shipfox/api-secrets':
+        specifier: workspace:*
+        version: link:../../secrets
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../../shared/common/config
+      '@shipfox/node-drizzle':
+        specifier: workspace:*
+        version: link:../../../shared/node/drizzle
+      '@shipfox/node-postgres':
+        specifier: workspace:*
+        version: link:../../../shared/node/postgres
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.20.0
+      drizzle-kit:
+        specifier: 'catalog:'
+        version: 0.31.10
+      fishery:
+        specifier: 'catalog:'
+        version: 2.4.0
 
   libs/api/integration/slack-dto:
     dependencies:

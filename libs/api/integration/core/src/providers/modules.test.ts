@@ -37,4 +37,19 @@ describe('loadEnabledProviderModules', () => {
       adapters: {},
     });
   });
+
+  it('loads Slack when the provider is enabled', async () => {
+    vi.stubEnv('INTEGRATIONS_ENABLE_SLACK_PROVIDER', 'true');
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+
+    expect(parts.map((part) => part.provider.provider)).toEqual(['slack', 'cron', 'webhook']);
+    expect(parts[0]?.provider).toMatchObject({
+      provider: 'slack',
+      displayName: 'Slack',
+      adapters: {},
+    });
+  });
 });
