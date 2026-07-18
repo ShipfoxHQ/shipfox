@@ -17,6 +17,7 @@ export interface Ec2TemplateSpec {
   readonly iamInstanceProfile?: string;
   readonly associatePublicIp: boolean;
   readonly rootVolumeGb: number;
+  readonly rootDeviceName: string;
 }
 
 /** Raised when the template config file is missing, unparseable, or invalid. */
@@ -44,6 +45,7 @@ const ec2TemplateSchema = z
     iam_instance_profile: z.string().trim().min(1).optional(),
     associate_public_ip: z.boolean(),
     root_volume_gb: z.number().int().positive(),
+    root_device_name: z.string().trim().min(1).optional(),
     max_concurrency: z.number().int().positive().max(MAX_TEMPLATE_CONCURRENCY),
     cost: z.number().positive(),
   })
@@ -128,6 +130,7 @@ function toTemplate(
         : {iamInstanceProfile: spec.iam_instance_profile}),
       associatePublicIp: spec.associate_public_ip,
       rootVolumeGb: spec.root_volume_gb,
+      rootDeviceName: spec.root_device_name ?? '/dev/sda1',
     },
   };
 }
