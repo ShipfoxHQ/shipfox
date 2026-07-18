@@ -9,13 +9,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite-build",
+    "build": "pnpm run generate && vite-build",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "dev": "vite-dev",
+    "dev": "pnpm run generate && vite-dev",
+    "generate": "node scripts/generate-client-composition.mjs",
     "image": "shipfox-docker --image client",
-    "type": "shipfox-tsc-check",
-    "type:emit": "shipfox-tsc-emit"
+    "type": "pnpm run generate && shipfox-tsc-check",
+    "type:emit": "pnpm run generate && shipfox-tsc-emit"
   },
   "dependencies": {
     "@shipfox/client-features": "workspace:*",

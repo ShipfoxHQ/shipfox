@@ -1,0 +1,17 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "generate": {
+      "cache": true,
+      "outputs": ["src/shipfox-app.gen.ts"],
+      "dependsOn": ["^type:emit"]
+    },
+    "build": {
+      "dependsOn": ["generate", "^build"]
+    },
+    "type": {
+      "dependsOn": ["generate", "@shipfox/typescript#build", "^type:emit"]
+    }
+  }
+}
