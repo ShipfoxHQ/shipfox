@@ -50,5 +50,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@shipfox/api", "@shipfox/client", "@shipfox/runner", "@shipfox/provisioner-docker"]
+  "ignore": ["@shipfox/api", "@shipfox/client", "@shipfox/runner", "@shipfox/provisioner-docker", "@shipfox/provisioner-ec2"]
 }
