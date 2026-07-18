@@ -134,6 +134,7 @@ async function loadSlackModuleParts(
 
   return {
     provider: createSlackIntegrationProvider({
+      agentTools: {tokenStore},
       routes: {
         tokenStore,
         getExistingSlackConnection,
@@ -151,7 +152,7 @@ async function loadSlackModuleParts(
         getExistingSlackConnection,
         connectSlackInstallation,
         disconnectSlackInstallation,
-        connectionCapabilities: [],
+        connectionCapabilities: ['agent_tools'],
       }),
     ],
     database: {

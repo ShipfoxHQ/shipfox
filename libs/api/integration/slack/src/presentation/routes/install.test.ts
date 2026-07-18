@@ -63,6 +63,7 @@ function slackClient(overrides: Partial<SlackApiClient> = {}): SlackApiClient {
       }),
     ),
     revokeToken: vi.fn(() => Promise.resolve()),
+    callMethod: vi.fn(() => Promise.resolve({ok: true})),
     ...overrides,
   };
 }
@@ -86,6 +87,7 @@ async function createTestApp(
   options: {
     slack?: SlackApiClient | undefined;
     tokenStore?: Pick<SlackTokenStore, 'storeTokens'> | undefined;
+    agentTools?: {tokenStore: Pick<SlackTokenStore, 'getAccessToken'>} | undefined;
     connectSlackInstallation?:
       | ((input: ConnectSlackInstallationInput) => Promise<IntegrationConnection<'slack'>>)
       | undefined;
@@ -93,6 +95,7 @@ async function createTestApp(
 ): Promise<FastifyInstance> {
   const provider = createSlackIntegrationProvider({
     slack: options.slack ?? slackClient(),
+    agentTools: options.agentTools,
     routes: {
       tokenStore: options.tokenStore ?? {storeTokens: vi.fn(() => Promise.resolve())},
       getExistingSlackConnection: vi.fn(() => Promise.resolve(undefined)),
@@ -153,9 +156,23 @@ describe('Slack integration routes', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('returns the connected Slack connection after a verified callback', async () => {
+  it.each([
+    {
+      capability: 'without agent tools',
+      agentTools: undefined,
+      expectedCapabilities: [],
+    },
+    {
+      capability: 'with agent tools',
+      agentTools: {tokenStore: {getAccessToken: vi.fn(() => Promise.resolve('xoxb-token'))}},
+      expectedCapabilities: ['agent_tools'],
+    },
+  ])('returns the connected Slack connection $capability', async ({
+    agentTools,
+    expectedCapabilities,
+  }) => {
     const tokenStore = {storeTokens: vi.fn(() => Promise.resolve())};
-    const app = await createTestApp({tokenStore});
+    const app = await createTestApp({tokenStore, agentTools});
     const workspaceId = '00000000-0000-4000-8000-000000000002';
     authenticatedMemberships = [{workspaceId, role: 'admin'}];
     const install = await app.inject({
@@ -173,7 +190,7 @@ describe('Slack integration routes', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({provider: 'slack', capabilities: []});
+    expect(res.json()).toMatchObject({provider: 'slack', capabilities: expectedCapabilities});
     expect(tokenStore.storeTokens).toHaveBeenCalledWith({
       connectionId: '00000000-0000-4000-8000-000000000001',
       botToken: 'xoxb-token',

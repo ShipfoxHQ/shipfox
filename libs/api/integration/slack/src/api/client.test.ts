@@ -166,4 +166,74 @@ describe('createSlackApiClient', () => {
     });
     expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain('secret-token');
   });
+
+  it.each([
+    {ok: true, channel: {id: 'C123'}},
+    {ok: false, error: 'channel_not_found'},
+  ])('passes through Slack Web API response %o', async (body) => {
+    mocks.post.mockReturnValue(resolves(body));
+
+    const result = await createSlackApiClient().callMethod({
+      method: 'conversations.history',
+      token: 'xoxb-secret',
+      arguments: {channel: 'C123'},
+    });
+
+    const [url, options] = mocks.post.mock.calls[0] as [
+      string,
+      {headers: {authorization: string}; body: URLSearchParams},
+    ];
+    expect(url).toBe('http://127.0.0.1:0/conversations.history');
+    expect(options.headers).toEqual({authorization: 'Bearer xoxb-secret'});
+    expect(options.body).toEqual(new URLSearchParams({channel: 'C123'}));
+    expect(result).toEqual(body);
+  });
+
+  it('serializes Slack method arguments as form values and omits nullish values', async () => {
+    mocks.post.mockReturnValue(resolves({ok: true}));
+    const blocks = [{type: 'section', text: {type: 'plain_text', text: 'Hello'}}];
+
+    await createSlackApiClient().callMethod({
+      method: 'chat.postMessage',
+      token: 'xoxb-secret',
+      arguments: {
+        blocks,
+        limit: 30,
+        inclusive: false,
+        types: 'public_channel,private_channel',
+        oldest: null,
+        latest: undefined,
+      },
+    });
+
+    const [, options] = mocks.post.mock.calls[0] as [string, {body: URLSearchParams}];
+    expect(Object.fromEntries(options.body)).toEqual({
+      blocks: JSON.stringify(blocks),
+      limit: '30',
+      inclusive: 'false',
+      types: 'public_channel,private_channel',
+    });
+    expect(options.body.has('oldest')).toBe(false);
+    expect(options.body.has('latest')).toBe(false);
+  });
+
+  it.each([
+    [httpError(429, {'retry-after': '17'}), 'rate-limited', 17],
+    [httpError(413), 'content-too-large', undefined],
+    [httpError(404), 'malformed-provider-response', undefined],
+  ])('maps Web API HTTP failures to %s', async (transportError, reason, retryAfterSeconds) => {
+    mocks.post.mockReturnValue(rejects(transportError));
+
+    const error = await createSlackApiClient()
+      .callMethod({
+        method: 'chat.postMessage',
+        token: 'xoxb-super-secret',
+        arguments: {channel: 'C123', text: 'sensitive body'},
+      })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toMatchObject({reason, retryAfterSeconds});
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain('xoxb-super-secret');
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain('sensitive body');
+  });
 });
