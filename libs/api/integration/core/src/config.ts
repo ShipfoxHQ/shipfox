@@ -21,6 +21,10 @@ export const config = createConfig({
     desc: 'Enables the Sentry integration provider so users can connect Sentry.',
     default: false,
   }),
+  INTEGRATIONS_ENABLE_SLACK_PROVIDER: bool({
+    desc: 'Enables the Slack integration provider so users can connect Slack workspaces.',
+    default: false,
+  }),
   INTEGRATIONS_ENABLE_WEBHOOK_PROVIDER: bool({
     desc: 'Enables the generic webhook integration provider so users can create inbound webhook URLs. It is enabled by default because it does not require provider setup.',
     default: true,

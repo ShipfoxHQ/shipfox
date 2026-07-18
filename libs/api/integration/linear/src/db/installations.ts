@@ -1,3 +1,4 @@
+import {isUniqueViolation} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {eq} from 'drizzle-orm';
 import {
@@ -40,12 +41,6 @@ export interface UpdateLinearInstallationTokenExpiryParams {
 
 type LinearDb = ReturnType<typeof db>;
 type LinearTx = Parameters<Parameters<LinearDb['transaction']>[0]>[0];
-
-interface PostgresErrorFields {
-  code?: unknown;
-  constraint?: unknown;
-  cause?: unknown;
-}
 
 export async function upsertLinearInstallation(
   params: UpsertLinearInstallationParams,
@@ -91,18 +86,6 @@ export async function upsertLinearInstallation(
 
   if (!row) throw new LinearInstallationAlreadyLinkedError(params.organizationId);
   return toLinearInstallation(row);
-}
-
-function isUniqueViolation(error: unknown, constraint: string): boolean {
-  let current = error;
-  while (typeof current === 'object' && current !== null) {
-    const postgresError = current as PostgresErrorFields;
-    if (postgresError.code === '23505' && postgresError.constraint === constraint) {
-      return true;
-    }
-    current = postgresError.cause;
-  }
-  return false;
 }
 
 export async function getLinearInstallationByConnectionId(

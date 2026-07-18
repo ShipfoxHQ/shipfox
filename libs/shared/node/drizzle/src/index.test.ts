@@ -10,6 +10,7 @@ describe('@shipfox/node-drizzle public exports', () => {
       'encodeNumberIdCursor',
       'encodeStringIdCursor',
       'encodeTimestampIdCursor',
+      'isUniqueViolation',
       'paginateTimestampIdRows',
       'runMigrations',
       'timestampIdCursorWhere',
