@@ -13,13 +13,18 @@ export function SettingsNav({entries}: {entries: readonly SettingsSectionEntry[]
         const to = `/workspaces/$wid/settings/${entry.pathSegment}`;
         const active = Boolean(matchRoute({to: to as never, params: {wid: params.wid} as never}));
         return (
-          <Button key={entry.id} asChild variant={active ? 'secondary' : 'transparent'}>
+          <Button
+            key={entry.id}
+            asChild
+            variant={active ? 'secondary' : 'transparent'}
+            className="w-full justify-start"
+          >
             <Link
               to={to as never}
               params={{wid: params.wid} as never}
               aria-current={active ? 'page' : undefined}
             >
-              <Icon name={entry.icon} />
+              <Icon name={entry.icon} className="size-16" />
               {entry.label}
             </Link>
           </Button>

@@ -86,10 +86,15 @@ describe('composition registries', () => {
     );
     const settingsNavigation = screen.getByRole('navigation', {name: 'Workspace settings'});
     expect(settingsNavigation.parentElement).toHaveClass('grid', 'grid-cols-[180px_minmax(0,1fr)]');
-    expect(
-      within(settingsNavigation)
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual(['First setting', 'Second setting']);
+    const settingsLinks = within(settingsNavigation).getAllByRole('link');
+    const [firstSettingsLink] = settingsLinks;
+    if (!firstSettingsLink) throw new Error('Expected at least one settings link.');
+
+    expect(settingsLinks.map((link) => link.textContent)).toEqual([
+      'First setting',
+      'Second setting',
+    ]);
+    expect(firstSettingsLink).toHaveClass('w-full', 'justify-start');
+    expect(firstSettingsLink.querySelector('svg')).toHaveClass('size-16');
   });
 });
