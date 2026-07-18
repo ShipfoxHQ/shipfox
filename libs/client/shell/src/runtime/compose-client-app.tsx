@@ -1,27 +1,33 @@
+import {configureApiClient} from '@shipfox/client-api';
 import {
   ConfigErrorScreen,
   getWindowRuntimeConfig,
   loadConfig,
   setLoadedConfig,
 } from '@shipfox/client-config';
+import {ThemeProvider} from '@shipfox/react-ui/theme';
 import {Toaster} from '@shipfox/react-ui/toast';
+import {TooltipProvider} from '@shipfox/react-ui/tooltip';
 import {QueryClient} from '@tanstack/react-query';
-import {createRouter, RouterProvider} from '@tanstack/react-router';
+import {type AnyRouter, RouterProvider} from '@tanstack/react-router';
 import {createStore} from 'jotai';
-import {StrictMode} from 'react';
+import {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import {composeRoutes} from '#compose/compose-routes.js';
 import {mergeConfigShapes} from '#compose/merge-config.js';
 import {validateProviderIds} from '#compose/validate-providers.js';
 import {validateNavigation, validateSettingsSections} from '#compose/validate-registries.js';
 import type {ClientFeature} from '#contract.js';
-import {assembleRouteTree} from './assemble-route-tree.js';
-import {authStub} from './auth-stub.js';
-import type {RouteImpl} from './define-route.js';
+import {useAuthState} from './auth.js';
 import {ShellProviderStack} from './provider-stack.js';
-import {navigationEntries, settingsEntries} from './registries.js';
 
-export function composeClientApp({features}: {features: readonly ClientFeature[]}) {
+export function composeClientApp({
+  features,
+  router,
+}: {
+  features: readonly ClientFeature[];
+  router: AnyRouter;
+}) {
   const routes = composeRoutes(features);
   validateProviderIds(features);
   validateNavigation(
@@ -39,29 +45,27 @@ export function composeClientApp({features}: {features: readonly ClientFeature[]
   if (config.ok) setLoadedConfig(config.config);
 
   return {
-    async mount(element: HTMLElement): Promise<void> {
+    mount(element: HTMLElement): void {
       const root = createRoot(element);
       if (!config.ok) {
         root.render(
           <StrictMode>
-            <ShellProviderStack features={[]} queryClient={new QueryClient()} store={createStore()}>
-              <ConfigErrorScreen errors={config.errors} />
-            </ShellProviderStack>
+            <ThemeProvider>
+              <TooltipProvider>
+                <ConfigErrorScreen errors={config.errors} />
+              </TooltipProvider>
+            </ThemeProvider>
           </StrictMode>,
         );
         return;
       }
-      const routeTree = await assembleRouteTree(routes, {
-        resolveImpl: resolveDynamicRouteImpl,
-        navigation: navigationEntries(features),
-        settingsSections: settingsEntries(features),
-      });
+
+      configureApiClient({baseUrl: configApiUrl(config.config)});
       const queryClient = new QueryClient();
-      const router = createRouter({routeTree, context: {auth: authStub, queryClient}});
       root.render(
         <StrictMode>
           <ShellProviderStack features={features} queryClient={queryClient} store={createStore()}>
-            <RouterProvider router={router} />
+            <RoutedApp router={router} queryClient={queryClient} />
             <Toaster />
           </ShellProviderStack>
         </StrictMode>,
@@ -70,11 +74,24 @@ export function composeClientApp({features}: {features: readonly ClientFeature[]
   };
 }
 
-export async function resolveDynamicRouteImpl(specifier: string): Promise<RouteImpl> {
-  const module = await import(specifier);
-  const implementation = module.default;
-  if (implementation && typeof implementation === 'object' && 'options' in implementation) {
-    return implementation as RouteImpl;
+function RoutedApp({router, queryClient}: {router: AnyRouter; queryClient: QueryClient}) {
+  const auth = useAuthState();
+
+  useEffect(() => {
+    if (!auth.isLoading) router.invalidate();
+  }, [auth.isLoading, router]);
+
+  return <RouterProvider router={router as never} context={{auth, queryClient} as never} />;
+}
+
+function configApiUrl(config: unknown): string {
+  if (
+    typeof config !== 'object' ||
+    config === null ||
+    !('apiUrl' in config) ||
+    typeof config.apiUrl !== 'string'
+  ) {
+    throw new Error('Composed client configuration must include a string apiUrl.');
   }
-  throw new Error(`Route implementation module "${specifier}" must export a default RouteImpl.`);
+  return config.apiUrl;
 }

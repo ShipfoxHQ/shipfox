@@ -3573,6 +3573,9 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/client-shell':
+        specifier: workspace:*
+        version: link:../shell
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
@@ -4476,9 +4479,15 @@ importers:
 
   libs/client/shell:
     dependencies:
-      '@shipfox/client-auth':
+      '@shipfox/api-auth-dto':
         specifier: workspace:*
-        version: link:../auth
+        version: link:../../api/auth-dto
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../../api/workspaces-dto
+      '@shipfox/client-api':
+        specifier: workspace:*
+        version: link:../api
       '@shipfox/client-config':
         specifier: workspace:*
         version: link:../config

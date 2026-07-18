@@ -71,7 +71,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/client-auth": "workspace:*",
+    "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/api-workspaces-dto": "workspace:*",
+    "@shipfox/client-api": "workspace:*",
     "@shipfox/client-config": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",

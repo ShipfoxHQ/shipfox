@@ -42,4 +42,16 @@ describe('shell testing helpers', () => {
     expect(screen.getByText('Story content')).toBeInTheDocument();
     expect(getLoadedConfig()).toEqual({mode: 'storybook'});
   });
+
+  test('does not refresh auth when rendering static testing providers', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    render(
+      <ShellProviders>
+        <div>Static content</div>
+      </ShellProviders>,
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

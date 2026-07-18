@@ -34,7 +34,12 @@ export async function renderComposedShell({
     context: {auth: undefined, queryClient},
   });
   render(
-    <ShellProviderStack features={features} queryClient={queryClient} store={store}>
+    <ShellProviderStack
+      features={features}
+      queryClient={queryClient}
+      store={store}
+      auth={{effects: false}}
+    >
       <RouterProvider router={router} />
     </ShellProviderStack>,
   );

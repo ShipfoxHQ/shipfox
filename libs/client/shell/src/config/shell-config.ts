@@ -1,7 +1,8 @@
+import {apiConfigShape} from '@shipfox/client-api';
 import {z} from 'zod';
 
 export const shellConfigShape = {
-  apiUrl: z.url().default('/api').describe('Base URL for the Shipfox API.'),
+  ...apiConfigShape,
   environment: z
     .enum(['development', 'staging', 'production'])
     .default('production')

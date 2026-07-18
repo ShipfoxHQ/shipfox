@@ -1,9 +1,6 @@
-import type {
-  CreateWorkspaceBodyDto,
-  ListUserWorkspacesResponseDto,
-  WorkspaceResponseDto,
-} from '@shipfox/api-workspaces-dto';
+import type {CreateWorkspaceBodyDto, WorkspaceResponseDto} from '@shipfox/api-workspaces-dto';
 import {apiRequest} from '@shipfox/client-api';
+import {listUserWorkspaces, userWorkspacesQueryKey} from '@shipfox/client-shell/runtime';
 import {useMutation} from '@tanstack/react-query';
 import {useRefreshAuth} from './refresh-auth.js';
 
@@ -11,14 +8,7 @@ export async function createWorkspace(body: CreateWorkspaceBodyDto) {
   return await apiRequest<WorkspaceResponseDto>('/workspaces', {method: 'POST', body});
 }
 
-export const userWorkspacesQueryKey = ['workspaces', 'mine'] as const;
-
-export async function listUserWorkspaces(token?: string) {
-  return await apiRequest<ListUserWorkspacesResponseDto>(
-    '/workspaces',
-    token ? {headers: {authorization: `Bearer ${token}`}} : {},
-  );
-}
+export {listUserWorkspaces, userWorkspacesQueryKey};
 
 export function useCreateWorkspaceAuth() {
   const refreshAuth = useRefreshAuth();

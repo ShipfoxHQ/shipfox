@@ -33,6 +33,7 @@ export function ShellProviders({
       features={features}
       queryClient={providedQueryClient ?? defaultQueryClient}
       store={providedStore ?? defaultStore}
+      auth={{effects: false}}
     >
       {children}
     </ShellProviderStack>
