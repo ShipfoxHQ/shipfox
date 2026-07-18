@@ -7,15 +7,18 @@ import {composeClientApp} from '#runtime/compose-client-app.js';
 describe('composed config', () => {
   test('renders ConfigErrorScreen when a feature-required key is missing', async () => {
     window.__SHIPFOX_CONFIG__ = undefined;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const element = document.createElement('div');
     document.body.append(element);
     const app = composeClientApp({
       features: [defineClientFeature({id: 'acme.config', configShape: {ssoIssuer: z.url()}})],
+      router: {} as never,
     });
 
     await act(async () => app.mount(element));
 
     expect(await screen.findByRole('heading', {name: 'Configuration error'})).toBeVisible();
+    expect(fetchSpy).not.toHaveBeenCalled();
     element.remove();
   });
 
@@ -24,6 +27,7 @@ describe('composed config', () => {
     window.__SHIPFOX_CONFIG__ = {SSO_ISSUER: 'https://id.example.test'};
     const app = composeClientApp({
       features: [defineClientFeature({id: 'acme.config', configShape: {ssoIssuer: shape}})],
+      router: {} as never,
     });
     expect(app).toBeDefined();
     expect(getLoadedConfig<{ssoIssuer: string}>()).toMatchObject({

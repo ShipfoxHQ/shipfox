@@ -1,5 +1,5 @@
-import type {AuthStateValue} from '@shipfox/client-auth';
 import type {QueryClient} from '@tanstack/react-query';
+import type {AuthStateValue} from './auth.js';
 
 export interface RouterContext {
   auth: AuthStateValue | undefined;

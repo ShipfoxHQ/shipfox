@@ -5,6 +5,7 @@ export * from '../compose/normalize-route-path.js';
 export * from '../compose/validate-providers.js';
 export * from '../compose/validate-registries.js';
 export * from './anchors.js';
+export * from './auth.js';
 export * from './compose-client-app.js';
 export * from './define-route.js';
 export * from './nav-order.js';
