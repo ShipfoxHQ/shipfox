@@ -1,0 +1,53 @@
+{
+  "$schema": "./node_modules/syncpack/schema.json",
+  "customTypes": {
+    "optional": {
+      "path": "optionalDependencies",
+      "strategy": "versionsByName"
+    }
+  },
+  "versionGroups": [
+    {
+      "dependencies": ["fastify-plugin"],
+      "dependencyTypes": ["prod"],
+      "isIgnored": true,
+      "label": "Approved fastify-plugin multi-major migration"
+    },
+    {
+      "dependencyTypes": ["peer"],
+      "isIgnored": true,
+      "label": "Peer compatibility contracts"
+    },
+    {
+      "dependencyTypes": ["prod", "dev", "optional"],
+      "isIgnored": true,
+      "label": "Local workspace dependencies",
+      "specifierTypes": ["workspace-protocol"]
+    },
+    {
+      "dependencyTypes": ["prod", "dev", "optional", "pnpmCatalog"],
+      "label": "Catalog-backed direct dependencies",
+      "policy": "catalog",
+      "specifierTypes": [
+        "catalog",
+        "exact",
+        "range",
+        "range-complex",
+        "range-major",
+        "range-minor",
+        "major",
+        "minor"
+      ]
+    },
+    {
+      "dependencyTypes": ["prod", "dev", "optional"],
+      "isBanned": true,
+      "label": "Direct sources require a named exception",
+      "specifierTypes": ["alias", "file", "git", "latest", "link", "tag", "unsupported", "url"]
+    },
+    {
+      "isIgnored": true,
+      "label": "Declarations outside direct dependency policy"
+    }
+  ]
+}

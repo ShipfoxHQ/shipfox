@@ -154,6 +154,7 @@ catalog:
   "sonner": "^2.0.7"
   "storybook": "^10.0.0"
   "storybook-addon-pseudo-states": "^10.0.0"
+  "syncpack": "^15.3.2"
   "tailwind-merge": "^3.2.0"
   "tailwindcss": "^4.1.13"
   "tsx": "^4.22.4"

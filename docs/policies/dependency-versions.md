@@ -37,6 +37,26 @@ external dependency names.
 
 The current workspace has no direct external file, link, Git, or URL dependency.
 
+## Checking direct dependencies
+
+Run the direct-dependency check after changing a workspace manifest:
+
+```sh
+pnpm check:dependencies
+```
+
+The check reads committed manifests and the workspace catalog. It does not read
+registry metadata.
+
+Use the fix command to restore eligible direct dependencies to `catalog:`:
+
+```sh
+pnpm fix:dependencies
+```
+
+The fix does not update dependencies or format manifests. A non-semver source
+needs a named exception in the repository policy configuration.
+
 ## Catalog and range rules
 
 The default catalog holds the version intent. It covers eligible direct external
