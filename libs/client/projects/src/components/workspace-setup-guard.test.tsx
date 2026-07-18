@@ -244,6 +244,16 @@ describe('workspace setup route hook', () => {
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 
+  test('keeps integrations settings available before source-control onboarding', async () => {
+    renderSetupRoute(
+      `/workspaces/${WORKSPACE_ID}/settings/integrations`,
+      setupFetch({connections: []}),
+    );
+
+    expect(await screen.findByText('Settings integrations')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
   test('sends a workspace with active VCS and no project to project creation', async () => {
     renderSetupRoute(
       `/workspaces/${WORKSPACE_ID}/integrations`,

@@ -46,7 +46,7 @@ export async function loadWorkspaceSetupRoute({
   const hasSourceConnection = sourceConnections.connections.length > 0;
 
   if (!hasSourceConnection) {
-    if (isIntegrationsPath(normalizedPathname, workspaceId)) {
+    if (isIntegrationSetupPath(normalizedPathname, workspaceId)) {
       return {hideProjectNavigation: true};
     }
 
@@ -163,9 +163,13 @@ function isIntegrationsIndexPath(pathname: string, workspaceId: string) {
   return pathname === workspacePath(workspaceId, '/integrations');
 }
 
-function isIntegrationsPath(pathname: string, workspaceId: string) {
+function isIntegrationSetupPath(pathname: string, workspaceId: string) {
   const basePath = workspacePath(workspaceId, '/integrations');
-  return pathname === basePath || pathname.startsWith(`${basePath}/`);
+  return (
+    pathname === basePath ||
+    pathname.startsWith(`${basePath}/`) ||
+    pathname === workspacePath(workspaceId, '/settings/integrations')
+  );
 }
 
 function isProjectCreationPath(pathname: string, workspaceId: string) {
