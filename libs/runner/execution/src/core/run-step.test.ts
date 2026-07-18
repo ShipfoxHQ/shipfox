@@ -713,7 +713,9 @@ describe('executeRunStep', () => {
 
   it('kills the entire process group on abort, including grandchildren', async () => {
     const step = buildStep({
-      config: {run: 'sleep 30 & echo "GRANDCHILD_PID=$!"; wait'},
+      config: {
+        run: 'sleep 30 & grandchild_pid=$!; echo "GRANDCHILD_PID=$grandchild_pid"; wait "$grandchild_pid"',
+      },
     });
     const output = collectOutput();
     const ac = new AbortController();
