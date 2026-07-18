@@ -43,6 +43,6 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "tsx": "^4.22.4"
+    "tsx": "catalog:"
   }
 }

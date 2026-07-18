@@ -54,7 +54,7 @@
   },
   "dependencies": {
     "@shipfox/node-drizzle": "workspace:^",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

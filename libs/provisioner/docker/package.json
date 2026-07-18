@@ -42,9 +42,9 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/provisioner-core": "workspace:*",
     "@shipfox/runner-labels": "workspace:*",
-    "dockerode": "^4.0.9",
-    "js-yaml": "^4.1.0",
-    "zod": "^4.4.3"
+    "dockerode": "catalog:",
+    "js-yaml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -52,7 +52,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/dockerode": "^4.0.0",
-    "@types/js-yaml": "^4.0.9"
+    "@types/dockerode": "catalog:",
+    "@types/js-yaml": "catalog:"
   }
 }

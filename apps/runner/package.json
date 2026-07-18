@@ -27,6 +27,6 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "tsx": "^4.21.0"
+    "tsx": "catalog:"
   }
 }

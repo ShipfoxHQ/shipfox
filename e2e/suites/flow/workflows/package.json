@@ -62,9 +62,9 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/js-yaml": "^4.0.9",
-    "@modelcontextprotocol/sdk": "1.29.0",
-    "js-yaml": "^4.1.0",
-    "zod": "^4.4.3"
+    "@types/js-yaml": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "js-yaml": "catalog:",
+    "zod": "catalog:"
   }
 }

@@ -41,7 +41,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "jose": "^6.0.0"
+    "jose": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -49,6 +49,6 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   }
 }

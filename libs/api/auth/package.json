@@ -52,8 +52,8 @@
   },
   "dependencies": {
     "@shipfox/api-auth-context": "workspace:*",
-    "@fastify/cookie": "^11.0.2",
-    "@node-rs/argon2": "^2.0.2",
+    "@fastify/cookie": "catalog:",
+    "@node-rs/argon2": "catalog:",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/api-workspaces-dto": "workspace:*",
@@ -69,8 +69,8 @@
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-rate-limit": "workspace:*",
     "@shipfox/node-tokens": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "zod": "^4.4.3"
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -78,11 +78,11 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/pg": "^8.15.5",
-    "drizzle-kit": "^0.31.10",
-    "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0",
-    "fishery": "^2.2.2",
-    "jose": "^6.0.0"
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "fastify": "catalog:",
+    "fastify-type-provider-zod": "catalog:",
+    "fishery": "catalog:",
+    "jose": "catalog:"
   }
 }

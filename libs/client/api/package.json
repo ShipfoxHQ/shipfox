@@ -33,9 +33,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@swc/helpers": "^0.5.17",
-    "ky": "^2.0.0",
-    "zod": "^4.4.3"
+    "@swc/helpers": "catalog:",
+    "ky": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

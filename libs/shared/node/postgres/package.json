@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@shipfox/config": "workspace:*",
-    "pg": "^8.15.5"
+    "pg": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -50,6 +50,6 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/pg": "^8.15.5"
+    "@types/pg": "catalog:"
   }
 }

@@ -27,14 +27,14 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1"
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@types/node": "25.9.3"
+    "@types/node": "catalog:"
   }
 }

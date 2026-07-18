@@ -30,8 +30,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@argos-ci/playwright": "^7.0.0",
-    "@playwright/test": "^1.57.0"
+    "@argos-ci/playwright": "catalog:",
+    "@playwright/test": "catalog:"
   },
   "devDependencies": {
     "@shipfox/swc": "workspace:*",

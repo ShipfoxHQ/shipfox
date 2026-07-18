@@ -41,14 +41,14 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@fastify/formbody": "^8.0.2",
+    "@fastify/formbody": "catalog:",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-webhook-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "fastify-plugin": "^5.1.0",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -56,7 +56,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0"
+    "fastify": "catalog:",
+    "fastify-type-provider-zod": "catalog:"
   }
 }
