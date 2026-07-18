@@ -115,6 +115,17 @@ export async function getSlackInstallationByConnectionId(
   return toSlackInstallation(row);
 }
 
+export async function deleteSlackInstallationByConnectionId(
+  connectionId: string,
+  options: {tx?: unknown} = {},
+): Promise<boolean> {
+  const executor = (options.tx ?? db()) as SlackDb | SlackTx;
+  const result = await executor
+    .delete(slackInstallations)
+    .where(eq(slackInstallations.connectionId, connectionId));
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function markSlackInstallationRevoked(
   connectionId: string,
   options: {tx?: unknown} = {},

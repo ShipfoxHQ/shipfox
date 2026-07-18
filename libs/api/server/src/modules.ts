@@ -45,6 +45,23 @@ export async function defaultModules(): Promise<ShipfoxModule[]> {
             namespace: `system/integrations/linear/${params.namespace}`,
           }),
       },
+      slack: {
+        getSecret: (params) =>
+          getSecret({
+            ...params,
+            namespace: `system/integrations/slack/${params.namespace}`,
+          }),
+        setSecrets: (params) =>
+          setSecrets({
+            ...params,
+            namespace: `system/integrations/slack/${params.namespace}`,
+          }),
+        deleteSecrets: (params) =>
+          deleteSecrets({
+            ...params,
+            namespace: `system/integrations/slack/${params.namespace}`,
+          }),
+      },
     },
     agentTools: {loadLeasedAgentStep: loadRunningLeasedStep},
   });

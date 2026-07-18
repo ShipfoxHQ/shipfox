@@ -2870,6 +2870,9 @@ importers:
 
   libs/api/integration/slack:
     dependencies:
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../../auth-context
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../core-dto
@@ -2879,6 +2882,9 @@ importers:
       '@shipfox/api-secrets':
         specifier: workspace:*
         version: link:../../secrets
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -2897,6 +2903,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+      ky:
+        specifier: 'catalog:'
+        version: 2.0.2
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -2922,6 +2931,9 @@ importers:
       drizzle-kit:
         specifier: 'catalog:'
         version: 0.31.10
+      fastify:
+        specifier: 'catalog:'
+        version: 5.8.5
       fishery:
         specifier: 'catalog:'
         version: 2.4.0
