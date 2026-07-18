@@ -71,6 +71,9 @@ export const slackSlashCommandSchema = z.object({
 });
 export type SlackSlashCommandDto = z.infer<typeof slackSlashCommandSchema>;
 
+export const slackSlashCommandPayloadSchema = slackSlashCommandSchema.omit({token: true});
+export type SlackSlashCommandPayloadDto = z.infer<typeof slackSlashCommandPayloadSchema>;
+
 export const slackEventPayloadSchema = z
   .object({
     type: z.enum(slackApiEventTypes),
@@ -89,8 +92,6 @@ export const slackEventPayloadSchema = z
   })
   .passthrough();
 export type SlackEventPayloadDto = z.infer<typeof slackEventPayloadSchema>;
-
-export type SlackSlashCommandPayloadDto = SlackSlashCommandDto;
 
 export const createSlackInstallBodySchema = z.object({
   workspace_id: z.string().uuid(),
