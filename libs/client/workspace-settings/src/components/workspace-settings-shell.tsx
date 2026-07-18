@@ -1,7 +1,6 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import type {ReactNode} from 'react';
-import {SettingsNav} from './settings-nav.js';
 
 interface WorkspaceSettingsShellProps {
   children: (workspace: ReturnType<typeof useActiveWorkspace>) => ReactNode;
@@ -19,10 +18,7 @@ export function WorkspaceSettingsShell({children}: WorkspaceSettingsShellProps) 
         </Text>
       </header>
 
-      <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-32 max-[760px]:grid-cols-1">
-        <SettingsNav workspaceId={workspace.id} />
-        {children(workspace)}
-      </div>
+      {children(workspace)}
     </div>
   );
 }
