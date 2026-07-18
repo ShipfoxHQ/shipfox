@@ -74,3 +74,19 @@ export class SlackBotTokenMissingError extends Error {
     this.name = 'SlackBotTokenMissingError';
   }
 }
+
+export type SlackAccessTokenUnavailableReason =
+  | 'installation-not-found'
+  | 'not-installed'
+  | 'expired';
+
+export class SlackAccessTokenUnavailableError extends Error {
+  constructor(
+    public readonly connectionId: string,
+    public readonly reason: SlackAccessTokenUnavailableReason,
+    public readonly expiresAt?: Date,
+  ) {
+    super(`Slack access token is unavailable for connection: ${connectionId} (${reason})`);
+    this.name = 'SlackAccessTokenUnavailableError';
+  }
+}

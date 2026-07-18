@@ -29,6 +29,8 @@ export {
   disconnectSlackInstallation,
 } from '#core/disconnect.js';
 export {
+  SlackAccessTokenUnavailableError,
+  type SlackAccessTokenUnavailableReason,
   SlackAuthorizationScopeMismatchError,
   SlackBotTokenMissingError,
   SlackConnectionAlreadyLinkedError,
