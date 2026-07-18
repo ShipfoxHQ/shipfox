@@ -9,11 +9,14 @@
   "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
+    "check:dependencies": "syncpack lint --no-ansi",
+    "fix:dependencies": "syncpack fix --no-ansi",
     "test": "node --test dev/*.test.mjs",
     "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "syncpack": "catalog:"
   }
 }
