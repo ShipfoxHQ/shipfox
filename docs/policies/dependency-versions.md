@@ -57,6 +57,119 @@ pnpm fix:dependencies
 The fix does not update dependencies or format manifests. A non-semver source
 needs a named exception in the repository policy configuration.
 
+## Contributor workflow
+
+### Add a direct dependency
+
+Choose the dependency class before changing a manifest. Use `dependencies` for
+runtime code, `devDependencies` for repository tooling, and
+`optionalDependencies` only for an optional runtime companion. Local Shipfox
+packages use `workspace:`. Peer dependencies use the peer workflow below.
+
+Use pnpm to add an external direct dependency and create its default catalog
+entry in one change. Replace the placeholders with the affected package, npm
+package, and the lowest tested compatible version:
+
+```sh
+pnpm --filter @shipfox/<package> add <dependency>@^<minimum-tested-version> --save-catalog
+```
+
+Use `--save-dev` or `--save-optional` when the dependency belongs in those
+sections:
+
+```sh
+pnpm --filter @shipfox/<package> add <dependency>@^<minimum-tested-version> --save-catalog --save-dev
+pnpm --filter @shipfox/<package> add <dependency>@^<minimum-tested-version> --save-catalog --save-optional
+```
+
+The command writes the selected catalog range in `pnpm-workspace.yaml` and
+uses `catalog:` in the package manifest. Use the caret range by default. Choose
+an exact or tilde range only when the catalog and range rules below allow it.
+
+Run the checks before opening a pull request:
+
+```sh
+pnpm check:dependencies
+pnpm check:lockfile
+pnpm check:published-artifacts
+pnpm install --frozen-lockfile
+```
+
+### Update a dependency or family
+
+Update the catalog entry in `pnpm-workspace.yaml`, then regenerate the
+committed lockfile:
+
+```sh
+pnpm install
+pnpm check:dependencies
+pnpm check:lockfile
+pnpm check:published-artifacts
+```
+
+Update each member of an identical-version family to the same numeric version.
+The coordinated Renovate families below name those members and their range
+shape. Let Renovate make ordinary updates. Change a catalog by hand only for a
+reviewed exception, an urgent fix, or a supported-range correction.
+
+### Add or remove an exception
+
+Start by updating this policy with the dependency class, reason, owner,
+tracking issue, and removal condition. Add a narrowly named Syncpack group in
+`.syncpackrc.json` before the catalog policy group. Limit it to the dependency
+name and dependency type that need the exception. Do not exempt a whole scope
+or all direct dependencies.
+
+Remove the exception group and the policy entry when its removal condition is
+met. Return the direct dependency to `catalog:` and run:
+
+```sh
+pnpm fix:dependencies
+pnpm install
+pnpm check:dependencies
+pnpm check:lockfile
+pnpm check:published-artifacts
+```
+
+### Handle peer dependencies
+
+Peer dependencies are consumer compatibility contracts. Set the supported peer
+range directly in `peerDependencies`. Do not point it at a direct catalog
+range. Keep the matching local development dependency on `catalog:` so the
+workspace tests one installed version.
+
+Check every published package that changes a peer range:
+
+```sh
+pnpm check:dependencies
+pnpm check:published-artifacts
+```
+
+### Investigate a failed check
+
+Run the direct-policy check after a manifest edit. Use its fix command only
+when the dependency already belongs to an approved catalog:
+
+```sh
+pnpm check:dependencies
+pnpm fix:dependencies
+pnpm check:dependencies
+```
+
+For a lockfile audit failure, print the complete deterministic report. It shows
+the exact duplicate and curated-singleton versions from the committed lockfile:
+
+```sh
+pnpm check:lockfile -- --verbose
+```
+
+Do not add an override only to remove an ordinary duplicate. A new override is
+a curated singleton. It must reference a catalog entry and resolve once.
+
+Direct-policy and lockfile CI checks read committed files. Do not add
+`pnpm dedupe --check`, a latest-version lookup, or another registry-dependent
+check to those pull-request gates.
+
 ## Catalog and range rules
 
 The default catalog holds the version intent. It covers eligible direct external

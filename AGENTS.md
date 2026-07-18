@@ -29,6 +29,22 @@ docker compose up -d
 pnpm --filter=@shipfox/api dev
 ```
 
+## Dependency management
+
+Read the [dependency version policy](docs/policies/dependency-versions.md)
+before adding, updating, or exempting a dependency. It defines catalog range
+rules, peer compatibility, coordinated Renovate families, and the contributor
+workflow.
+
+After a dependency change, run:
+
+```sh
+pnpm check:dependencies
+pnpm check:lockfile
+pnpm check:published-artifacts
+pnpm install --frozen-lockfile
+```
+
 ## Module exports and imports
 
 Avoid broad barrel files inside modules. Prefer importing from the file that owns the
