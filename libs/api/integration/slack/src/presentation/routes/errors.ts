@@ -12,6 +12,7 @@ import {
   SlackInstallStateError,
   SlackIntegrationProviderError,
   SlackOAuthCallbackError,
+  SlackTokenRotationUnsupportedError,
 } from '#core/errors.js';
 
 function providerStatus(reason: IntegrationProviderErrorReason): number {
@@ -41,6 +42,9 @@ export function slackRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof SlackEnterpriseInstallUnsupportedError) {
     throw new ClientError(error.message, 'slack-enterprise-install-unsupported', {status: 422});
+  }
+  if (error instanceof SlackTokenRotationUnsupportedError) {
+    throw new ClientError(error.message, 'slack-token-rotation-unsupported', {status: 422});
   }
   if (error instanceof SlackOAuthCallbackError) {
     throw new ClientError(error.message, 'slack-oauth-callback-error', {

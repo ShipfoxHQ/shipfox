@@ -40,6 +40,13 @@ export class SlackEnterpriseInstallUnsupportedError extends Error {
   }
 }
 
+export class SlackTokenRotationUnsupportedError extends Error {
+  constructor() {
+    super('Slack token rotation is not supported');
+    this.name = 'SlackTokenRotationUnsupportedError';
+  }
+}
+
 export class SlackInstallationAlreadyLinkedError extends Error {
   constructor(teamId: string) {
     super(`Slack team is already linked to another Shipfox workspace: ${teamId}`);
