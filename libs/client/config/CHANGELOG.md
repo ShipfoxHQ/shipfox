@@ -1,5 +1,11 @@
 # @shipfox/client-config
 
+## 0.2.0
+
+### Minor Changes
+
+- 3d064b8: Publishes the client runtime closure with shell, feature, route, Vite, and testing contracts.
+
 ## 0.0.2
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @shipfox/api-integration-github
 
+## 4.0.0
+
+### Patch Changes
+
+- Updated dependencies [bbba3b7]
+  - @shipfox/node-drizzle@0.3.0
+  - @shipfox/api-workspaces@4.0.0
+
 ## 3.0.0
 
 ### Patch Changes

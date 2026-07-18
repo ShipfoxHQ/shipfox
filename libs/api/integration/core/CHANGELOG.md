@@ -1,5 +1,32 @@
 # @shipfox/api-integration-core
 
+## 4.0.0
+
+### Minor Changes
+
+- 67176d4: Adds the Slack OAuth connection flow with provider routes, secure bot-token storage, and E2E setup.
+
+### Patch Changes
+
+- 5d129d6: Adds the default-off Jira provider scaffold with installation storage and token custody seams.
+- bbba3b7: Adds the Slack integration provider scaffold with installation storage, bot-token custody, and flag-gated registration.
+- 1951293: Adds in-process Slack agent tools for reading conversations and acting on messages through the lease-authenticated gateway.
+- Updated dependencies [0745ee9]
+- Updated dependencies [23c8e4d]
+- Updated dependencies [67176d4]
+- Updated dependencies [7267872]
+- Updated dependencies [bbba3b7]
+- Updated dependencies [1951293]
+  - @shipfox/api-integration-slack@4.0.0
+  - @shipfox/node-drizzle@0.3.0
+  - @shipfox/api-integration-linear@4.0.0
+  - @shipfox/api-integration-jira@4.0.0
+  - @shipfox/api-integration-gitea@4.0.0
+  - @shipfox/api-integration-github@4.0.0
+  - @shipfox/api-integration-sentry@4.0.0
+  - @shipfox/node-module@0.3.1
+  - @shipfox/node-outbox@0.2.2
+
 ## 3.0.0
 
 ### Patch Changes

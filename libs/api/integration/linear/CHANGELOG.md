@@ -1,5 +1,15 @@
 # @shipfox/api-integration-linear
 
+## 4.0.0
+
+### Patch Changes
+
+- bbba3b7: Adds the Slack integration provider scaffold with installation storage, bot-token custody, and flag-gated registration.
+- Updated dependencies [bbba3b7]
+  - @shipfox/node-drizzle@0.3.0
+  - @shipfox/api-secrets@4.0.0
+  - @shipfox/api-workspaces@4.0.0
+
 ## 3.0.0
 
 ### Patch Changes

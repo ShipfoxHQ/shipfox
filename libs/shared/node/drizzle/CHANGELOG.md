@@ -1,5 +1,11 @@
 # @shipfox/node-drizzle
 
+## 0.3.0
+
+### Minor Changes
+
+- bbba3b7: Adds the Slack integration provider scaffold with installation storage, bot-token custody, and flag-gated registration.
+
 ## 0.2.1
 
 ### Patch Changes
