@@ -96,13 +96,18 @@ describe('defaultModules', () => {
     ]);
   });
 
-  it('uses the leased-step loader and namespaced Linear secrets', async () => {
+  it('uses the leased-step loader and namespaced provider secrets', async () => {
     await defaultModules();
 
     expect(mocks.createIntegrationsContext).toHaveBeenCalledWith({
       secrets: {
         deleteSecrets: mocks.deleteSecrets,
         linear: {
+          deleteSecrets: expect.any(Function),
+          getSecret: expect.any(Function),
+          setSecrets: expect.any(Function),
+        },
+        slack: {
           deleteSecrets: expect.any(Function),
           getSecret: expect.any(Function),
           setSecrets: expect.any(Function),
@@ -118,11 +123,19 @@ describe('defaultModules', () => {
           getSecret: (params: {namespace: string}) => unknown;
           setSecrets: (params: {namespace: string}) => unknown;
         };
+        slack: {
+          deleteSecrets: (params: {namespace: string}) => unknown;
+          getSecret: (params: {namespace: string}) => unknown;
+          setSecrets: (params: {namespace: string}) => unknown;
+        };
       };
     };
     integrationsOptions.secrets.linear.getSecret({namespace: 'workspace'});
     integrationsOptions.secrets.linear.setSecrets({namespace: 'workspace'});
     integrationsOptions.secrets.linear.deleteSecrets({namespace: 'workspace'});
+    integrationsOptions.secrets.slack.getSecret({namespace: 'workspace'});
+    integrationsOptions.secrets.slack.setSecrets({namespace: 'workspace'});
+    integrationsOptions.secrets.slack.deleteSecrets({namespace: 'workspace'});
 
     expect(mocks.getSecret).toHaveBeenCalledWith({
       namespace: 'system/integrations/linear/workspace',
@@ -132,6 +145,15 @@ describe('defaultModules', () => {
     });
     expect(mocks.deleteSecrets).toHaveBeenCalledWith({
       namespace: 'system/integrations/linear/workspace',
+    });
+    expect(mocks.getSecret).toHaveBeenCalledWith({
+      namespace: 'system/integrations/slack/workspace',
+    });
+    expect(mocks.setSecrets).toHaveBeenCalledWith({
+      namespace: 'system/integrations/slack/workspace',
+    });
+    expect(mocks.deleteSecrets).toHaveBeenCalledWith({
+      namespace: 'system/integrations/slack/workspace',
     });
   });
 });

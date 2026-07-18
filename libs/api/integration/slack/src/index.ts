@@ -1,22 +1,56 @@
 import {SLACK_PROVIDER} from '@shipfox/api-integration-slack-dto';
+import type {RouteGroup} from '@shipfox/node-fastify';
+import {createSlackApiClient, type SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';
 import {closeDb, db} from '#db/db.js';
+import {getSlackInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
+import {
+  type CreateSlackIntegrationRoutesOptions,
+  createSlackIntegrationRoutes,
+} from '#presentation/routes/install.js';
 import {
   type CreateSlackWebhookRoutesOptions,
   createSlackWebhookRoutes,
 } from '#presentation/routes/webhooks.js';
 
+type SlackInstallationRouteOptions = Omit<
+  CreateSlackIntegrationRoutesOptions,
+  'slack' | 'connectionCapabilities'
+>;
+type SlackRouteOptions = Partial<SlackInstallationRouteOptions> &
+  Partial<CreateSlackWebhookRoutesOptions>;
+
 export type {SlackProvider} from '@shipfox/api-integration-slack-dto';
+export type {SlackApiClient, SlackAuthorization} from '#api/client.js';
+export {createSlackApiClient} from '#api/client.js';
 export {
+  type DisconnectSlackInstallationParams,
+  disconnectSlackInstallation,
+} from '#core/disconnect.js';
+export {
+  SlackAuthorizationScopeMismatchError,
   SlackBotTokenMissingError,
   SlackConnectionAlreadyLinkedError,
   SlackConnectionNotFoundError,
+  SlackEnterpriseInstallUnsupportedError,
   SlackInstallationAlreadyLinkedError,
+  SlackInstallStateActorMismatchError,
+  SlackInstallStateError,
   SlackIntegrationProviderError,
+  SlackOAuthCallbackError,
 } from '#core/errors.js';
+export type {ConnectSlackInstallationInput, HandleSlackCallbackParams} from '#core/install.js';
+export {handleSlackCallback, handleSlackOAuthCallbackError} from '#core/install.js';
+export {
+  assertSlackAuthorizationScopes,
+  formatSlackBotScopes,
+  SLACK_BOT_SCOPES,
+} from '#core/scopes.js';
 export type {VerifySlackSignatureParams} from '#core/signature.js';
 export {verifySlackSignature} from '#core/signature.js';
+export type {SlackInstallStateClaims} from '#core/state.js';
+export {signSlackInstallState, verifySlackInstallState} from '#core/state.js';
 export type {
   CreateSlackTokenStoreParams,
   GetSlackAccessTokenParams,
@@ -38,11 +72,16 @@ export type {
   UpsertSlackInstallationParams,
 } from '#db/installations.js';
 export {
+  deleteSlackInstallationByConnectionId,
   getSlackInstallationByConnectionId,
   getSlackInstallationByTeamId,
   markSlackInstallationRevoked,
   upsertSlackInstallation,
 } from '#db/installations.js';
+export {
+  type CreateSlackE2eRoutesOptions,
+  createSlackE2eRoutes,
+} from '#presentation/e2eRoutes/index.js';
 export {
   type CreateSlackWebhookRoutesOptions,
   createSlackWebhookRoutes,
@@ -52,27 +91,73 @@ export {
 export {closeDb, config, db, migrationsPath};
 
 export interface CreateSlackIntegrationProviderOptions {
-  routes?: Partial<CreateSlackWebhookRoutesOptions> | undefined;
+  slack?: SlackApiClient | undefined;
+  getSlackInstallationByConnectionId?: typeof getSlackInstallationByConnectionId | undefined;
+  routes?: SlackRouteOptions | undefined;
 }
 
 export function createSlackIntegrationProvider(
   options: CreateSlackIntegrationProviderOptions = {},
 ) {
-  if (options.routes && !hasSlackWebhookRoutesOptions(options.routes)) {
+  const slack = options.slack ?? createSlackApiClient();
+  const getInstallationByConnectionId =
+    options.getSlackInstallationByConnectionId ?? getSlackInstallationByConnectionId;
+  if (
+    options.routes &&
+    !hasSlackInstallationRoutesOptions(options.routes) &&
+    !hasSlackWebhookRoutesOptions(options.routes)
+  ) {
     throw new Error('Slack webhook routes require every core persistence dependency');
   }
-  const routes = options.routes ? createSlackWebhookRoutes(options.routes) : [];
+  const routes: RouteGroup[] = [];
+  if (options.routes && hasSlackInstallationRoutesOptions(options.routes)) {
+    const {
+      tokenStore,
+      getExistingSlackConnection,
+      connectSlackInstallation,
+      disconnectSlackInstallation,
+    } = options.routes;
+    routes.push(
+      createSlackIntegrationRoutes({
+        slack,
+        connectionCapabilities: [],
+        tokenStore,
+        getExistingSlackConnection,
+        connectSlackInstallation,
+        disconnectSlackInstallation,
+      }),
+    );
+  }
+  if (options.routes && hasSlackWebhookRoutesOptions(options.routes)) {
+    routes.push(...createSlackWebhookRoutes(options.routes));
+  }
 
   return {
     provider: SLACK_PROVIDER,
     displayName: 'Slack',
     adapters: {},
+    async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
+      const installation = await getInstallationByConnectionId(connection.id);
+      if (!installation) return undefined;
+      return `https://app.slack.com/client/${encodeURIComponent(installation.teamId)}`;
+    },
     routes,
   };
 }
 
+function hasSlackInstallationRoutesOptions(
+  routes: SlackRouteOptions,
+): routes is SlackInstallationRouteOptions {
+  return (
+    routes.tokenStore !== undefined &&
+    routes.getExistingSlackConnection !== undefined &&
+    routes.connectSlackInstallation !== undefined &&
+    routes.disconnectSlackInstallation !== undefined
+  );
+}
+
 function hasSlackWebhookRoutesOptions(
-  routes: Partial<CreateSlackWebhookRoutesOptions>,
+  routes: SlackRouteOptions,
 ): routes is CreateSlackWebhookRoutesOptions {
   return (
     routes.coreDb !== undefined &&

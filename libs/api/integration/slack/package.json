@@ -41,14 +41,17 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-slack-dto": "workspace:*",
+    "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "drizzle-orm": "catalog:",
+    "ky": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -62,6 +65,7 @@
     "@shipfox/vitest": "workspace:*",
     "@types/pg": "catalog:",
     "drizzle-kit": "catalog:",
+    "fastify": "catalog:",
     "fishery": "catalog:"
   }
 }
