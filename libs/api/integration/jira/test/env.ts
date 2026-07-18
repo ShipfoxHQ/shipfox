@@ -1,0 +1,15 @@
+process.env.POSTGRES_HOST ??= 'localhost';
+process.env.POSTGRES_PORT ??= '5432';
+process.env.POSTGRES_USERNAME ??= 'shipfox';
+process.env.POSTGRES_PASSWORD ??= 'password';
+process.env.POSTGRES_DATABASE = 'api_test';
+process.env.POSTGRES_MAX_CONNECTIONS ??= '5';
+process.env.TZ = 'UTC';
+process.env.JIRA_OAUTH_CLIENT_ID = 'test-client-id';
+process.env.JIRA_OAUTH_CLIENT_SECRET = 'test-client-secret';
+process.env.JIRA_OAUTH_REDIRECT_URL = 'https://shipfox.example.com/integrations/jira/callback';
+process.env.JIRA_WEBHOOK_SIGNING_SECRET = 'test-signing-secret';
+process.env.JIRA_WEBHOOK_BASE_URL = 'https://shipfox.example.com';
+process.env.JIRA_API_BASE_URL = 'http://127.0.0.1:0';
+process.env.JIRA_AUTH_BASE_URL = 'http://127.0.0.1:0';
+process.env.SECRETS_ENCRYPTION_KEK = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';

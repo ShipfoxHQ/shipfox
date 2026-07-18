@@ -39,6 +39,8 @@
     "@shipfox/api-integration-gitea-dto",
     "@shipfox/api-integration-github",
     "@shipfox/api-integration-github-dto",
+    "@shipfox/api-integration-jira",
+    "@shipfox/api-integration-jira-dto",
     "@shipfox/api-integration-linear",
     "@shipfox/api-integration-linear-dto",
     "@shipfox/api-integration-sentry",

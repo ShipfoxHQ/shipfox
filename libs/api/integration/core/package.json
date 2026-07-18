@@ -47,6 +47,7 @@
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-gitea": "workspace:*",
     "@shipfox/api-integration-github": "workspace:*",
+    "@shipfox/api-integration-jira": "workspace:*",
     "@shipfox/api-integration-linear": "workspace:*",
     "@shipfox/api-integration-sentry": "workspace:*",
     "@shipfox/api-integration-slack": "workspace:*",
