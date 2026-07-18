@@ -1,5 +1,19 @@
 # @shipfox/client-projects
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [6b23868]
+- Updated dependencies [c18d624]
+  - @shipfox/api-integration-core-dto@3.0.0
+  - @shipfox/react-ui@0.3.1
+  - @shipfox/client-integrations@0.1.2
+  - @shipfox/client-agent@0.1.2
+  - @shipfox/client-auth@0.0.5
+  - @shipfox/client-ui@0.1.2
+  - @shipfox/client-workflows@0.1.2
+
 ## 0.0.4
 
 ### Patch Changes

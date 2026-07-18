@@ -1,5 +1,19 @@
 # @shipfox/api-integration-github
 
+## 3.0.0
+
+### Patch Changes
+
+- 6b23868: Adds provider event and GitHub agent-tool catalogs for generated integration reference documentation.
+- Updated dependencies [6b23868]
+- Updated dependencies [7a71e7d]
+  - @shipfox/api-integration-core-dto@3.0.0
+  - @shipfox/api-integration-github-dto@3.0.0
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/api-workspaces@3.0.0
+  - @shipfox/node-fastify@0.2.2
+  - @shipfox/api-auth-context@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

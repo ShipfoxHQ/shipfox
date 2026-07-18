@@ -1,5 +1,13 @@
 # @shipfox/runner-protocol
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [7a71e7d]
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/api-agent-dto@3.0.0
+
 ## 0.1.1
 
 ### Patch Changes

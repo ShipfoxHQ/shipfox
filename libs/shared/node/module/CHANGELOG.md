@@ -1,5 +1,20 @@
 # @shipfox/node-module
 
+## 0.3.0
+
+### Minor Changes
+
+- 3976f8c: Adds module login-method declarations, validates server compositions before startup, and adds password-login route configuration.
+
+### Patch Changes
+
+- Updated dependencies [c5ee18f]
+- Updated dependencies [7a71e7d]
+- Updated dependencies [08fc93b]
+  - @shipfox/node-temporal@0.3.0
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/node-fastify@0.2.2
+
 ## 0.2.0
 
 ### Minor Changes

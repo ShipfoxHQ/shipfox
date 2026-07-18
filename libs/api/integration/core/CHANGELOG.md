@@ -1,5 +1,29 @@
 # @shipfox/api-integration-core
 
+## 3.0.0
+
+### Patch Changes
+
+- 7a71e7d: Aligns published dependency ranges with the workspace catalog policy.
+- 08fc93b: Adds prebuilt production Temporal workflow bundles to API packages and removes runtime workflow compilation.
+- Updated dependencies [3976f8c]
+- Updated dependencies [6b23868]
+- Updated dependencies [c5ee18f]
+- Updated dependencies [7a71e7d]
+- Updated dependencies [08fc93b]
+  - @shipfox/node-module@0.3.0
+  - @shipfox/api-integration-core-dto@3.0.0
+  - @shipfox/api-integration-github@3.0.0
+  - @shipfox/node-temporal@0.3.0
+  - @shipfox/api-integration-sentry@3.0.0
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/api-integration-gitea@3.0.0
+  - @shipfox/api-integration-linear@3.0.0
+  - @shipfox/api-integration-webhook@3.0.0
+  - @shipfox/api-agent-dto@3.0.0
+  - @shipfox/node-fastify@0.2.2
+  - @shipfox/api-auth-context@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

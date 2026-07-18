@@ -1,5 +1,21 @@
 # @shipfox/client-router
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [c18d624]
+  - @shipfox/react-ui@0.3.1
+  - @shipfox/client-integrations@0.1.2
+  - @shipfox/client-projects@0.0.5
+  - @shipfox/client-agent@0.1.2
+  - @shipfox/client-app-shell@0.0.5
+  - @shipfox/client-auth@0.0.5
+  - @shipfox/client-invitations@0.0.5
+  - @shipfox/client-triggers@0.1.2
+  - @shipfox/client-workflows@0.1.2
+  - @shipfox/client-workspace-settings@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

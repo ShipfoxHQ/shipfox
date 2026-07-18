@@ -1,5 +1,14 @@
 # @shipfox/annotations
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [3976f8c]
+  - @shipfox/node-module@0.3.0
+  - @shipfox/node-fastify@0.2.2
+  - @shipfox/api-auth-context@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

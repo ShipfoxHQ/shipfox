@@ -1,5 +1,19 @@
 # @shipfox/api-agent
 
+## 3.0.0
+
+### Patch Changes
+
+- 7a71e7d: Aligns published dependency ranges with the workspace catalog policy.
+- Updated dependencies [3976f8c]
+- Updated dependencies [7a71e7d]
+  - @shipfox/node-module@0.3.0
+  - @shipfox/node-opentelemetry@0.5.1
+  - @shipfox/api-secrets@3.0.0
+  - @shipfox/api-agent-dto@3.0.0
+  - @shipfox/node-fastify@0.2.2
+  - @shipfox/api-auth-context@3.0.0
+
 ## 2.0.0
 
 ### Minor Changes

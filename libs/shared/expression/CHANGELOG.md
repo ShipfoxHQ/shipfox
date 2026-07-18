@@ -1,5 +1,13 @@
 # @shipfox/expression
 
+## 1.1.2
+
+### Patch Changes
+
+- 7a71e7d: Aligns published dependency ranges with the workspace catalog policy.
+- Updated dependencies [7ce5c9e]
+  - @shipfox/workflow-document@2.1.0
+
 ## 1.1.1
 
 ### Patch Changes
