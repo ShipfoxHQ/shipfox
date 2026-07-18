@@ -1,4 +1,9 @@
-import {SlackBotTokenMissingError, SlackConnectionNotFoundError} from '#core/errors.js';
+import {
+  SlackAccessTokenUnavailableError,
+  SlackBotTokenMissingError,
+  SlackConnectionNotFoundError,
+} from '#core/errors.js';
+import {getSlackInstallationByConnectionId, type SlackInstallation} from '#db/installations.js';
 
 const BOT_TOKEN_KEY = 'BOT_TOKEN';
 
@@ -40,6 +45,25 @@ export function slackSecretsNamespace(connectionId: string): string {
   return `system/integrations/slack/${connectionId}`;
 }
 
+function assertSlackInstallationServesToken(
+  connectionId: string,
+  installation: SlackInstallation | undefined,
+): asserts installation is SlackInstallation {
+  if (!installation) {
+    throw new SlackAccessTokenUnavailableError(connectionId, 'installation-not-found');
+  }
+  if (installation.status !== 'installed') {
+    throw new SlackAccessTokenUnavailableError(connectionId, 'not-installed');
+  }
+  if (installation.tokenExpiresAt !== null && installation.tokenExpiresAt.getTime() <= Date.now()) {
+    throw new SlackAccessTokenUnavailableError(
+      connectionId,
+      'expired',
+      installation.tokenExpiresAt,
+    );
+  }
+}
+
 export function createSlackTokenStore(params: CreateSlackTokenStoreParams): SlackTokenStore {
   async function resolveWorkspaceId(connectionId: string): Promise<string> {
     const connection = await params.resolveConnection(connectionId);
@@ -60,6 +84,8 @@ export function createSlackTokenStore(params: CreateSlackTokenStoreParams): Slac
 
     async getAccessToken(input) {
       const workspaceId = await resolveWorkspaceId(input.connectionId);
+      const installation = await getSlackInstallationByConnectionId(input.connectionId);
+      assertSlackInstallationServesToken(input.connectionId, installation);
       const token = await params.secrets.getSecret({
         workspaceId,
         namespace: slackSecretsNamespace(input.connectionId),
