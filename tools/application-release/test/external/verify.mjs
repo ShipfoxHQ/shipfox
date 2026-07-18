@@ -5,6 +5,7 @@ import {basename, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {
+  computePublicationClosure,
   entryPointSupportsRuntimeImport,
   entryPointSupportsTypeResolution,
   listPublicPackageEntryPoints,
@@ -17,7 +18,11 @@ const repositoryRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.
 const REGISTRY_SHIPFOX_PACKAGE_PATTERN = /^@shipfox\+[^@]+@\d/u;
 const config = readPublicationClosureConfig(resolve(repositoryRoot, 'publication-closure.json'));
 const workspacePackages = readWorkspacePackages(repositoryRoot);
-const closure = validatePublicationState(workspacePackages, config, repositoryRoot);
+validatePublicationState(workspacePackages, config, repositoryRoot);
+const closure = computePublicationClosure(
+  workspacePackages,
+  config.roots.filter((root) => !root.startsWith('@shipfox/client-')),
+);
 await emitDeclarationFiles(closure);
 const fixtureRoot = await mkdtemp(join(tmpdir(), 'shipfox-api-runtime-'));
 const tarballRoot = join(fixtureRoot, 'tarballs');
@@ -237,7 +242,7 @@ function safePackageName(name) {
 async function emitDeclarationFiles(packageNames) {
   await run(
     'pnpm',
-    ['exec', 'turbo', 'type:emit', ...packageNames.map((name) => `--filter=${name}`)],
+    ['exec', 'turbo', 'build', 'type:emit', ...packageNames.map((name) => `--filter=${name}`)],
     repositoryRoot,
   );
 }

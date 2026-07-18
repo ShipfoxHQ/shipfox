@@ -53,16 +53,16 @@ Changing this required set creates a new contract version. Publishing another
 image in CI does not add it to this contract.
 
 The repository-level [`publication-closure.json`](../../publication-closure.json)
-declares the API publication roots and the expected recursive runtime package
+declares the complete API and client runtime package set and expected recursive runtime
 closure. Release creation recalculates that closure from workspace runtime
 dependencies, optional dependencies, and peer dependencies, rejects drift, and
 records each package's current version.
 Versions from different application-release artifacts are not a supported set.
 
 The same validation rejects a public package with a private runtime workspace
-dependency. CI packs every package in the closure, installs all tarballs in a
-temporary consumer outside the workspace, resolves every public declaration
-entry point, and imports every runtime entry point.
+dependency. The API gate packs the Node-composed API closure, and the client gate packs the
+browser client closure before building a Vite consumer. Together they install all tarballs in a
+temporary consumer outside the workspace and resolve public declaration and runtime entry points.
 
 Each image has a repository, digest, platform list, and attestation state. The
 image build does not publish provenance or a software bill of materials (SBOM)
@@ -92,6 +92,7 @@ turbo type --filter=@shipfox/application-release
 turbo test --filter=@shipfox/application-release
 turbo build --filter=@shipfox/application-release
 pnpm --filter=@shipfox/application-release test:external
+node libs/client/shell/test/external/verify.mjs
 ```
 
 ## License

@@ -7,7 +7,6 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/ui"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

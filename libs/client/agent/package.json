@@ -7,7 +7,6 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/agent"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -74,6 +73,7 @@
     "@tanstack/react-query": "catalog:"
   },
   "peerDependencies": {
+    "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-router": "^1.170.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -97,6 +97,7 @@
     "@testing-library/user-event": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "happy-dom": "catalog:",

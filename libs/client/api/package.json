@@ -7,7 +7,6 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/api"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -34,14 +33,17 @@
   },
   "dependencies": {
     "@swc/helpers": "catalog:",
-    "ky": "catalog:",
-    "zod": "catalog:"
+    "ky": "catalog:"
+  },
+  "peerDependencies": {
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*"
+    "@shipfox/vitest": "workspace:*",
+    "zod": "catalog:"
   }
 }

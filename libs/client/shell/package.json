@@ -7,7 +7,6 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/shell"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -79,8 +78,7 @@
     "@swc/helpers": "catalog:",
     "@tanstack/router-core": "catalog:",
     "jiti": "catalog:",
-    "framer-motion": "catalog:",
-    "zod": "catalog:"
+    "framer-motion": "catalog:"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.101.0",
@@ -88,7 +86,8 @@
     "jotai": "^2.19.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "vite": "^8.0.3"
+    "vite": "^8.0.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -108,6 +107,7 @@
     "jsdom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "zod": "catalog:"
   }
 }
