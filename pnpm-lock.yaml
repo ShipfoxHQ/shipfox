@@ -2874,7 +2874,7 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
       '@types/pg':
-        specifier: 'catalog:'
+        specifier: ^8.15.5
         version: 8.20.0
       drizzle-kit:
         specifier: 'catalog:'
