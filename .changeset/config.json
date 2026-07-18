@@ -47,6 +47,24 @@
       "@shipfox/api-workflows-dto",
       "@shipfox/api-workspaces",
       "@shipfox/api-workspaces-dto"
+    ],
+    [
+      "@shipfox/client-agent",
+      "@shipfox/client-api",
+      "@shipfox/client-auth",
+      "@shipfox/client-config",
+      "@shipfox/client-features",
+      "@shipfox/client-integrations",
+      "@shipfox/client-invitations",
+      "@shipfox/client-logs",
+      "@shipfox/client-projects",
+      "@shipfox/client-runners",
+      "@shipfox/client-secrets",
+      "@shipfox/client-shell",
+      "@shipfox/client-triggers",
+      "@shipfox/client-ui",
+      "@shipfox/client-workflows",
+      "@shipfox/client-workspace-settings"
     ]
   ],
   "access": "public",

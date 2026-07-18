@@ -7,12 +7,16 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/runners"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*"
+    "#*": {
+      "types": "./src/*",
+      "workspace-source": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {
@@ -43,10 +47,10 @@
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
-    "@tanstack/react-form": "catalog:",
-    "@tanstack/react-query": "catalog:"
+    "@tanstack/react-form": "catalog:"
   },
   "peerDependencies": {
+    "@tanstack/react-query": "^5.101.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -64,6 +68,7 @@
     "@storybook/react": "catalog:",
     "@storybook/react-vite": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@testing-library/user-event": "catalog:",

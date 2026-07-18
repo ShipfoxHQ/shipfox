@@ -7,7 +7,6 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/config"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -41,12 +40,12 @@
   },
   "dependencies": {
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "catalog:",
-    "zod": "catalog:"
+    "@swc/helpers": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -61,6 +60,7 @@
     "@types/react-dom": "catalog:",
     "jsdom": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "zod": "catalog:"
   }
 }

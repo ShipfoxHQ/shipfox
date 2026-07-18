@@ -4,15 +4,19 @@
   "version": "0.1.2",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/logs"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*"
+    "#*": {
+      "types": "./src/*",
+      "workspace-source": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {
@@ -41,11 +45,10 @@
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "catalog:",
-    "@tanstack/react-query": "catalog:",
-    "zod": "catalog:"
+    "@swc/helpers": "catalog:"
   },
   "peerDependencies": {
+    "@tanstack/react-query": "^5.101.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -62,6 +65,7 @@
     "@storybook/react": "catalog:",
     "@storybook/react-vite": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",

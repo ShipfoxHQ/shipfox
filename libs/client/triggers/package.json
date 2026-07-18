@@ -7,12 +7,16 @@
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/triggers"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*"
+    "#*": {
+      "types": "./src/*",
+      "workspace-source": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {
@@ -43,14 +47,14 @@
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "catalog:",
-    "@tanstack/react-query": "catalog:",
-    "zod": "catalog:"
+    "@swc/helpers": "catalog:"
   },
   "peerDependencies": {
+    "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-router": "^1.170.16",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@argos-ci/cli": "catalog:",
@@ -65,6 +69,7 @@
     "@storybook/react": "catalog:",
     "@storybook/react-vite": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
@@ -81,6 +86,7 @@
     "storybook-addon-pseudo-states": "catalog:",
     "tailwindcss": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }
