@@ -127,10 +127,11 @@ jobs:
       - name: Set up Playwright
         uses: ./.github/actions/setup-playwright
 
-      # E2E dev servers still depend on dist/ for Temporal workflow bundles and
-      # the shared vite-dev bin.
+      # E2E dev servers still depend on dist/ for Temporal workflow bundles,
+      # the shared vite-dev bin, and the client feature registry evaluated by
+      # the composition generator.
       - name: Build dev server dependencies
-        run: turbo build --filter @shipfox/api --filter @shipfox/vite
+        run: turbo build --filter @shipfox/api --filter @shipfox/vite --filter @shipfox/client-features...
 
       - name: Wait for test services
         wait: test-services

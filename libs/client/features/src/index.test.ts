@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it} from '@shipfox/vitest/vi';
 import {defaultFeatures} from './index.js';
 
 describe('defaultFeatures', () => {
