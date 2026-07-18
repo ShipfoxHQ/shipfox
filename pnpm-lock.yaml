@@ -2635,6 +2635,34 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
+  libs/api/integration/jira-dto:
+    dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
   libs/api/integration/linear:
     dependencies:
       '@modelcontextprotocol/sdk':
