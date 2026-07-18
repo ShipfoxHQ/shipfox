@@ -114,7 +114,11 @@ describe('WorkspaceHarnessesSection', () => {
     await waitFor(() => expect(requestBody).toEqual({harness_id: 'claude'}));
     expect(screen.getByRole('button', {name: 'Open Claude harness actions'})).toBeDisabled();
     updateResponse.resolve(jsonResponse({default_harness_id: 'claude'}));
-    expect(await screen.findByText('Claude is now the default harness')).toBeVisible();
+    expect(
+      await screen.findByText('Claude is now the default harness', {
+        selector: '[data-sonner-toast][data-mounted="true"][data-visible="true"] [data-title]',
+      }),
+    ).toBeVisible();
   });
 
   test('shows an inline error when setting the default harness fails', async () => {

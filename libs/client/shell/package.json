@@ -79,6 +79,7 @@
     "@swc/helpers": "catalog:",
     "@tanstack/router-core": "catalog:",
     "jiti": "catalog:",
+    "framer-motion": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {

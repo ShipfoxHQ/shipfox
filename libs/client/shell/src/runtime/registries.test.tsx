@@ -1,4 +1,4 @@
-import {screen} from '@testing-library/react';
+import {screen, within} from '@testing-library/react';
 import {defineClientFeature} from '#contract.js';
 import {renderComposedShell} from '#test/render.js';
 import {defineRoute} from './define-route.js';
@@ -74,6 +74,7 @@ describe('composition registries', () => {
       resolveImpl: () => defineRoute({component: () => <h1>Settings page</h1>}),
     });
 
+    expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
     expect((await screen.findAllByRole('tab')).map((tab) => tab.textContent)).toEqual([
       'First A',
       'First B',
@@ -83,9 +84,17 @@ describe('composition registries', () => {
       'href',
       '/workspaces/workspace/first-a',
     );
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
+    const settingsNavigation = screen.getByRole('navigation', {name: 'Workspace settings'});
+    expect(settingsNavigation.parentElement).toHaveClass('grid', 'grid-cols-[180px_minmax(0,1fr)]');
+    const settingsLinks = within(settingsNavigation).getAllByRole('link');
+    const [firstSettingsLink] = settingsLinks;
+    if (!firstSettingsLink) throw new Error('Expected at least one settings link.');
+
+    expect(settingsLinks.map((link) => link.textContent)).toEqual([
       'First setting',
       'Second setting',
     ]);
+    expect(firstSettingsLink).toHaveClass('w-full', 'justify-start');
+    expect(firstSettingsLink.querySelector('svg')).toHaveClass('size-16');
   });
 });

@@ -9,27 +9,32 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite-build",
+    "build": "pnpm run generate && vite-build",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "dev": "vite-dev",
+    "dev": "pnpm run generate && vite-dev",
+    "generate": "node scripts/generate-client-composition.mjs",
     "image": "shipfox-docker --image client",
-    "type": "shipfox-tsc-check",
-    "type:emit": "shipfox-tsc-emit"
+    "type": "pnpm run generate && shipfox-tsc-check",
+    "type:emit": "pnpm run generate && shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/client-api": "workspace:*",
-    "@shipfox/client-app-shell": "workspace:*",
+    "@shipfox/client-features": "workspace:*",
+    "@shipfox/client-shell": "workspace:*",
+    "@shipfox/client-agent": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
-    "@shipfox/client-config": "workspace:*",
+    "@shipfox/client-integrations": "workspace:*",
+    "@shipfox/client-invitations": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
-    "@shipfox/client-router": "workspace:*",
+    "@shipfox/client-workflows": "workspace:*",
+    "@shipfox/client-workspace-settings": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "jotai": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "zod": "catalog:"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

@@ -48,7 +48,6 @@ function renderPage() {
   );
 }
 
-const INTEGRATIONS_LINK_RE = /Integrations/;
 // The provider is named once (icon + account name); the meta line carries only
 // the date.
 const ADDED_META_RE = /^Added /;
@@ -62,8 +61,6 @@ describe('IntegrationsSettingsPage', () => {
 
     renderPage();
 
-    expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-    expect(screen.getByRole('link', {name: INTEGRATIONS_LINK_RE})).toBeVisible();
     expect(await screen.findByRole('region', {name: 'Installed integrations'})).toBeInTheDocument();
     expect(screen.getByRole('region', {name: 'Available integrations'})).toBeInTheDocument();
     expect(await screen.findByText('acme-corp')).toBeVisible();

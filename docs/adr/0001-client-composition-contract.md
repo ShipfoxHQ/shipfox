@@ -23,10 +23,10 @@ The phase-0 record fixes these semantics:
 - Features contribute navigation and settings data through registries.
 - The shell merges and checks one runtime-config contract.
 
-The current upstream client is hard-wired. `apps/client/src/main.tsx` mounts the provider stack and
-router. `@shipfox/client-router` owns the generated TanStack route tree. Project tabs and workspace
-settings navigation are hardcoded. Config shapes merge with object spread, so duplicate keys resolve
-silently.
+Before this cutover, the upstream client was hard-wired. `apps/client/src/main.tsx` mounted the
+provider stack and router, while `@shipfox/client-router` owned the generated TanStack route tree.
+Project tabs and workspace settings navigation were hardcoded. Config shapes merged with object
+spread, so duplicate keys resolved silently.
 
 ## Repository ownership
 
@@ -165,6 +165,10 @@ The shell owns four anchors:
 The generator injects the matching parent route. A route must be below the path represented by its
 anchor. An override must keep the base route's normalized path and anchor.
 
+A route may also own the exact anchor path. The generator represents that contribution as an index
+route below the anchor. This keeps workspace home and settings-index redirects with their feature
+owners while allowing them to remain navigation targets.
+
 An accepted override replaces the whole route options object. It replaces the component, loader,
 `beforeLoad`, search check, static data, pending component, and error component together. Children
 attach to the replacement from the manifest graph.
@@ -199,6 +203,24 @@ The composing application commits the generated file. The Vite plugin generates 
 file only when content changes. Type-check jobs must run the generator before `tsc` when a clean
 checkout has no generated file. After a merge conflict, resolve the feature array and manifests,
 then rerun Vite generation instead of hand-merging generated code.
+
+The generated router enables scroll restoration. Its initial context includes the shell auth state,
+query client, and an optional workspace setup gate.
+
+## Shell chrome seams
+
+The shell owns the root not-found page, workspace guard, navigation chrome, settings chrome, and
+the shared workspace setup loading and error states. The workspace anchor validates authentication
+and workspace membership, remembers the active workspace, then invokes an application-provided
+`workspaceSetup` gate from router context.
+
+The gate remains outside the shell because it queries project, integration, and agent data owned by
+features. A composition that contains workspace routes but omits the gate fails loudly.
+
+The shell receives browser-only `ChromeSlots` through `composeClientApp()`. They provide the
+project breadcrumb and project/workspace consistency guard. They are not feature providers or
+manifest data, so Node-safe manifest evaluation never imports browser chrome or creates a
+shell-to-feature dependency.
 
 ## Composition rules
 
@@ -305,8 +327,8 @@ Public consumers do not import internal files.
 
 ### `@shipfox/client-features`
 
-This package exports `defaultFeatures(): ClientFeature[]`. It becomes the upstream composition and
-replaces `@shipfox/client-router` during ENG-938. Each feature package exports its stable feature and
+This package exports `defaultFeatures(): ClientFeature[]`. It is the upstream composition and
+replaces the removed `@shipfox/client-router`. Each feature package exports its stable feature and
 every route implementation subpath named by its manifest.
 
 ### Dependencies and package conditions

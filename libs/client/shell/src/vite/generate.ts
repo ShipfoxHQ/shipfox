@@ -1,6 +1,6 @@
 import type {ComposedRoute} from '#compose/compose-routes.js';
 import type {NavTabEntry, SettingsSectionEntry} from '#contract.js';
-import {routePathForAnchor} from '#runtime/anchors.js';
+import {routePathForAnchor} from '#runtime/anchor-paths.js';
 
 export interface GenerateAppModuleOptions {
   routes: readonly ComposedRoute[];
@@ -87,6 +87,7 @@ export const routeTree = skeleton.rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   context: {auth: undefined, queryClient: undefined} satisfies RouterContext,
+  scrollRestoration: true,
 });
 
 declare module '@tanstack/react-router' {

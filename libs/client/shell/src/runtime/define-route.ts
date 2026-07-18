@@ -1,7 +1,7 @@
 import type {ComponentType} from 'react';
 
 export interface RouteImplOptions {
-  component: ComponentType;
+  component?: ComponentType;
   loader?: unknown;
   validateSearch?: unknown;
   beforeLoad?: unknown;

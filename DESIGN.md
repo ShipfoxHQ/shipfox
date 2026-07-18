@@ -303,7 +303,7 @@ Use `lucide-react` for stylistically-warm icons in marketing, `@remixicon/react`
 
 ### Top-nav layout components
 
-The app shell ships in `@shipfox/client-app-shell`. Workspace switcher lives in `@shipfox/client-auth`; project switcher lives in `@shipfox/client-projects`. Each nav element below has fixed dimensions and tokens:
+The app shell and workspace switcher ship in `@shipfox/client-shell`; project switcher lives in `@shipfox/client-projects`. Each nav element below has fixed dimensions and tokens:
 
 | Component | Dimensions | Tokens / treatment |
 |---|---|---|

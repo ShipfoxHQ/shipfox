@@ -20,7 +20,8 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
-    "@shipfox/client-router": "workspace:*",
+    "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-projects": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-driver-gitea": "workspace:*",

@@ -1,0 +1,22 @@
+import type {ComponentType, PropsWithChildren} from 'react';
+import {createContext, useContext} from 'react';
+
+export interface ChromeSlots {
+  ProjectBreadcrumb: ComponentType;
+  ProjectLayoutGuard: ComponentType;
+}
+
+const ChromeContext = createContext<ChromeSlots | undefined>(undefined);
+
+export function ChromeProvider({
+  chrome,
+  children,
+}: PropsWithChildren<{chrome: ChromeSlots | undefined}>) {
+  return <ChromeContext.Provider value={chrome}>{children}</ChromeContext.Provider>;
+}
+
+export function useChrome(): ChromeSlots {
+  const chrome = useContext(ChromeContext);
+  if (!chrome) throw new Error('Client composition must provide browser chrome slots.');
+  return chrome;
+}

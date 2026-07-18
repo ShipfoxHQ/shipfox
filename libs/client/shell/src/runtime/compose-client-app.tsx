@@ -19,14 +19,20 @@ import {validateProviderIds} from '#compose/validate-providers.js';
 import {validateNavigation, validateSettingsSections} from '#compose/validate-registries.js';
 import type {ClientFeature} from '#contract.js';
 import {useAuthState} from './auth.js';
+import {ChromeProvider, type ChromeSlots} from './chrome-context.js';
 import {ShellProviderStack} from './provider-stack.js';
+import type {WorkspaceSetupGate} from './workspace-setup.js';
 
 export function composeClientApp({
   features,
   router,
+  chrome,
+  workspaceSetup,
 }: {
   features: readonly ClientFeature[];
   router: AnyRouter;
+  chrome?: ChromeSlots;
+  workspaceSetup?: WorkspaceSetupGate;
 }) {
   const routes = composeRoutes(features);
   validateProviderIds(features);
@@ -64,24 +70,43 @@ export function composeClientApp({
       const queryClient = new QueryClient();
       root.render(
         <StrictMode>
-          <ShellProviderStack features={features} queryClient={queryClient} store={createStore()}>
-            <RoutedApp router={router} queryClient={queryClient} />
-            <Toaster />
-          </ShellProviderStack>
+          <ChromeProvider chrome={chrome}>
+            <ShellProviderStack features={features} queryClient={queryClient} store={createStore()}>
+              <RoutedApp
+                router={router}
+                queryClient={queryClient}
+                workspaceSetup={workspaceSetup}
+              />
+              <Toaster />
+            </ShellProviderStack>
+          </ChromeProvider>
         </StrictMode>,
       );
     },
   };
 }
 
-function RoutedApp({router, queryClient}: {router: AnyRouter; queryClient: QueryClient}) {
+function RoutedApp({
+  router,
+  queryClient,
+  workspaceSetup,
+}: {
+  router: AnyRouter;
+  queryClient: QueryClient;
+  workspaceSetup: WorkspaceSetupGate | undefined;
+}) {
   const auth = useAuthState();
 
   useEffect(() => {
     if (!auth.isLoading) router.invalidate();
   }, [auth.isLoading, router]);
 
-  return <RouterProvider router={router as never} context={{auth, queryClient} as never} />;
+  return (
+    <RouterProvider
+      router={router as never}
+      context={{auth, queryClient, workspaceSetup} as never}
+    />
+  );
 }
 
 function configApiUrl(config: unknown): string {

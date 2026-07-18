@@ -1,10 +1,12 @@
 import {QueryClient} from '@tanstack/react-query';
-import {createMemoryHistory, createRouter, RouterProvider} from '@tanstack/react-router';
+import {createMemoryHistory, createRouter, Outlet, RouterProvider} from '@tanstack/react-router';
 import {render} from '@testing-library/react';
 import {createStore} from 'jotai';
 import {composeRoutes} from '#compose/compose-routes.js';
 import type {ClientFeature} from '#contract.js';
 import {assembleRouteTree, type ResolveRouteImpl} from '#runtime/assemble-route-tree.js';
+import {type AuthStateValue, authStateAtom} from '#runtime/auth.js';
+import {ChromeProvider, type ChromeSlots} from '#runtime/chrome-context.js';
 import {ShellProviderStack} from '#runtime/provider-stack.js';
 import {navigationEntries, settingsEntries} from '#runtime/registries.js';
 
@@ -28,20 +30,38 @@ export async function renderComposedShell({
   });
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const store = createStore();
+  const auth: AuthStateValue = {
+    status: 'authenticated',
+    workspaces: [{id: 'workspace', name: 'Workspace', membershipId: 'membership'}],
+    isLoading: false,
+    isAuthenticated: true,
+    hasWorkspace: true,
+  };
+  const chrome: ChromeSlots = {
+    ProjectBreadcrumb: () => null,
+    ProjectLayoutGuard: Outlet,
+  };
+  store.set(authStateAtom, auth);
   const router = createRouter({
     history: createMemoryHistory({initialEntries: [initialPath]}),
     routeTree,
-    context: {auth: undefined, queryClient},
+    context: {
+      auth,
+      queryClient,
+      workspaceSetup: async () => ({hideProjectNavigation: false}),
+    },
   });
   render(
-    <ShellProviderStack
-      features={features}
-      queryClient={queryClient}
-      store={store}
-      auth={{effects: false}}
-    >
-      <RouterProvider router={router} />
-    </ShellProviderStack>,
+    <ChromeProvider chrome={chrome}>
+      <ShellProviderStack
+        features={features}
+        queryClient={queryClient}
+        store={store}
+        auth={{effects: false}}
+      >
+        <RouterProvider router={router} />
+      </ShellProviderStack>
+    </ChromeProvider>,
   );
   return {router, queryClient, store};
 }

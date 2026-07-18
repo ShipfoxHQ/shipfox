@@ -12,7 +12,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*",
+    "#*": {
+      "types": "./src/*",
+      "workspace-source": "./src/*",
+      "development": "./src/*",
+      "default": "./dist/*"
+    },
     "#test/*": "./test/*"
   },
   "exports": {
@@ -24,6 +29,26 @@
       "default": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      }
+    },
+    "./feature": {
+      "development": {
+        "types": "./src/feature.ts",
+        "default": "./src/feature.ts"
+      },
+      "default": {
+        "types": "./dist/feature.d.ts",
+        "default": "./dist/feature.js"
+      }
+    },
+    "./routes/*": {
+      "development": {
+        "types": "./src/routes/*.tsx",
+        "default": "./src/routes/*.tsx"
+      },
+      "default": {
+        "types": "./dist/routes/*.d.ts",
+        "default": "./dist/routes/*.js"
       }
     }
   },
@@ -47,6 +72,7 @@
     "@shipfox/api-integration-webhook-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-shell": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",

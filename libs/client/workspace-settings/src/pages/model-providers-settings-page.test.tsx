@@ -39,7 +39,6 @@ describe('ModelProvidersSettingsPage', () => {
       <ModelProvidersSettingsPage />,
     );
 
-    expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
     expect(await screen.findByText('Harnesses')).toBeVisible();
     expect(await screen.findByText('No providers configured')).toBeVisible();
     expect(screen.getByText('Available providers')).toBeVisible();
