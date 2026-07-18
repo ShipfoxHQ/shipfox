@@ -52,4 +52,15 @@ describe('loadEnabledProviderModules', () => {
       adapters: {},
     });
   });
+
+  it('loads Jira when the provider is enabled', async () => {
+    vi.stubEnv('INTEGRATIONS_ENABLE_JIRA_PROVIDER', 'true');
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+
+    expect(parts.map((part) => part.provider.provider)).toEqual(['jira', 'cron', 'webhook']);
+    expect(parts[0]?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
+  });
 });

@@ -13,6 +13,10 @@ export const config = createConfig({
     desc: 'Enables the GitHub integration provider so users can connect GitHub.',
     default: false,
   }),
+  INTEGRATIONS_ENABLE_JIRA_PROVIDER: bool({
+    desc: 'Enables the Jira integration provider so users can connect Jira sites.',
+    default: false,
+  }),
   INTEGRATIONS_ENABLE_LINEAR_PROVIDER: bool({
     desc: 'Enables the Linear integration provider so users can connect Linear workspaces.',
     default: false,
