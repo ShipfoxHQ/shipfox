@@ -1,4 +1,4 @@
-import {screen} from '@testing-library/react';
+import {screen, within} from '@testing-library/react';
 import {defineClientFeature} from '#contract.js';
 import {renderComposedShell} from '#test/render.js';
 import {defineRoute} from './define-route.js';
@@ -83,9 +83,10 @@ describe('composition registries', () => {
       'href',
       '/workspaces/workspace/first-a',
     );
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
-      'First setting',
-      'Second setting',
-    ]);
+    expect(
+      within(screen.getByRole('navigation', {name: 'Workspace settings'}))
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['First setting', 'Second setting']);
   });
 });

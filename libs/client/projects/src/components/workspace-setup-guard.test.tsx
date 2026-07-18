@@ -3,6 +3,11 @@ import '@testing-library/jest-dom/vitest';
 import {dismissModelProviderOnboarding, modelProviderQueryKeys} from '@shipfox/client-agent';
 import {configureApiClient} from '@shipfox/client-api';
 import {integrationsQueryKeys} from '@shipfox/client-integrations';
+import {
+  WorkspaceLayoutErrorRoute,
+  WorkspaceSetupPending,
+  type WorkspaceSetupState,
+} from '@shipfox/client-shell/runtime';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {QueryClient} from '@tanstack/react-query';
 import {
@@ -16,12 +21,7 @@ import {
 } from '@tanstack/react-router';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {projectsQueryKeys} from '#hooks/api/projects.js';
-import {
-  loadWorkspaceSetupRoute,
-  WorkspaceLayoutErrorRoute,
-  WorkspaceSetupPending,
-  type WorkspaceSetupState,
-} from './workspace-setup-guard.js';
+import {loadWorkspaceSetupRoute} from './workspace-setup-guard.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 

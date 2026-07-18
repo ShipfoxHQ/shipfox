@@ -1,0 +1,18 @@
+import type {RouterContext} from '@shipfox/client-shell/runtime';
+import {defineRoute, getLastWorkspaceId} from '@shipfox/client-shell/runtime';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {redirect} from '@tanstack/react-router';
+
+export default defineRoute({
+  beforeLoad: ({context}: {context: RouterContext}) => {
+    const auth = context.auth;
+    if (!auth || auth.isLoading) return;
+    if (!auth.isAuthenticated) throw redirect({to: '/auth/login'});
+    const [first, ...rest] = auth.workspaces;
+    if (!first) throw redirect({to: '/setup/workspaces/new'});
+    const target =
+      [first, ...rest].find((workspace) => workspace.id === getLastWorkspaceId()) ?? first;
+    throw redirect({to: '/workspaces/$wid', params: {wid: target.id}});
+  },
+  component: FullPageLoader,
+});

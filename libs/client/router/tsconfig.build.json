@@ -1,8 +1,0 @@
-{
-  "extends": "@shipfox/ts-config/react",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist"
-  },
-  "include": ["src"]
-}
