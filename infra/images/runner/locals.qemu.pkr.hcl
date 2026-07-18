@@ -7,7 +7,7 @@ locals {
   qemu_source_checksum = coalesce(
     var.qemu_source_checksum,
     var.architecture == "amd64"
-      ? "sha256:ffe6203da54deeb6db5d2a98a83f9ec8e55f149d3f7ba622e1abe5fa966ee3d6"
-      : "sha256:7ed8005503e0bf1c225371866faae56e6b7e0d5c12471961042ab1cc2a1ffb4b",
+    ? "sha256:ffe6203da54deeb6db5d2a98a83f9ec8e55f149d3f7ba622e1abe5fa966ee3d6"
+    : "sha256:7ed8005503e0bf1c225371866faae56e6b7e0d5c12471961042ab1cc2a1ffb4b",
   )
 }
