@@ -61,7 +61,6 @@ describe('IntegrationsSettingsPage', () => {
 
     renderPage();
 
-    expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
     expect(await screen.findByRole('region', {name: 'Installed integrations'})).toBeInTheDocument();
     expect(screen.getByRole('region', {name: 'Available integrations'})).toBeInTheDocument();
     expect(await screen.findByText('acme-corp')).toBeVisible();

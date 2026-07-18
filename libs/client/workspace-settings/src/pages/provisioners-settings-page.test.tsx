@@ -23,7 +23,6 @@ describe('ProvisionersSettingsPage', () => {
       <ProvisionersSettingsPage />,
     );
 
-    expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
     expect(await screen.findByText('No usable provisioner registration tokens')).toBeVisible();
     expect(screen.getByRole('button', {name: 'Create token'})).toBeVisible();
   });

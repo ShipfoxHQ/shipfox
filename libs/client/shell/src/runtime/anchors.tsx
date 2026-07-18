@@ -1,9 +1,11 @@
 import {ShipfoxLoader} from '@shipfox/react-ui/loader';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {createRootRouteWithContext, createRoute, Outlet, redirect} from '@tanstack/react-router';
 import {MainLayout} from '#components/main-layout.js';
 import {NotFoundPage} from '#components/not-found-page.js';
 import {SettingsNav} from '#components/settings-nav.js';
 import type {NavTabEntry, SettingsSectionEntry} from '#contract.js';
+import {useActiveWorkspace} from './active-workspace.js';
 import {anchorPaths} from './anchor-paths.js';
 import {useChrome} from './chrome-context.js';
 import {rememberLastWorkspaceId} from './last-workspace.js';
@@ -75,12 +77,24 @@ export function buildAnchorSkeleton({
   const workspaceSettings = createRoute({
     getParentRoute: () => workspaceLayout,
     path: '/settings',
-    component: () => (
-      <>
-        <SettingsNav entries={settingsSections} />
-        <Outlet />
-      </>
-    ),
+    component: () => {
+      const workspace = useActiveWorkspace();
+      return (
+        <div className="flex w-full flex-col gap-24">
+          <header className="flex flex-col gap-6">
+            <Header variant="h2">Workspace settings</Header>
+            <Text size="sm" className="text-foreground-neutral-muted">
+              Configure {workspace.name}.
+            </Text>
+          </header>
+
+          <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-32 max-[760px]:grid-cols-1">
+            <SettingsNav entries={settingsSections} />
+            <Outlet />
+          </div>
+        </div>
+      );
+    },
   });
   return {
     anchors: {root: rootRoute, workspaceLayout, projectLayout, workspaceSettings},

@@ -74,6 +74,7 @@ describe('composition registries', () => {
       resolveImpl: () => defineRoute({component: () => <h1>Settings page</h1>}),
     });
 
+    expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
     expect((await screen.findAllByRole('tab')).map((tab) => tab.textContent)).toEqual([
       'First A',
       'First B',
@@ -83,8 +84,10 @@ describe('composition registries', () => {
       'href',
       '/workspaces/workspace/first-a',
     );
+    const settingsNavigation = screen.getByRole('navigation', {name: 'Workspace settings'});
+    expect(settingsNavigation.parentElement).toHaveClass('grid', 'grid-cols-[180px_minmax(0,1fr)]');
     expect(
-      within(screen.getByRole('navigation', {name: 'Workspace settings'}))
+      within(settingsNavigation)
         .getAllByRole('link')
         .map((link) => link.textContent),
     ).toEqual(['First setting', 'Second setting']);
