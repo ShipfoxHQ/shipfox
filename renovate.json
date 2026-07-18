@@ -23,6 +23,10 @@
   "prCreation": "not-pending",
   "internalChecksFilter": "strict",
   "prHourlyLimit": 5,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "groupName": null
+  },
   "packageRules": [
     {
       "description": "Group all GitHub Actions updates into one PR",
@@ -50,16 +54,18 @@
       "matchPackageNames": ["@shipfox/**"]
     },
     {
-      "description": "Group all @argos-ci NPM updates into one PR",
+      "description": "Argos CI packages share a review surface, but do not require a complete release before one available package can update.",
       "groupName": "argos-ci",
       "groupSlug": "argos-ci",
       "matchManagers": ["npm"],
-      "matchPackageNames": ["@argos-ci/**"]
+      "matchPackageNames": ["@argos-ci/**"],
+      "rangeStrategy": "bump"
     },
     {
-      "description": "TanStack Query: group related packages together and bump ranges to keep deps and peerDeps in sync across the monorepo",
+      "description": "TanStack Query packages share an integration surface, but one available package must not wait for every member to release. Bump catalog range minima while preserving their caret shape.",
       "groupName": "tanstack-query",
       "groupSlug": "tanstack-query",
+      "matchManagers": ["npm"],
       "matchPackageNames": [
         "@tanstack/react-query",
         "@tanstack/query-core",
@@ -68,11 +74,116 @@
       "rangeStrategy": "bump"
     },
     {
-      "description": "TanStack Router: group runtime and plugin packages together and bump ranges to avoid route typegen/runtime drift",
+      "description": "TanStack Router runtime and plugin packages share an integration surface, but one available package must not wait for every member to release. Bump catalog range minima while preserving their caret shape.",
       "groupName": "tanstack-router",
       "groupSlug": "tanstack-router",
-      "matchPackageNames": ["@tanstack/react-router", "@tanstack/router-plugin"],
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "@tanstack/react-router",
+        "@tanstack/router-core",
+        "@tanstack/router-plugin"
+      ],
       "rangeStrategy": "bump"
+    },
+    {
+      "description": "Biome ships its formatter and platform binaries as one exact release. Wait for all five members and combine major and non-major releases so the generated-output toolchain stays coherent.",
+      "groupName": "biome-distribution",
+      "groupSlug": "biome-distribution",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "@biomejs/biome",
+        "@biomejs/cli-darwin-arm64",
+        "@biomejs/cli-darwin-x64",
+        "@biomejs/cli-linux-arm64",
+        "@biomejs/cli-linux-x64"
+      ],
+      "minimumGroupSize": 5,
+      "rangeStrategy": "bump",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "Temporal SDK packages form one exact upstream release train and the workflow bundle requires matching members. Wait for all seven and combine major and non-major releases.",
+      "groupName": "temporal-sdk",
+      "groupSlug": "temporal-sdk",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "@temporalio/activity",
+        "@temporalio/client",
+        "@temporalio/common",
+        "@temporalio/interceptors-opentelemetry",
+        "@temporalio/testing",
+        "@temporalio/worker",
+        "@temporalio/workflow"
+      ],
+      "minimumGroupSize": 7,
+      "rangeStrategy": "bump",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "React and React DOM must share one upstream release. Wait for both catalog entries and combine major and non-major releases while retaining caret ranges; peer support ranges stay outside this rule.",
+      "groupName": "react-runtime",
+      "groupSlug": "react-runtime",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["react", "react-dom"],
+      "minimumGroupSize": 2,
+      "rangeStrategy": "bump",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "Vitest and its Playwright browser adapter share one upstream release. Wait for both catalog entries and combine major and non-major releases while retaining caret ranges.",
+      "groupName": "vitest",
+      "groupSlug": "vitest",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["vitest", "@vitest/browser-playwright"],
+      "minimumGroupSize": 2,
+      "rangeStrategy": "bump",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "Storybook core packages share one upstream release. Wait for all four catalog entries and combine major and non-major releases while retaining caret ranges.",
+      "groupName": "storybook-core",
+      "groupSlug": "storybook-core",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "storybook",
+        "@storybook/addon-vitest",
+        "@storybook/react",
+        "@storybook/react-vite"
+      ],
+      "minimumGroupSize": 4,
+      "rangeStrategy": "bump",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "Tailwind CSS and its Vite integration share one upstream release. Wait for both catalog entries and combine major and non-major releases while retaining caret ranges.",
+      "groupName": "tailwind-css",
+      "groupSlug": "tailwind-css",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["tailwindcss", "@tailwindcss/vite"],
+      "minimumGroupSize": 2,
+      "rangeStrategy": "bump",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "React type packages are reviewed together, but one available type package must not wait for the other. Bump catalog range minima while preserving their caret shape.",
+      "groupName": "react-types",
+      "groupSlug": "react-types",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@types/react", "@types/react-dom"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Vite and its React plugin are reviewed together, but one available package must not wait for the other. Bump catalog range minima while preserving their caret shape.",
+      "groupName": "vite",
+      "groupSlug": "vite",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["vite", "@vitejs/plugin-react"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Do not enable pnpmDedupe: it runs after every pnpm lockfile update and can create unrelated lockfile churn. The committed lockfile audit owns deterministic duplicate enforcement.",
+      "matchManagers": ["npm"],
+      "postUpdateOptions": []
     },
     {
       "description": "Group pnpm updates across managers (packageManager field + npm:pnpm) into one PR",
