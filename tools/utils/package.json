@@ -12,7 +12,8 @@
   "types": "src/index.d.ts",
   "type": "module",
   "scripts": {
-    "cli": "node src/index.js"
+    "cli": "node src/index.js",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@actions/core": "catalog:"

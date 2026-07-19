@@ -9,7 +9,14 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {dirname, join, relative} from 'node:path';
-import {buildShellCommand, getProjectFilePath, getWorkspaceRootPath} from '@shipfox/tool-utils';
+import {
+  buildShellCommand,
+  getProjectFilePath,
+  getWorkspaceRootPath,
+  productionizeImports,
+} from '@shipfox/tool-utils';
+
+export {productionizeImports} from '@shipfox/tool-utils';
 
 /**
  * Prepare the Docker build context for a node app the "build outside Docker,
@@ -83,21 +90,6 @@ function productionizeSubpathImports(packageJsonPath: string) {
 
   manifest.imports = imports;
   writeFileSync(packageJsonPath, `${JSON.stringify(manifest, null, 2)}\n`);
-}
-
-export function productionizeImports(
-  imports: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
-  const subpathImports = imports?.['#*'];
-  const hasDistDefault =
-    typeof subpathImports === 'object' &&
-    subpathImports !== null &&
-    !Array.isArray(subpathImports) &&
-    (subpathImports as Record<string, unknown>).default === './dist/*';
-
-  if (subpathImports !== './src/*' && !hasDistDefault) return imports;
-
-  return {...imports, '#*': './dist/*'};
 }
 
 function buildsToDist(packageJsonPath: string): boolean {

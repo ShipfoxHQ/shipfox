@@ -14,7 +14,7 @@
     "check:published-artifacts": "node dev/published-package-artifacts.mjs",
     "fix:dependencies": "syncpack fix --no-ansi",
     "test": "node --test dev/*.test.mjs",
-    "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
+    "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && node dev/publish-productionized-closure.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

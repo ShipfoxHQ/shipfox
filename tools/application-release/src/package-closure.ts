@@ -238,6 +238,16 @@ function validatePublishedPackage(
       `Publication closure package does not map internal imports to dist: ${packageLabel}`,
     );
   }
+  const sourceConditions = new Set(['development', 'workspace-source']);
+  const packedTargets = [
+    ...exportTargetPaths(manifest.imports, new Set([...sourceConditions, 'types'])),
+    ...exportTargetPaths(manifest.exports, sourceConditions),
+  ];
+  if (packedTargets.some((target) => target.includes('./src/'))) {
+    throw new Error(
+      `Publication closure package resolves to src after productionization: ${packageLabel}`,
+    );
+  }
   for (const script of ['build', 'type', 'type:emit']) {
     if (!manifest.scripts?.[script]) {
       throw new Error(
