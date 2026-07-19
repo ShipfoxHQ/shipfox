@@ -138,6 +138,7 @@ export function portsFromBase(base) {
     otelService: base + 9,
     linearMcp: base + 10,
     githubApi: base + 11,
+    slackApi: base + 12,
   };
 }
 
@@ -157,6 +158,7 @@ function portsFromEnv(env) {
     otelService: numberFromEnv(env, 'SHIPFOX_OTEL_SERVICE_METRICS_PORT'),
     linearMcp: optionalNumberFromEnv(env, 'SHIPFOX_LINEAR_MCP_PORT') ?? base + 10,
     githubApi: optionalNumberFromEnv(env, 'SHIPFOX_GITHUB_API_PORT') ?? base + 11,
+    slackApi: optionalNumberFromEnv(env, 'SHIPFOX_SLACK_API_PORT') ?? base + 12,
   };
   return ports;
 }
@@ -188,6 +190,7 @@ function portEnv(ports) {
     SHIPFOX_OTEL_SERVICE_METRICS_PORT: String(ports.otelService),
     SHIPFOX_LINEAR_MCP_PORT: String(ports.linearMcp),
     SHIPFOX_GITHUB_API_PORT: String(ports.githubApi),
+    SHIPFOX_SLACK_API_PORT: String(ports.slackApi),
   };
 }
 
@@ -216,6 +219,7 @@ export function appEnv(ports) {
     GITHUB_API_BASE_URL: `http://127.0.0.1:${ports.githubApi}`,
     LOG_STORAGE_S3_ENDPOINT: `http://localhost:${ports.garageS3}`,
     LINEAR_MCP_ENDPOINT: `http://127.0.0.1:${ports.linearMcp}/mcp`,
+    SLACK_API_BASE_URL: `http://127.0.0.1:${ports.slackApi}`,
     OTEL_INSTANCE_METRICS_PORT: String(ports.otelInstance),
     OTEL_SERVICE_METRICS_PORT: String(ports.otelService),
     VITE_API_URL: apiUrl,
@@ -311,7 +315,7 @@ export function parsePort(raw) {
 
 export function parseBasePort(raw) {
   const port = parsePort(raw);
-  return port !== undefined && port <= 65_525 ? port : undefined;
+  return port !== undefined && port <= 65_523 ? port : undefined;
 }
 
 function writeEnvFile(file, values) {

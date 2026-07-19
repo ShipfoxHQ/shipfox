@@ -66,7 +66,9 @@ describe('e2eEnv', () => {
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
     assert.equal(env.INTEGRATIONS_ENABLE_LINEAR_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
+    assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:55361/');
+    assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:55362/');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
     assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
@@ -83,6 +85,7 @@ describe('e2eEnv', () => {
       GITEA_CLONE_BASE_URL: 'http://localhost:3000',
       LINEAR_MCP_ENDPOINT: 'http://127.0.0.1:16120/mcp',
       GITHUB_API_BASE_URL: 'http://127.0.0.1:16121',
+      SLACK_API_BASE_URL: 'http://127.0.0.1:16122',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -94,6 +97,7 @@ describe('e2eEnv', () => {
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:3000');
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:16120/mcp');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:16121');
+    assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
   });
 
@@ -116,6 +120,13 @@ describe('e2eEnv', () => {
     assert.throws(
       () => e2eEnv({API_URL: 'http://localhost:65526'}),
       /Cannot derive a GitHub API port/u,
+    );
+  });
+
+  test('rejects an API port that cannot reserve the Slack API offset', () => {
+    assert.throws(
+      () => e2eEnv({API_URL: 'http://localhost:65525'}),
+      /Cannot derive a Slack API port/u,
     );
   });
 });

@@ -34,6 +34,7 @@ describe('portsFromBase', () => {
       otelService: 65_009,
       linearMcp: 65_010,
       githubApi: 65_011,
+      slackApi: 65_012,
     });
   });
 });
@@ -77,6 +78,7 @@ describe('appEnv', () => {
     assert.equal(env.SHIPFOX_DOCS_PORT, '55294');
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55300/mcp');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:55301');
+    assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:55302');
   });
 });
 
@@ -165,7 +167,7 @@ describe('parsePort', () => {
 
 describe('parseBasePort', () => {
   test('keeps the base port low enough for every service offset', () => {
-    assert.equal(parseBasePort('65525'), 65_525);
-    assert.equal(parseBasePort('65526'), undefined);
+    assert.equal(parseBasePort('65523'), 65_523);
+    assert.equal(parseBasePort('65524'), undefined);
   });
 });

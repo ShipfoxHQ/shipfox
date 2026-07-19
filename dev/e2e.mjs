@@ -173,6 +173,7 @@ export function e2eEnv(sourceEnv) {
   const giteaUrl = sourceEnv.E2E_GITEA_URL ?? sourceEnv.GITEA_BASE_URL ?? 'http://localhost:3000';
   const linearMcpEndpoint = sourceEnv.LINEAR_MCP_ENDPOINT ?? e2eLinearMcpEndpoint(apiUrl);
   const githubApiBaseUrl = sourceEnv.GITHUB_API_BASE_URL ?? e2eGithubApiBaseUrl(apiUrl);
+  const slackApiBaseUrl = sourceEnv.SLACK_API_BASE_URL ?? e2eSlackApiBaseUrl(apiUrl);
   return {
     ...sourceEnv,
     API_URL: apiUrl,
@@ -197,6 +198,7 @@ export function e2eEnv(sourceEnv) {
       sourceEnv.GITHUB_INSTALL_STATE_SECRET ?? 'e2e-github-install-state-secret',
     INTEGRATIONS_ENABLE_GITHUB_PROVIDER: sourceEnv.INTEGRATIONS_ENABLE_GITHUB_PROVIDER ?? 'true',
     INTEGRATIONS_ENABLE_LINEAR_PROVIDER: sourceEnv.INTEGRATIONS_ENABLE_LINEAR_PROVIDER ?? 'true',
+    INTEGRATIONS_ENABLE_SLACK_PROVIDER: sourceEnv.INTEGRATIONS_ENABLE_SLACK_PROVIDER ?? 'true',
     LINEAR_MCP_ENDPOINT: linearMcpEndpoint,
     LINEAR_OAUTH_CLIENT_ID: sourceEnv.LINEAR_OAUTH_CLIENT_ID ?? 'e2e-linear-client-id',
     LINEAR_OAUTH_CLIENT_SECRET:
@@ -205,6 +207,12 @@ export function e2eEnv(sourceEnv) {
       sourceEnv.LINEAR_OAUTH_REDIRECT_URL ?? `${clientUrl}/integrations/linear/callback`,
     LINEAR_WEBHOOK_SIGNING_SECRET:
       sourceEnv.LINEAR_WEBHOOK_SIGNING_SECRET ?? 'e2e-linear-webhook-secret',
+    SLACK_API_BASE_URL: slackApiBaseUrl,
+    SLACK_OAUTH_CLIENT_ID: sourceEnv.SLACK_OAUTH_CLIENT_ID ?? 'e2e-slack-client-id',
+    SLACK_OAUTH_CLIENT_SECRET: sourceEnv.SLACK_OAUTH_CLIENT_SECRET ?? 'e2e-slack-client-secret',
+    SLACK_OAUTH_REDIRECT_URL:
+      sourceEnv.SLACK_OAUTH_REDIRECT_URL ?? `${clientUrl}/integrations/slack/callback`,
+    SLACK_SIGNING_SECRET: sourceEnv.SLACK_SIGNING_SECRET ?? 'e2e-slack-signing-secret',
     VITE_API_URL: sourceEnv.VITE_API_URL ?? apiUrl,
     VITE_ENABLE_TEST_VCS_PROVIDER: sourceEnv.VITE_ENABLE_TEST_VCS_PROVIDER ?? 'true',
     WEBHOOK_PUBLIC_URL: sourceEnv.WEBHOOK_PUBLIC_URL ?? apiUrl,
@@ -220,6 +228,21 @@ export function e2eGithubApiBaseUrl(apiUrl) {
   }
   endpoint.hostname = '127.0.0.1';
   endpoint.port = String(githubApiPort);
+  endpoint.pathname = '/';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+export function e2eSlackApiBaseUrl(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  const slackApiPort = apiPort + 11;
+  if (slackApiPort > 65_535) {
+    throw new Error(`Cannot derive a Slack API port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(slackApiPort);
   endpoint.pathname = '/';
   endpoint.search = '';
   endpoint.hash = '';
