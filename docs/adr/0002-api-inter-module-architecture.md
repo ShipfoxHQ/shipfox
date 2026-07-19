@@ -3,8 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-07-19
 - **Decision owners:** API inter-module contracts
-- **Linear issue:** [ENG-1032](https://linear.app/shipfox/issue/ENG-1032/define-the-api-inter-module-architecture-and-bounded-context-policy)
-- **Foundation issue:** [ENG-1033](https://linear.app/shipfox/issue/ENG-1033/build-the-registered-in-memory-inter-module-transport)
+- **Decision issue:** [Define the API inter-module architecture](https://linear.app/shipfox/issue/ENG-1032/define-the-api-inter-module-architecture-and-bounded-context-policy)
+- **Foundation delivery:** [Build the registered in-memory transport](https://linear.app/shipfox/issue/ENG-1033/build-the-registered-in-memory-inter-module-transport)
 
 ## Context
 
@@ -17,9 +17,9 @@ producer's internal model without an explicit decision. Local calls can also pas
 fail across a serialized transport. Package publication then turns internal details into compatibility
 obligations.
 
-[ENG-1031](https://linear.app/shipfox/issue/ENG-1031/spike-contract-first-in-memory-calls-between-triggers-and-workflows)
-compared a plain TypeScript and Zod port with oRPC. The spike used the Triggers to Workflows boundary
-and checked local and serialized behavior. It retained no prototype code.
+The [contract-first transport spike](https://linear.app/shipfox/issue/ENG-1031/spike-contract-first-in-memory-calls-between-triggers-and-workflows)
+compared a plain TypeScript and Zod port with oRPC. It used the Triggers to Workflows boundary and
+checked local and serialized behavior. It retained no prototype code.
 
 ## Decision
 
@@ -43,8 +43,8 @@ Shipfox implements this architecture with plain TypeScript and Zod. Shipfox does
 this need. oRPC adds a framework, dependency, and release surface without solving a current contract
 problem that the smaller design leaves open.
 
-This ADR changes no production behavior. ENG-1033 implements the shared foundation. The later issues
-in the project migrate one producer boundary at a time.
+This ADR changes no production behavior. A follow-up implements the shared foundation. Later work
+migrates one producer boundary at a time.
 
 ## Bounded contexts
 
@@ -89,30 +89,35 @@ shared infrastructure imports as implementation crossings.
 
 | Producer | Consumer | Current implementation surface | Intended producer API |
 | --- | --- | --- | --- |
-| Secrets | Agent | Secret read, namespace read, write, delete, and domain errors | Secrets inter-module API in [ENG-1034](https://linear.app/shipfox/issue/ENG-1034/expose-the-secrets-inter-module-api-and-migrate-its-consumers) |
-| Secrets | Integrations | The composition root injects raw secret functions and provider namespace wrappers | Secrets inter-module API in ENG-1034 |
-| Secrets | Workflows | Secret and variable reads plus a decryption domain error | Secrets inter-module API in ENG-1034 |
-| Workspaces | Auth | Membership listing, invitation preflight and acceptance, and domain errors | Workspaces inter-module API in [ENG-1038](https://linear.app/shipfox/issue/ENG-1038/expose-the-workspaces-inter-module-api-and-migrate-its-consumers) |
-| Workspaces | Integrations | GitHub, Jira, Linear, and Slack install routes import a membership database check | Workspaces inter-module API in ENG-1038 |
-| Integrations | Projects | Source-control provider interface and Integrations errors | Integrations inter-module API in [ENG-1035](https://linear.app/shipfox/issue/ENG-1035/expose-the-integrations-inter-module-api-and-migrate-its-consumers) |
-| Integrations | Definitions | Source control, catalogs, connection snapshots, connection lookup, and errors | Integrations inter-module API in ENG-1035 |
-| Integrations | Workflows | Source control, checkout types, catalogs, connection data, and process-global setters | Integrations inter-module API in ENG-1035 |
-| Workflows | Integrations | The composition root injects `loadRunningLeasedStep` into the agent-tools gateway | Workflows inter-module API in [ENG-1037](https://linear.app/shipfox/issue/ENG-1037/migrate-logs-and-integrations-to-the-workflows-inter-module-api) |
-| Projects | Definitions | Project access function and domain error | Projects inter-module API in [ENG-1040](https://linear.app/shipfox/issue/ENG-1040/expose-the-projects-inter-module-api-and-migrate-its-consumers) |
-| Projects | Secrets | Project lookup and authorization function plus a domain error | Projects inter-module API in ENG-1040 |
-| Projects | Workflows | Project lookup and access functions plus domain errors | Projects inter-module API in ENG-1040 |
-| Auth | Runners | Runner and job token minting plus Auth configuration | Auth inter-module API in [ENG-1039](https://linear.app/shipfox/issue/ENG-1039/expose-the-auth-inter-module-api-and-migrate-its-consumers) |
-| Auth | Workflows | Job lease token minting | Auth inter-module API in ENG-1039 |
-| Auth | Logs | Auth configuration import | Module-owned configuration or composition policy in ENG-1039 |
-| Workflows | Triggers | Run and listener commands, Workflow entities, and domain errors | Workflows inter-module API in [ENG-1036](https://linear.app/shipfox/issue/ENG-1036/expose-the-workflows-inter-module-api-and-migrate-triggers) |
-| Workflows | Logs | Step entity lookup and a test-only global replacement | Workflows inter-module API in ENG-1037 |
-| Definitions | Workflows | Definition lookup, mutable workflow model types, and defaults | Definitions inter-module API in [ENG-1041](https://linear.app/shipfox/issue/ENG-1041/expose-the-definitions-inter-module-api-and-migrate-workflows) |
-| Runners | Workflows | Queue commands, lease checks, and runner capability helpers | Runners inter-module API in [ENG-1042](https://linear.app/shipfox/issue/ENG-1042/expose-the-runners-inter-module-api-and-migrate-workflows) |
-| Agent | Workflows | Resolver callbacks, runtime credentials, deep implementation imports, and domain errors | Agent inter-module API in [ENG-1043](https://linear.app/shipfox/issue/ENG-1043/expose-the-agent-inter-module-api-and-migrate-workflows) |
-| Annotations | Workflows | Annotation mutation function, params, and domain errors | Annotations inter-module API in [ENG-1044](https://linear.app/shipfox/issue/ENG-1044/expose-the-annotations-inter-module-api-and-migrate-workflows) |
+| Secrets | Agent | Secret read, namespace read, write, delete, and domain errors | Secret and namespace operations |
+| Secrets | Integrations | The composition root injects raw secret functions and provider namespace wrappers | Provider-scoped secret operations |
+| Secrets | Workflows | Secret and variable reads plus a decryption domain error | Secret and variable reads |
+| Workspaces | Auth | Membership listing, invitation preflight and acceptance, and domain errors | Membership and invitation operations |
+| Workspaces | Integrations | GitHub, Jira, Linear, and Slack install routes import a membership database check | Active membership checks |
+| Integrations | Projects | Source-control provider interface and Integrations errors | Source-control operations |
+| Integrations | Definitions | Source control, catalogs, connection snapshots, connection lookup, and errors | Source-control and connection operations |
+| Integrations | Workflows | Source control, checkout types, catalogs, connection data, and process-global setters | Checkout, connection, and agent-tool operations |
+| Workflows | Integrations | The composition root injects `loadRunningLeasedStep` into the agent-tools gateway | Leased-step context lookup |
+| Projects | Definitions | Project access function and domain error | Project access checks |
+| Projects | Secrets | Project lookup and authorization function plus a domain error | Project ownership checks |
+| Projects | Workflows | Project lookup and access functions plus domain errors | Project lookup and access checks |
+| Auth | Runners | Runner and job token minting plus Auth configuration | Runner and job token minting |
+| Auth | Workflows | Job lease token minting | Job lease token minting |
+| Auth | Logs | Auth configuration import | Module-owned configuration or composition policy |
+| Workflows | Triggers | Run and listener commands, Workflow entities, and domain errors | Run start and listener delivery commands |
+| Workflows | Logs | Step entity lookup and a test-only global replacement | Step log context lookup |
+| Definitions | Workflows | Definition lookup, mutable workflow model types, and defaults | Versioned definition snapshots |
+| Runners | Workflows | Queue commands, lease checks, and runner capability helpers | Scheduling, lease, and capability operations |
+| Agent | Workflows | Resolver callbacks, runtime credentials, deep implementation imports, and domain errors | Agent defaults, step materialization, and runtime credentials |
+| Annotations | Workflows | Annotation mutation function, params, and domain errors | Annotation replace and remove commands |
 
 `@shipfox/api-server` also imports each implementation module and factory. Those imports are the
 composition-root exception. They are not consumer dependencies.
+
+The delivery sequence, owners, and issue dependencies live in the
+[API inter-module contracts project](https://linear.app/shipfox/project/api-inter-module-contracts-de98dd5921b5).
+This ADR stays focused on the architecture so delivery splits can change without making the decision
+harder to read.
 
 ## Contract ownership and naming
 
@@ -162,7 +167,7 @@ The composition root performs these operations in order:
 7. Seal the transport. Reject later registrations and calls made before sealing.
 8. Start database migration, startup tasks, workers, metrics, and HTTP listeners.
 
-The exact foundation API belongs to ENG-1033. Its declarative shape must preserve this model:
+The transport foundation defines the exact API. Its declarative shape must preserve this model:
 
 ```ts
 const transport = createInterModuleTransport();
@@ -337,9 +342,8 @@ through a DTO or shared package is also forbidden.
 
 ## Dependency Cruiser enforcement
 
-[ENG-1045](https://linear.app/shipfox/issue/ENG-1045/enforce-bounded-context-imports-and-close-the-inter-module-migration)
-adds the final repository gate. The gate uses the bounded-context package map in this ADR and applies
-to production and test imports in API packages.
+The final migration adds the repository gate. The gate uses the bounded-context package map in this
+ADR and applies to production and test imports in API packages.
 
 The policy has these rules:
 
@@ -360,8 +364,8 @@ presentations instead of importing peer implementations. Cross-context integrati
 the application composition or E2E layer.
 
 The final rule set has no broad temporary allowlist. A crossing that cannot migrate gets one exact
-path exception with an owner, reason, and Linear follow-up. ENG-1045 removes that exception or records
-it as a new decision.
+path exception with an owner, reason, and tracking issue. The final migration removes that exception
+or records it as a new decision.
 
 ## Testing model
 
