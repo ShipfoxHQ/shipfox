@@ -20,11 +20,16 @@ The fixture proves that:
 
 ## Distribution isolation
 
-Packed mode builds declarations and runtime files before creating tarballs. It installs every
-first-party package through `file:` overrides in a temporary consumer outside the workspace, rejects
-registry-resolved Shipfox packages, rejects `workspace:` ranges, and confirms runtime imports resolve
-through each package's default `dist` condition. Linked mode keeps the same behavior and type checks
-for faster local iteration.
+Packed mode builds declarations and runtime files before creating tarballs, then productionizes each
+manifest like `release:publish` so source conditions cannot leak into the consumer artifact. The
+fixture declares only the documented client composition roots, plus `@shipfox/client-config` for its
+own config proof, while `file:` overrides keep every first-party runtime dependency in the full
+closure on its local tarball. It rejects registry-resolved Shipfox packages and `workspace:` ranges
+across every installed closure package, checks that generated package imports are direct fixture
+dependencies, and confirms full-closure runtime and type imports resolve through `dist` under
+default, `development`, and `types` conditions. Linked mode keeps the
+minimal-consumer, generated-route, behavior, collision, and type checks for faster local iteration;
+its workspace packages intentionally resolve `development` to source.
 
 ## Collision diagnostic
 

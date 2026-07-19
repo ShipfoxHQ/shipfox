@@ -354,8 +354,9 @@ Packages keep the repository export conditions:
 - `shipfox-tsc-emit` emits declarations; and
 - ESM export maps define the public surface.
 
-The packed-consumer gate runs without source conditions. Changesets link the public client packages
-as one release group. `@shipfox/react-ui` stays outside that linked group.
+The packed-consumer gate verifies default, `development`, and `types` resolution against
+productionized tarballs with no source targets. Changesets link the public client packages as one
+release group. `@shipfox/react-ui` stays outside that linked group.
 
 ## Composition roots
 
