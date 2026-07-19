@@ -13,6 +13,45 @@ export interface EvaluatedFeatures {
   loadedFiles: readonly string[];
 }
 
+function loadedModuleGraph(namespaceQuery: string): {
+  cacheKeys: Set<string>;
+  loadedPaths: Set<string>;
+} {
+  const cacheKeys = new Set<string>();
+  const loadedPaths = new Set<string>();
+  const keysByModule = new Map<NodeJS.Module, string[]>();
+
+  for (const [cacheKey, cachedModule] of Object.entries(require.cache)) {
+    if (!cachedModule) continue;
+    const keys = keysByModule.get(cachedModule) ?? [];
+    keys.push(cacheKey);
+    keysByModule.set(cachedModule, keys);
+  }
+
+  const visited = new Set<NodeJS.Module>();
+  function visit(cachedModule: NodeJS.Module): void {
+    if (visited.has(cachedModule)) return;
+    visited.add(cachedModule);
+
+    for (const cacheKey of keysByModule.get(cachedModule) ?? []) {
+      const path = cacheKey.endsWith(namespaceQuery)
+        ? cacheKey.slice(0, -namespaceQuery.length)
+        : cacheKey;
+      const isLocal = !nodeModulesPathPattern.test(path);
+      if (isLocal) loadedPaths.add(path);
+      if (isLocal || cacheKey.endsWith(namespaceQuery)) cacheKeys.add(cacheKey);
+    }
+
+    for (const child of cachedModule.children) visit(child);
+  }
+
+  for (const [cacheKey, cachedModule] of Object.entries(require.cache)) {
+    if (cachedModule && cacheKey.endsWith(namespaceQuery)) visit(cachedModule);
+  }
+
+  return {cacheKeys, loadedPaths};
+}
+
 async function localFiles(paths: Iterable<string>): Promise<string[]> {
   const files = new Set<string>();
   for (const path of paths) {
@@ -28,17 +67,14 @@ export async function evaluateFeatures(featuresModule: string): Promise<Evaluate
   const namespaceQuery = `?namespace=${namespace}`;
   const loader = register({namespace});
   const loadedPaths = new Set<string>([resolvedFeaturesModule]);
+  const cacheKeys = new Set<string>();
+  const initialCacheKeys = new Set(Object.keys(require.cache));
   let module: {default?: unknown; features?: unknown};
   try {
     module = loader.require(resolvedFeaturesModule, import.meta.url) as {
       default?: unknown;
       features?: unknown;
     };
-    for (const path of Object.keys(require.cache)) {
-      if (path.endsWith(namespaceQuery)) {
-        loadedPaths.add(path.slice(0, -namespaceQuery.length));
-      }
-    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -46,10 +82,22 @@ export async function evaluateFeatures(featuresModule: string): Promise<Evaluate
       {cause: error},
     );
   } finally {
-    loader.unregister();
-    for (const path of Object.keys(require.cache)) {
-      if (path.endsWith(namespaceQuery)) delete require.cache[path];
+    const graph = loadedModuleGraph(namespaceQuery);
+    for (const path of graph.loadedPaths) loadedPaths.add(path);
+    for (const cacheKey of graph.cacheKeys) cacheKeys.add(cacheKey);
+    for (const cacheKey of Object.keys(require.cache)) {
+      if (initialCacheKeys.has(cacheKey)) continue;
+      const path = cacheKey.endsWith(namespaceQuery)
+        ? cacheKey.slice(0, -namespaceQuery.length)
+        : cacheKey;
+      const isLocal = !nodeModulesPathPattern.test(path);
+      if (isLocal) loadedPaths.add(path);
+      if (isLocal || cacheKey.endsWith(namespaceQuery)) cacheKeys.add(cacheKey);
     }
+    loader.unregister();
+    for (const cacheKey of cacheKeys) delete require.cache[cacheKey];
+    for (const cacheKey of Object.keys(require.cache))
+      if (cacheKey.endsWith(namespaceQuery)) delete require.cache[cacheKey];
   }
 
   const features = module.features ?? module.default;

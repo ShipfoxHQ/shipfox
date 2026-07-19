@@ -31,7 +31,6 @@ type MergeableConfigInput = ConfigInput & {
   ssr?: {
     resolve?: {
       conditions?: string[];
-      externalConditions?: string[];
     };
   };
   test?: {
@@ -73,11 +72,6 @@ function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): 
         ...existingSsrResolve,
         conditions:
           existingSsrResolve.conditions ?? [...vitestServerConditions, 'workspace-source'],
-        externalConditions:
-          existingSsrResolve.externalConditions ?? [
-            ...vitestServerConditions,
-            'workspace-source',
-          ],
       },
     },
     optimizeDeps: {

@@ -37,6 +37,50 @@ export const features = [feature];`,
     expect(evaluated.loadedFiles).toContain(await realpath(contribution));
   });
 
+  test('reloads JSON dependencies and reports them as watched files', async () => {
+    const features = join(directory, 'features.ts');
+    const contribution = join(directory, 'contribution.json');
+    await writeFile(
+      features,
+      `import feature from './contribution.json';
+export const features = [feature];`,
+    );
+    await writeFile(contribution, JSON.stringify({id: 'acme.projects'}));
+
+    await evaluateFeatures(features);
+    await writeFile(contribution, JSON.stringify({id: 'acme.reports'}));
+
+    const evaluated = await evaluateFeatures(features);
+
+    expect(evaluated.features).toEqual([{id: 'acme.reports'}]);
+    expect(evaluated.loadedFiles).toContain(await realpath(contribution));
+  });
+
+  test('evicts JSON dependencies after evaluation fails', async () => {
+    const features = join(directory, 'features.ts');
+    const contribution = join(directory, 'contribution.json');
+    await writeFile(
+      features,
+      `import feature from './contribution.json';
+throw new Error('fixture failure');
+export const features = [feature];`,
+    );
+    await writeFile(contribution, JSON.stringify({id: 'acme.projects'}));
+
+    const failedEvaluation = evaluateFeatures(features);
+    await expect(failedEvaluation).rejects.toThrow('fixture failure');
+    await writeFile(
+      features,
+      `import feature from './contribution.json';
+export const features = [feature];`,
+    );
+    await writeFile(contribution, JSON.stringify({id: 'acme.reports'}));
+
+    const evaluated = await evaluateFeatures(features);
+
+    expect(evaluated.features).toEqual([{id: 'acme.reports'}]);
+  });
+
   test('resolves package imports through the workspace source condition', async () => {
     const evaluated = await evaluateFeatures(fixtureFeatures);
 
