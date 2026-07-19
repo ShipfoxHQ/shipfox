@@ -2,7 +2,7 @@ import {mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import type {Plugin, ResolvedConfig} from 'vite';
+import {type Plugin, type ResolvedConfig, build as viteBuild} from 'vite';
 import {shipfoxClientComposition} from './plugin.js';
 
 const fixtureFeatures = fileURLToPath(new URL('../../test/fixtures/features.ts', import.meta.url));
@@ -35,13 +35,12 @@ function resolveRouteImplementation(source: string): string | undefined {
   const files: Record<string, string> = {
     '#test/default-route-impl.js': join(testDirectory, 'default-route-impl.tsx'),
     '#test/named-route-impl.js': join(testDirectory, 'named-route-impl.tsx'),
-    '#test/not-route-impl.js': join(testDirectory, 'not-route-impl.ts'),
     '#test/search-route-impl.js': join(testDirectory, 'search-route-impl.tsx'),
   };
   return files[source];
 }
 
-function pluginContext() {
+function pluginContext(resolveImplementation = resolveRouteImplementation) {
   const watchedFiles: string[] = [];
   return {
     watchedFiles,
@@ -49,13 +48,13 @@ function pluginContext() {
       watchedFiles.push(file);
     },
     resolve(source: string) {
-      const id = resolveRouteImplementation(source);
+      const id = resolveImplementation(source);
       return Promise.resolve(id ? {id} : null);
     },
     environment: {
       pluginContainer: {
         resolveId(source: string) {
-          const id = resolveRouteImplementation(source);
+          const id = resolveImplementation(source);
           return Promise.resolve(id ? {id} : null);
         },
       },
@@ -95,7 +94,7 @@ describe('shipfoxClientComposition', () => {
     await build(plugin, context);
 
     await expect(readFile(out, 'utf8')).resolves.toContain(
-      'import route0Impl from "#test/search-route-impl.js";',
+      'import * as route0Module from "#test/search-route-impl.js";',
     );
     expect(context.watchedFiles).toContain(fixtureFeatures);
   });
@@ -118,18 +117,69 @@ describe('shipfoxClientComposition', () => {
     );
   });
 
-  test('rejects route implementations without a default export', async () => {
+  test('fails the Vite build when a route implementation cannot resolve', async () => {
     const features = join(directory, 'features.ts');
     await writeFile(
       features,
-      `export const features = [{id: 'acme.projects', routes: [{path: '/projects', parent: 'root', impl: '#test/not-route-impl.js'}]}];`,
+      `export const features = [{id: 'acme.projects', routes: [{path: '/projects', parent: 'root', impl: '#test/missing-route-impl.js'}]}];`,
     );
     const plugin = shipfoxClientComposition({features, out: join(directory, 'shipfox-app.gen.ts')});
     const context = pluginContext();
     configure(plugin);
 
     await expect(build(plugin, context)).rejects.toThrow(
-      'Route implementation "#test/not-route-impl.js" for "/projects" must export default defineRoute(...).',
+      'Could not resolve route implementation "#test/missing-route-impl.js" for "/projects".',
+    );
+  });
+
+  test('generates when Vite resolves a route implementation with a version query', async () => {
+    const out = join(directory, 'shipfox-app.gen.ts');
+    const plugin = shipfoxClientComposition({features: fixtureFeatures, out});
+    const context = pluginContext((source) => {
+      if (source === '#test/search-route-impl.js') {
+        return `${join(testDirectory, 'search-route-impl.tsx')}?v=abc123`;
+      }
+      return resolveRouteImplementation(source);
+    });
+    configure(plugin);
+
+    await build(plugin, context);
+
+    await expect(readFile(out, 'utf8')).resolves.toContain(
+      'import * as route0Module from "#test/search-route-impl.js";',
+    );
+  });
+
+  test('bundles a named-only route module so the runtime export guard can report it', async () => {
+    const features = join(directory, 'features.ts');
+    const implementation = join(directory, 'not-route-impl.ts');
+    const output = join(directory, 'shipfox-app.gen.ts');
+    const entry = join(directory, 'main.ts');
+    await Promise.all([
+      writeFile(
+        features,
+        `export const features = [{id: 'acme.projects', routes: [{path: '/projects', parent: 'root', impl: './not-route-impl.ts'}]}];`,
+      ),
+      writeFile(implementation, 'export const Route = () => null;'),
+      writeFile(entry, "import './shipfox-app.gen.ts';"),
+    ]);
+
+    await expect(
+      viteBuild({
+        root: process.cwd(),
+        logLevel: 'silent',
+        plugins: [shipfoxClientComposition({features, out: output})],
+        build: {
+          write: false,
+          rolldownOptions: {
+            input: entry,
+            external: ['@shipfox/client-shell/runtime', '@tanstack/react-router'],
+          },
+        },
+      }),
+    ).resolves.toBeDefined();
+    await expect(readFile(output, 'utf8')).resolves.toContain(
+      'routeOptions(route0Module.default, "./not-route-impl.ts", "/projects")',
     );
   });
 

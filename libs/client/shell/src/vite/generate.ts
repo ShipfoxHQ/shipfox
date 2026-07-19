@@ -34,14 +34,14 @@ export function generateAppModule({
     routePath: routePathForAnchor(route.parent, route.path),
   }));
   const imports = routes
-    .map((route, index) => `import route${index}Impl from ${literal(route.impl)};`)
+    .map((route, index) => `import * as route${index}Module from ${literal(route.impl)};`)
     .join('\n');
   const routeDeclarations = generatedRoutes
     .map(
       (route, index) => `const route${index} = createRoute({
   getParentRoute: () => ${route.parent === 'root' ? 'skeleton.rootRoute' : `skeleton.${route.parent}`},
   path: ${literal(route.routePath)},
-  ...routeOptions(route${index}Impl, ${literal(route.impl)}, ${literal(route.path)}),
+  ...routeOptions(route${index}Module.default, ${literal(route.impl)}, ${literal(route.path)}),
 });`,
     )
     .join('\n\n');
