@@ -19,6 +19,7 @@ const repositoryRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url
 const MISSING_ROOT_ERROR = /Publication root is not a workspace package: @shipfox\/missing/u;
 const MISSING_RUNTIME_ERROR = /missing: @shipfox\/runtime/u;
 const PRIVATE_RUNTIME_ERROR = /Publication closure package is private: @shipfox\/private-runtime/u;
+const SOURCE_TARGET_ERROR = /resolves to src after productionization/u;
 const UNEXPECTED_RUNTIME_ERROR = /unexpected: @shipfox\/runtime/u;
 const INVALID_VERSION_ERROR = /has invalid version/u;
 
@@ -38,13 +39,15 @@ function workspacePackage(name, options = {}) {
         directory: directory.slice('/repo/'.length),
       },
       imports: {
-        '#*': {
-          'workspace-source': './src/*',
-          development: './src/*',
-          default: './dist/*',
-        },
+        ...(options.imports ?? {
+          '#*': {
+            'workspace-source': './src/*',
+            development: './src/*',
+            default: './dist/*',
+          },
+        }),
       },
-      exports: {'.': './dist/index.js'},
+      exports: options.exports ?? {'.': './dist/index.js'},
       scripts: {build: 'build', type: 'type', 'type:emit': 'type:emit'},
       dependencies: options.dependencies,
       optionalDependencies: options.optionalDependencies,
@@ -124,6 +127,51 @@ describe('publication closure', () => {
 
     assert.throws(validate, PRIVATE_RUNTIME_ERROR);
   });
+
+  test('allows source conditions when packed targets resolve to dist', () => {
+    const packages = new Map([['@shipfox/root', workspacePackage('@shipfox/root')]]);
+    const config = {roots: ['@shipfox/root'], packages: ['@shipfox/root']};
+
+    const closure = validatePublicationState(packages, config, '/repo');
+
+    assert.deepEqual(closure, ['@shipfox/root']);
+  });
+
+  for (const [field, options] of [
+    [
+      'imports',
+      {
+        imports: {
+          '#*': {
+            'workspace-source': './src/*',
+            development: './src/*',
+            default: './dist/*',
+          },
+          '#generated/*': {default: './src/generated/*'},
+        },
+      },
+    ],
+    [
+      'exports',
+      {
+        exports: {
+          '.': {
+            development: {types: './src/index.ts', default: './src/index.ts'},
+            default: {types: './dist/index.d.ts', default: './src/index.js'},
+          },
+        },
+      },
+    ],
+  ]) {
+    test(`rejects ${field} that resolves to source after productionization`, () => {
+      const packages = new Map([['@shipfox/root', workspacePackage('@shipfox/root', options)]]);
+      const config = {roots: ['@shipfox/root'], packages: ['@shipfox/root']};
+
+      const validate = () => validatePublicationState(packages, config, '/repo');
+
+      assert.throws(validate, SOURCE_TARGET_ERROR);
+    });
+  }
 
   test('rejects an application release missing an expected package', () => {
     const validate = () =>
