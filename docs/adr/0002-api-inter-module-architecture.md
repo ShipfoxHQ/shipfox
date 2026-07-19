@@ -1,131 +1,135 @@
-# ADR 0002: API inter-module architecture
+# Architecture decision record 0002: Server inter-module architecture
 
-- **Status:** Accepted
-- **Date:** 2026-07-19
-- **Decision owners:** API inter-module contracts
-- **Decision issue:** [Define the API inter-module architecture](https://linear.app/shipfox/issue/ENG-1032/define-the-api-inter-module-architecture-and-bounded-context-policy)
-- **Foundation delivery:** [Build the registered in-memory transport](https://linear.app/shipfox/issue/ENG-1033/build-the-registered-in-memory-inter-module-transport)
+- **Status:** Accepted.
+- **Date:** 2026-07-19.
+- **Decision owners:** Inter-module contracts.
+- **Decision issue:** [Define the server inter-module architecture](https://linear.app/shipfox/issue/ENG-1032/define-the-api-inter-module-architecture-and-bounded-context-policy).
+- **Foundation delivery:** [Build the registered in-memory transport](https://linear.app/shipfox/issue/ENG-1033/build-the-registered-in-memory-inter-module-transport).
 
 ## Context
 
-API bounded contexts call each other through implementation package exports today. These exports
-include domain functions, entities, errors, database helpers, configuration, and callback-valued
-providers. Some dependencies are passed through module factories. Others use process-global setters.
+**Direct imports hide the real boundary.** Shipfox's application programming interface (API)
+modules import domain functions, errors, database helpers, and config from each other. They also
+import callback-based providers. Some modules use global setters.
 
-This shape makes an implementation package its own integration contract. A consumer can depend on a
-producer's internal model without an explicit decision. Local calls can also pass values that would
-fail across a serialized transport. Package publication then turns internal details into compatibility
-obligations.
+**Local calls hide data problems.** They can pass classes and functions. They can also share objects
+that cannot cross a network. Published packages can make these internal details part of the public
+contract.
 
-The [contract-first transport spike](https://linear.app/shipfox/issue/ENG-1031/spike-contract-first-in-memory-calls-between-triggers-and-workflows)
-compared a plain TypeScript and Zod port with oRPC. It used the Triggers to Workflows boundary and
-checked local and serialized behavior. It retained no prototype code.
+**A spike compared two designs.** The [contract-first transport spike](https://linear.app/shipfox/issue/ENG-1031/spike-contract-first-in-memory-calls-between-triggers-and-workflows)
+used plain [TypeScript](https://www.typescriptlang.org/) and [Zod](https://zod.dev/) in one design.
+The other design used [oRPC](https://github.com/unnoq/orpc). The spike tested local and network calls
+at the Triggers to Workflows boundary. It kept no code.
 
 ## Decision
 
-Shipfox uses **producer-owned inter-module APIs** for synchronous calls between API bounded contexts.
-Each inter-module API has four roles:
+**Shipfox uses producer-owned inter-module APIs.** Each API has four parts:
 
-- A **contract** defines stable method identifiers, JSON-safe Zod schemas, and known errors.
-- A **client** gives a consumer a narrow typed interface for the methods it calls.
-- A **presentation** maps the contract to the producer's application and domain behavior.
-- A **transport** checks and serializes calls. The first production transport is in memory.
+- A **contract** defines stable method names, checked data, and known errors.
+- A **client** gives a caller only the methods it needs.
+- A **presentation** maps the contract to the producer's domain code.
+- A **transport** checks and copies each call. The first transport runs in memory.
 
-The application composition root creates the transport and clients. It passes only declared clients
-to module factories. Producer modules declare their presentations. The composition root registers all
-presentations and seals the transport before startup can cause side effects.
+**The application root owns the full graph.** It creates the transport and clients. It passes each
+module only the clients that module needs. It registers all presentations. It seals the graph before
+startup work can change state.
 
-Consumers do not receive the registry or producer implementation functions. Modules do not register
-through module-load side effects. The same client contract can use a future HTTP transport without a
-consumer change.
+**The same client can later use a network.** A future
+[Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) transport can
+implement the contract without changing callers.
 
-Shipfox implements this architecture with plain TypeScript and Zod. Shipfox does not adopt oRPC for
-this need. oRPC adds a framework, dependency, and release surface without solving a current contract
-problem that the smaller design leaves open.
+**Plain TypeScript and Zod meet the current need.** oRPC adds a framework and a larger release
+surface. It does not solve a missing requirement. Shipfox does not adopt it today.
 
-This ADR changes no production behavior. A follow-up implements the shared foundation. Later work
-migrates one producer boundary at a time.
+**This record changes no runtime behavior.** Follow-up work builds the shared transport. Later work
+moves one producer boundary at a time.
 
 ## Bounded contexts
 
-A bounded context owns a business capability. It owns the capability's data, invariants, application
-operations, errors, configuration, and presentation. A package is only a build and release unit. A
-bounded context can contain more than one package when those packages implement one capability.
+**A bounded context owns one business capability.** It owns the data and rules. It also owns the
+operations, errors, config, and presentations.
 
-The following map is the source of truth for the API migration:
+**A package is a build and release unit.** One context can use more than one package. Its data
+transfer object (DTO) packages hold public data shapes and events.
+
+**This map defines the current contexts.** A package split does not create a new context.
 
 | Bounded context | Packages |
 | --- | --- |
-| Agent | `@shipfox/api-agent`, `@shipfox/api-agent-dto` |
-| Annotations | `@shipfox/annotations`, `@shipfox/annotations-dto` |
-| Auth | `@shipfox/api-auth`, `@shipfox/api-auth-dto` |
-| Definitions | `@shipfox/api-definitions`, `@shipfox/api-definitions-dto` |
-| Integrations | `@shipfox/api-integration-core`, all `@shipfox/api-integration-*` provider packages, and their DTO packages |
-| Logs | `@shipfox/api-logs`, `@shipfox/api-logs-dto` |
-| Projects | `@shipfox/api-projects`, `@shipfox/api-projects-dto` |
-| Runners | `@shipfox/api-runners`, `@shipfox/api-runners-dto` |
-| Secrets | `@shipfox/api-secrets`, `@shipfox/api-secrets-dto` |
-| Triggers | `@shipfox/api-triggers`, `@shipfox/api-triggers-dto` |
-| Workflows | `@shipfox/api-workflows`, `@shipfox/api-workflows-dto` |
-| Workspaces | `@shipfox/api-workspaces`, `@shipfox/api-workspaces-dto` |
+| Agent | `@shipfox/api-agent`, `@shipfox/api-agent-dto`. |
+| Annotations | `@shipfox/annotations`, `@shipfox/annotations-dto`. |
+| Auth | `@shipfox/api-auth`, `@shipfox/api-auth-dto`. |
+| Definitions | `@shipfox/api-definitions`, `@shipfox/api-definitions-dto`. |
+| Integrations | `@shipfox/api-integration-core`, all provider packages, and their DTO packages. |
+| Logs | `@shipfox/api-logs`, `@shipfox/api-logs-dto`. |
+| Projects | `@shipfox/api-projects`, `@shipfox/api-projects-dto`. |
+| Runners | `@shipfox/api-runners`, `@shipfox/api-runners-dto`. |
+| Secrets | `@shipfox/api-secrets`, `@shipfox/api-secrets-dto`. |
+| Triggers | `@shipfox/api-triggers`, `@shipfox/api-triggers-dto`. |
+| Workflows | `@shipfox/api-workflows`, `@shipfox/api-workflows-dto`. |
+| Workspaces | `@shipfox/api-workspaces`, `@shipfox/api-workspaces-dto`. |
 
-`@shipfox/api-server` is the application composition root. `@shipfox/api-dispatcher`,
-`@shipfox/api-auth-context`, and `@shipfox/api-common-dto` are shared API infrastructure. They are not
-business bounded contexts.
+**Three packages provide shared API support.** `@shipfox/api-dispatcher`,
+`@shipfox/api-auth-context`, and `@shipfox/api-common-dto` do not own business capabilities.
+`@shipfox/api-server` is the application root.
 
-The Integrations provider packages are one explicit multi-package context. The provider registry,
-provider ports, and provider-owned adapters are an internal service provider interface (SPI). A new
-package split does not create another exception. The bounded-context map must change in an ADR before
-Dependency Cruiser treats the packages as one context.
+**Integrations is one context with an internal service provider interface (SPI).** Its core and
+provider packages can share provider ports and adapters. The context map controls this exception.
+[Dependency Cruiser](https://github.com/sverweij/dependency-cruiser) uses the map for its rules.
+Update this record before adding another package to the map.
 
 ## Current crossing inventory
 
-This inventory was checked on 2026-07-19 against production imports under `libs/api/**/src`, package
-exports, and `libs/api/server/src/modules.ts`. The composition check matters because a root-level
-function injection does not appear as a direct consumer import.
+**The inventory covers both imports and runtime wiring.** It checks production files under
+`libs/api/**/src` and package exports as of 2026-07-19. It also checks
+`libs/api/server/src/modules.ts`. Root-level injection matters because it does not appear as a caller
+import.
 
-The table groups files by business crossing. It does not count DTO, outbox event, request-claim, or
-shared infrastructure imports as implementation crossings.
+<details>
+<summary><strong>Show the source-backed crossing map.</strong></summary>
 
-| Producer | Consumer | Current implementation surface | Intended producer API |
+| Producer | Caller | Current surface | Intended producer API |
 | --- | --- | --- | --- |
-| Secrets | Agent | Secret read, namespace read, write, delete, and domain errors | Secret and namespace operations |
-| Secrets | Integrations | The composition root injects raw secret functions and provider namespace wrappers | Provider-scoped secret operations |
-| Secrets | Workflows | Secret and variable reads plus a decryption domain error | Secret and variable reads |
-| Workspaces | Auth | Membership listing, invitation preflight and acceptance, and domain errors | Membership and invitation operations |
-| Workspaces | Integrations | GitHub, Jira, Linear, and Slack install routes import a membership database check | Active membership checks |
-| Integrations | Projects | Source-control provider interface and Integrations errors | Source-control operations |
-| Integrations | Definitions | Source control, catalogs, connection snapshots, connection lookup, and errors | Source-control and connection operations |
-| Integrations | Workflows | Source control, checkout types, catalogs, connection data, and process-global setters | Checkout, connection, and agent-tool operations |
-| Workflows | Integrations | The composition root injects `loadRunningLeasedStep` into the agent-tools gateway | Leased-step context lookup |
-| Projects | Definitions | Project access function and domain error | Project access checks |
-| Projects | Secrets | Project lookup and authorization function plus a domain error | Project ownership checks |
-| Projects | Workflows | Project lookup and access functions plus domain errors | Project lookup and access checks |
-| Auth | Runners | Runner and job token minting plus Auth configuration | Runner and job token minting |
-| Auth | Workflows | Job lease token minting | Job lease token minting |
-| Auth | Logs | Auth configuration import | Module-owned configuration or composition policy |
-| Workflows | Triggers | Run and listener commands, Workflow entities, and domain errors | Run start and listener delivery commands |
-| Workflows | Logs | Step entity lookup and a test-only global replacement | Step log context lookup |
-| Definitions | Workflows | Definition lookup, mutable workflow model types, and defaults | Versioned definition snapshots |
-| Runners | Workflows | Queue commands, lease checks, and runner capability helpers | Scheduling, lease, and capability operations |
-| Agent | Workflows | Resolver callbacks, runtime credentials, deep implementation imports, and domain errors | Agent defaults, step materialization, and runtime credentials |
-| Annotations | Workflows | Annotation mutation function, params, and domain errors | Annotation replace and remove commands |
+| Secrets | Agent | Reads, writes, deletes, and domain errors. | Secret and namespace operations. |
+| Secrets | Integrations | Raw secret functions and provider namespace wrappers. | Provider-scoped secret operations. |
+| Secrets | Workflows | Secret and variable reads plus a domain error. | Secret and variable reads. |
+| Workspaces | Auth | Membership and invitation functions plus domain errors. | Membership and invitation operations. |
+| Workspaces | Integrations | A membership database check in install routes. | Active membership checks. |
+| Integrations | Projects | Source-control provider ports and domain errors. | Source-control operations. |
+| Integrations | Definitions | Source control, catalogs, snapshots, connections, and errors. | Source-control and connection operations. |
+| Integrations | Workflows | Checkout types, catalogs, connection data, and global setters. | Checkout, connection, and agent-tool operations. |
+| Workflows | Integrations | A leased-step loader passed through the application root. | Leased-step context lookup. |
+| Projects | Definitions | Project access function and domain error. | Project access checks. |
+| Projects | Secrets | Project lookup and access function plus a domain error. | Project ownership checks. |
+| Projects | Workflows | Project lookup and access functions plus domain errors. | Project lookup and access checks. |
+| Auth | Runners | Token functions and Auth config. | Runner and job token creation. |
+| Auth | Workflows | Job lease token function. | Job lease token creation. |
+| Auth | Logs | Auth config. | Module-owned config or application policy. |
+| Workflows | Triggers | Run and listener commands, entities, and domain errors. | Run start and listener delivery commands. |
+| Workflows | Logs | Step entity lookup and a global test replacement. | Step log context lookup. |
+| Definitions | Workflows | Definition lookup, mutable models, and defaults. | Versioned definition snapshots. |
+| Runners | Workflows | Queue commands, lease checks, and capability helpers. | Scheduling, lease, and capability operations. |
+| Agent | Workflows | Callbacks, credentials, deep imports, and domain errors. | Agent defaults, step setup, and runtime credentials. |
+| Annotations | Workflows | Write function, params, and domain errors. | Annotation replace and remove commands. |
 
-`@shipfox/api-server` also imports each implementation module and factory. Those imports are the
-composition-root exception. They are not consumer dependencies.
+</details>
 
-The delivery sequence, owners, and issue dependencies live in the
-[API inter-module contracts project](https://linear.app/shipfox/project/api-inter-module-contracts-de98dd5921b5).
-This ADR stays focused on the architecture so delivery splits can change without making the decision
-harder to read.
+**The root may import module code.** `@shipfox/api-server` must import module factories and
+presentations to build the graph. Other packages cannot use this exception.
 
-## Contract ownership and naming
+**Delivery tracking lives outside this record.** The
+[API inter-module contracts project](https://linear.app/shipfox/project/api-inter-module-contracts-de98dd5921b5)
+holds the order, owners, and issue links.
 
-Each producer's existing DTO package owns its inter-module contract. The package adds an explicit
-`/inter-module` export. Shipfox does not create a second `*-contract` package for the same bounded
-context.
+## Contract ownership and names
 
-For example, Workflows owns:
+**The producer's DTO package owns the contract.** It adds an explicit `/inter-module` export. Shipfox
+does not create a second contract package for the same context.
+
+**The package root does not re-export these symbols.** HTTP data and events can keep their current DTO
+exports without becoming inter-module API contracts.
+
+**Names follow one pattern.** Workflows provides this import:
 
 ```ts
 import {
@@ -134,44 +138,45 @@ import {
 } from '@shipfox/api-workflows-dto/inter-module';
 ```
 
-Names follow these rules:
-
 | Item | Pattern | Example |
 | --- | --- | --- |
-| Package export | `<producer DTO package>/inter-module` | `@shipfox/api-workflows-dto/inter-module` |
-| Contract value | `<producer>InterModuleContract` | `workflowsInterModuleContract` |
-| Client type | `<Producer>InterModuleClient` | `WorkflowsInterModuleClient` |
-| Presentation factory | `create<Producer>InterModulePresentation` | `createWorkflowsInterModulePresentation` |
-| Module identifier | Stable lowercase context name | `workflows` |
-| Method identifier | Stable use-case verb phrase | `startRunFromTrigger` |
+| Package export | `<producer DTO package>/inter-module`. | `@shipfox/api-workflows-dto/inter-module`. |
+| Contract value | `<producer>InterModuleContract`. | `workflowsInterModuleContract`. |
+| Client type | `<Producer>InterModuleClient`. | `WorkflowsInterModuleClient`. |
+| Presentation factory | `create<Producer>InterModulePresentation`. | `createWorkflowsInterModulePresentation`. |
+| Module name | Stable lowercase context name. | `workflows`. |
+| Method name | Stable use-case verb phrase. | `startRunFromTrigger`. |
 
-Method names describe producer use cases. They do not copy a database function name or expose a
-general repository. A consumer cannot request arbitrary entities, callbacks, configuration objects,
-or transactions.
+**Method names describe business use cases.** They do not copy database function names. Contracts do
+not expose broad stores, callbacks, config objects, or transactions.
 
-The DTO package remains dependency-light. It can depend on Zod and other DTO packages. It cannot
-depend on the producer implementation, Fastify, Drizzle, a transport, or OpenTelemetry. The package
-root does not re-export inter-module symbols. HTTP and event imports can still use their existing DTO
-exports without becoming inter-module API imports.
+**DTO packages stay small.** They can use Zod and other DTO packages. They cannot use producer code
+or a transport. They also cannot use these tools:
+
+- [Fastify](https://fastify.dev/).
+- [Drizzle](https://orm.drizzle.team/).
+- [OpenTelemetry](https://opentelemetry.io/).
 
 ## Composition lifecycle
 
-The composition root performs these operations in order:
+**The root builds and seals one graph.** It follows this order:
 
-1. Create one isolated inter-module transport for the application instance.
-2. Create typed clients from contracts. A client can exist before its presentation is registered.
-3. Pass each module factory only the clients that module declares.
-4. Collect producer presentations from the returned `ShipfoxModule` declarations.
-5. Register every presentation. Reject duplicate module or method registrations.
-6. Check every declared client requirement. Reject a missing presentation or method.
-7. Seal the transport. Reject later registrations and calls made before sealing.
-8. Start database migration, startup tasks, workers, metrics, and HTTP listeners.
+1. Create an isolated transport for the application instance.
+2. Create typed clients from contracts.
+3. Pass only declared clients to each module factory.
+4. Collect presentations from the returned `ShipfoxModule` values.
+5. Register presentations and reject duplicates.
+6. Check that every required method has one presentation.
+7. Seal the transport and reject later changes.
+8. Start migrations, tasks, workers, metrics, and HTTP listeners.
 
-The transport foundation defines the exact API. Its declarative shape must preserve this model:
+**Clients can exist before presentations.** This rule supports two contexts that call each other without a
+code import cycle.
 
 ```ts
 const transport = createInterModuleTransport();
 
+// Clients can exist before the root registers producer presentations.
 const workflows = transport.createClient(workflowsInterModuleContract);
 const integrations = transport.createClient(integrationsInterModuleContract);
 
@@ -181,272 +186,247 @@ const modules = [
 ];
 
 registerInterModulePresentations({transport, modules});
+
+// Seal the graph before startup can change state.
 transport.seal();
 ```
 
-Creating clients before registration supports bidirectional context relationships. It does not
-create a dependency cycle between implementation packages. Each implementation depends only on the
-other producer's DTO contract.
+**Modules declare needs and presentations as data.** A module receives clients, but it never receives
+the registry. A presentation closes over its producer's domain code.
 
-`ShipfoxModule` declares presentations and required contracts as data. A module never receives the
-transport registry. A presentation closes over producer-owned application functions when its module
-factory constructs it.
+**Global injection is forbidden.** Modules cannot use a global setter, service locator, module-load
+registration, or mutable default client. Tests and application instances create isolated transports.
 
-No module uses a process-global setter, service locator, module-load registration, or mutable default
-client. Tests and multiple application instances must be able to create isolated transports.
+## Call rules
 
-## Contract data
+### Data
 
-### JSON-safe values
+**Every contract value uses
+[JavaScript Object Notation (JSON)](https://www.json.org/json-en.html).** The local transport performs
+a JSON round trip or an equal copy. A local call cannot share mutable data with a presentation.
 
-Every input, output, and known-error detail is valid JSON:
+<details>
+<summary><strong>Show the JSON value rules.</strong></summary>
 
-- `null`, booleans, finite numbers, strings, arrays, and objects with string keys are allowed.
-- Timestamps use documented ISO 8601 strings.
-- Identifiers and decimal values use strings when number precision is not safe.
-- Binary data uses a documented string encoding or a separate blob boundary.
-- `undefined`, `bigint`, symbols, functions, classes, `Date`, `Map`, `Set`, streams, SDK objects,
-  Fastify requests, Drizzle rows, and transaction handles are forbidden.
+- Allow `null`, booleans, finite numbers, strings, arrays, and objects with string keys.
+- Use strings in the
+  [International Organization for Standardization (ISO) 8601 format](https://www.iso.org/iso-8601-date-and-time-format.html)
+  for dates.
+- Use strings for values that can lose number precision.
+- Use a documented string format or a blob boundary for binary data.
+- Reject `undefined`, `bigint`, symbols, functions, classes, `Date`, `Map`, `Set`, and streams.
+- Reject software development kit (SDK) objects, Fastify requests, Drizzle rows, and transactions.
 
-Zod schemas are the runtime source of truth. Exported TypeScript types are inferred from those
-schemas. Object schemas parse and remove unknown fields by default. This supports additive fields
-across versions without exposing unchecked data. A strict object must state why unknown fields are
-unsafe, and strictness becomes part of that method's compatibility policy.
+</details>
 
-The in-memory transport serializes or performs an equivalent JSON round trip on requests, responses,
-and known errors. It also parses both sides with the contract schemas. A local call cannot share a
-mutable object reference with a presentation or hide a value that an HTTP transport would reject.
+**Zod schemas define the runtime shape.** TypeScript types come from those schemas. Object schemas
+remove unknown fields by default. A strict object must state why extra fields are unsafe.
 
-### Stable errors
+### Errors
 
-Each method declares a closed map of known error codes to Zod detail schemas. Codes use stable
-kebab-case names. A producer presentation catches its domain errors and maps only expected cases to
-that map.
+**Each method lists its known errors.** Error codes use stable kebab-case names. Zod checks the detail
+shape for each code.
 
-Clients receive a transport-owned typed known error with `code` and checked `details`. Consumers
-branch on the code. They do not import or use `instanceof` with a producer domain error.
+**Presentations map domain errors at the boundary.** Callers receive a transport-owned error with `code`
+and checked `details`. They never import a producer error class.
 
-Input failures, invalid producer output, undeclared errors, and internal failures are not known
-business errors. The transport returns an opaque failure with a correlation point for logs and
-traces. It does not expose the original message, stack, cause, SQL, SDK response, secret, or raw DTO.
-Local and serialized transports promise the same valid results and known errors. They do not promise
-the same internal exception class or diagnostic text.
+**Unknown failures stay private.** The transport hides source details. These include the message,
+stack, cause, [Structured Query Language (SQL)](https://www.postgresql.org/docs/current/tutorial-sql.html),
+and SDK response. The transport also hides secrets and raw data. Logs and traces hold the diagnostic
+facts.
 
-### Versioning
+**Transport types can differ.** Local and HTTP transports promise the same results and known errors.
+They do not promise the same internal error class or text.
 
-Module and method identifiers are compatibility identifiers. They do not include a package version.
-An additive method gets a new stable method identifier. An additive optional field can extend an
-existing method when old and new producers and consumers can safely ignore it.
+### Versions
 
-A breaking input, output, or error change gets a new method identifier such as
-`getDefinitionSnapshotV2`. Both identifiers remain registered during a rolling migration. The old
-method is removed only after all consumers move and the owning DTO package takes the required major
-release.
+**Module and method names stay stable.** An added method gets a new name. A safe optional field can
+extend an existing method when old code can ignore it.
 
-Adding a possible known error to an existing method is also breaking. An exhaustive consumer may not
-handle the new code. Add the error through a new method or a major contract release.
+**Breaking changes use a new method name.** For example, a producer can add
+`getDefinitionSnapshotV2`. Both names stay live while callers move.
 
-Persisted or long-lived payloads include a schema version inside the DTO. A producer rejects an
-unknown version as an opaque incompatibility unless the contract declares it as a known caller error.
+**A new known error is a breaking change.** A caller may use an exhaustive code check. Add the error
+through a new method or a major contract release.
 
-### Tracing
+**Stored data carries its own schema version.** A producer treats an unknown version as a private
+compatibility failure unless the contract lists it as a known caller error.
 
-The transport creates a client span and a presentation span for each call. It propagates the active
-trace context through transport metadata. Trace metadata is not part of the business DTO.
+### Traces
 
-Span attributes are bounded: producer module, method, transport kind, outcome, and known error code.
-Inputs, outputs, secrets, tokens, error messages, and entity identifiers are not trace attributes.
-The future HTTP transport must continue the same trace rather than start an unrelated root span.
+**The transport creates a client span and a presentation span.** It passes the active trace through
+transport metadata, not business data.
 
-### Idempotency, cancellation, and unknown outcomes
+**Trace fields stay small and safe.** They can include module, method, transport, result, and known
+error code. They cannot include inputs, outputs, secrets, tokens, messages, or record keys.
 
-A query has no side effect. A command can change state. A command that callers or Temporal activities
-may retry includes a stable idempotency key or command identifier in its business input. The producer
-stores or checks that identity at the same consistency boundary as the mutation.
+**A future HTTP transport continues the same trace.** It does not start a new root trace.
 
-`AbortSignal` and future deadlines are transport options. They are not business DTO fields. A signal
-can stop waiting or stop work that has not committed. It cannot promise that a concurrent or remote
-mutation rolled back.
+### Retries and cancellation
 
-Cancellation, timeout, connection loss, and an opaque transport failure can leave a command with an
-unknown outcome. A caller retries only with the same idempotency key or checks producer state through
-a query. Error text must not claim that the operation failed before commit when the transport cannot
-prove it.
+**Queries do not change state.** Commands can change state.
 
-## Choosing the boundary
+**Retryable commands carry a stable key.** The producer checks that key at the same data boundary as
+the state change. [Temporal](https://temporal.io/) activities reuse the same key on a retry.
 
-Use an inter-module API when the caller needs a result before it can continue and the operation fits
-inside the caller's request or Temporal activity lifetime.
+**Cancellation can stop waiting.** An
+[`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) or deadline is a
+transport option. It is not a business field. It cannot prove that a command rolled back.
 
-Use an outbox event when:
+**Some failures leave an unknown result.** Cancellation, timeout, or connection loss may happen after
+a commit. The caller retries with the same key or reads producer state. Error text must not claim a
+rollback when the transport cannot prove one.
 
-- the producer announces a committed fact;
-- consumers can react later;
-- there can be multiple independent consumers; or
-- the producer must commit its state and notification atomically.
+## Choose the right boundary
 
-The event schema lives in the producer DTO package. A consumer must not call back into the producer
-only to reconstruct data that belongs in the event unless the data is large, sensitive, or expected
-to change before consumption.
+**The caller's need selects the boundary.** Use this table:
 
-Use Temporal when:
+| Boundary | Use it when | Key rule |
+| --- | --- | --- |
+| Inter-module API | The caller needs a result now. | The work fits in one request or Temporal activity. |
+| Outbox event | The producer reports a fact after commit. | The state change and event commit together. |
+| Temporal | Work needs retries, timers, waits, or recovery. | Workflow code stays deterministic. |
 
-- work spans retries, timers, or long waits;
-- a multi-step process must survive process restarts;
-- several contexts need ordered commands and recovery; or
-- an operation needs durable cancellation or compensation.
+**Outbox events support later work.** They can have many independent listeners. The producer puts the
+event schema in its DTO package.
 
-A Temporal activity can use an injected inter-module client. Temporal workflow code stays
-deterministic and does not receive a transport, registry, database handle, or implementation module.
+**Temporal supports durable work.** An activity can use an injected inter-module client. Workflow code
+does not receive a transport, registry, database handle, or producer module.
 
-No boundary permits a transaction to cross contexts. If one atomic database transaction is required
-to preserve an invariant, either one producer owns the full operation or the bounded-context split is
-wrong.
+**Transactions never cross contexts.** One producer must own any operation that needs one atomic
+transaction. If no producer can own it, the context split is wrong.
 
 ## Dependency policy
 
 ### Allowed dependencies
 
-Every allowed cross-context dependency has one architectural reason:
+**Every exception has one reason and a narrow limit.**
 
-| Dependency | Reason | Constraint |
+| Dependency | Reason | Limit |
 | --- | --- | --- |
-| Producer DTO package `/inter-module` export | Synchronous, transport-neutral contract | JSON-safe Zod contracts and types only |
-| Producer DTO and event exports | HTTP data and committed asynchronous facts | No implementation, database, or configuration types |
-| `@shipfox/node-temporal` and producer-owned Temporal names or payload DTOs | Durable orchestration boundary | No peer activity, workflow implementation, or database import |
-| Pure shared utility package | Behavior has no business owner and no state | Deterministic, configuration-free, and free of domain entities and errors |
-| `@shipfox/api-auth-context` | Shared HTTP presentation context derived from verified claims | Claim-only and stateless; no business database lookup |
-| Integrations provider SPI | Core and provider packages implement one bounded context | Only packages listed in the Integrations context map |
-| `@shipfox/api-server` composition root | Application assembly must see factories and implementations | Wiring only; no business behavior or reusable consumer API |
-| Shared module, outbox, telemetry, database, and Fastify infrastructure | Platform mechanics used inside each context | Does not expose one business context to another |
+| Producer `/inter-module` export | Synchronous contract. | JSON-safe Zod schemas and types only. |
+| Producer DTO and event exports | HTTP data and committed facts. | No code, database, or config types. |
+| `@shipfox/node-temporal` and producer DTOs | Durable work. | No peer workflow, activity, or database code. |
+| Pure shared utility | Context-free behavior. | No state, config, domain entity, or domain error. |
+| `@shipfox/api-auth-context` | Request facts from checked claims. | No business database lookup. |
+| Integrations SPI | One context spans core and providers. | Only mapped Integrations packages. |
+| `@shipfox/api-server` | The root must build the graph. | Wiring only. No reusable business API. |
+| Shared platform package | Common module, outbox, trace, database, or HTTP support. | It cannot expose one context to another. |
 
-The pure-utility exception is intentionally narrow. Moving a domain type or helper to a shared
-package does not make the dependency valid. A utility is shared only when its behavior and vocabulary
-are context-neutral.
+**A shared package does not erase ownership.** A helper is pure only when its words and behavior do
+not belong to a business context.
 
 ### Forbidden dependencies
 
-Outside the composition root, one bounded context must not import another context's:
+**A context cannot import another context's code.** This ban includes value and type-only imports:
 
-- implementation package root;
-- implementation package subpath, including `core`, `db`, `presentation`, `config`, or test helpers;
-- application or persistence function;
-- domain entity, error, provider object, registry, or callback-valued resolver;
-- database schema, row, query helper, transaction, or migration;
-- configuration schema, parsed configuration, or secret;
-- `ShipfoxModule` value or module factory; or
-- global setter, mutable holder, service locator, or test-only implementation replacement.
+- Package roots and subpaths.
+- Domain functions, entities, errors, provider objects, and callback-based resolvers.
+- Database schemas, rows, queries, transactions, and migrations.
+- Config schemas, parsed config, and secrets.
+- Module values and module factories.
+- Global setters, service locators, and test replacement hooks.
 
-Type-only imports are still dependencies and are forbidden. Re-exporting an implementation type
-through a DTO or shared package is also forbidden.
+**Re-exports cannot bypass the rule.** A DTO or shared package cannot re-export a producer code type.
 
 ## Dependency Cruiser enforcement
 
-The final migration adds the repository gate. The gate uses the bounded-context package map in this
-ADR and applies to production and test imports in API packages.
+**The final migration adds a repository gate.** It reads the context map from this record. It checks
+production and test imports. The check covers relative paths and dynamic imports.
 
-The policy has these rules:
+<details>
+<summary><strong>Show the planned rule set.</strong></summary>
 
-1. `api-no-cross-context-implementation-imports` rejects root and subpath imports from every peer
-   implementation package. It rejects value, type-only, static, and dynamic imports.
-2. `api-inter-module-contract-location` accepts synchronous peer contracts only from the producer DTO
-   package's explicit `/inter-module` export.
-3. `api-no-peer-config-imports` names configuration crossings in its diagnostic even though the first
-   rule also rejects them.
-4. `api-integrations-provider-spi` limits the same-context exception to the mapped Integrations core
-   and provider packages.
-5. `api-composition-root-only` allows implementation modules and factories only from
-   `@shipfox/api-server` composition files.
+1. `api-no-cross-context-implementation-imports` blocks peer code roots and subpaths.
+2. `api-inter-module-contract-location` accepts sync contracts only from `/inter-module`.
+3. `api-no-peer-config-imports` gives config leaks a clear error.
+4. `api-integrations-provider-spi` limits the Integrations exception to mapped packages.
+5. `api-composition-root-only` allows factories and modules only in the application root.
 
-Rules should use package names and resolved workspace paths. This catches source-condition imports,
-package roots, deep subpaths, and relative paths into sibling packages. Tests must use fake
-presentations instead of importing peer implementations. Cross-context integration tests belong at
-the application composition or E2E layer.
+**Tests use fake presentations instead of peer code.** Cross-context integration tests live at the
+application or end-to-end (E2E) layer.
 
-The final rule set has no broad temporary allowlist. A crossing that cannot migrate gets one exact
-path exception with an owner, reason, and tracking issue. The final migration removes that exception
-or records it as a new decision.
+</details>
+
+**The gate has no broad temporary list.** A blocked move gets one exact path, one owner, one reason,
+and one tracking issue. The final move removes that path or records a new decision.
 
 ## Testing model
 
-The foundation provides a test harness that accepts fake presentations. The harness does not depend
-on Vitest and does not change process-global state.
+**The shared test kit accepts fake presentations.** It does not depend on
+[Vitest](https://vitest.dev/) or global state.
 
-Each inter-module API has these checks:
+<details>
+<summary><strong>Show the required checks.</strong></summary>
 
-| Test | Proof |
+| Check | Proof |
 | --- | --- |
-| Contract schema tests | Valid JSON input, output, and every known error shape |
-| Producer presentation tests | Real application mapping, domain-error translation, and PostgreSQL behavior where persistence matters |
-| Transport conformance suite | Valid calls, invalid input, invalid output, known errors, opaque unknown errors, cancellation, tracing, and serialization |
-| Consumer tests | Consumer behavior against a fake producer presentation |
-| Composition tests | Missing and duplicate presentations, bidirectional clients, calls before sealing, and late registration |
-| Packed consumer test | Published `/inter-module` exports, runtime imports, and type imports work outside the monorepo |
+| Contract schemas | Valid data and every known error shape. |
+| Producer presentation | Domain mapping and real [PostgreSQL](https://www.postgresql.org/) behavior where needed. |
+| Transport suite | Bad input, bad output, errors, cancellation, traces, and JSON copy. |
+| Caller | Caller behavior against a fake presentation. |
+| Application graph | Missing presentations, duplicates, early calls, and late changes. |
+| Packed caller | Runtime and type imports work outside the monorepo. |
 
-The same semantic transport conformance suite runs against the in-memory transport and a focused HTTP
-test adapter. Internal exception identity and exact diagnostic text are not parity requirements.
+</details>
+
+**Local and HTTP transports run the same behavior suite.** Results and known errors must match.
+Internal error types and text can differ.
 
 ## Release and migration policy
 
-Inter-module contracts are public exports from published DTO packages. Normal package semantic
-versioning applies:
+**Published contracts follow [semantic versioning](https://semver.org/).**
 
-- Additive methods and backward-compatible optional fields require a minor changeset.
-- Compatible validation or diagnostic fixes require a patch changeset.
-- Removed methods, renamed codes, required fields, tighter accepted input, and changed output,
-  side-effect, retry, or authorization meaning require a major changeset.
+| Change | Package change |
+| --- | --- |
+| Add a method or a safe optional field. | Minor. |
+| Fix a compatible check or diagnostic. | Patch. |
+| Remove a method or code. | Major. |
+| Add a required field or tighter input. | Major. |
+| Change output, side effects, retry rules, or access rules. | Major. |
 
-Module factories are also published APIs. Adding a required client to a factory, removing a singleton
-module export, or removing an implementation function is breaking. A migration issue includes a major
-changeset and migration notes when current consumers can observe that change.
+**Published module factories follow the same rule.** A required client, removed module value, or
+removed code export is a major change. The change includes migration notes.
 
-Migration happens one complete producer boundary at a time. A producer contract and presentation land
-with all consumers in that issue's scope. Old implementation exports do not become a permanent
-compatibility layer. The final migration removes stale dependencies, deep exports, global setters,
-and test replacement seams.
+**Each move finishes one producer boundary.** The contract, presentation, and all callers land together.
+Old code exports do not become a permanent bridge.
 
-Each release change runs package checks, type checks, tests, dependency checks, lockfile checks,
-published-artifact checks, and the packed external-consumer gate. The application release closure must
-contain every runtime package needed by the new transport and contract exports.
+**Release checks cover the public package.** Each move runs package, type, test, and dependency
+checks. It also checks the lockfile, published files, and packed caller. The application release must
+include each runtime package.
 
 ## Consequences
 
-This design adds schemas, presentations, and explicit wiring to local calls. That cost makes the
-boundary visible and testable. It also prevents local calls from depending on behavior that a future
-serialized transport cannot support.
+**Local calls gain a visible boundary.** The extra schemas, presentations, and wiring make each dependency
+clear. They also find network data problems before a service split.
 
-The composition root becomes the only place that knows the complete graph. A consumer can use a fake
-presentation without loading a producer database or configuration. Bidirectional business
-relationships no longer require implementation-package cycles or global setters.
+**The application root becomes the only full-graph owner.** Callers can test with fake presentations. They
+do not need producer databases or config.
 
-The design does not make API bounded contexts separate deployable services. It keeps extraction
-possible by preserving serialization, errors, tracing, cancellation, and versioning at the current
-in-process boundary.
+**This design does not create separate services.** It keeps that option open through JSON data,
+stable errors, traces, cancellation rules, and versions.
 
 ## Rejected alternatives
 
-### Keep direct implementation calls
+### Keep direct code calls
 
-Direct calls are small but make internal functions and types the contract. They do not check
-serialization, permit deep imports, and encourage shared database and configuration access.
+**Direct calls are small but leak internal code.** They allow deep imports, shared database access,
+and values that cannot cross a network.
 
 ### Adopt oRPC now
 
-oRPC offers contract-first routers and remote links. The current need does not require its router,
-middleware, or client-generation surface. Plain TypeScript and Zod fit the existing module and error
-conventions with fewer dependencies and less package lock-in.
+**oRPC adds more than the current boundary needs.** Plain TypeScript and Zod fit the current module,
+error, and package rules with fewer dependencies.
 
-The decision can be revisited if a separately deployed service needs capabilities that the shared
-contract and HTTP transport cannot provide without rebuilding framework behavior.
+**A later service split can reopen this choice.** Revisit it only if the shared contract and HTTP
+transport would have to rebuild framework features.
 
-### Use a dependency-injection container or service locator
+### Use a dependency injection container
 
-A container would hide the application graph behind runtime lookup. A process-global registry would
-also couple tests and application instances. Explicit clients and module factories keep dependencies
-visible in types and keep transport state isolated.
+**A container hides the graph behind runtime lookup.** A global registry also joins test and
+application state. Typed clients and module factories keep the graph visible.
 
 ### Create one contract package per producer
 
-Each producer already has a dependency-light DTO package that owns public schemas and events. Another
-package would split one compatibility surface across two packages without a separate owner. The
-explicit `/inter-module` export gives the contract a clear boundary inside the existing package.
+**The DTO package already owns public data and events.** A second package would split one contract
+between two owners. The `/inter-module` export gives it a clear home.
