@@ -1,5 +1,16 @@
 # @shipfox/api-auth
 
+## 4.0.0
+
+### Patch Changes
+
+- 0b0a9c2: Serializes real-database auth test files to prevent shared rate-limit state from causing intermittent failures.
+- Updated dependencies [bbba3b7]
+  - @shipfox/node-drizzle@0.3.0
+  - @shipfox/api-workspaces@4.0.0
+  - @shipfox/node-module@0.3.1
+  - @shipfox/node-outbox@0.2.2
+
 ## 3.0.0
 
 ### Minor Changes

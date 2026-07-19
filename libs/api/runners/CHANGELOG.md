@@ -1,5 +1,16 @@
 # @shipfox/api-runners
 
+## 4.0.0
+
+### Patch Changes
+
+- Updated dependencies [0b0a9c2]
+- Updated dependencies [bbba3b7]
+  - @shipfox/api-auth@4.0.0
+  - @shipfox/node-drizzle@0.3.0
+  - @shipfox/node-module@0.3.1
+  - @shipfox/node-outbox@0.2.2
+
 ## 3.0.0
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @shipfox/api-triggers
 
+## 4.0.0
+
+### Patch Changes
+
+- Updated dependencies [bbba3b7]
+  - @shipfox/node-drizzle@0.3.0
+  - @shipfox/api-projects@4.0.0
+  - @shipfox/api-workflows@4.0.0
+  - @shipfox/node-module@0.3.1
+  - @shipfox/node-outbox@0.2.2
+
 ## 3.0.0
 
 ### Patch Changes
