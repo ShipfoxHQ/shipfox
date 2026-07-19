@@ -90,4 +90,19 @@ describe('slack installations', () => {
 
     expect(result?.status).toBe('revoked');
   });
+
+  it('does not revoke an installation updated after the lifecycle event was read', async () => {
+    const input = createInstallationInput();
+    const installation = await upsertSlackInstallation(input);
+    await upsertSlackInstallation(input);
+
+    const result = await markSlackInstallationRevoked(input.connectionId, {
+      expectedGeneration: installation.generation,
+    });
+
+    expect(result).toBeUndefined();
+    await expect(getSlackInstallationByConnectionId(input.connectionId)).resolves.toMatchObject({
+      status: 'installed',
+    });
+  });
 });

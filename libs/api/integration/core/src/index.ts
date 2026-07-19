@@ -98,6 +98,7 @@ export {createSourceControlIntegrationService} from '#core/source-control-servic
 export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
 export {getIntegrationConnectionById} from '#db/connections.js';
 export type {
+  ClaimWebhookDeliveryFn,
   PublishIntegrationEventReceivedFn,
   PublishIntegrationEventReceivedParams,
   PublishIntegrationEventReceivedResult,
@@ -106,7 +107,7 @@ export type {
   RecordDeliveryOnlyFn,
   RecordDeliveryOnlyParams,
 } from '#db/webhook-deliveries.js';
-export {pruneWebhookDeliveries} from '#db/webhook-deliveries.js';
+export {claimWebhookDelivery, pruneWebhookDeliveries} from '#db/webhook-deliveries.js';
 export {integrationRouteErrorHandler} from '#presentation/routes/errors.js';
 
 export interface CreateIntegrationsModuleOptions {

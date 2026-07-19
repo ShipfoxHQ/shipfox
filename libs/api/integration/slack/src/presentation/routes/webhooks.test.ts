@@ -2,7 +2,7 @@ import {createHmac, randomUUID} from 'node:crypto';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {db} from '#db/db.js';
-import {upsertSlackInstallation} from '#db/installations.js';
+import {getSlackInstallationByTeamId, upsertSlackInstallation} from '#db/installations.js';
 import {slackInstallations} from '#db/schema/installations.js';
 import {createSlackWebhookRoutes, SLASH_COMMAND_ACK} from './webhooks.js';
 
@@ -46,10 +46,12 @@ async function createTestApp(connection = fakeConnection()): Promise<{
 }> {
   const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
   const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+  const claimWebhookDelivery = vi.fn(() => Promise.resolve({claimed: true}));
   const getIntegrationConnectionById = vi.fn(() => Promise.resolve(connection));
   const app = await createApp({
     routes: createSlackWebhookRoutes({
       coreDb: db,
+      claimWebhookDelivery,
       publishIntegrationEventReceived,
       recordDeliveryOnly,
       getIntegrationConnectionById,
@@ -184,6 +186,31 @@ describe('Slack webhook routes', () => {
         event: expect.objectContaining({event: 'app_mention', deliveryId: 'Ev-route'}),
       }),
     );
+  });
+
+  it('revokes an installation after a signed app-uninstalled event', async () => {
+    const {app, connection, publishIntegrationEventReceived} = await createTestApp();
+    await seedInstallation(connection);
+    const rawBody = JSON.stringify({
+      type: 'event_callback',
+      team_id: 'T1',
+      api_app_id: 'A1',
+      event: {type: 'app_uninstalled'},
+      event_id: 'Ev-route-uninstalled',
+      event_time: Math.floor(Date.now() / 1000) + 60,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/slack/events',
+      headers: slackHeaders(rawBody, 'application/json'),
+      payload: rawBody,
+    });
+
+    const installation = await getSlackInstallationByTeamId('T1');
+    expect(response.statusCode).toBe(200);
+    expect(installation?.status).toBe('revoked');
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
   it('returns the fixed acknowledgement for a signed command that cannot resolve a team', async () => {

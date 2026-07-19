@@ -1,0 +1,1 @@
+ALTER TABLE "integrations_slack_installations" ADD COLUMN "generation" integer DEFAULT 1 NOT NULL;

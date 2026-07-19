@@ -171,8 +171,10 @@ export interface RecordDeliveryOnlyParams {
   deliveryId: string;
 }
 
-export async function recordDeliveryOnly(params: RecordDeliveryOnlyParams): Promise<void> {
-  await params.tx
+export async function claimWebhookDelivery(
+  params: RecordDeliveryOnlyParams,
+): Promise<{claimed: boolean}> {
+  const inserted = await params.tx
     .insert(integrationsWebhookDeliveries)
     .values({
       provider: params.provider,
@@ -185,7 +187,13 @@ export async function recordDeliveryOnly(params: RecordDeliveryOnlyParams): Prom
         integrationsWebhookDeliveries.dedupScope,
         integrationsWebhookDeliveries.deliveryId,
       ],
-    });
+    })
+    .returning({deliveryId: integrationsWebhookDeliveries.deliveryId});
+  return {claimed: inserted.length > 0};
+}
+
+export async function recordDeliveryOnly(params: RecordDeliveryOnlyParams): Promise<void> {
+  await claimWebhookDelivery(params);
 }
 
 export interface PruneWebhookDeliveriesParams {
@@ -204,4 +212,5 @@ export async function pruneWebhookDeliveries(
 export type PublishIntegrationEventReceivedFn = typeof publishIntegrationEventReceived;
 export type PublishSourcePushFn = typeof publishSourcePush;
 export type PublishSourceCommitPushedFn = typeof publishSourceCommitPushed;
+export type ClaimWebhookDeliveryFn = typeof claimWebhookDelivery;
 export type RecordDeliveryOnlyFn = typeof recordDeliveryOnly;

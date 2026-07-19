@@ -4,7 +4,7 @@ import type {
   IntegrationConnection,
 } from '@shipfox/api-integration-core-dto';
 import {db} from '#db/db.js';
-import {upsertSlackInstallation} from '#db/installations.js';
+import {getSlackInstallationByTeamId, upsertSlackInstallation} from '#db/installations.js';
 import {slackInstallations} from '#db/schema/installations.js';
 import {handleSlackCommand, handleSlackEvent} from './webhook.js';
 
@@ -30,7 +30,7 @@ function eventEnvelope(overrides: Record<string, unknown> = {}) {
     api_app_id: 'A1',
     event: {type: 'app_mention', channel: 'C1', user: 'U1', text: 'hello', ts: '1.0'},
     event_id: 'Ev1',
-    event_time: 1_721_300_000,
+    event_time: Math.floor(Date.now() / 1000) + 60,
     ...overrides,
   };
 }
@@ -69,6 +69,7 @@ function handlers(connection = fakeConnection()) {
     connection,
     publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
     recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+    claimWebhookDelivery: vi.fn(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById: vi.fn<GetIntegrationConnectionByIdFn>(() =>
       Promise.resolve(connection),
     ),
@@ -124,6 +125,134 @@ describe('Slack webhook handlers', () => {
     expect(deps.publishIntegrationEventReceived).toHaveBeenCalledWith(
       expect.objectContaining({event: expect.objectContaining({deliveryId: 'Ev-replayed'})}),
     );
+  });
+
+  it('revokes an installation when Slack uninstalls the app', async () => {
+    const deps = handlers();
+    await seedInstallation(deps.connection);
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-uninstalled',
+      envelope: eventEnvelope({event: {type: 'app_uninstalled'}}),
+      ...deps,
+    });
+
+    const installation = await getSlackInstallationByTeamId('T1');
+    expect(result.outcome).toBe('revoked');
+    expect(installation?.status).toBe('revoked');
+    expect(deps.claimWebhookDelivery).toHaveBeenCalledTimes(1);
+    expect(deps.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(deps.getIntegrationConnectionById).not.toHaveBeenCalled();
+  });
+
+  it('revokes an installation when its bot token is revoked', async () => {
+    const deps = handlers();
+    await seedInstallation(deps.connection);
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-bot-revoked',
+      envelope: eventEnvelope({event: {type: 'tokens_revoked', tokens: {bot: ['UBOT']}}}),
+      ...deps,
+    });
+
+    const installation = await getSlackInstallationByTeamId('T1');
+    expect(result.outcome).toBe('revoked');
+    expect(installation?.status).toBe('revoked');
+  });
+
+  it.each([
+    ['an OAuth token is revoked', {oauth: ['UOAUTH']}],
+    ['the revoked token set is missing', undefined],
+    ['the revoked bot token set is empty', {bot: []}],
+  ])('keeps an installation active when %s', async (_description, tokens) => {
+    const deps = handlers();
+    await seedInstallation(deps.connection);
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-oauth-revoked',
+      envelope: eventEnvelope({event: {type: 'tokens_revoked', tokens}}),
+      ...deps,
+    });
+
+    const installation = await getSlackInstallationByTeamId('T1');
+    expect(result.outcome).toBe('unaffected-revocation');
+    expect(installation?.status).toBe('installed');
+    expect(deps.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(deps.claimWebhookDelivery).toHaveBeenCalledTimes(1);
+  });
+
+  it('records an unknown lifecycle-event team without resolving a connection', async () => {
+    const deps = handlers();
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-uninstalled-missing',
+      envelope: eventEnvelope({
+        team_id: 'T-missing',
+        event: {type: 'app_uninstalled'},
+      }),
+      ...deps,
+    });
+
+    expect(result.outcome).toBe('unknown-team');
+    expect(deps.getIntegrationConnectionById).not.toHaveBeenCalled();
+    expect(deps.claimWebhookDelivery).toHaveBeenCalledTimes(1);
+  });
+
+  it('records an already revoked lifecycle-event installation without throwing', async () => {
+    const deps = handlers();
+    await seedInstallation(deps.connection, 'revoked');
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-uninstalled-replay',
+      envelope: eventEnvelope({event: {type: 'app_uninstalled'}}),
+      ...deps,
+    });
+
+    expect(result.outcome).toBe('revoked-installation');
+    expect(deps.claimWebhookDelivery).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not revoke an installation after a duplicate lifecycle delivery', async () => {
+    const deps = handlers();
+    deps.claimWebhookDelivery.mockResolvedValue({claimed: false});
+    await seedInstallation(deps.connection);
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-uninstalled-duplicate',
+      envelope: eventEnvelope({event: {type: 'app_uninstalled'}}),
+      ...deps,
+    });
+
+    const installation = await getSlackInstallationByTeamId('T1');
+    expect(result.outcome).toBe('duplicate');
+    expect(installation?.status).toBe('installed');
+    expect(deps.getIntegrationConnectionById).not.toHaveBeenCalled();
+  });
+
+  it('does not revoke a reconnected installation for a delayed lifecycle event', async () => {
+    const deps = handlers();
+    await seedInstallation(deps.connection);
+    await seedInstallation(deps.connection);
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-uninstalled-stale',
+      envelope: eventEnvelope({
+        event: {type: 'app_uninstalled'},
+        event_time: Math.floor(Date.now() / 1000) - 60,
+      }),
+      ...deps,
+    });
+
+    const installation = await getSlackInstallationByTeamId('T1');
+    expect(result.outcome).toBe('stale-lifecycle-event');
+    expect(installation?.status).toBe('installed');
   });
 
   it.each([

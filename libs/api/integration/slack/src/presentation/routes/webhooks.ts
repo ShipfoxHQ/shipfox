@@ -1,5 +1,6 @@
 import {Buffer} from 'node:buffer';
 import type {
+  ClaimWebhookDeliveryFn,
   GetIntegrationConnectionByIdFn,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
@@ -29,6 +30,7 @@ const slackFormRawBodyPlugin = createRawBodyPlugin({
 
 export interface CreateSlackWebhookRoutesOptions {
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
+  claimWebhookDelivery: ClaimWebhookDeliveryFn;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
@@ -84,6 +86,7 @@ export function createSlackWebhookRoutes(options: CreateSlackWebhookRoutesOption
           tx,
           deliveryId: eventRequest.event_id,
           envelope: eventRequest,
+          claimWebhookDelivery: options.claimWebhookDelivery,
           publishIntegrationEventReceived: options.publishIntegrationEventReceived,
           recordDeliveryOnly: options.recordDeliveryOnly,
           getIntegrationConnectionById: options.getIntegrationConnectionById,

@@ -9,6 +9,7 @@ import {db} from './db.js';
 import {integrationsOutbox} from './schema/outbox.js';
 import {integrationsWebhookDeliveries} from './schema/webhook-deliveries.js';
 import {
+  claimWebhookDelivery,
   publishIntegrationEventReceived,
   publishSourceCommitPushed,
   publishSourcePush,
@@ -164,6 +165,16 @@ describe('integration webhook delivery persistence', () => {
     await recordDeliveryOnly({tx: db(), provider: 'github', deliveryId});
 
     expect(await deliveriesFor('github', deliveryId)).toHaveLength(1);
+  });
+
+  it('reports whether it claimed a delivery', async () => {
+    const deliveryId = crypto.randomUUID();
+
+    const first = await claimWebhookDelivery({tx: db(), provider: 'github', deliveryId});
+    const duplicate = await claimWebhookDelivery({tx: db(), provider: 'github', deliveryId});
+
+    expect(first.claimed).toBe(true);
+    expect(duplicate.claimed).toBe(false);
   });
 });
 

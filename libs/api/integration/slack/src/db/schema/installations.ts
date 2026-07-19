@@ -1,5 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {integer, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {SlackInstallation} from '#db/installations.js';
 import {pgTable} from './common.js';
 
@@ -14,6 +14,7 @@ export const slackInstallations = pgTable(
     botUserId: text('bot_user_id').notNull(),
     scopes: jsonb('scopes').notNull().$type<string[]>(),
     status: text('status').notNull().$type<SlackInstallation['status']>(),
+    generation: integer('generation').notNull().default(1),
     tokenExpiresAt: timestamp('token_expires_at', {withTimezone: true}),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -37,6 +38,7 @@ export function toSlackInstallation(row: SlackInstallationDb): SlackInstallation
     botUserId: row.botUserId,
     scopes: row.scopes,
     status: row.status,
+    generation: row.generation,
     tokenExpiresAt: row.tokenExpiresAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
