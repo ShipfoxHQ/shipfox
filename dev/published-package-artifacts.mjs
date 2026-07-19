@@ -1,19 +1,26 @@
-import {spawn} from 'node:child_process';
 import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {basename, join, resolve} from 'node:path';
+import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {parse as parseYaml} from 'yaml';
+
+import {
+  createProductionManifestPacker,
+  mapWithConcurrency,
+  run,
+} from './productionized-manifest-packer.mjs';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const packageSources = {
   '@shipfox/application-release': 'tools/application-release',
   '@shipfox/react-ui': 'libs/shared/react/ui',
   '@shipfox/redact': 'libs/shared/common/redact',
+  '@shipfox/regex': 'libs/shared/common/regex',
 };
 const packageNames = Object.keys(packageSources);
 const registryShipfoxPackagePattern = /^@shipfox\+[^@]+@\d/u;
+const developmentConditionImports = ['@shipfox/regex'];
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((error) => {
@@ -62,7 +69,14 @@ function readSourcePackages() {
       );
       if (manifest.name !== name) throw new Error(`Expected ${directory} to define ${name}`);
       if (manifest.private === true) throw new Error(`Representative package ${name} is private`);
-      return [name, {directory: join(repositoryRoot, directory), manifest}];
+      return [
+        name,
+        {
+          directory: join(repositoryRoot, directory),
+          manifest,
+          manifestPath: join(repositoryRoot, directory, 'package.json'),
+        },
+      ];
     }),
   );
 }
@@ -98,12 +112,19 @@ async function buildPackageArtifacts() {
 }
 
 async function packPackages(packages, tarballRoot) {
-  const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
-    const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    await run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {stdio: 'ignore'});
-    return [name, tarball];
-  });
-  return Object.fromEntries(tarballs);
+  const manifestPacker = createProductionManifestPacker();
+  try {
+    const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
+      const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
+      await manifestPacker.pack(sourcePackage.manifestPath, sourcePackage.manifest, (signal) =>
+        run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {signal, stdio: 'ignore'}),
+      );
+      return [name, tarball];
+    });
+    return Object.fromEntries(tarballs);
+  } finally {
+    manifestPacker.dispose();
+  }
 }
 
 async function writeConsumerManifest(root, tarballs, reactUiPeers) {
@@ -224,6 +245,18 @@ if (modules.some((module) => Object.keys(module).length === 0)) throw new Error(
   await run(
     process.execPath,
     [
+      '--conditions=development',
+      '--input-type=module',
+      '--eval',
+      `const imports = ${JSON.stringify(developmentConditionImports)};
+const modules = await Promise.all(imports.map((specifier) => import(specifier)));
+if (modules.some((module) => Object.keys(module).length === 0)) throw new Error('A development-condition import has no exports.');`,
+    ],
+    root,
+  );
+  await run(
+    process.execPath,
+    [
       '--input-type=module',
       '--eval',
       `const tool = await import('./node_modules/@shipfox/application-release/dist/manifest.js');
@@ -235,31 +268,4 @@ if (typeof tool.createApplicationReleaseManifest !== 'function') throw new Error
 
 export function safePackageName(name) {
   return name.replace('@shipfox/', '').replaceAll('/', '-');
-}
-
-async function mapWithConcurrency(values, concurrency, mapper) {
-  const results = new Array(values.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < values.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      results[index] = await mapper(values[index]);
-    }
-  }
-
-  await Promise.all(Array.from({length: concurrency}, () => worker()));
-  return results;
-}
-
-function run(command, args, cwd, {stdio = 'inherit'} = {}) {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, {cwd, stdio});
-    child.on('error', reject);
-    child.on('exit', (code) => {
-      if (code === 0) resolvePromise();
-      else reject(new Error(`${basename(command)} ${args.join(' ')} exited with code ${code}`));
-    });
-  });
 }
