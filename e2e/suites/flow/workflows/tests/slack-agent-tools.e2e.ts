@@ -60,7 +60,7 @@ test('starts a run from a signed Slack mention and calls Slack agent tools', asy
 
     const {terminal, eventId} = await runSlackToolsWorkflow({
       suite,
-      attach: testInfo.attach,
+      attach: (name, options) => testInfo.attach(name, options),
       uniqueId,
       connectionSlug: connection.slug,
       runnerEnv: fakeAnthropic.runnerEnv,
