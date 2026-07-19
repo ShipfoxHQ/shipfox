@@ -1,7 +1,6 @@
-import {spawn} from 'node:child_process';
 import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {basename, join, resolve} from 'node:path';
+import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {parse as parseYaml} from 'yaml';
@@ -9,6 +8,7 @@ import {parse as parseYaml} from 'yaml';
 import {
   createProductionManifestPacker,
   mapWithConcurrency,
+  run,
 } from './productionized-manifest-packer.mjs';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -116,8 +116,8 @@ async function packPackages(packages, tarballRoot) {
   try {
     const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
       const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-      await manifestPacker.pack(sourcePackage.manifestPath, sourcePackage.manifest, () =>
-        run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {stdio: 'ignore'}),
+      await manifestPacker.pack(sourcePackage.manifestPath, sourcePackage.manifest, (signal) =>
+        run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {signal, stdio: 'ignore'}),
       );
       return [name, tarball];
     });
@@ -268,15 +268,4 @@ if (typeof tool.createApplicationReleaseManifest !== 'function') throw new Error
 
 export function safePackageName(name) {
   return name.replace('@shipfox/', '').replaceAll('/', '-');
-}
-
-function run(command, args, cwd, {stdio = 'inherit'} = {}) {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, {cwd, stdio});
-    child.on('error', reject);
-    child.on('exit', (code) => {
-      if (code === 0) resolvePromise();
-      else reject(new Error(`${basename(command)} ${args.join(' ')} exited with code ${code}`));
-    });
-  });
 }

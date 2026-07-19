@@ -1,12 +1,12 @@
-import {spawn} from 'node:child_process';
 import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {basename, join, resolve} from 'node:path';
+import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {
   createProductionManifestPacker,
   mapWithConcurrency,
+  run,
 } from '../../../../dev/productionized-manifest-packer.mjs';
 
 import {
@@ -39,8 +39,11 @@ try {
     const workspacePackage = workspacePackages.get(name);
     if (!workspacePackage) throw new Error(`Missing workspace package: ${name}`);
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    await manifestPacker.pack(workspacePackage.manifestPath, workspacePackage.manifest, () =>
-      run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, 'ignore'),
+    await manifestPacker.pack(workspacePackage.manifestPath, workspacePackage.manifest, (signal) =>
+      run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, {
+        signal,
+        stdio: 'ignore',
+      }),
     );
     return [name, tarball];
   });
@@ -268,15 +271,4 @@ async function emitDeclarationFiles(packageNames) {
     ['exec', 'turbo', 'build', 'type:emit', ...packageNames.map((name) => `--filter=${name}`)],
     repositoryRoot,
   );
-}
-
-function run(command, args, cwd, stdio = 'inherit') {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, {cwd, stdio});
-    child.on('error', reject);
-    child.on('exit', (code) => {
-      if (code === 0) resolvePromise();
-      else reject(new Error(`${basename(command)} ${args.join(' ')} exited with code ${code}`));
-    });
-  });
 }
