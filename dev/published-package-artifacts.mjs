@@ -11,9 +11,11 @@ const packageSources = {
   '@shipfox/application-release': 'tools/application-release',
   '@shipfox/react-ui': 'libs/shared/react/ui',
   '@shipfox/redact': 'libs/shared/common/redact',
+  '@shipfox/regex': 'libs/shared/common/regex',
 };
 const packageNames = Object.keys(packageSources);
 const registryShipfoxPackagePattern = /^@shipfox\+[^@]+@\d/u;
+export const developmentConditionImports = ['@shipfox/regex'];
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((error) => {
@@ -218,6 +220,18 @@ async function exerciseConsumer(root) {
       `const imports = ${JSON.stringify(imports)};
 const modules = await Promise.all(imports.map((specifier) => import(specifier)));
 if (modules.some((module) => Object.keys(module).length === 0)) throw new Error('An imported packed package has no exports.');`,
+    ],
+    root,
+  );
+  await run(
+    process.execPath,
+    [
+      '--conditions=development',
+      '--input-type=module',
+      '--eval',
+      `const imports = ${JSON.stringify(developmentConditionImports)};
+const modules = await Promise.all(imports.map((specifier) => import(specifier)));
+if (modules.some((module) => Object.keys(module).length === 0)) throw new Error('A development-condition import has no exports.');`,
     ],
     root,
   );

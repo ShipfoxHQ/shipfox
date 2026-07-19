@@ -57,6 +57,12 @@ try {
   const tsc = resolve(repositoryRoot, 'tools/typescript/node_modules/typescript/bin/tsc');
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
+  await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
+  await run(
+    resolve(repositoryRoot, 'tools/application-release/node_modules/.bin/tsx'),
+    ['--conditions=development', 'development-conditions.mjs'],
+    fixtureRoot,
+  );
   await run(process.execPath, ['workflow-bundles.mjs'], fixtureRoot);
 } finally {
   await rm(fixtureRoot, {recursive: true, force: true});
@@ -128,6 +134,14 @@ void createServer({
     writeFile(
       join(root, 'workflow-bundles.mjs'),
       `Object.assign(process.env, {...${JSON.stringify(runtimeEnvironment(), null, 2)}, INTEGRATIONS_ENABLE_SENTRY_PROVIDER: 'true', NODE_ENV: 'production'});\n\nconst {readdir, readFile} = await import('node:fs/promises');\nconst {dirname, join} = await import('node:path');\nconst {defaultModules} = await import('@shipfox/api-server');\nconst {loadProductionWorkflowBundle} = await import('@shipfox/node-temporal');\nconst modules = await defaultModules();\nconst workflowPaths = new Set(\n  modules.flatMap((module) => module.workers ?? []).map((worker) => worker.workflowsPath),\n);\n\nif (!workflowPaths.size) throw new Error('Packed API server declares no workflow entrypoints.');\n\nconst bundles = new Map();\nfor (const workflowsPath of workflowPaths) {\n  const workflowBundle = loadProductionWorkflowBundle(workflowsPath);\n  bundles.set(workflowsPath, workflowBundle);\n\n  const code = await readFile(workflowBundle.codePath, 'utf8');\n  if (/@shipfox[/\\\\][^/\\\\]+[/\\\\]src[/\\\\]/u.test(code)) {\n    throw new Error(\n      \`Workflow bundle for \${workflowsPath} resolved a first-party source path.\`,\n    );\n  }\n}\n\nconst declaredCodePaths = new Set([...bundles.values()].map(({codePath}) => codePath));\nif (declaredCodePaths.size !== workflowPaths.size) {\n  throw new Error('Packed API workflow entrypoints do not map one-to-one to prebuilt bundles.');\n}\n\nconst workflowDirectories = new Set([...workflowPaths].map((workflowsPath) => dirname(workflowsPath)));\nconst emittedBundles = (\n  await Promise.all(\n    [...workflowDirectories].map(async (directory) =>\n      (await readdir(directory))\n        .filter((entry) => entry.endsWith('.bundle.js'))\n        .map((entry) => join(directory, entry)),\n    ),\n  )\n).flat();\nconst unreferencedBundles = emittedBundles.filter((codePath) => !declaredCodePaths.has(codePath));\nif (unreferencedBundles.length) {\n  throw new Error(\n    \`Packed API contains unreferenced workflow bundles: \${unreferencedBundles.join(', ')}\`,\n  );\n}\n\nconsole.log(\`Validated \${workflowPaths.size} packed API workflow bundles.\`);\n`,
+    ),
+    writeFile(
+      join(root, 'development-conditions.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nawait import('@shipfox/api-server/instrumentation');\nprocess.exit(0);\n`,
+    ),
+    writeFile(
+      join(root, 'workflow-source-bundle.mjs'),
+      `delete process.env.NODE_ENV;\n\nconst {createRequire} = await import('node:module');\nconst {fileURLToPath} = await import('node:url');\nconst {dirname, join} = await import('node:path');\nconst temporalRequire = createRequire(import.meta.resolve('@shipfox/node-temporal'));\nconst {bundleWorkflowCode} = await import(temporalRequire.resolve('@temporalio/worker'));\nconst packageEntryPoint = fileURLToPath(import.meta.resolve('@shipfox/api-definitions'));\nconst workflowsPath = join(\n  dirname(dirname(packageEntryPoint)),\n  'dist',\n  'temporal',\n  'workflows',\n  'index.js',\n);\n\nawait bundleWorkflowCode({workflowsPath});\nconsole.log('Bundled a packed API definitions workflow with Temporal defaults.');\n`,
     ),
   ]);
 }
