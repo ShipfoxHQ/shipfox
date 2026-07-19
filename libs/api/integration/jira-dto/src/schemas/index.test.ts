@@ -129,7 +129,10 @@ describe('Jira OAuth and site selection schemas', () => {
         scopes: ['read:jira-work'],
       },
     ]);
-    const selection = completeJiraSiteSelectionBodySchema.parse({cloud_id: sites[0]?.cloud_id});
+    const selection = completeJiraSiteSelectionBodySchema.parse({
+      cloud_id: sites[0]?.cloud_id,
+      state: 'signed-state',
+    });
 
     expect(selection.cloud_id).toBe('cloud-1');
   });

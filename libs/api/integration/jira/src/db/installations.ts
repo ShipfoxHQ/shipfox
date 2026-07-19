@@ -1,5 +1,11 @@
+import {isUniqueViolation} from '@shipfox/node-drizzle';
+import {pgClient} from '@shipfox/node-postgres';
 import {eq, sql} from 'drizzle-orm';
-import {JiraInstallationSiteMismatchError} from '#core/errors.js';
+import {
+  JiraConnectionAlreadyLinkedError,
+  JiraInstallationAlreadyLinkedError,
+  JiraInstallationSiteMismatchError,
+} from '#core/errors.js';
 import {db} from './db.js';
 import {jiraInstallations, toJiraInstallation} from './schema/installations.js';
 
@@ -34,6 +40,12 @@ export interface UpsertJiraInstallationParams {
   tokenExpiresAt?: Date | null | undefined;
 }
 
+export interface UpdateJiraInstallationTokenExpiryParams {
+  connectionId: string;
+  tokenExpiresAt: Date | null;
+  scopes?: string[] | undefined;
+}
+
 type JiraDb = ReturnType<typeof db>;
 type JiraTx = Parameters<Parameters<JiraDb['transaction']>[0]>[0];
 
@@ -44,24 +56,12 @@ export async function upsertJiraInstallation(
   const executor = (options.tx ?? db()) as JiraDb | JiraTx;
   const now = new Date();
   const webhookIds = params.webhookIds ?? [];
-  const [row] = await executor
-    .insert(jiraInstallations)
-    .values({
-      connectionId: params.connectionId,
-      cloudId: params.cloudId,
-      siteUrl: params.siteUrl,
-      siteName: params.siteName,
-      authorizingAccountId: params.authorizingAccountId,
-      scopes: params.scopes,
-      webhookIds,
-      webhookExpiresAt: params.webhookExpiresAt ?? null,
-      status: params.status,
-      tokenExpiresAt: params.tokenExpiresAt ?? null,
-    })
-    .onConflictDoUpdate({
-      target: jiraInstallations.connectionId,
-      setWhere: eq(jiraInstallations.cloudId, params.cloudId),
-      set: {
+  let row: typeof jiraInstallations.$inferSelect | undefined;
+  try {
+    [row] = await executor
+      .insert(jiraInstallations)
+      .values({
+        connectionId: params.connectionId,
         cloudId: params.cloudId,
         siteUrl: params.siteUrl,
         siteName: params.siteName,
@@ -71,13 +71,110 @@ export async function upsertJiraInstallation(
         webhookExpiresAt: params.webhookExpiresAt ?? null,
         status: params.status,
         tokenExpiresAt: params.tokenExpiresAt ?? null,
-        updatedAt: now,
-      },
-    })
-    .returning();
+      })
+      .onConflictDoUpdate({
+        target: jiraInstallations.connectionId,
+        setWhere: eq(jiraInstallations.cloudId, params.cloudId),
+        set: {
+          cloudId: params.cloudId,
+          siteUrl: params.siteUrl,
+          siteName: params.siteName,
+          authorizingAccountId: params.authorizingAccountId,
+          scopes: params.scopes,
+          webhookIds,
+          webhookExpiresAt: params.webhookExpiresAt ?? null,
+          status: params.status,
+          tokenExpiresAt: params.tokenExpiresAt ?? null,
+          updatedAt: now,
+        },
+      })
+      .returning();
+  } catch (error) {
+    if (isUniqueViolation(error, 'integrations_jira_installations_connection_unique')) {
+      throw new JiraConnectionAlreadyLinkedError(params.connectionId);
+    }
+    if (isUniqueViolation(error, 'integrations_jira_installations_cloud_id_unique')) {
+      throw new JiraInstallationAlreadyLinkedError(params.cloudId);
+    }
+    throw error;
+  }
 
   if (!row) throw new JiraInstallationSiteMismatchError(params.connectionId, params.cloudId);
   return toJiraInstallation(row);
+}
+
+export async function getJiraInstallationByCloudId(
+  cloudId: string,
+  options: {tx?: unknown} = {},
+): Promise<JiraInstallation | undefined> {
+  const executor = (options.tx ?? db()) as JiraDb | JiraTx;
+  const rows = await executor
+    .select()
+    .from(jiraInstallations)
+    .where(eq(jiraInstallations.cloudId, cloudId))
+    .limit(1);
+  const row = rows[0];
+  return row ? toJiraInstallation(row) : undefined;
+}
+
+export async function updateJiraInstallationTokenExpiry(
+  params: UpdateJiraInstallationTokenExpiryParams,
+  options: {tx?: unknown} = {},
+): Promise<JiraInstallation | undefined> {
+  const executor = (options.tx ?? db()) as JiraDb | JiraTx;
+  const [row] = await executor
+    .update(jiraInstallations)
+    .set({
+      tokenExpiresAt: params.tokenExpiresAt,
+      ...(params.scopes === undefined ? {} : {scopes: params.scopes}),
+      updatedAt: new Date(),
+    })
+    .where(eq(jiraInstallations.connectionId, params.connectionId))
+    .returning();
+  return row ? toJiraInstallation(row) : undefined;
+}
+
+export async function deleteJiraInstallationByConnectionId(
+  connectionId: string,
+  options: {tx?: unknown} = {},
+): Promise<boolean> {
+  const executor = (options.tx ?? db()) as JiraDb | JiraTx;
+  const result = await executor
+    .delete(jiraInstallations)
+    .where(eq(jiraInstallations.connectionId, connectionId));
+  return (result.rowCount ?? 0) > 0;
+}
+
+export type JiraRefreshLockResult<T> = {acquired: true; value: T} | {acquired: false};
+
+export function withJiraRefreshLock<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<JiraRefreshLockResult<T>> {
+  return withJiraRefreshLockClient(connectionId, fn);
+}
+
+async function withJiraRefreshLockClient<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<JiraRefreshLockResult<T>> {
+  const client = await pgClient().connect();
+  let acquired = false;
+  try {
+    const lock = await client.query<{acquired: boolean}>(
+      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+      [connectionId],
+    );
+    acquired = lock.rows[0]?.acquired === true;
+    if (!acquired) return {acquired: false};
+    return {acquired: true, value: await fn()};
+  } finally {
+    try {
+      if (acquired) await client.query('SELECT pg_advisory_unlock(hashtext($1))', [connectionId]);
+    } finally {
+      client.release();
+    }
+  }
 }
 
 export async function getJiraInstallationByConnectionId(

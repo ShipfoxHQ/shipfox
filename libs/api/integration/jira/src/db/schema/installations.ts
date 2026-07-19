@@ -1,5 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {JiraInstallation} from '#db/installations.js';
 import {pgTable} from './common.js';
 
@@ -22,7 +22,7 @@ export const jiraInstallations = pgTable(
   },
   (table) => [
     uniqueIndex('integrations_jira_installations_connection_unique').on(table.connectionId),
-    index('integrations_jira_installations_cloud_id_idx').on(table.cloudId),
+    uniqueIndex('integrations_jira_installations_cloud_id_unique').on(table.cloudId),
   ],
 );
 

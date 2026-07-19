@@ -45,6 +45,14 @@ export async function defaultModules(): Promise<ShipfoxModule[]> {
             namespace: `system/integrations/linear/${params.namespace}`,
           }),
       },
+      jira: {
+        getSecret: (params) =>
+          getSecret({...params, namespace: `system/integrations/jira/${params.namespace}`}),
+        setSecrets: (params) =>
+          setSecrets({...params, namespace: `system/integrations/jira/${params.namespace}`}),
+        deleteSecrets: (params) =>
+          deleteSecrets({...params, namespace: `system/integrations/jira/${params.namespace}`}),
+      },
       slack: {
         getSecret: (params) =>
           getSecret({
