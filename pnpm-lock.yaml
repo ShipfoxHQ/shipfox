@@ -4456,6 +4456,16 @@ importers:
 
   libs/client/features:
     dependencies:
+      '@shipfox/client-shell':
+        specifier: workspace:*
+        version: link:../shell
+      '@swc/helpers':
+        specifier: 'catalog:'
+        version: 0.5.23
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
       '@shipfox/client-agent':
         specifier: workspace:*
         version: link:../agent
@@ -4471,22 +4481,12 @@ importers:
       '@shipfox/client-projects':
         specifier: workspace:*
         version: link:../projects
-      '@shipfox/client-shell':
-        specifier: workspace:*
-        version: link:../shell
       '@shipfox/client-workflows':
         specifier: workspace:*
         version: link:../workflows
       '@shipfox/client-workspace-settings':
         specifier: workspace:*
         version: link:../workspace-settings
-      '@swc/helpers':
-        specifier: 'catalog:'
-        version: 0.5.23
-    devDependencies:
-      '@shipfox/biome':
-        specifier: workspace:*
-        version: link:../../../tools/biome
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc

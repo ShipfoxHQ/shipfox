@@ -338,6 +338,14 @@ Singleton-sensitive libraries are peers of the public client packages: `react`, 
 package exports a Vite plugin. `@tanstack/router-core` is a direct runtime dependency because emitted
 anchor declarations name its types.
 
+`@shipfox/client-features` also lists the default route packages as peers. Those peers are
+`@shipfox/client-auth`, `@shipfox/client-invitations`, `@shipfox/client-integrations`,
+`@shipfox/client-projects`, `@shipfox/client-workflows`, `@shipfox/client-agent`, and
+`@shipfox/client-workspace-settings`.
+
+This exposes the app requirement at install time. The generated router lives in the app, not in
+`client-features`. It imports each route by package name.
+
 Packages keep the repository export conditions:
 
 - `workspace-source` and `development` resolve `src` for repository work;
@@ -346,8 +354,8 @@ Packages keep the repository export conditions:
 - `shipfox-tsc-emit` emits declarations; and
 - ESM export maps define the public surface.
 
-The packed-consumer gate runs without source conditions. Changesets will add a linked client release
-group when ENG-938 makes the packages public. `@shipfox/react-ui` stays outside that linked group.
+The packed-consumer gate runs without source conditions. Changesets link the public client packages
+as one release group. `@shipfox/react-ui` stays outside that linked group.
 
 ## Composition roots
 
@@ -380,6 +388,21 @@ export default defineConfig({
   ],
 });
 ```
+
+Apps must declare `@shipfox/client-shell`, `@shipfox/client-features`, and every route package they
+use. The default route packages are:
+
+- `@shipfox/client-agent`
+- `@shipfox/client-auth`
+- `@shipfox/client-integrations`
+- `@shipfox/client-invitations`
+- `@shipfox/client-projects`
+- `@shipfox/client-workflows`
+- `@shipfox/client-workspace-settings`
+
+The generated `shipfox-app.gen.ts` lives in the app. It imports those routes by package name. With
+pnpm's isolated linker, the app cannot resolve those imports through `client-features` as transitive
+dependencies. `apps/client/package.json` shows the pattern.
 
 ## Worked examples
 
@@ -463,8 +486,8 @@ not mount a router or start network work. Tests may supply `features`, `config`,
 `store`. Omitted state gets local defaults. `shellDecorator` is the zero-config Storybook helper.
 `createShellDecorator(options)` creates a configured decorator.
 
-Auth remains stubbed in the prototype runtime. ENG-938 must add the real shell-owned `AuthRuntime`
-and its test value without changing this provider ownership.
+The shell-owned `AuthRuntime` configures token refresh and API client access. Test providers disable
+those effects while keeping the same provider ownership.
 
 Router and end-to-end fixtures use the generated application file. They do not hand-build a second
 route tree.
@@ -523,9 +546,9 @@ The linked and packed modes proved these behaviors:
 
 The packed mode also proves consumer type-checking from tarballs with no workspace fallback.
 
-## Migration map for ENG-938
+## ENG-938 implementation record
 
-ENG-938 implements the accepted contract in these slices.
+ENG-938 implemented the accepted contract through these slices.
 
 ### 1. Graduate the shell
 
