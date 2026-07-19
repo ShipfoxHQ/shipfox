@@ -90,6 +90,11 @@
     "vite": "^8.0.3",
     "zod": "^4.4.3"
   },
+  "peerDependenciesMeta": {
+    "@storybook/react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/client-test-setup": "workspace:*",
