@@ -1,8 +1,18 @@
 import {spawn} from 'node:child_process';
 import {globSync} from 'node:fs';
-import {cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {basename, join, relative, resolve, sep} from 'node:path';
+import {basename, dirname, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('../../../../..', import.meta.url)));
@@ -29,18 +39,29 @@ const {
 } = await import(
   pathToFileURL(join(repositoryRoot, 'tools/application-release/dist/package-closure.js')).href
 );
+const {productionizeManifest} = await import(
+  pathToFileURL(join(repositoryRoot, 'tools/utils/src/productionize.js')).href
+);
 const config = readPublicationClosureConfig(join(repositoryRoot, 'publication-closure.json'));
 const workspacePackages = readWorkspacePackages(repositoryRoot);
 validatePublicationState(workspacePackages, config, repositoryRoot);
 const clientRoots = config.roots.filter((root) => root.startsWith('@shipfox/client-'));
+const fixtureSupportPackages = ['@shipfox/client-config'];
+const consumerPackages = [...clientRoots, ...fixtureSupportPackages];
 const closure = computePublicationClosure(workspacePackages, clientRoots);
 const entryPoints = closure.flatMap((name) =>
   listConcreteEntryPoints(name, requiredPackage(workspacePackages, name)),
 );
+const consumerTypeEntryPoints = clientRoots.flatMap((name) =>
+  listConcreteEntryPoints(name, requiredPackage(workspacePackages, name)),
+);
+const closureTypeEntryPoints = entryPoints
+  .filter(({target}) => entryPointSupportsTypeResolution(target))
+  .map(({specifier}) => specifier);
 const runtimeEntryPoints = entryPoints
   .filter(({target}) => entryPointSupportsRuntimeImport(target))
   .map(({specifier}) => specifier);
-const typeEntryPoints = entryPoints
+const typeEntryPoints = consumerTypeEntryPoints
   .filter(({target}) => entryPointSupportsTypeResolution(target))
   .map(({specifier}) => specifier);
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-client-composition-'));
@@ -51,18 +72,24 @@ try {
   const packageSpecs = linkMode
     ? linkedPackageSpecs(closure, workspacePackages)
     : await packedPackageSpecs(closure, workspacePackages, temporaryRoot);
-  await configureFixture(fixtureRoot, packageSpecs);
+  await configureFixture(fixtureRoot, consumerPackages, packageSpecs);
   await writeTypeFixture(fixtureRoot, typeEntryPoints);
   await run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], fixtureRoot, {
     capture: true,
   });
 
-  if (linkMode) await validateLinkedPackages(fixtureRoot, closure, workspacePackages);
+  if (linkMode) await validateLinkedPackages(fixtureRoot, consumerPackages, workspacePackages);
   else {
     await validateInstalledPackages(fixtureRoot, closure, workspacePackages);
     await validateNoRegistryShipfoxPackages(fixtureRoot);
-    await validatePackageResolution(fixtureRoot, runtimeEntryPoints);
-    await validatePackageResolution(fixtureRoot, runtimeEntryPoints, ['development']);
+    await validatePackageResolution(fixtureRoot, runtimeEntryPoints, {
+      conditionLabel: 'default',
+    });
+    await validatePackageResolution(fixtureRoot, runtimeEntryPoints, {
+      nodeArgs: ['--conditions=development'],
+      conditionLabel: 'development',
+    });
+    await validateFullClosureTypeDeclarations(fixtureRoot, closureTypeEntryPoints);
   }
 
   await run('pnpm', ['exec', 'vite', 'build'], fixtureRoot, {capture: true});
@@ -105,20 +132,42 @@ function linkedPackageSpecs(names, packages) {
 
 async function packedPackageSpecs(names, packages, root) {
   const tarballRoot = join(root, 'tarballs');
-  await mkdir(tarballRoot);
+  const stagingRoot = join(root, 'packages');
+  await Promise.all([
+    mkdir(tarballRoot),
+    mkdir(stagingRoot),
+    cp(join(repositoryRoot, 'pnpm-workspace.yaml'), join(stagingRoot, 'pnpm-workspace.yaml')),
+  ]);
   const tarballs = await mapWithConcurrency(names, 4, async (name) => {
     const workspacePackage = requiredPackage(packages, name);
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    await run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, {capture: true});
+    await packProductionizedPackage(workspacePackage, tarball, stagingRoot);
     return [name, `file:${tarball}`];
   });
   return Object.fromEntries(tarballs);
 }
 
-async function configureFixture(root, packageSpecs) {
+async function packProductionizedPackage(workspacePackage, tarball, stagingRoot) {
+  const packageRoot = join(stagingRoot, safePackageName(workspacePackage.manifest.name));
+  await cp(workspacePackage.directory, packageRoot, {recursive: true});
+
+  const manifestPath = join(packageRoot, 'package.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  const productionized = productionizeManifest(manifest);
+  if (productionized !== manifest) {
+    await writeFile(manifestPath, `${JSON.stringify(productionized, null, 2)}\n`);
+  }
+
+  await run('pnpm', ['pack', '--out', tarball], packageRoot, {capture: true});
+}
+
+async function configureFixture(root, consumerPackages, packageSpecs) {
   const manifestPath = join(root, 'package.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  manifest.dependencies = {...manifest.dependencies, ...packageSpecs};
+  const consumerDependencies = Object.fromEntries(
+    consumerPackages.map((name) => [name, packageSpecs[name]]),
+  );
+  manifest.dependencies = {...manifest.dependencies, ...consumerDependencies};
   await Promise.all([
     writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`),
     writeFile(
@@ -156,21 +205,24 @@ async function validateLinkedPackages(root, names, packages) {
 async function validateInstalledPackages(root, names, packages) {
   const realFixtureRoot = await realpath(root);
   for (const name of names) {
-    const installedManifestPath = join(root, 'node_modules', name, 'package.json');
-    const installedManifest = JSON.parse(await readFile(installedManifestPath, 'utf8'));
-    const expectedManifest = requiredPackage(packages, name).manifest;
-    if (installedManifest.version !== expectedManifest.version) {
-      throw new Error(
-        `Packed ${name} has version ${installedManifest.version}; expected ${expectedManifest.version}`,
+    for (const packageRoot of installedPackageRoots(root, name)) {
+      const installedManifest = JSON.parse(
+        await readFile(join(packageRoot, 'package.json'), 'utf8'),
       );
-    }
-    const workspaceRange = findWorkspaceRange(installedManifest);
-    if (workspaceRange)
-      throw new Error(`Packed ${name} contains a workspace range at ${workspaceRange}`);
-    validateDefaultInternalImports(name, installedManifest);
-    const installedRoot = await realpath(join(root, 'node_modules', name));
-    if (!installedRoot.startsWith(realFixtureRoot)) {
-      throw new Error(`Packed ${name} resolved outside the external consumer`);
+      const expectedManifest = requiredPackage(packages, name).manifest;
+      if (installedManifest.version !== expectedManifest.version) {
+        throw new Error(
+          `Packed ${name} has version ${installedManifest.version}; expected ${expectedManifest.version}`,
+        );
+      }
+      const workspaceRange = findWorkspaceRange(installedManifest);
+      if (workspaceRange)
+        throw new Error(`Packed ${name} contains a workspace range at ${workspaceRange}`);
+      validateDefaultInternalImports(name, installedManifest);
+      const installedRoot = await realpath(packageRoot);
+      if (!installedRoot.startsWith(realFixtureRoot)) {
+        throw new Error(`Packed ${name} resolved outside the external consumer`);
+      }
     }
   }
 }
@@ -178,6 +230,7 @@ async function validateInstalledPackages(root, names, packages) {
 function validateDefaultInternalImports(name, manifest) {
   const internalImports = manifest.imports?.['#*'];
   if (internalImports === undefined) return;
+  if (internalImports === './dist/*') return;
   if (
     !internalImports ||
     typeof internalImports !== 'object' ||
@@ -188,30 +241,96 @@ function validateDefaultInternalImports(name, manifest) {
   }
 }
 
-async function validatePackageResolution(root, specifiers, conditions = []) {
-  const resolution = await run(
-    process.execPath,
-    [
-      ...conditions.map((condition) => `--conditions=${condition}`),
-      '--input-type=module',
-      '--eval',
-      `const specifiers = ${JSON.stringify(specifiers)};
+async function validatePackageResolution(root, specifiers, {nodeArgs = [], conditionLabel}) {
+  const specifiersByPackage = Map.groupBy(specifiers, packageNameFromSpecifier);
+  for (const [packageName, packageSpecifiers] of specifiersByPackage) {
+    for (const packageRoot of installedPackageRoots(root, packageName)) {
+      const resolution = await run(
+        process.execPath,
+        [
+          ...nodeArgs,
+          '--input-type=module',
+          '--eval',
+          `const specifiers = ${JSON.stringify(packageSpecifiers)};
 const resolved = Object.fromEntries(specifiers.map((specifier) => [specifier, import.meta.resolve(specifier)]));
 process.stdout.write(JSON.stringify(resolved));`,
-    ],
-    root,
-    {capture: true},
-  );
-  const resolved = JSON.parse(resolution.stdout);
-  for (const specifier of specifiers) {
-    const resolvedPath = fileURLToPath(resolved[specifier]);
-    if (!resolvedPath.split(sep).includes('dist')) {
-      const conditionLabel = conditions.length ? conditions.join(', ') : 'default';
-      throw new Error(
-        `Packed ${specifier} resolved to source instead of dist under ${conditionLabel} conditions: ${resolvedPath}`,
+        ],
+        packageRoot,
+        {capture: true},
       );
+      const resolved = JSON.parse(resolution.stdout);
+      for (const specifier of packageSpecifiers) {
+        const resolvedPath = fileURLToPath(resolved[specifier]);
+        if (!resolvedPath.split(sep).includes('dist')) {
+          throw new Error(
+            `Packed ${specifier} resolved to source instead of dist under the ${conditionLabel} condition: ${resolvedPath}`,
+          );
+        }
+      }
     }
   }
+}
+
+async function validateFullClosureTypeDeclarations(root, specifiers) {
+  const typeScriptCli = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+  const specifiersByPackage = Map.groupBy(specifiers, packageNameFromSpecifier);
+  const auditRoot = join(root, 'full-closure-types');
+  const typeFixtures = [];
+  let auditIndex = 0;
+  for (const [packageName, packageSpecifiers] of specifiersByPackage) {
+    for (const packageRoot of installedPackageRoots(root, packageName)) {
+      const packageAuditRoot = join(auditRoot, String(auditIndex));
+      auditIndex += 1;
+      await writeTypeAudit(packageAuditRoot, packageName, packageRoot, packageSpecifiers);
+      typeFixtures.push(relative(auditRoot, join(packageAuditRoot, 'types.ts')));
+    }
+  }
+
+  await writeTypeAuditConfig(auditRoot, typeFixtures);
+  await run(process.execPath, [typeScriptCli, '--project', 'tsconfig.json'], auditRoot, {
+    capture: true,
+  });
+}
+
+async function writeTypeAudit(root, packageName, packageRoot, specifiers) {
+  const packageLink = join(root, 'node_modules', ...packageName.split('/'));
+  await mkdir(dirname(packageLink), {recursive: true});
+  await symlink(packageRoot, packageLink, 'dir');
+  await writeTypeFixture(root, specifiers);
+}
+
+async function writeTypeAuditConfig(root, typeFixtures) {
+  await writeFile(
+    join(root, 'tsconfig.json'),
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          strict: true,
+          target: 'ES2022',
+          lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          jsx: 'react-jsx',
+          skipLibCheck: false,
+          verbatimModuleSyntax: true,
+          noEmit: true,
+        },
+        files: typeFixtures,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+function installedPackageRoots(root, packageName) {
+  const packageRoots = globSync(
+    join(root, 'node_modules/.pnpm/**/node_modules', packageName),
+  ).sort();
+  if (!packageRoots.length) {
+    throw new Error(`Packed closure package is not installed: ${packageName}`);
+  }
+  return packageRoots;
 }
 
 async function validateNoRegistryShipfoxPackages(root) {
@@ -229,6 +348,8 @@ async function validateNoRegistryShipfoxPackages(root) {
 
 async function validateGeneratedModule(root) {
   const generated = await readFile(join(root, 'src/shipfox-app.gen.ts'), 'utf8');
+  const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  const declaredDependencies = new Set(Object.keys(manifest.dependencies));
   const expectedImports = [
     '@shipfox/client-auth/routes/index',
     '@shipfox/client-invitations/routes/accept',
@@ -245,6 +366,22 @@ async function validateGeneratedModule(root) {
       throw new Error(`Generated default composition did not include ${JSON.stringify(expected)}.`);
     }
   }
+
+  for (const match of generated.matchAll(/\bfrom\s+['"]([^'"]+)['"]/gu)) {
+    const specifier = match[1];
+    if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
+    const packageName = packageNameFromSpecifier(specifier);
+    if (!declaredDependencies.has(packageName)) {
+      throw new Error(
+        `Generated default composition imports undeclared package ${JSON.stringify(packageName)} from ${JSON.stringify(specifier)}.`,
+      );
+    }
+  }
+}
+
+function packageNameFromSpecifier(specifier) {
+  if (!specifier.startsWith('@')) return specifier.split('/')[0];
+  return specifier.split('/').slice(0, 2).join('/');
 }
 
 function requiredPackage(packages, name) {

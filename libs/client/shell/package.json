@@ -81,6 +81,7 @@
     "framer-motion": "catalog:"
   },
   "peerDependencies": {
+    "@storybook/react": "^10.4.6",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-router": "^1.170.16",
     "jotai": "^2.19.1",
@@ -88,6 +89,11 @@
     "react-dom": "^19.0.0",
     "vite": "^8.0.3",
     "zod": "^4.4.3"
+  },
+  "peerDependenciesMeta": {
+    "@storybook/react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

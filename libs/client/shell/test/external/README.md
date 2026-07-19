@@ -14,10 +14,13 @@ full client closure:
 pnpm --filter=@shipfox/client-shell test:external
 ```
 
-The gate installs only local tarballs for `@shipfox/*`, checks `dist` resolution under both the
-default and `development` conditions, generates the composed TanStack router, builds and type-checks
-the consumer, runs the behavioral fixture, and asserts the exact rejected-collision diagnostic. CI
-runs this command during static verification.
+The gate installs only the nine documented client composition roots, plus
+`@shipfox/client-config` used by the fixture's own config proof, as direct dependencies. It uses
+release-shaped local tarballs and overrides for the full `@shipfox/*` runtime closure. It verifies
+that generated package imports are declared direct dependencies, checks default and `development`
+condition resolution through `dist`, type-checks every packed declaration graph, generates the
+composed TanStack router, builds and type-checks the consumer, runs the behavioral fixture, and
+asserts the exact rejected-collision diagnostic. CI runs this command during static verification.
 
 ## Run the linked iteration mode
 
@@ -26,7 +29,9 @@ pnpm --filter=@shipfox/client-shell test:external -- --link
 ```
 
 This copies the Vite template to a temporary directory and links the workspace-built closure. It
-runs the same generated-route, behavior, collision, and type assertions without packing tarballs.
+runs the same minimal-consumer, generated-route, behavior, collision, and type assertions without
+packing tarballs. The packed-only `development` check is omitted because linked workspace packages
+intentionally resolve that condition to source.
 
 Both modes remove their temporary directories after completion. The behavioral composition fixture
 uses Vitest with JSDOM and does not need browser E2E infrastructure.
