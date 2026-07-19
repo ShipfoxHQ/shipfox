@@ -83,51 +83,6 @@
       ],
       "dependsOn": ["^build", "build"]
     },
-    "@shipfox/api-integration-jira#test": {
-      "cache": true,
-      "passThroughEnv": [
-        "CLIENT_BASE_URL",
-        "GITEA_BASE_URL",
-        "LOG_STORAGE_S3_ENDPOINT",
-        "OTEL_INSTANCE_METRICS_PORT",
-        "OTEL_SERVICE_METRICS_PORT",
-        "POSTGRES_*",
-        "SHIPFOX_*",
-        "TEMPORAL_*",
-        "VITE_API_URL"
-      ],
-      "dependsOn": ["^build", "build", "@shipfox/api-secrets#build"]
-    },
-    "@shipfox/api-integration-linear#test": {
-      "cache": true,
-      "passThroughEnv": [
-        "CLIENT_BASE_URL",
-        "GITEA_BASE_URL",
-        "LOG_STORAGE_S3_ENDPOINT",
-        "OTEL_INSTANCE_METRICS_PORT",
-        "OTEL_SERVICE_METRICS_PORT",
-        "POSTGRES_*",
-        "SHIPFOX_*",
-        "TEMPORAL_*",
-        "VITE_API_URL"
-      ],
-      "dependsOn": ["^build", "build", "@shipfox/api-secrets#build"]
-    },
-    "@shipfox/api-integration-slack#test": {
-      "cache": true,
-      "passThroughEnv": [
-        "CLIENT_BASE_URL",
-        "GITEA_BASE_URL",
-        "LOG_STORAGE_S3_ENDPOINT",
-        "OTEL_INSTANCE_METRICS_PORT",
-        "OTEL_SERVICE_METRICS_PORT",
-        "POSTGRES_*",
-        "SHIPFOX_*",
-        "TEMPORAL_*",
-        "VITE_API_URL"
-      ],
-      "dependsOn": ["^build", "build", "@shipfox/api-secrets#build"]
-    },
     "test:e2e": {
       "cache": false,
       "dependsOn": ["^build"],
