@@ -4,6 +4,8 @@ import {tmpdir} from 'node:os';
 import {basename, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+import {productionizeManifest} from '../../../utils/src/productionize.js';
+
 import {
   computePublicationClosure,
   entryPointSupportsRuntimeImport,
@@ -33,7 +35,18 @@ try {
     const workspacePackage = workspacePackages.get(name);
     if (!workspacePackage) throw new Error(`Missing workspace package: ${name}`);
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    await run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, 'ignore');
+    const sourceManifest = await readFile(workspacePackage.manifestPath, 'utf8');
+    const productionManifest = `${JSON.stringify(
+      productionizeManifest(workspacePackage.manifest),
+      null,
+      2,
+    )}\n`;
+    await writeFile(workspacePackage.manifestPath, productionManifest);
+    try {
+      await run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, 'ignore');
+    } finally {
+      await writeFile(workspacePackage.manifestPath, sourceManifest);
+    }
     return [name, tarball];
   });
 

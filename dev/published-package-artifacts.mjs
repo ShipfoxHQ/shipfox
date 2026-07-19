@@ -5,6 +5,7 @@ import {basename, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {parse as parseYaml} from 'yaml';
+import {productionizeManifest} from '../tools/utils/src/productionize.js';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const packageSources = {
@@ -64,7 +65,14 @@ function readSourcePackages() {
       );
       if (manifest.name !== name) throw new Error(`Expected ${directory} to define ${name}`);
       if (manifest.private === true) throw new Error(`Representative package ${name} is private`);
-      return [name, {directory: join(repositoryRoot, directory), manifest}];
+      return [
+        name,
+        {
+          directory: join(repositoryRoot, directory),
+          manifest,
+          manifestPath: join(repositoryRoot, directory, 'package.json'),
+        },
+      ];
     }),
   );
 }
@@ -102,7 +110,18 @@ async function buildPackageArtifacts() {
 async function packPackages(packages, tarballRoot) {
   const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    await run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {stdio: 'ignore'});
+    const sourceManifest = await readFile(sourcePackage.manifestPath, 'utf8');
+    const productionManifest = `${JSON.stringify(
+      productionizeManifest(sourcePackage.manifest),
+      null,
+      2,
+    )}\n`;
+    await writeFile(sourcePackage.manifestPath, productionManifest);
+    try {
+      await run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {stdio: 'ignore'});
+    } finally {
+      await writeFile(sourcePackage.manifestPath, sourceManifest);
+    }
     return [name, tarball];
   });
   return Object.fromEntries(tarballs);
