@@ -9,18 +9,12 @@ import {navigationEntries, settingsEntries} from '#runtime/registries.js';
 import {evaluateFeatures, invalidateFeatures} from './evaluate-features.js';
 import {generateAppModule} from './generate.js';
 
-const defaultExportPattern = /\bexport\s+default\b|\bexport\s*\{[\s\S]*?\bas\s+default\b[\s\S]*?\}/;
-
 export interface ShipfoxClientCompositionOptions {
   features: string;
   out?: string;
 }
 
 type RouteResolver = (source: string, importer?: string) => Promise<{id: string} | null>;
-
-function hasDefaultExport(source: string): boolean {
-  return defaultExportPattern.test(source);
-}
 
 export function shipfoxClientComposition({
   features,
@@ -32,7 +26,7 @@ export function shipfoxClientComposition({
   const outputPath = () => resolve(config?.root ?? process.cwd(), out);
   const featuresPath = () => resolve(config?.root ?? process.cwd(), features);
 
-  async function assertDefaultRouteExports(
+  async function assertRoutesResolve(
     resolveRoute: RouteResolver,
     routes: ReturnType<typeof composeRoutes>,
   ): Promise<void> {
@@ -41,12 +35,6 @@ export function shipfoxClientComposition({
       if (!resolvedRoute) {
         throw new Error(
           `Could not resolve route implementation "${route.impl}" for "${route.path}".`,
-        );
-      }
-      const source = await readFile(resolvedRoute.id, 'utf8');
-      if (!hasDefaultExport(source)) {
-        throw new Error(
-          `Route implementation "${route.impl}" for "${route.path}" must export default defineRoute(...).`,
         );
       }
     }
@@ -72,7 +60,7 @@ export function shipfoxClientComposition({
       routes.map((route) => route.path),
     );
     mergeConfigShapes(evaluated.features);
-    await assertDefaultRouteExports(resolveRoute, routes);
+    await assertRoutesResolve(resolveRoute, routes);
 
     watchedFiles = new Set(evaluated.loadedFiles);
     for (const file of watchedFiles) addWatchFile(file);
