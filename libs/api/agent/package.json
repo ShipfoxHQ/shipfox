@@ -15,13 +15,12 @@
     "#test/*": "./test/*",
     "#*": {
       "workspace-source": "./src/*",
-      "development": "./src/*",
       "default": "./dist/*"
     }
   },
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },
@@ -31,7 +30,7 @@
       }
     },
     "./core/errors": {
-      "development": {
+      "workspace-source": {
         "types": "./src/core/errors.ts",
         "default": "./src/core/errors.ts"
       },
@@ -41,7 +40,7 @@
       }
     },
     "./core/resolve-agent-config": {
-      "development": {
+      "workspace-source": {
         "types": "./src/core/resolve-agent-config.ts",
         "default": "./src/core/resolve-agent-config.ts"
       },
@@ -51,7 +50,7 @@
       }
     },
     "./core/resolve-runtime-credentials": {
-      "development": {
+      "workspace-source": {
         "types": "./src/core/resolve-runtime-credentials.ts",
         "default": "./src/core/resolve-runtime-credentials.ts"
       },
@@ -61,7 +60,7 @@
       }
     },
     "./core/workspace-agent-defaults-resolver": {
-      "development": {
+      "workspace-source": {
         "types": "./src/core/workspace-agent-defaults-resolver.ts",
         "default": "./src/core/workspace-agent-defaults-resolver.ts"
       },

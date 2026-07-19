@@ -12,8 +12,9 @@
     "build": "pnpm run generate && vite-build",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "dev": "pnpm run generate && vite-dev",
+    "dev": "pnpm run generate:dev && vite-dev",
     "generate": "node scripts/generate-client-composition.mjs",
+    "generate:dev": "node --conditions=workspace-source --import=tsx scripts/generate-client-composition.mjs",
     "image": "shipfox-docker --image client",
     "type": "pnpm run generate && shipfox-tsc-check",
     "type:emit": "pnpm run generate && shipfox-tsc-emit"
@@ -44,6 +45,7 @@
     "@shipfox/vite": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "tailwindcss": "catalog:",
+    "tsx": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",

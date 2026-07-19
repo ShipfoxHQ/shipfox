@@ -14,7 +14,7 @@
   },
   "exports": {
     "./config": {
-      "development": {
+      "workspace-source": {
         "types": "./src/config/index.ts",
         "default": "./src/config/index.ts"
       },
@@ -24,7 +24,7 @@
       }
     },
     "./fixtures": {
-      "development": {
+      "workspace-source": {
         "types": "./src/fixtures/index.ts",
         "default": "./src/fixtures/index.ts"
       },
@@ -34,7 +34,7 @@
       }
     },
     "./ui": {
-      "development": {
+      "workspace-source": {
         "types": "./src/ui/index.ts",
         "default": "./src/ui/index.ts"
       },
@@ -44,7 +44,7 @@
       }
     },
     "./global-setup": {
-      "development": {
+      "workspace-source": {
         "types": "./src/setup/global-setup.ts",
         "default": "./src/setup/global-setup.ts"
       },
@@ -54,7 +54,7 @@
       }
     },
     "./api-global-setup": {
-      "development": {
+      "workspace-source": {
         "types": "./src/setup/api-global-setup.ts",
         "default": "./src/setup/api-global-setup.ts"
       },

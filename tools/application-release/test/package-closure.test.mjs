@@ -42,7 +42,6 @@ function workspacePackage(name, options = {}) {
         ...(options.imports ?? {
           '#*': {
             'workspace-source': './src/*',
-            development: './src/*',
             default: './dist/*',
           },
         }),
@@ -144,7 +143,6 @@ describe('publication closure', () => {
         imports: {
           '#*': {
             'workspace-source': './src/*',
-            development: './src/*',
             default: './dist/*',
           },
           '#generated/*': {default: './src/generated/*'},
@@ -156,7 +154,7 @@ describe('publication closure', () => {
       {
         exports: {
           '.': {
-            development: {types: './src/index.ts', default: './src/index.ts'},
+            'workspace-source': {types: './src/index.ts', default: './src/index.ts'},
             default: {types: './dist/index.d.ts', default: './src/index.js'},
           },
         },
@@ -195,7 +193,7 @@ describe('publication closure', () => {
   test('classifies JavaScript, type-only, and non-module exports', () => {
     const entryPoints = listPublicPackageEntryPoints('@shipfox/example', {
       '.': {
-        development: {types: './src/index.ts', default: './src/index.ts'},
+        'workspace-source': {types: './src/index.ts', default: './src/index.ts'},
         default: {types: './dist/index.d.ts', default: './dist/index.js'},
       },
       './types': {types: './dist/types.d.ts'},

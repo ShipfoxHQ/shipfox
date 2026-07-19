@@ -1,4 +1,5 @@
 import {getProjectRootPath} from '@shipfox/tool-utils';
+import {defaultClientConditions, defaultServerConditions} from 'vite';
 import {
   type TestProjectConfiguration,
   type UserWorkspaceConfig,
@@ -24,6 +25,14 @@ type MergeableConfigInput = ConfigInput & {
       checks?: Record<string, unknown>;
     };
   };
+  resolve?: {
+    conditions?: string[];
+  };
+  ssr?: {
+    resolve?: {
+      conditions?: string[];
+    };
+  };
   test?: {
     exclude?: string[];
   };
@@ -31,6 +40,7 @@ type MergeableConfigInput = ConfigInput & {
 
 const maxWorkers = parseMaxWorkers(process.env.SHIPFOX_VITEST_MAX_WORKERS);
 const workerPoolDefaults = maxWorkers === undefined ? {} : {maxWorkers};
+const vitestServerConditions = defaultServerConditions.filter((condition) => condition !== 'module');
 
 function parseMaxWorkers(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -47,9 +57,23 @@ function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): 
   const mergeableConfig = resolvedConfig as MergeableConfigInput;
   const existingPlugins = mergeableConfig.plugins || [];
   const existingTestConfig = mergeableConfig.test || {};
+  const existingResolve = mergeableConfig.resolve || {};
+  const existingSsrResolve = mergeableConfig.ssr?.resolve || {};
   const merged = {
     ...resolvedConfig,
     plugins: [...existingPlugins],
+    resolve: {
+      ...existingResolve,
+      conditions: existingResolve.conditions ?? [...defaultClientConditions, 'workspace-source'],
+    },
+    ssr: {
+      ...mergeableConfig.ssr,
+      resolve: {
+        ...existingSsrResolve,
+        conditions:
+          existingSsrResolve.conditions ?? [...vitestServerConditions, 'workspace-source'],
+      },
+    },
     optimizeDeps: {
       ...(mergeableConfig.optimizeDeps || {}),
       rolldownOptions: {

@@ -61,7 +61,8 @@ try {
   else {
     await validateInstalledPackages(fixtureRoot, closure, workspacePackages);
     await validateNoRegistryShipfoxPackages(fixtureRoot);
-    await validateDefaultPackageResolution(fixtureRoot, runtimeEntryPoints);
+    await validatePackageResolution(fixtureRoot, runtimeEntryPoints);
+    await validatePackageResolution(fixtureRoot, runtimeEntryPoints, ['development']);
   }
 
   await run('pnpm', ['exec', 'vite', 'build'], fixtureRoot, {capture: true});
@@ -187,10 +188,11 @@ function validateDefaultInternalImports(name, manifest) {
   }
 }
 
-async function validateDefaultPackageResolution(root, specifiers) {
+async function validatePackageResolution(root, specifiers, conditions = []) {
   const resolution = await run(
     process.execPath,
     [
+      ...conditions.map((condition) => `--conditions=${condition}`),
       '--input-type=module',
       '--eval',
       `const specifiers = ${JSON.stringify(specifiers)};
@@ -204,7 +206,10 @@ process.stdout.write(JSON.stringify(resolved));`,
   for (const specifier of specifiers) {
     const resolvedPath = fileURLToPath(resolved[specifier]);
     if (!resolvedPath.split(sep).includes('dist')) {
-      throw new Error(`Packed ${specifier} resolved to source instead of dist: ${resolvedPath}`);
+      const conditionLabel = conditions.length ? conditions.join(', ') : 'default';
+      throw new Error(
+        `Packed ${specifier} resolved to source instead of dist under ${conditionLabel} conditions: ${resolvedPath}`,
+      );
     }
   }
 }

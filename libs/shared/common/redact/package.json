@@ -23,13 +23,12 @@
   "imports": {
     "#*": {
       "workspace-source": "./src/*",
-      "development": "./src/*",
       "default": "./dist/*"
     }
   },
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },

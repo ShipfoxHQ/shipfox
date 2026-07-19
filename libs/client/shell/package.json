@@ -13,14 +13,13 @@
   "imports": {
     "#*": {
       "workspace-source": "./src/*",
-      "development": "./src/*",
       "default": "./dist/*"
     },
     "#test/*": "./test/*"
   },
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },
@@ -30,7 +29,7 @@
       }
     },
     "./runtime": {
-      "development": {
+      "workspace-source": {
         "types": "./src/runtime/index.ts",
         "default": "./src/runtime/index.ts"
       },
@@ -40,7 +39,7 @@
       }
     },
     "./testing": {
-      "development": {
+      "workspace-source": {
         "types": "./src/testing/index.tsx",
         "default": "./src/testing/index.tsx"
       },
@@ -50,7 +49,7 @@
       }
     },
     "./vite": {
-      "development": {
+      "workspace-source": {
         "types": "./src/vite/index.ts",
         "default": "./src/vite/index.ts"
       },
@@ -78,7 +77,7 @@
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
     "@tanstack/router-core": "catalog:",
-    "jiti": "catalog:",
+    "tsx": "catalog:",
     "framer-motion": "catalog:"
   },
   "peerDependencies": {

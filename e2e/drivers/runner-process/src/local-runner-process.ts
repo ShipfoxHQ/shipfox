@@ -45,7 +45,7 @@ export interface LocalRunnerExit {
 }
 
 interface RunnerModule {
-  /** Package directory, used as the child's cwd so tsx and the dev condition resolve there. */
+  /** Package directory used as the child's cwd for tsx and workspace-source resolution. */
   cwd: string;
   /** Source entry the child runs. */
   entry: string;
@@ -101,7 +101,7 @@ export function startLocalRunner(params: StartLocalRunnerParams): LocalRunnerHan
   const logFd = openSync(params.logFile, 'a');
   let child: ChildProcess;
   try {
-    child = spawn(process.execPath, ['--import', 'tsx', '--conditions=development', entry], {
+    child = spawn(process.execPath, ['--import', 'tsx', '--conditions=workspace-source', entry], {
       cwd,
       stdio: ['ignore', logFd, logFd],
       env: buildRunnerEnv(params),

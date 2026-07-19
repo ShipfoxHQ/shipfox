@@ -372,9 +372,6 @@ catalogs:
     ipaddr.js:
       specifier: 2.3.0
       version: 2.3.0
-    jiti:
-      specifier: ^2.7.0
-      version: 2.7.0
     jose:
       specifier: ^6.0.0
       version: 6.2.3
@@ -634,6 +631,9 @@ importers:
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.2
+      tsx:
+        specifier: 'catalog:'
+        version: 4.22.4
       vite:
         specifier: 'catalog:'
         version: 8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -5204,9 +5204,9 @@ importers:
       framer-motion:
         specifier: 'catalog:'
         version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      jiti:
+      tsx:
         specifier: 'catalog:'
-        version: 2.7.0
+        version: 4.22.4
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -7103,6 +7103,9 @@ importers:
       '@shipfox/tool-utils':
         specifier: workspace:*
         version: link:../utils
+      tsx:
+        specifier: 'catalog:'
+        version: 4.22.4
       vite:
         specifier: 'catalog:'
         version: 8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -7122,6 +7125,9 @@ importers:
       '@shipfox/tool-utils':
         specifier: workspace:*
         version: link:../utils
+      vite:
+        specifier: 'catalog:'
+        version: 8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.0)(@vitest/browser-playwright@4.1.9)(happy-dom@20.10.6)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))

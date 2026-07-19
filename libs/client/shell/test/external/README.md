@@ -14,9 +14,10 @@ full client closure:
 pnpm --filter=@shipfox/client-shell test:external
 ```
 
-The gate installs only local tarballs for `@shipfox/*`, checks default `dist` resolution, generates
-the composed TanStack router, builds and type-checks the consumer, runs the behavioral fixture, and
-asserts the exact rejected-collision diagnostic. CI runs this command during static verification.
+The gate installs only local tarballs for `@shipfox/*`, checks `dist` resolution under both the
+default and `development` conditions, generates the composed TanStack router, builds and type-checks
+the consumer, runs the behavioral fixture, and asserts the exact rejected-collision diagnostic. CI
+runs this command during static verification.
 
 ## Run the linked iteration mode
 
