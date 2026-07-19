@@ -74,7 +74,7 @@ function buildProvisionerEnv(params: StartProvisionerParams): Record<string, str
 }
 
 interface ProvisionerModule {
-  /** Package directory, used as the child's cwd so tsx and the dev condition resolve there. */
+  /** Package directory used as the child's cwd for tsx and workspace-source resolution. */
   cwd: string;
   /** Source entry the child runs. */
   entry: string;
@@ -172,7 +172,7 @@ export async function startProvisioner(params: StartProvisionerParams): Promise<
   const logFd = openSync(params.logFile, 'a');
   let child: ChildProcess;
   try {
-    child = spawn(process.execPath, ['--import', 'tsx', '--conditions=development', entry], {
+    child = spawn(process.execPath, ['--import', 'tsx', '--conditions=workspace-source', entry], {
       cwd,
       stdio: ['ignore', logFd, logFd],
       env: {...process.env, ...buildProvisionerEnv(params)},

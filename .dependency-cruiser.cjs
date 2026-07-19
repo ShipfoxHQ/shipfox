@@ -187,7 +187,7 @@ module.exports = {
     tsPreCompilationDeps: 'specify',
     enhancedResolveOptions: {
       exportsFields: ['exports'],
-      conditionNames: ['import', 'require', 'node', 'default', 'development'],
+      conditionNames: ['import', 'require', 'node', 'default', 'workspace-source'],
       mainFields: ['module', 'main', 'types'],
     },
   },

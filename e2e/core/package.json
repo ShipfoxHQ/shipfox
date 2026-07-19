@@ -16,7 +16,7 @@
   },
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },
@@ -26,7 +26,7 @@
       }
     },
     "./api": {
-      "development": {
+      "workspace-source": {
         "types": "./src/api/index.ts",
         "default": "./src/api/index.ts"
       },
@@ -36,7 +36,7 @@
       }
     },
     "./playwright": {
-      "development": {
+      "workspace-source": {
         "types": "./src/playwright.ts",
         "default": "./src/playwright.ts"
       },

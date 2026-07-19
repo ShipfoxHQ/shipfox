@@ -14,7 +14,6 @@
   "imports": {
     "#*": {
       "workspace-source": "./src/*",
-      "development": "./src/*",
       "default": "./dist/*"
     },
     "#test/*": "./test/*"
@@ -24,7 +23,7 @@
   ],
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },

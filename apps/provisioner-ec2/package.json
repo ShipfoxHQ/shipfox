@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "shipfox-swc",
-    "dev": "tsx watch --conditions=development --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
+    "dev": "tsx watch --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "type": "shipfox-tsc-check",

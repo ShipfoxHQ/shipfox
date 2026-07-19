@@ -348,7 +348,7 @@ This exposes the app requirement at install time. The generated router lives in 
 
 Packages keep the repository export conditions:
 
-- `workspace-source` and `development` resolve `src` for repository work;
+- `workspace-source` resolves `src` for repository work;
 - `default` resolves JavaScript and declarations under `dist`;
 - SWC emits JavaScript;
 - `shipfox-tsc-emit` emits declarations; and

@@ -1,3 +1,5 @@
+/// <reference path="../../env.d.ts" />
+
 'use client';
 
 import type {ComponentProps} from 'react';

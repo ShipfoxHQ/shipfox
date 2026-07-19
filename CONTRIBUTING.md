@@ -446,7 +446,7 @@ Libraries (`libs/`) expose **conditional exports**:
 
 | Condition | Resolves to | Used by |
 | --- | --- | --- |
-| `development` | TypeScript source (`src/`) | `pnpm dev`, editor |
+| `workspace-source` | TypeScript source (`src/`) | `pnpm dev`, editor, tests |
 | `default` | Built output (`dist/`) | `turbo build`, CI |
 
 `pnpm dev` picks up library source changes immediately, no lib rebuild needed.

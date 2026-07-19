@@ -13,7 +13,6 @@
     "#test/*": "./test/*",
     "#*": {
       "workspace-source": "./src/*",
-      "development": "./src/*",
       "default": "./dist/*"
     }
   },
@@ -23,7 +22,7 @@
   ],
   "exports": {
     "./hooks": {
-      "development": {
+      "workspace-source": {
         "types": "./src/hooks/index.ts",
         "default": "./src/hooks/index.ts"
       },
@@ -33,7 +32,7 @@
       }
     },
     "./utils": {
-      "development": {
+      "workspace-source": {
         "types": "./src/utils/index.ts",
         "default": "./src/utils/index.ts"
       },
@@ -48,7 +47,7 @@
     },
     "./dist/styles.css": "./dist/styles.css",
     "./hooks/*": {
-      "development": {
+      "workspace-source": {
         "types": "./src/hooks/*.ts",
         "default": "./src/hooks/*.ts"
       },
@@ -58,7 +57,7 @@
       }
     },
     "./utils/*": {
-      "development": {
+      "workspace-source": {
         "types": "./src/utils/*.ts",
         "default": "./src/utils/*.ts"
       },
@@ -68,7 +67,7 @@
       }
     },
     "./*": {
-      "development": {
+      "workspace-source": {
         "types": "./src/components/*/index.ts",
         "default": "./src/components/*/index.ts"
       },

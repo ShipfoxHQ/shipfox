@@ -13,13 +13,12 @@
   "imports": {
     "#*": {
       "workspace-source": "./src/*",
-      "development": "./src/*",
       "default": "./dist/*"
     }
   },
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },
@@ -29,7 +28,7 @@
       }
     },
     "./runtime": {
-      "development": {
+      "workspace-source": {
         "types": "./src/runtime.tsx",
         "default": "./src/runtime.tsx"
       },

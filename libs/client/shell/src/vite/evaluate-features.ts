@@ -1,13 +1,11 @@
-import {readFile, realpath} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {realpath} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
-import {fileURLToPath, pathToFileURL} from 'node:url';
-import {createJiti} from 'jiti';
+import {register} from 'tsx/cjs/api';
 import type {ClientFeature} from '#contract.js';
 
 const require = createRequire(import.meta.url);
-const importPattern =
-  /(?:\b(?:import|export)\s+(?:[^'"]*?\s+from\s+)?|\bimport\s*\(\s*)['"]([^'"]+)['"]/g;
 const nodeModulesPathPattern = /[\\/]node_modules[\\/]/;
 
 export interface EvaluatedFeatures {
@@ -15,71 +13,43 @@ export interface EvaluatedFeatures {
   loadedFiles: readonly string[];
 }
 
-export function invalidateFeatures(loadedFiles: Iterable<string>): void {
-  for (const file of loadedFiles) delete require.cache[file];
-}
-
-function loadedModuleGraph(entry: string): string[] {
+async function localFiles(paths: Iterable<string>): Promise<string[]> {
   const files = new Set<string>();
-
-  function visit(file: string): void {
-    if (files.has(file)) return;
-    files.add(file);
-    for (const child of require.cache[file]?.children ?? []) visit(child.filename);
+  for (const path of paths) {
+    if (nodeModulesPathPattern.test(path)) continue;
+    files.add(await realpath(path).catch(() => path));
   }
-
-  visit(entry);
-  return [...files];
-}
-
-async function staticallyImportedModules(
-  entry: string,
-  jiti: ReturnType<typeof createJiti>,
-): Promise<string[]> {
-  const files = new Set<string>();
-
-  async function visit(file: string): Promise<void> {
-    const path = file.startsWith('file:') ? fileURLToPath(file) : file;
-    if (path.startsWith('node:') || nodeModulesPathPattern.test(path) || files.has(path)) return;
-    const resolvedPath = await realpath(path).catch(() => path);
-    files.add(resolvedPath);
-    const source = await readFile(resolvedPath, 'utf8').catch(() => undefined);
-    if (!source) return;
-
-    for (const match of source.matchAll(importPattern)) {
-      const specifier = match[1];
-      if (!specifier) continue;
-      const dependency = jiti.esmResolve(specifier, {
-        parentURL: pathToFileURL(resolvedPath),
-        try: true,
-      });
-      if (dependency) await visit(dependency);
-    }
-  }
-
-  await visit(entry);
   return [...files];
 }
 
 export async function evaluateFeatures(featuresModule: string): Promise<EvaluatedFeatures> {
   const resolvedFeaturesModule = await realpath(resolve(featuresModule));
-  const jiti = createJiti(resolvedFeaturesModule, {interopDefault: false, tsconfigPaths: true});
+  const namespace = randomUUID();
+  const namespaceQuery = `?namespace=${namespace}`;
+  const loader = register({namespace});
+  const loadedPaths = new Set<string>([resolvedFeaturesModule]);
   let module: {default?: unknown; features?: unknown};
-  let loadedFiles: string[];
   try {
-    module = jiti(resolvedFeaturesModule) as {default?: unknown; features?: unknown};
-    loadedFiles = [
-      ...new Set([
-        ...loadedModuleGraph(resolvedFeaturesModule),
-        ...(await staticallyImportedModules(resolvedFeaturesModule, jiti)),
-      ]),
-    ];
+    module = loader.require(resolvedFeaturesModule, import.meta.url) as {
+      default?: unknown;
+      features?: unknown;
+    };
+    for (const path of Object.keys(require.cache)) {
+      if (path.endsWith(namespaceQuery)) {
+        loadedPaths.add(path.slice(0, -namespaceQuery.length));
+      }
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
       `Failed to evaluate features module "${resolvedFeaturesModule}". Features modules must be Node-safe: ${message}`,
       {cause: error},
     );
+  } finally {
+    loader.unregister();
+    for (const path of Object.keys(require.cache)) {
+      if (path.endsWith(namespaceQuery)) delete require.cache[path];
+    }
   }
 
   const features = module.features ?? module.default;
@@ -89,5 +59,8 @@ export async function evaluateFeatures(featuresModule: string): Promise<Evaluate
     );
   }
 
-  return {features: features as readonly ClientFeature[], loadedFiles};
+  return {
+    features: features as readonly ClientFeature[],
+    loadedFiles: await localFiles(loadedPaths),
+  };
 }

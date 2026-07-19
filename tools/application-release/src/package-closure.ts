@@ -187,13 +187,13 @@ export function listPublicPackageEntryPoints(
 }
 
 export function entryPointSupportsRuntimeImport(target: unknown): boolean {
-  return exportTargetPaths(target, new Set(['development', 'types'])).some((path) =>
+  return exportTargetPaths(target, new Set(['workspace-source', 'types'])).some((path) =>
     RUNTIME_MODULE_PATTERN.test(path),
   );
 }
 
 export function entryPointSupportsTypeResolution(target: unknown): boolean {
-  const declarationTarget = exportTargetPaths(target, new Set(['development'])).some((path) =>
+  const declarationTarget = exportTargetPaths(target, new Set(['workspace-source'])).some((path) =>
     TYPE_DECLARATION_PATTERN.test(path),
   );
   return declarationTarget || entryPointSupportsRuntimeImport(target);
@@ -231,7 +231,6 @@ function validatePublishedPackage(
     (typeof internalImports !== 'object' ||
       internalImports === null ||
       (internalImports as Record<string, unknown>)['workspace-source'] !== './src/*' ||
-      (internalImports as Record<string, unknown>).development !== './src/*' ||
       (internalImports as Record<string, unknown>).default !== './dist/*')
   ) {
     throw new Error(

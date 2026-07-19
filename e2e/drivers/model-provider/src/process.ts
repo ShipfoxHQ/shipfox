@@ -68,14 +68,18 @@ export async function startFakeOpenAiModelProvider(
   const runId = params.runId ?? crypto.randomUUID();
   const adminToken = crypto.randomUUID();
   const {cwd, entry} = providerSidecarModule(params.entryPath);
-  const child = spawn(process.execPath, ['--import', 'tsx', '--conditions=development', entry], {
-    cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      ...inheritedProcessEnv(),
-      SHIPFOX_FAKE_OPENAI_ADMIN_TOKEN: adminToken,
+  const child = spawn(
+    process.execPath,
+    ['--import', 'tsx', '--conditions=workspace-source', entry],
+    {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...inheritedProcessEnv(),
+        SHIPFOX_FAKE_OPENAI_ADMIN_TOKEN: adminToken,
+      },
     },
-  });
+  );
 
   const {pid} = child;
   if (pid === undefined) {

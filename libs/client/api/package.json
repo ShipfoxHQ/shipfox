@@ -12,7 +12,7 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },

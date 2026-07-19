@@ -6,7 +6,7 @@ import {mergeConfigShapes} from '#compose/merge-config.js';
 import {validateProviderIds} from '#compose/validate-providers.js';
 import {validateNavigation, validateSettingsSections} from '#compose/validate-registries.js';
 import {navigationEntries, settingsEntries} from '#runtime/registries.js';
-import {evaluateFeatures, invalidateFeatures} from './evaluate-features.js';
+import {evaluateFeatures} from './evaluate-features.js';
 import {generateAppModule} from './generate.js';
 
 export interface ShipfoxClientCompositionOptions {
@@ -47,7 +47,6 @@ export function shipfoxClientComposition({
     addWatchFile(file: string): void;
     resolveRoute: RouteResolver;
   }): Promise<void> {
-    invalidateFeatures(watchedFiles);
     const evaluated = await evaluateFeatures(featuresPath());
     const routes = composeRoutes(evaluated.features);
     validateProviderIds(evaluated.features);

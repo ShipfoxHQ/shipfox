@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",
+    "tsx": "catalog:",
     "vite": "catalog:"
   },
   "devDependencies": {

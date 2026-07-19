@@ -14,14 +14,13 @@
     "#*": {
       "types": "./src/*",
       "workspace-source": "./src/*",
-      "development": "./src/*",
       "default": "./dist/*"
     },
     "#test/*": "./test/*"
   },
   "exports": {
     ".": {
-      "development": {
+      "workspace-source": {
         "types": "./src/index.ts",
         "default": "./src/index.ts"
       },
@@ -31,7 +30,7 @@
       }
     },
     "./feature": {
-      "development": {
+      "workspace-source": {
         "types": "./src/feature.ts",
         "default": "./src/feature.ts"
       },
@@ -41,7 +40,7 @@
       }
     },
     "./routes/*": {
-      "development": {
+      "workspace-source": {
         "types": "./src/routes/*.tsx",
         "default": "./src/routes/*.tsx"
       },
