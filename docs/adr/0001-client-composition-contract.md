@@ -309,7 +309,7 @@ id, key, or feature id.
 The external collision proof produced this message and a non-zero build status:
 
 ```text
-Route "/workspaces/$wid/insights" is contributed by both features "fixture.toy-feature" and "fixture.unapproved-collision". Set override: true to replace it explicitly.
+Route "/auth/login" is contributed by both features "shipfox.auth" and "fixture.unapproved-collision". Set override: true to replace it explicitly.
 ```
 
 ## Package boundaries

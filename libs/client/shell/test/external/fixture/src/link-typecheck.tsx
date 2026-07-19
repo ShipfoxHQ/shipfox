@@ -1,10 +1,10 @@
-import {Link, useSearch} from '@tanstack/react-router';
+import {Link, useParams} from '@tanstack/react-router';
 
-export function InsightsLink() {
-  const search = useSearch({from: '/workspaces/$wid/insights'});
+export function ExternalSettingsLink() {
+  const params = useParams({from: '/workspaces/$wid/settings/external'});
   return (
-    <Link to="/workspaces/$wid/insights" params={{wid: 'workspace'}} search={{view: search.view}}>
-      Insights
+    <Link to="/workspaces/$wid/settings/external" params={{wid: params.wid}}>
+      External settings
     </Link>
   );
 }

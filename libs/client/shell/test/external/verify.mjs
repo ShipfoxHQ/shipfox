@@ -9,9 +9,12 @@ const repositoryRoot = resolve(fileURLToPath(new URL('../../../../..', import.me
 const externalRoot = fileURLToPath(new URL('.', import.meta.url));
 const fixtureTemplate = join(externalRoot, 'fixture');
 const REGISTRY_SHIPFOX_PACKAGE_PATTERN = /^@shipfox\+[^@]+@\d/u;
-const linkMode = process.argv.includes('--link');
+const EXPECTED_COLLISION_DIAGNOSTIC =
+  'Route "/auth/login" is contributed by both features "shipfox.auth" and "fixture.unapproved-collision". Set override: true to replace it explicitly.';
+const arguments_ = process.argv.slice(2).filter((argument) => argument !== '--');
+const linkMode = arguments_.includes('--link');
 
-if (process.argv.some((argument) => argument.startsWith('--') && argument !== '--link')) {
+if (arguments_.some((argument) => argument.startsWith('--') && argument !== '--link')) {
   throw new Error('Usage: node verify.mjs [--link]');
 }
 
@@ -50,7 +53,9 @@ try {
     : await packedPackageSpecs(closure, workspacePackages, temporaryRoot);
   await configureFixture(fixtureRoot, packageSpecs);
   await writeTypeFixture(fixtureRoot, typeEntryPoints);
-  await run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], fixtureRoot);
+  await run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], fixtureRoot, {
+    capture: true,
+  });
 
   if (linkMode) await validateLinkedPackages(fixtureRoot, closure, workspacePackages);
   else {
@@ -59,12 +64,31 @@ try {
     await validateDefaultPackageResolution(fixtureRoot, runtimeEntryPoints);
   }
 
-  await run('pnpm', ['exec', 'vite', 'build'], fixtureRoot);
-  await run('pnpm', ['exec', 'tsc', '--noEmit'], fixtureRoot);
+  await run('pnpm', ['exec', 'vite', 'build'], fixtureRoot, {capture: true});
+  await validateGeneratedModule(fixtureRoot);
+  await run('pnpm', ['exec', 'vitest', 'run', '--mode', 'production'], fixtureRoot, {
+    capture: true,
+    env: {NODE_ENV: 'production'},
+  });
+  await run('pnpm', ['exec', 'tsc', '--noEmit'], fixtureRoot, {capture: true});
+
+  const collision = await run('pnpm', ['exec', 'vite', 'build'], fixtureRoot, {
+    capture: true,
+    allowFailure: true,
+    env: {SHIPFOX_COMPOSITION_COLLISION: '1'},
+  });
+  if (collision.code === 0) throw new Error('Collision fixture unexpectedly built successfully.');
+  const collisionOutput = `${collision.stdout}\n${collision.stderr}`;
+  if (!collisionOutput.includes(EXPECTED_COLLISION_DIAGNOSTIC)) {
+    throw new Error(
+      `Collision output did not include the contract diagnostic:\n${EXPECTED_COLLISION_DIAGNOSTIC}\n\n${collisionOutput}`,
+    );
+  }
 
   process.stdout.write(
-    `Verified ${closure.length} external client runtime packages and ${entryPoints.length} public entry points in ${linkMode ? 'linked' : 'packed-tarball'} mode.\n`,
+    `Verified the default client composition, ${closure.length} runtime packages, and ${entryPoints.length} public entry points in ${linkMode ? 'linked' : 'packed-tarball'} mode.\n`,
   );
+  process.stdout.write(`Collision: ${EXPECTED_COLLISION_DIAGNOSTIC}\n`);
 } finally {
   await rm(temporaryRoot, {recursive: true, force: true});
 }
@@ -198,6 +222,26 @@ async function validateNoRegistryShipfoxPackages(root) {
   }
 }
 
+async function validateGeneratedModule(root) {
+  const generated = await readFile(join(root, 'src/shipfox-app.gen.ts'), 'utf8');
+  const expectedImports = [
+    '@shipfox/client-auth/routes/index',
+    '@shipfox/client-invitations/routes/accept',
+    '@shipfox/client-integrations/routes/github',
+    '@shipfox/client-projects/routes/home',
+    '@shipfox/client-workflows/routes/runs',
+    '@shipfox/client-agent/routes/model-provider',
+    '@shipfox/client-workspace-settings/routes/members',
+    './features/login-override',
+    './features/external-settings',
+  ];
+  for (const expected of expectedImports) {
+    if (!generated.includes(expected)) {
+      throw new Error(`Generated default composition did not include ${JSON.stringify(expected)}.`);
+    }
+  }
+}
+
 function requiredPackage(packages, name) {
   const workspacePackage = packages.get(name);
   if (!workspacePackage) throw new Error(`Missing workspace package: ${name}`);
@@ -303,7 +347,7 @@ function run(command, args, cwd, options = {}) {
       stderr += chunk;
     });
     child.on('error', reject);
-    child.on('exit', (code) => {
+    child.on('close', (code) => {
       const result = {code: code ?? 1, stdout, stderr};
       if (code === 0 || allowFailure) resolvePromise(result);
       else {

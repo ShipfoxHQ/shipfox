@@ -2,7 +2,7 @@ import {EventsPage, type TriggerEventFilters} from '@shipfox/client-triggers';
 import {getRouteApi} from '@tanstack/react-router';
 import {WorkspaceSettingsShell} from '#components/workspace-settings-shell.js';
 
-const routeApi = getRouteApi('/workspaces/$wid/_layout/settings/events');
+const routeApi = getRouteApi('/workspaces/$wid/settings/events');
 
 export function EventsSettingsPage() {
   const search = routeApi.useSearch();

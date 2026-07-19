@@ -1,15 +1,15 @@
+import {defaultFeatures} from '@shipfox/client-features';
 import {defineClientFeature} from '@shipfox/client-shell';
-import {toyFeature} from '@shipfox/client-shell-fixture-feature';
 
 const collisionFeature = defineClientFeature({
   id: 'fixture.unapproved-collision',
   routes: [
     {
-      path: '/workspaces/$wid/insights',
-      parent: 'workspaceLayout',
-      impl: './features/override-impl',
+      path: '/auth/login',
+      parent: 'root',
+      impl: './features/login-override',
     },
   ],
 });
 
-export const features = [toyFeature, collisionFeature];
+export const features = [...defaultFeatures(), collisionFeature];

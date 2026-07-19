@@ -11,5 +11,5 @@
     "noEmit": true,
     "types": ["node", "vite/client", "vitest/globals"]
   },
-  "include": ["src/main.tsx", "types.ts", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "types.ts"]
 }

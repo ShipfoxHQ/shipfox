@@ -1,13 +1,16 @@
-import '@testing-library/jest-dom/vitest';
 import {getLoadedConfig} from '@shipfox/client-config';
-import type {ProviderProbeEntry} from '@shipfox/client-shell-fixture-feature';
 import {QueryClient} from '@tanstack/react-query';
 import {createMemoryHistory} from '@tanstack/react-router';
-import {act, render, screen, waitFor} from '@testing-library/react';
-import {createClientAppElement} from './main.js';
-import {router} from './shipfox-app.gen.js';
+import {flushSync} from 'react-dom';
+import {createRoot, type Root} from 'react-dom/client';
+import {auth, ClientApp, workspaceSetup} from './main';
+import {readProviderEvidence, resetProviderEvidence} from './provider';
+import {router} from './shipfox-app.gen';
 
-test('proves the external composition contract', async () => {
+let container: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
   window.matchMedia = vi.fn((query: string) => ({
     matches: false,
     media: query,
@@ -19,54 +22,83 @@ test('proves the external composition contract', async () => {
     dispatchEvent: vi.fn(() => false),
   }));
   window.scrollTo = vi.fn();
+  resetProviderEvidence();
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  flushSync(() => root.unmount());
+  container.remove();
+});
+
+function mountClient(): void {
+  flushSync(() => root.render(<ClientApp />));
+}
+
+function heading(name: string): Element | undefined {
+  return [...container.querySelectorAll('h1, h2, h3')].find(
+    (element) => element.textContent?.trim() === name,
+  );
+}
+
+test('reports a missing external config fragment', async () => {
   window.__SHIPFOX_CONFIG__ = undefined;
-  const missingConfig = render(createClientAppElement(), {reactStrictMode: true});
 
-  expect(await screen.findByRole('heading', {name: 'Configuration error'})).toBeVisible();
-  expect(screen.getByText('fixtureGreeting')).toBeVisible();
-  missingConfig.unmount();
+  mountClient();
 
-  window.__SHIPFOX_CONFIG__ = {FIXTURE_GREETING: 'Hello from the fixture'};
-  let providers: readonly ProviderProbeEntry[] = [];
+  await vi.waitFor(() => expect(heading('Configuration error')).toBeDefined());
+  expect(container.textContent).toContain('externalGreeting');
+});
+
+test('renders the explicit default-route replacement', async () => {
+  window.__SHIPFOX_CONFIG__ = {EXTERNAL_GREETING: 'Hello from the external fixture'};
   router.update({
-    history: createMemoryHistory({initialEntries: ['/workspaces/workspace/insights']}),
+    history: createMemoryHistory({initialEntries: ['/auth/login']}),
+    context: {auth: undefined, queryClient: undefined},
   });
-  render(
-    createClientAppElement({
-      onProviders: (entries) => {
-        providers = entries;
-      },
+  await router.load();
+
+  mountClient();
+
+  await vi.waitFor(() => expect(heading('External login')).toBeDefined());
+  expect(heading('Log in')).toBeUndefined();
+});
+
+test('renders the external route, provider order, navigation, settings, and config', async () => {
+  window.__SHIPFOX_CONFIG__ = {EXTERNAL_GREETING: 'Hello from the external fixture'};
+  router.update({
+    history: createMemoryHistory({
+      initialEntries: ['/workspaces/workspace/settings/external'],
     }),
-    {reactStrictMode: true},
-  );
+    context: {auth, queryClient: new QueryClient(), workspaceSetup},
+  });
+  await router.load();
+  mountClient();
 
-  expect(await screen.findByRole('heading', {name: 'Overridden insights'})).toBeVisible();
-  expect(screen.queryByRole('heading', {name: 'Toy insights'})).not.toBeInTheDocument();
-  expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-    'Insights first',
-    'Insights second',
-  ]);
-  await waitFor(() => expect(providers.map(({id}) => id)).toEqual(['toy-feature', 'app-feature']));
-  const queryClients = providers.map(({queryClient}) => queryClient);
-  expect(queryClients).toHaveLength(2);
-  expect(queryClients[0]).toBeInstanceOf(QueryClient);
-  expect(queryClients[1]).toBe(queryClients[0]);
-  expect(getLoadedConfig<{fixtureGreeting: string}>().fixtureGreeting).toBe(
-    'Hello from the fixture',
-  );
-
-  await act(() =>
-    router.navigate({
-      to: '/workspaces/$wid/settings/primary',
-      params: {wid: 'workspace'},
-    }),
-  );
-
-  expect(await screen.findByRole('heading', {name: 'Toy settings'})).toBeVisible();
+  await vi.waitFor(() => expect(heading('External settings')).toBeDefined());
   expect(
-    Array.from(
-      screen.getByRole('navigation', {name: 'Workspace settings'}).querySelectorAll('a'),
-      (link) => link.textContent,
-    ),
-  ).toEqual(['Primary settings', 'Secondary settings']);
+    [...container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim()),
+  ).toEqual(['Projects', 'External', 'Settings']);
+  expect(
+    [...container.querySelectorAll('[aria-label="Workspace settings"] a')]
+      .map((link) => link.textContent?.trim())
+      .slice(0, 3),
+  ).toEqual(['Members', 'External', 'Runners']);
+  expect(container.querySelector('[aria-label="External provider order"]')?.textContent).toBe(
+    'outer > inner',
+  );
+  expect(container.textContent).toContain('Hello from the external fixture');
+  await vi.waitFor(() => expect(readProviderEvidence().map(({id}) => id)).toEqual(['outer', 'inner']));
+  const providers = readProviderEvidence();
+  expect(providers[1]?.queryClient).toBe(providers[0]?.queryClient);
+  expect(providers[1]?.store).toBe(providers[0]?.store);
+  expect(providers.map(({externalGreeting}) => externalGreeting)).toEqual([
+    'Hello from the external fixture',
+    'Hello from the external fixture',
+  ]);
+  expect(getLoadedConfig<{externalGreeting: string}>().externalGreeting).toBe(
+    'Hello from the external fixture',
+  );
 });
