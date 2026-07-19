@@ -8,13 +8,6 @@
       "when": 1784385935754,
       "tag": "0000_whole_master_chief",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1784449907651,
-      "tag": "0001_jira_site_selection",
-      "breakpoints": true
     }
   ]
 }
