@@ -68,7 +68,7 @@ async function handleSlackRequest(params: {
   const authorization = params.request.headers.authorization;
   const body = await readFormBody(params.request);
 
-  if (params.request.method === 'POST' && requestUrl.pathname === '/conversations.replies') {
+  if (isSlackMethodRequest(params.request, requestUrl, 'conversations.replies')) {
     params.calls.push({
       kind: 'conversations.replies',
       authorization,
@@ -82,7 +82,7 @@ async function handleSlackRequest(params: {
     return;
   }
 
-  if (params.request.method === 'POST' && requestUrl.pathname === '/chat.postMessage') {
+  if (isSlackMethodRequest(params.request, requestUrl, 'chat.postMessage')) {
     const text = body.get('text') ?? undefined;
     params.calls.push({
       kind: 'chat.postMessage',
@@ -100,6 +100,13 @@ async function handleSlackRequest(params: {
   }
 
   sendJson(params.response, 200, {ok: false, error: 'unknown_method'});
+}
+
+function isSlackMethodRequest(request: IncomingMessage, requestUrl: URL, method: string): boolean {
+  return (
+    request.method === 'POST' &&
+    (requestUrl.pathname === `/${method}` || requestUrl.pathname === `/api/${method}`)
+  );
 }
 
 function requiredSlackApiBaseUrl(): string {
