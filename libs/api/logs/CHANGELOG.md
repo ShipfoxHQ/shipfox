@@ -1,5 +1,25 @@
 # @shipfox/api-logs
 
+## 5.0.0
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/api-agent-dto@5.0.0
+  - @shipfox/api-auth-context@5.0.0
+  - @shipfox/api-logs-dto@5.0.0
+  - @shipfox/api-workflows@5.0.0
+  - @shipfox/api-workflows-dto@5.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/node-drizzle@0.3.1
+  - @shipfox/node-fastify@0.2.3
+  - @shipfox/node-module@0.3.2
+  - @shipfox/node-opentelemetry@0.5.2
+  - @shipfox/node-outbox@0.2.3
+  - @shipfox/node-postgres@0.4.2
+  - @shipfox/node-temporal@0.3.1
+
 ## 4.0.0
 
 ### Patch Changes

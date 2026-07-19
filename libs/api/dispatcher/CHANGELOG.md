@@ -1,5 +1,18 @@
 # @shipfox/api-dispatcher
 
+## 5.0.0
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/node-error-monitoring@0.1.3
+  - @shipfox/node-module@0.3.2
+  - @shipfox/node-opentelemetry@0.5.2
+  - @shipfox/node-outbox@0.2.3
+  - @shipfox/node-postgres@0.4.2
+  - @shipfox/node-temporal@0.3.1
+
 ## 4.0.0
 
 ### Patch Changes

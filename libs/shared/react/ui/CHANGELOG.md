@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 0.3.2
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+
 ## 0.3.1
 
 ### Patch Changes

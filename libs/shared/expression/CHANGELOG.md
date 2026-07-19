@@ -1,5 +1,13 @@
 # @shipfox/expression
 
+## 1.1.3
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/workflow-document@2.1.1
+
 ## 1.1.2
 
 ### Patch Changes

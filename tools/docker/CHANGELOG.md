@@ -1,5 +1,13 @@
 # @shipfox/docker
 
+## 0.1.2
+
+### Patch Changes
+
+- 9038afb: Productionizes published package manifests so external consumers resolve compiled dist output.
+- Updated dependencies [9038afb]
+  - @shipfox/tool-utils@1.2.0
+
 ## 0.1.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @shipfox/node-outbox
 
+## 0.2.3
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/node-drizzle@0.3.1
+
 ## 0.2.2
 
 ### Patch Changes

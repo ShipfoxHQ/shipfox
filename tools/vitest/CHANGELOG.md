@@ -1,5 +1,13 @@
 # @shipfox/vitest
 
+## 1.2.3
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [9038afb]
+  - @shipfox/tool-utils@1.2.0
+
 ## 1.2.2
 
 ### Patch Changes

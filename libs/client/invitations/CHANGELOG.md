@@ -1,5 +1,21 @@
 # @shipfox/client-invitations
 
+## 1.0.0
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [47809a2]
+- Updated dependencies [bb037af]
+- Updated dependencies [5c63a2a]
+- Updated dependencies [d8658ba]
+  - @shipfox/client-shell@1.0.0
+  - @shipfox/api-auth-dto@5.0.0
+  - @shipfox/api-workspaces-dto@5.0.0
+  - @shipfox/client-api@1.0.0
+  - @shipfox/client-auth@1.0.0
+  - @shipfox/react-ui@0.3.2
+
 ## 0.2.0
 
 ### Minor Changes

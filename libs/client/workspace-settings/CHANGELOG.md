@@ -1,5 +1,27 @@
 # @shipfox/client-workspace-settings
 
+## 1.0.0
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- 5c63a2a: Validates the published default client composition from a clean external Vite consumer and fixes typed access to the events settings route.
+- Updated dependencies [47809a2]
+- Updated dependencies [bb037af]
+- Updated dependencies [5c63a2a]
+- Updated dependencies [d8658ba]
+  - @shipfox/client-shell@1.0.0
+  - @shipfox/api-workspaces-dto@5.0.0
+  - @shipfox/client-agent@1.0.0
+  - @shipfox/client-api@1.0.0
+  - @shipfox/client-auth@1.0.0
+  - @shipfox/client-integrations@1.0.0
+  - @shipfox/client-runners@1.0.0
+  - @shipfox/client-secrets@1.0.0
+  - @shipfox/client-triggers@1.0.0
+  - @shipfox/client-ui@1.0.0
+  - @shipfox/react-ui@0.3.2
+
 ## 0.2.0
 
 ### Minor Changes

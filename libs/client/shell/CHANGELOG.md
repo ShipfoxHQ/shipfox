@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.0
+
+### Patch Changes
+
+- 47809a2: Hardens packed client composition validation against release artifacts, undeclared route packages, and optional Storybook testing peers.
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- 5c63a2a: Validates the published default client composition from a clean external Vite consumer and fixes typed access to the events settings route.
+- d8658ba: Prevents composition builds from reading resolver IDs that include Vite version queries.
+- Updated dependencies [bb037af]
+  - @shipfox/api-auth-dto@5.0.0
+  - @shipfox/api-workspaces-dto@5.0.0
+  - @shipfox/client-api@1.0.0
+  - @shipfox/client-config@1.0.0
+  - @shipfox/react-ui@0.3.2
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,40 @@
 # @shipfox/api-integration-core
 
+## 5.0.0
+
+### Minor Changes
+
+- 2875241: Adds deduplicated Slack installation revocation for app uninstall and bot token-revocation events.
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- fb70438: Cascades provider installation and token deletion when removing a connection.
+- Updated dependencies [2875241]
+- Updated dependencies [bb037af]
+- Updated dependencies [43d8e66]
+- Updated dependencies [fb70438]
+  - @shipfox/api-integration-slack@5.0.0
+  - @shipfox/api-integration-core-dto@5.0.0
+  - @shipfox/api-agent-dto@5.0.0
+  - @shipfox/api-auth-context@5.0.0
+  - @shipfox/api-integration-gitea@5.0.0
+  - @shipfox/api-integration-github@5.0.0
+  - @shipfox/api-integration-jira@5.0.0
+  - @shipfox/api-integration-linear@5.0.0
+  - @shipfox/api-integration-sentry@5.0.0
+  - @shipfox/api-integration-webhook@5.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/node-drizzle@0.3.1
+  - @shipfox/node-fastify@0.2.3
+  - @shipfox/node-module@0.3.2
+  - @shipfox/node-opentelemetry@0.5.2
+  - @shipfox/node-outbox@0.2.3
+  - @shipfox/node-postgres@0.4.2
+  - @shipfox/node-temporal@0.3.1
+  - @shipfox/redact@0.2.2
+  - @shipfox/regex@0.2.2
+
 ## 4.0.0
 
 ### Minor Changes
