@@ -1,8 +1,14 @@
-import {JiraInstallationSiteMismatchError} from '#core/errors.js';
 import {
+  JiraInstallationAlreadyLinkedError,
+  JiraInstallationSiteMismatchError,
+} from '#core/errors.js';
+import {
+  deleteJiraInstallationByConnectionId,
+  getJiraInstallationByCloudId,
   getJiraInstallationByConnectionId,
   getJiraInstallationByWebhookId,
   markJiraInstallationRevoked,
+  updateJiraInstallationTokenExpiry,
   upsertJiraInstallation,
 } from './installations.js';
 
@@ -67,6 +73,36 @@ describe('jira installations', () => {
     await expect(getJiraInstallationByConnectionId(first.connectionId)).resolves.toMatchObject({
       cloudId: first.cloudId,
     });
+  });
+
+  it('refuses to link the same Jira site to a second connection', async () => {
+    const first = createInstallationInput();
+    await upsertJiraInstallation(first);
+    const second = createInstallationInput({cloudId: first.cloudId});
+
+    const result = upsertJiraInstallation(second);
+
+    await expect(result).rejects.toBeInstanceOf(JiraInstallationAlreadyLinkedError);
+    await expect(getJiraInstallationByCloudId(first.cloudId)).resolves.toMatchObject({
+      connectionId: first.connectionId,
+    });
+  });
+
+  it('updates token metadata and deletes an installation', async () => {
+    const input = createInstallationInput();
+    await upsertJiraInstallation(input);
+    const tokenExpiresAt = new Date('2030-01-01T00:00:00.000Z');
+
+    const updated = await updateJiraInstallationTokenExpiry({
+      connectionId: input.connectionId,
+      tokenExpiresAt,
+      scopes: ['read:jira-work', 'write:jira-work'],
+    });
+    const deleted = await deleteJiraInstallationByConnectionId(input.connectionId);
+
+    expect(updated).toMatchObject({tokenExpiresAt, scopes: ['read:jira-work', 'write:jira-work']});
+    expect(deleted).toBe(true);
+    await expect(getJiraInstallationByConnectionId(input.connectionId)).resolves.toBeUndefined();
   });
 
   it('returns undefined for unknown connection and webhook ids', async () => {

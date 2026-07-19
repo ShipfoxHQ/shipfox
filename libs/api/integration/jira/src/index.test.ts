@@ -1,9 +1,14 @@
 import {createJiraIntegrationProvider} from '#index.js';
 
 describe('createJiraIntegrationProvider', () => {
-  it('creates the minimal Jira provider', () => {
+  it('creates the Jira provider', () => {
     const provider = createJiraIntegrationProvider();
 
-    expect(provider).toEqual({provider: 'jira', displayName: 'Jira'});
+    expect(provider).toMatchObject({
+      provider: 'jira',
+      displayName: 'Jira',
+      adapters: {},
+      routes: [],
+    });
   });
 });

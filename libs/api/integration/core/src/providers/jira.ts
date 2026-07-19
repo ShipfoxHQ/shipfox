@@ -1,22 +1,160 @@
+import {
+  type IntegrationConnection as CoreIntegrationConnection,
+  slugifyConnectionSlug,
+} from '@shipfox/api-integration-core-dto';
+import type {
+  ConnectJiraInstallationInput,
+  JiraPendingSelectionSecretsStore,
+  JiraSecretsStore,
+} from '@shipfox/api-integration-jira';
 import {config} from '#config.js';
+import {
+  deleteIntegrationConnection,
+  getIntegrationConnectionById,
+  resolveUniqueConnectionSlug,
+  updateIntegrationConnectionLifecycleStatus,
+  upsertIntegrationConnection,
+} from '#db/connections.js';
+import {db} from '#db/db.js';
+import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 const JIRA_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_jira';
+const JIRA_SECRETS_NAMESPACE_PREFIX = 'system/integrations/jira/';
+type IntegrationDb = ReturnType<typeof db>;
+type IntegrationTx = Parameters<Parameters<IntegrationDb['transaction']>[0]>[0];
 
-async function loadJiraModuleParts(): Promise<IntegrationModuleParts> {
+async function loadJiraModuleParts(
+  options: Parameters<IntegrationProviderModule['load']>[0] = {},
+): Promise<IntegrationModuleParts> {
   const {
     createJiraIntegrationProvider,
+    createJiraPendingSelectionStore,
+    createJiraTokenStore,
     db: jiraDb,
+    disconnectJiraInstallation: disconnectJiraInstallationRecords,
+    getJiraInstallationByCloudId,
     migrationsPath,
+    upsertJiraInstallation,
   } = await import('@shipfox/api-integration-jira');
 
-  return {
-    provider: createJiraIntegrationProvider(),
-    database: {
-      db: jiraDb,
-      migrationsPath,
-      migrationsTableName: JIRA_MIGRATIONS_TABLE,
+  async function getExistingJiraConnection(input: {
+    cloudId: string;
+  }): Promise<CoreIntegrationConnection<'jira'> | undefined> {
+    const installation = await getJiraInstallationByCloudId(input.cloudId);
+    if (!installation) return undefined;
+    return (await getIntegrationConnectionById(installation.connectionId)) as
+      | CoreIntegrationConnection<'jira'>
+      | undefined;
+  }
+
+  function connectJiraInstallation(
+    input: ConnectJiraInstallationInput,
+  ): Promise<CoreIntegrationConnection<'jira'>> {
+    return retryConnectionSlugCollision(() =>
+      db().transaction(async (tx) => {
+        const slug = await resolveUniqueConnectionSlug(
+          {
+            workspaceId: input.workspaceId,
+            provider: 'jira',
+            externalAccountId: input.cloudId,
+            baseSlug: slugifyConnectionSlug(`jira_${input.siteName || input.cloudId}`, {
+              fallback: 'jira',
+            }),
+          },
+          {tx},
+        );
+        const connection = await upsertIntegrationConnection(
+          {
+            workspaceId: input.workspaceId,
+            provider: 'jira',
+            externalAccountId: input.cloudId,
+            slug,
+            displayName: input.displayName,
+            lifecycleStatus: 'active',
+          },
+          {tx},
+        );
+        await upsertJiraInstallation(
+          {
+            connectionId: connection.id,
+            cloudId: input.cloudId,
+            siteUrl: input.siteUrl,
+            siteName: input.siteName,
+            authorizingAccountId: input.authorizingAccountId,
+            scopes: input.scopes,
+            status: 'installed',
+            tokenExpiresAt: input.tokenExpiresAt,
+          },
+          {tx},
+        );
+        return connection as CoreIntegrationConnection<'jira'>;
+      }),
+    );
+  }
+
+  async function disconnectJiraInstallation(input: {connectionId: string}): Promise<void> {
+    await disconnectJiraInstallationRecords<IntegrationTx>({
+      connectionId: input.connectionId,
+      getConnection: getIntegrationConnectionById,
+      deleteSecrets: (params) =>
+        options.secrets?.jira?.deleteSecrets({
+          ...params,
+          namespace: jiraNamespaceSuffix(params.namespace),
+        }) ?? Promise.resolve(0),
+      transaction: (fn) => db().transaction((tx) => fn(tx)),
+      deleteConnection: (params, transactionOptions) =>
+        deleteIntegrationConnection({id: params.connectionId}, transactionOptions),
+    });
+  }
+
+  const fallbackSecrets: JiraSecretsStore & JiraPendingSelectionSecretsStore = {
+    getSecret: () => Promise.resolve(null),
+    setSecrets: () => Promise.reject(new Error('Jira token storage is not configured')),
+    deleteSecrets: () => Promise.resolve(0),
+  };
+  const secrets: JiraSecretsStore & JiraPendingSelectionSecretsStore = options.secrets?.jira
+    ? {
+        getSecret: (params) =>
+          options.secrets?.jira?.getSecret({
+            ...params,
+            namespace: jiraNamespaceSuffix(params.namespace),
+          }) ?? Promise.resolve(null),
+        setSecrets: (params) =>
+          options.secrets?.jira?.setSecrets({
+            ...params,
+            namespace: jiraNamespaceSuffix(params.namespace),
+          }) ?? Promise.resolve(),
+        deleteSecrets: (params) =>
+          options.secrets?.jira?.deleteSecrets({
+            ...params,
+            namespace: jiraNamespaceSuffix(params.namespace),
+          }) ?? Promise.resolve(0),
+      }
+    : fallbackSecrets;
+  const tokenStore = createJiraTokenStore({
+    resolveConnection: getIntegrationConnectionById,
+    secrets,
+    markConnectionError: async ({connectionId}) => {
+      await updateIntegrationConnectionLifecycleStatus({
+        id: connectionId,
+        lifecycleStatus: 'error',
+      });
     },
+  });
+  const pendingStore = createJiraPendingSelectionStore({secrets});
+
+  return {
+    provider: createJiraIntegrationProvider({
+      routes: {
+        tokenStore,
+        pendingStore,
+        getExistingJiraConnection,
+        connectJiraInstallation,
+        disconnectJiraInstallation,
+      },
+    }),
+    database: {db: jiraDb, migrationsPath, migrationsTableName: JIRA_MIGRATIONS_TABLE},
   };
 }
 
@@ -25,3 +163,10 @@ export const jiraProviderModule: IntegrationProviderModule = {
   enabled: config.INTEGRATIONS_ENABLE_JIRA_PROVIDER,
   load: loadJiraModuleParts,
 };
+
+function jiraNamespaceSuffix(namespace: string): string {
+  if (!namespace.startsWith(JIRA_SECRETS_NAMESPACE_PREFIX)) {
+    throw new Error('Jira provider attempted to access an unscoped secret namespace');
+  }
+  return namespace.slice(JIRA_SECRETS_NAMESPACE_PREFIX.length);
+}

@@ -172,6 +172,7 @@ export type JiraSiteSelectionResponseDto = z.infer<typeof jiraSiteSelectionRespo
 
 export const completeJiraSiteSelectionBodySchema = z.object({
   cloud_id: jiraCloudIdSchema,
+  state: z.string().min(1),
 });
 export type CompleteJiraSiteSelectionBodyDto = z.infer<typeof completeJiraSiteSelectionBodySchema>;
 
