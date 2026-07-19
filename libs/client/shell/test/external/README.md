@@ -1,39 +1,31 @@
 # External client runtime fixture
 
 This fixture packs the published client runtime closure into a Vite application outside the pnpm
-workspace. It is a manual structural gate and does not add a CI job.
+workspace. The application starts from `defaultFeatures()` and adds one external feature that
+replaces the login route, adds a settings route, appends providers, contributes navigation and
+settings entries, and merges a config fragment.
 
-## Prerequisites
+## Run the required packed gate
 
-Build runtime files, declarations, and the closure helper before running either mode:
+The package script builds runtime files and declarations from a clean checkout before packing the
+full client closure:
 
 ```sh
-turbo build type:emit \
-  --filter='./libs/client/**' \
-  --filter=@shipfox/application-release
+pnpm --filter=@shipfox/client-shell test:external
 ```
 
-## Run the fast linked mode
+The gate installs only local tarballs for `@shipfox/*`, checks default `dist` resolution, generates
+the composed TanStack router, builds and type-checks the consumer, runs the behavioral fixture, and
+asserts the exact rejected-collision diagnostic. CI runs this command during static verification.
+
+## Run the linked iteration mode
 
 ```sh
-node libs/client/shell/test/external/verify.mjs --link
+pnpm --filter=@shipfox/client-shell test:external -- --link
 ```
 
 This copies the Vite template to a temporary directory and links the workspace-built closure. It
-runs a Vite build and resolves every non-pattern declaration entry point from the consumer.
-
-## Run the packed exit gate
-
-```sh
-node libs/client/shell/test/external/verify.mjs
-```
-
-This computes the runtime workspace closure from the client roots in
-`publication-closure.json`, packs every package, and installs only those tarballs for
-`@shipfox/*` dependencies. It repeats the linked checks against default `dist` exports and
-verifies no candidate package came from the workspace or registry.
+runs the same generated-route, behavior, collision, and type assertions without packing tarballs.
 
 Both modes remove their temporary directories after completion. The behavioral composition fixture
-and required CI gate are part of ENG-995; neither mode needs browser E2E infrastructure or adds
-work to the normal CI test graph. Its source files and Vitest wiring remain in the fixture template
-for that follow-up.
+uses Vitest with JSDOM and does not need browser E2E infrastructure.

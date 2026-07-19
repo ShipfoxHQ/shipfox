@@ -61,6 +61,9 @@ jobs:
       - name: Verify packed API runtime closure
         run: pnpm --filter=@shipfox/application-release test:external
 
+      - name: Verify packed client composition
+        run: pnpm --filter=@shipfox/client-shell test:external
+
   validate-runner-image:
     name: Validate runner image
     runs-on: ubuntu-latest

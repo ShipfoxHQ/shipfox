@@ -1,53 +1,35 @@
 # External composition findings
 
-Both the linked iteration mode and packed-tarball exit gate passed on 2026-07-16. The verifier
-computed and installed a 12-package `@shipfox/*` runtime closure.
+The graduated fixture uses the production `@shipfox/client-features` default composition and the
+complete recursive client runtime closure from `publication-closure.json`. The external feature is
+application-local, so route implementations and generated types cross the same package boundary as
+a downstream distribution.
 
-## Declaration portability
+## Contract proof
 
-The packed consumer's `tsc --noEmit` accepted a typed `Link` and `useSearch` for the added
-`/workspaces/$wid/insights` route. The generated router also resolved the toy package's emitted
-default `defineRoute(...)` declarations and the shell's anchor return types from `dist`.
+The fixture proves that:
 
-The packed verifier also checks that every installed `#*` import map defaults to `./dist/*` and
-that representative shell and toy-feature public entrypoints resolve beneath `dist`. This keeps the
-proof valid even while the tarballs still include source files.
+- every default feature contributes its production routes to the generated application module;
+- an application-local settings route is added and the default login route is explicitly replaced;
+- two application-local providers receive the shell query client and Jotai store, then nest in
+  declaration order;
+- application navigation and settings data render through the shell-owned registries;
+- the external config fragment is required, merged, and readable by both providers and the route;
+- the generated router types an application-local `Link` and `useParams` call; and
+- the unapproved login collision fails with the exact normative diagnostic.
 
-The proof exposed two package-boundary gaps before it passed:
+## Distribution isolation
 
-- Compiled client packages still mapped internal `#*` imports directly to `src`. Their package
-  manifests now use `workspace-source` and `development` for source, and `default` for `dist`.
-- The inferred anchor declarations name `@tanstack/router-core`. The shell now declares that direct
-  dependency so isolated pnpm consumers can resolve it.
-
-The fixture did not need `@storybook/react` at runtime or during its consumer type-check. The
-`ShellProviders` declaration's type-only Storybook import is erased at runtime; the fixture uses the
-same `skipLibCheck` setting as the existing external-consumer verifier.
-
-## Development-mode coverage
-
-The gate intentionally proves production builds and default package resolution; it does not start a
-Vite development server. The `development` condition still resolves to the TypeScript source that
-the packages currently ship. Plugin watch and regeneration behavior remains covered by ENG-961's
-focused tests. If published packages stop including source, external development-mode support needs
-a separate product decision and proof rather than making this release gate longer.
-
-## Generated-file developer experience
-
-The generated file keeps both forms of route implementation specifier readable:
-
-- App-local implementations use a path relative to `src/shipfox-app.gen.ts`, such as
-  `./features/override-impl`.
-- Packaged implementations use an exported package subpath, such as
-  `@shipfox/client-shell-fixture-feature/routes/insights`.
-
-The app's Node-evaluated feature manifest imports local TypeScript modules without a `.js` suffix so
-jiti resolves the source file. Route implementation modules are never evaluated by jiti.
+Packed mode builds declarations and runtime files before creating tarballs. It installs every
+first-party package through `file:` overrides in a temporary consumer outside the workspace, rejects
+registry-resolved Shipfox packages, rejects `workspace:` ranges, and confirms runtime imports resolve
+through each package's default `dist` condition. Linked mode keeps the same behavior and type checks
+for faster local iteration.
 
 ## Collision diagnostic
 
-The rejected build returned this diagnostic and a non-zero status:
+The rejected build must return this diagnostic and a non-zero status:
 
 ```text
-Route "/workspaces/$wid/insights" is contributed by both features "fixture.toy-feature" and "fixture.unapproved-collision". Set override: true to replace it explicitly.
+Route "/auth/login" is contributed by both features "shipfox.auth" and "fixture.unapproved-collision". Set override: true to replace it explicitly.
 ```
