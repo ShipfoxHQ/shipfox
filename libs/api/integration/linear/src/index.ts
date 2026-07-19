@@ -74,6 +74,7 @@ export type {
   UpsertLinearInstallationParams,
 } from '#db/installations.js';
 export {
+  deleteLinearInstallationByConnectionId,
   getLinearInstallationByConnectionId,
   getLinearInstallationByOrganizationId,
   markLinearInstallationRevoked,
@@ -97,6 +98,15 @@ export interface CreateLinearIntegrationProviderOptions {
       }
     | undefined;
   getLinearInstallationByConnectionId?: typeof getLinearInstallationByConnectionId | undefined;
+  cleanup?:
+    | {
+        deleteConnectionRecords?: (
+          connection: {id: string},
+          options: {tx: unknown},
+        ) => Promise<void>;
+        deleteConnectionSecrets?: (connection: {id: string; workspaceId: string}) => Promise<void>;
+      }
+    | undefined;
   routes?:
     | (Omit<CreateLinearIntegrationRoutesOptions, 'linear' | 'connectionCapabilities'> &
         Partial<CreateLinearWebhookRoutesOptions>)
@@ -137,6 +147,7 @@ export function createLinearIntegrationProvider(
       if (!installation?.organizationUrlKey) return undefined;
       return `https://linear.app/${encodeURIComponent(installation.organizationUrlKey)}/settings`;
     },
+    ...options.cleanup,
     routes,
   };
 }

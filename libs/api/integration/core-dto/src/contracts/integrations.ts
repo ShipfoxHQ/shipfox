@@ -218,6 +218,19 @@ export interface IntegrationProvider<
    * no external home or the provider-side record is missing.
    */
   connectionExternalUrl?(connection: Connection): Promise<string | undefined>;
+  /**
+   * Deletes provider-owned persistence rows for a connection inside the caller's
+   * transaction. The transaction belongs to the shared integration database, so
+   * provider persistence must use it. The core delete route owns the connection row.
+   * Providers without either cleanup hook remove only that core row.
+   */
+  deleteConnectionRecords?(connection: Connection, options: {tx: unknown}): Promise<void>;
+  /**
+   * Deletes provider-owned secrets after the connection transaction commits.
+   * External secret stores cannot participate in the database transaction, so a
+   * failure is logged after the connection has already been deleted.
+   */
+  deleteConnectionSecrets?(connection: Connection): Promise<void>;
 }
 
 export interface RegisteredIntegrationProvider<

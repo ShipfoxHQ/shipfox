@@ -32,9 +32,11 @@ async function loadLinearModuleParts(
     createLinearE2eRoutes,
     createLinearIntegrationProvider,
     config: linearConfig,
+    deleteLinearInstallationByConnectionId,
     disconnectLinearInstallation: disconnectLinearInstallationRecords,
     getLinearInstallationByOrganizationId,
     db: linearDb,
+    linearSecretsNamespace,
     migrationsPath: linearMigrationsPath,
     upsertLinearInstallation,
   } = await import('@shipfox/api-integration-linear');
@@ -137,6 +139,18 @@ async function loadLinearModuleParts(
   return {
     provider: createLinearIntegrationProvider({
       agentTools: {tokenStore, endpoint: linearConfig.LINEAR_MCP_ENDPOINT},
+      cleanup: {
+        deleteConnectionRecords: async (connection, {tx}) => {
+          await deleteLinearInstallationByConnectionId(connection.id, {tx});
+        },
+        deleteConnectionSecrets: async (connection) => {
+          // Scoped secrets accept the provider-local suffix, after this helper validates its prefix.
+          await (options.secrets?.linear?.deleteSecrets({
+            workspaceId: connection.workspaceId,
+            namespace: linearNamespaceSuffix(linearSecretsNamespace(connection.id)),
+          }) ?? Promise.resolve());
+        },
+      },
       routes: {
         tokenStore,
         getExistingLinearConnection,

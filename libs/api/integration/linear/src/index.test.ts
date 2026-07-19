@@ -17,4 +17,15 @@ describe('createLinearIntegrationProvider', () => {
 
     expect(provider.adapters.agent_tools?.catalog()).toBe(linearAgentToolCatalog);
   });
+
+  it('exposes explicit connection cleanup without requiring routes', () => {
+    const deleteConnectionRecords = vi.fn(() => Promise.resolve());
+    const deleteConnectionSecrets = vi.fn(() => Promise.resolve());
+    const provider = createLinearIntegrationProvider({
+      cleanup: {deleteConnectionRecords, deleteConnectionSecrets},
+    });
+
+    expect(provider.deleteConnectionRecords).toBe(deleteConnectionRecords);
+    expect(provider.deleteConnectionSecrets).toBe(deleteConnectionSecrets);
+  });
 });

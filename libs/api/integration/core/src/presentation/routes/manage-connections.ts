@@ -11,6 +11,7 @@ import {
   getIntegrationConnectionById,
   updateIntegrationConnectionLifecycleStatus,
 } from '#db/connections.js';
+import {db} from '#db/db.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 
 const connectionParamsSchema = z.object({
@@ -51,7 +52,7 @@ export function createUpdateIntegrationConnectionRoute(registry: IntegrationProv
   });
 }
 
-export function createDeleteIntegrationConnectionRoute() {
+export function createDeleteIntegrationConnectionRoute(registry: IntegrationProviderRegistry) {
   return defineRoute({
     method: 'DELETE',
     path: '/integration-connections/:connectionId',
@@ -70,7 +71,30 @@ export function createDeleteIntegrationConnectionRoute() {
       }
 
       requireWorkspaceAccess({request, workspaceId: connection.workspaceId});
-      await deleteIntegrationConnection({id: connection.id});
+      const provider = registry
+        .list()
+        .find((candidate) => candidate.provider === connection.provider);
+      const hasCleanupHooks =
+        provider?.deleteConnectionRecords !== undefined ||
+        provider?.deleteConnectionSecrets !== undefined;
+      if (!hasCleanupHooks) {
+        request.log.warn(
+          {connectionId: connection.id, provider: connection.provider},
+          'Deleting integration connection without provider cleanup',
+        );
+      }
+      await db().transaction(async (tx) => {
+        await provider?.deleteConnectionRecords?.(connection, {tx});
+        await deleteIntegrationConnection({id: connection.id}, {tx});
+      });
+      try {
+        await provider?.deleteConnectionSecrets?.(connection);
+      } catch (error) {
+        request.log.error(
+          {connectionId: connection.id, provider: connection.provider, err: error},
+          'Integration connection secret cleanup failed after connection deletion',
+        );
+      }
       reply.status(204);
     },
   });

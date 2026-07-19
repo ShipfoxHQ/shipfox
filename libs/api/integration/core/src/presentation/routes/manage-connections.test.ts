@@ -110,6 +110,119 @@ describe('DELETE /integration-connections/:connectionId', () => {
     expect(reloaded).toBeUndefined();
   });
 
+  it('runs provider cleanup hooks while retaining ownership of the core row', async () => {
+    const deleteConnectionRecords = vi.fn(() => Promise.resolve());
+    const deleteConnectionSecrets = vi.fn(() => Promise.resolve());
+    const app = await createTestApp([
+      sourceProvider({
+        provider: 'slack',
+        displayName: 'Slack',
+        adapters: {},
+        deleteConnectionRecords,
+        deleteConnectionSecrets,
+      }),
+    ]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'slack',
+      externalAccountId: 'T123',
+      slug: 'slack_acme',
+      displayName: 'Slack Acme',
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(deleteConnectionRecords).toHaveBeenCalledWith(connection, {
+      tx: expect.anything(),
+    });
+    expect(deleteConnectionSecrets).toHaveBeenCalledWith(connection);
+    await expect(getIntegrationConnectionById(connection.id)).resolves.toBeUndefined();
+  });
+
+  it('keeps the connection when provider record cleanup fails', async () => {
+    const deleteConnectionSecrets = vi.fn(() => Promise.resolve());
+    const app = await createTestApp([
+      sourceProvider({
+        provider: 'slack',
+        displayName: 'Slack',
+        adapters: {},
+        deleteConnectionRecords: () => Promise.reject(new Error('record cleanup failed')),
+        deleteConnectionSecrets,
+      }),
+    ]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'slack',
+      externalAccountId: 'T123',
+      slug: 'slack_acme',
+      displayName: 'Slack Acme',
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(500);
+    await expect(getIntegrationConnectionById(connection.id)).resolves.toMatchObject({
+      id: connection.id,
+    });
+    expect(deleteConnectionSecrets).not.toHaveBeenCalled();
+  });
+
+  it('deletes the connection when provider secret cleanup fails after commit', async () => {
+    const app = await createTestApp([
+      sourceProvider({
+        provider: 'slack',
+        displayName: 'Slack',
+        adapters: {},
+        deleteConnectionSecrets: () => Promise.reject(new Error('secret cleanup failed')),
+      }),
+    ]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'slack',
+      externalAccountId: 'T123',
+      slug: 'slack_acme',
+      displayName: 'Slack Acme',
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(204);
+    await expect(getIntegrationConnectionById(connection.id)).resolves.toBeUndefined();
+  });
+
+  it('deletes an unregistered provider connection without provider cleanup', async () => {
+    const app = await createTestApp([]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'slack',
+      externalAccountId: 'T123',
+      slug: 'slack_acme',
+      displayName: 'Slack Acme',
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(204);
+    await expect(getIntegrationConnectionById(connection.id)).resolves.toBeUndefined();
+  });
+
   it('returns not-found for a missing connection', async () => {
     const app = await createTestApp([sourceProvider()]);
 
