@@ -4,7 +4,10 @@ import {tmpdir} from 'node:os';
 import {basename, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import {productionizeManifest} from '../../../utils/src/productionize.js';
+import {
+  createProductionManifestPacker,
+  mapWithConcurrency,
+} from '../../../../dev/productionized-manifest-packer.mjs';
 
 import {
   computePublicationClosure,
@@ -28,6 +31,7 @@ const closure = computePublicationClosure(
 await emitDeclarationFiles(closure);
 const fixtureRoot = await mkdtemp(join(tmpdir(), 'shipfox-api-runtime-'));
 const tarballRoot = join(fixtureRoot, 'tarballs');
+const manifestPacker = createProductionManifestPacker();
 
 try {
   await mkdir(tarballRoot);
@@ -35,18 +39,9 @@ try {
     const workspacePackage = workspacePackages.get(name);
     if (!workspacePackage) throw new Error(`Missing workspace package: ${name}`);
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    const sourceManifest = await readFile(workspacePackage.manifestPath, 'utf8');
-    const productionManifest = `${JSON.stringify(
-      productionizeManifest(workspacePackage.manifest),
-      null,
-      2,
-    )}\n`;
-    await writeFile(workspacePackage.manifestPath, productionManifest);
-    try {
-      await run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, 'ignore');
-    } finally {
-      await writeFile(workspacePackage.manifestPath, sourceManifest);
-    }
+    await manifestPacker.pack(workspacePackage.manifestPath, workspacePackage.manifest, () =>
+      run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, 'ignore'),
+    );
     return [name, tarball];
   });
 
@@ -78,6 +73,7 @@ try {
   );
   await run(process.execPath, ['workflow-bundles.mjs'], fixtureRoot);
 } finally {
+  manifestPacker.dispose();
   await rm(fixtureRoot, {recursive: true, force: true});
 }
 
@@ -272,22 +268,6 @@ async function emitDeclarationFiles(packageNames) {
     ['exec', 'turbo', 'build', 'type:emit', ...packageNames.map((name) => `--filter=${name}`)],
     repositoryRoot,
   );
-}
-
-async function mapWithConcurrency(values, concurrency, mapper) {
-  const results = new Array(values.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < values.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      results[index] = await mapper(values[index], index);
-    }
-  }
-
-  await Promise.all(Array.from({length: concurrency}, () => worker()));
-  return results;
 }
 
 function run(command, args, cwd, stdio = 'inherit') {

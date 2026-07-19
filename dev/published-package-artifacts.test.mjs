@@ -5,7 +5,6 @@ import {
   catalogDependencies,
   catalogRange,
   consumerDependencies,
-  developmentConditionImports,
   findUnsupportedProtocol,
   safePackageName,
 } from './published-package-artifacts.mjs';
@@ -67,12 +66,6 @@ describe('consumerDependencies', () => {
       react: '^19.0.0',
       'react-dom': '^19.0.0',
     });
-  });
-});
-
-describe('developmentConditionImports', () => {
-  test('covers the dist-only regex package', () => {
-    assert.deepEqual(developmentConditionImports, ['@shipfox/regex']);
   });
 });
 

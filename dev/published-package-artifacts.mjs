@@ -5,7 +5,11 @@ import {basename, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {parse as parseYaml} from 'yaml';
-import {productionizeManifest} from '../tools/utils/src/productionize.js';
+
+import {
+  createProductionManifestPacker,
+  mapWithConcurrency,
+} from './productionized-manifest-packer.mjs';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const packageSources = {
@@ -16,7 +20,7 @@ const packageSources = {
 };
 const packageNames = Object.keys(packageSources);
 const registryShipfoxPackagePattern = /^@shipfox\+[^@]+@\d/u;
-export const developmentConditionImports = ['@shipfox/regex'];
+const developmentConditionImports = ['@shipfox/regex'];
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((error) => {
@@ -108,23 +112,19 @@ async function buildPackageArtifacts() {
 }
 
 async function packPackages(packages, tarballRoot) {
-  const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
-    const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    const sourceManifest = await readFile(sourcePackage.manifestPath, 'utf8');
-    const productionManifest = `${JSON.stringify(
-      productionizeManifest(sourcePackage.manifest),
-      null,
-      2,
-    )}\n`;
-    await writeFile(sourcePackage.manifestPath, productionManifest);
-    try {
-      await run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {stdio: 'ignore'});
-    } finally {
-      await writeFile(sourcePackage.manifestPath, sourceManifest);
-    }
-    return [name, tarball];
-  });
-  return Object.fromEntries(tarballs);
+  const manifestPacker = createProductionManifestPacker();
+  try {
+    const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
+      const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
+      await manifestPacker.pack(sourcePackage.manifestPath, sourcePackage.manifest, () =>
+        run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {stdio: 'ignore'}),
+      );
+      return [name, tarball];
+    });
+    return Object.fromEntries(tarballs);
+  } finally {
+    manifestPacker.dispose();
+  }
 }
 
 async function writeConsumerManifest(root, tarballs, reactUiPeers) {
@@ -268,22 +268,6 @@ if (typeof tool.createApplicationReleaseManifest !== 'function') throw new Error
 
 export function safePackageName(name) {
   return name.replace('@shipfox/', '').replaceAll('/', '-');
-}
-
-async function mapWithConcurrency(values, concurrency, mapper) {
-  const results = new Array(values.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < values.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      results[index] = await mapper(values[index]);
-    }
-  }
-
-  await Promise.all(Array.from({length: concurrency}, () => worker()));
-  return results;
 }
 
 function run(command, args, cwd, {stdio = 'inherit'} = {}) {
