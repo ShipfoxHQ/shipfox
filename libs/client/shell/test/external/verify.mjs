@@ -1,8 +1,18 @@
 import {spawn} from 'node:child_process';
 import {globSync} from 'node:fs';
-import {cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {basename, join, relative, resolve, sep} from 'node:path';
+import {basename, dirname, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('../../../../..', import.meta.url)));
@@ -79,10 +89,7 @@ try {
       nodeArgs: ['--conditions=development'],
       conditionLabel: 'development',
     });
-    await validatePackageResolution(fixtureRoot, closureTypeEntryPoints, {
-      nodeArgs: ['--conditions=types'],
-      conditionLabel: 'types',
-    });
+    await validateFullClosureTypeDeclarations(fixtureRoot, closureTypeEntryPoints);
   }
 
   await run('pnpm', ['exec', 'vite', 'build'], fixtureRoot, {capture: true});
@@ -125,31 +132,33 @@ function linkedPackageSpecs(names, packages) {
 
 async function packedPackageSpecs(names, packages, root) {
   const tarballRoot = join(root, 'tarballs');
-  await mkdir(tarballRoot);
+  const stagingRoot = join(root, 'packages');
+  await Promise.all([
+    mkdir(tarballRoot),
+    mkdir(stagingRoot),
+    cp(join(repositoryRoot, 'pnpm-workspace.yaml'), join(stagingRoot, 'pnpm-workspace.yaml')),
+  ]);
   const tarballs = await mapWithConcurrency(names, 4, async (name) => {
     const workspacePackage = requiredPackage(packages, name);
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    await packProductionizedPackage(workspacePackage, tarball);
+    await packProductionizedPackage(workspacePackage, tarball, stagingRoot);
     return [name, `file:${tarball}`];
   });
   return Object.fromEntries(tarballs);
 }
 
-async function packProductionizedPackage(workspacePackage, tarball) {
-  const originalManifest = await readFile(workspacePackage.manifestPath, 'utf8');
-  const manifest = JSON.parse(originalManifest);
+async function packProductionizedPackage(workspacePackage, tarball, stagingRoot) {
+  const packageRoot = join(stagingRoot, safePackageName(workspacePackage.manifest.name));
+  await cp(workspacePackage.directory, packageRoot, {recursive: true});
+
+  const manifestPath = join(packageRoot, 'package.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   const productionized = productionizeManifest(manifest);
   if (productionized !== manifest) {
-    await writeFile(workspacePackage.manifestPath, `${JSON.stringify(productionized, null, 2)}\n`);
+    await writeFile(manifestPath, `${JSON.stringify(productionized, null, 2)}\n`);
   }
 
-  try {
-    await run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, {capture: true});
-  } finally {
-    if (productionized !== manifest) {
-      await writeFile(workspacePackage.manifestPath, originalManifest);
-    }
-  }
+  await run('pnpm', ['pack', '--out', tarball], packageRoot, {capture: true});
 }
 
 async function configureFixture(root, consumerPackages, packageSpecs) {
@@ -260,6 +269,52 @@ process.stdout.write(JSON.stringify(resolved));`,
       }
     }
   }
+}
+
+async function validateFullClosureTypeDeclarations(root, specifiers) {
+  const typeScriptCli = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+  const specifiersByPackage = Map.groupBy(specifiers, packageNameFromSpecifier);
+  let auditIndex = 0;
+  for (const [packageName, packageSpecifiers] of specifiersByPackage) {
+    for (const packageRoot of installedPackageRoots(root, packageName)) {
+      const auditRoot = join(root, 'full-closure-types', String(auditIndex));
+      auditIndex += 1;
+      await writeTypeAudit(auditRoot, packageName, packageRoot, packageSpecifiers);
+      await run(process.execPath, [typeScriptCli, '--project', 'tsconfig.json'], auditRoot, {
+        capture: true,
+      });
+    }
+  }
+}
+
+async function writeTypeAudit(root, packageName, packageRoot, specifiers) {
+  const packageLink = join(root, 'node_modules', ...packageName.split('/'));
+  await mkdir(dirname(packageLink), {recursive: true});
+  await symlink(packageRoot, packageLink, 'dir');
+  await Promise.all([
+    writeFile(
+      join(root, 'tsconfig.json'),
+      `${JSON.stringify(
+        {
+          compilerOptions: {
+            strict: true,
+            target: 'ES2022',
+            lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+            module: 'ESNext',
+            moduleResolution: 'bundler',
+            jsx: 'react-jsx',
+            skipLibCheck: true,
+            verbatimModuleSyntax: true,
+            noEmit: true,
+          },
+          include: ['types.ts'],
+        },
+        null,
+        2,
+      )}\n`,
+    ),
+    writeTypeFixture(root, specifiers),
+  ]);
 }
 
 function installedPackageRoots(root, packageName) {

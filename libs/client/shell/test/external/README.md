@@ -18,9 +18,9 @@ The gate installs only the nine documented client composition roots, plus
 `@shipfox/client-config` used by the fixture's own config proof, as direct dependencies. It uses
 release-shaped local tarballs and overrides for the full `@shipfox/*` runtime closure. It verifies
 that generated package imports are declared direct dependencies, checks default and `development`
-condition resolution through `dist`, generates the composed TanStack router, builds and type-checks
-the consumer, runs the behavioral fixture, and asserts the exact rejected-collision diagnostic. CI
-runs this command during static verification.
+condition resolution through `dist`, type-checks every packed declaration graph, generates the
+composed TanStack router, builds and type-checks the consumer, runs the behavioral fixture, and
+asserts the exact rejected-collision diagnostic. CI runs this command during static verification.
 
 ## Run the linked iteration mode
 

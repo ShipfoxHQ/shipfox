@@ -20,14 +20,15 @@ The fixture proves that:
 
 ## Distribution isolation
 
-Packed mode builds declarations and runtime files before creating tarballs, then productionizes each
-manifest like `release:publish` so source conditions cannot leak into the consumer artifact. The
-fixture declares only the documented client composition roots, plus `@shipfox/client-config` for its
-own config proof, while `file:` overrides keep every first-party runtime dependency in the full
-closure on its local tarball. It rejects registry-resolved Shipfox packages and `workspace:` ranges
-across every installed closure package, checks that generated package imports are direct fixture
-dependencies, and confirms full-closure runtime and type imports resolve through `dist` under
-default, `development`, and `types` conditions. Linked mode keeps the
+Packed mode builds declarations and runtime files before creating tarballs, then productionizes a
+temporary copy of each package manifest like `release:publish` so source conditions cannot leak into
+the consumer artifact or mutate the worktree. The fixture declares only the documented client
+composition roots, plus `@shipfox/client-config` for its own config proof, while `file:` overrides
+keep every first-party runtime dependency in the full closure on its local tarball. It rejects
+registry-resolved Shipfox packages and `workspace:` ranges across every installed closure package,
+checks that generated package imports are direct fixture dependencies, and confirms full-closure
+runtime imports resolve through `dist` under default and `development` conditions while TypeScript
+checks every packed declaration graph. Linked mode keeps the
 minimal-consumer, generated-route, behavior, collision, and type checks for faster local iteration;
 its workspace packages intentionally resolve `development` to source.
 
