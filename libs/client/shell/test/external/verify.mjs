@@ -274,47 +274,53 @@ process.stdout.write(JSON.stringify(resolved));`,
 async function validateFullClosureTypeDeclarations(root, specifiers) {
   const typeScriptCli = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
   const specifiersByPackage = Map.groupBy(specifiers, packageNameFromSpecifier);
+  const auditRoot = join(root, 'full-closure-types');
+  const typeFixtures = [];
   let auditIndex = 0;
   for (const [packageName, packageSpecifiers] of specifiersByPackage) {
     for (const packageRoot of installedPackageRoots(root, packageName)) {
-      const auditRoot = join(root, 'full-closure-types', String(auditIndex));
+      const packageAuditRoot = join(auditRoot, String(auditIndex));
       auditIndex += 1;
-      await writeTypeAudit(auditRoot, packageName, packageRoot, packageSpecifiers);
-      await run(process.execPath, [typeScriptCli, '--project', 'tsconfig.json'], auditRoot, {
-        capture: true,
-      });
+      await writeTypeAudit(packageAuditRoot, packageName, packageRoot, packageSpecifiers);
+      typeFixtures.push(relative(auditRoot, join(packageAuditRoot, 'types.ts')));
     }
   }
+
+  await writeTypeAuditConfig(auditRoot, typeFixtures);
+  await run(process.execPath, [typeScriptCli, '--project', 'tsconfig.json'], auditRoot, {
+    capture: true,
+  });
 }
 
 async function writeTypeAudit(root, packageName, packageRoot, specifiers) {
   const packageLink = join(root, 'node_modules', ...packageName.split('/'));
   await mkdir(dirname(packageLink), {recursive: true});
   await symlink(packageRoot, packageLink, 'dir');
-  await Promise.all([
-    writeFile(
-      join(root, 'tsconfig.json'),
-      `${JSON.stringify(
-        {
-          compilerOptions: {
-            strict: true,
-            target: 'ES2022',
-            lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-            module: 'ESNext',
-            moduleResolution: 'bundler',
-            jsx: 'react-jsx',
-            skipLibCheck: true,
-            verbatimModuleSyntax: true,
-            noEmit: true,
-          },
-          include: ['types.ts'],
+  await writeTypeFixture(root, specifiers);
+}
+
+async function writeTypeAuditConfig(root, typeFixtures) {
+  await writeFile(
+    join(root, 'tsconfig.json'),
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          strict: true,
+          target: 'ES2022',
+          lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          jsx: 'react-jsx',
+          skipLibCheck: false,
+          verbatimModuleSyntax: true,
+          noEmit: true,
         },
-        null,
-        2,
-      )}\n`,
-    ),
-    writeTypeFixture(root, specifiers),
-  ]);
+        files: typeFixtures,
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 function installedPackageRoots(root, packageName) {
