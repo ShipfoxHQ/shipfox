@@ -30,11 +30,17 @@
         "CLIENT_BASE_URL",
         "GITEA_BASE_URL",
         "HOST",
+        "INTEGRATIONS_ENABLE_SLACK_PROVIDER",
         "LOG_STORAGE_S3_ENDPOINT",
         "OTEL_INSTANCE_METRICS_PORT",
         "OTEL_SERVICE_METRICS_PORT",
         "POSTGRES_*",
         "SHIPFOX_*",
+        "SLACK_API_BASE_URL",
+        "SLACK_OAUTH_CLIENT_ID",
+        "SLACK_OAUTH_CLIENT_SECRET",
+        "SLACK_OAUTH_REDIRECT_URL",
+        "SLACK_SIGNING_SECRET",
         "TEMPORAL_*",
         "VITE_*"
       ]
@@ -79,7 +85,8 @@
     },
     "test:e2e": {
       "cache": false,
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "passThroughEnv": ["SLACK_API_BASE_URL", "SLACK_SIGNING_SECRET"]
     },
     "storybook:build": {
       "cache": true,

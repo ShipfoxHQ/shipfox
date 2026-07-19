@@ -8,6 +8,7 @@ import {
 } from '#core/errors.js';
 
 const SLACK_API_TIMEOUT_MS = 10_000;
+const trailingSlashesPattern = /\/+$/;
 
 export interface SlackAuthorization {
   accessToken: string;
@@ -232,7 +233,8 @@ function slackMethodArguments(input: Record<string, unknown>): URLSearchParams {
 }
 
 function slackApiUrl(path: string): string {
-  return new URL(path, `${config.SLACK_API_BASE_URL}/`).toString();
+  const baseUrl = config.SLACK_API_BASE_URL.replace(trailingSlashesPattern, '');
+  return new URL(path, `${baseUrl}/`).toString();
 }
 
 function retryAfterSeconds(headers: Headers): number | undefined {

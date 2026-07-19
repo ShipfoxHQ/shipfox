@@ -217,6 +217,30 @@ describe('createSlackApiClient', () => {
     expect(options.body.has('latest')).toBe(false);
   });
 
+  it('normalizes a trailing slash in the Slack API base URL', async () => {
+    vi.stubEnv('SLACK_API_BASE_URL', 'http://127.0.0.1:0/');
+    vi.resetModules();
+    mocks.post.mockReturnValue(resolves({ok: true}));
+    try {
+      const {createSlackApiClient: createClient} = await import('./client.js');
+
+      await createClient().callMethod({
+        method: 'conversations.replies',
+        token: 'xoxb-secret',
+        arguments: {channel: 'C123', ts: '1721300000.000001'},
+      });
+
+      expect(mocks.post).toHaveBeenCalledWith('http://127.0.0.1:0/conversations.replies', {
+        headers: {authorization: 'Bearer xoxb-secret'},
+        body: new URLSearchParams({channel: 'C123', ts: '1721300000.000001'}),
+        timeout: 10_000,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   it.each([
     [httpError(429, {'retry-after': '17'}), 'rate-limited', 17],
     [httpError(413), 'content-too-large', undefined],

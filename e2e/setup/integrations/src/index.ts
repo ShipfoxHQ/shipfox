@@ -6,6 +6,10 @@ import type {
   CreateE2eLinearConnectionBodyDto,
   CreateE2eLinearConnectionResponseDto,
 } from '@shipfox/api-integration-linear-dto';
+import type {
+  CreateE2eSlackConnectionBodyDto,
+  CreateE2eSlackConnectionResponseDto,
+} from '@shipfox/api-integration-slack-dto';
 import {requestJson} from '@shipfox/e2e-core';
 
 export type {
@@ -16,6 +20,10 @@ export type {
   CreateE2eLinearConnectionBodyDto,
   CreateE2eLinearConnectionResponseDto,
 } from '@shipfox/api-integration-linear-dto';
+export type {
+  CreateE2eSlackConnectionBodyDto,
+  CreateE2eSlackConnectionResponseDto,
+} from '@shipfox/api-integration-slack-dto';
 
 export interface CreateGithubConnectionParams {
   workspaceId: string;
@@ -78,5 +86,37 @@ export async function createLinearConnection(
     'post',
     '/__e2e/integrations/linear-connections',
     {json: linearConnectionBody(params)},
+  );
+}
+
+export interface CreateSlackConnectionParams {
+  workspaceId: string;
+  teamId: string;
+  teamName: string;
+  appId: string;
+  botUserId: string;
+  botToken: string;
+  scopes?: string[] | undefined;
+}
+
+function slackConnectionBody(params: CreateSlackConnectionParams): CreateE2eSlackConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    team_id: params.teamId,
+    team_name: params.teamName,
+    app_id: params.appId,
+    bot_user_id: params.botUserId,
+    bot_token: params.botToken,
+    scopes: params.scopes ?? ['app_mentions:read', 'chat:write'],
+  };
+}
+
+export async function createSlackConnection(
+  params: CreateSlackConnectionParams,
+): Promise<CreateE2eSlackConnectionResponseDto> {
+  return await requestJson<CreateE2eSlackConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/slack-connections',
+    {json: slackConnectionBody(params)},
   );
 }
