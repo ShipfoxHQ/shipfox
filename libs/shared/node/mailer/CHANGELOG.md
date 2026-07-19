@@ -1,5 +1,13 @@
 # @shipfox/node-mailer
 
+## 0.1.4
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/node-opentelemetry@0.5.2
+
 ## 0.1.3
 
 ### Patch Changes

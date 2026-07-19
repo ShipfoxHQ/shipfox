@@ -1,5 +1,14 @@
 # @shipfox/node-temporal
 
+## 0.3.1
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/config@1.2.2
+  - @shipfox/node-opentelemetry@0.5.2
+
 ## 0.3.0
 
 ### Minor Changes

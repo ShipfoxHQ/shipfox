@@ -1,5 +1,12 @@
 # @shipfox/biome
 
+## 1.8.2
+
+### Patch Changes
+
+- Updated dependencies [9038afb]
+  - @shipfox/tool-utils@1.2.0
+
 ## 1.8.1
 
 ### Patch Changes

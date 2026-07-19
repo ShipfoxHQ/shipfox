@@ -1,5 +1,17 @@
 # @shipfox/runner-logs
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [bb037af]
+  - @shipfox/api-logs-dto@5.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/node-opentelemetry@0.5.2
+  - @shipfox/redact@0.2.2
+  - @shipfox/regex@0.2.2
+  - @shipfox/runner-protocol@0.1.3
+
 ## 0.1.3
 
 ### Patch Changes

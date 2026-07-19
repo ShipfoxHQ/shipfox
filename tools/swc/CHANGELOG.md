@@ -1,5 +1,13 @@
 # @shipfox/swc
 
+## 1.2.6
+
+### Patch Changes
+
+- 003aea1: Restores the `shipfox-swc` command in the published SWC package.
+- Updated dependencies [9038afb]
+  - @shipfox/tool-utils@1.2.0
+
 ## 1.2.5
 
 ### Patch Changes

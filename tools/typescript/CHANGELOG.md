@@ -1,5 +1,12 @@
 # @shipfox/typescript
 
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [9038afb]
+  - @shipfox/tool-utils@1.2.0
+
 ## 1.1.6
 
 ### Patch Changes

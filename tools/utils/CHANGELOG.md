@@ -1,5 +1,11 @@
 # @shipfox/tool-utils
 
+## 1.2.0
+
+### Minor Changes
+
+- 9038afb: Productionizes published package manifests so external consumers resolve compiled dist output.
+
 ## 1.1.3
 
 ### Patch Changes

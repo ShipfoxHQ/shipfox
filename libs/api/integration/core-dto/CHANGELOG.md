@@ -1,5 +1,16 @@
 # @shipfox/api-integration-core-dto
 
+## 5.0.0
+
+### Minor Changes
+
+- 2875241: Adds deduplicated Slack installation revocation for app uninstall and bot token-revocation events.
+- fb70438: Cascades provider installation and token deletion when removing a connection.
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+
 ## 3.0.0
 
 ### Minor Changes

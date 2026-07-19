@@ -1,5 +1,13 @@
 # @shipfox/client-config
 
+## 1.0.0
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/react-ui@0.3.2
+
 ## 0.2.0
 
 ### Minor Changes

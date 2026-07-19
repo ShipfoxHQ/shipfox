@@ -1,5 +1,14 @@
 # @shipfox/provisioner-ec2-provider
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [bb037af]
+  - @shipfox/config@1.2.2
+  - @shipfox/runner-labels@0.1.1
+  - @shipfox/provisioner-core@0.0.4
+
 ## 0.1.0
 
 ### Minor Changes

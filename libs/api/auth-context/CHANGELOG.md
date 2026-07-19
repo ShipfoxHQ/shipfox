@@ -1,5 +1,15 @@
 # @shipfox/api-auth-context
 
+## 5.0.0
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [bb037af]
+  - @shipfox/api-auth-dto@5.0.0
+  - @shipfox/api-workspaces-dto@5.0.0
+  - @shipfox/node-fastify@0.2.3
+
 ## 3.0.0
 
 ### Patch Changes

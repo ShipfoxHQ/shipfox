@@ -1,5 +1,19 @@
 # @shipfox/api-integration-jira-dto
 
+## 5.0.0
+
+### Minor Changes
+
+- 43d8e66: Adds Jira OAuth connection support with site selection and rotating access tokens.
+
+### Patch Changes
+
+- bb037af: Resolves workspace packages from source during development while published consumers continue to use compiled output.
+- Updated dependencies [2875241]
+- Updated dependencies [bb037af]
+- Updated dependencies [fb70438]
+  - @shipfox/api-integration-core-dto@5.0.0
+
 ## 4.0.0
 
 ### Minor Changes
