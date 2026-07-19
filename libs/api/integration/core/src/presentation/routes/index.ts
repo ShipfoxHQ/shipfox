@@ -45,7 +45,7 @@ export function createIntegrationRoutes(
     createListIntegrationProvidersRoute(registry),
     createListIntegrationConnectionsRoute(registry),
     createUpdateIntegrationConnectionRoute(registry),
-    createDeleteIntegrationConnectionRoute(),
+    createDeleteIntegrationConnectionRoute(registry),
     createListRepositoriesRoute(sourceControl),
     ...agentToolsRoutes,
     ...providerRoutes,

@@ -113,6 +113,15 @@ export interface CreateSlackIntegrationProviderOptions {
   slack?: SlackApiClient | undefined;
   agentTools?: {tokenStore: Pick<SlackTokenStore, 'getAccessToken'>} | undefined;
   getSlackInstallationByConnectionId?: typeof getSlackInstallationByConnectionId | undefined;
+  cleanup?:
+    | {
+        deleteConnectionRecords?: (
+          connection: {id: string},
+          options: {tx: unknown},
+        ) => Promise<void>;
+        deleteConnectionSecrets?: (connection: {id: string; workspaceId: string}) => Promise<void>;
+      }
+    | undefined;
   routes?: SlackRouteOptions | undefined;
 }
 
@@ -169,6 +178,7 @@ export function createSlackIntegrationProvider(
       if (!installation) return undefined;
       return `https://app.slack.com/client/${encodeURIComponent(installation.teamId)}`;
     },
+    ...options.cleanup,
     routes,
   };
 }

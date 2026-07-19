@@ -22,4 +22,15 @@ describe('createSlackIntegrationProvider', () => {
 
     expect(catalog).toBe(slackAgentToolCatalog);
   });
+
+  it('exposes explicit connection cleanup without requiring routes', () => {
+    const deleteConnectionRecords = vi.fn(() => Promise.resolve());
+    const deleteConnectionSecrets = vi.fn(() => Promise.resolve());
+    const provider = createSlackIntegrationProvider({
+      cleanup: {deleteConnectionRecords, deleteConnectionSecrets},
+    });
+
+    expect(provider.deleteConnectionRecords).toBe(deleteConnectionRecords);
+    expect(provider.deleteConnectionSecrets).toBe(deleteConnectionSecrets);
+  });
 });

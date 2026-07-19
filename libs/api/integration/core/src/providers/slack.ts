@@ -36,9 +36,11 @@ async function loadSlackModuleParts(
     createSlackIntegrationProvider,
     createSlackTokenStore,
     db: slackDb,
+    deleteSlackInstallationByConnectionId,
     disconnectSlackInstallation: disconnectSlackInstallationRecords,
     getSlackInstallationByTeamId,
     migrationsPath: slackMigrationsPath,
+    slackSecretsNamespace,
     upsertSlackInstallation,
   } = await import('@shipfox/api-integration-slack');
 
@@ -139,6 +141,18 @@ async function loadSlackModuleParts(
   return {
     provider: createSlackIntegrationProvider({
       agentTools: {tokenStore},
+      cleanup: {
+        deleteConnectionRecords: async (connection, {tx}) => {
+          await deleteSlackInstallationByConnectionId(connection.id, {tx});
+        },
+        deleteConnectionSecrets: async (connection) => {
+          // Scoped secrets accept the provider-local suffix, after this helper validates its prefix.
+          await (options.secrets?.slack?.deleteSecrets({
+            workspaceId: connection.workspaceId,
+            namespace: slackNamespaceSuffix(slackSecretsNamespace(connection.id)),
+          }) ?? Promise.resolve());
+        },
+      },
       routes: {
         tokenStore,
         getExistingSlackConnection,
