@@ -3,7 +3,7 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {getProjectRootPath} from '@shipfox/tool-utils';
-import {findProducedAmiId} from './aws.js';
+import {findProducedAmiId, readPackerAmiArtifact} from './aws.js';
 import {qemuSourceImageArgs} from './qemu.js';
 
 const WHITESPACE_PATTERN = /\s+/;
@@ -14,8 +14,11 @@ export interface RunnerImageBuild {
   os: string;
   platform: RunnerImagePlatform;
   architecture: 'amd64' | 'arm64';
+  buildAttempt: string;
   buildNumber: string;
   nodeVersion: string;
+  revision: string;
+  runnerVersion: string;
   extraPackerArgs: string[];
 }
 
@@ -41,9 +44,15 @@ export function packerBuildArgs(
     '-var',
     `architecture=${build.architecture}`,
     '-var',
+    `build_attempt=${build.buildAttempt}`,
+    '-var',
     `build_number=${build.buildNumber}`,
     '-var',
     `node_version=${build.nodeVersion}`,
+    '-var',
+    `revision=${build.revision}`,
+    '-var',
+    `runner_version=${build.runnerVersion}`,
     '-var',
     `platform=${build.platform}`,
     '-var',
@@ -57,6 +66,7 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
   const rootDir = getProjectRootPath(import.meta.url);
   const stageDir = await mkdtemp(join(tmpdir(), 'shipfox-runner-image-'));
   const workspacePath = join(stageDir, 'workspace');
+  const manifestPath = join(rootDir, 'packer-manifest.json');
 
   try {
     execFileSync('turbo', ['prune', '@shipfox/runner', '--out-dir', workspacePath], {
@@ -64,13 +74,27 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
       stdio: 'inherit',
     });
     execFileSync('packer', ['init', '.'], {cwd: rootDir, stdio: 'inherit'});
+    await rm(manifestPath, {force: true});
     const output = execFileSync('packer', packerBuildArgs(build, workspacePath, rootDir), {
       cwd: rootDir,
       encoding: 'utf8',
     });
     process.stdout.write(output);
-    return {amiId: build.platform === 'aws' ? findProducedAmiId(output) : null};
+    if (build.platform !== 'aws') return {amiId: null};
+
+    try {
+      return {amiId: readPackerAmiArtifact(manifestPath).amiId};
+    } catch (error) {
+      if (isMissingManifest(error)) return {amiId: findProducedAmiId(output)};
+      throw error;
+    }
   } finally {
     await rm(stageDir, {force: true, recursive: true});
   }
+}
+
+function isMissingManifest(error: unknown): boolean {
+  return (
+    error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
+  );
 }

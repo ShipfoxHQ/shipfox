@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process';
-import {findProducedAmiId} from '#aws.js';
+import {findProducedAmiId, parsePackerAmiArtifact} from '#aws.js';
 import {parseBuildRunnerImageArgs} from '#build-runner-image.js';
 import {packerBuildArgs, readMiseNodeVersion} from '#runner-image.js';
 
@@ -22,8 +22,11 @@ describe('packerBuildArgs', () => {
         os: 'ubuntu24',
         platform: 'aws',
         architecture: 'amd64',
+        buildAttempt: '1',
         buildNumber: '42',
         nodeVersion: '24.17.0',
+        revision: '0123456789abcdef0123456789abcdef01234567',
+        runnerVersion: '0.1.0',
         extraPackerArgs: [],
       },
       '/tmp/workspace',
@@ -38,9 +41,15 @@ describe('packerBuildArgs', () => {
       '-var',
       'architecture=amd64',
       '-var',
+      'build_attempt=1',
+      '-var',
       'build_number=42',
       '-var',
       'node_version=24.17.0',
+      '-var',
+      'revision=0123456789abcdef0123456789abcdef01234567',
+      '-var',
+      'runner_version=0.1.0',
       '-var',
       'platform=aws',
       '-var',
@@ -58,8 +67,11 @@ describe('packerBuildArgs', () => {
         os: 'ubuntu24',
         platform: 'qemu',
         architecture: 'amd64',
+        buildAttempt: '1',
         buildNumber: '42',
         nodeVersion: '24.17.0',
+        revision: '0123456789abcdef0123456789abcdef01234567',
+        runnerVersion: '0.1.0',
         extraPackerArgs: [],
       },
       '/tmp/workspace',
@@ -80,8 +92,11 @@ describe('packerBuildArgs', () => {
           os: 'ubuntu24',
           platform: 'qemu',
           architecture: 'amd64',
+          buildAttempt: '1',
           buildNumber: '42',
           nodeVersion: '24.17.0',
+          revision: '0123456789abcdef0123456789abcdef01234567',
+          runnerVersion: '0.1.0',
           extraPackerArgs: [],
         },
         '/tmp/workspace',
@@ -106,11 +121,56 @@ describe('findProducedAmiId', () => {
   });
 });
 
+describe('parsePackerAmiArtifact', () => {
+  it('reads the completed AWS artifact and its provenance from Packer manifest output', () => {
+    const artifact = parsePackerAmiArtifact({
+      last_run_uuid: 'run-123',
+      builds: [
+        {
+          name: 'build_image',
+          builder_type: 'amazon-ebs',
+          packer_run_uuid: 'run-123',
+          build_time: 1_784_390_400,
+          artifact_id: 'us-east-1:ami-0123abc456def7890',
+          custom_data: {
+            architecture: 'amd64',
+            build_attempt: '1',
+            build_number: '42',
+            image_os: 'ubuntu24',
+            revision: '0123456789abcdef0123456789abcdef01234567',
+            runner_version: '0.1.0',
+          },
+        },
+      ],
+    });
+
+    expect(artifact).toEqual({
+      amiId: 'ami-0123abc456def7890',
+      region: 'us-east-1',
+      buildTime: 1_784_390_400,
+      customData: {
+        architecture: 'amd64',
+        build_attempt: '1',
+        build_number: '42',
+        image_os: 'ubuntu24',
+        revision: '0123456789abcdef0123456789abcdef01234567',
+        runner_version: '0.1.0',
+      },
+    });
+  });
+});
+
 describe('parseBuildRunnerImageArgs', () => {
   it('parses the build target and forwards Packer options', () => {
     const build = parseBuildRunnerImageArgs(
       ['ubuntu24', 'qemu', '-var', 'qemu_accelerator=tcg'],
-      {BUILD_ARCH: 'amd64', BUILD_NUMBER: '42'},
+      {
+        BUILD_ARCH: 'amd64',
+        BUILD_ATTEMPT: '1',
+        BUILD_NUMBER: '42',
+        BUILD_REVISION: '0123456789abcdef0123456789abcdef01234567',
+        BUILD_RUNNER_VERSION: '0.1.0',
+      },
       '24.17.0',
     );
 
@@ -118,8 +178,11 @@ describe('parseBuildRunnerImageArgs', () => {
       os: 'ubuntu24',
       platform: 'qemu',
       architecture: 'amd64',
+      buildAttempt: '1',
       buildNumber: '42',
       nodeVersion: '24.17.0',
+      revision: '0123456789abcdef0123456789abcdef01234567',
+      runnerVersion: '0.1.0',
       extraPackerArgs: ['-var', 'qemu_accelerator=tcg'],
     });
   });
@@ -128,6 +191,16 @@ describe('parseBuildRunnerImageArgs', () => {
     expect(() => parseBuildRunnerImageArgs(['ubuntu24', 'aws'], {}, '24.17.0')).toThrow(
       'BUILD_NUMBER is not set.',
     );
+  });
+
+  it('requires an explicit runner version', () => {
+    expect(() =>
+      parseBuildRunnerImageArgs(
+        ['ubuntu24', 'aws'],
+        {BUILD_ARCH: 'amd64', BUILD_ATTEMPT: '1', BUILD_NUMBER: '42'},
+        '24.17.0',
+      ),
+    ).toThrow('BUILD_RUNNER_VERSION is not set.');
   });
 });
 

@@ -1,3 +1,5 @@
 #!/usr/bin/env node
 
-import '../dist/build-runner-image.js';
+import {runBuildRunnerImageCli} from '../dist/build-runner-image.js';
+
+runBuildRunnerImageCli(process.argv.slice(2));

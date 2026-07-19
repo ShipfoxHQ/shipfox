@@ -2,6 +2,11 @@ variable "build_number" {
   type = string
 }
 
+variable "build_attempt" {
+  type    = string
+  default = "1"
+}
+
 variable "architecture" {
   type    = string
   default = "amd64"
@@ -18,6 +23,16 @@ variable "image_os" {
 
 variable "node_version" {
   type = string
+}
+
+variable "revision" {
+  type    = string
+  default = "local"
+}
+
+variable "runner_version" {
+  type    = string
+  default = "0.0.0-local"
 }
 
 variable "os_disk_size_gb" {

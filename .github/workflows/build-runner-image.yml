@@ -1,0 +1,312 @@
+name: Build runner image
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: Runner image operating system
+        required: true
+        default: ubuntu24
+        type: choice
+        options: [ubuntu24]
+      architectures:
+        description: Architectures to build
+        required: true
+        default: both
+        type: choice
+        options: [amd64, arm64, both]
+      runner_version:
+        description: Authoritative @shipfox/runner release version to record in the AMI catalog
+        required: true
+        type: string
+      publish:
+        description: Publish immutable catalog fragments and, for both architectures, the release catalog
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-image-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    name: Build AMI (${{ matrix.architecture }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: ${{ fromJSON(inputs.architectures == 'both' && '["amd64","arm64"]' || format('["{0}"]', inputs.architectures)) }}
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: main
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Set up ORAS
+        if: inputs.publish
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2
+        with:
+          version: 1.3.3
+
+      - name: Log in to GHCR
+        if: inputs.publish
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username "$GH_ACTOR" --password-stdin
+
+      - name: Resolve published architecture fragment
+        if: inputs.publish
+        id: catalog-fragment
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          RUNNER_IMAGE_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/runner-image-releases
+        run: |
+          set -euo pipefail
+          resolve_error="$(mktemp)"
+          trap 'rm -f "$resolve_error"' EXIT
+
+          set +e
+          oras resolve "$RUNNER_IMAGE_RELEASE_REPOSITORY:$GITHUB_SHA-$BUILD_ARCH" 2>"$resolve_error" >/dev/null
+          resolve_status=$?
+          set -e
+
+          if (( resolve_status == 0 )); then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          elif grep -Eiq 'not found|404' "$resolve_error"; then
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          else
+            cat "$resolve_error" >&2
+            exit "$resolve_status"
+          fi
+
+      - name: Download published architecture fragment
+        if: inputs.publish && steps.catalog-fragment.outputs.exists == 'true'
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          RUNNER_IMAGE_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/runner-image-releases
+        run: |
+          set -euo pipefail
+          oras pull \
+            "$RUNNER_IMAGE_RELEASE_REPOSITORY:$GITHUB_SHA-$BUILD_ARCH" \
+            --output "$RUNNER_TEMP"
+
+      - name: Configure AWS credentials
+        if: steps.catalog-fragment.outputs.exists != 'true'
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 7200
+          role-session-name: shipfox-runner-image-build
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Build runner image tooling
+        if: steps.catalog-fragment.outputs.exists != 'true'
+        run: turbo build --filter=@shipfox/runner-image...
+
+      - name: Build AMI
+        if: steps.catalog-fragment.outputs.exists != 'true'
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          BUILD_ATTEMPT: ${{ github.run_attempt }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          BUILD_REVISION: ${{ github.sha }}
+          BUILD_RUNNER_VERSION: ${{ inputs.runner_version }}
+          PACKER_LOG: "1"
+          PACKER_LOG_PATH: ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+        run: pnpm --filter=@shipfox/runner-image image:build
+
+      - name: Create AMI catalog fragment
+        if: steps.catalog-fragment.outputs.exists != 'true'
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          manifest=infra/images/runner/packer-manifest.json
+          ami_id="$(jq -r '.builds[] | select(.builder_type == "amazon-ebs") | .artifact_id | split(":")[1]' "$manifest")"
+          source_ami="$(aws ec2 describe-images --image-ids "$ami_id" --query 'Images[0].SourceImageId' --output text)"
+          build_created_at="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.run_started_at')"
+
+          source_ami_option=()
+          if [[ "$source_ami" != "None" && -n "$source_ami" ]]; then
+            source_ami_option=(--source-ami "$source_ami")
+          fi
+
+          node infra/images/runner/bin/runner-image-catalog.js create \
+            --packer-manifest "$manifest" \
+            --source-repository "https://github.com/$GITHUB_REPOSITORY" \
+            --revision "$GITHUB_SHA" \
+            --build-system github-actions \
+            --build-id "$GITHUB_RUN_ID" \
+            --build-number "$GITHUB_RUN_NUMBER" \
+            --build-attempt "$GITHUB_RUN_ATTEMPT" \
+            --build-created-at "$build_created_at" \
+            --build-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            "${source_ami_option[@]}" \
+            --output "$RUNNER_TEMP/runner-image-release-${BUILD_ARCH}.json"
+
+          echo "Built \`$BUILD_ARCH\`: \`us-east-1:$ami_id\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish architecture fragment
+        if: inputs.publish && steps.catalog-fragment.outputs.exists != 'true'
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          RUNNER_IMAGE_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/runner-image-releases
+        run: |
+          set -euo pipefail
+          oras push \
+            --artifact-type application/vnd.shipfox.runner-image-release.v1+json \
+            --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --annotation "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            "$RUNNER_IMAGE_RELEASE_REPOSITORY:$GITHUB_SHA-$BUILD_ARCH" \
+            "$RUNNER_TEMP/runner-image-release-$BUILD_ARCH.json:application/vnd.shipfox.runner-image-release.v1+json"
+
+      - name: Upload AMI catalog fragment
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-image-release-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/runner-image-release-${{ matrix.architecture }}.json
+          if-no-files-found: error
+
+      - name: Upload Packer diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-image-packer-diagnostics-${{ matrix.architecture }}
+          path: |
+            ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+            infra/images/runner/packer-manifest.json
+          if-no-files-found: warn
+
+  publish:
+    if: needs.build.result == 'success' && inputs.publish && inputs.architectures == 'both'
+    name: Publish AMI catalog
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: runner-image-latest
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: main
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Download AMI catalog fragments
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: runner-image-release-*
+          path: runner-image-release-fragments
+          merge-multiple: true
+
+      - name: Build runner image catalog
+        run: turbo build --filter=@shipfox/runner-image
+
+      - name: Merge AMI catalog fragments
+        run: node infra/images/runner/bin/runner-image-catalog.js merge --output runner-image-release.json runner-image-release-fragments/*.json
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2
+        with:
+          version: 1.3.3
+
+      - name: Log in to GHCR
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username "$GH_ACTOR" --password-stdin
+
+      - name: Resolve existing AMI catalog
+        id: runner-image-release
+        env:
+          RUNNER_IMAGE_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/runner-image-releases
+        run: |
+          set -euo pipefail
+          resolve_error="$(mktemp)"
+          trap 'rm -f "$resolve_error"' EXIT
+
+          set +e
+          existing_digest="$(oras resolve "$RUNNER_IMAGE_RELEASE_REPOSITORY:$GITHUB_SHA" 2>"$resolve_error")"
+          resolve_status=$?
+          set -e
+
+          if (( resolve_status == 0 )); then
+            if [[ ! "$existing_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "Existing runner image release returned an invalid digest: $existing_digest" >&2
+              exit 1
+            fi
+            echo "digest=$existing_digest" >> "$GITHUB_OUTPUT"
+          elif grep -Eiq 'not found|404' "$resolve_error"; then
+            echo 'digest=' >> "$GITHUB_OUTPUT"
+          else
+            cat "$resolve_error" >&2
+            exit "$resolve_status"
+          fi
+
+      - name: Publish AMI catalog
+        env:
+          RUNNER_IMAGE_RELEASE_EXISTING_DIGEST: ${{ steps.runner-image-release.outputs.digest }}
+          RUNNER_IMAGE_RELEASE_REPOSITORY: ghcr.io/shipfoxhq/runner-image-releases
+        run: |
+          set -euo pipefail
+          if [[ -n "$RUNNER_IMAGE_RELEASE_EXISTING_DIGEST" ]]; then
+            echo "Reused $RUNNER_IMAGE_RELEASE_REPOSITORY@$RUNNER_IMAGE_RELEASE_EXISTING_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          created_at="$(jq -r '.build.createdAt' runner-image-release.json)"
+          oras push \
+            --artifact-type application/vnd.shipfox.runner-image-release.v1+json \
+            --annotation "org.opencontainers.image.created=$created_at" \
+            --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --annotation "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --format json \
+            "$RUNNER_IMAGE_RELEASE_REPOSITORY:$GITHUB_SHA,latest" \
+            runner-image-release.json:application/vnd.shipfox.runner-image-release.v1+json \
+            | tee runner-image-release-publication.json
+
+          published_reference="$(jq -r '.reference' runner-image-release-publication.json)"
+          test -n "$published_reference"
+          test "$published_reference" != "null"
+          echo "Published $published_reference" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report AMI catalog
+        run: |
+          set -euo pipefail
+          echo '## Runner image release' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.images[] | "- `\(.architecture)`: `\(.region):\(.amiId)`"' runner-image-release.json >> "$GITHUB_STEP_SUMMARY"

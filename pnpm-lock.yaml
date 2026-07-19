@@ -1757,6 +1757,12 @@ importers:
       '@shipfox/runner':
         specifier: workspace:*
         version: link:../../../apps/runner
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
+      ajv-formats:
+        specifier: 'catalog:'
+        version: 3.0.1(ajv@8.20.0)
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

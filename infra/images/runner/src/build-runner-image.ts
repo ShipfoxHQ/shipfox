@@ -8,16 +8,21 @@ export function parseBuildRunnerImageArgs(args: string[], env = process.env, nod
     throw new Error('Usage: build-runner-image <os> <aws|qemu> [packer options]');
   if (!['aws', 'qemu'].includes(platform)) throw new Error('Platform must be aws or qemu.');
   if (!env.BUILD_NUMBER) throw new Error('BUILD_NUMBER is not set.');
+  if (!env.BUILD_ATTEMPT) throw new Error('BUILD_ATTEMPT is not set.');
   if (!env.BUILD_ARCH || !['amd64', 'arm64'].includes(env.BUILD_ARCH)) {
     throw new Error('BUILD_ARCH must be amd64 or arm64.');
   }
+  if (!env.BUILD_RUNNER_VERSION) throw new Error('BUILD_RUNNER_VERSION is not set.');
 
   return {
     os,
     platform: platform as RunnerImagePlatform,
     architecture: env.BUILD_ARCH as 'amd64' | 'arm64',
+    buildAttempt: env.BUILD_ATTEMPT,
     buildNumber: env.BUILD_NUMBER,
     nodeVersion: nodeVersion ?? readMiseNodeVersion(),
+    revision: env.BUILD_REVISION ?? env.GITHUB_SHA ?? 'local',
+    runnerVersion: env.BUILD_RUNNER_VERSION,
     extraPackerArgs,
   };
 }
