@@ -14,9 +14,8 @@ export const getProvisionerMeRoute = defineRoute({
   handler: (request) => {
     const context = requireProvisionerContext(request);
 
-    return {
-      id: context.provisionerTokenId,
-      workspace_id: context.workspaceId,
-    };
+    return context.scope === 'workspace'
+      ? {id: context.provisionerTokenId, scope: 'workspace', workspace_id: context.workspaceId}
+      : {id: context.provisionerTokenId, scope: 'installation'};
   },
 });

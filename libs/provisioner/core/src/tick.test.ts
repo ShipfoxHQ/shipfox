@@ -45,7 +45,8 @@ function harness(options: {response: PollDemandResponseFixture; mintError?: Erro
   const events: string[] = [];
 
   const client: ProvisionerClient = {
-    getIdentity: () => Promise.resolve({id: 'provisioner', workspace_id: 'workspace'}),
+    getIdentity: () =>
+      Promise.resolve({id: 'provisioner', scope: 'workspace', workspace_id: 'workspace'}),
     pollDemand: (body) => {
       events.push('poll');
       pollBodies.push(body);
@@ -264,7 +265,7 @@ describe('runProvisionerTick', () => {
     const launches: ProvisionedRunnerLaunch<null>[] = [];
     const tracker = createInMemoryTracker();
     const client: ProvisionerClient = {
-      getIdentity: () => Promise.resolve({id: 'p', workspace_id: 'w'}),
+      getIdentity: () => Promise.resolve({id: 'p', scope: 'workspace', workspace_id: 'w'}),
       pollDemand: () =>
         Promise.resolve({
           stats: [],

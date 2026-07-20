@@ -9,6 +9,7 @@ import {
   revokeProvisionerToken,
   touchProvisionerLastSeen,
 } from '#db/provisioner-tokens.js';
+import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {provisionerTokenFactory} from '#test/index.js';
 
 describe('provisioner token db', () => {
@@ -17,6 +18,7 @@ describe('provisioner token db', () => {
     const rawToken = 'sf_pt_test-token';
     const createdByUserId = crypto.randomUUID();
     const token = await createProvisionerToken({
+      scope: 'workspace',
       workspaceId,
       hashedToken: hashOpaqueToken(rawToken),
       prefix: rawToken.slice(0, 12),
@@ -35,6 +37,28 @@ describe('provisioner token db', () => {
     const result = await resolveProvisionerTokenByHash(hashOpaqueToken('sf_pt_unknown-token'));
 
     expect(result).toBeUndefined();
+  });
+
+  it('creates installation factory tokens without a workspace', async () => {
+    const token = await provisionerTokenFactory.create({scope: 'installation'});
+
+    expect(token).toMatchObject({scope: 'installation', workspaceId: null});
+  });
+
+  it('enforces valid scope and workspace combinations in PostgreSQL', async () => {
+    const insert = (scope: 'installation' | 'workspace', workspaceId: string | null) =>
+      db()
+        .insert(provisionerTokens)
+        .values({
+          scope,
+          workspaceId,
+          hashedToken: hashOpaqueToken(`${scope}-${workspaceId}`),
+          prefix: 'sf_pt_invalid',
+          createdByUserId: crypto.randomUUID(),
+        });
+
+    await expect(insert('installation', crypto.randomUUID())).rejects.toThrow();
+    await expect(insert('workspace', null)).rejects.toThrow();
   });
 
   it('lists usable tokens for a workspace', async () => {

@@ -4,7 +4,11 @@ export type {
   ProvisionedRunner,
   ProvisionedRunnerState,
 } from './entities/provisioned-runner.js';
-export type {ActiveProvisionerToken, ProvisionerToken} from './entities/provisioner-token.js';
+export type {
+  ActiveProvisionerToken,
+  ProvisionerScope,
+  ProvisionerToken,
+} from './entities/provisioner-token.js';
 export type {RunnerSession} from './entities/runner-session.js';
 export {
   type MintEphemeralRegistrationTokenParams,
@@ -40,9 +44,11 @@ export {
   reportProvisionedRunners,
 } from './provisioned-runners.js';
 export {
+  createInstallationProvisionerToken,
   createWorkspaceProvisionerToken,
   listActiveProvisioners,
   listUsableProvisionerTokens,
+  revokeInstallationProvisionerToken,
   revokeWorkspaceProvisionerToken,
 } from './provisioner-tokens.js';
 export {

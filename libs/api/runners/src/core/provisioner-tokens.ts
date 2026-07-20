@@ -3,6 +3,7 @@ import {
   createProvisionerToken,
   listActiveProvisionerTokens,
   listUsableProvisionerTokensByWorkspaceId,
+  revokeInstallationProvisionerToken as revokeInstallationProvisionerTokenDb,
   revokeProvisionerToken,
 } from '#db/provisioner-tokens.js';
 import {config} from '../config.js';
@@ -28,6 +29,7 @@ export async function createWorkspaceProvisionerToken(
   const expiresAt = params.ttlSeconds ? new Date(Date.now() + params.ttlSeconds * 1000) : undefined;
 
   const token = await createProvisionerToken({
+    scope: 'workspace',
     workspaceId: params.workspaceId,
     hashedToken: hashOpaqueToken(rawToken),
     prefix: extractDisplayPrefix(rawToken),
@@ -36,6 +38,28 @@ export async function createWorkspaceProvisionerToken(
     expiresAt,
   });
 
+  return {token, rawToken};
+}
+
+export interface CreateInstallationProvisionerTokenParams {
+  createdByUserId: string;
+  name?: string | undefined;
+  ttlSeconds?: number | undefined;
+}
+
+export async function createInstallationProvisionerToken(
+  params: CreateInstallationProvisionerTokenParams,
+): Promise<CreateWorkspaceProvisionerTokenResult> {
+  const rawToken = generateOpaqueToken('provisionerToken');
+  const expiresAt = params.ttlSeconds ? new Date(Date.now() + params.ttlSeconds * 1000) : undefined;
+  const token = await createProvisionerToken({
+    scope: 'installation',
+    hashedToken: hashOpaqueToken(rawToken),
+    prefix: extractDisplayPrefix(rawToken),
+    name: params.name,
+    createdByUserId: params.createdByUserId,
+    expiresAt,
+  });
   return {token, rawToken};
 }
 
@@ -56,6 +80,15 @@ export async function revokeWorkspaceProvisionerToken(params: {
   revokedByUserId: string;
 }): Promise<ProvisionerToken> {
   const token = await revokeProvisionerToken(params);
+  if (!token) throw new ProvisionerTokenNotFoundError(params.tokenId);
+  return token;
+}
+
+export async function revokeInstallationProvisionerToken(params: {
+  tokenId: string;
+  revokedByUserId: string;
+}): Promise<ProvisionerToken> {
+  const token = await revokeInstallationProvisionerTokenDb(params);
   if (!token) throw new ProvisionerTokenNotFoundError(params.tokenId);
   return token;
 }

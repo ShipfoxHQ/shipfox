@@ -43,6 +43,7 @@ describe('provisioner token transports', () => {
       return jsonResponse(
         {
           id: tokenId,
+          scope: 'workspace',
           raw_token: 'sf_pt_raw-created-token',
           prefix: 'sf_pt_raw-c',
           name: 'Docker provisioner',
@@ -76,6 +77,7 @@ describe('provisioner token transports', () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({
         id: tokenId,
+        scope: 'workspace',
         workspace_id: workspaceId,
         prefix: 'sf_pt_abcde',
         name: 'Docker provisioner',

@@ -28,7 +28,7 @@ describe('POST /provisioners/demand/poll reservation cleanup', () => {
         if (extractBearerToken(request.headers.authorization) !== VALID_PROVISIONER_TOKEN) {
           throw new Error('unauthorized');
         }
-        setProvisionerContext(request, {workspaceId, provisionerTokenId});
+        setProvisionerContext(request, {scope: 'workspace', workspaceId, provisionerTokenId});
         return Promise.resolve();
       },
     };

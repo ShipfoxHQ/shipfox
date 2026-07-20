@@ -1,4 +1,4 @@
-import {requireProvisionerContext} from '@shipfox/api-auth-context';
+import {requireWorkspaceProvisionerContext} from '@shipfox/api-auth-context';
 import {
   reportProvisionedRunnersBodySchema,
   reportProvisionedRunnersResponseSchema,
@@ -18,7 +18,7 @@ export const reportProvisionedRunnersRoute = defineRoute({
     },
   },
   handler: async (request) => {
-    const {provisionerTokenId, workspaceId} = requireProvisionerContext(request);
+    const {provisionerTokenId, workspaceId} = requireWorkspaceProvisionerContext(request);
     const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId: provisionerTokenId,

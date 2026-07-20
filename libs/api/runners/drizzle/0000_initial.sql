@@ -1,4 +1,5 @@
 CREATE TYPE "public"."runners_provisioned_runner_state" AS ENUM('starting', 'running', 'stopping', 'stopped', 'failed', 'terminated');--> statement-breakpoint
+CREATE TYPE "public"."runners_provisioner_scope" AS ENUM('workspace', 'installation');--> statement-breakpoint
 CREATE TYPE "public"."runners_runner_session_registration_token_kind" AS ENUM('manual', 'ephemeral');--> statement-breakpoint
 CREATE TYPE "public"."runners_runner_session_scope" AS ENUM('workspace');--> statement-breakpoint
 CREATE TABLE "runners_ephemeral_registration_tokens" (
@@ -79,7 +80,8 @@ CREATE TABLE "runners_provisioned_runners" (
 --> statement-breakpoint
 CREATE TABLE "runners_provisioner_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"workspace_id" uuid NOT NULL,
+	"scope" "runners_provisioner_scope" NOT NULL,
+	"workspace_id" uuid,
 	"hashed_token" text NOT NULL,
 	"prefix" text NOT NULL,
 	"name" text,
@@ -89,7 +91,8 @@ CREATE TABLE "runners_provisioner_tokens" (
 	"revoked_at" timestamp with time zone,
 	"last_seen_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "runners_provisioner_tokens_scope_workspace_ck" CHECK ((scope = 'workspace' AND workspace_id IS NOT NULL) OR (scope = 'installation' AND workspace_id IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "runners_rate_limits" (

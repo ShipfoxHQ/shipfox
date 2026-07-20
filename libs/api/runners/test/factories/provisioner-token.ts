@@ -15,7 +15,8 @@ export const provisionerTokenFactory = Factory.define<
 
   onCreate((token) => {
     return createProvisionerToken({
-      workspaceId: token.workspaceId,
+      scope: token.scope,
+      workspaceId: token.scope === 'workspace' ? token.workspaceId : undefined,
       hashedToken: token.hashedToken,
       prefix: token.prefix,
       name: token.name ?? undefined,
@@ -26,6 +27,7 @@ export const provisionerTokenFactory = Factory.define<
 
   return {
     id: crypto.randomUUID(),
+    scope: 'workspace',
     workspaceId: crypto.randomUUID(),
     hashedToken: hashOpaqueToken(rawToken),
     prefix: extractDisplayPrefix(rawToken),

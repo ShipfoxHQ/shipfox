@@ -22,6 +22,7 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
 function provisionerToken(overrides: Partial<Record<string, string | null>> = {}) {
   return {
     id: PROVISIONER_TOKEN_ID,
+    scope: 'workspace',
     workspace_id: RUNNERS_TEST_WORKSPACE_ID,
     prefix: 'sf_pt_abcde',
     name: 'Docker provisioner',

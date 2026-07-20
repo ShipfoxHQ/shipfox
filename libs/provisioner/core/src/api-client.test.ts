@@ -27,11 +27,13 @@ function client() {
 
 describe('createProvisionerClient', () => {
   it('getIdentity sends the provisioner token to /provisioners/me and parses identity', async () => {
-    stubFetch(() => jsonResponse({id: PROVISIONER_ID, workspace_id: WORKSPACE_ID}));
+    stubFetch(() =>
+      jsonResponse({id: PROVISIONER_ID, scope: 'workspace', workspace_id: WORKSPACE_ID}),
+    );
 
     const identity = await client().getIdentity();
 
-    expect(identity).toEqual({id: PROVISIONER_ID, workspace_id: WORKSPACE_ID});
+    expect(identity).toEqual({id: PROVISIONER_ID, scope: 'workspace', workspace_id: WORKSPACE_ID});
     expect(calls[0]?.url).toContain('provisioners/me');
     expect(calls[0]?.method).toBe('GET');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);

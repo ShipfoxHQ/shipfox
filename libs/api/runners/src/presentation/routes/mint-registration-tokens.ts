@@ -1,4 +1,4 @@
-import {requireProvisionerContext} from '@shipfox/api-auth-context';
+import {requireWorkspaceProvisionerContext} from '@shipfox/api-auth-context';
 import {
   mintRegistrationTokensBatchBodySchema,
   mintRegistrationTokensBatchResponseSchema,
@@ -65,7 +65,7 @@ export const mintRegistrationTokensRoute = defineRoute({
     throw error;
   },
   handler: async (request) => {
-    const {provisionerTokenId, workspaceId} = requireProvisionerContext(request);
+    const {provisionerTokenId, workspaceId} = requireWorkspaceProvisionerContext(request);
     const result = await mintEphemeralRegistrationTokensBatch({
       workspaceId,
       provisionerId: provisionerTokenId,

@@ -3,8 +3,12 @@ import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
 import type {FastifyInstance} from 'fastify';
+import {createInstallationProvisionerToken} from '#core/provisioner-tokens.js';
 import * as provisionerTokenDb from '#db/provisioner-tokens.js';
-import {revokeProvisionerToken} from '#db/provisioner-tokens.js';
+import {
+  revokeInstallationProvisionerToken,
+  revokeProvisionerToken,
+} from '#db/provisioner-tokens.js';
 import {createProvisionerTokenAuthMethod} from '#presentation/auth/index.js';
 import {provisionerTokenFactory} from '#test/index.js';
 import {provisionerRoutes} from './index.js';
@@ -47,9 +51,39 @@ describe('provisioner me route', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({id: token.id, workspace_id: workspaceId});
+    expect(res.json()).toEqual({id: token.id, scope: 'workspace', workspace_id: workspaceId});
     const touched = await provisionerTokenDb.resolveProvisionerTokenByHash(token.hashedToken);
     expect(touched?.lastSeenAt).toBeInstanceOf(Date);
+  });
+
+  it('returns an installation identity without a workspace', async () => {
+    const token = await createInstallationProvisionerToken({createdByUserId: crypto.randomUUID()});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${token.rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({id: token.token.id, scope: 'installation'});
+  });
+
+  it('rejects a revoked installation provisioner token', async () => {
+    const token = await createInstallationProvisionerToken({createdByUserId: crypto.randomUUID()});
+    await revokeInstallationProvisionerToken({
+      tokenId: token.token.id,
+      revokedByUserId: crypto.randomUUID(),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${token.rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('provisioner-token-revoked');
   });
 
   it('does not reject valid auth when the last-seen write fails', async () => {
@@ -74,7 +108,7 @@ describe('provisioner me route', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({id: token.id, workspace_id: workspaceId});
+    expect(res.json()).toEqual({id: token.id, scope: 'workspace', workspace_id: workspaceId});
   });
 
   it('returns 401 without an authorization header', async () => {

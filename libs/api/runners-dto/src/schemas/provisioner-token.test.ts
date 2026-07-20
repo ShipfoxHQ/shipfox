@@ -28,8 +28,17 @@ describe('provisioner token schemas', () => {
   it('parses provisioner identity responses', () => {
     const identity = {
       id: crypto.randomUUID(),
+      scope: 'workspace',
       workspace_id: crypto.randomUUID(),
     };
+
+    const result = provisionerIdentityResponseSchema.parse(identity);
+
+    expect(result).toEqual(identity);
+  });
+
+  it('parses installation provisioner identities without a workspace', () => {
+    const identity = {id: crypto.randomUUID(), scope: 'installation'};
 
     const result = provisionerIdentityResponseSchema.parse(identity);
 

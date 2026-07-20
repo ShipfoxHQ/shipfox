@@ -22,6 +22,7 @@ export const createProvisionerTokenResponseSchema = z.object({
   last_seen_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+  scope: z.literal('workspace'),
 });
 
 export type CreateProvisionerTokenResponseDto = z.infer<
@@ -40,6 +41,7 @@ export const provisionerTokenDtoSchema = z.object({
   last_seen_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+  scope: z.literal('workspace'),
 });
 
 export type ProvisionerTokenDto = z.infer<typeof provisionerTokenDtoSchema>;
@@ -56,9 +58,9 @@ export type RevokeProvisionerTokenResponseDto = z.infer<
   typeof revokeProvisionerTokenResponseSchema
 >;
 
-export const provisionerIdentityResponseSchema = z.object({
-  id: z.string().uuid(),
-  workspace_id: z.string().uuid(),
-});
+export const provisionerIdentityResponseSchema = z.discriminatedUnion('scope', [
+  z.object({id: z.string().uuid(), scope: z.literal('workspace'), workspace_id: z.string().uuid()}),
+  z.object({id: z.string().uuid(), scope: z.literal('installation')}),
+]);
 
 export type ProvisionerIdentityResponseDto = z.infer<typeof provisionerIdentityResponseSchema>;
