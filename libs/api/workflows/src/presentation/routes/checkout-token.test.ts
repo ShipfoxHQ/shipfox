@@ -9,7 +9,7 @@ import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
-import {createLeaseTokenRouteGroup, createWorkflowRoutes} from './index.js';
+import {createLeaseTokenRouteGroup} from './index.js';
 
 const getProjectById = vi.fn();
 const projects = {getProjectById} as Pick<ProjectsModuleClient, 'getProjectById'>;
@@ -28,15 +28,16 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   const {logger, lines: logLines, clear: clearLogLines} = createCapturingLogger();
 
   beforeAll(async () => {
-    const [, _checkoutRouteGroup] = createWorkflowRoutes({createCheckoutSpec} as never);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
       routes: [
         createLeaseTokenRouteGroup({
+          agent: {} as never,
           annotations: {} as never,
+          auth: {} as never,
+          integrations: {createCheckoutSpec} as never,
           projects: projects as never,
           runners: runnersTestClient,
-          integrations: {createCheckoutSpec} as never,
           secrets: {} as never,
         }),
       ],

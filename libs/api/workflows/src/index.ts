@@ -96,7 +96,15 @@ export function createWorkflowsModule({
   return {
     name: 'workflows',
     database: {db, migrationsPath},
-    routes: createWorkflowRoutes({agent, annotations, auth, integrations, projects, runners, secrets}),
+    routes: createWorkflowRoutes({
+      agent,
+      annotations,
+      auth,
+      integrations,
+      projects,
+      runners,
+      secrets,
+    }),
     metrics: registerWorkflowsServiceMetrics,
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
@@ -114,12 +122,20 @@ export function createWorkflowsModule({
       {
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createOrchestrationActivities({agent, integrations, projects, runners, secrets}),
+        activities: () =>
+          createOrchestrationActivities({agent, integrations, projects, runners, secrets}),
         workflows: [],
       },
     ],
     interModulePresentations: [
-      createWorkflowsInterModulePresentation({agent, definitions, integrations, projects, runners, secrets}),
+      createWorkflowsInterModulePresentation({
+        agent,
+        definitions,
+        integrations,
+        projects,
+        runners,
+        secrets,
+      }),
     ],
   };
 }

@@ -37,7 +37,11 @@ export function createLeaseTokenRouteGroup(params: WorkflowRouteClients): RouteG
     routes: [
       createNextStepRoute(params),
       createReportStepRoute(params.runners),
-      createCheckoutTokenRoute({integrations: params.integrations, projects: params.projects, runners: params.runners}),
+      createCheckoutTokenRoute({
+        integrations: params.integrations,
+        projects: params.projects,
+        runners: params.runners,
+      }),
       createAgentRuntimeConfigRoute(params),
       createGetStepSecretsRoute(params.runners, params.secrets),
     ],

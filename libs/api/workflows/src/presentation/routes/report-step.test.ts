@@ -38,6 +38,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
           agent: agentTestClient,
           annotations: annotationsTestClient,
           auth: workflowsTestAuthClient,
+          integrations: {} as never,
           projects: projectsTestClient,
           runners: runnersTestClient,
           secrets: createTestSecretsClient(),
