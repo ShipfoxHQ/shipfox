@@ -1,3 +1,4 @@
+import type {InterModulePresentation} from '@shipfox/inter-module';
 import type {AuthMethod, RouteExport} from '@shipfox/node-fastify';
 import type {OutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
@@ -80,4 +81,12 @@ export interface ShipfoxModule {
   workers?: ModuleWorker[];
   metrics?: ModuleMetricsRegistration;
   startupTasks?: ModuleStartupTasks;
+  /**
+   * Producer presentations this module registers on the application's
+   * inter-module transport. Typed against each contract at the module factory
+   * boundary; erased here because one module array holds every context's
+   * presentations. `registerInterModulePresentations` recovers runtime safety
+   * by validating each one against the transport it registers into.
+   */
+  interModulePresentations?: InterModulePresentation[];
 }
