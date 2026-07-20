@@ -86,6 +86,9 @@ export async function startProvisioner<Spec>(
   // Fail fast at startup if the token is rejected, rather than discovering it on the
   // first poll.
   const identity = await client.getIdentity();
+  if (identity.scope !== 'workspace') {
+    throw new Error('Provisioner daemon requires a workspace provisioner credential');
+  }
   logger().info(
     {
       provisionerId: identity.id,

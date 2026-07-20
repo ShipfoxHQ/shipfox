@@ -16,7 +16,7 @@ export const provisionerTokenFactory = Factory.define<
   onCreate((token) => {
     return createProvisionerToken({
       scope: token.scope,
-      workspaceId: token.workspaceId ?? undefined,
+      workspaceId: token.scope === 'workspace' ? token.workspaceId : undefined,
       hashedToken: token.hashedToken,
       prefix: token.prefix,
       name: token.name ?? undefined,

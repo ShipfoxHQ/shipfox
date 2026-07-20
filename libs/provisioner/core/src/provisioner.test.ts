@@ -164,7 +164,8 @@ function harness(options: {response: PollDemandResponseFixture; onPoll?: () => v
     pollBodies,
     mintBodies,
     client: {
-      getIdentity: () => Promise.resolve({id: 'provisioner', workspace_id: 'workspace'}),
+      getIdentity: () =>
+        Promise.resolve({id: 'provisioner', scope: 'workspace', workspace_id: 'workspace'}),
       pollDemand: (body) => {
         options.onPoll?.();
         pollBodies.push(body);

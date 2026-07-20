@@ -39,6 +39,12 @@ describe('provisioner token db', () => {
     expect(result).toBeUndefined();
   });
 
+  it('creates installation factory tokens without a workspace', async () => {
+    const token = await provisionerTokenFactory.create({scope: 'installation'});
+
+    expect(token).toMatchObject({scope: 'installation', workspaceId: null});
+  });
+
   it('enforces valid scope and workspace combinations in PostgreSQL', async () => {
     const insert = (scope: 'installation' | 'workspace', workspaceId: string | null) =>
       db()
