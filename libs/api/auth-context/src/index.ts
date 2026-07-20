@@ -5,6 +5,7 @@ import {ClientError} from '@shipfox/node-fastify';
 export const AUTH_USER = 'user';
 export const AUTH_RUNNER_REGISTRATION_TOKEN = 'runner-registration-token';
 export const AUTH_RUNNER_SESSION = 'runner-session';
+export const AUTH_RUNNER_CONTROL_SESSION = 'runner-control-session';
 export const AUTH_LEASED_JOB = 'leased-job';
 export const AUTH_PROVISIONER_TOKEN = 'provisioner-token';
 
@@ -50,6 +51,11 @@ export type ProvisionerContext =
 
 export type LeasedJobContext = JobLeaseTokenClaims;
 export type RunnerSessionContext = RunnerSessionTokenClaims;
+export interface RunnerControlSessionContext {
+  runnerControlSessionId: string;
+  runnerInstanceId: string;
+  provisionerId: string;
+}
 
 type RequestWithContext = object;
 
@@ -57,6 +63,9 @@ const USER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/user');
 const LEASED_JOB_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/leased-job');
 const PROVISIONER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/provisioner');
 const RUNNER_SESSION_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/runner-session');
+const RUNNER_CONTROL_SESSION_CONTEXT_KEY = Symbol.for(
+  '@shipfox/api-auth-context/runner-control-session',
+);
 
 export function setUserContext(request: RequestWithContext, context: UserContext): void {
   (request as Record<symbol, unknown>)[USER_CONTEXT_KEY] = context;
@@ -193,5 +202,22 @@ export function requireRunnerSessionContext(request: RequestWithContext): Runner
   if (!context) {
     throw new Error('Runner session context is not available on this request');
   }
+  return context;
+}
+
+export function setRunnerControlSessionContext(
+  request: RequestWithContext,
+  context: RunnerControlSessionContext,
+): void {
+  (request as Record<symbol, unknown>)[RUNNER_CONTROL_SESSION_CONTEXT_KEY] = context;
+}
+
+export function requireRunnerControlSessionContext(
+  request: RequestWithContext,
+): RunnerControlSessionContext {
+  const context = (request as Record<symbol, unknown>)[RUNNER_CONTROL_SESSION_CONTEXT_KEY] as
+    | RunnerControlSessionContext
+    | undefined;
+  if (!context) throw new Error('Runner control session context is not available on this request');
   return context;
 }

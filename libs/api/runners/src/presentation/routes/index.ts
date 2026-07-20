@@ -26,6 +26,13 @@ import {reportRunnerInstancesRoute} from './report-runner-instances.js';
 import {createRequestJobRoute} from './request-job.js';
 import {revokeManualRegistrationTokenRoute} from './revoke-manual-registration-token.js';
 import {revokeProvisionerTokenRoute} from './revoke-provisioner-token.js';
+import {
+  attachRunnerControlProviderIdRoute,
+  createRunnerInstancesRoute,
+  enrollRunnerRoute,
+  exchangeRunnerBootstrapRoute,
+  runnerControlHeartbeatRoute,
+} from './runner-enrollment.js';
 
 function createRunnerOnlyRoutes(auth: AuthInterModuleClient): RouteGroup[] {
   return [
@@ -63,6 +70,7 @@ function createRunnerOnlyRoutes(auth: AuthInterModuleClient): RouteGroup[] {
       auth: AUTH_PROVISIONER_TOKEN,
       routes: [
         pollDemandRoute,
+        createRunnerInstancesRoute,
         createPlannedCapacityRoute,
         attachProviderRunnerRoute,
         assignCapacityRoute,
@@ -73,6 +81,14 @@ function createRunnerOnlyRoutes(auth: AuthInterModuleClient): RouteGroup[] {
     },
   ];
 }
+
+const runnerControlRoutes: RouteGroup[] = [
+  {prefix: '/runner-enrollment', routes: [exchangeRunnerBootstrapRoute]},
+  {
+    prefix: '/runner-control',
+    routes: [enrollRunnerRoute, attachRunnerControlProviderIdRoute, runnerControlHeartbeatRoute],
+  },
+];
 
 export const provisionerRoutes: RouteGroup[] = [
   {
@@ -108,6 +124,7 @@ export function createRunnerRoutes(
           }
         : route,
     ),
+    ...runnerControlRoutes,
     ...provisionerRoutes,
   ];
 }

@@ -3,8 +3,17 @@ import {bool, createConfig, num, str} from '@shipfox/config';
 import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 const EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
+const RUNNER_CONTROL_PLANE_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
 
 export const config = createConfig({
+  RUNNER_BOOTSTRAP_TOKEN_TTL_SECONDS: num({
+    desc: 'Lifetime of a one-use runner bootstrap token in seconds. The token can only create one runner-control session before it expires.',
+    default: 300,
+  }),
+  RUNNER_CONTROL_SESSION_TTL_SECONDS: num({
+    desc: 'Lifetime of a pre-workspace runner-control session in seconds. This session can only enroll, attach its provider identity, and report its own liveness.',
+    default: 3600,
+  }),
   EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS: num({
     desc: `Lifetime of a provisioner-minted runner registration token, in seconds. The token can be exchanged once by a runner before this time passes. Set this between 1 and ${EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS}.`,
     default: 300,
@@ -124,6 +133,21 @@ if (
   throw new Error(
     `EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS (${config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS}) must be a whole number of seconds between 1 and ${EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS}.`,
   );
+}
+
+for (const [name, value] of [
+  ['RUNNER_BOOTSTRAP_TOKEN_TTL_SECONDS', config.RUNNER_BOOTSTRAP_TOKEN_TTL_SECONDS],
+  ['RUNNER_CONTROL_SESSION_TTL_SECONDS', config.RUNNER_CONTROL_SESSION_TTL_SECONDS],
+] as const) {
+  if (
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > RUNNER_CONTROL_PLANE_TOKEN_TTL_HARD_MAX_SECONDS
+  ) {
+    throw new Error(
+      `${name} (${value}) must be a whole number of seconds between 1 and ${RUNNER_CONTROL_PLANE_TOKEN_TTL_HARD_MAX_SECONDS}.`,
+    );
+  }
 }
 
 if (

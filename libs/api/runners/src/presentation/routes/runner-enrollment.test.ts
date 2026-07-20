@@ -1,0 +1,163 @@
+import {createLeaseTokenAuthMethod, createRunnerSessionAuthMethod} from '@shipfox/api-auth';
+import {AUTH_PROVISIONER_TOKEN, AUTH_USER, setProvisionerContext} from '@shipfox/api-auth-context';
+import {
+  type AuthMethod,
+  ClientError,
+  closeApp,
+  createApp,
+  extractBearerToken,
+} from '@shipfox/node-fastify';
+import {eq} from 'drizzle-orm';
+import type {FastifyInstance, FastifyRequest} from 'fastify';
+import {db} from '#db/db.js';
+import {runnerBootstrapTokens, runnerControlSessions} from '#db/schema/runner-control-sessions.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
+import {
+  createRunnerControlSessionAuthMethod,
+  createRunnerRegistrationTokenAuthMethod,
+} from '#presentation/auth/index.js';
+import {runnersTestAuthClient} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
+
+const token = 'provisioner-test-token';
+const fakeUserAuth: AuthMethod = {name: AUTH_USER, authenticate: () => Promise.resolve()};
+
+describe('runner enrollment control plane', () => {
+  let app: FastifyInstance;
+  let provisionerId: string;
+  const provisionerAuth: AuthMethod = {
+    name: AUTH_PROVISIONER_TOKEN,
+    authenticate: (request: FastifyRequest) => {
+      if (extractBearerToken(request.headers.authorization) !== token)
+        throw new ClientError('Invalid provisioner token', 'unauthorized', {status: 401});
+      setProvisionerContext(request, {scope: 'installation', provisionerTokenId: provisionerId});
+      return Promise.resolve();
+    },
+  };
+
+  beforeAll(async () => {
+    app = await createApp({
+      auth: [
+        fakeUserAuth,
+        provisionerAuth,
+        createRunnerRegistrationTokenAuthMethod(),
+        createRunnerControlSessionAuthMethod(),
+        createRunnerSessionAuthMethod(),
+        createLeaseTokenAuthMethod(),
+      ],
+      routes: createRunnerRoutes(runnersTestAuthClient),
+      swagger: false,
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await closeApp();
+  });
+
+  beforeEach(() => {
+    provisionerId = crypto.randomUUID();
+  });
+
+  it('creates a hashed one-use bootstrap token and restricts its control session to its instance', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/provisioners/runner-instances/batch',
+      headers: {authorization: `Bearer ${token}`},
+      payload: {provider_kind: 'docker', runner_instances: [{template_key: 'linux'}]},
+    });
+
+    expect(created.statusCode).toBe(200);
+    const runner = created.json().runner_instances[0];
+    const [storedBootstrap] = await db()
+      .select()
+      .from(runnerBootstrapTokens)
+      .where(eq(runnerBootstrapTokens.runnerInstanceId, runner.runner_instance_id));
+    expect(storedBootstrap?.hashedToken).not.toBe(runner.bootstrap_token);
+    expect(storedBootstrap?.consumedAt).toBeNull();
+
+    const exchanged = await app.inject({
+      method: 'POST',
+      url: '/runner-enrollment/exchange',
+      payload: {bootstrap_token: runner.bootstrap_token},
+    });
+
+    expect(exchanged.statusCode).toBe(200);
+    const controlToken = exchanged.json().control_session_token;
+    const reused = await app.inject({
+      method: 'POST',
+      url: '/runner-enrollment/exchange',
+      payload: {bootstrap_token: runner.bootstrap_token},
+    });
+    expect(reused.statusCode).toBe(401);
+
+    const enrolled = await app.inject({
+      method: 'POST',
+      url: '/runner-control/enrollment',
+      headers: {authorization: `Bearer ${controlToken}`},
+      payload: {labels: ['Linux', 'linux'], provider_kind: 'docker', protocol_version: '1'},
+    });
+    expect(enrolled.statusCode).toBe(204);
+
+    const attached = await app.inject({
+      method: 'POST',
+      url: '/runner-control/provider-runner',
+      headers: {authorization: `Bearer ${controlToken}`},
+      payload: {provider_runner_id: 'container-1'},
+    });
+    expect(attached.json()).toEqual({attached: true});
+
+    const [instance] = await db()
+      .select()
+      .from(providerRunners)
+      .where(eq(providerRunners.id, runner.runner_instance_id));
+    expect(instance).toMatchObject({
+      provisionerId,
+      labels: ['linux'],
+      providerRunnerId: 'container-1',
+      state: 'running',
+      protocolVersion: '1',
+    });
+    const [session] = await db()
+      .select()
+      .from(runnerControlSessions)
+      .where(eq(runnerControlSessions.runnerInstanceId, runner.runner_instance_id));
+    expect(session?.hashedToken).not.toBe(controlToken);
+
+    const jobs = await app.inject({
+      method: 'POST',
+      url: '/runners/jobs/request',
+      headers: {authorization: `Bearer ${controlToken}`},
+    });
+    expect(jobs.statusCode).toBe(401);
+  });
+
+  it('rejects enrollment when the authenticated runner instance is terminal', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/provisioners/runner-instances/batch',
+      headers: {authorization: `Bearer ${token}`},
+      payload: {runner_instances: [{}]},
+    });
+    const runner = created.json().runner_instances[0];
+    const exchanged = await app.inject({
+      method: 'POST',
+      url: '/runner-enrollment/exchange',
+      payload: {bootstrap_token: runner.bootstrap_token},
+    });
+    await db()
+      .update(providerRunners)
+      .set({state: 'failed'})
+      .where(eq(providerRunners.id, runner.runner_instance_id));
+
+    const enrolled = await app.inject({
+      method: 'POST',
+      url: '/runner-control/enrollment',
+      headers: {authorization: `Bearer ${exchanged.json().control_session_token}`},
+      payload: {labels: ['linux'], provider_kind: 'docker', protocol_version: '1'},
+    });
+
+    expect(enrolled.statusCode).toBe(409);
+    expect(enrolled.json()).toMatchObject({code: 'runner-control-session-invalid'});
+  });
+});

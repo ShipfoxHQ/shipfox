@@ -1,5 +1,6 @@
 export {
   createProvisionerTokenAuthMethod,
+  createRunnerControlSessionAuthMethod,
   createRunnerRegistrationTokenAuthMethod,
 } from './auth/index.js';
 export {createRunnerRoutes, createRunnerRoutes as routes} from './routes/index.js';
