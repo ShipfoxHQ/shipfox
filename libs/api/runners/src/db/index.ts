@@ -46,6 +46,8 @@ export type {
   ReportProvisionedRunnersParams,
 } from './provisioned-runners.js';
 export {
+  attachProviderRunnerId,
+  createPlannedProvisionedCapacity,
   isTerminalState,
   listActiveProvisionedRunnerCountsByTemplateTx,
   listActiveProvisionedRunners,

@@ -17,6 +17,7 @@ import {listManualRegistrationTokensRoute} from './list-manual-registration-toke
 import {listProvisionerTokensRoute} from './list-provisioner-tokens.js';
 import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
 import {createPollDemandRoute, pollDemandRoute} from './poll-demand.js';
+import {attachProviderRunnerRoute, createPlannedCapacityRoute} from './planned-capacity.js';
 import {reconcileProvisionedRunnersRoute} from './reconcile-provisioned-runners.js';
 import {registerRoute} from './register.js';
 import {reportProvisionedRunnersRoute} from './report-provisioned-runners.js';
@@ -59,6 +60,8 @@ const runnerOnlyRoutes: RouteGroup[] = [
     auth: AUTH_PROVISIONER_TOKEN,
     routes: [
       pollDemandRoute,
+      createPlannedCapacityRoute,
+      attachProviderRunnerRoute,
       mintRegistrationTokensRoute,
       reportProvisionedRunnersRoute,
       reconcileProvisionedRunnersRoute,
