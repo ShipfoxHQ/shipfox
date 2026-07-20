@@ -2,8 +2,6 @@ import {displayNameSchema, emailSchema} from '@shipfox/api-common-dto';
 import {z} from 'zod';
 import {userDtoSchema} from './user.js';
 
-export const EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = 60;
-
 export const passwordSchema = z.string().min(12).max(128);
 export {emailSchema};
 
@@ -33,6 +31,12 @@ export type SignupMembershipDto = z.infer<typeof signupMembershipSchema>;
 
 export const signupResponseSchema = z.object({
   user: userDtoSchema,
+  email_challenge: z
+    .object({
+      id: z.string().uuid(),
+      next_resend_available_at: z.string().datetime(),
+    })
+    .optional(),
   token: z.string().optional(),
   membership: signupMembershipSchema.nullable().optional(),
   accept_error: signupAcceptErrorSchema.optional(),
@@ -93,7 +97,9 @@ export const passwordResetConfirmResponseSchema = loginResponseSchema;
 export type PasswordResetConfirmResponseDto = z.infer<typeof passwordResetConfirmResponseSchema>;
 
 export const verifyEmailConfirmBodySchema = z.object({
-  token: z.string().min(1),
+  email: emailSchema,
+  challenge_id: z.string().uuid(),
+  code: z.string().regex(/^\d{8}$/u),
 });
 
 export type VerifyEmailConfirmBodyDto = z.infer<typeof verifyEmailConfirmBodySchema>;
@@ -104,6 +110,7 @@ export type VerifyEmailConfirmResponseDto = z.infer<typeof verifyEmailConfirmRes
 
 export const verifyEmailResendBodySchema = z.object({
   email: emailSchema,
+  challenge_id: z.string().uuid(),
 });
 
 export type VerifyEmailResendBodyDto = z.infer<typeof verifyEmailResendBodySchema>;

@@ -1,8 +1,5 @@
 import type {OutgoingHttpHeaders} from 'node:http';
-import {
-  AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
-  type AUTH_PASSWORD_RESET_SEND_REQUESTED,
-} from '@shipfox/api-auth-dto';
+import type {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {type AppConfig, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
@@ -15,6 +12,7 @@ import {buildAuthRoutes} from '#presentation/routes/index.js';
 const testConfig = vi.hoisted(
   (): {
     captured: MailMessage[];
+    challenges: Map<string, string>;
     mailer: Mailer;
     secret: string;
     clientBaseUrl: string;
@@ -28,6 +26,7 @@ const testConfig = vi.hoisted(
     };
     return {
       captured,
+      challenges: new Map(),
       mailer,
       secret: 'route-tests-secret',
       clientBaseUrl: 'https://app.example.test',
@@ -60,10 +59,11 @@ vi.mock('#config.js', () => ({
   mailer: testConfig.mailer,
 }));
 
+vi.mock('@shipfox/node-mailer', () => ({mailer: testConfig.mailer}));
+
+const CODE_RE = /\b\d{8}\b/u;
 const TOKEN_RE = /token=([\w\-_=]+)/;
-type AuthEmailEventType =
-  | typeof AUTH_EMAIL_VERIFICATION_SEND_REQUESTED
-  | typeof AUTH_PASSWORD_RESET_SEND_REQUESTED;
+type AuthEmailEventType = typeof AUTH_PASSWORD_RESET_SEND_REQUESTED;
 
 export const ROUTE_TEST_SECRET = testConfig.secret;
 export const acceptWorkspaceInvitationMock: ReturnType<typeof vi.fn> =
@@ -75,6 +75,7 @@ export const listMembershipsByUserMock: ReturnType<typeof vi.fn> =
 
 export function resetCapturedMail(): void {
   testConfig.captured.length = 0;
+  testConfig.challenges.clear();
   acceptWorkspaceInvitationMock.mockReset();
   peekInvitationByRawTokenMock.mockReset();
   listMembershipsByUserMock.mockReset();
@@ -97,6 +98,12 @@ export async function outboxEventsTo(email: string, eventType: AuthEmailEventTyp
 
 export function uniqueEmail(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}@example.com`;
+}
+
+export function latestVerificationCode(email: string): string {
+  const code = latestMailTo(email).text?.match(CODE_RE)?.[0];
+  expect(code).toBeDefined();
+  return code ?? '';
 }
 
 export function extractToken(url: string): string {
@@ -131,8 +138,7 @@ export async function latestEmailLinkTo(
   const event = (await outboxEventsTo(email, eventType))[0];
   expect(event).toBeDefined();
   const payload = event?.payload as {verifyLink?: string; resetLink?: string} | undefined;
-  const link =
-    eventType === AUTH_EMAIL_VERIFICATION_SEND_REQUESTED ? payload?.verifyLink : payload?.resetLink;
+  const link = payload?.resetLink;
   expect(link).toBeDefined();
   return link ?? '';
 }
@@ -153,22 +159,26 @@ export async function signup(
   app: FastifyInstance,
   params: {email: string; password: string; name?: string},
 ) {
-  return await app.inject({
+  const result = await app.inject({
     method: 'POST',
     url: '/auth/signup',
     payload: {name: 'Test User', ...params},
   });
+  const challengeId = result.json().email_challenge?.id;
+  if (typeof challengeId === 'string')
+    testConfig.challenges.set(params.email.trim().toLowerCase(), challengeId);
+  return result;
 }
 
-export async function verifyEmail(app: FastifyInstance, email: string): Promise<void> {
-  const token = extractToken(
-    await latestEmailLinkTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
-  );
-
+export async function verifyEmail(
+  app: FastifyInstance,
+  email: string,
+  challengeId = testConfig.challenges.get(email) ?? '',
+): Promise<void> {
   const res = await app.inject({
     method: 'POST',
     url: '/auth/verify-email/confirm',
-    payload: {token},
+    payload: {email, challenge_id: challengeId, code: latestVerificationCode(email)},
   });
 
   expect(res.statusCode).toBe(200);
@@ -191,11 +201,13 @@ export async function signupVerifyLogin(
   refreshCookie: string;
   token: string;
   userId: string;
+  emailChallengeId: string;
 }> {
   const email = uniqueEmail(prefix);
   const password = 'correct horse battery staple';
-  await signup(app, {email, password, name: prefix});
-  await verifyEmail(app, email);
+  const signupResult = await signup(app, {email, password, name: prefix});
+  const emailChallengeId = signupResult.json().email_challenge.id;
+  await verifyEmail(app, email, emailChallengeId);
 
   const loginRes = await login(app, {email, password});
 
@@ -206,6 +218,7 @@ export async function signupVerifyLogin(
     refreshCookie: getSetCookie(loginRes),
     token: loginRes.json().token,
     userId: loginRes.json().user.id,
+    emailChallengeId,
   };
 }
 

@@ -194,9 +194,9 @@ All routes are mounted under `/auth`.
 
 | Method | Path | Auth | Result |
 | --- | --- | --- | --- |
-| `POST` | `/signup` | none | Creates a user and sends an email verification link. |
-| `POST` | `/verify-email/confirm` | none | Verifies email, returns an access token, and sets the refresh cookie. |
-| `POST` | `/verify-email/resend` | none | Sends a new verification email when the account is eligible. |
+| `POST` | `/signup` | none | Creates a user and sends an eight-digit email verification code. |
+| `POST` | `/verify-email/confirm` | none | Confirms a verification code, returns an access token, and sets the refresh cookie. |
+| `POST` | `/verify-email/resend` | none | Sends a new verification code when the account is eligible. |
 | `POST` | `/login` | none | Returns an access token and sets the refresh cookie. |
 | `POST` | `/refresh` | refresh cookie | Rotates the refresh token when needed and returns a new access token. |
 | `POST` | `/logout` | refresh cookie | Revokes the current refresh token and clears the cookie. |
@@ -250,7 +250,7 @@ It also exports lower-level pieces for tests and advanced integration:
 - `issueJobLeaseToken(claims)` / `verifyJobLeaseToken(token)`: mint and verify job lease tokens.
 - `getClientContext(request)`: reads the authenticated user context from a Fastify request.
 - `findUserByEmail({email})`: read-only lookup of the current owner of a normalized email; see below.
-- Entity types: `User`, `UserStatus`, `RefreshToken`, `EmailVerification`, `PasswordReset`, and `EmailOwner`.
+- Entity types: `User`, `UserStatus`, `RefreshToken`, `PasswordReset`, and `EmailOwner`.
 
 ### External identity callbacks
 
@@ -338,18 +338,17 @@ The module creates tables with the `auth_` prefix:
 
 - `auth_users`
 - `auth_refresh_tokens`
-- `auth_email_verifications`
 - `auth_password_resets`
 - `auth_rate_limits`
 
-Passwords use Argon2id. Email verification tokens, password reset tokens, and refresh tokens are opaque tokens stored as hashes.
+Passwords use Argon2id. Password reset tokens and refresh tokens are opaque tokens stored as hashes. Email verification uses the shared email-challenges module.
 
 ## Behavior Notes
 
-- Signup sends a verification email and returns the new user.
+- Signup sends an eight-digit verification code and returns the new user with its challenge ID.
 - Login only succeeds for active users with verified email addresses and a password hash.
 - Refresh tokens rotate on each refresh.
-- Password reset and email verification consume their tokens once.
+- Password reset tokens and email challenge proofs are consumed once.
 - Password change revokes other refresh sessions. It keeps the current session when the current refresh cookie is valid.
 - Password reset requests and verification resend requests do not reveal whether an account exists.
 - Login, password reset, and verification resend requests are rate-limited by IP address and email address.

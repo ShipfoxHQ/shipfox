@@ -68,6 +68,9 @@ vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,
 }));
 vi.mock('@shipfox/api-dispatcher', () => ({dispatcherModule: {name: 'dispatcher'}}));
+vi.mock('@shipfox/api-email-challenges', () => ({
+  emailChallengesModule: {name: 'email-challenges'},
+}));
 vi.mock('@shipfox/api-integration-core', () => ({
   buildAgentToolCatalogs: mocks.buildAgentToolCatalogs,
   buildAgentToolSelectionCatalogs: mocks.buildAgentToolSelectionCatalogs,
@@ -235,6 +238,7 @@ describe('defaultModules', () => {
     const modules = await defaultModules();
 
     expect(modules.map((module) => module.name)).toEqual([
+      'email-challenges',
       'auth',
       'workspaces',
       'secrets',
@@ -275,6 +279,7 @@ describe('defaultModules', () => {
     expect(createRunnersModule).toHaveBeenCalledWith({auth: expect.any(Object)});
     expect(modules.filter((module) => module.name === 'runners')).toEqual([runnersModule]);
     expect(modules.map((module) => module.name)).toEqual([
+      'email-challenges',
       'auth',
       'workspaces',
       'secrets',

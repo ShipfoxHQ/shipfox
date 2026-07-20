@@ -1,5 +1,5 @@
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
-import {onEmailVerificationSendRequested, onPasswordResetSendRequested} from './index.js';
+import {onPasswordResetSendRequested} from './index.js';
 
 const testMailer = vi.hoisted(
   (): {
@@ -30,22 +30,6 @@ describe('auth email subscribers', () => {
     });
   });
 
-  test('sends a rendered email verification message', async () => {
-    await onEmailVerificationSendRequested({
-      email: 'verify@example.com',
-      verifyLink: 'https://app.example.test/auth/verify-email?token=verify-token',
-    });
-
-    expect(testMailer.captured).toHaveLength(1);
-    expect(testMailer.captured[0]).toMatchObject({
-      to: 'verify@example.com',
-      subject: 'Verify your email',
-    });
-    expect(testMailer.captured[0]?.text).toContain('/auth/verify-email?token=verify-token');
-    expect(testMailer.captured[0]?.html).toContain('/auth/verify-email?token');
-    expect(testMailer.captured[0]?.html).toContain('verify-token');
-  });
-
   test('sends a rendered password reset message', async () => {
     await onPasswordResetSendRequested({
       email: 'reset@example.com',
@@ -61,17 +45,5 @@ describe('auth email subscribers', () => {
     expect(testMailer.captured[0]?.text).toContain('/auth/reset?token=reset-token');
     expect(testMailer.captured[0]?.html).toContain('/auth/reset?token');
     expect(testMailer.captured[0]?.html).toContain('reset-token');
-  });
-
-  test('rethrows mailer failures so the outbox dispatcher retries', async () => {
-    const failure = new Error('smtp unavailable');
-    testMailer.send.mockRejectedValueOnce(failure);
-
-    const promise = onEmailVerificationSendRequested({
-      email: 'verify-failure@example.com',
-      verifyLink: 'https://app.example.test/auth/verify-email?token=verify-token',
-    });
-
-    await expect(promise).rejects.toBe(failure);
   });
 });

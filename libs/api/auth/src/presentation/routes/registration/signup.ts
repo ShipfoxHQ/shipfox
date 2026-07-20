@@ -1,4 +1,5 @@
 import {signupBodySchema, signupResponseSchema} from '@shipfox/api-auth-dto';
+import {EmailChallengeError} from '@shipfox/api-email-challenges';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {signup, signupWithInvitation} from '#core/auth.js';
@@ -25,6 +26,12 @@ export function createSignupRoute(workspaces: WorkspacesInterModuleClient) {
       },
     },
     errorHandler: (error) => {
+      if (error instanceof EmailChallengeError) {
+        throw new ClientError(error.message, `email-challenge-${error.code}`, {
+          status: error.code === 'limited' ? 429 : 400,
+          ...(error.retryAt ? {details: {retry_at: error.retryAt.toISOString()}} : {}),
+        });
+      }
       if (error instanceof EmailTakenError) {
         throw new ClientError('Email already registered', 'email-taken', {status: 409});
       }
@@ -56,9 +63,15 @@ export function createSignupRoute(workspaces: WorkspacesInterModuleClient) {
       const {email, password, name, invitation_token} = request.body;
 
       if (invitation_token === undefined) {
-        const user = await signup({email, password, name});
+        const result = await signup({email, password, name, sourceIp: request.ip});
         reply.code(201);
-        return {user: toUserDto(user)};
+        return {
+          user: toUserDto(result),
+          email_challenge: {
+            id: result.emailChallenge.id,
+            next_resend_available_at: result.emailChallenge.nextResendAvailableAt.toISOString(),
+          },
+        };
       }
 
       const result = await signupWithInvitation({

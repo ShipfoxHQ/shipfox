@@ -1,5 +1,4 @@
 import {
-  AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
   AUTH_PASSWORD_RESET_SEND_REQUESTED,
   type AuthEventMap,
   authEventSchemas,
@@ -16,10 +15,7 @@ import {createRunnerSessionAuthMethod} from '#presentation/auth/runner-session-a
 import {createAuthE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createAuthInterModulePresentation} from '#presentation/inter-module.js';
 import {buildAuthRoutes} from '#presentation/routes/index.js';
-import {
-  onEmailVerificationSendRequested,
-  onPasswordResetSendRequested,
-} from '#presentation/subscribers/index.js';
+import {onPasswordResetSendRequested} from '#presentation/subscribers/index.js';
 import {passwordLoginMethods} from './login-methods.js';
 
 export type {JobLeaseTokenClaims, RunnerSessionTokenClaims} from '@shipfox/api-auth-dto';
@@ -73,10 +69,7 @@ export function createAuthModule({
     routes: [buildAuthRoutes(config.AUTH_PASSWORD_ENABLED, workspaces)],
     e2eRoutes: [createAuthE2eRoutes(workspaces)],
     publishers: [{name: 'auth', table: authOutbox, db, eventSchemas: authEventSchemas}],
-    subscribers: [
-      subscriber(AUTH_EMAIL_VERIFICATION_SEND_REQUESTED, onEmailVerificationSendRequested),
-      subscriber(AUTH_PASSWORD_RESET_SEND_REQUESTED, onPasswordResetSendRequested),
-    ],
+    subscribers: [subscriber(AUTH_PASSWORD_RESET_SEND_REQUESTED, onPasswordResetSendRequested)],
     interModulePresentations: [createAuthInterModulePresentation()],
   };
 }

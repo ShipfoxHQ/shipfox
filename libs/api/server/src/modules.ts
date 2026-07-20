@@ -4,6 +4,7 @@ import {createAgentModule} from '@shipfox/api-agent';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {createAuthModule} from '@shipfox/api-auth';
 import {config as authConfig} from '@shipfox/api-auth/config';
+import {emailChallengesModule} from '@shipfox/api-email-challenges';
 import {
   type AuthInterModuleClient,
   authInterModuleContract,
@@ -138,6 +139,7 @@ export async function defaultModules(
   });
 
   const modules = [
+    emailChallengesModule,
     createAuthModule({workspaces: workspacesClient}),
     workspacesModule,
     createSecretsModule(projectsClient),

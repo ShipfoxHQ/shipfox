@@ -13,7 +13,6 @@ import {AuthProvider} from '#components/auth-provider.js';
 import {LoginPage} from '#pages/login-page.js';
 import {PasswordResetPage} from '#pages/password-reset-page.js';
 import {SignupPage} from '#pages/signup-page.js';
-import {VerifyEmailPage} from '#pages/verify-email-page.js';
 
 function createTestRouter(path: string, element: ReactElement) {
   const rootRoute = createRootRoute({
@@ -44,18 +43,12 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/auth/reset',
     component: () => (path.split('?')[0] === '/auth/reset' ? element : <PasswordResetPage />),
   });
-  const verifyEmailRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/auth/verify-email',
-    component: () => (path.split('?')[0] === '/auth/verify-email' ? element : <VerifyEmailPage />),
-  });
   const routeTree = rootRoute.addChildren([
     indexRoute,
     workspaceRoute,
     loginRoute,
     signupRoute,
     passwordResetRoute,
-    verifyEmailRoute,
   ]);
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),

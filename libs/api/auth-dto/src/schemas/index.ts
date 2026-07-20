@@ -1,17 +1,13 @@
 export {
-  AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
   AUTH_PASSWORD_RESET_SEND_REQUESTED,
-  type AuthEmailVerificationSendRequestedEvent,
   type AuthEventMap,
   type AuthPasswordResetSendRequestedEvent,
-  authEmailVerificationSendRequestedSchema,
   authEventSchemas,
   authPasswordResetSendRequestedSchema,
 } from '../events.js';
 export {
   type ChangePasswordBodyDto,
   changePasswordBodySchema,
-  EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
   emailSchema,
   type LoginBodyDto,
   type LoginResponseDto,

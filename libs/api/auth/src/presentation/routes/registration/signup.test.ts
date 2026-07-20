@@ -1,4 +1,3 @@
-import {AUTH_EMAIL_VERIFICATION_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {FastifyInstance} from 'fastify';
@@ -8,9 +7,7 @@ import {
   capturedMail,
   createAuthTestApp,
   getSetCookie,
-  latestEmailLinkTo,
   listMembershipsByUserMock,
-  outboxEventsTo,
   peekInvitationByRawTokenMock,
   ROUTE_TEST_SECRET,
   resetCapturedMail,
@@ -47,10 +44,11 @@ describe('POST /auth/signup', () => {
     expect(res.json().user.email).toBe(email);
     expect(res.json().user.name).toBe('New User');
     expect(res.json().user.email_verified_at).toBeNull();
-    expect(await latestEmailLinkTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toContain(
-      '/auth/verify-email?token=',
-    );
-    expect(capturedMail()).toHaveLength(0);
+    expect(res.json().email_challenge).toEqual({
+      id: expect.any(String),
+      next_resend_available_at: expect.any(String),
+    });
+    expect(capturedMail()).toHaveLength(1);
   });
 
   test.each([
@@ -74,24 +72,24 @@ describe('POST /auth/signup', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  test('transforms duplicate email into 409', async () => {
+  test('resumes verification when an unverified user retries signup with the same password', async () => {
     const email = uniqueEmail('duplicate');
     await signup(app, {email, password});
 
     const res = await signup(app, {email, password});
 
-    expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('email-taken');
+    expect(res.statusCode).toBe(201);
+    expect(res.json().email_challenge.id).toEqual(expect.any(String));
   });
 
-  test('transforms a whitespace/case-equivalent duplicate email into 409', async () => {
+  test('normalizes email when resuming verification', async () => {
     const email = uniqueEmail('duplicate-equivalent');
     await signup(app, {email, password});
 
     const res = await signup(app, {email: `  ${email.toUpperCase()}  `, password});
 
-    expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('email-taken');
+    expect(res.statusCode).toBe(201);
+    expect(res.json().email_challenge.id).toEqual(expect.any(String));
   });
 
   test('accepts a valid invitation during signup and skips verification email', async () => {
@@ -167,7 +165,6 @@ describe('POST /auth/signup', () => {
     });
     expect(body.accept_error).toBeUndefined();
     expect(claims.memberships).toEqual([{workspaceId, role: 'admin'}]);
-    expect(await outboxEventsTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(0);
     expect(capturedMail()).toHaveLength(0);
   });
 
