@@ -99,6 +99,7 @@ export async function runJobSteps(params: {
       const execution = await executeStep({
         step,
         attempt,
+        leaseToken: pulled.leaseToken,
         cwd,
         leaseClient,
         leaseToken: params.leaseToken,
@@ -208,6 +209,7 @@ export interface StepExecution {
 export async function executeStep(params: {
   step: StepDto;
   attempt: number;
+  leaseToken: string;
   cwd: string;
   logsDir: string;
   jobContext: SetupJobContext;
@@ -225,6 +227,7 @@ export async function executeStep(params: {
   const {
     step,
     attempt,
+    leaseToken,
     cwd,
     logsDir,
     jobContext,
@@ -429,8 +432,9 @@ export async function executeStep(params: {
     let result = await executeRunStep(step, {
       signal,
       cwd,
+      systemEnv: runStepSystemEnv({step, attempt, leaseToken}),
       ...(runSecretMaterial?.secretEnv ? {secretEnv: runSecretMaterial.secretEnv} : {}),
-      ...(runSecretMaterial?.secretValues ? {secretValues: runSecretMaterial.secretValues} : {}),
+      secretValues: [...(runSecretMaterial?.secretValues ?? []), leaseToken],
       onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
       onOutput: (chunk, source) => stepStream?.write(chunk, source),
     });
@@ -525,6 +529,18 @@ function assembleSecretBinding(
       return value;
     })
     .join('');
+}
+
+function runStepSystemEnv(params: {
+  step: StepDto;
+  attempt: number;
+  leaseToken: string;
+}): Record<string, string> {
+  return {
+    SHIPFOX_STEP_ID: params.step.id,
+    SHIPFOX_STEP_ATTEMPT: String(params.attempt),
+    SHIPFOX_JOB_LEASE_TOKEN: params.leaseToken,
+  };
 }
 
 function secretReferenceId(reference: Pick<StepSecretDto, 'store' | 'key'>): string {

@@ -64,3 +64,4 @@ export {
   WorkflowRunAttempt,
   WorkflowRunAttemptSummary,
 } from './entities/workflow-run-attempt.js';
+export type {RunAnnotation} from './run-annotation.js';
