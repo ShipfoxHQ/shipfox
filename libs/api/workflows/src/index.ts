@@ -4,6 +4,7 @@ import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
   RUNNER_JOB_CLAIMED,
@@ -37,10 +38,6 @@ import {
 import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
-export {
-  clearAgentToolMaterializationServices,
-  setAgentToolMaterializationServices,
-} from '#core/agent-tools.js';
 export type {
   Job,
   JobListenerEvent,
@@ -59,7 +56,6 @@ export {
   runWorkflow,
   WorkflowRunNotCancellableError,
 } from '#core/index.js';
-export {setSourceControl} from '#core/source-control.js';
 export {
   closeDb,
   type DeliverEventToListenerParams,
@@ -83,6 +79,7 @@ export function createWorkflowsModule({
   definitions,
   annotations,
   auth,
+  integrations,
   projects,
   runners,
   secrets,
@@ -91,6 +88,7 @@ export function createWorkflowsModule({
   definitions: DefinitionsInterModuleClient;
   annotations: AnnotationsInterModuleClient;
   auth: AuthInterModuleClient;
+  integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
   secrets: SecretsInterModuleClient;
@@ -98,7 +96,15 @@ export function createWorkflowsModule({
   return {
     name: 'workflows',
     database: {db, migrationsPath},
-    routes: createWorkflowRoutes({agent, annotations, auth, projects, runners, secrets}),
+    routes: createWorkflowRoutes({
+      agent,
+      annotations,
+      auth,
+      integrations,
+      projects,
+      runners,
+      secrets,
+    }),
     metrics: registerWorkflowsServiceMetrics,
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
@@ -116,12 +122,20 @@ export function createWorkflowsModule({
       {
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createOrchestrationActivities({agent, runners, secrets}),
+        activities: () =>
+          createOrchestrationActivities({agent, integrations, projects, runners, secrets}),
         workflows: [],
       },
     ],
     interModulePresentations: [
-      createWorkflowsInterModulePresentation({agent, definitions, runners, secrets}),
+      createWorkflowsInterModulePresentation({
+        agent,
+        definitions,
+        integrations,
+        projects,
+        runners,
+        secrets,
+      }),
     ],
   };
 }

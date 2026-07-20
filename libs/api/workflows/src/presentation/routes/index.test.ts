@@ -39,6 +39,7 @@ describe('workflow route auth', () => {
     agent: agentTestClient,
     annotations: annotationsTestClient,
     auth: workflowsTestAuthClient,
+    integrations: {} as never,
     projects: projectsTestClient,
     runners: runnersTestClient,
     secrets: createTestSecretsClient(),

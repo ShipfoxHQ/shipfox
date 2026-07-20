@@ -62,6 +62,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
           agent: agentTestClient,
           annotations: annotationsTestClient,
           auth: workflowsTestAuthClient,
+          integrations: {} as never,
           projects: projectsTestClient,
           runners: runnersTestClient,
           secrets,

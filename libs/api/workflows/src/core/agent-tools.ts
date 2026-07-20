@@ -6,25 +6,24 @@ import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {
   AgentToolCatalogEntry,
   AgentToolCatalogMethod,
-  AgentToolCatalogs,
-  GetIntegrationConnectionByIdFn,
   IntegrationProviderKind,
-  LoadWorkspaceConnectionSnapshot,
-  WorkspaceConnectionSnapshot,
-} from '@shipfox/api-integration-core';
+  IntegrationsModuleClient,
+} from '@shipfox/api-integration-core-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {AgentIntegrationMaterializationError} from './errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelAgentStep = Extract<WorkflowModelJob['steps'][number], {kind: 'agent'}>;
 type WorkflowModelStepIntegration = NonNullable<WorkflowModelAgentStep['integrations']>[number];
-
-interface AgentToolMaterializationServices {
-  readonly projects: ProjectsModuleClient;
-  readonly catalogs: AgentToolCatalogs;
-  readonly loadWorkspaceConnectionSnapshot: LoadWorkspaceConnectionSnapshot;
-  readonly getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
-}
+type AgentToolCatalogs = ReadonlyMap<IntegrationProviderKind, readonly AgentToolCatalogEntry[]>;
+type WorkspaceConnectionSnapshot = ReadonlyMap<
+  string,
+  {
+    id: string;
+    provider: IntegrationProviderKind;
+    capabilities: readonly ('source_control' | 'agent_tools')[];
+  }
+>;
 
 export interface AgentToolMaterializationContext {
   readonly catalogs: AgentToolCatalogs;
@@ -52,48 +51,45 @@ interface SelectedToolState {
   selectedStandalone: boolean;
 }
 
-let services: AgentToolMaterializationServices | undefined;
-
-export function setAgentToolMaterializationServices(
-  nextServices: AgentToolMaterializationServices,
-): void {
-  services = nextServices;
-}
-
-export function clearAgentToolMaterializationServices(): void {
-  services = undefined;
-}
-
 export async function loadAgentToolMaterializationContext(params: {
   readonly model: WorkflowModel | null;
   readonly workspaceId: string;
   readonly projectId: string;
+  readonly integrations?: IntegrationsModuleClient | undefined;
+  readonly projects?: ProjectsModuleClient | undefined;
   readonly jobs?: readonly WorkflowModelJob[] | undefined;
 }): Promise<AgentToolMaterializationContext | undefined> {
   if (!modelHasAgentStepIntegrations(params.model, params.jobs)) return undefined;
-  if (services === undefined) {
-    throw new AgentIntegrationMaterializationError('Agent tool materialization is not configured');
-  }
 
-  const {project} = await services.projects.getProjectById({projectId: params.projectId});
+  if (params.projects === undefined) {
+    throw new AgentIntegrationMaterializationError('Project access is not configured');
+  }
+  const {project} = await params.projects.getProjectById({projectId: params.projectId});
   if (project === null) {
     throw new AgentIntegrationMaterializationError(
       `Project ${params.projectId} was not found while materializing agent integrations`,
     );
   }
 
-  const [workspaceConnectionSnapshot, defaultConnection] = await Promise.all([
-    services.loadWorkspaceConnectionSnapshot(params.workspaceId),
-    services.getIntegrationConnectionById(project.sourceConnectionId),
-  ]);
-  if (defaultConnection === undefined) {
+  if (params.integrations === undefined) {
+    throw new AgentIntegrationMaterializationError('Agent tool materialization is not configured');
+  }
+  const context = await params.integrations.getAgentToolsContext({
+    workspaceId: params.workspaceId,
+    defaultConnectionId: project.sourceConnectionId,
+  });
+  const workspaceConnectionSnapshot = new Map(
+    context.workspaceConnections.map(({slug, ...connection}) => [slug, connection]),
+  );
+  const defaultConnection = context.defaultConnection;
+  if (defaultConnection === null) {
     throw new AgentIntegrationMaterializationError(
       `Source connection ${project.sourceConnectionId} was not found while materializing agent integrations`,
     );
   }
 
   return {
-    catalogs: services.catalogs,
+    catalogs: new Map(context.catalogs.map(({provider, tools}) => [provider, tools])),
     workspaceConnectionSnapshot,
     defaultConnection: {
       id: defaultConnection.id,

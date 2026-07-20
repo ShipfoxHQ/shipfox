@@ -1,5 +1,7 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
   WORKFLOWS_JOB_ACTIVATED,
   type WorkflowsJobActivatedEventDto,
@@ -176,6 +178,8 @@ export interface DrainListenerEventsParams {
   jobId: string;
   expectedSequence: number;
   maxSize?: number | undefined;
+  integrations?: IntegrationsModuleClient | undefined;
+  projects?: ProjectsModuleClient | undefined;
   resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   agent?: AgentInterModuleClient | undefined;
 }
@@ -202,6 +206,8 @@ export async function drainListenerEventsIntoExecution(
             model,
             workspaceId: target.run.workspaceId,
             projectId: target.run.projectId,
+            integrations: params.integrations,
+            projects: params.projects,
           })
         : undefined;
     const materialized = await materializeListenerExecution({

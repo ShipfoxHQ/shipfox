@@ -1,4 +1,4 @@
-import type {CheckoutSpec, IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {getJobById, getWorkflowRunByAttemptId} from '#db/workflow-runs.js';
 import {
@@ -44,25 +44,47 @@ export async function resolveCheckoutIntent(
 
 /**
  * Resolves the job's checkout intent and exchanges it for a short-lived,
- * scoped checkout spec. `ref` is left undefined so the provider defaults to the
- * repository's default branch.
+ * scoped checkout spec. Omitting `ref` lets the provider use the repository's
+ * default branch while preserving the JSON-only inter-module boundary.
  */
 export async function createJobCheckoutSpec({
   jobId,
-  sourceControl,
+  integrations,
   projects,
 }: {
   jobId: string;
-  sourceControl: IntegrationSourceControlService;
+  integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
-}): Promise<{spec: CheckoutSpec; persistCredentials: boolean}> {
+}): Promise<{
+  spec: {
+    repositoryUrl: string;
+    ref: string;
+    credentials?: {username: string; token: string; expiresAt: Date};
+    gitAuthor?: {name: string; email: string};
+  };
+  persistCredentials: boolean;
+}> {
   const intent = await resolveCheckoutIntent(jobId, projects);
-  const spec = await sourceControl.createCheckoutSpec({
+  const response = await integrations.createCheckoutSpec({
     workspaceId: intent.workspaceId,
     connectionId: intent.connectionId,
     externalRepositoryId: intent.externalRepositoryId,
-    ref: undefined,
     permissions: intent.permissions,
   });
-  return {spec, persistCredentials: intent.persistCredentials};
+  const {credentials, gitAuthor, ...checkout} = response;
+  return {
+    spec: {
+      ...checkout,
+      ...(credentials
+        ? {
+            credentials: {
+              ...credentials,
+              expiresAt: new Date(credentials.expiresAt),
+            },
+          }
+        : {}),
+      ...(gitAuthor ? {gitAuthor} : {}),
+    },
+    persistCredentials: intent.persistCredentials,
+  };
 }

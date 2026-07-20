@@ -1,41 +1,21 @@
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
-  IntegrationCapabilityUnavailableError,
-  IntegrationConnectionInactiveError,
-  IntegrationConnectionNotFoundError,
-  IntegrationConnectionWorkspaceMismatchError,
-  IntegrationProviderError,
-  type IntegrationProviderErrorReason,
-  IntegrationProviderUnavailableError,
-  type IntegrationSourceControlService,
-} from '@shipfox/api-integration-core';
+  type IntegrationsModuleClient,
+  integrationsInterModuleContract,
+} from '@shipfox/api-integration-core-dto';
 import {createProjectBodySchema, projectResponseSchema} from '@shipfox/api-projects-dto';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {createProjectFromSource, ProjectAlreadyExistsError} from '#core/index.js';
 import {toProjectDto} from '#presentation/dto/index.js';
 
-function providerStatus(reason: IntegrationProviderErrorReason): number {
+function providerStatus(reason: string): number {
   if (reason === 'rate-limited') return 429;
   if (reason === 'timeout' || reason === 'provider-unavailable') return 503;
   return 422;
 }
 
-function isProviderError(error: unknown): error is IntegrationProviderError {
-  return (
-    error instanceof IntegrationProviderError ||
-    (error instanceof Error &&
-      'reason' in error &&
-      typeof error.reason === 'string' &&
-      (error.reason === 'repository-not-found' ||
-        error.reason === 'access-denied' ||
-        error.reason === 'rate-limited' ||
-        error.reason === 'timeout' ||
-        error.reason === 'provider-unavailable' ||
-        error.reason === 'malformed-provider-response'))
-  );
-}
-
-export function createProjectRoute(sourceControl: IntegrationSourceControlService) {
+export function createProjectRoute(integrations: IntegrationsModuleClient) {
   return defineRoute({
     method: 'POST',
     path: '/',
@@ -48,20 +28,40 @@ export function createProjectRoute(sourceControl: IntegrationSourceControlServic
       },
     },
     errorHandler: (error) => {
-      if (error instanceof IntegrationConnectionNotFoundError) {
-        throw new ClientError(error.message, 'source-connection-not-found', {status: 404});
+      const known = isInterModuleKnownError(
+        integrationsInterModuleContract.methods.resolveSourceRepository,
+        error,
+      )
+        ? error
+        : undefined;
+      if (known?.code === 'connection-not-found') {
+        throw new ClientError('Source connection not found', 'source-connection-not-found', {
+          status: 404,
+        });
       }
-      if (error instanceof IntegrationConnectionWorkspaceMismatchError) {
-        throw new ClientError(error.message, 'forbidden', {status: 403});
+      if (known?.code === 'connection-workspace-mismatch') {
+        throw new ClientError('Source connection does not belong to this workspace', 'forbidden', {
+          status: 403,
+        });
       }
-      if (error instanceof IntegrationConnectionInactiveError) {
-        throw new ClientError(error.message, 'source-connection-inactive', {status: 422});
+      if (known?.code === 'connection-inactive') {
+        throw new ClientError('Source connection is not active', 'source-connection-inactive', {
+          status: 422,
+        });
       }
-      if (error instanceof IntegrationProviderUnavailableError) {
-        throw new ClientError(error.message, 'integration-provider-unavailable', {status: 422});
+      if (known?.code === 'provider-unavailable') {
+        throw new ClientError(
+          'Integration provider is unavailable',
+          'integration-provider-unavailable',
+          {status: 422},
+        );
       }
-      if (error instanceof IntegrationCapabilityUnavailableError) {
-        throw new ClientError(error.message, 'integration-capability-unavailable', {status: 422});
+      if (known?.code === 'capability-unavailable') {
+        throw new ClientError(
+          'Integration capability is unavailable',
+          'integration-capability-unavailable',
+          {status: 422},
+        );
       }
       if (error instanceof ProjectAlreadyExistsError) {
         throw new ClientError(error.message, 'project-already-exists', {
@@ -73,10 +73,10 @@ export function createProjectRoute(sourceControl: IntegrationSourceControlServic
           status: 409,
         });
       }
-      if (isProviderError(error)) {
-        throw new ClientError(error.message, error.reason, {
-          details: {retry_after_seconds: error.retryAfterSeconds},
-          status: providerStatus(error.reason),
+      if (known?.code === 'provider-failure') {
+        throw new ClientError('Integration provider request failed', known.details.reason, {
+          details: {retry_after_seconds: known.details.retryAfterSeconds},
+          status: providerStatus(known.details.reason),
         });
       }
       throw error;
@@ -92,7 +92,7 @@ export function createProjectRoute(sourceControl: IntegrationSourceControlServic
         name,
         sourceConnectionId: source.connection_id,
         sourceExternalRepositoryId: source.external_repository_id,
-        sourceControl,
+        integrations,
       });
 
       reply.status(201);

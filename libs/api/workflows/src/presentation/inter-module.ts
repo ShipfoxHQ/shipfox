@@ -5,6 +5,8 @@ import {
 } from '@shipfox/api-agent-dto';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
@@ -30,6 +32,8 @@ export function createWorkflowsInterModulePresentation(params: {
   definitions: DefinitionsInterModuleClient;
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
   runners: RunnersInterModuleClient;
+  integrations: IntegrationsModuleClient;
+  projects: ProjectsModuleClient;
 }): InterModulePresentation<typeof workflowsInterModuleContract> {
   return defineInterModulePresentation(workflowsInterModuleContract, {
     startRunFromTrigger: async (input) => {
@@ -44,6 +48,8 @@ export function createWorkflowsInterModulePresentation(params: {
             triggerPayload: input.triggerPayload,
             inputs: input.inputs,
             triggerIdempotencyKey: input.idempotencyKey,
+            integrations: params.integrations,
+            projects: params.projects,
           },
           {secrets: params.secrets},
         );

@@ -1,4 +1,6 @@
 import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -47,14 +49,21 @@ export interface CreateWorkflowRunParams {
   triggerIdempotencyKey?: string | undefined;
   resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
+  integrations?: IntegrationsModuleClient | undefined;
+  projects?: ProjectsModuleClient | undefined;
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
-  const agentToolContext = await loadAgentToolMaterializationContext({
-    model: params.model,
-    workspaceId: params.workspaceId,
-    projectId: params.projectId,
-  });
+  const agentToolContext =
+    params.integrations === undefined
+      ? undefined
+      : await loadAgentToolMaterializationContext({
+          model: params.model,
+          workspaceId: params.workspaceId,
+          projectId: params.projectId,
+          integrations: params.integrations,
+          projects: params.projects,
+        });
   const agentToolMaterialization = createAgentToolMaterializationSnapshot({
     model: params.model,
     context: agentToolContext,

@@ -1,7 +1,6 @@
-import {
-  IntegrationProviderError,
-  type IntegrationSourceControlService,
-} from '@shipfox/api-integration-core';
+import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import {db, definitionSyncStates} from '#db/index.js';
@@ -149,7 +148,11 @@ describe('definition sync activities', () => {
         sourceControl({
           resolveRepository: vi.fn(() => {
             return Promise.reject(
-              new IntegrationProviderError('timeout', 'GitHub request timed out'),
+              createInterModuleKnownError(
+                integrationsInterModuleContract.methods.resolveSourceRepository,
+                'provider-failure',
+                {reason: 'timeout'},
+              ),
             );
           }),
         }),
@@ -165,7 +168,7 @@ describe('definition sync activities', () => {
       await expect(result).rejects.toMatchObject({
         nonRetryable: false,
         type: 'provider-timeout',
-        message: 'GitHub request timed out',
+        message: 'integrations.resolveSourceRepository: provider-failure',
       });
     });
   });

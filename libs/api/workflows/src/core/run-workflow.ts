@@ -1,6 +1,8 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {workflowModelFromSnapshot} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import {createAgentDefaultsResolver} from './agent-defaults.js';
@@ -15,6 +17,8 @@ export interface RunWorkflowParams {
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
   triggerIdempotencyKey?: string | undefined;
+  integrations?: IntegrationsModuleClient | undefined;
+  projects?: ProjectsModuleClient | undefined;
 }
 
 export async function runWorkflow(
@@ -48,5 +52,7 @@ export async function runWorkflow(
     triggerIdempotencyKey: params.triggerIdempotencyKey,
     resolveAgentDefaults,
     secrets: options.secrets,
+    integrations: params.integrations,
+    projects: params.projects,
   });
 }

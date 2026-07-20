@@ -2,6 +2,7 @@ import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
@@ -22,6 +23,7 @@ type WorkflowRouteClients = {
   agent: AgentInterModuleClient;
   annotations: AnnotationsInterModuleClient;
   auth: AuthInterModuleClient;
+  integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
   secrets: SecretsInterModuleClient;
@@ -35,7 +37,11 @@ export function createLeaseTokenRouteGroup(params: WorkflowRouteClients): RouteG
     routes: [
       createNextStepRoute(params),
       createReportStepRoute(params.runners),
-      createCheckoutTokenRoute(params.runners, params.projects),
+      createCheckoutTokenRoute({
+        integrations: params.integrations,
+        projects: params.projects,
+        runners: params.runners,
+      }),
       createAgentRuntimeConfigRoute(params),
       createGetStepSecretsRoute(params.runners, params.secrets),
     ],

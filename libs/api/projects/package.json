@@ -41,7 +41,6 @@
   },
   "dependencies": {
     "@shipfox/api-auth-context": "workspace:*",
-    "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/inter-module": "workspace:*",

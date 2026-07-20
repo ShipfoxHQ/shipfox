@@ -1,31 +1,19 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {buildCreateDefinitionRoute} from './create-definition.js';
 
-const projectAccessState = vi.hoisted(() => ({workspaceId: '', sourceConnectionId: ''}));
-
-const projects = {
-  getProjectById: vi.fn(({projectId}) =>
-    Promise.resolve({
-      project: {
-        id: projectId,
-        workspaceId: projectAccessState.workspaceId,
-        sourceConnectionId: projectAccessState.sourceConnectionId,
-        sourceExternalRepositoryId: 'repo',
-        name: 'Project',
-      },
-    }),
-  ),
-  requireProjectForWorkspace: vi.fn(),
-} as unknown as ProjectsModuleClient;
+const getProjectById = vi.fn();
+const projects = {getProjectById} as Pick<ProjectsModuleClient, 'getProjectById'>;
 
 describe('POST /api/definitions', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let projectId: string;
+  let sourceConnectionId: string;
 
   beforeAll(async () => {
     app = Fastify();
@@ -42,15 +30,20 @@ describe('POST /api/definitions', () => {
       );
       done();
     });
-    app.post('/api/definitions', buildCreateDefinitionRoute({projects}));
+    app.post(
+      '/api/definitions',
+      buildCreateDefinitionRoute({projects: projects as ProjectsModuleClient}),
+    );
     await app.ready();
   });
 
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
-    projectAccessState.workspaceId = workspaceId;
-    projectAccessState.sourceConnectionId = crypto.randomUUID();
+    sourceConnectionId = crypto.randomUUID();
+    getProjectById.mockResolvedValue({
+      project: {id: projectId, workspaceId, sourceConnectionId},
+    } as never);
   });
 
   const validYaml = `
@@ -84,7 +77,7 @@ jobs:
   });
 
   test('skips connection snapshot loading when YAML has no integrations', async () => {
-    const loadWorkspaceConnectionSnapshot = vi.fn(() => Promise.resolve(new Map()));
+    const getAgentToolsContext = vi.fn();
     const appWithOptions = Fastify();
     appWithOptions.setValidatorCompiler(validatorCompiler);
     appWithOptions.setSerializerCompiler(serializerCompiler);
@@ -102,9 +95,11 @@ jobs:
     appWithOptions.post(
       '/api/definitions',
       buildCreateDefinitionRoute({
-        projects,
-        agentToolSelectionCatalogs: new Map(),
-        loadWorkspaceConnectionSnapshot,
+        projects: projects as ProjectsModuleClient,
+        integrations: {getAgentToolsContext} as Pick<
+          IntegrationsModuleClient,
+          'getAgentToolsContext'
+        > as IntegrationsModuleClient,
       }),
     );
     await appWithOptions.ready();
@@ -120,35 +115,39 @@ jobs:
     });
 
     expect(res.statusCode).toBe(200);
-    expect(loadWorkspaceConnectionSnapshot).not.toHaveBeenCalled();
+    expect(getAgentToolsContext).not.toHaveBeenCalled();
   });
 
   test('uses the project source connection as the default integration connection', async () => {
-    const loadWorkspaceConnectionSnapshot = vi.fn(() =>
-      Promise.resolve(
-        new Map([
-          [
-            'github-main',
-            {
-              id: projectAccessState.sourceConnectionId,
-              provider: 'github',
-              capabilities: ['agent_tools'] as const,
-            },
-          ],
-        ]),
-      ),
-    );
-    const getIntegrationConnectionById = vi.fn(() =>
+    const getAgentToolsContext = vi.fn(() =>
       Promise.resolve({
-        id: projectAccessState.sourceConnectionId,
-        workspaceId,
-        provider: 'github',
-        externalAccountId: 'installation-1',
-        slug: 'github-main',
-        displayName: 'GitHub',
-        lifecycleStatus: 'active' as const,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        selectionCatalogs: [
+          {
+            provider: 'github',
+            selectors: [
+              {
+                token: 'issue_read',
+                kind: 'family' as const,
+                sensitivity: 'read' as const,
+                sensitive: false,
+              },
+            ],
+          },
+        ],
+        catalogs: [],
+        workspaceConnections: [
+          {
+            id: sourceConnectionId,
+            slug: 'github-main',
+            provider: 'github',
+            capabilities: ['agent_tools' as const],
+          },
+        ],
+        defaultConnection: {
+          id: sourceConnectionId,
+          slug: 'github-main',
+          provider: 'github',
+        },
       }),
     );
     const appWithOptions = Fastify();
@@ -168,19 +167,11 @@ jobs:
     appWithOptions.post(
       '/api/definitions',
       buildCreateDefinitionRoute({
-        projects,
-        agentToolSelectionCatalogs: new Map([
-          [
-            'github',
-            {
-              selectors: [
-                {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
-              ],
-            },
-          ],
-        ]),
-        loadWorkspaceConnectionSnapshot,
-        getIntegrationConnectionById,
+        projects: projects as ProjectsModuleClient,
+        integrations: {getAgentToolsContext} as Pick<
+          IntegrationsModuleClient,
+          'getAgentToolsContext'
+        > as IntegrationsModuleClient,
       }),
     );
     await appWithOptions.ready();
@@ -205,9 +196,10 @@ jobs:
     });
 
     expect(res.statusCode).toBe(200);
-    expect(getIntegrationConnectionById).toHaveBeenCalledWith(
-      projectAccessState.sourceConnectionId,
-    );
+    expect(getAgentToolsContext).toHaveBeenCalledWith({
+      workspaceId,
+      defaultConnectionId: sourceConnectionId,
+    });
   });
 
   test('invalid YAML syntax returns 400', async () => {

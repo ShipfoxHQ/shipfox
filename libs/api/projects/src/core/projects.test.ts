@@ -1,5 +1,6 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {IntegrationProviderError} from '@shipfox/api-integration-core';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {sql} from 'drizzle-orm';
 import {db} from '#db/index.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
@@ -9,29 +10,20 @@ describe('createProjectFromSource', () => {
   let actorId: string;
   let workspaceId: string;
   let sourceConnectionId: string;
-  let sourceControl: IntegrationSourceControlService;
+  let integrations: Pick<IntegrationsModuleClient, 'resolveSourceRepository'>;
 
   beforeEach(() => {
     actorId = crypto.randomUUID();
     workspaceId = crypto.randomUUID();
     sourceConnectionId = crypto.randomUUID();
-    sourceControl = {
-      getConnection: vi.fn(),
-      listRepositories: vi.fn(),
-      resolveRepository: vi.fn(async () => {
+    integrations = {
+      resolveSourceRepository: vi.fn(async () => {
         await Promise.resolve();
         return {
           connection: {
             id: sourceConnectionId,
-            workspaceId,
             provider: 'gitea' as const,
-            externalAccountId: 'gitea-owner',
             slug: 'gitea_owner',
-            displayName: 'Gitea',
-            lifecycleStatus: 'active' as const,
-            capabilities: ['source_control' as const],
-            createdAt: new Date(),
-            updatedAt: new Date(),
           },
           repository: {
             externalRepositoryId: 'gitea:gitea-owner/platform',
@@ -45,9 +37,6 @@ describe('createProjectFromSource', () => {
           },
         };
       }),
-      listFiles: vi.fn(),
-      fetchFile: vi.fn(),
-      createCheckoutSpec: vi.fn(),
     };
   });
 
@@ -58,7 +47,7 @@ describe('createProjectFromSource', () => {
       name: 'Platform',
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
-      sourceControl,
+      integrations: integrations as IntegrationsModuleClient,
     });
 
     expect(project.workspaceId).toBe(workspaceId);
@@ -74,7 +63,7 @@ describe('createProjectFromSource', () => {
       name: 'Platform',
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
-      sourceControl,
+      integrations: integrations as IntegrationsModuleClient,
     });
 
     const events = await db()
@@ -108,7 +97,7 @@ describe('createProjectFromSource', () => {
       name: 'Platform',
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
-      sourceControl,
+      integrations: integrations as IntegrationsModuleClient,
     });
 
     const result = createProjectFromSource({
@@ -117,15 +106,19 @@ describe('createProjectFromSource', () => {
       name: 'Platform Again',
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
-      sourceControl,
+      integrations: integrations as IntegrationsModuleClient,
     });
 
     await expect(result).rejects.toThrow('Project already exists');
   });
 
   test('surfaces provider repository access failures', async () => {
-    vi.mocked(sourceControl.resolveRepository).mockRejectedValueOnce(
-      new IntegrationProviderError('repository-not-found', 'Repository not found'),
+    vi.mocked(integrations.resolveSourceRepository).mockRejectedValueOnce(
+      createInterModuleKnownError(
+        integrationsInterModuleContract.methods.resolveSourceRepository,
+        'provider-failure',
+        {reason: 'repository-not-found'},
+      ),
     );
 
     const result = createProjectFromSource({
@@ -134,9 +127,12 @@ describe('createProjectFromSource', () => {
       name: 'Missing',
       sourceConnectionId,
       sourceExternalRepositoryId: 'not-found',
-      sourceControl,
+      integrations: integrations as IntegrationsModuleClient,
     });
 
-    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+    await expect(result).rejects.toMatchObject({
+      code: 'provider-failure',
+      details: {reason: 'repository-not-found'},
+    });
   });
 });

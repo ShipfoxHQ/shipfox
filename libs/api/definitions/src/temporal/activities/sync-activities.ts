@@ -1,8 +1,4 @@
-import type {
-  AgentToolSelectionCatalogs,
-  IntegrationSourceControlService,
-  LoadWorkspaceConnectionSnapshot,
-} from '@shipfox/api-integration-core';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
 import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
@@ -13,6 +9,8 @@ import {
   resolveSyncSource,
   UNRESOLVED_SYNC_REF,
 } from '#core/index.js';
+import type {DefinitionsSourceControl} from '#core/integrations.js';
+import {loadIntegrationValidationContext} from '#core/integrations.js';
 import {applyVcsDefinitionsBatch, markDefinitionSyncState} from '#db/index.js';
 
 export interface SyncWorkflowInput {
@@ -52,29 +50,20 @@ export interface FetchAndApplyActivityResult {
   deletedCount: number;
 }
 
-export interface DefinitionSyncIntegrationValidationOptions {
-  agentToolSelectionCatalogs: AgentToolSelectionCatalogs;
-  loadWorkspaceConnectionSnapshot: LoadWorkspaceConnectionSnapshot;
-  getIntegrationConnectionById: (id: string) => Promise<{slug: string} | undefined>;
-}
-
 export function createDefinitionSyncActivities(
-  sourceControl: IntegrationSourceControlService,
-  integrationValidation?: DefinitionSyncIntegrationValidationOptions | undefined,
+  sourceControl: DefinitionsSourceControl,
+  integrations?: IntegrationsModuleClient | undefined,
 ) {
   return {
     prepareDefinitionSync: createPrepareDefinitionSyncActivity(sourceControl),
     discoverDefinitionWorkflows: createDiscoverDefinitionWorkflowsActivity(sourceControl),
-    fetchAndApplyDefinitionWorkflows: createFetchAndApplyActivity(
-      sourceControl,
-      integrationValidation,
-    ),
+    fetchAndApplyDefinitionWorkflows: createFetchAndApplyActivity(sourceControl, integrations),
     markDefinitionSyncSucceeded: createMarkSyncSucceededActivity(),
     markDefinitionSyncFailed: createMarkSyncFailedActivity(),
   };
 }
 
-function createPrepareDefinitionSyncActivity(sourceControl: IntegrationSourceControlService) {
+function createPrepareDefinitionSyncActivity(sourceControl: DefinitionsSourceControl) {
   return async function prepareDefinitionSync(
     input: SyncWorkflowInput,
   ): Promise<PrepareSyncResult> {
@@ -98,7 +87,7 @@ function createPrepareDefinitionSyncActivity(sourceControl: IntegrationSourceCon
   };
 }
 
-function createDiscoverDefinitionWorkflowsActivity(sourceControl: IntegrationSourceControlService) {
+function createDiscoverDefinitionWorkflowsActivity(sourceControl: DefinitionsSourceControl) {
   return async function discoverDefinitionWorkflows(
     input: SyncRefScopedInput,
   ): Promise<DiscoverWorkflowsActivityResult> {
@@ -113,8 +102,8 @@ function createDiscoverDefinitionWorkflowsActivity(sourceControl: IntegrationSou
 }
 
 function createFetchAndApplyActivity(
-  sourceControl: IntegrationSourceControlService,
-  integrationValidation?: DefinitionSyncIntegrationValidationOptions | undefined,
+  sourceControl: DefinitionsSourceControl,
+  integrations?: IntegrationsModuleClient | undefined,
 ) {
   return async function fetchAndApplyDefinitionWorkflows(
     input: FetchAndApplyActivityInput,
@@ -126,18 +115,14 @@ function createFetchAndApplyActivity(
         sourceControl,
         onProgress: (path) => Context.current().heartbeat({path}),
         loadIntegrationValidationContext:
-          integrationValidation === undefined
+          integrations === undefined
             ? undefined
             : async () => {
-                const sourceConnection = await integrationValidation.getIntegrationConnectionById(
+                return await loadIntegrationValidationContext(
+                  integrations,
+                  input.workspaceId,
                   input.sourceConnectionId,
                 );
-                return {
-                  agentToolSelectionCatalogs: integrationValidation.agentToolSelectionCatalogs,
-                  workspaceConnectionSnapshot:
-                    await integrationValidation.loadWorkspaceConnectionSnapshot(input.workspaceId),
-                  defaultConnectionSlug: sourceConnection?.slug,
-                };
               },
       });
 

@@ -1,4 +1,6 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
@@ -25,6 +27,8 @@ import {
 
 export function createOrchestrationActivities(params: {
   agent: AgentInterModuleClient;
+  integrations: IntegrationsModuleClient;
+  projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
 }) {
@@ -43,7 +47,11 @@ export function createOrchestrationActivities(params: {
     ) => await failJobExecutionAsTimedOutActivity(activityParams, params.secrets),
     failRunAsTimedOutActivity,
     activateJobListenerActivity,
-    drainListenerEventsActivity: createDrainListenerEventsActivity(params.agent),
+    drainListenerEventsActivity: createDrainListenerEventsActivity({
+      agent: params.agent,
+      integrations: params.integrations,
+      projects: params.projects,
+    }),
     peekListenerBufferActivity,
     resolveJobListenerActivity,
     settleListenerJobExecutionActivity,

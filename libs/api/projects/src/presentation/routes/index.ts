@@ -1,14 +1,14 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createProjectRoute} from './create-project.js';
 import {getProjectRoute} from './get-project.js';
 import {listProjectsRoute} from './list-projects.js';
 
-export function createProjectRoutes(sourceControl: IntegrationSourceControlService): RouteGroup[] {
+export function createProjectRoutes(integrations: IntegrationsModuleClient): RouteGroup[] {
   return [
     {
       prefix: '/projects',
-      routes: [createProjectRoute(sourceControl), listProjectsRoute, getProjectRoute],
+      routes: [createProjectRoute(integrations), listProjectsRoute, getProjectRoute],
     },
   ];
 }
