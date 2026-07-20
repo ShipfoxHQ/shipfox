@@ -1,3 +1,4 @@
+import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
@@ -118,7 +119,15 @@ describe('defaultModules', () => {
       ],
     });
     mocks.createSecretsModule.mockReturnValue({name: 'secrets'});
-    mocks.createDefinitionsModule.mockReturnValue({name: 'definitions'});
+    mocks.createDefinitionsModule.mockReturnValue({
+      name: 'definitions',
+      interModulePresentations: [
+        {
+          contract: definitionsInterModuleContract,
+          handlers: {getDefinitionForWorkflowRun: vi.fn()},
+        },
+      ],
+    });
     mocks.createWorkflowsModule.mockReturnValue({
       name: 'workflows',
       interModulePresentations: [

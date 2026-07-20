@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
   RUNNER_JOB_CLAIMED,
@@ -74,9 +75,11 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
 export function createWorkflowsModule({
+  definitions,
   projects,
   runners,
 }: {
+  definitions: DefinitionsInterModuleClient;
   projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
 }): ShipfoxModule {
@@ -105,6 +108,6 @@ export function createWorkflowsModule({
         workflows: [],
       },
     ],
-    interModulePresentations: [createWorkflowsInterModulePresentation()],
+    interModulePresentations: [createWorkflowsInterModulePresentation({definitions})],
   };
 }

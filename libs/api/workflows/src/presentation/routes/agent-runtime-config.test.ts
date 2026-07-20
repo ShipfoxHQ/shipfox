@@ -1,7 +1,7 @@
 import {createCustomModelProviderConfig, testAndSaveModelProviderConfig} from '@shipfox/api-agent';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {SecretDecryptionError} from '@shipfox/api-secrets';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';

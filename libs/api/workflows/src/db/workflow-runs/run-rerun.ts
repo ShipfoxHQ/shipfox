@@ -1,3 +1,4 @@
+import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import {and, asc, eq, inArray, sql} from 'drizzle-orm';
 import {isWorkflowRunTerminal, type WorkflowRun} from '#core/entities/workflow-run.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
@@ -175,9 +176,11 @@ function materializeRerunGraphJobs(params: {
   readonly sourceJobByJobExecutionId: ReadonlyMap<string, JobDb>;
   readonly sourceSteps: readonly StepDb[];
 }): readonly MaterializedRunGraphJob[] {
-  const sourceModelJobByKey = new Map(
-    (params.sourceAttempt.model?.jobs ?? []).map((job) => [job.key, job]),
-  );
+  const sourceModel =
+    params.sourceAttempt.model === null
+      ? null
+      : readPersistedWorkflowModel(params.sourceAttempt.model);
+  const sourceModelJobByKey = new Map((sourceModel?.jobs ?? []).map((job) => [job.key, job]));
   const sourceStepsByJobId = new Map<string, StepDb[]>();
   for (const step of params.sourceSteps) {
     const sourceJob = params.sourceJobByJobExecutionId.get(step.jobExecutionId);

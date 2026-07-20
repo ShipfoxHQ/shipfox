@@ -2,7 +2,7 @@ import {
   type AgentDefaultsResolver,
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import {getVariablesByNamespace} from '@shipfox/api-secrets';
 import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -109,7 +109,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         workflowRunId: runRow.id,
         attempt: 1,
         status: 'pending',
-        model: params.model,
+        model: createWorkflowModelSnapshot(params.model),
         agentToolMaterialization,
       })
       .returning();

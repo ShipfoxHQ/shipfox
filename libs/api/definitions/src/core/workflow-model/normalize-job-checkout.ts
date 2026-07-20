@@ -1,10 +1,7 @@
+import {DEFAULT_JOB_CHECKOUT, type WorkflowModelJobCheckout} from '@shipfox/api-definitions-dto';
 import type {WorkflowDocumentJobCheckout} from '@shipfox/workflow-document';
-import type {WorkflowModelJobCheckout} from '../entities/workflow-model.js';
 
-export const DEFAULT_JOB_CHECKOUT: WorkflowModelJobCheckout = {
-  permissions: {contents: 'read'},
-  persistCredentials: true,
-};
+export {DEFAULT_JOB_CHECKOUT};
 
 export function normalizeJobCheckout(
   checkout: WorkflowDocumentJobCheckout | undefined,

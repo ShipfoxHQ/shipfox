@@ -1,4 +1,4 @@
-import {DEFAULT_RUN_TIMEOUT_MS} from '@shipfox/api-definitions';
+import {DEFAULT_RUN_TIMEOUT_MS} from '@shipfox/api-definitions-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {

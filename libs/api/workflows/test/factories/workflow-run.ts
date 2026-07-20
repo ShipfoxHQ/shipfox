@@ -1,4 +1,4 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {Factory} from 'fishery';
 import type {WorkflowRun} from '#core/entities/workflow-run.js';
 import {createWorkflowRun} from '#db/workflow-runs.js';

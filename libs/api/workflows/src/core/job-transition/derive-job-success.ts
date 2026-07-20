@@ -1,4 +1,4 @@
-import {DEFAULT_JOB_SUCCESS} from '@shipfox/api-definitions';
+import {DEFAULT_JOB_SUCCESS} from '@shipfox/api-definitions-dto';
 import {
   capTraceEntries,
   createWorkflowExpression,

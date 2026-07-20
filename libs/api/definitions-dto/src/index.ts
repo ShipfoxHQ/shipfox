@@ -28,3 +28,13 @@ export {
   definitionResolvedEventSchema,
   definitionsEventSchemas,
 } from './events.js';
+export type * from './workflow-model.js';
+export {
+  createWorkflowModelSnapshot,
+  DEFAULT_JOB_CHECKOUT,
+  DEFAULT_JOB_SUCCESS,
+  DEFAULT_RUN_TIMEOUT_MS,
+  readPersistedWorkflowModel,
+  workflowModelFromSnapshot,
+  workflowModelSnapshotSchema,
+} from './workflow-model.js';

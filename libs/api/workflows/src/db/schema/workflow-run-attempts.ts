@@ -1,4 +1,8 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import {
+  readPersistedWorkflowModel,
+  type WorkflowModel,
+  type WorkflowModelSnapshot,
+} from '@shipfox/api-definitions-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {check, integer, jsonb, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
@@ -18,7 +22,7 @@ export const workflowRunAttempts = pgTable(
     status: workflowRunStatusEnum('status').notNull().default('pending'),
     rerunMode: workflowRunRerunModeEnum('rerun_mode'),
     rerunByUserId: uuid('rerun_by_user_id'),
-    model: jsonb('model').$type<WorkflowModel>(),
+    model: jsonb('model').$type<WorkflowModel | WorkflowModelSnapshot>(),
     agentToolMaterialization: jsonb(
       'agent_tool_materialization',
     ).$type<AgentToolMaterializationSnapshot>(),
@@ -48,7 +52,7 @@ export function toWorkflowRunAttempt(row: WorkflowRunAttemptDb): WorkflowRunAtte
     status: row.status,
     rerunMode: row.rerunMode ?? null,
     rerunByUserId: row.rerunByUserId,
-    model: row.model ?? null,
+    model: row.model === null ? null : readPersistedWorkflowModel(row.model),
     agentToolMaterialization: row.agentToolMaterialization ?? null,
     version: row.version,
     createdAt: row.createdAt,

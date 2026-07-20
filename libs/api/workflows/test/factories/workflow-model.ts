@@ -1,4 +1,4 @@
-import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions';
+import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   createWorkflowExpression,
   parseWorkflowTemplate,
