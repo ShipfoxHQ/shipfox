@@ -1,16 +1,19 @@
 import {DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
 import {
   BATCH_SIZE,
-  countPendingOutboxRows,
+  countPendingOutboxRows as countPendingOutboxRowsFromRegistry,
+  createOutboxRegistry,
   type DrainedEvent,
-  drainAll,
-  markDispatched,
+  drainAll as drainFromRegistry,
+  type ModulePublisher,
+  markDispatched as markDispatchedFromRegistry,
+  type OutboxDispatchClaim,
   type OutboxDispatchFailure,
-  pruneDispatchedOutboxRows,
-  recordDispatchFailure,
-  registerPublisher,
-  renewDispatchClaim,
-  resetPublishers,
+  type PruneDispatchedOutboxRowsOptions,
+  pruneDispatchedOutboxRows as pruneFromRegistry,
+  recordDispatchFailure as recordFailureFromRegistry,
+  registerPublisher as registerInRegistry,
+  renewDispatchClaim as renewFromRegistry,
 } from '@shipfox/node-module';
 import {sql} from 'drizzle-orm';
 import type {WorkflowDefinitionPayload} from '#core/entities/workflow-definition.js';
@@ -28,6 +31,44 @@ import {workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1_000;
+let outboxRegistry = createOutboxRegistry();
+
+function resetPublishers(): void {
+  outboxRegistry = createOutboxRegistry();
+}
+
+function registerPublisher(publisher: ModulePublisher): void {
+  registerInRegistry(outboxRegistry, publisher);
+}
+
+function drainAll(options?: {partition?: {workerIndex: number; workerCount: number}}) {
+  return drainFromRegistry(outboxRegistry, options);
+}
+
+function countPendingOutboxRows() {
+  return countPendingOutboxRowsFromRegistry(outboxRegistry);
+}
+
+function markDispatched(source: string, claims: string[] | OutboxDispatchClaim[]) {
+  return markDispatchedFromRegistry(outboxRegistry, source, claims);
+}
+
+function renewDispatchClaim(source: string, claim: OutboxDispatchClaim) {
+  return renewFromRegistry(outboxRegistry, source, claim);
+}
+
+function recordDispatchFailure(
+  source: string,
+  id: string,
+  failure: OutboxDispatchFailure,
+  claimExpiresAt?: Date,
+) {
+  return recordFailureFromRegistry(outboxRegistry, source, id, failure, claimExpiresAt);
+}
+
+function pruneDispatchedOutboxRows(options: PruneDispatchedOutboxRowsOptions) {
+  return pruneFromRegistry(outboxRegistry, options);
+}
 
 function definitionFields(name = 'Test Workflow'): WorkflowDefinitionPayload {
   const document = {

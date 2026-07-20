@@ -26,8 +26,6 @@ const mocks = vi.hoisted(() => {
     logger: {error: vi.fn(), info: vi.fn()},
     parseApiTrustProxy: vi.fn(),
     registerModuleMetrics: vi.fn(),
-    resetPublishers: vi.fn(),
-    resetSubscribers: vi.fn(),
     runModuleStartupTasks: vi.fn(),
     shutdownServiceMetrics: vi.fn(),
     startModuleServices: vi.fn(),
@@ -56,8 +54,6 @@ vi.mock('@shipfox/node-module', () => ({
   aggregateLoginMethods: mocks.aggregateLoginMethods,
   initializeModules: mocks.initializeModules,
   registerModuleMetrics: mocks.registerModuleMetrics,
-  resetPublishers: mocks.resetPublishers,
-  resetSubscribers: mocks.resetSubscribers,
   runModuleStartupTasks: mocks.runModuleStartupTasks,
   startModuleServices: mocks.startModuleServices,
   startModuleWorkers: mocks.startModuleWorkers,
@@ -132,8 +128,6 @@ function resetMocks(): void {
   mocks.logger.info.mockReset();
   mocks.parseApiTrustProxy.mockReset();
   mocks.registerModuleMetrics.mockReset();
-  mocks.resetPublishers.mockReset();
-  mocks.resetSubscribers.mockReset();
   mocks.runModuleStartupTasks.mockReset();
   mocks.shutdownServiceMetrics.mockReset();
   mocks.startModuleServices.mockReset();
@@ -201,7 +195,10 @@ describe('createServer', () => {
     expect(mocks.createPostgresClient).toHaveBeenCalledOnce();
     expect(mocks.initializeModules).toHaveBeenCalledWith({modules});
     expect(mocks.registerModuleMetrics).toHaveBeenCalledWith({modules});
-    expect(mocks.runModuleStartupTasks).toHaveBeenCalledWith({modules});
+    expect(mocks.runModuleStartupTasks).toHaveBeenCalledWith({
+      modules,
+      context: {outboxRegistry: undefined},
+    });
     expect(mocks.createApp).toHaveBeenCalledWith({
       auth: [],
       routes: [],
@@ -331,8 +328,6 @@ describe('createServer', () => {
     expect(mocks.shutdownServiceMetrics.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.closePostgresClient.mock.invocationCallOrder[0] ?? 0,
     );
-    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
-    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
   });
 
   it('rejects a second server while another server owns process resources', async () => {
@@ -358,8 +353,6 @@ describe('createServer', () => {
 
     await expect(result).rejects.toBe(failure);
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
-    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
-    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
     expect(mocks.logger.error).toHaveBeenCalledWith(
       {err: cleanupFailure, bootError: failure},
       'Failed to clean up API server boot',
@@ -380,8 +373,6 @@ describe('createServer', () => {
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
-    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
-    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
   });
 
@@ -395,8 +386,6 @@ describe('createServer', () => {
     expect(mocks.workersHandle.stop).not.toHaveBeenCalled();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
-    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
-    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
   });
 
   it('waits for worker startup before stopping', async () => {
@@ -428,8 +417,6 @@ describe('createServer', () => {
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
-    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
-    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
   });
 
@@ -452,9 +439,6 @@ describe('createServer', () => {
       mocks.closePostgresClient.mock.invocationCallOrder[0] ?? 0,
     );
     expect(mocks.closePostgresClient.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.resetPublishers.mock.invocationCallOrder[0] ?? 0,
-    );
-    expect(mocks.resetSubscribers.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.closeErrorMonitoring.mock.invocationCallOrder[0] ?? 0,
     );
   });
@@ -466,12 +450,6 @@ describe('createServer', () => {
     mocks.workersHandle.stop.mockRejectedValueOnce(new Error('stop workers failed'));
     mocks.shutdownServiceMetrics.mockRejectedValueOnce(new Error('shutdown metrics failed'));
     mocks.closePostgresClient.mockRejectedValueOnce(new Error('close Postgres failed'));
-    mocks.resetPublishers.mockImplementationOnce(() => {
-      throw new Error('reset publishers failed');
-    });
-    mocks.resetSubscribers.mockImplementationOnce(() => {
-      throw new Error('reset subscribers failed');
-    });
     mocks.closeErrorMonitoring.mockRejectedValueOnce(new Error('close monitoring failed'));
 
     const result = server.stop();
@@ -481,8 +459,6 @@ describe('createServer', () => {
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
-    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
-    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
   });
 
@@ -622,8 +598,6 @@ describe('runServer', () => {
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
-    expect(mocks.resetPublishers).toHaveBeenCalledOnce();
-    expect(mocks.resetSubscribers).toHaveBeenCalledOnce();
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
     expect(onStartupFailure.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.closeErrorMonitoring.mock.invocationCallOrder[0] ?? 0,

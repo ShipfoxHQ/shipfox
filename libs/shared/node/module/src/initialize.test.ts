@@ -1,10 +1,31 @@
 import {
   registerModuleMetrics,
-  runModuleStartupTasks,
-  startModuleServices,
-  startModuleWorkers,
+  runModuleStartupTasks as runStartupTasks,
+  startModuleServices as startServices,
+  startModuleWorkers as startWorkers,
 } from './initialize.js';
-import type {ModuleService, ModuleServiceHandle, ModuleWorker, ShipfoxModule} from './types.js';
+import {createOutboxRegistry} from './publisher-registry.js';
+import type {
+  ModuleRuntimeContext,
+  ModuleService,
+  ModuleServiceHandle,
+  ModuleWorker,
+  ShipfoxModule,
+} from './types.js';
+
+const context: ModuleRuntimeContext = {outboxRegistry: createOutboxRegistry()};
+
+function runModuleStartupTasks(options: Omit<Parameters<typeof runStartupTasks>[0], 'context'>) {
+  return runStartupTasks({...options, context});
+}
+
+function startModuleServices(options: Omit<Parameters<typeof startServices>[0], 'context'>) {
+  return startServices({...options, context});
+}
+
+function startModuleWorkers(options: Omit<Parameters<typeof startWorkers>[0], 'context'>) {
+  return startWorkers({...options, context});
+}
 
 const mocks = vi.hoisted(() => ({
   closeTemporalClient: vi.fn(),

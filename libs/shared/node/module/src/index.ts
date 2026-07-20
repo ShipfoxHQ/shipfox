@@ -27,24 +27,26 @@ export type {
   OutboxDispatchClaim,
   OutboxDispatcherPartition,
   OutboxDispatchFailure,
+  OutboxRegistry,
   PruneDispatchedOutboxRowsOptions,
   PrunedOutboxSource,
 } from './publisher-registry.js';
 export {
   BATCH_SIZE,
   countPendingOutboxRows,
+  createOutboxRegistry,
   drainAll,
+  type EventHandler,
   getEventSchema,
   getRegisteredPublisherNames,
+  getSubscribers,
   markDispatched,
   pruneDispatchedOutboxRows,
   recordDispatchFailure,
   registerPublisher,
   renewDispatchClaim,
-  resetPublishers,
+  subscribe,
 } from './publisher-registry.js';
-export type {EventHandler} from './registry.js';
-export {getSubscribers, resetSubscribers, subscribe} from './registry.js';
 export type {ModuleSubscriber} from './subscriber.js';
 export {subscriberFactory} from './subscriber.js';
 export type {
@@ -52,6 +54,7 @@ export type {
   ModuleDatabase,
   ModuleMetricsRegistration,
   ModulePublisher,
+  ModuleRuntimeContext,
   ModuleService,
   ModuleServiceHandle,
   ModuleStartupTasks,

@@ -8,8 +8,6 @@ import {
   type ModuleWorker,
   type ModuleWorkersHandle,
   registerModuleMetrics,
-  resetPublishers,
-  resetSubscribers,
   runModuleStartupTasks,
   type ShipfoxModule,
   startModuleServices,
@@ -52,11 +50,11 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     startServiceMetrics({serviceName: 'api'});
     createPostgresClient();
 
-    const {auth, routes, e2eRoutes, workers, services} = await initializeModules({
+    const {auth, routes, e2eRoutes, workers, services, outboxRegistry} = await initializeModules({
       modules: options.modules,
     });
     registerModuleMetrics({modules: options.modules});
-    await runModuleStartupTasks({modules: options.modules});
+    await runModuleStartupTasks({modules: options.modules, context: {outboxRegistry}});
 
     const e2eAuth = config.E2E_ENABLED ? [createE2eAdminAuthMethod(config)] : [];
     const mountedE2eRoutes = createE2eRouteGroup(e2eRoutes, config);
@@ -82,6 +80,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
         logger().info('Starting module workers');
         workersHandle = await startModuleWorkers({
           workers,
+          context: {outboxRegistry},
           onWorkerFailure: (error, worker) =>
             handleModuleWorkerFailure(error, worker, options.onWorkerFailure),
         });
@@ -89,6 +88,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
         logger().info('Starting module services');
         servicesHandle = await startModuleServices({
           services,
+          context: {outboxRegistry},
           onServiceFailure: (error, service) =>
             handleModuleServiceFailure(error, service, options.onServiceFailure),
         });
@@ -116,9 +116,9 @@ export async function createServer(options: CreateServerOptions): Promise<Server
             () => workersHandle?.stop(),
             () => shutdownServiceMetrics(),
             () => closePostgresClient(),
-            () => resetPublishers(),
-            () => resetSubscribers(),
-            () => closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS),
+            async () => {
+              await closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS);
+            },
           ]);
           throwCleanupErrors(cleanupErrors, 'Failed to stop API server');
           stopped = true;
@@ -135,8 +135,6 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     const cleanupErrors = await runCleanupSteps([
       () => shutdownServiceMetrics(),
       () => closePostgresClient(),
-      () => resetPublishers(),
-      () => resetSubscribers(),
     ]);
     for (const cleanupError of cleanupErrors) {
       logger().error({err: cleanupError, bootError: error}, 'Failed to clean up API server boot');

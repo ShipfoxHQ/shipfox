@@ -9,6 +9,7 @@ import {
   type OutboxDispatchClaim,
   type OutboxDispatcherPartition,
   type OutboxDispatchFailure,
+  type OutboxRegistry,
   recordDispatchFailure,
   renewDispatchClaim,
 } from '@shipfox/node-module';
@@ -19,10 +20,11 @@ const DISPATCH_CONCURRENCY = 8;
 const CLAIM_RENEWAL_INTERVAL_MS = 30_000;
 
 export async function runDrainCycle(
+  outboxRegistry: OutboxRegistry,
   partition?: OutboxDispatcherPartition,
   signal?: AbortSignal,
 ): Promise<boolean> {
-  const {events: rows, hasMore} = await drainAll(partition ? {partition} : {});
+  const {events: rows, hasMore} = await drainAll(outboxRegistry, partition ? {partition} : {});
   drainBatchSize.record(rows.length);
   if (rows.length === 0) return hasMore;
 
@@ -37,13 +39,13 @@ export async function runDrainCycle(
 
         for (const row of group.rows) {
           if (signal?.aborted) break;
-          const succeeded = await dispatchRow(row);
+          const succeeded = await dispatchRow(outboxRegistry, row);
           if (!succeeded) break;
           dispatchedClaims.push(claimFromRow(row));
         }
 
         if (dispatchedClaims.length > 0) {
-          await markDispatched(group.source, dispatchedClaims);
+          await markDispatched(outboxRegistry, group.source, dispatchedClaims);
           eventDispatchedCount.add(dispatchedClaims.length, {
             module: group.source,
             outcome: 'succeeded',
@@ -59,20 +61,33 @@ export async function runDrainCycle(
   return hasMore;
 }
 
-async function dispatchRow(row: DrainedEvent): Promise<boolean> {
-  return await withClaimRenewal(row, async () => await dispatchClaimedRow(row));
+async function dispatchRow(outboxRegistry: OutboxRegistry, row: DrainedEvent): Promise<boolean> {
+  return await withClaimRenewal(
+    row,
+    async () => await dispatchClaimedRow(outboxRegistry, row),
+    outboxRegistry,
+  );
 }
 
-async function dispatchClaimedRow(row: DrainedEvent): Promise<boolean> {
-  const validation = validatePayload(row);
+async function dispatchClaimedRow(
+  outboxRegistry: OutboxRegistry,
+  row: DrainedEvent,
+): Promise<boolean> {
+  const validation = validatePayload(outboxRegistry, row);
   if (!validation.success) {
-    await recordDispatchFailure(row.source, row.id, validation.failure, row.claimExpiresAt);
+    await recordDispatchFailure(
+      outboxRegistry,
+      row.source,
+      row.id,
+      validation.failure,
+      row.claimExpiresAt,
+    );
     recordFailureMetric(row.source, validation.failure.kind);
     return false;
   }
 
   const event = validation.event;
-  const handlers = getSubscribers(event.type);
+  const handlers = getSubscribers(outboxRegistry, event.type);
   let dispatchFailure: OutboxDispatchFailure | undefined;
 
   for (const handler of handlers) {
@@ -88,14 +103,24 @@ async function dispatchClaimedRow(row: DrainedEvent): Promise<boolean> {
 
   if (!dispatchFailure) return true;
 
-  await recordDispatchFailure(row.source, row.id, dispatchFailure, row.claimExpiresAt);
+  await recordDispatchFailure(
+    outboxRegistry,
+    row.source,
+    row.id,
+    dispatchFailure,
+    row.claimExpiresAt,
+  );
   recordFailureMetric(row.source, dispatchFailure.kind);
   return false;
 }
 
-async function withClaimRenewal<T>(row: DrainedEvent, dispatch: () => Promise<T>): Promise<T> {
+async function withClaimRenewal<T>(
+  row: DrainedEvent,
+  dispatch: () => Promise<T>,
+  outboxRegistry: OutboxRegistry,
+): Promise<T> {
   const interval = setInterval(() => {
-    void renewRowClaim(row);
+    void renewRowClaim(outboxRegistry, row);
   }, CLAIM_RENEWAL_INTERVAL_MS);
   try {
     return await dispatch();
@@ -104,9 +129,9 @@ async function withClaimRenewal<T>(row: DrainedEvent, dispatch: () => Promise<T>
   }
 }
 
-async function renewRowClaim(row: DrainedEvent): Promise<void> {
+async function renewRowClaim(outboxRegistry: OutboxRegistry, row: DrainedEvent): Promise<void> {
   try {
-    const claimExpiresAt = await renewDispatchClaim(row.source, claimFromRow(row));
+    const claimExpiresAt = await renewDispatchClaim(outboxRegistry, row.source, claimFromRow(row));
     if (!claimExpiresAt) {
       logger().warn({source: row.source, eventId: row.id}, 'Outbox dispatch claim was not renewed');
       return;
@@ -160,11 +185,12 @@ function compareDrainedRows(a: DrainedEvent, b: DrainedEvent): number {
  * Only log Zod issue paths so recurring validation failures do not repeatedly emit raw payloads.
  */
 function validatePayload(
+  outboxRegistry: OutboxRegistry,
   row: DrainedEvent,
 ):
   | {success: true; event: DrainedEvent['event']}
   | {success: false; failure: OutboxDispatchFailure} {
-  const schema = getEventSchema(row.event.type);
+  const schema = getEventSchema(outboxRegistry, row.event.type);
   if (!schema) return {success: true, event: row.event};
 
   const result = schema.safeParse(row.event.payload);

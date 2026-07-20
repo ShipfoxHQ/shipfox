@@ -21,11 +21,11 @@ export function createDispatcherModule(
 
   return {
     name: 'dispatcher',
-    startupTasks: () => {
-      const publisherNames = getRegisteredPublisherNames();
+    startupTasks: ({outboxRegistry}) => {
+      const publisherNames = getRegisteredPublisherNames(outboxRegistry);
       if (publisherNames.length === 0) {
         throw new Error(
-          'Outbox dispatcher has no registered publishers. This likely means a duplicate @shipfox/node-module instance split the publisher registry. Ensure the API server and dispatcher resolve the same package instance.',
+          'Outbox dispatcher has no registered publishers. Ensure module initialization provides the registry that contains this application’s publishers before starting dispatch.',
         );
       }
 

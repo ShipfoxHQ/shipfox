@@ -1,9 +1,11 @@
+import type {OutboxRegistry} from '@shipfox/node-module';
 import {pruneOutboxRetention} from './prune-outbox-retention.js';
 
 const mocks = vi.hoisted(() => ({
   pruneDispatchedOutboxRows: vi.fn(),
   infoLog: vi.fn(),
 }));
+const outboxRegistry = {} as OutboxRegistry;
 
 vi.mock('@shipfox/node-module', () => ({
   pruneDispatchedOutboxRows: mocks.pruneDispatchedOutboxRows,
@@ -28,9 +30,9 @@ describe('pruneOutboxRetention', () => {
     ];
     mocks.pruneDispatchedOutboxRows.mockResolvedValueOnce(sources);
 
-    await pruneOutboxRetention();
+    await pruneOutboxRetention(outboxRegistry);
 
-    expect(mocks.pruneDispatchedOutboxRows).toHaveBeenCalledWith({
+    expect(mocks.pruneDispatchedOutboxRows).toHaveBeenCalledWith(outboxRegistry, {
       retentionDays: 7,
       batchSize: 5_000,
       maxBatchesPerSource: 200,
