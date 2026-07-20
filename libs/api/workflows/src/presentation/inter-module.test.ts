@@ -42,6 +42,7 @@ describe('Workflows inter-module presentation', () => {
   it('returns only the resolved harness for Logs', async () => {
     mocks.getStepById.mockResolvedValue({config: {harness: 'claude'}});
     const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
       definitions: {} as never,
       runners: {} as never,
       secrets: {} as never,
@@ -94,6 +95,7 @@ describe('Workflows inter-module presentation', () => {
     mocks.getJobScope.mockResolvedValue({workspaceId: '00000000-0000-4000-8000-000000000010'});
     const runners = {getLeaseState: vi.fn().mockResolvedValue({active: true})};
     const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
       definitions: {} as never,
       runners: runners as never,
       secrets: {} as never,
