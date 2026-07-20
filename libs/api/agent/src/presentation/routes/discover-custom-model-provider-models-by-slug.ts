@@ -10,33 +10,39 @@ import {
   discoverCustomModelProviderModels,
   resolveCustomModelProviderDiscoveryParams,
 } from '#core/index.js';
+import type {AgentSecretsClient} from '#core/secrets-client.js';
 import {translateModelProviderRouteError} from './errors.js';
 
-export const discoverCustomModelProviderModelsBySlugRoute = defineRoute({
-  method: 'POST',
-  path: '/custom-model-providers/:slug/discover-models',
-  description: 'Discover models for a stored custom model provider configuration',
-  schema: {
-    params: z.object({
-      workspaceId: z.string().uuid(),
-      slug: modelProviderRefSchema,
-    }),
-    body: discoverCustomModelProviderModelsBySlugBodySchema,
-    response: {
-      200: discoverCustomModelProviderModelsResponseSchema,
+export function createDiscoverCustomModelProviderModelsBySlugRoute(secrets: AgentSecretsClient) {
+  return defineRoute({
+    method: 'POST',
+    path: '/custom-model-providers/:slug/discover-models',
+    description: 'Discover models for a stored custom model provider configuration',
+    schema: {
+      params: z.object({
+        workspaceId: z.string().uuid(),
+        slug: modelProviderRefSchema,
+      }),
+      body: discoverCustomModelProviderModelsBySlugBodySchema,
+      response: {
+        200: discoverCustomModelProviderModelsResponseSchema,
+      },
     },
-  },
-  errorHandler: translateModelProviderRouteError,
-  handler: async (request) => {
-    const {workspaceId, slug} = request.params;
-    requireWorkspaceAccess({request, workspaceId});
+    errorHandler: translateModelProviderRouteError,
+    handler: async (request) => {
+      const {workspaceId, slug} = request.params;
+      requireWorkspaceAccess({request, workspaceId});
 
-    const discoveryParams = await resolveCustomModelProviderDiscoveryParams({
-      workspaceId,
-      providerId: slug,
-      body: request.body ?? {},
-    });
+      const discoveryParams = await resolveCustomModelProviderDiscoveryParams(
+        {
+          workspaceId,
+          providerId: slug,
+          body: request.body ?? {},
+        },
+        {secrets},
+      );
 
-    return await discoverCustomModelProviderModels(discoveryParams);
-  },
-});
+      return await discoverCustomModelProviderModels(discoveryParams);
+    },
+  });
+}

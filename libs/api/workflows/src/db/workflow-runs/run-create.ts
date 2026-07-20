@@ -3,7 +3,7 @@ import {
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
 import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
-import {getVariablesByNamespace} from '@shipfox/api-secrets';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';
@@ -49,6 +49,7 @@ export interface CreateWorkflowRunParams {
   sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   triggerIdempotencyKey?: string | undefined;
   resolveAgentDefaults?: AgentDefaultsResolver | undefined;
+  secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
@@ -125,6 +126,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       workspaceId: params.workspaceId,
       projectId: params.projectId,
       definitionId: params.definitionId,
+      secrets: params.secrets,
     });
     const materializedJobs = materializeWorkflowRunJobs({
       run,
@@ -178,12 +180,14 @@ export async function loadReferencedVariables(params: {
   readonly workspaceId: string;
   readonly projectId: string;
   readonly definitionId: string;
+  readonly secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }): Promise<Record<string, string> | undefined> {
   const references = referencedVariables(params.model, params.jobs ?? params.model.jobs);
   const keys = [...new Set(references.map((reference) => reference.key))].sort();
   if (keys.length === 0) return undefined;
 
-  const vars = await getVariablesByNamespace({
+  if (!params.secrets) throw new Error('Secrets client is not configured.');
+  const {values: vars} = await params.secrets.getVariablesByNamespace({
     workspaceId: params.workspaceId,
     projectId: params.projectId,
     namespace: '',

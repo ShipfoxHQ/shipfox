@@ -1,4 +1,5 @@
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {
   createInterModuleKnownError,
@@ -18,18 +19,23 @@ import {deliverEventToListener} from '#db/job-listener-events.js';
 
 export function createWorkflowsInterModulePresentation(params: {
   definitions: DefinitionsInterModuleClient;
+  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
 }): InterModulePresentation<typeof workflowsInterModuleContract> {
   return defineInterModulePresentation(workflowsInterModuleContract, {
     startRunFromTrigger: async (input) => {
       try {
-        const run = await runWorkflow(params.definitions, {
-          workspaceId: input.workspaceId,
-          projectId: input.projectId,
-          definitionId: input.definitionId,
-          triggerPayload: input.triggerPayload,
-          inputs: input.inputs,
-          triggerIdempotencyKey: input.idempotencyKey,
-        });
+        const run = await runWorkflow(
+          params.definitions,
+          {
+            workspaceId: input.workspaceId,
+            projectId: input.projectId,
+            definitionId: input.definitionId,
+            triggerPayload: input.triggerPayload,
+            inputs: input.inputs,
+            triggerIdempotencyKey: input.idempotencyKey,
+          },
+          {secrets: params.secrets},
+        );
         return {id: run.id, name: run.name};
       } catch (error) {
         throw toStartRunKnownError(error, input.definitionId);

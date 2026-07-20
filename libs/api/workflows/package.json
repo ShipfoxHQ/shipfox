@@ -51,7 +51,6 @@
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-runners": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
-    "@shipfox/api-secrets": "workspace:*",
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/inter-module": "workspace:*",

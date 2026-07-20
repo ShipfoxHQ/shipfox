@@ -1,5 +1,4 @@
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
-import {getSecret, SecretDecryptionError} from '@shipfox/api-secrets';
 import {
   materializedSecretBindingSchema,
   type StepSecretDto,
@@ -7,6 +6,11 @@ import {
   stepSecretsQuerySchema,
   stepSecretsResponseSchema,
 } from '@shipfox/api-secrets-dto';
+import {
+  type SecretsInterModuleClient,
+  secretsInterModuleContract,
+} from '@shipfox/api-secrets-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -15,7 +19,10 @@ import {loadRunningLeasedStep} from './leased-step.js';
 
 const secretBindingsSchema = z.array(materializedSecretBindingSchema);
 
-export function createGetStepSecretsRoute(runners: RunnersInterModuleClient) {
+export function createGetStepSecretsRoute(
+  runners: RunnersInterModuleClient,
+  secretsClient: SecretsInterModuleClient,
+) {
   return defineRoute({
     method: 'GET',
     path: '/steps/:stepId/secrets',
@@ -29,7 +36,7 @@ export function createGetStepSecretsRoute(runners: RunnersInterModuleClient) {
       },
     },
     errorHandler: (error) => {
-      if (error instanceof SecretDecryptionError) {
+      if (isInterModuleKnownError(secretsInterModuleContract.methods.getSecret, error)) {
         captureException(error);
         throw new ClientError('Step secret could not be decrypted', 'secret-value-invalid', {
           status: 409,
@@ -56,7 +63,7 @@ export function createGetStepSecretsRoute(runners: RunnersInterModuleClient) {
       const references = distinctSecretReferences(secretBindings);
       const secrets = await Promise.all(
         references.map(async (reference): Promise<StepSecretDto> => {
-          const value = await getSecret({
+          const {value} = await secretsClient.getSecret({
             workspaceId,
             projectId,
             namespace: '',

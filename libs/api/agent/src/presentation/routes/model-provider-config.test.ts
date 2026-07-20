@@ -6,7 +6,6 @@ import {
   setUserContext,
   type UserContextMembership,
 } from '@shipfox/api-auth-context';
-import {getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
@@ -20,6 +19,7 @@ import {
   upsertModelProviderConfig,
 } from '#db/index.js';
 import {modelProviderConfigs} from '#db/schema/model-provider-configs.js';
+import {getSecretsByNamespace, setSecrets} from '#test/fixtures/secrets-client.js';
 import {agentRoutes} from './index.js';
 
 vi.mock('@earendil-works/pi-ai', async (importOriginal) => {

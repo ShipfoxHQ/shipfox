@@ -2,6 +2,10 @@ import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-mod
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
+import {
+  type SecretsInterModuleClient,
+  secretsInterModuleContract,
+} from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {defaultModules} from './modules.js';
@@ -9,6 +13,7 @@ import {defaultModules} from './modules.js';
 const mocks = vi.hoisted(() => ({
   buildAgentToolCatalogs: vi.fn(),
   buildAgentToolSelectionCatalogs: vi.fn(),
+  createAgentModule: vi.fn(),
   createDefinitionsModule: vi.fn(),
   createIntegrationsContext: vi.fn(),
   createProjectsModule: vi.fn(),
@@ -25,7 +30,6 @@ const mocks = vi.hoisted(() => ({
   setSourceControl: vi.fn(),
 }));
 
-vi.mock('@shipfox/api-agent', () => ({agentModule: {name: 'agent'}}));
 vi.mock('@shipfox/annotations', () => ({
   annotationsModule: {
     name: 'annotations',
@@ -37,6 +41,7 @@ vi.mock('@shipfox/annotations', () => ({
     ],
   },
 }));
+vi.mock('@shipfox/api-agent', () => ({createAgentModule: mocks.createAgentModule}));
 vi.mock('@shipfox/api-auth', () => ({authModule: {name: 'auth'}}));
 vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,
@@ -72,7 +77,6 @@ vi.mock('@shipfox/api-secrets', () => ({
   createSecretsModule: mocks.createSecretsModule,
   deleteSecrets: mocks.deleteSecrets,
   getSecret: mocks.getSecret,
-  secretsModule: {name: 'secrets'},
   setSecrets: mocks.setSecrets,
 }));
 vi.mock('@shipfox/api-triggers', () => ({createTriggersModule: mocks.createTriggersModule}));
@@ -89,6 +93,7 @@ describe('defaultModules', () => {
   beforeEach(() => {
     mocks.buildAgentToolCatalogs.mockReset();
     mocks.buildAgentToolSelectionCatalogs.mockReset();
+    mocks.createAgentModule.mockReset();
     mocks.createDefinitionsModule.mockReset();
     mocks.createIntegrationsContext.mockReset();
     mocks.createProjectsModule.mockReset();
@@ -112,6 +117,9 @@ describe('defaultModules', () => {
     mocks.buildAgentToolCatalogs.mockResolvedValue(new Map());
     mocks.buildAgentToolSelectionCatalogs.mockResolvedValue(new Map());
     mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
+    mocks.deleteSecrets.mockResolvedValue({deleted: 1});
+    mocks.getSecret.mockResolvedValue({value: 'secret'});
+    mocks.setSecrets.mockResolvedValue({});
     mocks.createProjectsModule.mockReturnValue({
       name: 'projects',
       interModulePresentations: [
@@ -129,7 +137,19 @@ describe('defaultModules', () => {
         }),
       ],
     });
-    mocks.createSecretsModule.mockReturnValue({name: 'secrets'});
+    mocks.createSecretsModule.mockReturnValue({
+      name: 'secrets',
+      interModulePresentations: [
+        defineInterModulePresentation(secretsInterModuleContract, {
+          deleteSecrets: mocks.deleteSecrets,
+          getSecret: mocks.getSecret,
+          getSecretsByNamespace: vi.fn(),
+          getVariablesByNamespace: vi.fn(),
+          setSecrets: mocks.setSecrets,
+        }),
+      ],
+    });
+    mocks.createAgentModule.mockReturnValue({name: 'agent'});
     mocks.createDefinitionsModule.mockReturnValue({
       name: 'definitions',
       interModulePresentations: [
@@ -217,7 +237,7 @@ describe('defaultModules', () => {
 
     expect(mocks.createIntegrationsContext).toHaveBeenCalledWith({
       secrets: {
-        deleteSecrets: mocks.deleteSecrets,
+        deleteSecrets: expect.any(Function),
         linear: {
           deleteSecrets: expect.any(Function),
           getSecret: expect.any(Function),
@@ -240,21 +260,9 @@ describe('defaultModules', () => {
 
     const integrationsOptions = mocks.createIntegrationsContext.mock.calls[0]?.[0] as {
       secrets: {
-        linear: {
-          deleteSecrets: (params: {namespace: string}) => unknown;
-          getSecret: (params: {namespace: string}) => unknown;
-          setSecrets: (params: {namespace: string}) => unknown;
-        };
-        jira: {
-          deleteSecrets: (params: {namespace: string}) => unknown;
-          getSecret: (params: {namespace: string}) => unknown;
-          setSecrets: (params: {namespace: string}) => unknown;
-        };
-        slack: {
-          deleteSecrets: (params: {namespace: string}) => unknown;
-          getSecret: (params: {namespace: string}) => unknown;
-          setSecrets: (params: {namespace: string}) => unknown;
-        };
+        linear: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
+        jira: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
+        slack: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
       };
       agentTools: {loadLeasedAgentStep: (params: {stepId: string}) => unknown};
     };
@@ -264,42 +272,84 @@ describe('defaultModules', () => {
       runners: expect.objectContaining({enqueueJobExecution: expect.any(Function)}),
     });
 
-    integrationsOptions.secrets.linear.getSecret({namespace: 'workspace'});
-    integrationsOptions.secrets.linear.setSecrets({namespace: 'workspace'});
-    integrationsOptions.secrets.linear.deleteSecrets({namespace: 'workspace'});
-    integrationsOptions.secrets.jira.getSecret({namespace: 'workspace'});
-    integrationsOptions.secrets.jira.setSecrets({namespace: 'workspace'});
-    integrationsOptions.secrets.jira.deleteSecrets({namespace: 'workspace'});
-    integrationsOptions.secrets.slack.getSecret({namespace: 'workspace'});
-    integrationsOptions.secrets.slack.setSecrets({namespace: 'workspace'});
-    integrationsOptions.secrets.slack.deleteSecrets({namespace: 'workspace'});
+    const scope = {workspaceId: crypto.randomUUID(), projectId: null, namespace: 'workspace'};
+    await Promise.all([
+      integrationsOptions.secrets.linear.getSecret({...scope, key: 'token'}),
+      integrationsOptions.secrets.linear.setSecrets({
+        ...scope,
+        values: {token: 'secret'},
+        editedBy: undefined,
+      }),
+      integrationsOptions.secrets.linear.deleteSecrets({...scope, keys: ['token']}),
+      integrationsOptions.secrets.jira.getSecret({...scope, key: 'token'}),
+      integrationsOptions.secrets.jira.setSecrets({
+        ...scope,
+        values: {token: 'secret'},
+        editedBy: undefined,
+      }),
+      integrationsOptions.secrets.jira.deleteSecrets({...scope, keys: ['token']}),
+      integrationsOptions.secrets.slack.getSecret({...scope, key: 'token'}),
+      integrationsOptions.secrets.slack.setSecrets({
+        ...scope,
+        values: {token: 'secret'},
+        editedBy: undefined,
+      }),
+      integrationsOptions.secrets.slack.deleteSecrets({...scope, keys: ['token']}),
+    ]);
 
-    expect(mocks.getSecret).toHaveBeenCalledWith({
+    expect(mocks.getSecret.mock.calls.map(([params]) => params)).toContainEqual({
+      key: 'token',
       namespace: 'system/integrations/linear/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.setSecrets).toHaveBeenCalledWith({
+    expect(mocks.setSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      values: {token: 'secret'},
       namespace: 'system/integrations/linear/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.deleteSecrets).toHaveBeenCalledWith({
+    expect(mocks.deleteSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      keys: ['token'],
       namespace: 'system/integrations/linear/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.getSecret).toHaveBeenCalledWith({
+    expect(mocks.getSecret.mock.calls.map(([params]) => params)).toContainEqual({
+      key: 'token',
       namespace: 'system/integrations/jira/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.setSecrets).toHaveBeenCalledWith({
+    expect(mocks.setSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      values: {token: 'secret'},
       namespace: 'system/integrations/jira/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.deleteSecrets).toHaveBeenCalledWith({
+    expect(mocks.deleteSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      keys: ['token'],
       namespace: 'system/integrations/jira/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.getSecret).toHaveBeenCalledWith({
+    expect(mocks.getSecret.mock.calls.map(([params]) => params)).toContainEqual({
+      key: 'token',
       namespace: 'system/integrations/slack/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.setSecrets).toHaveBeenCalledWith({
+    expect(mocks.setSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      values: {token: 'secret'},
       namespace: 'system/integrations/slack/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
-    expect(mocks.deleteSecrets).toHaveBeenCalledWith({
+    expect(mocks.deleteSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      keys: ['token'],
       namespace: 'system/integrations/slack/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
     });
   });
 

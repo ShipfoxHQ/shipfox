@@ -1,1 +1,1 @@
-export {agentRoutes as routes} from './routes/index.js';
+export {agentRoutes as routes, createAgentRoutes} from './routes/index.js';

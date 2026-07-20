@@ -2,6 +2,7 @@ import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createAgentRuntimeConfigRoute} from './agent-runtime-config.js';
 import {cancelRunRoute} from './cancel-run.js';
@@ -23,6 +24,17 @@ const unconfiguredProjects = {
     throw new Error('Projects client is not configured');
   },
 } as unknown as ProjectsModuleClient;
+const unconfiguredSecrets = {
+  getSecret: () => {
+    throw new Error('Secrets client is not configured');
+  },
+  getSecretsByNamespace: () => {
+    throw new Error('Secrets client is not configured');
+  },
+  getVariablesByNamespace: () => {
+    throw new Error('Secrets client is not configured');
+  },
+} as unknown as SecretsInterModuleClient;
 
 const unconfiguredAnnotations = {
   replaceOrRemoveAnnotation: () => {
@@ -34,6 +46,7 @@ export function createLeaseTokenRouteGroup(
   runners: RunnersInterModuleClient,
   projects: ProjectsModuleClient = unconfiguredProjects,
   annotations: AnnotationsInterModuleClient = unconfiguredAnnotations,
+  secrets: SecretsInterModuleClient = unconfiguredSecrets,
 ): RouteGroup {
   return {
     prefix: '/runs/jobs/current',
@@ -42,8 +55,8 @@ export function createLeaseTokenRouteGroup(
       createNextStepRoute(runners, annotations),
       createReportStepRoute(runners),
       createCheckoutTokenRoute(runners, projects),
-      createAgentRuntimeConfigRoute(runners),
-      createGetStepSecretsRoute(runners),
+      createAgentRuntimeConfigRoute(runners, secrets),
+      createGetStepSecretsRoute(runners, secrets),
     ],
   };
 }
@@ -52,6 +65,7 @@ export function createWorkflowRoutes(
   runners: RunnersInterModuleClient,
   projects: ProjectsModuleClient = unconfiguredProjects,
   annotations: AnnotationsInterModuleClient = unconfiguredAnnotations,
+  secrets: SecretsInterModuleClient = unconfiguredSecrets,
 ): RouteGroup[] {
   return [
     {
@@ -66,6 +80,6 @@ export function createWorkflowRoutes(
         rerunRunRoute(projects),
       ],
     },
-    createLeaseTokenRouteGroup(runners, projects, annotations),
+    createLeaseTokenRouteGroup(runners, projects, annotations, secrets),
   ];
 }

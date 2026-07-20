@@ -12,6 +12,7 @@ import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 function reportUrl(stepId: string): string {
@@ -28,7 +29,14 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
+      routes: [
+        createLeaseTokenRouteGroup(
+          runnersTestClient,
+          undefined,
+          undefined,
+          createTestSecretsClient(),
+        ),
+      ],
       swagger: false,
     });
     await app.ready();

@@ -2,6 +2,7 @@ import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent
 import {createWorkspaceAgentDefaultsResolver} from '@shipfox/api-agent/core/workspace-agent-defaults-resolver';
 import {workflowModelFromSnapshot} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
@@ -19,6 +20,7 @@ export interface RunWorkflowParams {
 export async function runWorkflow(
   definitions: DefinitionsInterModuleClient,
   params: RunWorkflowParams,
+  options: {secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>} = {},
 ): Promise<WorkflowRun> {
   const {definition} = await definitions.getDefinitionForWorkflowRun({
     definitionId: params.definitionId,
@@ -44,5 +46,6 @@ export async function runWorkflow(
     sourceSnapshot: definition.sourceSnapshot,
     triggerIdempotencyKey: params.triggerIdempotencyKey,
     resolveAgentDefaults,
+    secrets: options.secrets,
   });
 }

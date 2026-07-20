@@ -5,6 +5,7 @@ import {
   getJobsByWorkflowRunId,
   updateJobExecutionStatus,
 } from '#db/index.js';
+import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {resolveLeaseExpiredJobExecutionActivity, setJobStatus} from './orchestration-activities.js';
@@ -12,6 +13,7 @@ import {resolveLeaseExpiredJobExecutionActivity, setJobStatus} from './orchestra
 let workspaceId: string;
 let projectId: string;
 let definitionId: string;
+const secrets = createTestSecretsClient();
 
 beforeEach(() => {
   workspaceId = crypto.randomUUID();
@@ -51,10 +53,10 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
     // reproduce a genuinely stepless (malformed) job.
     await stripSetupStep(jobId);
 
-    const error = await resolveLeaseExpiredJobExecutionActivity({
-      jobExecutionId,
-      expectedVersion: runningVersion,
-    }).catch((err: unknown) => err);
+    const error = await resolveLeaseExpiredJobExecutionActivity(
+      {jobExecutionId, expectedVersion: runningVersion},
+      secrets,
+    ).catch((err: unknown) => err);
 
     expect(error).toBeInstanceOf(ApplicationFailure);
     expect((error as ApplicationFailure).nonRetryable).toBe(true);
@@ -63,10 +65,10 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
   test('a well-formed job resolves without raising', async () => {
     const {jobExecutionId, runningVersion} = await seedRunningJob(2);
 
-    const result = await resolveLeaseExpiredJobExecutionActivity({
-      jobExecutionId,
-      expectedVersion: runningVersion,
-    });
+    const result = await resolveLeaseExpiredJobExecutionActivity(
+      {jobExecutionId, expectedVersion: runningVersion},
+      secrets,
+    );
 
     expect(result.status).toBe('failed');
   });

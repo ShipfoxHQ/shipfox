@@ -10,6 +10,7 @@ import {
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   WORKFLOWS_JOB_EVENT_DELIVERED,
   WORKFLOWS_JOB_STEPS_SETTLED,
@@ -80,16 +81,18 @@ export function createWorkflowsModule({
   annotations,
   projects,
   runners,
+  secrets,
 }: {
   definitions: DefinitionsInterModuleClient;
   annotations: AnnotationsInterModuleClient;
   projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
+  secrets: SecretsInterModuleClient;
 }): ShipfoxModule {
   return {
     name: 'workflows',
     database: {db, migrationsPath},
-    routes: createWorkflowRoutes(runners, projects, annotations),
+    routes: createWorkflowRoutes(runners, projects, annotations, secrets),
     metrics: registerWorkflowsServiceMetrics,
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
@@ -107,10 +110,10 @@ export function createWorkflowsModule({
       {
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createOrchestrationActivities(runners),
+        activities: () => createOrchestrationActivities(runners, secrets),
         workflows: [],
       },
     ],
-    interModulePresentations: [createWorkflowsInterModulePresentation({definitions})],
+    interModulePresentations: [createWorkflowsInterModulePresentation({definitions, secrets})],
   };
 }

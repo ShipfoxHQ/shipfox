@@ -3,7 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "dependsOn": ["$TURBO_EXTENDS$", "@shipfox/api-secrets#build"]
+      "dependsOn": ["$TURBO_EXTENDS$"]
     }
   }
 }

@@ -1797,12 +1797,15 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
-      '@shipfox/api-secrets':
+      '@shipfox/api-secrets-dto':
         specifier: workspace:*
-        version: link:../secrets
+        version: link:../secrets-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -2735,9 +2738,6 @@ importers:
       '@shipfox/api-integration-jira-dto':
         specifier: workspace:*
         version: link:../jira-dto
-      '@shipfox/api-secrets':
-        specifier: workspace:*
-        version: link:../../secrets
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../../workspaces
@@ -2833,9 +2833,6 @@ importers:
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../linear-dto
-      '@shipfox/api-secrets':
-        specifier: workspace:*
-        version: link:../../secrets
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../../workspaces
@@ -3035,9 +3032,6 @@ importers:
       '@shipfox/api-integration-slack-dto':
         specifier: workspace:*
         version: link:../slack-dto
-      '@shipfox/api-secrets':
-        specifier: workspace:*
-        version: link:../../secrets
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../../workspaces
@@ -3676,6 +3670,9 @@ importers:
 
   libs/api/secrets-dto:
     dependencies:
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -3740,6 +3737,9 @@ importers:
       '@shipfox/api-secrets':
         specifier: workspace:*
         version: link:../secrets
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/api-triggers':
         specifier: workspace:*
         version: link:../triggers
@@ -3956,9 +3956,6 @@ importers:
       '@shipfox/api-runners-dto':
         specifier: workspace:*
         version: link:../runners-dto
-      '@shipfox/api-secrets':
-        specifier: workspace:*
-        version: link:../secrets
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto

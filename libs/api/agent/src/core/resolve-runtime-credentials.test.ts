@@ -1,6 +1,6 @@
 import type {ModelProviderRef} from '@shipfox/api-agent-dto';
-import {SecretDecryptionError, setSecrets} from '@shipfox/api-secrets';
 import {deleteModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
+import {setSecrets} from '#test/fixtures/secrets-client.js';
 import {agentSystemNamespace, customCredentialsToStoreValues} from './credential-fingerprints.js';
 import {ModelProviderConfigNotFoundError} from './errors.js';
 import {resolveRuntimeCredentials} from './resolve-runtime-credentials.js';
@@ -245,7 +245,7 @@ describe('resolveRuntimeCredentials', () => {
   });
 
   it('does not expose credential material on store decryption errors', async () => {
-    const error = new SecretDecryptionError();
+    const error = new Error('Secret decryption failed');
     await upsertModelProviderConfig({
       workspaceId,
       providerId: 'anthropic',
@@ -264,7 +264,7 @@ describe('resolveRuntimeCredentials', () => {
       {getCredentialBag: vi.fn().mockRejectedValue(error)},
     );
 
-    await expect(result).rejects.toThrow(SecretDecryptionError);
+    await expect(result).rejects.toBe(error);
     try {
       await result;
     } catch (error) {

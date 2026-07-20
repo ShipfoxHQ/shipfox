@@ -1,6 +1,6 @@
 import {annotationsModule} from '@shipfox/annotations';
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
-import {agentModule} from '@shipfox/api-agent';
+import {createAgentModule} from '@shipfox/api-agent';
 import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
@@ -18,7 +18,8 @@ import {createProjectsModule} from '@shipfox/api-projects';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersModule as defaultRunnersModule} from '@shipfox/api-runners';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
-import {createSecretsModule, deleteSecrets, getSecret, setSecrets} from '@shipfox/api-secrets';
+import {createSecretsModule} from '@shipfox/api-secrets';
+import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {createTriggersModule} from '@shipfox/api-triggers';
 import {
   createWorkflowsModule,
@@ -48,50 +49,81 @@ export async function defaultModules(
   const projectsClient = interModuleTransport.createClient(projectsInterModuleContract);
   const definitionsClient = interModuleTransport.createClient(definitionsInterModuleContract);
   const annotationsClient = interModuleTransport.createClient(annotationsInterModuleContract);
+  const secretsClient = interModuleTransport.createClient(secretsInterModuleContract);
   const integrations = await createIntegrationsContext({
     secrets: {
-      deleteSecrets,
+      deleteSecrets: async (params) => (await secretsClient.deleteSecrets(params)).deleted,
       linear: {
-        getSecret: (params) =>
-          getSecret({
-            ...params,
-            namespace: `system/integrations/linear/${params.namespace}`,
-          }),
-        setSecrets: (params) =>
-          setSecrets({
-            ...params,
-            namespace: `system/integrations/linear/${params.namespace}`,
-          }),
-        deleteSecrets: (params) =>
-          deleteSecrets({
-            ...params,
-            namespace: `system/integrations/linear/${params.namespace}`,
-          }),
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/linear/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/linear/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/linear/${params.namespace}`,
+            })
+          ).deleted,
       },
       jira: {
-        getSecret: (params) =>
-          getSecret({...params, namespace: `system/integrations/jira/${params.namespace}`}),
-        setSecrets: (params) =>
-          setSecrets({...params, namespace: `system/integrations/jira/${params.namespace}`}),
-        deleteSecrets: (params) =>
-          deleteSecrets({...params, namespace: `system/integrations/jira/${params.namespace}`}),
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/jira/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/jira/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/jira/${params.namespace}`,
+            })
+          ).deleted,
       },
       slack: {
-        getSecret: (params) =>
-          getSecret({
-            ...params,
-            namespace: `system/integrations/slack/${params.namespace}`,
-          }),
-        setSecrets: (params) =>
-          setSecrets({
-            ...params,
-            namespace: `system/integrations/slack/${params.namespace}`,
-          }),
-        deleteSecrets: (params) =>
-          deleteSecrets({
-            ...params,
-            namespace: `system/integrations/slack/${params.namespace}`,
-          }),
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/slack/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/slack/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/slack/${params.namespace}`,
+            })
+          ).deleted,
       },
     },
     agentTools: {
@@ -129,7 +161,7 @@ export async function defaultModules(
     authModule,
     workspacesModule,
     createSecretsModule(projectsClient),
-    agentModule,
+    createAgentModule({secrets: secretsClient}),
     integrations.module,
     projectsModule,
     definitionsModule,
@@ -138,6 +170,7 @@ export async function defaultModules(
       definitions: definitionsClient,
       projects: projectsClient,
       runners: runnersClient,
+      secrets: secretsClient,
     }),
     annotationsModule,
     options.runnersModule ?? defaultRunnersModule,

@@ -1,4 +1,5 @@
 import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {WORKFLOWS_JOB_EXECUTION_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import {and, asc, desc, eq, isNull, notInArray, sql} from 'drizzle-orm';
 import type {JobStatusReason} from '#core/entities/job.js';
@@ -117,6 +118,7 @@ export interface UpdateJobExecutionStatusAtVersionParams {
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
   markTimedOut?: boolean;
+  secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
 async function resolveJobExecutionOutputs(
@@ -125,6 +127,7 @@ async function resolveJobExecutionOutputs(
     jobExecutionId: string;
     status: JobExecutionStatus;
     statusReason: JobStatusReason | null;
+    secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
   },
 ): Promise<Record<string, unknown> | null> {
   const [target] = await tx
@@ -182,6 +185,7 @@ async function resolveJobExecutionOutputs(
       workspaceId: target.run.workspaceId,
       projectId: target.run.projectId,
       definitionId: target.run.definitionId,
+      secrets: params.secrets,
     }),
   });
 }
@@ -202,6 +206,7 @@ async function updateJobExecutionStatusAtVersion(
         jobExecutionId: params.jobExecutionId,
         status,
         statusReason,
+        secrets: params.secrets,
       });
     } catch (error) {
       if (!(error instanceof InterpolationUnresolvableError)) throw error;
@@ -241,6 +246,7 @@ export interface UpdateJobExecutionStatusParams {
   status: JobExecutionStatus;
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
+  secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
 export async function updateJobExecutionStatus(
@@ -255,6 +261,7 @@ export async function updateJobExecutionStatus(
           status: params.status,
           expectedVersion: params.expectedVersion,
           statusReason,
+          secrets: params.secrets,
         }),
       fetchFn: async () => {
         const row = (
@@ -310,6 +317,7 @@ export async function failJobExecutionAsTimedOut(params: {
   jobExecutionId: string;
   workflowRunAttemptId: string;
   expectedVersion: number;
+  secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }): Promise<JobExecution> {
   const result = await db().transaction(async (tx) => {
     const updated = await optimisticLockRetry({
@@ -320,6 +328,7 @@ export async function failJobExecutionAsTimedOut(params: {
           expectedVersion: params.expectedVersion,
           statusReason: 'timed_out',
           markTimedOut: true,
+          secrets: params.secrets,
         }),
       fetchFn: async () => {
         const row = (
@@ -361,6 +370,7 @@ export async function failJobExecutionAsTimedOut(params: {
 export async function resolveJobExecutionAfterLeaseExpiry(params: {
   jobExecutionId: string;
   expectedVersion: number;
+  secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
   const result = await db().transaction(async (tx) => {
     const jobExecutionSteps = await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
@@ -377,6 +387,7 @@ export async function resolveJobExecutionAfterLeaseExpiry(params: {
         status,
         expectedVersion: params.expectedVersion,
         statusReason: statusReasonForStepCompletion(status),
+        secrets: params.secrets,
       });
       changedJobExecution = updated?.changed ? updated.execution : null;
     } else {
@@ -385,6 +396,7 @@ export async function resolveJobExecutionAfterLeaseExpiry(params: {
         status: 'failed',
         expectedVersion: params.expectedVersion,
         statusReason: 'runner_lost',
+        secrets: params.secrets,
       });
       if (updated?.changed) {
         changedJobExecution = updated.execution;

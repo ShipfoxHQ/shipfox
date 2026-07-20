@@ -8,15 +8,6 @@ export async function setup() {
   createPostgresClient();
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_integrations_jira');
-  const {secretsModule} = await import('@shipfox/api-secrets');
-  if (!secretsModule.database || Array.isArray(secretsModule.database)) {
-    throw new Error('Secrets module database is not configured');
-  }
-  await runMigrations(
-    secretsModule.database.db(),
-    secretsModule.database.migrationsPath,
-    '__drizzle_migrations_secrets',
-  );
 
   closeDb();
   await closePostgresClient();

@@ -9,8 +9,8 @@ import {
 
 let slackSecrets: SlackSecretsStore;
 
-beforeAll(async () => {
-  slackSecrets = await import('@shipfox/api-secrets');
+beforeEach(() => {
+  slackSecrets = createInMemorySecretsStore();
 });
 
 function createConnectionContext() {
@@ -161,3 +161,17 @@ describe('createSlackTokenStore', () => {
     await expect(result).rejects.toBeInstanceOf(SlackConnectionNotFoundError);
   });
 });
+
+function createInMemorySecretsStore(): SlackSecretsStore {
+  const values = new Map<string, string>();
+  const id = (params: {workspaceId: string; namespace: string; key: string}) =>
+    `${params.workspaceId}\0${params.namespace}\0${params.key}`;
+  return {
+    getSecret: async (params) => values.get(id(params)) ?? null,
+    setSecrets: async (params) => {
+      await Promise.resolve();
+      for (const [key, value] of Object.entries(params.values))
+        values.set(id({...params, key}), value);
+    },
+  };
+}

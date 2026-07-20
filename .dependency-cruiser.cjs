@@ -217,6 +217,9 @@ module.exports = {
           },
         ]
       : []),
+    ...(['@shipfox/api-agent', '@shipfox/api-integration-jira', '@shipfox/api-integration-linear', '@shipfox/api-integration-slack', '@shipfox/api-workflows'].includes(currentPackage.name)
+      ? [{name: 'secrets-consumers-use-inter-module-api', comment: 'Secrets consumers may depend on the Secrets DTO contract, but never the Secrets implementation package.', severity: 'error', from: {path: '^(src|test)/'}, to: {path: '(?:^|/)secrets/(?:src|dist)/'}}]
+      : []),
   ],
   options: {
     doNotFollow: {
