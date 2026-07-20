@@ -6,24 +6,14 @@ Small mailer interface for Shipfox Node packages. It supports SMTP delivery for 
 
 - **`Mailer`**: Interface with one `send(message)` method.
 - **`MailMessage`**: Message shape with `to`, `subject`, `text`, and optional `html`.
+- **`mailer`**: Configured process-wide mailer that uses the environment variables below.
 - **`createConsoleMailer(options)`**: Logs mail through the Shipfox logger and can capture messages in an array.
 - **`createSmtpMailer(options)`**: Sends mail through `nodemailer`.
 
 ## Usage
 
 ```ts
-import {createConsoleMailer, createSmtpMailer, type Mailer} from '@shipfox/node-mailer';
-
-const mailer: Mailer =
-  process.env.MAILER_TRANSPORT === 'smtp'
-    ? createSmtpMailer({
-        host: 'smtp.example.com',
-        port: 587,
-        user: process.env.SMTP_USER,
-        password: process.env.SMTP_PASSWORD,
-        from: 'noreply@shipfox.local',
-      })
-    : createConsoleMailer({from: 'noreply@shipfox.local'});
+import {mailer} from '@shipfox/node-mailer';
 
 await mailer.send({
   to: 'user@example.com',
@@ -31,6 +21,17 @@ await mailer.send({
   text: 'Open this link to verify your email.',
 });
 ```
+
+## Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MAILER_TRANSPORT` | `console` | Mail transport. Set to `smtp` to send real mail. |
+| `MAILER_FROM` | `noreply@shipfox.local` | Sender address shown on outgoing emails. |
+| `SMTP_HOST` | none | Required when `MAILER_TRANSPORT=smtp`. |
+| `SMTP_PORT` | `587` | SMTP server port. |
+| `SMTP_USER` | none | Optional SMTP user. |
+| `SMTP_PASSWORD` | none | Optional SMTP password. |
 
 ## Notes
 

@@ -8,6 +8,9 @@ vi.mock('#config.js', () => ({
   config: {
     CLIENT_BASE_URL: 'https://app.example.test',
   },
+}));
+
+vi.mock('@shipfox/node-mailer', () => ({
   mailer: {send: vi.fn()},
 }));
 

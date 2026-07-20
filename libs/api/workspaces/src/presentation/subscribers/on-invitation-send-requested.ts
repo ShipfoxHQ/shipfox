@@ -1,6 +1,6 @@
 import type {WorkspacesInvitationSendRequestedEvent} from '@shipfox/api-workspaces-dto';
 import {renderEmail} from '@shipfox/node-email';
-import {mailer} from '#config.js';
+import {mailer} from '@shipfox/node-mailer';
 
 export async function onInvitationSendRequested(
   payload: WorkspacesInvitationSendRequestedEvent,

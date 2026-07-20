@@ -16,7 +16,7 @@ pnpm add @shipfox/api-workspaces
 ```
 
 Set `CLIENT_BASE_URL` to the public client URL. Invite emails use this URL for
-their accept links. Set up the shared mailer when invite email must be sent.
+their accept links. Configure `@shipfox/node-mailer` when invite email must be sent.
 
 ## Usage
 
@@ -39,7 +39,7 @@ const membership = await ensureMembership({
 | --- | --- | --- |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in workspace invitation links. |
 
-The package also uses the shared mailer configuration when it sends invitation email.
+Invitation email uses the shared `@shipfox/node-mailer` configuration.
 
 ## Routes / API / Data Model
 

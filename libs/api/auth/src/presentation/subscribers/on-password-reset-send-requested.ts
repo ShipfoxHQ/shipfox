@@ -1,6 +1,6 @@
 import type {AuthPasswordResetSendRequestedEvent} from '@shipfox/api-auth-dto';
 import {renderEmail} from '@shipfox/node-email';
-import {mailer} from '#config.js';
+import {mailer} from '@shipfox/node-mailer';
 
 export async function onPasswordResetSendRequested(
   payload: AuthPasswordResetSendRequestedEvent,

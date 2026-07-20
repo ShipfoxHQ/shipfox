@@ -49,12 +49,8 @@ Required environment:
 | `AUTH_PASSWORD_ENABLED` | `true` | Enables password and email-verification routes. Set to `false` when another module provides login. Server construction fails if no login method is available. |
 | `RATE_LIMIT_IDENTIFIER_SECRET` | none | Optional secret used to HMAC identifiers before storing rate-limit counters. When unset, the module derives a stable key from `AUTH_JWT_SECRET`. |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in email verification and password reset links. |
-| `MAILER_TRANSPORT` | `console` | Mail transport. Set to `smtp` to send real mail. |
-| `MAILER_FROM` | `noreply@shipfox.local` | Sender used by auth emails. |
-| `SMTP_HOST` | none | Required when `MAILER_TRANSPORT=smtp`. |
-| `SMTP_PORT` | `587` | SMTP server port. |
-| `SMTP_USER` | none | Optional SMTP user. |
-| `SMTP_PASSWORD` | none | Optional SMTP password. |
+
+Email delivery uses the shared `@shipfox/node-mailer` configuration.
 
 When `AUTH_PASSWORD_ENABLED=false`, the module does not register signup, login, password-reset, password-change, or email-verification routes. Refresh, logout, and current-session routes stay available. Another module must contribute a login method before the API server starts.
 
