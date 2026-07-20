@@ -12,6 +12,7 @@ import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
 import {registerRunnersServiceMetrics} from '#metrics/index.js';
 import {
   createProvisionerTokenAuthMethod,
+  createRunnerControlSessionAuthMethod,
   createRunnerRegistrationTokenAuthMethod,
   createRunnerRoutes,
   onWorkflowsJobExecutionTimedOut,
@@ -58,7 +59,11 @@ export function createRunnersModule({
   return {
     name: 'runners',
     database: {db, migrationsPath},
-    auth: [createRunnerRegistrationTokenAuthMethod(), createProvisionerTokenAuthMethod()],
+    auth: [
+      createRunnerRegistrationTokenAuthMethod(),
+      createRunnerControlSessionAuthMethod(),
+      createProvisionerTokenAuthMethod(),
+    ],
     routes: createRunnerRoutes(auth, options),
     metrics: registerRunnersServiceMetrics,
     publishers: [{name: 'runners', table: runnersOutbox, db, eventSchemas: runnersEventSchemas}],

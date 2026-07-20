@@ -95,5 +95,6 @@ export type {
 } from './runner-sessions.js';
 export {createRunnerSession, deleteExpiredRunnerSessions} from './runner-sessions.js';
 export {runnersOutbox} from './schema/outbox.js';
+export {runnerBootstrapTokens, runnerControlSessions} from './schema/runner-control-sessions.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');

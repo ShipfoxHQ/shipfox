@@ -43,6 +43,15 @@ export {
   revokeWorkspaceProvisionerToken,
 } from './provisioner-tokens.js';
 export {
+  attachRunnerControlProviderId,
+  createRunnerInstancesWithBootstrapTokens,
+  enrollRunnerControlSession,
+  exchangeRunnerBootstrapToken,
+  RunnerBootstrapTokenInvalidError,
+  RunnerControlSessionInvalidError,
+  touchRunnerControlSession,
+} from './runner-control-sessions.js';
+export {
   type ActiveRunner,
   attachProviderRunnerId,
   createPlannedProvisionedCapacity,

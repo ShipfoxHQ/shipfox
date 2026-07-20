@@ -122,6 +122,20 @@ export {
   reportRunnerInstancesResponseSchema,
 } from './report-runner-instances.js';
 export {
+  attachRunnerControlProviderIdBodySchema,
+  type CreateRunnerInstancesBodyDto,
+  type CreateRunnerInstancesResponseDto,
+  createRunnerInstancesBodySchema,
+  createRunnerInstancesResponseSchema,
+  type RunnerBootstrapExchangeBodyDto,
+  type RunnerBootstrapExchangeResponseDto,
+  type RunnerEnrollmentBodyDto,
+  runnerBootstrapExchangeBodySchema,
+  runnerBootstrapExchangeResponseSchema,
+  runnerControlHeartbeatResponseSchema,
+  runnerEnrollmentBodySchema,
+} from './runner-enrollment.js';
+export {
   type RunnerHarnessToolCapabilitiesDto,
   type RunnerToolCapabilitiesDto,
   runnerHarnessToolCapabilitiesSchema,

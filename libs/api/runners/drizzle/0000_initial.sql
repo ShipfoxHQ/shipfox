@@ -79,6 +79,8 @@ CREATE TABLE "runners_runner_instances" (
 	"reason" text,
 	"runner_session_id" uuid,
 	"provider_kind" text,
+	"protocol_version" text,
+	"capabilities" jsonb,
 	"reported_at" timestamp with time zone NOT NULL,
 	"started_at" timestamp with time zone,
 	"stopping_at" timestamp with time zone,
@@ -88,6 +90,31 @@ CREATE TABLE "runners_runner_instances" (
 	"reservation_released_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "runners_runner_bootstrap_tokens" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"runner_instance_id" uuid NOT NULL,
+	"provisioner_id" uuid NOT NULL,
+	"hashed_token" text NOT NULL,
+	"prefix" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"consumed_at" timestamp with time zone,
+	"revoked_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "runners_runner_control_sessions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"runner_instance_id" uuid NOT NULL,
+	"provisioner_id" uuid NOT NULL,
+	"hashed_token" text NOT NULL,
+	"prefix" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"closed_at" timestamp with time zone,
+	"close_reason" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "runners_provisioner_capability_snapshots" (
@@ -194,6 +221,11 @@ CREATE INDEX "runners_outbox_dispatched_retention_idx" ON "runners_outbox" USING
 CREATE INDEX "runners_pending_jobs_workspace_created_idx" ON "runners_pending_jobs" USING btree ("workspace_id","created_at");--> statement-breakpoint
 CREATE INDEX "runners_pending_jobs_job_id_idx" ON "runners_pending_jobs" USING btree ("job_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_runner_instances_provisioner_runner_unique" ON "runners_runner_instances" USING btree ("provisioner_id","provider_runner_id") WHERE "provider_runner_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_runner_bootstrap_tokens_hashed_token_unique" ON "runners_runner_bootstrap_tokens" USING btree ("hashed_token");--> statement-breakpoint
+CREATE INDEX "runners_runner_bootstrap_tokens_runner_instance_idx" ON "runners_runner_bootstrap_tokens" USING btree ("runner_instance_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_runner_control_sessions_hashed_token_unique" ON "runners_runner_control_sessions" USING btree ("hashed_token");--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_runner_control_sessions_active_runner_instance_unique" ON "runners_runner_control_sessions" USING btree ("runner_instance_id") WHERE "closed_at" is null;--> statement-breakpoint
+CREATE INDEX "runners_runner_control_sessions_runner_instance_idx" ON "runners_runner_control_sessions" USING btree ("runner_instance_id");--> statement-breakpoint
 CREATE INDEX "runners_runner_instances_workspace_state_updated_idx" ON "runners_runner_instances" USING btree ("state","updated_at");--> statement-breakpoint
 CREATE INDEX "runners_runner_instances_stale_reaper_idx" ON "runners_runner_instances" USING btree ("state","updated_at","reported_at");--> statement-breakpoint
 CREATE INDEX "runners_runner_instances_active_template_counts_idx" ON "runners_runner_instances" USING btree ("provisioner_id","state","template_key") WHERE "state" in ('starting', 'running') and "template_key" is not null;--> statement-breakpoint

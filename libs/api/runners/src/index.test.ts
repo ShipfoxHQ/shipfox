@@ -8,8 +8,8 @@ describe('createRunnersModule', () => {
     const module = createRunnersModule({auth});
 
     expect(module.name).toBe('runners');
-    expect(module.auth).toHaveLength(2);
-    expect(module.routes).toHaveLength(9);
+    expect(module.auth).toHaveLength(3);
+    expect(module.routes).toHaveLength(11);
     expect(module.workers).toHaveLength(1);
   });
 

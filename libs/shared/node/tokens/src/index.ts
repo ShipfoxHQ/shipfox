@@ -12,6 +12,8 @@ export const tokenTypeParts = {
   refreshToken: 'r',
   manualRegistrationToken: 'mrt',
   ephemeralRegistrationToken: 'ert',
+  runnerBootstrapToken: 'rbt',
+  runnerControlSession: 'rcs',
   provisionerToken: 'pt',
 } as const;
 

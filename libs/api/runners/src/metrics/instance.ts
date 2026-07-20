@@ -25,6 +25,17 @@ export const providerRunnerReportCount = meter.createCounter<{
   description: 'Provisioned runner lifecycle reports accepted by state',
 });
 
+export const runnerBootstrapExchangeCount = meter.createCounter<{
+  outcome: 'accepted' | 'rejected';
+}>('runners_runner_bootstrap_exchange', {
+  description: 'Runner bootstrap-token exchanges by outcome',
+});
+
+export const runnerControlHeartbeatCount = meter.createCounter<Record<string, never>>(
+  'runners_runner_control_heartbeat',
+  {description: 'Pre-workspace runner-control heartbeats accepted'},
+);
+
 export const providerRunnerReapedCount = meter.createCounter<Record<string, never>>(
   'runners_provider_runner_reaped',
   {
