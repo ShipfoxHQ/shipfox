@@ -22,7 +22,7 @@ import {
   provisionedRunnerTerminateIntentIssuedCount,
 } from '#metrics/instance.js';
 import {pendingJobFactory, provisionedRunnerFactory, runnerSessionFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {createRunnerRoutes, runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
 const INSTALLATION_PROVISIONER_TOKEN = 'installation-provisioner-token';
@@ -336,5 +336,91 @@ describe('POST /provisioners/demand/poll', () => {
         lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
         cancellationRequestedAt: params.cancellationRequestedAt ?? null,
       });
+  }
+});
+
+describe('POST /provisioners/demand/poll with installation provisioning configured', () => {
+  let app: FastifyInstance;
+  let workspaceId: string;
+  let provisionerTokenId: string;
+
+  const fakeProvisionerAuth: AuthMethod = {
+    name: AUTH_PROVISIONER_TOKEN,
+    authenticate: (request: FastifyRequest) => {
+      const rawToken = extractBearerToken(request.headers.authorization);
+      if (rawToken === INSTALLATION_PROVISIONER_TOKEN) {
+        setProvisionerContext(request, {scope: 'installation', provisionerTokenId});
+        return Promise.resolve();
+      }
+      setProvisionerContext(request, {scope: 'workspace', workspaceId, provisionerTokenId});
+      return Promise.resolve();
+    },
+  };
+
+  beforeAll(async () => {
+    app = await createApp({
+      auth: [
+        passthroughAuth(AUTH_USER),
+        passthroughAuth(AUTH_RUNNER_REGISTRATION_TOKEN),
+        passthroughAuth(AUTH_RUNNER_SESSION),
+        passthroughAuth(AUTH_LEASED_JOB),
+        fakeProvisionerAuth,
+      ],
+      routes: createRunnerRoutes({
+        installationProvisioning: {policy: {filterEligibleWorkspaceIds: vi.fn()}},
+      }),
+      swagger: false,
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await closeApp();
+  });
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    provisionerTokenId = crypto.randomUUID();
+  });
+
+  it('returns 501 for installation provisioner credentials', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/demand/poll',
+      headers: {authorization: `Bearer ${INSTALLATION_PROVISIONER_TOKEN}`},
+      payload: body({max_reservations: 1}),
+    });
+
+    expect(res.statusCode).toBe(501);
+    expect(res.json().code).toBe('installation-provisioning-unavailable');
+  });
+
+  it('still serves workspace provisioner credentials', async () => {
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/demand/poll',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: body({max_reservations: 1}),
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  function body(params: {max_reservations: number}) {
+    return {
+      wait_seconds: 0,
+      max_reservations: params.max_reservations,
+      templates: [
+        {
+          template_key: 'linux',
+          labels: ['linux'],
+          available_slots: 1,
+          starting: 0,
+          running: 0,
+        },
+      ],
+    };
   }
 });
