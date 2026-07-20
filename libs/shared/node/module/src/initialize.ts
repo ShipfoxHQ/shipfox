@@ -149,12 +149,15 @@ function moduleMigrationTableName(moduleName: string, index: number): string {
  * import modules from binding the metrics port, and isolates registration
  * failures from the boot path.
  */
-export function registerModuleMetrics(options: {modules: ShipfoxModule[]}): void {
+export function registerModuleMetrics(options: {
+  modules: ShipfoxModule[];
+  context: ModuleRuntimeContext;
+}): void {
   for (const mod of options.modules) {
     if (!mod.metrics) continue;
     try {
       logger().info({module: mod.name}, 'Registering module metrics');
-      mod.metrics();
+      mod.metrics(options.context);
     } catch (error) {
       logger().warn({err: error, module: mod.name}, 'Failed to register module metrics');
     }

@@ -53,7 +53,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     const {auth, routes, e2eRoutes, workers, services, outboxRegistry} = await initializeModules({
       modules: options.modules,
     });
-    registerModuleMetrics({modules: options.modules});
+    registerModuleMetrics({modules: options.modules, context: {outboxRegistry}});
     await runModuleStartupTasks({modules: options.modules, context: {outboxRegistry}});
 
     const e2eAuth = config.E2E_ENABLED ? [createE2eAdminAuthMethod(config)] : [];

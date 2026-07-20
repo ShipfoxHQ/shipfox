@@ -61,7 +61,7 @@ describe('registerModuleMetrics', () => {
       {name: 'second', metrics: second},
     ];
 
-    registerModuleMetrics({modules});
+    registerModuleMetrics({modules, context});
 
     expect(first).toHaveBeenCalledOnce();
     expect(second).toHaveBeenCalledOnce();
@@ -71,7 +71,7 @@ describe('registerModuleMetrics', () => {
     const withMetrics = vi.fn();
     const modules: ShipfoxModule[] = [{name: 'none'}, {name: 'has', metrics: withMetrics}];
 
-    registerModuleMetrics({modules});
+    registerModuleMetrics({modules, context});
 
     expect(withMetrics).toHaveBeenCalledOnce();
   });
@@ -88,7 +88,7 @@ describe('registerModuleMetrics', () => {
       {name: 'later', metrics: later},
     ];
 
-    registerModuleMetrics({modules});
+    registerModuleMetrics({modules, context});
 
     expect(later).toHaveBeenCalledOnce();
   });

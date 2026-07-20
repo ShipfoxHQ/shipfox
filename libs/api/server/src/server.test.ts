@@ -194,7 +194,10 @@ describe('createServer', () => {
     expect(mocks.aggregateLoginMethods).toHaveBeenCalledWith({modules});
     expect(mocks.createPostgresClient).toHaveBeenCalledOnce();
     expect(mocks.initializeModules).toHaveBeenCalledWith({modules});
-    expect(mocks.registerModuleMetrics).toHaveBeenCalledWith({modules});
+    expect(mocks.registerModuleMetrics).toHaveBeenCalledWith({
+      modules,
+      context: {outboxRegistry: undefined},
+    });
     expect(mocks.runModuleStartupTasks).toHaveBeenCalledWith({
       modules,
       context: {outboxRegistry: undefined},

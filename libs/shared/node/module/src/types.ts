@@ -72,7 +72,7 @@ export interface ModuleService {
  * fetch the service metrics provider inside the callback so ordinary module
  * imports do not bind the metrics port.
  */
-export type ModuleMetricsRegistration = () => void;
+export type ModuleMetricsRegistration = (context: ModuleRuntimeContext) => void;
 
 export type ModuleStartupTasks = (context: ModuleRuntimeContext) => Promise<void>;
 
