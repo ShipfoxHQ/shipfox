@@ -23,9 +23,13 @@ export function createVerifyEmailConfirmRoute(workspaces: WorkspacesInterModuleC
     },
     errorHandler: (error) => {
       if (error instanceof TokenInvalidError) {
-        throw new ClientError('Verification code is invalid or expired', 'email-challenge-invalid', {
-          status: 410,
-        });
+        throw new ClientError(
+          'Verification code is invalid or expired',
+          'email-challenge-invalid',
+          {
+            status: 410,
+          },
+        );
       }
       if (error instanceof EmailChallengeError) {
         throw new ClientError(error.message, `email-challenge-${error.code}`, {

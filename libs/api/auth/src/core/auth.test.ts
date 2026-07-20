@@ -139,7 +139,7 @@ describe('auth core', () => {
   });
 
   test('signup rejects duplicate email with a business error', async () => {
-    const existing = await userFactory.create();
+    const existing = await userFactory.create({emailVerifiedAt: new Date()});
 
     const promise = signup({
       email: existing.email,

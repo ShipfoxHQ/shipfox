@@ -1926,9 +1926,6 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
-      '@shipfox/api-email-challenges':
-        specifier: workspace:*
-        version: link:../email-challenges
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
@@ -2005,6 +2002,9 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
+      '@shipfox/api-email-challenges':
+        specifier: workspace:*
+        version: link:../email-challenges
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../workspaces-dto
@@ -3789,6 +3789,9 @@ importers:
       '@shipfox/api-dispatcher':
         specifier: workspace:*
         version: link:../dispatcher
+      '@shipfox/api-email-challenges':
+        specifier: workspace:*
+        version: link:../email-challenges
       '@shipfox/api-integration-core':
         specifier: workspace:*
         version: link:../integration/core
