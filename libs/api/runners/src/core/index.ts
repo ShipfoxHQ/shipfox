@@ -4,6 +4,7 @@ export type {
   ProvisionedRunner,
   ProvisionedRunnerState,
 } from './entities/provisioned-runner.js';
+export type {ProvisionerCapabilitySnapshot} from './entities/provisioner-capability-snapshot.js';
 export type {
   ActiveProvisionerToken,
   ProvisionerScope,
@@ -45,6 +46,7 @@ export {
   reconcileProvisionedRunners,
   reportProvisionedRunners,
 } from './provisioned-runners.js';
+export {hasActiveWorkspaceProvisionerCapability} from './provisioner-capability-snapshots.js';
 export {
   createInstallationProvisionerToken,
   createWorkspaceProvisionerToken,

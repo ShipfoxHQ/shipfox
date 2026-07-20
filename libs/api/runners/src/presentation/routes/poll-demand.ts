@@ -6,6 +6,7 @@ import {pollDemandBodySchema, pollDemandResponseSchema} from '@shipfox/api-runne
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {config} from '#config.js';
 import {pollDemand, releaseReservationGrants} from '#core/demand.js';
+import {publishWorkspaceProvisionerCapabilitySnapshot} from '#db/provisioner-capability-snapshots.js';
 import type {ReservationGrant} from '#db/reservations.js';
 import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
 import {toPollDemandResponseDto} from '#presentation/dto/index.js';
@@ -50,6 +51,19 @@ export function createPollDemandRoute(options: CreateRunnersModuleOptions = {}) 
         }
       });
 
+      const templates = request.body.templates.map((template) => ({
+        templateKey: template.template_key,
+        labels: template.labels,
+        availableSlots: template.available_slots,
+        starting: template.starting,
+        running: template.running,
+      }));
+      await publishWorkspaceProvisionerCapabilitySnapshot({
+        workspaceId,
+        provisionerId: provisionerTokenId,
+        templates,
+      });
+
       const result = await pollDemand({
         workspaceId,
         provisionerId: provisionerTokenId,
@@ -57,13 +71,7 @@ export function createPollDemandRoute(options: CreateRunnersModuleOptions = {}) 
         waitSeconds: request.body.wait_seconds,
         ttlSeconds: config.RESERVATION_TTL_SECONDS,
         terminateIntentLimit: TERMINATE_INTENT_LIMIT,
-        templates: request.body.templates.map((template) => ({
-          templateKey: template.template_key,
-          labels: template.labels,
-          availableSlots: template.available_slots,
-          starting: template.starting,
-          running: template.running,
-        })),
+        templates,
         signal: abortController.signal,
       });
       responseReservations = result.reservations;

@@ -5,6 +5,7 @@ import {manualRegistrationTokens} from './schema/manual-registration-tokens.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionedRunners} from './schema/provisioned-runners.js';
+import {provisionerCapabilitySnapshots} from './schema/provisioner-capability-snapshots.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {runnersRateLimits} from './schema/rate-limits.js';
 import {reservations} from './schema/reservations.js';
@@ -15,6 +16,7 @@ export const schema = {
   ephemeralRegistrationTokens,
   pendingJobExecutions,
   provisionedRunners,
+  provisionerCapabilitySnapshots,
   provisionerTokens,
   runnersRateLimits,
   reservations,
