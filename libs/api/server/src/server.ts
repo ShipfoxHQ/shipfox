@@ -3,6 +3,8 @@ import {closeApp, createApp, listen} from '@shipfox/node-fastify';
 import {
   aggregateLoginMethods,
   initializeModules,
+  type ModuleService,
+  type ModuleServicesHandle,
   type ModuleWorker,
   type ModuleWorkersHandle,
   registerModuleMetrics,
@@ -10,6 +12,7 @@ import {
   resetSubscribers,
   runModuleStartupTasks,
   type ShipfoxModule,
+  startModuleServices,
   startModuleWorkers,
 } from '@shipfox/node-module';
 import {logger, shutdownServiceMetrics, startServiceMetrics} from '@shipfox/node-opentelemetry';
@@ -17,7 +20,7 @@ import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres'
 import {config, parseApiTrustProxy} from './config.js';
 import {createE2eAdminAuthMethod, createE2eRouteGroup} from './e2e.js';
 
-const WORKER_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS = 10_000;
+const RUNTIME_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS = 10_000;
 const ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 let hasActiveServer = false;
@@ -25,6 +28,7 @@ let hasActiveServer = false;
 export interface CreateServerOptions {
   modules: ShipfoxModule[];
   onWorkerFailure?: (error: unknown, worker: ModuleWorker) => void | Promise<void>;
+  onServiceFailure?: (error: unknown, service: ModuleService) => void | Promise<void>;
 }
 
 export interface ServerHandle {
@@ -48,7 +52,9 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     startServiceMetrics({serviceName: 'api'});
     createPostgresClient();
 
-    const {auth, routes, e2eRoutes, workers} = await initializeModules({modules: options.modules});
+    const {auth, routes, e2eRoutes, workers, services} = await initializeModules({
+      modules: options.modules,
+    });
     registerModuleMetrics({modules: options.modules});
     await runModuleStartupTasks({modules: options.modules});
 
@@ -63,6 +69,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     });
 
     let workersHandle: ModuleWorkersHandle | undefined;
+    let servicesHandle: ModuleServicesHandle | undefined;
     let startPromise: Promise<string> | undefined;
     let stopPromise: Promise<void> | undefined;
     let stopped = false;
@@ -77,6 +84,13 @@ export async function createServer(options: CreateServerOptions): Promise<Server
           workers,
           onWorkerFailure: (error, worker) =>
             handleModuleWorkerFailure(error, worker, options.onWorkerFailure),
+        });
+
+        logger().info('Starting module services');
+        servicesHandle = await startModuleServices({
+          services,
+          onServiceFailure: (error, service) =>
+            handleModuleServiceFailure(error, service, options.onServiceFailure),
         });
 
         if (stopPromise) throw new Error('API server stopped during startup');
@@ -98,6 +112,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
           await startPromise?.catch(() => undefined);
           const cleanupErrors = await runCleanupSteps([
             () => closeApp(),
+            () => servicesHandle?.stop(),
             () => workersHandle?.stop(),
             () => shutdownServiceMetrics(),
             () => closePostgresClient(),
@@ -137,6 +152,7 @@ export async function runServer(options: RunServerOptions): Promise<ServerHandle
     handle = await createServer({
       modules: options.modules,
       onWorkerFailure: () => process.exit(1),
+      onServiceFailure: () => process.exit(1),
     });
   } catch (error) {
     await reportStartupFailure(error, options.onStartupFailure);
@@ -204,21 +220,48 @@ async function handleModuleWorkerFailure(
   worker: ModuleWorker,
   onWorkerFailure: CreateServerOptions['onWorkerFailure'],
 ): Promise<void> {
-  logger().error({err: error, taskQueue: worker.taskQueue}, 'Module worker stopped unexpectedly');
-  captureException(error);
+  await handleModuleRuntimeFailure({
+    error,
+    fields: {taskQueue: worker.taskQueue},
+    message: 'Module worker stopped unexpectedly',
+    onFailure: () => onWorkerFailure?.(error, worker),
+  });
+}
+
+async function handleModuleServiceFailure(
+  error: unknown,
+  service: ModuleService,
+  onServiceFailure: CreateServerOptions['onServiceFailure'],
+): Promise<void> {
+  await handleModuleRuntimeFailure({
+    error,
+    fields: {service: service.name},
+    message: 'Module service stopped unexpectedly',
+    onFailure: () => onServiceFailure?.(error, service),
+  });
+}
+
+async function handleModuleRuntimeFailure(options: {
+  error: unknown;
+  fields: Record<string, string>;
+  message: string;
+  onFailure(): void | Promise<void>;
+}): Promise<void> {
+  logger().error({err: options.error, ...options.fields}, options.message);
+  captureException(options.error);
 
   try {
-    await closeHttpServerAfterWorkerFailure();
+    await closeHttpServerAfterRuntimeFailure();
     await closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS);
   } finally {
-    await onWorkerFailure?.(error, worker);
+    await options.onFailure();
   }
 }
 
-async function closeHttpServerAfterWorkerFailure(): Promise<void> {
+async function closeHttpServerAfterRuntimeFailure(): Promise<void> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<'timeout'>((resolve) => {
-    timeoutId = setTimeout(() => resolve('timeout'), WORKER_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS);
+    timeoutId = setTimeout(() => resolve('timeout'), RUNTIME_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS);
   });
   try {
     const result = await Promise.race([closeApp().then(() => 'closed' as const), timeout]).finally(
@@ -230,12 +273,12 @@ async function closeHttpServerAfterWorkerFailure(): Promise<void> {
     );
     if (result === 'timeout') {
       logger().error(
-        {timeoutMs: WORKER_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS},
-        'Timed out closing HTTP server after worker failure',
+        {timeoutMs: RUNTIME_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS},
+        'Timed out closing HTTP server after module runtime failure',
       );
     }
   } catch (error) {
-    logger().error({err: error}, 'Failed to close HTTP server after worker failure');
+    logger().error({err: error}, 'Failed to close HTTP server after module runtime failure');
   } finally {
     if (timeoutId) {
       clearTimeout(timeoutId);

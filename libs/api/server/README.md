@@ -42,7 +42,7 @@ node --import @shipfox/api-server/instrumentation ./dist/index.js
 
 - **Custom composition**: Pass a module list to make a custom server. A module must declare a unique `loginMethods` entry. `createServer` throws before startup side effects when no login method is available.
 - **Signal handling**: `createServer` does not install signal handlers.
-- **Lifecycle**: `start` starts workers before the HTTP listener. `stop` is safe to call again.
+- **Lifecycle**: `start` starts workers and module services before the HTTP listener. `stop` is safe to call again. It stops services before workers and shared clients.
 - **Process scope**: Run one server at a time.
 
 ## Development

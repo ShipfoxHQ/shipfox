@@ -12,7 +12,13 @@ import {
 } from '@shipfox/node-temporal';
 import {registerPublisher} from './publisher-registry.js';
 import {subscribe} from './registry.js';
-import type {ModuleDatabase, ModuleWorker, ShipfoxModule} from './types.js';
+import type {
+  ModuleDatabase,
+  ModuleService,
+  ModuleServiceHandle,
+  ModuleWorker,
+  ShipfoxModule,
+} from './types.js';
 
 export interface InitializeModulesOptions {
   modules: ShipfoxModule[];
@@ -23,6 +29,7 @@ export interface InitializedModules {
   routes: RouteExport[];
   e2eRoutes: RouteExport[];
   workers: ModuleWorker[];
+  services: ModuleService[];
 }
 
 export interface StartModuleWorkersOptions {
@@ -34,9 +41,23 @@ export interface ModuleWorkersHandle {
   stop(): Promise<void>;
 }
 
+export interface StartModuleServicesOptions {
+  services: ModuleService[];
+  onServiceFailure?: (error: unknown, service: ModuleService) => void | Promise<void>;
+}
+
+export interface ModuleServicesHandle {
+  stop(): Promise<void>;
+}
+
 interface StartedModuleWorker {
   worker: Worker;
   runPromise?: Promise<void>;
+}
+
+interface StartedModuleService {
+  definition: ModuleService;
+  handle: ModuleServiceHandle;
 }
 
 /**
@@ -53,6 +74,7 @@ export async function initializeModules(
   const routes: RouteExport[] = [];
   const e2eRoutes: RouteExport[] = [];
   const workers: ModuleWorker[] = [];
+  const services: ModuleService[] = [];
 
   for (const mod of options.modules) {
     logger().info({module: mod.name}, 'Initializing module');
@@ -98,10 +120,14 @@ export async function initializeModules(
       workers.push(...mod.workers);
     }
 
+    if (mod.services) {
+      services.push(...mod.services);
+    }
+
     logger().info({module: mod.name}, 'Module initialized');
   }
 
-  return {auth, routes, e2eRoutes, workers};
+  return {auth, routes, e2eRoutes, workers, services};
 }
 
 function normalizeModuleDatabases(database: ModuleDatabase | ModuleDatabase[]): ModuleDatabase[] {
@@ -135,6 +161,122 @@ export async function runModuleStartupTasks(options: {modules: ShipfoxModule[]})
   for (const mod of options.modules) {
     await mod.startupTasks?.();
   }
+}
+
+export async function startModuleServices(
+  options: StartModuleServicesOptions,
+): Promise<ModuleServicesHandle> {
+  if (options.services.length === 0) return {stop: async () => undefined};
+
+  const services: StartedModuleService[] = [];
+  let stopping = false;
+  let stopPromise: Promise<void> | undefined;
+
+  try {
+    for (const definition of options.services) {
+      const handle = await definition.start();
+      const startedService = {definition, handle};
+      services.push(startedService);
+      observeModuleServiceCompletion({startedService, isStopping: () => stopping, options});
+      logger().info({service: definition.name}, 'Module service started');
+    }
+  } catch (error) {
+    stopping = true;
+    await stopStartedModuleServices(services);
+    throw error;
+  }
+
+  return {
+    stop: () => {
+      stopping = true;
+      stopPromise ??= stopStartedModuleServices(services);
+      return stopPromise;
+    },
+  };
+}
+
+function observeModuleServiceCompletion(options: {
+  startedService: StartedModuleService;
+  isStopping(): boolean;
+  options: StartModuleServicesOptions;
+}): void {
+  const {definition, handle} = options.startedService;
+  void handle.finished.then(
+    () => {
+      if (options.isStopping()) return;
+      reportModuleServiceFailure(
+        new Error(`Module service ${definition.name} stopped unexpectedly`),
+        definition,
+        options.options.onServiceFailure,
+      );
+    },
+    (error: unknown) => {
+      if (options.isStopping()) return;
+      reportModuleServiceFailure(error, definition, options.options.onServiceFailure);
+    },
+  );
+}
+
+function reportModuleServiceFailure(
+  error: unknown,
+  service: ModuleService,
+  onServiceFailure: StartModuleServicesOptions['onServiceFailure'],
+): void {
+  if (onServiceFailure) {
+    void Promise.resolve(onServiceFailure(error, service)).catch((handlerError) => {
+      logger().error(
+        {err: handlerError, serviceErr: error, service: service.name},
+        'Module service failure handler failed',
+      );
+    });
+    return;
+  }
+  logger().error({err: error, service: service.name}, 'Module service stopped unexpectedly');
+}
+
+async function stopStartedModuleServices(services: StartedModuleService[]): Promise<void> {
+  for (const service of [...services].reverse()) {
+    await stopModuleService(service);
+  }
+}
+
+async function stopModuleService(service: StartedModuleService): Promise<void> {
+  const stopResult = Promise.resolve()
+    .then(() => service.handle.stop())
+    .then(
+      () => ({status: 'stopped' as const}),
+      (error: unknown) => ({status: 'failed' as const, error}),
+    );
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{status: 'timed-out'}>((resolve) => {
+    timeoutId = setTimeout(
+      () => resolve({status: 'timed-out'}),
+      service.definition.shutdownTimeoutMs,
+    );
+  });
+  const result = await Promise.race([stopResult, timeout]);
+  if (timeoutId) clearTimeout(timeoutId);
+
+  if (result.status === 'stopped') return;
+  if (result.status === 'failed') {
+    logger().warn(
+      {err: result.error, service: service.definition.name},
+      'Failed to stop module service',
+    );
+    return;
+  }
+
+  logger().error(
+    {service: service.definition.name, timeoutMs: service.definition.shutdownTimeoutMs},
+    'Timed out stopping module service',
+  );
+  void stopResult.then((lateResult) => {
+    if (lateResult.status !== 'failed') return;
+    logger().warn(
+      {err: lateResult.error, service: service.definition.name},
+      'Module service stop failed after timeout',
+    );
+  });
 }
 
 /**
