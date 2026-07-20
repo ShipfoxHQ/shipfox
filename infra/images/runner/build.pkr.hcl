@@ -65,4 +65,20 @@ build {
     ]
     only = ["amazon-ebs.build_image"]
   }
+
+  post-processor "manifest" {
+    output     = "packer-manifest.json"
+    strip_path = true
+    custom_data = {
+      architecture   = var.architecture
+      build_attempt  = var.build_attempt
+      build_number   = var.build_number
+      candidate_id   = var.candidate_id
+      encrypted      = "true"
+      image_os       = var.image_os
+      lifecycle      = var.image_lifecycle
+      revision       = var.revision
+      runner_version = var.runner_version
+    }
+  }
 }

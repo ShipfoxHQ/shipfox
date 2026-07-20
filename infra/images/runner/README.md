@@ -7,8 +7,8 @@
 Builds run the production deploy inside the target VM. This is required because the runner contains architecture-specific native payloads. The wrapper obtains the Node version from `mise`, prunes `@shipfox/runner`, and then invokes Packer.
 
 ```sh
-BUILD_NUMBER=42 BUILD_ARCH=amd64 pnpm --filter=@shipfox/runner-image image:build
-BUILD_NUMBER=42 BUILD_ARCH=amd64 pnpm --filter=@shipfox/runner-image exec build-runner-image ubuntu24 qemu
+BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image image:candidate -- --output /tmp/runner-image-candidate.json
+BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
 ```
 
 The AMI source uses Canonical Ubuntu 24.04 and requires AWS credentials in `us-east-1`. The QEMU build defaults to a pinned Canonical Ubuntu 24.04 release image and configures its temporary Packer SSH access through a NoCloud seed; the final image locks that bootstrap account. To use a different QEMU source, set both `SHIPFOX_QEMU_SOURCE_IMAGE` and `SHIPFOX_QEMU_SOURCE_CHECKSUM` (for example, `sha256:<digest>`). Relative source paths resolve from the repository root.
@@ -33,3 +33,19 @@ With `InstanceInitiatedShutdownBehavior=terminate` and Spot `InstanceInterruptio
 ## Recovery drill
 
 On EC2, launch a runner with a short max lifetime, stop the provisioner, and verify the instance terminates before that bound. For Spot, request an interruption notice in a test environment and verify the runner stops claiming work, drains, and powers off before reclaim. These drills feed the EC2 provisioner deployment runbook.
+
+## Candidate builds
+
+After every successful merge to `main`, CI builds one candidate AMI per architecture in the candidate AWS account. Candidates are not releases: CI does not publish a catalog, set a latest pointer, or record a release version.
+
+The candidate command writes its AMI ID, architecture, region, source SHA, and whether it built or reused the image to its required `--output` JSON file. The AMI tags are the discovery contract. Internal users resolve an available image by its exact source SHA and architecture with `shipfox.managed=true`, `shipfox.lifecycle=candidate`, `shipfox.revision`, and `shipfox.architecture`. Candidates also record their GitHub build metadata and an expiry timestamp for account-level cleanup.
+
+CI assumes `AWS_RUNNER_IMAGE_CANDIDATE_ROLE_ARN` through GitHub OIDC. The role must belong to the candidate account and trust only `ShipfoxHQ/shipfox` builds from `main`. Candidate AMIs must not be used by production provisioning.
+
+QEMU output is test-only and is not published as a distributed artifact. The supported consumer path is a local or CI build followed by a boot test:
+
+```sh
+BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
+```
+
+The automated QEMU boot and watchdog suite is tracked in ENG-1022.

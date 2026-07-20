@@ -3,19 +3,26 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {getProjectRootPath} from '@shipfox/tool-utils';
-import {findProducedAmiId} from './aws.js';
+import {findProducedAmiId, readPackerAmiArtifact} from './aws.js';
 import {qemuSourceImageArgs} from './qemu.js';
 
 const WHITESPACE_PATTERN = /\s+/;
 
 export type RunnerImagePlatform = 'aws' | 'qemu';
+export type RunnerImageLifecycle = 'candidate' | 'release';
 
 export interface RunnerImageBuild {
   os: string;
   platform: RunnerImagePlatform;
   architecture: 'amd64' | 'arm64';
+  buildAttempt: string;
   buildNumber: string;
+  candidateExpiresAt?: string;
+  candidateId?: string;
+  lifecycle: RunnerImageLifecycle;
   nodeVersion: string;
+  revision: string;
+  runnerVersion?: string;
   extraPackerArgs: string[];
 }
 
@@ -41,14 +48,27 @@ export function packerBuildArgs(
     '-var',
     `architecture=${build.architecture}`,
     '-var',
+    `build_attempt=${build.buildAttempt}`,
+    '-var',
     `build_number=${build.buildNumber}`,
     '-var',
+    `image_lifecycle=${build.lifecycle}`,
+    '-var',
     `node_version=${build.nodeVersion}`,
+    '-var',
+    `revision=${build.revision}`,
     '-var',
     `platform=${build.platform}`,
     '-var',
     `runner_workspace=${workspacePath}`,
   ];
+  if (build.candidateId) {
+    args.push('-var', `candidate_id=${build.candidateId}`);
+  }
+  if (build.candidateExpiresAt) {
+    args.push('-var', `candidate_expires_at=${build.candidateExpiresAt}`);
+  }
+  if (build.runnerVersion) args.push('-var', `runner_version=${build.runnerVersion}`);
   if (build.platform === 'qemu') args.push(...qemuSourceImageArgs(rootDir));
   return [...args, ...build.extraPackerArgs, '.'];
 }
@@ -57,6 +77,7 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
   const rootDir = getProjectRootPath(import.meta.url);
   const stageDir = await mkdtemp(join(tmpdir(), 'shipfox-runner-image-'));
   const workspacePath = join(stageDir, 'workspace');
+  const manifestPath = join(rootDir, 'packer-manifest.json');
 
   try {
     execFileSync('turbo', ['prune', '@shipfox/runner', '--out-dir', workspacePath], {
@@ -64,13 +85,30 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
       stdio: 'inherit',
     });
     execFileSync('packer', ['init', '.'], {cwd: rootDir, stdio: 'inherit'});
+    await rm(manifestPath, {force: true});
     const output = execFileSync('packer', packerBuildArgs(build, workspacePath, rootDir), {
       cwd: rootDir,
       encoding: 'utf8',
+      // A full AMI bake (apt, node, pnpm install) streams well past the 1 MB default,
+      // and an ENOBUFS throw would discard the already-built AMI. Give it ample room.
+      maxBuffer: 256 * 1024 * 1024,
     });
     process.stdout.write(output);
-    return {amiId: build.platform === 'aws' ? findProducedAmiId(output) : null};
+    if (build.platform !== 'aws') return {amiId: null};
+
+    try {
+      return {amiId: readPackerAmiArtifact(manifestPath).amiId};
+    } catch (error) {
+      if (isMissingManifest(error)) return {amiId: findProducedAmiId(output)};
+      throw error;
+    }
   } finally {
     await rm(stageDir, {force: true, recursive: true});
   }
+}
+
+function isMissingManifest(error: unknown): boolean {
+  return (
+    error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
+  );
 }

@@ -7,19 +7,25 @@
     "#*": "./src/*"
   },
   "bin": {
-    "build-runner-image": "./bin/build-runner-image.js"
+    "build-runner-image": "./bin/build-runner-image.js",
+    "build-runner-image-candidate": "./bin/build-runner-image-candidate.js",
+    "runner-image-catalog": "./bin/runner-image-catalog.js"
   },
   "scripts": {
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "image:build": "build-runner-image ubuntu24 aws",
+    "image:build": "node ./bin/build-runner-image.js ubuntu24 aws",
+    "image:candidate": "node ./bin/build-runner-image-candidate.js",
     "test": "shipfox-vitest-run",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/runner": "workspace:*"
+    "@aws-sdk/client-ec2": "catalog:",
+    "@shipfox/runner": "workspace:*",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

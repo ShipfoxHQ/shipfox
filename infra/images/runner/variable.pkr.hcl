@@ -2,6 +2,21 @@ variable "build_number" {
   type = string
 }
 
+variable "build_attempt" {
+  type    = string
+  default = "1"
+}
+
+variable "candidate_expires_at" {
+  type    = string
+  default = ""
+}
+
+variable "candidate_id" {
+  type    = string
+  default = ""
+}
+
 variable "architecture" {
   type    = string
   default = "amd64"
@@ -16,8 +31,27 @@ variable "image_os" {
   default = "ubuntu24"
 }
 
+variable "image_lifecycle" {
+  type    = string
+  default = "release"
+  validation {
+    condition     = contains(["candidate", "release"], var.image_lifecycle)
+    error_message = "Image lifecycle must be candidate or release."
+  }
+}
+
 variable "node_version" {
   type = string
+}
+
+variable "revision" {
+  type    = string
+  default = "local"
+}
+
+variable "runner_version" {
+  type    = string
+  default = ""
 }
 
 variable "os_disk_size_gb" {
