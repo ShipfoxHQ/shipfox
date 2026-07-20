@@ -1,5 +1,5 @@
-import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
+import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {defaultModules} from './modules.js';
