@@ -5,7 +5,23 @@ import {
 } from '#core/constants.js';
 import {createDispatcherModule} from './module.js';
 
+const mocks = vi.hoisted(() => ({
+  createOutboxDrainerService: vi.fn(() => ({
+    name: 'outbox-drainer',
+    shutdownTimeoutMs: 5_000,
+    start: vi.fn(),
+  })),
+}));
+
+vi.mock('#core/outbox-drainer-service.js', () => ({
+  createOutboxDrainerService: mocks.createOutboxDrainerService,
+}));
+
 describe('dispatcherModule', () => {
+  beforeEach(() => {
+    mocks.createOutboxDrainerService.mockClear();
+  });
+
   it('registers the Temporal dispatch workflows alongside retention when the in-process drainer is disabled', () => {
     const module = createDispatcherModule({enabled: false});
     const worker = module.workers?.[0];
@@ -52,14 +68,10 @@ describe('dispatcherModule', () => {
     expect(module.services).toBeUndefined();
   });
 
-  it('registers the in-process drainer with the configured poll interval', async () => {
+  it('passes the configured poll interval to the in-process drainer', () => {
     const module = createDispatcherModule({pollMs: 500});
-    const service = module.services?.[0];
 
-    expect(service?.name).toBe('outbox-drainer');
-    const handle = await service?.start();
-    await handle?.stop();
-
-    expect(handle).toMatchObject({stop: expect.any(Function)});
+    expect(mocks.createOutboxDrainerService).toHaveBeenCalledWith({pollMs: 500});
+    expect(module.services?.[0]?.name).toBe('outbox-drainer');
   });
 });
