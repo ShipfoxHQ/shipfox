@@ -1,7 +1,7 @@
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {integrationRouteErrorHandler} from '@shipfox/api-integration-core';
-import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {checkoutTokenResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {createJobCheckoutSpec} from '#core/checkout.js';
