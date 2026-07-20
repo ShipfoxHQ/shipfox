@@ -44,6 +44,8 @@ describe('Workflows inter-module presentation', () => {
     const presentation = createWorkflowsInterModulePresentation({
       agent: {} as never,
       definitions: {} as never,
+      integrations: {} as never,
+      projects: {} as never,
       runners: {} as never,
       secrets: {} as never,
     });
@@ -97,6 +99,8 @@ describe('Workflows inter-module presentation', () => {
     const presentation = createWorkflowsInterModulePresentation({
       agent: {} as never,
       definitions: {} as never,
+      integrations: {} as never,
+      projects: {} as never,
       runners: runners as never,
       secrets: {} as never,
     });

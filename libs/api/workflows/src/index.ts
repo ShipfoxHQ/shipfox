@@ -38,10 +38,6 @@ import {
 import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
-export {
-  clearAgentToolMaterializationServices,
-  setAgentToolMaterializationServices,
-} from '#core/agent-tools.js';
 export type {
   Job,
   JobListenerEvent,
@@ -60,7 +56,6 @@ export {
   runWorkflow,
   WorkflowRunNotCancellableError,
 } from '#core/index.js';
-export {setSourceControl} from '#core/source-control.js';
 export {
   closeDb,
   type DeliverEventToListenerParams,
