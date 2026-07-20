@@ -161,7 +161,7 @@ describe('parsePackerAmiArtifact', () => {
           builder_type: 'amazon-ebs',
           packer_run_uuid: 'run-123',
           build_time: 1_784_390_400,
-          artifact_id: 'us-east-1:ami-0123abc456def7890',
+          artifact_id: 'eu-central-1:ami-0123abc456def7890',
           custom_data: {
             architecture: 'amd64',
             build_attempt: '1',
@@ -176,7 +176,7 @@ describe('parsePackerAmiArtifact', () => {
 
     expect(artifact).toEqual({
       amiId: 'ami-0123abc456def7890',
-      region: 'us-east-1',
+      region: 'eu-central-1',
       buildTime: 1_784_390_400,
       customData: {
         architecture: 'amd64',
@@ -288,7 +288,7 @@ describe('runner image candidates', () => {
       amiId: 'ami-0123abc456def7890',
       architecture: 'amd64',
       candidateId: `main-${revision}`,
-      region: 'us-east-1',
+      region: 'eu-central-1',
       revision,
       status: 'built',
     });

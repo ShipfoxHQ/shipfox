@@ -36,7 +36,7 @@ export async function buildRunnerImageCandidate(
     throw new Error('Runner image candidate builds require candidate lifecycle metadata.');
   }
   const candidateId = build.candidateId;
-  const region = options.region ?? 'us-east-1';
+  const region = options.region ?? 'eu-central-1';
   const client = options.client ?? new EC2Client({region});
   const existingAmiId = await findRunnerImageCandidate(client, build.revision, build.architecture);
   if (existingAmiId) {
@@ -81,7 +81,7 @@ export function parseRunnerImageCandidateArgs(
   return {
     build,
     outputPath: required(values.output, '--output'),
-    region: env.AWS_REGION ?? 'us-east-1',
+    region: env.AWS_REGION ?? 'eu-central-1',
   };
 }
 

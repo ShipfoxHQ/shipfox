@@ -5,7 +5,7 @@ source "amazon-ebs" "build_image" {
   encrypt_boot                = true
   imds_support                = "v2.0"
   instance_type               = var.architecture == "amd64" ? "t3.large" : "t4g.large"
-  region                      = "us-east-1"
+  region                      = "eu-central-1"
   shutdown_behavior           = "terminate"
   ssh_username                = "ubuntu"
 

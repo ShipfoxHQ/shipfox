@@ -11,7 +11,7 @@ BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
 ```
 
-The AMI source uses Canonical Ubuntu 24.04 and requires AWS credentials in `us-east-1`. The QEMU build defaults to a pinned Canonical Ubuntu 24.04 release image and configures its temporary Packer SSH access through a NoCloud seed; the final image locks that bootstrap account. To use a different QEMU source, set both `SHIPFOX_QEMU_SOURCE_IMAGE` and `SHIPFOX_QEMU_SOURCE_CHECKSUM` (for example, `sha256:<digest>`). Relative source paths resolve from the repository root.
+The AMI source uses Canonical Ubuntu 24.04 and requires AWS credentials in `eu-central-1`. The QEMU build defaults to a pinned Canonical Ubuntu 24.04 release image and configures its temporary Packer SSH access through a NoCloud seed; the final image locks that bootstrap account. To use a different QEMU source, set both `SHIPFOX_QEMU_SOURCE_IMAGE` and `SHIPFOX_QEMU_SOURCE_CHECKSUM` (for example, `sha256:<digest>`). Relative source paths resolve from the repository root.
 
 Packer is pinned in `mise.toml`. Install QEMU and `xorriso` through the host operating system before running a QEMU build.
 
