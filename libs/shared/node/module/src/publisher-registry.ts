@@ -1,3 +1,4 @@
+import {logger} from '@shipfox/node-opentelemetry';
 import type {DomainEvent, OutboxTable} from '@shipfox/node-outbox';
 import {and, eq, getTableName, inArray, isNull, type SQL, sql} from 'drizzle-orm';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
@@ -100,6 +101,30 @@ export function getRegisteredPublisherNames(): string[] {
 
 export function getEventSchema(type: string): ZodType | undefined {
   return _schemasByType.get(type);
+}
+
+export async function countPendingOutboxRows(): Promise<number> {
+  const sources = [..._sources];
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const [row] = await source
+        .db()
+        .select({count: sql<number>`count(*)::int`})
+        .from(source.table)
+        .where(and(isNull(source.table.dispatchedAt), isNull(source.table.deadLetteredAt)));
+      return row?.count ?? 0;
+    }),
+  );
+
+  return results.reduce((total, result, index) => {
+    if (result.status === 'fulfilled') return total + result.value;
+
+    logger().warn(
+      {err: result.reason, source: sources[index]?.name},
+      'Failed to count pending outbox rows',
+    );
+    return total;
+  }, 0);
 }
 
 export async function drainAll(options: DrainAllOptions = {}): Promise<DrainAllResult> {

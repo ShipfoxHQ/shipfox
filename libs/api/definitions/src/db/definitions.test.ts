@@ -1,6 +1,7 @@
 import {DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
 import {
   BATCH_SIZE,
+  countPendingOutboxRows,
   type DrainedEvent,
   drainAll,
   markDispatched,
@@ -738,6 +739,25 @@ describe('definition queries', () => {
         .update(definitionsOutbox)
         .set({dispatchedAt: sql`COALESCE(${definitionsOutbox.dispatchedAt}, now())`})
         .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+    });
+
+    test('countPendingOutboxRows counts pending rows but excludes dispatched and dead-lettered rows', async () => {
+      await insertOutboxRow({projectId, marker: 'pending'});
+      await insertOutboxRow({projectId, marker: 'dispatched', dispatchedAt: new Date()});
+      await insertOutboxRow({projectId, marker: 'dead-lettered', deadLetteredAt: new Date()});
+
+      const pendingRows = await countPendingOutboxRows();
+
+      expect(pendingRows).toBe(1);
+    });
+
+    test('countPendingOutboxRows sums pending rows across every registered publisher', async () => {
+      registerPublisher({name: 'definitions-second', table: definitionsOutbox, db: () => db()});
+      await insertOutboxRow({projectId, marker: 'pending'});
+
+      const pendingRows = await countPendingOutboxRows();
+
+      expect(pendingRows).toBe(2);
     });
 
     test('drainAll returns undispatched outbox events', async () => {

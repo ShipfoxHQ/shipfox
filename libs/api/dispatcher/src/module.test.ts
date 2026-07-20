@@ -79,6 +79,7 @@ describe('dispatcherModule', () => {
       },
     ]);
     expect(module.services?.[0]?.name).toBe('outbox-drainer');
+    expect(module.metrics).toBeDefined();
   });
 
   it('does not register the in-process drainer when disabled', () => {
