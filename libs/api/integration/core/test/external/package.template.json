@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@shipfox/api-integration-core": "file:./api-integration-core.tgz",
-    "@shipfox/api-integration-core-dto": "file:./api-integration-core-dto.tgz"
+    "@shipfox/api-integration-core-dto": "file:./api-integration-core-dto.tgz",
+    "@shipfox/api-workflows-dto": "file:./api-workflows-dto.tgz",
+    "@shipfox/inter-module": "file:./inter-module.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",
