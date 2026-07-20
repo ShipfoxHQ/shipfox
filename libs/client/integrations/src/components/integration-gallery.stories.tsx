@@ -25,6 +25,7 @@ const SETUP_PATHS = [
   '/workspaces/$wid/integrations/github',
   '/workspaces/$wid/integrations/sentry',
   '/workspaces/$wid/integrations/linear',
+  '/workspaces/$wid/integrations/slack',
   '/workspaces/$wid/integrations/gitea',
   '/workspaces/$wid/settings/events',
 ] as const;
@@ -46,6 +47,7 @@ const PROVIDERS: IntegrationProviderDto[] = [
   {provider: 'github', display_name: 'GitHub', capabilities: ['source_control']},
   {provider: 'sentry', display_name: 'Sentry', capabilities: []},
   {provider: 'linear', display_name: 'Linear', capabilities: ['agent_tools']},
+  {provider: 'slack', display_name: 'Slack', capabilities: ['agent_tools']},
   {provider: 'gitea', display_name: 'Gitea', capabilities: ['source_control']},
   {provider: 'webhook', display_name: 'Webhook', capabilities: []},
 ];
@@ -230,6 +232,22 @@ function connectionsForScenario(scenario: Scenario): IntegrationConnectionDto[] 
   }
   return [
     connection({display_name: 'acme-corp', lifecycle_status: 'active'}),
+    connection({
+      id: '99999999-9999-4999-8999-999999999999',
+      provider: 'slack',
+      display_name: 'Slack Acme',
+      lifecycle_status: 'active',
+      capabilities: ['agent_tools'],
+      external_url: 'https://app.slack.com/client/T123',
+    }),
+    connection({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      provider: 'slack',
+      display_name: 'Slack disabled',
+      lifecycle_status: 'disabled',
+      capabilities: ['agent_tools'],
+      external_url: undefined,
+    }),
     connection({
       id: '88888888-8888-4888-8888-888888888888',
       provider: 'linear',

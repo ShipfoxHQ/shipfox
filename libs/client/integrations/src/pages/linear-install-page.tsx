@@ -14,6 +14,7 @@ export function LinearInstallPage() {
     <RedirectInstallPage
       installRequest={installRequest}
       errorFallbackMessage="Could not start Linear install."
+      loadingLabel="Connecting Linear"
       beforeRedirect={(workspaceId) => {
         try {
           saveLinearInstallWorkspace(window.sessionStorage, workspaceId);

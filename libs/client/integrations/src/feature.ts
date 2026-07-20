@@ -19,6 +19,11 @@ export const integrationsFeature = defineClientFeature({
       impl: '@shipfox/client-integrations/routes/sentry-callback',
     },
     {
+      path: '/integrations/slack/callback',
+      parent: 'root',
+      impl: '@shipfox/client-integrations/routes/slack-callback',
+    },
+    {
       path: '/workspaces/$wid/integrations',
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/integrations',
@@ -42,6 +47,11 @@ export const integrationsFeature = defineClientFeature({
       path: '/workspaces/$wid/integrations/sentry',
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/sentry',
+    },
+    {
+      path: '/workspaces/$wid/integrations/slack',
+      parent: 'workspaceLayout',
+      impl: '@shipfox/client-integrations/routes/slack',
     },
   ],
 });

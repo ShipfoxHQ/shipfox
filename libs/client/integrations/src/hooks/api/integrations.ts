@@ -26,9 +26,16 @@ import type {
   SentryConnectBodyDto,
   SentryConnectResponseDto,
 } from '@shipfox/api-integration-sentry-dto';
+import type {
+  CreateSlackInstallBodyDto,
+  CreateSlackInstallResponseDto,
+  SlackCallbackQueryDto,
+  SlackCallbackResponseDto,
+} from '@shipfox/api-integration-slack-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {useInfiniteQuery, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
+import {serializeSlackCallbackQuery} from '#slack-callback.js';
 
 export const integrationsQueryKeys = {
   all: ['integrations'] as const,
@@ -129,6 +136,13 @@ export async function createLinearInstall(body: CreateLinearInstallBodyDto) {
   });
 }
 
+export async function createSlackInstall(body: CreateSlackInstallBodyDto) {
+  return await apiRequest<CreateSlackInstallResponseDto>('/integrations/slack/install', {
+    method: 'POST',
+    body,
+  });
+}
+
 export async function completeLinearCallback({
   query,
   token,
@@ -138,6 +152,19 @@ export async function completeLinearCallback({
 }) {
   return await apiRequest<LinearCallbackResponseDto>(
     `/integrations/linear/callback/api?${serializeLinearCallbackQuery(query)}`,
+    {headers: {authorization: `Bearer ${token}`}},
+  );
+}
+
+export async function completeSlackCallback({
+  query,
+  token,
+}: {
+  query: SlackCallbackQueryDto;
+  token: string;
+}) {
+  return await apiRequest<SlackCallbackResponseDto>(
+    `/integrations/slack/callback/api?${serializeSlackCallbackQuery(query)}`,
     {headers: {authorization: `Bearer ${token}`}},
   );
 }
@@ -252,8 +279,16 @@ export function useCreateLinearInstallMutation() {
   return useMutation({mutationFn: createLinearInstall});
 }
 
+export function useCreateSlackInstallMutation() {
+  return useMutation({mutationFn: createSlackInstall});
+}
+
 export function useCompleteLinearCallbackMutation() {
   return useMutation({mutationFn: completeLinearCallback});
+}
+
+export function useCompleteSlackCallbackMutation() {
+  return useMutation({mutationFn: completeSlackCallback});
 }
 
 export function useUpdateIntegrationConnectionMutation() {

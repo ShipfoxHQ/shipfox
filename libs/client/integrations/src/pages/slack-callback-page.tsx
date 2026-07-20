@@ -1,0 +1,120 @@
+import type {SlackCallbackResponseDto} from '@shipfox/api-integration-slack-dto';
+import {useRefreshAuth} from '@shipfox/client-auth';
+import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {toast} from '@shipfox/react-ui/toast';
+import {useQueryClient} from '@tanstack/react-query';
+import {useNavigate, useSearch} from '@tanstack/react-router';
+import {useEffect, useMemo, useState} from 'react';
+import {CallbackStatusShell} from '#components/callback-status-shell.js';
+import {integrationsQueryKeys, useCompleteSlackCallbackMutation} from '#hooks/api/integrations.js';
+import {
+  classifySlackCallbackError,
+  clearSlackInstallWorkspace,
+  parseSlackCallbackQuery,
+  readSlackInstallWorkspace,
+  type SlackCallbackFailure,
+  serializeSlackCallbackQuery,
+} from '#slack-callback.js';
+
+// Requests and committed keys remain for the document lifetime so Strict Mode,
+// browser Back, and remounts never replay Slack's single-use grant code.
+const callbackRequests = new Map<string, Promise<SlackCallbackResponseDto>>();
+const completedCallbacks = new Set<string>();
+const toastedCallbacks = new Set<string>();
+
+export function SlackCallbackPage() {
+  const search = useSearch({strict: false});
+  const navigate = useNavigate();
+  const refreshAuth = useRefreshAuth();
+  const queryClient = useQueryClient();
+  const {mutateAsync: completeSlackCallback} = useCompleteSlackCallbackMutation();
+  const params = useMemo(() => parseSlackCallbackQuery(search), [search]);
+  const workspaceId = useMemo(() => readSlackInstallWorkspace(window.sessionStorage), []);
+  const [failure, setFailure] = useState<SlackCallbackFailure>();
+  const [completedWorkspaceId, setCompletedWorkspaceId] = useState<string>();
+
+  useEffect(() => {
+    if (!params) return;
+    let disposed = false;
+    const key = serializeSlackCallbackQuery(params);
+    let request = callbackRequests.get(key);
+    if (!request) {
+      request = refreshAuth().then(
+        async (session) => await completeSlackCallback({query: params, token: session.token}),
+      );
+      callbackRequests.set(key, request);
+    }
+    request.then(
+      async (connection) => {
+        if (disposed) return;
+        if (completedCallbacks.has(key)) {
+          setCompletedWorkspaceId(connection.workspace_id);
+          return;
+        }
+        completedCallbacks.add(key);
+        try {
+          clearSlackInstallWorkspace(window.sessionStorage);
+        } catch {
+          // The successful API response remains the source of truth.
+        }
+        try {
+          await queryClient.invalidateQueries({
+            queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspace_id),
+          });
+        } catch {
+          // Navigation can continue when cache refresh is unavailable.
+        }
+        if (disposed) return;
+        if (!toastedCallbacks.has(key)) {
+          toastedCallbacks.add(key);
+          toast.success('Slack installed.');
+        }
+        try {
+          await navigate({
+            to: '/workspaces/$wid/settings/integrations',
+            params: {wid: connection.workspace_id},
+            replace: true,
+          });
+        } catch {
+          if (!disposed) setCompletedWorkspaceId(connection.workspace_id);
+        }
+      },
+      (error: unknown) => {
+        if (!disposed) setFailure(classifySlackCallbackError(error));
+      },
+    );
+    return () => {
+      disposed = true;
+    };
+  }, [completeSlackCallback, navigate, params, queryClient, refreshAuth]);
+
+  if (!params)
+    return (
+      <CallbackStatusShell
+        title="Invalid Slack callback"
+        message="This Slack link is missing required parameters. Start the install again from workspace settings."
+        startOver
+        workspaceId={workspaceId}
+        installPath="/workspaces/$wid/integrations/slack"
+      />
+    );
+  if (completedWorkspaceId)
+    return (
+      <CallbackStatusShell
+        title="Slack connected"
+        message="Slack is connected. Continue in integrations settings."
+        workspaceId={completedWorkspaceId}
+        installPath="/workspaces/$wid/integrations/slack"
+      />
+    );
+  if (failure)
+    return (
+      <CallbackStatusShell
+        {...failure}
+        workspaceId={workspaceId}
+        switchAccount={failure.signIn}
+        installPath="/workspaces/$wid/integrations/slack"
+      />
+    );
+  return <FullPageLoader aria-label="Connecting Slack" />;
+}

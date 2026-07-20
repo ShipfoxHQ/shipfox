@@ -2,7 +2,9 @@ import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {
   completeLinearCallback,
+  completeSlackCallback,
   createLinearInstall,
+  createSlackInstall,
   listSourceConnections,
 } from './integrations.js';
 
@@ -51,6 +53,34 @@ describe('listSourceConnections', () => {
 
     expect(requestedUrl).toContain('capability=source_control');
     expect(result.connections.map((connection) => connection.id)).toEqual(['active-1']);
+  });
+});
+
+describe('Slack transport', () => {
+  it('posts the install workspace and forwards an authenticated callback query', async () => {
+    const requests: Request[] = [];
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn((input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(jsonResponse(connection({provider: 'slack'})));
+      }),
+    });
+
+    await createSlackInstall({workspace_id: '11111111-1111-4111-8111-111111111111'});
+    await completeSlackCallback({
+      query: {code: 'grant code', state: 'signed state'},
+      token: 'session-token',
+    });
+
+    expect(requests[0]?.url).toBe('https://api.example.test/integrations/slack/install');
+    expect(await requests[0]?.json()).toEqual({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(requests[1]?.url).toBe(
+      'https://api.example.test/integrations/slack/callback/api?code=grant+code&state=signed+state',
+    );
+    expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
   });
 });
 
