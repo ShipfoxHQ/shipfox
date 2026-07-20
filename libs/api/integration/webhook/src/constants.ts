@@ -1,5 +1,11 @@
 export const WEBHOOK_INBOUND_BODY_LIMIT = 1 * 1024 * 1024;
 
+export const WEBHOOK_ACCEPTED_CONTENT_TYPES = [
+  'application/json',
+  'application/x-www-form-urlencoded',
+  'text/plain',
+] as const;
+
 export const WEBHOOK_FORWARDED_HEADERS = [
   'content-type',
   'user-agent',

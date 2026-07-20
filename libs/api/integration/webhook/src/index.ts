@@ -13,6 +13,11 @@ import {createWebhookConnectionRoutes} from '#presentation/routes/connections.js
 import {createWebhookInboundRoutes} from '#presentation/routes/inbound.js';
 
 export {redactHeaders, WEBHOOK_FORWARDED_HEADERS, WEBHOOK_INBOUND_BODY_LIMIT} from '#constants.js';
+export type {
+  CreateGenericWebhookProcessorOptions,
+  GenericWebhookProcessor,
+} from '#core/webhook-processor.js';
+export {createGenericWebhookProcessor} from '#core/webhook-processor.js';
 
 export interface CreateWebhookIntegrationProviderOptions {
   coreDb: () => {

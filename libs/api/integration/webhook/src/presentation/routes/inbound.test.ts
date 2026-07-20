@@ -54,11 +54,14 @@ describe('webhook inbound route', () => {
 
   it('publishes a JSON delivery envelope', async () => {
     const connection = fakeConnection();
-    const {app, publishIntegrationEventReceived} = await createTestApp({connection});
+    const {app, publishIntegrationEventReceived, getIntegrationConnectionById} =
+      await createTestApp({
+        connection,
+      });
 
     const res = await app.inject({
       method: 'POST',
-      url: `/webhook/${connection.id}?mode=test`,
+      url: `/webhook/${connection.id}?mode=test&tag=one&tag=two`,
       headers: {
         'content-type': 'application/json',
         'x-delivery-id': 'evt-1',
@@ -80,7 +83,7 @@ describe('webhook inbound route', () => {
       deliveryId: 'evt-1',
       payload: {
         method: 'POST',
-        query: {mode: 'test'},
+        query: {mode: 'test', tag: ['one', 'two']},
         body: {ok: true},
         headers: {
           'content-type': 'application/json',
@@ -89,6 +92,7 @@ describe('webhook inbound route', () => {
         },
       },
     });
+    expect(getIntegrationConnectionById).toHaveBeenCalledTimes(1);
   });
 
   it('publishes a form delivery envelope', async () => {
@@ -187,6 +191,7 @@ describe('webhook inbound route', () => {
     expect(res.statusCode).toBe(202);
     const deliveryId = publishIntegrationEventReceived.mock.calls[0]?.[0].event.deliveryId;
     expect(deliveryId).toMatch(UUID_RE);
+    expect(res.json().delivery_id).toBe(deliveryId);
   });
 
   it('rejects an overlong delivery ID header without publishing', async () => {
