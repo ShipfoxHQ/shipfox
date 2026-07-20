@@ -11,6 +11,8 @@ import {
 const fixtureSource = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(fixtureSource, '../..');
 const dtoPackageRoot = resolve(packageRoot, '../core-dto');
+const interModulePackageRoot = resolve(packageRoot, '../../../shared/common/inter-module');
+const workflowsDtoPackageRoot = resolve(packageRoot, '../../workflows-dto');
 const fixtureRoot = await mkdtemp(join(tmpdir(), 'api-integration-webhook-external-'));
 const manifestPacker = createProductionManifestPacker();
 
@@ -50,6 +52,8 @@ try {
   });
   await rename(join(fixtureRoot, 'package.template.json'), join(fixtureRoot, 'package.json'));
   await packPackage(dtoPackageRoot, join(fixtureRoot, 'api-integration-core-dto.tgz'));
+  await packPackage(interModulePackageRoot, join(fixtureRoot, 'inter-module.tgz'));
+  await packPackage(workflowsDtoPackageRoot, join(fixtureRoot, 'api-workflows-dto.tgz'));
   await packPackage(packageRoot, join(fixtureRoot, 'api-integration-core.tgz'));
   await run('pnpm', ['install', '--ignore-scripts'], fixtureRoot);
   await verifyInstalledExport('@shipfox/api-integration-core');
