@@ -271,11 +271,14 @@ describe('auth core', () => {
     const suspended = await userFactory.create({emailVerifiedAt: new Date()});
     await db().update(users).set({status: 'suspended'}).where(eq(users.id, suspended.id));
 
-    const unverifiedResult = createSessionForUser({email: unverified.email});
-    const suspendedResult = createSessionForUser({email: suspended.email});
+    const unverifiedExpectation = expect(
+      createSessionForUser({email: unverified.email}),
+    ).rejects.toBeInstanceOf(EmailNotVerifiedError);
+    const suspendedExpectation = expect(
+      createSessionForUser({email: suspended.email}),
+    ).rejects.toBeInstanceOf(InvalidCredentialsError);
 
-    await expect(unverifiedResult).rejects.toBeInstanceOf(EmailNotVerifiedError);
-    await expect(suspendedResult).rejects.toBeInstanceOf(InvalidCredentialsError);
+    await Promise.all([unverifiedExpectation, suspendedExpectation]);
   });
 
   test('refreshAccessToken rotates the refresh token', async () => {
