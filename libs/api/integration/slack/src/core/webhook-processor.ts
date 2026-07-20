@@ -29,12 +29,10 @@ export interface CreateSlackWebhookProcessorOptions {
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
 
-export type SlackWebhookProcessingResult =
-  | WebhookProcessingResult
-  | {outcome: 'processed'; challenge: string};
+export type SlackWebhookProcessingResult = WebhookProcessingResult;
 
 export interface SlackWebhookProcessor {
-  process(request: StoredWebhookRequest): Promise<SlackWebhookProcessingResult>;
+  process(request: StoredWebhookRequest): Promise<WebhookProcessingResult>;
 }
 
 export function createSlackWebhookProcessor(
@@ -46,7 +44,7 @@ export function createSlackWebhookProcessor(
 function processSlackWebhookRequest(
   options: CreateSlackWebhookProcessorOptions,
   request: StoredWebhookRequest,
-): Promise<SlackWebhookProcessingResult> {
+): Promise<WebhookProcessingResult> {
   if (request.route_id !== 'slack.event' && request.route_id !== 'slack.command') {
     throw new Error(`Slack processor cannot process ${request.route_id} requests`);
   }
@@ -82,7 +80,7 @@ function processSlackWebhookRequest(
 async function processSlackEvent(
   options: CreateSlackWebhookProcessorOptions,
   rawBody: Uint8Array,
-): Promise<SlackWebhookProcessingResult> {
+): Promise<WebhookProcessingResult> {
   let rawPayload: unknown;
   try {
     rawPayload = JSON.parse(Buffer.from(rawBody).toString('utf8'));

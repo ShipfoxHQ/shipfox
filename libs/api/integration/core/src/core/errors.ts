@@ -52,4 +52,11 @@ export class IntegrationProviderUnavailableError extends Error {
   }
 }
 
+export class WebhookProcessorNotConfiguredError extends Error {
+  constructor(public readonly routeId: string) {
+    super(`No webhook processor is configured for ${routeId}`);
+    this.name = 'WebhookProcessorNotConfiguredError';
+  }
+}
+
 export {ConnectionSlugConflictError, IntegrationProviderError, type IntegrationProviderErrorReason};
