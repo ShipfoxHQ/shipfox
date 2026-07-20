@@ -111,7 +111,7 @@ describe('checkRunnersRateLimit', () => {
     });
   });
 
-  it('uses the configured shared identifier secret when present', async () => {
+  it('uses the configured identifier secret', async () => {
     vi.resetModules();
     vi.doMock('#config.js', () => ({
       config: {
@@ -119,39 +119,33 @@ describe('checkRunnersRateLimit', () => {
         RUNNERS_RATE_LIMIT_TIMEOUT_MS: 250,
       },
     }));
-    vi.doMock('@shipfox/api-auth/config', () => ({
-      config: {
-        AUTH_JWT_SECRET: 'jwt-secret',
-      },
-    }));
 
     try {
-      const configuredSecretModule = await import('./rate-limit.js');
-      const configuredSecretHash = configuredSecretModule.hashRunnersRateLimitIdentifier({
+      const firstModule = await import('./rate-limit.js');
+      const firstHash = firstModule.hashRunnersRateLimitIdentifier({
         action: 'provisioner-mint',
         scope: 'provisioner',
         identifier: 'provisioner-token-id',
       });
       vi.doMock('#config.js', () => ({
         config: {
-          RATE_LIMIT_IDENTIFIER_SECRET: undefined,
+          RATE_LIMIT_IDENTIFIER_SECRET: 'a-different-configured-secret',
           RUNNERS_RATE_LIMIT_TIMEOUT_MS: 250,
         },
       }));
       vi.resetModules();
-      const derivedSecretModule = await import('./rate-limit.js');
-      const derivedSecretHash = derivedSecretModule.hashRunnersRateLimitIdentifier({
+      const secondModule = await import('./rate-limit.js');
+      const secondHash = secondModule.hashRunnersRateLimitIdentifier({
         action: 'provisioner-mint',
         scope: 'provisioner',
         identifier: 'provisioner-token-id',
       });
 
-      expect(configuredSecretHash).toMatch(HMAC_HEX_PATTERN);
-      expect(derivedSecretHash).toMatch(HMAC_HEX_PATTERN);
-      expect(configuredSecretHash).not.toBe(derivedSecretHash);
+      expect(firstHash).toMatch(HMAC_HEX_PATTERN);
+      expect(secondHash).toMatch(HMAC_HEX_PATTERN);
+      expect(firstHash).not.toBe(secondHash);
     } finally {
       vi.doUnmock('#config.js');
-      vi.doUnmock('@shipfox/api-auth/config');
       vi.resetModules();
     }
   });

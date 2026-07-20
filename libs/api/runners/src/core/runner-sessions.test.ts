@@ -8,6 +8,7 @@ import {
   ephemeralRegistrationTokenFactory,
   manualRegistrationTokenFactory,
   providerRunnerFactory,
+  runnersTestAuthClient,
 } from '#test/index.js';
 import {
   EmptyRunnerLabelsError,
@@ -28,6 +29,7 @@ describe('registerRunnerSession', () => {
 
   it('canonicalizes labels, stores them, and embeds them in the session token', async () => {
     const result = await registerRunnerSession({
+      auth: runnersTestAuthClient,
       credential: {kind: 'manual', registrationTokenId, workspaceId},
       labels: [' Linux ', 'x64', 'linux'],
     });
@@ -55,6 +57,7 @@ describe('registerRunnerSession', () => {
   it('throws EmptyRunnerLabelsError when labels canonicalize to empty', async () => {
     await expect(
       registerRunnerSession({
+        auth: runnersTestAuthClient,
         credential: {kind: 'manual', registrationTokenId, workspaceId},
         labels: [' ', '\t'],
       }),
@@ -65,6 +68,7 @@ describe('registerRunnerSession', () => {
     const token = await ephemeralRegistrationTokenFactory.create({workspaceId});
 
     const result = await registerRunnerSession({
+      auth: runnersTestAuthClient,
       credential: {
         kind: 'ephemeral',
         ephemeralTokenId: token.id,
@@ -113,6 +117,7 @@ describe('registerRunnerSession', () => {
     });
 
     const result = await registerRunnerSession({
+      auth: runnersTestAuthClient,
       credential: {
         kind: 'ephemeral',
         ephemeralTokenId: token.id,
@@ -148,11 +153,11 @@ describe('registerRunnerSession', () => {
       providerRunnerId: token.providerRunnerId,
     };
 
-    await registerRunnerSession({credential, labels: ['linux']});
+    await registerRunnerSession({auth: runnersTestAuthClient, credential, labels: ['linux']});
 
-    await expect(registerRunnerSession({credential, labels: ['linux']})).rejects.toBeInstanceOf(
-      RegistrationTokenConsumedError,
-    );
+    await expect(
+      registerRunnerSession({auth: runnersTestAuthClient, credential, labels: ['linux']}),
+    ).rejects.toBeInstanceOf(RegistrationTokenConsumedError);
   });
 
   it('rejects consuming an ephemeral token for a different workspace', async () => {
@@ -160,6 +165,7 @@ describe('registerRunnerSession', () => {
 
     await expect(
       registerRunnerSession({
+        auth: runnersTestAuthClient,
         credential: {
           kind: 'ephemeral',
           ephemeralTokenId: token.id,

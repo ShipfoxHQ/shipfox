@@ -1,13 +1,16 @@
-import {createRunnersModule, runnersModule} from './index.js';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import {createRunnersModule} from './index.js';
+
+const auth = {} as AuthInterModuleClient;
 
 describe('createRunnersModule', () => {
   it('preserves the default module composition when options are absent', () => {
-    const module = createRunnersModule();
+    const module = createRunnersModule({auth});
 
-    expect(module.name).toBe(runnersModule.name);
-    expect(module.auth).toHaveLength(runnersModule.auth?.length ?? 0);
-    expect(module.routes).toHaveLength(runnersModule.routes?.length ?? 0);
-    expect(module.workers).toHaveLength(runnersModule.workers?.length ?? 0);
+    expect(module.name).toBe('runners');
+    expect(module.auth).toHaveLength(2);
+    expect(module.routes).toHaveLength(9);
+    expect(module.workers).toHaveLength(1);
   });
 
   it('accepts an instance-local installation provisioning policy', () => {
@@ -15,10 +18,9 @@ describe('createRunnersModule', () => {
       filterEligibleWorkspaceIds: vi.fn().mockResolvedValue(new Set<string>()),
     };
 
-    const module = createRunnersModule({installationProvisioning: {policy}});
+    const module = createRunnersModule({auth, installationProvisioning: {policy}});
 
     expect(module.name).toBe('runners');
-    expect(module.routes).not.toBe(runnersModule.routes);
     expect(policy.filterEligibleWorkspaceIds).not.toHaveBeenCalled();
   });
 });

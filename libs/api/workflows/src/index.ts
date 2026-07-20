@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
@@ -79,12 +80,14 @@ const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 export function createWorkflowsModule({
   definitions,
   annotations,
+  auth,
   projects,
   runners,
   secrets,
 }: {
   definitions: DefinitionsInterModuleClient;
   annotations: AnnotationsInterModuleClient;
+  auth: AuthInterModuleClient;
   projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
   secrets: SecretsInterModuleClient;
@@ -92,7 +95,7 @@ export function createWorkflowsModule({
   return {
     name: 'workflows',
     database: {db, migrationsPath},
-    routes: createWorkflowRoutes(runners, projects, annotations, secrets),
+    routes: createWorkflowRoutes(runners, auth, projects, annotations, secrets),
     metrics: registerWorkflowsServiceMetrics,
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},

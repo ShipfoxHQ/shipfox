@@ -1,4 +1,4 @@
-import {issueRunnerSessionToken} from '@shipfox/api-auth';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
@@ -29,6 +29,7 @@ export type RunnerRegistrationCredential =
     };
 
 export async function registerRunnerSession(params: {
+  auth: AuthInterModuleClient;
   credential: RunnerRegistrationCredential;
   labels: string[];
   toolCapabilities?: RunnerToolCapabilitiesDto | null;
@@ -54,7 +55,7 @@ export async function registerRunnerSession(params: {
           toolCapabilities: params.toolCapabilities ?? null,
           maxClaims: 1,
         });
-  const sessionToken = await issueRunnerSessionToken({
+  const {token: sessionToken} = await params.auth.mintRunnerSessionToken({
     runnerSessionId: session.id,
     workspaceId: session.workspaceId,
     scope: session.scope,

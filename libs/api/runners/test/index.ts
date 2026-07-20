@@ -14,3 +14,4 @@ export {
 export {reservationFactory} from './factories/reservation.js';
 export {providerRunnerFactory} from './factories/runner-instance.js';
 export {runnerSessionFactory} from './factories/runner-session.js';
+export {runnersTestAuthClient} from './fixtures/auth-inter-module.js';

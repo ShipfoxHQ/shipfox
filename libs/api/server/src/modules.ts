@@ -2,6 +2,11 @@ import {annotationsModule} from '@shipfox/annotations';
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {createAgentModule} from '@shipfox/api-agent';
 import {authModule} from '@shipfox/api-auth';
+import {config as authConfig} from '@shipfox/api-auth/config';
+import {
+  type AuthInterModuleClient,
+  authInterModuleContract,
+} from '@shipfox/api-auth-dto/inter-module';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
@@ -16,7 +21,7 @@ import {
 import {createLogsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
-import {runnersModule as defaultRunnersModule} from '@shipfox/api-runners';
+import {createRunnersModule} from '@shipfox/api-runners';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {createSecretsModule} from '@shipfox/api-secrets';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
@@ -28,6 +33,7 @@ import {
 } from '@shipfox/api-workflows';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {workspacesModule} from '@shipfox/api-workspaces';
+import {durationToSeconds} from '@shipfox/node-jwt';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {
   createInMemoryInterModuleTransport,
@@ -35,7 +41,7 @@ import {
 } from '@shipfox/node-module/inter-module';
 
 export interface DefaultModulesOptions {
-  runnersModule?: ShipfoxModule;
+  createRunnersModule?: (options: {auth: AuthInterModuleClient}) => ShipfoxModule;
   webhookDeliverySource?: WebhookDeliverySource | undefined;
 }
 
@@ -44,6 +50,7 @@ export async function defaultModules(
 ): Promise<ShipfoxModule[]> {
   const interModuleTransport = createInMemoryInterModuleTransport();
   const workflowsClient = interModuleTransport.createClient(workflowsInterModuleContract);
+  const authClient = interModuleTransport.createClient(authInterModuleContract);
   const runnersClient = interModuleTransport.createClient(runnersInterModuleContract);
   const projectsClient = interModuleTransport.createClient(projectsInterModuleContract);
   const definitionsClient = interModuleTransport.createClient(definitionsInterModuleContract);
@@ -165,13 +172,17 @@ export async function defaultModules(
     createWorkflowsModule({
       annotations: annotationsClient,
       definitions: definitionsClient,
+      auth: authClient,
       projects: projectsClient,
       runners: runnersClient,
       secrets: secretsClient,
     }),
     annotationsModule,
-    options.runnersModule ?? defaultRunnersModule,
-    createLogsModule({workflows: workflowsClient}),
+    (options.createRunnersModule ?? createRunnersModule)({auth: authClient}),
+    createLogsModule({
+      workflows: workflowsClient,
+      jobLeaseTokenTtlSeconds: durationToSeconds(authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN),
+    }),
     createTriggersModule({workflows: workflowsClient}),
     dispatcherModule,
   ];

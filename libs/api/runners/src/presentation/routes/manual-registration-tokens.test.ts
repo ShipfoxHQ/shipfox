@@ -18,8 +18,8 @@ import {db} from '#db/db.js';
 import {revokeManualRegistrationToken} from '#db/manual-registration-tokens.js';
 import {manualRegistrationTokens} from '#db/schema/manual-registration-tokens.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
-import {manualRegistrationTokenFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {manualRegistrationTokenFactory, runnersTestAuthClient} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 let authenticatedMemberships: ReadonlyArray<UserContextMembership> = [];
 
@@ -63,7 +63,7 @@ describe('manual registration token routes', () => {
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();
@@ -74,6 +74,7 @@ describe('manual registration token routes', () => {
   });
 
   test('uses the expected auth method for each runner route group', () => {
+    const runnerRoutes = createRunnerRoutes(runnersTestAuthClient);
     expect(runnerRoutes[0]?.auth).toBe(AUTH_USER);
     expect(runnerRoutes[1]?.auth).toBe(AUTH_USER);
     expect(runnerRoutes[2]?.auth).toBe(AUTH_RUNNER_REGISTRATION_TOKEN);

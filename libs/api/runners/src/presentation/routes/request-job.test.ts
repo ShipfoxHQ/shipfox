@@ -15,8 +15,9 @@ import {
   ephemeralRegistrationTokenFactory,
   manualRegistrationTokenFactory,
   pendingJobFactory,
+  runnersTestAuthClient,
 } from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {createRunnerRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -44,7 +45,7 @@ describe('POST /runners/jobs/request', () => {
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();

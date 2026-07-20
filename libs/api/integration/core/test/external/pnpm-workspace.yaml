@@ -1,2 +1,4 @@
 overrides:
   "@shipfox/api-integration-core-dto": "file:./api-integration-core-dto.tgz"
+  "@shipfox/api-workflows-dto": "file:./api-workflows-dto.tgz"
+  "@shipfox/inter-module": "file:./inter-module.tgz"

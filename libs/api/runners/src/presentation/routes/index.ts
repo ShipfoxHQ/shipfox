@@ -5,13 +5,14 @@ import {
   AUTH_RUNNER_SESSION,
   AUTH_USER,
 } from '@shipfox/api-auth-context';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
 import {assignCapacityRoute} from './assign-capacity.js';
 import {createManualRegistrationTokenRoute} from './create-manual-registration-token.js';
 import {createProvisionerTokenRoute} from './create-provisioner-token.js';
 import {getProvisionerMeRoute} from './get-provisioner-me.js';
-import {heartbeatRoute} from './heartbeat.js';
+import {createHeartbeatRoute} from './heartbeat.js';
 import {listActiveProvisionersRoute} from './list-active-provisioners.js';
 import {listActiveRunnersRoute} from './list-active-runners.js';
 import {listManualRegistrationTokensRoute} from './list-manual-registration-tokens.js';
@@ -20,56 +21,58 @@ import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
 import {attachProviderRunnerRoute, createPlannedCapacityRoute} from './planned-capacity.js';
 import {createPollDemandRoute, pollDemandRoute} from './poll-demand.js';
 import {reconcileRunnerInstancesRoute} from './reconcile-runner-instances.js';
-import {registerRoute} from './register.js';
+import {createRegisterRoute} from './register.js';
 import {reportRunnerInstancesRoute} from './report-runner-instances.js';
-import {requestJobRoute} from './request-job.js';
+import {createRequestJobRoute} from './request-job.js';
 import {revokeManualRegistrationTokenRoute} from './revoke-manual-registration-token.js';
 import {revokeProvisionerTokenRoute} from './revoke-provisioner-token.js';
 
-const runnerOnlyRoutes: RouteGroup[] = [
-  {
-    prefix: '/workspaces/:workspaceId/runners/manual-registration-tokens',
-    auth: AUTH_USER,
-    routes: [
-      listManualRegistrationTokensRoute,
-      createManualRegistrationTokenRoute,
-      revokeManualRegistrationTokenRoute,
-    ],
-  },
-  {
-    prefix: '/workspaces/:workspaceId/runners/active',
-    auth: AUTH_USER,
-    routes: [listActiveRunnersRoute],
-  },
-  {
-    prefix: '/runners',
-    auth: AUTH_RUNNER_REGISTRATION_TOKEN,
-    routes: [registerRoute],
-  },
-  {
-    prefix: '/runners/jobs',
-    auth: AUTH_RUNNER_SESSION,
-    routes: [requestJobRoute],
-  },
-  {
-    prefix: '/runners/jobs',
-    auth: AUTH_LEASED_JOB,
-    routes: [heartbeatRoute],
-  },
-  {
-    prefix: '/provisioners',
-    auth: AUTH_PROVISIONER_TOKEN,
-    routes: [
-      pollDemandRoute,
-      createPlannedCapacityRoute,
-      attachProviderRunnerRoute,
-      assignCapacityRoute,
-      mintRegistrationTokensRoute,
-      reportRunnerInstancesRoute,
-      reconcileRunnerInstancesRoute,
-    ],
-  },
-];
+function createRunnerOnlyRoutes(auth: AuthInterModuleClient): RouteGroup[] {
+  return [
+    {
+      prefix: '/workspaces/:workspaceId/runners/manual-registration-tokens',
+      auth: AUTH_USER,
+      routes: [
+        listManualRegistrationTokensRoute,
+        createManualRegistrationTokenRoute,
+        revokeManualRegistrationTokenRoute,
+      ],
+    },
+    {
+      prefix: '/workspaces/:workspaceId/runners/active',
+      auth: AUTH_USER,
+      routes: [listActiveRunnersRoute],
+    },
+    {
+      prefix: '/runners',
+      auth: AUTH_RUNNER_REGISTRATION_TOKEN,
+      routes: [createRegisterRoute(auth)],
+    },
+    {
+      prefix: '/runners/jobs',
+      auth: AUTH_RUNNER_SESSION,
+      routes: [createRequestJobRoute(auth)],
+    },
+    {
+      prefix: '/runners/jobs',
+      auth: AUTH_LEASED_JOB,
+      routes: [createHeartbeatRoute(auth)],
+    },
+    {
+      prefix: '/provisioners',
+      auth: AUTH_PROVISIONER_TOKEN,
+      routes: [
+        pollDemandRoute,
+        createPlannedCapacityRoute,
+        attachProviderRunnerRoute,
+        assignCapacityRoute,
+        mintRegistrationTokensRoute,
+        reportRunnerInstancesRoute,
+        reconcileRunnerInstancesRoute,
+      ],
+    },
+  ];
+}
 
 export const provisionerRoutes: RouteGroup[] = [
   {
@@ -89,7 +92,11 @@ export const provisionerRoutes: RouteGroup[] = [
   },
 ];
 
-export function createRunnerRoutes(options: CreateRunnersModuleOptions = {}): RouteGroup[] {
+export function createRunnerRoutes(
+  auth: AuthInterModuleClient,
+  options: CreateRunnersModuleOptions = {},
+): RouteGroup[] {
+  const runnerOnlyRoutes = createRunnerOnlyRoutes(auth);
   return [
     ...runnerOnlyRoutes.map((route) =>
       route.routes.includes(pollDemandRoute)
@@ -104,5 +111,3 @@ export function createRunnerRoutes(options: CreateRunnersModuleOptions = {}): Ro
     ...provisionerRoutes,
   ];
 }
-
-export const runnerRoutes: RouteGroup[] = [...runnerOnlyRoutes, ...provisionerRoutes];

@@ -18,8 +18,12 @@ import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tok
 import {runnersRateLimits} from '#db/schema/rate-limits.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
-import {ephemeralRegistrationTokenFactory, manualRegistrationTokenFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {
+  ephemeralRegistrationTokenFactory,
+  manualRegistrationTokenFactory,
+  runnersTestAuthClient,
+} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -52,7 +56,7 @@ describe('POST /runners/register', () => {
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();

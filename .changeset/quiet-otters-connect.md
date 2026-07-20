@@ -1,10 +1,9 @@
 ---
-"@shipfox/api-projects-dto": minor
-"@shipfox/api-projects": minor
-"@shipfox/api-definitions": patch
-"@shipfox/api-secrets": patch
+"@shipfox/api-auth-dto": minor
+"@shipfox/api-auth": patch
+"@shipfox/api-runners": patch
 "@shipfox/api-workflows": patch
-"@shipfox/api-server": patch
+"@shipfox/api-logs": patch
 ---
 
-Adds the Projects inter-module contract and routes project lookup, ownership, and access decisions through injected clients.
+Adds the Auth inter-module token-minting contract and removes Auth implementation and configuration coupling from its consumers.

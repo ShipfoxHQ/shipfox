@@ -17,8 +17,8 @@ import {requestJobExecutionCancellation} from '#db/job-executions.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
-import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {pendingJobFactory, runnerSessionFactory, runnersTestAuthClient} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -57,7 +57,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();
@@ -82,6 +82,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
   }> {
     const pending = await pendingJobFactory.create({workspaceId});
     const claimed = await claimJobExecution({
+      auth: runnersTestAuthClient,
       workspaceId,
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
