@@ -3,6 +3,7 @@ import {createLinearApiClient, type LinearApiClient} from '#api/client.js';
 import {config} from '#config.js';
 import {LinearAgentToolsProvider} from '#core/agent-tools-provider.js';
 import type {LinearTokenStore} from '#core/tokens.js';
+import {createLinearWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {getLinearInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -129,6 +130,10 @@ export function createLinearIntegrationProvider(
         agent_tools: new LinearAgentToolsProvider(options.agentTools),
       }
     : {};
+  const webhookProcessor =
+    options.routes && hasLinearWebhookRoutesOptions(options.routes)
+      ? createLinearWebhookProcessor(options.routes)
+      : undefined;
 
   const routes = options.routes
     ? [
@@ -139,8 +144,8 @@ export function createLinearIntegrationProvider(
         }),
       ]
     : [];
-  if (options.routes && hasLinearWebhookRoutesOptions(options.routes)) {
-    routes.push(createLinearWebhookRoutes(options.routes));
+  if (options.routes && hasLinearWebhookRoutesOptions(options.routes) && webhookProcessor) {
+    routes.push(createLinearWebhookRoutes({...options.routes, processor: webhookProcessor}));
   }
 
   return {
@@ -154,6 +159,9 @@ export function createLinearIntegrationProvider(
     },
     ...options.cleanup,
     routes,
+    webhookProcessors: webhookProcessor
+      ? [{routeIds: ['linear'] as const, processor: webhookProcessor}]
+      : undefined,
   };
 }
 

@@ -1,6 +1,8 @@
 import type {
   IntegrationProvider as CoreIntegrationProvider,
   RegisteredIntegrationProvider as CoreRegisteredIntegrationProvider,
+  WebhookRequestProcessor,
+  WebhookRouteId,
 } from '@shipfox/api-integration-core-dto';
 import type {RouteExport} from '@shipfox/node-fastify';
 
@@ -17,5 +19,9 @@ export type {
   OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-core-dto';
 
-export type IntegrationProvider = CoreIntegrationProvider<string, RouteExport>;
+export type IntegrationProvider = CoreIntegrationProvider<string, RouteExport> & {
+  webhookProcessors?:
+    | Array<{routeIds: readonly WebhookRouteId[]; processor: WebhookRequestProcessor}>
+    | undefined;
+};
 export type RegisteredIntegrationProvider = CoreRegisteredIntegrationProvider<string, RouteExport>;

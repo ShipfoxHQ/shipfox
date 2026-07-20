@@ -138,33 +138,36 @@ async function loadSlackModuleParts(
     secrets,
   });
 
+  const integrationProvider = createSlackIntegrationProvider({
+    agentTools: {tokenStore},
+    cleanup: {
+      deleteConnectionRecords: async (connection, {tx}) => {
+        await deleteSlackInstallationByConnectionId(connection.id, {tx});
+      },
+      deleteConnectionSecrets: async (connection) => {
+        // Scoped secrets accept the provider-local suffix, after this helper validates its prefix.
+        await (options.secrets?.slack?.deleteSecrets({
+          workspaceId: connection.workspaceId,
+          namespace: slackNamespaceSuffix(slackSecretsNamespace(connection.id)),
+        }) ?? Promise.resolve());
+      },
+    },
+    routes: {
+      tokenStore,
+      getExistingSlackConnection,
+      connectSlackInstallation,
+      disconnectSlackInstallation,
+      coreDb: db,
+      claimWebhookDelivery,
+      publishIntegrationEventReceived,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+    },
+  });
+
   return {
-    provider: createSlackIntegrationProvider({
-      agentTools: {tokenStore},
-      cleanup: {
-        deleteConnectionRecords: async (connection, {tx}) => {
-          await deleteSlackInstallationByConnectionId(connection.id, {tx});
-        },
-        deleteConnectionSecrets: async (connection) => {
-          // Scoped secrets accept the provider-local suffix, after this helper validates its prefix.
-          await (options.secrets?.slack?.deleteSecrets({
-            workspaceId: connection.workspaceId,
-            namespace: slackNamespaceSuffix(slackSecretsNamespace(connection.id)),
-          }) ?? Promise.resolve());
-        },
-      },
-      routes: {
-        tokenStore,
-        getExistingSlackConnection,
-        connectSlackInstallation,
-        disconnectSlackInstallation,
-        coreDb: db,
-        claimWebhookDelivery,
-        publishIntegrationEventReceived,
-        recordDeliveryOnly,
-        getIntegrationConnectionById,
-      },
-    }),
+    provider: integrationProvider,
+    webhookProcessors: integrationProvider.webhookProcessors,
     e2eRoutes: [
       createSlackE2eRoutes({
         tokenStore,

@@ -20,6 +20,7 @@ import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {
   createSlackWebhookProcessor,
   type SlackWebhookProcessingResult,
+  type SlackWebhookProcessor,
 } from '#core/webhook-processor.js';
 
 export const SLACK_WEBHOOK_BODY_LIMIT = 1024 * 1024;
@@ -40,10 +41,11 @@ export interface CreateSlackWebhookRoutesOptions {
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  processor?: SlackWebhookProcessor | undefined;
 }
 
 export function createSlackWebhookRoutes(options: CreateSlackWebhookRoutesOptions): RouteGroup[] {
-  const processor = createSlackWebhookProcessor(options);
+  const processor = options.processor ?? createSlackWebhookProcessor(options);
   const eventsRoute = defineRoute({
     method: 'POST',
     path: '/',

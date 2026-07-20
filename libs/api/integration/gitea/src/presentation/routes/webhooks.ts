@@ -18,7 +18,7 @@ import {
   WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import {createGiteaWebhookProcessor} from '#core/webhook-processor.js';
+import {createGiteaWebhookProcessor, type GiteaWebhookProcessor} from '#core/webhook-processor.js';
 
 const SIGNATURE_HEADER = 'x-gitea-signature';
 const EVENT_HEADER = 'x-gitea-event';
@@ -29,10 +29,11 @@ export interface CreateGiteaWebhookRoutesOptions {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  processor?: GiteaWebhookProcessor | undefined;
 }
 
 export function createGiteaWebhookRoutes(options: CreateGiteaWebhookRoutesOptions): RouteGroup {
-  const processor = createGiteaWebhookProcessor(options);
+  const processor = options.processor ?? createGiteaWebhookProcessor(options);
   const pushRoute = defineRoute({
     method: 'POST',
     path: '/',

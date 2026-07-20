@@ -9,6 +9,7 @@ import type {
 } from '@shipfox/api-integration-core-dto';
 import {WEBHOOK_PROVIDER} from '@shipfox/api-integration-webhook-dto';
 import {config} from '#config.js';
+import {createGenericWebhookProcessor} from '#core/webhook-processor.js';
 import {createWebhookConnectionRoutes} from '#presentation/routes/connections.js';
 import {createWebhookInboundRoutes} from '#presentation/routes/inbound.js';
 
@@ -34,6 +35,7 @@ export interface CreateWebhookIntegrationProviderOptions {
 
 export function createWebhookIntegrationProvider(options: CreateWebhookIntegrationProviderOptions) {
   const baseUrl = options.baseUrl ?? config.WEBHOOK_PUBLIC_URL;
+  const webhookProcessor = createGenericWebhookProcessor(options);
   return {
     provider: WEBHOOK_PROVIDER,
     displayName: 'Webhook',
@@ -51,7 +53,9 @@ export function createWebhookIntegrationProvider(options: CreateWebhookIntegrati
         coreDb: options.coreDb,
         getIntegrationConnectionById: options.getIntegrationConnectionById,
         publishIntegrationEventReceived: options.publishIntegrationEventReceived,
+        processor: webhookProcessor,
       }),
     ],
+    webhookProcessors: [{routeIds: ['webhook.connection'] as const, processor: webhookProcessor}],
   };
 }

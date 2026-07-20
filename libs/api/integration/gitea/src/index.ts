@@ -10,6 +10,7 @@ import {createGiteaApiClient, type GiteaApiClient} from '#api/client.js';
 import type {ConnectGiteaConnectionInput} from '#core/connect.js';
 import {giteaConnectionExternalUrl} from '#core/connection-url.js';
 import {GiteaSourceControlProvider} from '#core/source-control.js';
+import {createGiteaWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {createGiteaConnectionRoutes} from '#presentation/routes/connections.js';
@@ -61,6 +62,7 @@ export interface CreateGiteaIntegrationProviderOptions {
 
 export function createGiteaIntegrationProvider(options: CreateGiteaIntegrationProviderOptions) {
   const gitea = options.gitea ?? createGiteaApiClient();
+  const webhookProcessor = createGiteaWebhookProcessor(options);
 
   return {
     provider: giteaProviderKind,
@@ -82,7 +84,9 @@ export function createGiteaIntegrationProvider(options: CreateGiteaIntegrationPr
         publishSourcePush: options.publishSourcePush,
         recordDeliveryOnly: options.recordDeliveryOnly,
         getIntegrationConnectionById: options.getIntegrationConnectionById,
+        processor: webhookProcessor,
       }),
     ],
+    webhookProcessors: [{routeIds: ['gitea'] as const, processor: webhookProcessor}],
   };
 }

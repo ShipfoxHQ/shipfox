@@ -1,7 +1,13 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {integrationsEventSchemas} from '@shipfox/api-integration-core-dto';
-import type {ShipfoxModule} from '@shipfox/node-module';
+import {
+  integrationsEventSchemas,
+  type StoredWebhookRequest,
+  type WebhookProcessingResult,
+  type WebhookRequestProcessor,
+  type WebhookRouteId,
+} from '@shipfox/api-integration-core-dto';
+import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {
@@ -18,7 +24,11 @@ import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
 import {createIntegrationRoutes, type LeasedAgentStepLoader} from '#presentation/routes/index.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
-import type {IntegrationModuleParts, IntegrationProviderSecrets} from '#providers/types.js';
+import type {
+  IntegrationModuleParts,
+  IntegrationProviderSecrets,
+  WebhookProcessorRegistration,
+} from '#providers/types.js';
 import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
 import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
@@ -124,6 +134,15 @@ export interface CreateIntegrationsModuleOptions {
         loadLeasedAgentStep: LeasedAgentStepLoader;
       }
     | undefined;
+  webhookDeliverySource?: WebhookDeliverySource | undefined;
+}
+
+/**
+ * Hosted runtimes implement this port to receive stored webhook requests. The
+ * integration module starts its returned service after migrations complete.
+ */
+export interface WebhookDeliverySource {
+  createService(processor: WebhookRequestProcessor): ModuleService;
 }
 
 export interface IntegrationsContext {
@@ -133,6 +152,7 @@ export interface IntegrationsContext {
     sourceControl: IntegrationSourceControlService;
   };
   sourceControl: IntegrationSourceControlService;
+  webhookProcessor: WebhookRequestProcessor;
   /**
    * Runs every enabled provider's one-shot boot-time tasks, after modules are initialized
    * (migrations done). Failures are isolated and logged, never rethrown, so a provider task
@@ -153,7 +173,10 @@ export async function createIntegrationsContext(
   const parts: IntegrationModuleParts[] =
     options.parts ??
     (options.providers
-      ? options.providers.map((provider) => ({provider}))
+      ? options.providers.map((provider) => ({
+          provider,
+          webhookProcessors: provider.webhookProcessors,
+        }))
       : await loadEnabledProviderModules({secrets: options.secrets}));
 
   const registry = createIntegrationProviderRegistry(parts.map((part) => part.provider));
@@ -161,6 +184,9 @@ export async function createIntegrationsContext(
     registry,
     getIntegrationConnectionById,
   });
+  const webhookProcessor = createComposedWebhookProcessor(
+    parts.flatMap((part) => part.webhookProcessors ?? []),
+  );
 
   async function runStartupTasks(): Promise<void> {
     for (const task of parts.flatMap((part) => part.startupTasks ?? [])) {
@@ -207,7 +233,41 @@ export async function createIntegrationsContext(
       },
       ...parts.flatMap((part) => part.workers ?? []),
     ],
+    ...(options.webhookDeliverySource
+      ? {services: [options.webhookDeliverySource.createService(webhookProcessor)]}
+      : {}),
   };
 
-  return {module, registry, capabilities: {sourceControl}, sourceControl, runStartupTasks};
+  return {
+    module,
+    registry,
+    capabilities: {sourceControl},
+    sourceControl,
+    webhookProcessor,
+    runStartupTasks,
+  };
+}
+
+function createComposedWebhookProcessor(
+  registrations: WebhookProcessorRegistration[],
+): WebhookRequestProcessor {
+  const processors = new Map<WebhookRouteId, WebhookRequestProcessor>();
+  for (const registration of registrations) {
+    for (const routeId of registration.routeIds) {
+      if (processors.has(routeId)) {
+        throw new Error(`Webhook processor is registered more than once for ${routeId}`);
+      }
+      processors.set(routeId, registration.processor);
+    }
+  }
+
+  return {
+    async process(request: StoredWebhookRequest): Promise<WebhookProcessingResult> {
+      const processor = processors.get(request.route_id);
+      if (!processor) {
+        throw new Error(`No webhook processor is configured for ${request.route_id}`);
+      }
+      return await processor.process(request);
+    },
+  };
 }

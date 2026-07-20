@@ -10,6 +10,7 @@ import type {GithubInstallationTokenProvider} from '#api/installation-token-prov
 import {deleteGithubInstallationTokenSecret} from '#api/installation-token-provider.js';
 import {GithubAgentToolsProvider} from '#core/agent-tools.js';
 import {GithubSourceControlProvider} from '#core/source-control.js';
+import {createGithubWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -82,6 +83,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
   const getInstallationByConnectionId =
     options.getGithubInstallationByConnectionId ?? getGithubInstallationByConnectionId;
   const deleteSecrets = options.deleteSecrets;
+  const webhookProcessor = createGithubWebhookProcessor(options);
 
   return {
     provider: 'github' as const,
@@ -123,7 +125,9 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
                 deleteSecrets,
               })
           : undefined,
+        processor: webhookProcessor,
       }),
     ],
+    webhookProcessors: [{routeIds: ['github'] as const, processor: webhookProcessor}],
   };
 }

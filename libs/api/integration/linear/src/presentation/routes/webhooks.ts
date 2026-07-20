@@ -18,7 +18,10 @@ import {
   WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import {createLinearWebhookProcessor} from '#core/webhook-processor.js';
+import {
+  createLinearWebhookProcessor,
+  type LinearWebhookProcessor,
+} from '#core/webhook-processor.js';
 
 const DELIVERY_HEADER = 'linear-delivery';
 const EVENT_HEADER = 'linear-event';
@@ -29,10 +32,11 @@ export interface CreateLinearWebhookRoutesOptions {
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  processor?: LinearWebhookProcessor | undefined;
 }
 
 export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOptions): RouteGroup {
-  const processor = createLinearWebhookProcessor(options);
+  const processor = options.processor ?? createLinearWebhookProcessor(options);
   const webhookRoute = defineRoute({
     method: 'POST',
     path: '/',

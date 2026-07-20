@@ -193,6 +193,7 @@ describe('defaultModules', () => {
         },
       },
       agentTools: {loadLeasedAgentStep: expect.any(Function)},
+      webhookDeliverySource: undefined,
     });
 
     const integrationsOptions = mocks.createIntegrationsContext.mock.calls[0]?.[0] as {
@@ -258,5 +259,15 @@ describe('defaultModules', () => {
     expect(mocks.deleteSecrets).toHaveBeenCalledWith({
       namespace: 'system/integrations/slack/workspace',
     });
+  });
+
+  it('passes an optional webhook delivery source to integration composition', async () => {
+    const webhookDeliverySource = {createService: vi.fn()};
+
+    await defaultModules({webhookDeliverySource});
+
+    expect(mocks.createIntegrationsContext).toHaveBeenCalledWith(
+      expect.objectContaining({webhookDeliverySource}),
+    );
   });
 });

@@ -116,18 +116,21 @@ async function loadGithubModuleParts(
     );
   }
 
+  const integrationProvider = createGithubIntegrationProvider({
+    getExistingGithubConnection,
+    connectGithubInstallation,
+    publishIntegrationEventReceived,
+    publishSourcePush,
+    recordDeliveryOnly,
+    getIntegrationConnectionById,
+    coreDb: db,
+    deleteSecrets: options.secrets?.deleteSecrets,
+    agentTools: {tokenProvider},
+  });
+
   return {
-    provider: createGithubIntegrationProvider({
-      getExistingGithubConnection,
-      connectGithubInstallation,
-      publishIntegrationEventReceived,
-      publishSourcePush,
-      recordDeliveryOnly,
-      getIntegrationConnectionById,
-      coreDb: db,
-      deleteSecrets: options.secrets?.deleteSecrets,
-      agentTools: {tokenProvider},
-    }),
+    provider: integrationProvider,
+    webhookProcessors: integrationProvider.webhookProcessors,
     e2eRoutes: [
       createGithubE2eRoutes({
         getExistingGithubConnection,
