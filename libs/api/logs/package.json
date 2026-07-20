@@ -46,7 +46,6 @@
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
-    "@shipfox/api-workflows": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
@@ -64,6 +63,7 @@
   "devDependencies": {
     "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/inter-module": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/node-jwt": "workspace:*",
     "@shipfox/swc": "workspace:*",

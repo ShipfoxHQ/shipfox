@@ -1,12 +1,12 @@
 import {Buffer} from 'node:buffer';
-import {DEFAULT_HARNESS, type Harness, harnessSchema} from '@shipfox/api-agent-dto';
+import {DEFAULT_HARNESS, type Harness} from '@shipfox/api-agent-dto';
 import {
   type LogRecord,
   parseLogRecordLine,
   parseRawLogRecordLine,
   type RawLogRecord,
 } from '@shipfox/api-logs-dto';
-import {getStepById} from '@shipfox/api-workflows';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {accrueStoredBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
@@ -29,18 +29,6 @@ import {closeStream, controlTombstone} from './close-stream.js';
 import {MalformedLogChunkError, OffsetGapError} from './errors.js';
 import {parseSessionRecord} from './session/parse-session.js';
 import type {AgentSessionRecord} from './session/session-record.js';
-
-type StepLookup = (stepId: string) => Promise<{config: Record<string, unknown>} | undefined>;
-
-let stepLookup: StepLookup = getStepById;
-
-export function setStepLookupForTesting(lookup: StepLookup): () => void {
-  const previous = stepLookup;
-  stepLookup = lookup;
-  return () => {
-    stepLookup = previous;
-  };
-}
 
 export interface AppendLogsParams {
   jobId: string;
@@ -137,10 +125,11 @@ function detectForgedType(line: string): string | undefined {
   }
 }
 
-async function getSessionHarness(stepId: string): Promise<Harness> {
-  const step = await stepLookup(stepId);
-  const parsed = harnessSchema.safeParse(step?.config.harness);
-  return parsed.success ? parsed.data : DEFAULT_HARNESS;
+async function getSessionHarness(
+  workflows: WorkflowsModuleClient | undefined,
+  stepId: string,
+): Promise<Harness> {
+  return workflows ? (await workflows.getStepLogContext({stepId})).harness : DEFAULT_HARNESS;
 }
 
 /**
@@ -273,7 +262,10 @@ function agentSessionRecord(
  * job contend on its single accounting row, so the path is multi-instance safe
  * but not lock-free.
  */
-export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsResult> {
+export async function appendLogs(
+  params: AppendLogsParams,
+  workflows?: WorkflowsModuleClient,
+): Promise<AppendLogsResult> {
   let parsed: ParsedBody;
   try {
     parsed = parseAppendBody(params.body);
@@ -293,7 +285,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
   }
   const {declaredTotalBytes} = parsed;
   const sessionHarness = parsed.hasAgentSessionRecord
-    ? await getSessionHarness(params.stepId)
+    ? await getSessionHarness(workflows, params.stepId)
     : DEFAULT_HARNESS;
   const stored = buildStoredBody(parsed.records, sessionHarness);
   const commitByteLen = params.body.length;

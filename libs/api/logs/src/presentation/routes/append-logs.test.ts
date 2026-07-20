@@ -4,7 +4,8 @@ import {AUTH_USER} from '@shipfox/api-auth-context';
 import {type AuthMethod, closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {endLine, ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
-import {logsRoutes} from './index.js';
+import {createTestWorkflowsClient} from '#test/fixtures/workflows-client.js';
+import {createLogsRoutes} from './index.js';
 
 const NDJSON = 'application/x-ndjson';
 const JOB_EXECUTION_ID = '00000000-0000-4000-8000-0000000000ee';
@@ -36,7 +37,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod(), stubUserAuth],
-      routes: logsRoutes,
+      routes: createLogsRoutes(createTestWorkflowsClient()),
       swagger: false,
     });
     await app.ready();

@@ -1,4 +1,6 @@
 import {setLeasedJobContext} from '@shipfox/api-auth-context';
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {createIntegrationProviderRegistry} from '#core/providers/registry.js';
 import {
   agentStepConfig,
@@ -9,6 +11,7 @@ import {
   registryWithAgentTools,
 } from '#test/agent-tools-gateway-helpers.js';
 import {
+  createWorkflowsLeasedAgentStepLoader,
   mcpToolName,
   narrowMethodEnum,
   resolveAuthorizedIntegrationTools,
@@ -16,6 +19,39 @@ import {
 } from './resolve-authorized-tools.js';
 
 describe('resolveAuthorizedIntegrationTools', () => {
+  it.each([
+    ['lease-not-active', 404],
+    ['step-not-found', 404],
+    ['job-not-found', 404],
+    ['step-attempt-mismatch', 409],
+    ['step-not-running', 409],
+    ['leased-step-not-agent', 409],
+    ['agent-step-config-invalid', 409],
+  ] as const)('maps %s from Workflows to HTTP %i', async (code, status) => {
+    const request = {};
+    const lease = leaseContext();
+    setLeasedJobContext(request, lease);
+    const workflows = {
+      getLeasedAgentToolContext: () =>
+        Promise.reject(
+          createInterModuleKnownError(
+            workflowsInterModuleContract.methods.getLeasedAgentToolContext,
+            code,
+            {},
+          ),
+        ),
+    };
+    const loadLeasedAgentStep = createWorkflowsLeasedAgentStepLoader(workflows as never);
+
+    const error = await loadLeasedAgentStep({
+      request,
+      stepId: lease.currentStepId as string,
+      attempt: lease.currentStepAttempt as number,
+    }).catch((error: unknown) => error);
+
+    expect(error).toMatchObject({code, status});
+  });
+
   it('resolves namespaced tools with live descriptions and Anthropic-compatible method schemas', async () => {
     const request = {};
     const lease = leaseContext();

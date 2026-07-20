@@ -1,4 +1,10 @@
+import {
+  DEFAULT_HARNESS,
+  harnessSchema,
+  materializedAgentStepConfigSchema,
+} from '@shipfox/api-agent-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {
@@ -15,11 +21,13 @@ import {
   ProjectMismatchError,
   runWorkflow,
 } from '#core/index.js';
+import {getJobScope, getStepById, getStepByIdForJobExecution} from '#db/index.js';
 import {deliverEventToListener} from '#db/job-listener-events.js';
 
 export function createWorkflowsInterModulePresentation(params: {
   definitions: DefinitionsInterModuleClient;
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
+  runners: RunnersInterModuleClient;
 }): InterModulePresentation<typeof workflowsInterModuleContract> {
   return defineInterModulePresentation(workflowsInterModuleContract, {
     startRunFromTrigger: async (input) => {
@@ -43,6 +51,42 @@ export function createWorkflowsInterModulePresentation(params: {
     },
     deliverEventToJobListener: async (input) =>
       await deliverEventToListener({...input, receivedAt: new Date(input.receivedAt)}),
+    getStepLogContext: async ({stepId}) => {
+      const step = await getStepById(stepId);
+      const parsed = harnessSchema.safeParse(step?.config.harness);
+      return {harness: parsed.success ? parsed.data : DEFAULT_HARNESS};
+    },
+    getLeasedAgentToolContext: async (input) => {
+      const method = workflowsInterModuleContract.methods.getLeasedAgentToolContext;
+      const {active: leaseIsActive} = await params.runners.getLeaseState({
+        jobId: input.jobId,
+        jobExecutionId: input.jobExecutionId,
+        runnerSessionId: input.runnerSessionId,
+      });
+      if (!leaseIsActive) throw createInterModuleKnownError(method, 'lease-not-active', {});
+
+      const step = await getStepByIdForJobExecution({
+        stepId: input.stepId,
+        jobExecutionId: input.jobExecutionId,
+      });
+      if (!step) throw createInterModuleKnownError(method, 'step-not-found', {});
+
+      const scope = await getJobScope(input.jobId);
+      if (!scope) throw createInterModuleKnownError(method, 'job-not-found', {});
+      if (step.currentAttempt !== input.attempt) {
+        throw createInterModuleKnownError(method, 'step-attempt-mismatch', {});
+      }
+      if (step.status !== 'running')
+        throw createInterModuleKnownError(method, 'step-not-running', {});
+      if (step.type !== 'agent')
+        throw createInterModuleKnownError(method, 'leased-step-not-agent', {});
+
+      const config = materializedAgentStepConfigSchema.safeParse(step.config);
+      if (!config.success) {
+        throw createInterModuleKnownError(method, 'agent-step-config-invalid', {});
+      }
+      return {workspaceId: scope.workspaceId, integrations: config.data.integrations ?? []};
+    },
   });
 }
 

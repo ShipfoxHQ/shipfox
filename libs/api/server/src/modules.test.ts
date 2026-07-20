@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   createAgentModule: vi.fn(),
   createDefinitionsModule: vi.fn(),
   createIntegrationsContext: vi.fn(),
+  createLogsModule: vi.fn(),
   createProjectsModule: vi.fn(),
   createSecretsModule: vi.fn(),
   createTriggersModule: vi.fn(),
@@ -24,7 +25,6 @@ const mocks = vi.hoisted(() => ({
   deleteSecrets: vi.fn(),
   getIntegrationConnectionById: vi.fn(),
   getSecret: vi.fn(),
-  loadRunningLeasedStep: vi.fn(),
   setAgentToolMaterializationServices: vi.fn(),
   setSecrets: vi.fn(),
   setSourceControl: vi.fn(),
@@ -54,7 +54,7 @@ vi.mock('@shipfox/api-integration-core', () => ({
   createWorkspaceConnectionSnapshotLoader: mocks.createWorkspaceConnectionSnapshotLoader,
   getIntegrationConnectionById: mocks.getIntegrationConnectionById,
 }));
-vi.mock('@shipfox/api-logs', () => ({logsModule: {name: 'logs'}}));
+vi.mock('@shipfox/api-logs', () => ({createLogsModule: mocks.createLogsModule}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
 vi.mock('@shipfox/api-runners', () => ({
   runnersModule: {
@@ -82,7 +82,6 @@ vi.mock('@shipfox/api-secrets', () => ({
 vi.mock('@shipfox/api-triggers', () => ({createTriggersModule: mocks.createTriggersModule}));
 vi.mock('@shipfox/api-workflows', () => ({
   createWorkflowsModule: mocks.createWorkflowsModule,
-  loadRunningLeasedStep: mocks.loadRunningLeasedStep,
   setAgentToolMaterializationServices: mocks.setAgentToolMaterializationServices,
   setSourceControl: mocks.setSourceControl,
   workflowsModule: {name: 'workflows'},
@@ -96,6 +95,7 @@ describe('defaultModules', () => {
     mocks.createAgentModule.mockReset();
     mocks.createDefinitionsModule.mockReset();
     mocks.createIntegrationsContext.mockReset();
+    mocks.createLogsModule.mockReset();
     mocks.createProjectsModule.mockReset();
     mocks.createSecretsModule.mockReset();
     mocks.createTriggersModule.mockReset();
@@ -104,7 +104,6 @@ describe('defaultModules', () => {
     mocks.deleteSecrets.mockReset();
     mocks.getIntegrationConnectionById.mockReset();
     mocks.getSecret.mockReset();
-    mocks.loadRunningLeasedStep.mockReset();
     mocks.setAgentToolMaterializationServices.mockReset();
     mocks.setSecrets.mockReset();
     mocks.setSourceControl.mockReset();
@@ -114,6 +113,7 @@ describe('defaultModules', () => {
       registry: {},
       sourceControl: {provider: 'source-control'},
     });
+    mocks.createLogsModule.mockReturnValue({name: 'logs'});
     mocks.buildAgentToolCatalogs.mockResolvedValue(new Map());
     mocks.buildAgentToolSelectionCatalogs.mockResolvedValue(new Map());
     mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
@@ -166,6 +166,8 @@ describe('defaultModules', () => {
           contract: workflowsInterModuleContract,
           handlers: {
             deliverEventToJobListener: vi.fn(),
+            getLeasedAgentToolContext: vi.fn(),
+            getStepLogContext: vi.fn(),
             startRunFromTrigger: vi.fn(),
           },
         },
@@ -232,7 +234,7 @@ describe('defaultModules', () => {
     ]);
   });
 
-  it('uses the leased-step loader and namespaced provider secrets', async () => {
+  it('injects Workflows into integrations and logs and namespaces provider secrets', async () => {
     await defaultModules();
 
     expect(mocks.createIntegrationsContext).toHaveBeenCalledWith({
@@ -254,7 +256,7 @@ describe('defaultModules', () => {
           setSecrets: expect.any(Function),
         },
       },
-      agentTools: {loadLeasedAgentStep: expect.any(Function)},
+      agentTools: {workflows: expect.objectContaining({getStepLogContext: expect.any(Function)})},
       webhookDeliverySource: undefined,
     });
 
@@ -264,12 +266,13 @@ describe('defaultModules', () => {
         jira: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         slack: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
       };
-      agentTools: {loadLeasedAgentStep: (params: {stepId: string}) => unknown};
+      agentTools: {workflows: unknown};
     };
-    integrationsOptions.agentTools.loadLeasedAgentStep({stepId: 'step-1'});
-    expect(mocks.loadRunningLeasedStep).toHaveBeenCalledWith({
-      stepId: 'step-1',
-      runners: expect.objectContaining({enqueueJobExecution: expect.any(Function)}),
+    expect(integrationsOptions.agentTools.workflows).toEqual(
+      expect.objectContaining({getLeasedAgentToolContext: expect.any(Function)}),
+    );
+    expect(mocks.createLogsModule).toHaveBeenCalledWith({
+      workflows: expect.objectContaining({getStepLogContext: expect.any(Function)}),
     });
 
     const scope = {workspaceId: crypto.randomUUID(), projectId: null, namespace: 'workspace'};

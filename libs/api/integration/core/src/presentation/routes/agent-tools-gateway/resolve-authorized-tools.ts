@@ -4,6 +4,11 @@ import {
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
+import {
+  type WorkflowsModuleClient,
+  workflowsInterModuleContract,
+} from '@shipfox/api-workflows-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
 import type {IntegrationConnection} from '#core/entities/connection.js';
 import type {IntegrationProviderKind} from '#core/entities/provider.js';
@@ -16,9 +21,48 @@ export type LeasedAgentStepLoader = (params: {
   stepId: string;
   attempt: number;
 }) => Promise<{
-  step: {type: string; config: Record<string, unknown>};
   workspaceId: string;
+  integrations?: MaterializedAgentIntegrationConfigDto[];
+  step?: {type: string; config: Record<string, unknown>};
 }>;
+
+export function createWorkflowsLeasedAgentStepLoader(
+  workflows: WorkflowsModuleClient,
+): LeasedAgentStepLoader {
+  return async ({request, stepId, attempt}) => {
+    const leasedJob = requireLeasedJobContext(request);
+    try {
+      const context = await workflows.getLeasedAgentToolContext({
+        jobId: leasedJob.jobId,
+        jobExecutionId: leasedJob.jobExecutionId,
+        runnerSessionId: leasedJob.runnerSessionId,
+        stepId,
+        attempt,
+      });
+      return {
+        workspaceId: context.workspaceId,
+        integrations: context.integrations,
+      };
+    } catch (error) {
+      throw toLeasedAgentToolClientError(error);
+    }
+  };
+}
+
+function toLeasedAgentToolClientError(error: unknown): unknown {
+  const method = workflowsInterModuleContract.methods.getLeasedAgentToolContext;
+  if (!isInterModuleKnownError(method, error)) return error;
+
+  const status = [
+    'step-attempt-mismatch',
+    'step-not-running',
+    'leased-step-not-agent',
+    'agent-step-config-invalid',
+  ].includes(error.code)
+    ? 409
+    : 404;
+  return new ClientError(error.code.replaceAll('-', ' '), error.code, {status});
+}
 
 export interface AuthorizedIntegrationTool {
   mcpName: string;
@@ -49,18 +93,13 @@ export async function resolveAuthorizedIntegrationTools(
     });
   }
 
-  const {step, workspaceId} = await params.loadLeasedAgentStep({
+  const loaded = await params.loadLeasedAgentStep({
     request: params.request,
     stepId: leasedJob.currentStepId,
     attempt: leasedJob.currentStepAttempt,
   });
-  if (step.type !== 'agent') {
-    throw new ClientError('Current leased step is not an agent step', 'leased-step-not-agent', {
-      status: 409,
-    });
-  }
-
-  const integrations = parseAgentIntegrations(step.config);
+  const workspaceId = loaded.workspaceId;
+  const integrations = loaded.integrations ?? legacyIntegrations(loaded.step);
   const authorizedTools: AuthorizedIntegrationToolMap = new Map();
 
   for (const integration of integrations) {
@@ -102,6 +141,22 @@ export async function resolveAuthorizedIntegrationTools(
   return authorizedTools;
 }
 
+function legacyIntegrations(step: {type: string; config: Record<string, unknown>} | undefined) {
+  if (step?.type !== 'agent') {
+    throw new ClientError('Current leased step is not an agent step', 'leased-step-not-agent', {
+      status: 409,
+    });
+  }
+  try {
+    return materializedAgentStepConfigSchema.parse(step.config).integrations ?? [];
+  } catch (error) {
+    throw new ClientError('Agent step config is invalid', 'agent-step-config-invalid', {
+      status: 409,
+      cause: error,
+    });
+  }
+}
+
 export function sanitizeSlug(slug: string): string {
   return slug.replaceAll('-', '_');
 }
@@ -130,19 +185,6 @@ export function narrowMethodEnum(
 function toolInputSchema(tool: MaterializedAgentIntegrationToolConfigDto): AgentToolJsonSchema {
   const authorizedMethods = tool.methods?.map((method) => method.id) ?? [];
   return narrowMethodEnum(tool.inputSchema, authorizedMethods);
-}
-
-function parseAgentIntegrations(
-  config: Record<string, unknown>,
-): MaterializedAgentIntegrationConfigDto[] {
-  try {
-    return materializedAgentStepConfigSchema.parse(config).integrations ?? [];
-  } catch (error) {
-    throw new ClientError('Agent step config is invalid', 'agent-step-config-invalid', {
-      status: 409,
-      cause: error,
-    });
-  }
 }
 
 async function loadAuthorizedConnection(params: {

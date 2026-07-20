@@ -203,6 +203,18 @@ module.exports = {
           },
         ]
       : []),
+    ...(['@shipfox/api-logs', '@shipfox/api-integration-core'].includes(currentPackage.name)
+      ? [
+          {
+            name: 'workflows-consumers-use-workflows-inter-module-api',
+            comment:
+              'Workflows consumers may use its DTO contract, but never import the Workflows implementation package.',
+            severity: 'error',
+            from: {path: '^(src|test)/'},
+            to: {path: '^\\.\\./workflows/(?:src|dist)/'},
+          },
+        ]
+      : []),
     ...(['@shipfox/api-definitions', '@shipfox/api-secrets', '@shipfox/api-workflows'].includes(
       currentPackage.name,
     )

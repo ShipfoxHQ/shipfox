@@ -7,6 +7,7 @@ import {
   type WebhookRequestProcessor,
   type WebhookRouteId,
 } from '@shipfox/api-integration-core-dto';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
@@ -23,7 +24,7 @@ import {getIntegrationConnectionById} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
-import {createIntegrationRoutes, type LeasedAgentStepLoader} from '#presentation/routes/index.js';
+import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
 import type {
   IntegrationModuleParts,
@@ -139,7 +140,7 @@ export interface CreateIntegrationsModuleOptions {
   secrets?: IntegrationProviderSecrets | undefined;
   agentTools?:
     | {
-        loadLeasedAgentStep: LeasedAgentStepLoader;
+        workflows: WorkflowsModuleClient;
       }
     | undefined;
   webhookDeliverySource?: WebhookDeliverySource | undefined;
@@ -217,7 +218,7 @@ export async function createIntegrationsContext(
     routes: createIntegrationRoutes(registry, sourceControl, {
       agentTools: options.agentTools
         ? {
-            loadLeasedAgentStep: options.agentTools.loadLeasedAgentStep,
+            workflows: options.agentTools.workflows,
             getIntegrationConnectionById,
           }
         : undefined,

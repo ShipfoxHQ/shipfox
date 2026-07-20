@@ -114,6 +114,8 @@ export function createWorkflowsModule({
         workflows: [],
       },
     ],
-    interModulePresentations: [createWorkflowsInterModulePresentation({definitions, secrets})],
+    interModulePresentations: [
+      createWorkflowsInterModulePresentation({definitions, runners, secrets}),
+    ],
   };
 }

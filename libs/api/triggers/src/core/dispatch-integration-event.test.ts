@@ -14,6 +14,11 @@ const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js
 const workflows = {
   startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args),
   deliverEventToJobListener: (...args: unknown[]) => deliverEventToListener(...args),
+  getStepLogContext: async () => ({harness: 'pi' as const}),
+  getLeasedAgentToolContext: async () => ({
+    workspaceId: crypto.randomUUID(),
+    integrations: [],
+  }),
 };
 
 function definitionNotFound(_definitionId: string) {
