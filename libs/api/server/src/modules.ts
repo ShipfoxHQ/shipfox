@@ -11,6 +11,7 @@ import {
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
+import {emailChallengesModule} from '@shipfox/api-email-challenges';
 import {createIntegrationsContext, type WebhookDeliverySource} from '@shipfox/api-integration-core';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
 import {createLogsModule} from '@shipfox/api-logs';
@@ -138,6 +139,7 @@ export async function defaultModules(
   });
 
   const modules = [
+    emailChallengesModule,
     createAuthModule({workspaces: workspacesClient}),
     workspacesModule,
     createSecretsModule(projectsClient),

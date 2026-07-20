@@ -1,14 +1,9 @@
-import {
-  AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
-  AUTH_PASSWORD_RESET_SEND_REQUESTED,
-  EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
-} from '@shipfox/api-auth-dto';
+import {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {and, desc, eq, sql} from 'drizzle-orm';
 import {
   changePassword,
-  confirmEmailVerification as coreConfirmEmailVerification,
   confirmPasswordReset as coreConfirmPasswordReset,
   createSessionForUser as coreCreateSessionForUser,
   login as coreLogin,
@@ -17,7 +12,6 @@ import {
   logout,
   provisionUser,
   requestPasswordReset,
-  resendEmailVerification,
   signup,
 } from '#core/auth.js';
 import {
@@ -31,7 +25,6 @@ import {
 import {verifyUserToken} from '#core/jwt.js';
 import {db} from '#db/db.js';
 import * as refreshTokenDb from '#db/refresh-tokens.js';
-import {emailVerifications} from '#db/schema/email-verifications.js';
 import {authOutbox} from '#db/schema/outbox.js';
 import {passwordResets} from '#db/schema/password-resets.js';
 import {refreshTokens} from '#db/schema/refresh-tokens.js';
@@ -72,6 +65,8 @@ vi.mock('#config.js', () => ({
   mailer: testConfig.mailer,
 }));
 
+vi.mock('@shipfox/node-mailer', () => ({mailer: testConfig.mailer}));
+
 const listMembershipsByUserMock = vi.fn(() =>
   Promise.resolve({memberships: [] as Array<{workspaceId: string; role: 'admin'}>}),
 );
@@ -87,8 +82,6 @@ const createSessionForUser = (params: {userId?: string; email?: string}) =>
   coreCreateSessionForUser({...params, workspaces});
 const refreshAccessToken = (params: {refreshToken: string}) =>
   coreRefreshAccessToken({...params, workspaces});
-const confirmEmailVerification = (params: {token: string}) =>
-  coreConfirmEmailVerification({...params, workspaces});
 const confirmPasswordReset = (params: {token: string; newPassword: string}) =>
   coreConfirmPasswordReset({...params, workspaces});
 
@@ -114,9 +107,8 @@ async function outboxEventsTo(email: string, eventType: string) {
 
 async function latestEmailLinkTo(email: string, eventType: string): Promise<string> {
   const event = (await outboxEventsTo(email, eventType))[0];
-  const payload = event?.payload as {verifyLink?: string; resetLink?: string} | undefined;
-  const link =
-    eventType === AUTH_EMAIL_VERIFICATION_SEND_REQUESTED ? payload?.verifyLink : payload?.resetLink;
+  const payload = event?.payload as {resetLink?: string} | undefined;
+  const link = payload?.resetLink;
   if (!link) throw new Error(`No ${eventType} outbox link for ${email}`);
   return link;
 }
@@ -141,14 +133,13 @@ describe('auth core', () => {
     expect(user.email).toBe(email);
     expect(user.name).toBe('Sign Up');
     expect(user.emailVerifiedAt).toBeNull();
-    expect(captured).toHaveLength(0);
-    expect(await latestEmailLinkTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toContain(
-      `${testConfig.clientBaseUrl}/auth/verify-email?token=`,
-    );
+    expect(user.emailChallenge.id).toEqual(expect.any(String));
+    expect(user.emailChallenge.nextResendAvailableAt).toBeInstanceOf(Date);
+    expect(captured).toHaveLength(1);
   });
 
   test('signup rejects duplicate email with a business error', async () => {
-    const existing = await userFactory.create();
+    const existing = await userFactory.create({emailVerifiedAt: new Date()});
 
     const promise = signup({
       email: existing.email,
@@ -364,127 +355,6 @@ describe('auth core', () => {
     const promise = refreshAccessToken({refreshToken: loginResult.refreshToken});
 
     await expect(promise).rejects.toBeInstanceOf(TokenInvalidError);
-  });
-
-  test('confirmEmailVerification marks the user verified, creates a session, and rejects reused tokens', async () => {
-    const user = await signup({
-      email: `verify-${crypto.randomUUID()}@example.com`,
-      password: 'correct horse battery staple',
-    });
-    const token = extractToken(
-      await latestEmailLinkTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
-    );
-
-    const result = await confirmEmailVerification({token});
-    const verified = await findUserById({id: user.id});
-    const refreshSession = await refreshTokenDb.findActiveRefreshTokenByHash({
-      hashedToken: hashOpaqueToken(result.refreshToken),
-    });
-    const reused = confirmEmailVerification({token});
-
-    expect(verified?.emailVerifiedAt).toBeInstanceOf(Date);
-    expect(result.token).toEqual(expect.any(String));
-    expect(result.user.id).toBe(user.id);
-    expect(refreshSession?.userId).toBe(user.id);
-    await expect(reused).rejects.toBeInstanceOf(TokenInvalidError);
-  });
-
-  test('resendEmailVerification only sends for active unverified users', async () => {
-    const unverified = await userFactory.create();
-    const verified = await userFactory.create({emailVerifiedAt: new Date()});
-    const inactive = await userFactory.create();
-    await db().update(users).set({status: 'suspended'}).where(eq(users.id, inactive.id));
-
-    const sent = await resendEmailVerification({email: unverified.email});
-    const verifiedResult = await resendEmailVerification({email: verified.email});
-    const inactiveResult = await resendEmailVerification({email: inactive.email});
-    const missingResult = await resendEmailVerification({
-      email: `missing-${crypto.randomUUID()}@example.com`,
-    });
-
-    expect(captured).toHaveLength(0);
-    expect(
-      await outboxEventsTo(unverified.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
-    ).toHaveLength(1);
-    expect(
-      await outboxEventsTo(verified.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
-    ).toHaveLength(0);
-    expect(
-      await outboxEventsTo(inactive.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
-    ).toHaveLength(0);
-    expect(sent.nextResendAvailableAt).toBeInstanceOf(Date);
-    expect(verifiedResult.nextResendAvailableAt).toBeInstanceOf(Date);
-    expect(inactiveResult.nextResendAvailableAt).toBeInstanceOf(Date);
-    expect(missingResult.nextResendAvailableAt).toBeInstanceOf(Date);
-  });
-
-  test('resendEmailVerification respects cooldown without invalidating the current token', async () => {
-    const user = await signup({
-      email: `resend-cooldown-${crypto.randomUUID()}@example.com`,
-      password: 'correct horse battery staple',
-    });
-    const token = extractToken(
-      await latestEmailLinkTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
-    );
-    const existingCreatedAt = new Date(
-      Date.now() - (EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS / 2) * 1000,
-    );
-    await db()
-      .update(emailVerifications)
-      .set({createdAt: existingCreatedAt})
-      .where(eq(emailVerifications.userId, user.id));
-
-    const beforeCall = Date.now();
-    const result = await resendEmailVerification({email: user.email});
-    const verified = await confirmEmailVerification({token});
-
-    // The cooldown branch must return the generic `now + cooldown` estimate, not
-    // `latest.createdAt + cooldown`, so the response cannot leak prior timing.
-    expect(result.nextResendAvailableAt.getTime()).toBeGreaterThanOrEqual(
-      beforeCall + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000,
-    );
-    expect(captured).toHaveLength(0);
-    expect(await outboxEventsTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(
-      1,
-    );
-    expect(verified.user.id).toBe(user.id);
-  });
-
-  test('resendEmailVerification sends again after cooldown', async () => {
-    const user = await signup({
-      email: `resend-after-cooldown-${crypto.randomUUID()}@example.com`,
-      password: 'correct horse battery staple',
-    });
-    const staleCreatedAt = new Date(
-      Date.now() - (EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS + 1) * 1000,
-    );
-    await db()
-      .update(emailVerifications)
-      .set({createdAt: staleCreatedAt})
-      .where(eq(emailVerifications.userId, user.id));
-
-    const result = await resendEmailVerification({email: user.email});
-
-    expect(result.nextResendAvailableAt).toBeInstanceOf(Date);
-    expect(captured).toHaveLength(0);
-    expect(await outboxEventsTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(
-      2,
-    );
-  });
-
-  test('resendEmailVerification serializes duplicate requests for one user', async () => {
-    const user = await userFactory.create();
-
-    const results = await Promise.all([
-      resendEmailVerification({email: user.email}),
-      resendEmailVerification({email: user.email}),
-    ]);
-
-    expect(results).toHaveLength(2);
-    expect(captured).toHaveLength(0);
-    expect(await outboxEventsTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(
-      1,
-    );
   });
 
   test('password reset request and confirm update the password and invalidate the token', async () => {

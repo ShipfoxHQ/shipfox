@@ -181,6 +181,8 @@ export function e2eEnv(sourceEnv) {
     CLIENT_URL: clientUrl,
     E2E_ADMIN_API_KEY: sourceEnv.E2E_ADMIN_API_KEY ?? defaultE2eAdminApiKey,
     E2E_ENABLED: sourceEnv.E2E_ENABLED ?? 'true',
+    EMAIL_CHALLENGE_ROOT_KEY:
+      sourceEnv.EMAIL_CHALLENGE_ROOT_KEY ?? 'e2e-email-challenge-root-key',
     E2E_GITEA_URL: giteaUrl,
     GITEA_CLONE_BASE_URL: sourceEnv.GITEA_CLONE_BASE_URL ?? giteaUrl,
     HOST: sourceEnv.HOST ?? '0.0.0.0',

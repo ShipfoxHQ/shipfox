@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {act, fireEvent, screen} from '@testing-library/react';
+import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {pageUserFactory} from '#test/factories/user.js';
 import {renderAuthPage} from '#test/pages.js';
 import {jsonResponse, requestUrl} from '#test/utils.js';
@@ -7,6 +7,12 @@ import {SignupPage} from './signup-page.js';
 
 const SUBMITTED_EMAIL_RE = /new@example.com/;
 const RESEND_COUNTDOWN_RE = /^Resend in \d+s$/;
+function emailChallenge() {
+  return {
+    id: '019f814f-3cfd-779a-82f2-6588eefd572c',
+    next_resend_available_at: new Date(Date.now() + 60_000).toISOString(),
+  };
+}
 
 describe('SignupPage', () => {
   beforeEach(() => {
@@ -24,7 +30,7 @@ describe('SignupPage', () => {
       }
       if (url === 'https://api.example.test/auth/signup' && input instanceof Request) {
         signupBody = await input.json();
-        return jsonResponse({user}, {status: 201});
+        return jsonResponse({user, email_challenge: emailChallenge()}, {status: 201});
       }
       throw new Error(`Unexpected request: ${url}`);
     });
@@ -49,6 +55,50 @@ describe('SignupPage', () => {
     );
     expect(screen.getByRole('button', {name: 'Use another email'})).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Log in'})).toHaveAttribute('href', '/auth/login');
+  });
+
+  test('submits the eight-digit verification code with its signup challenge', async () => {
+    const user = pageUserFactory.build({email: 'new@example.com', name: 'New User'});
+    let confirmBody: unknown;
+    const session = {token: 'access-token', user};
+    const fetchImpl = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url === 'https://api.example.test/auth/me') {
+        return jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401});
+      }
+      if (url === 'https://api.example.test/auth/signup') {
+        return jsonResponse({user, email_challenge: emailChallenge()}, {status: 201});
+      }
+      if (
+        url === 'https://api.example.test/auth/verify-email/confirm' &&
+        input instanceof Request
+      ) {
+        confirmBody = await input.json();
+        return jsonResponse(session);
+      }
+      if (url === 'https://api.example.test/auth/refresh') {
+        return jsonResponse(session);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    configureApiClient({fetchImpl});
+
+    renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New User'}});
+    fireEvent.change(screen.getByLabelText('Email'), {target: {value: user.email}});
+    fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
+    await screen.findByRole('heading', {name: 'Check your email'});
+    fireEvent.change(screen.getByLabelText('Verification code'), {target: {value: '12345678'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Verify email'}));
+
+    await waitFor(() => {
+      expect(confirmBody).toEqual({
+        email: user.email,
+        challenge_id: emailChallenge().id,
+        code: '12345678',
+      });
+    });
   });
 
   test('keeps credentials when switching to login', async () => {
@@ -179,7 +229,9 @@ describe('SignupPage', () => {
       .mockResolvedValueOnce(
         jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
       )
-      .mockResolvedValueOnce(jsonResponse({user}, {status: 201}));
+      .mockResolvedValueOnce(
+        jsonResponse({user, email_challenge: emailChallenge()}, {status: 201}),
+      );
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
@@ -211,7 +263,7 @@ describe('SignupPage', () => {
       .mockResolvedValueOnce(
         jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
       )
-      .mockResolvedValueOnce(jsonResponse({user}, {status: 201}))
+      .mockResolvedValueOnce(jsonResponse({user, email_challenge: emailChallenge()}, {status: 201}))
       .mockResolvedValueOnce(
         jsonResponse({next_resend_available_at: nextResendAvailableAt}, {status: 200}),
       );
@@ -245,7 +297,7 @@ describe('SignupPage', () => {
       .mockResolvedValueOnce(
         jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
       )
-      .mockResolvedValueOnce(jsonResponse({user}, {status: 201}))
+      .mockResolvedValueOnce(jsonResponse({user, email_challenge: emailChallenge()}, {status: 201}))
       .mockResolvedValueOnce(
         jsonResponse({code: 'server-error', message: 'Server error'}, {status: 500}),
       );
@@ -273,7 +325,9 @@ describe('SignupPage', () => {
       .mockResolvedValueOnce(
         jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
       )
-      .mockResolvedValueOnce(jsonResponse({user}, {status: 201}));
+      .mockResolvedValueOnce(
+        jsonResponse({user, email_challenge: emailChallenge()}, {status: 201}),
+      );
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);

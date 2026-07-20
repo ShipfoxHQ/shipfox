@@ -27,6 +27,7 @@ describe('POST /auth/password-reset', () => {
 
   test('returns 204 and sends reset mail for an active account', async () => {
     const account = await signupVerifyLogin(app, 'reset-request');
+    resetCapturedMail();
 
     const res = await app.inject({
       method: 'POST',

@@ -1,9 +1,3 @@
-import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
-
-export function getLocalResendAvailableAt(now: number): number {
-  return now + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000;
-}
-
 export function getResendRemainingSeconds(params: {
   nextResendAvailableAt: number | undefined;
   now: number;

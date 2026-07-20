@@ -3,7 +3,6 @@ import {eq} from 'drizzle-orm';
 import {ZodError} from 'zod';
 import {findUserByEmail} from '#core/email-owner.js';
 import {db} from '#db/db.js';
-import {emailVerifications} from '#db/schema/email-verifications.js';
 import {refreshTokens} from '#db/schema/refresh-tokens.js';
 import {users} from '#db/schema/users.js';
 import * as usersDb from '#db/users.js';
@@ -47,7 +46,7 @@ describe('findUserByEmail (email owner)', () => {
     expect(result).toEqual({id: user.id, email: user.email, status: 'active'});
   });
 
-  test('performs no user, refresh-session, or email-verification writes', async () => {
+  test('performs no user or refresh-session writes', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const rawRefreshToken = generateOpaqueToken('refreshToken');
     await db()
@@ -57,24 +56,12 @@ describe('findUserByEmail (email owner)', () => {
         hashedToken: hashOpaqueToken(rawRefreshToken),
         expiresAt: new Date(Date.now() + 60_000),
       });
-    const rawVerificationToken = generateOpaqueToken('emailVerification');
-    await db()
-      .insert(emailVerifications)
-      .values({
-        userId: user.id,
-        hashedToken: hashOpaqueToken(rawVerificationToken),
-        expiresAt: new Date(Date.now() + 60_000),
-      });
 
     const beforeUser = await db().select().from(users).where(eq(users.id, user.id));
     const beforeRefreshTokens = await db()
       .select()
       .from(refreshTokens)
       .where(eq(refreshTokens.userId, user.id));
-    const beforeEmailVerifications = await db()
-      .select()
-      .from(emailVerifications)
-      .where(eq(emailVerifications.userId, user.id));
 
     await findUserByEmail({email: user.email});
 
@@ -83,14 +70,9 @@ describe('findUserByEmail (email owner)', () => {
       .select()
       .from(refreshTokens)
       .where(eq(refreshTokens.userId, user.id));
-    const afterEmailVerifications = await db()
-      .select()
-      .from(emailVerifications)
-      .where(eq(emailVerifications.userId, user.id));
 
     expect(afterUser).toEqual(beforeUser);
     expect(afterRefreshTokens).toEqual(beforeRefreshTokens);
-    expect(afterEmailVerifications).toEqual(beforeEmailVerifications);
   });
 
   test('rejects invalid email syntax without querying the database', async () => {

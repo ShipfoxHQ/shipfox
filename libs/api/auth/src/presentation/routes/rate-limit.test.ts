@@ -210,13 +210,13 @@ describe('auth rate-limit routes', () => {
       method: 'POST',
       url: '/auth/password-reset',
       headers: {'x-forwarded-for': uniqueIp()},
-      payload: {email: account.email},
+      payload: {email: account.email, challenge_id: account.emailChallengeId},
     });
     const blockedResend = await app.inject({
       method: 'POST',
       url: '/auth/verify-email/resend',
       headers: {'x-forwarded-for': uniqueIp()},
-      payload: {email: account.email},
+      payload: {email: account.email, challenge_id: account.emailChallengeId},
     });
 
     expect(blockedReset.statusCode).toBe(429);

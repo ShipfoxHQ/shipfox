@@ -8,7 +8,6 @@ export const authFeature = defineClientFeature({
     {path: '/auth/logout', parent: 'root', impl: '@shipfox/client-auth/routes/logout'},
     {path: '/auth/reset', parent: 'root', impl: '@shipfox/client-auth/routes/reset'},
     {path: '/auth/signup', parent: 'root', impl: '@shipfox/client-auth/routes/signup'},
-    {path: '/auth/verify-email', parent: 'root', impl: '@shipfox/client-auth/routes/verify-email'},
     {
       path: '/setup/workspaces/new',
       parent: 'root',

@@ -1,12 +1,13 @@
 import {verifyEmailResendBodySchema, verifyEmailResendResponseSchema} from '@shipfox/api-auth-dto';
-import {defineRoute} from '@shipfox/node-fastify';
+import {EmailChallengeError} from '@shipfox/api-email-challenges';
+import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {resendEmailVerification} from '#core/auth.js';
 import {createAuthRateLimitPreHandler} from '#presentation/routes/rate-limit.js';
 
 export const verifyEmailResendRoute = defineRoute({
   method: 'POST',
   path: '/verify-email/resend',
-  description: 'Send a new email verification link if the account can be verified.',
+  description: 'Send a new email verification code if the account can be verified.',
   schema: {
     body: verifyEmailResendBodySchema,
     response: {
@@ -14,10 +15,23 @@ export const verifyEmailResendRoute = defineRoute({
     },
   },
   preHandler: createAuthRateLimitPreHandler('email-send'),
+  errorHandler: (error) => {
+    if (error instanceof EmailChallengeError) {
+      throw new ClientError(error.message, `email-challenge-${error.code}`, {
+        status: error.code === 'limited' ? 429 : error.code === 'expired' ? 410 : 400,
+        ...(error.retryAt ? {details: {retry_at: error.retryAt.toISOString()}} : {}),
+      });
+    }
+    throw error;
+  },
   handler: async (request, reply) => {
-    const {email} = request.body;
+    const {email, challenge_id} = request.body;
 
-    const result = await resendEmailVerification({email});
+    const result = await resendEmailVerification({
+      email,
+      challengeId: challenge_id,
+      sourceIp: request.ip,
+    });
 
     reply.code(200).send({
       next_resend_available_at: result.nextResendAvailableAt.toISOString(),

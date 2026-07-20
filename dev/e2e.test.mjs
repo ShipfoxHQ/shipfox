@@ -67,6 +67,7 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_ENABLE_LINEAR_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
+    assert.equal(env.EMAIL_CHALLENGE_ROOT_KEY, 'e2e-email-challenge-root-key');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:55361/');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:55362/');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);

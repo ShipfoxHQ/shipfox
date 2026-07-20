@@ -1,4 +1,10 @@
-import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS, emailSchema} from '@shipfox/api-auth-dto';
+import {emailSchema} from '@shipfox/api-auth-dto';
+import {
+  confirmEmailChallenge,
+  consumeEmailChallengeProof,
+  createEmailChallenge,
+  resendEmailChallenge,
+} from '@shipfox/api-email-challenges';
 import {
   type WorkspacesInterModuleClient,
   workspacesInterModuleContract,
@@ -6,11 +12,6 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config} from '#config.js';
-import {
-  consumeEmailVerification,
-  createEmailVerification,
-  createResendEmailVerification,
-} from '#db/email-verifications.js';
 import {consumePasswordReset, createPasswordReset} from '#db/password-resets.js';
 import {
   createRefreshToken,
@@ -45,8 +46,8 @@ import {
 import {signUserToken} from './jwt.js';
 import {hashPassword, verifyPassword} from './password.js';
 
-const VERIFICATION_TTL_HOURS = 24;
 const RESET_TTL_HOURS = 1;
+const PASSWORD_VERIFICATION_PURPOSE = 'password-verification';
 
 let dummyHashCache: string | undefined;
 async function getDummyHash(): Promise<string> {
@@ -103,10 +104,6 @@ async function createRefreshSession(user: User): Promise<string> {
   return refreshToken;
 }
 
-function verificationLink(rawToken: string): string {
-  return `${config.CLIENT_BASE_URL}/auth/verify-email?token=${rawToken}`;
-}
-
 function passwordResetLink(rawToken: string): string {
   return `${config.CLIENT_BASE_URL}/auth/reset?token=${rawToken}`;
 }
@@ -138,19 +135,6 @@ function invitationErrorMessage(
   return 'Signup email does not match the invitation';
 }
 
-async function createAndQueueEmailVerification(user: User): Promise<void> {
-  const rawToken = generateOpaqueToken('emailVerification');
-  await createEmailVerification({
-    userId: user.id,
-    hashedToken: hashOpaqueToken(rawToken),
-    expiresAt: hoursFromNow(VERIFICATION_TTL_HOURS),
-    sendEmail: {
-      email: user.email,
-      verifyLink: verificationLink(rawToken),
-    },
-  });
-}
-
 export interface SignupParams {
   email: string;
   password: string;
@@ -173,9 +157,27 @@ export async function provisionUser(params: ProvisionUserParams): Promise<User> 
   });
 }
 
-export async function signup(params: SignupParams): Promise<User> {
+export type SignupResult = User & {
+  emailChallenge: {id: string; nextResendAvailableAt: Date};
+};
+
+export async function signup(params: SignupParams & {sourceIp?: string}): Promise<SignupResult> {
   const existing = await findUserByEmail({email: params.email});
   if (existing) {
+    const canResumeVerification =
+      existing.status === 'active' &&
+      existing.emailVerifiedAt === null &&
+      existing.hashedPassword !== null &&
+      (await verifyPassword({password: params.password, hash: existing.hashedPassword}));
+    if (canResumeVerification) {
+      const emailChallenge = await createEmailChallenge({
+        email: existing.email,
+        purpose: PASSWORD_VERIFICATION_PURPOSE,
+        continuation: existing.id,
+        sourceIp: params.sourceIp ?? '0.0.0.0',
+      });
+      return {...existing, emailChallenge};
+    }
     throw new EmailTakenError(params.email);
   }
 
@@ -186,9 +188,14 @@ export async function signup(params: SignupParams): Promise<User> {
     name: params.name ?? null,
   });
 
-  await createAndQueueEmailVerification(user);
+  const emailChallenge = await createEmailChallenge({
+    email: user.email,
+    purpose: PASSWORD_VERIFICATION_PURPOSE,
+    continuation: user.id,
+    sourceIp: params.sourceIp ?? '0.0.0.0',
+  });
 
-  return user;
+  return {...user, emailChallenge};
 }
 
 export interface SignupWithInvitationParams extends SignupParams {
@@ -447,37 +454,44 @@ export interface ResendEmailVerificationResult {
 }
 
 export async function confirmEmailVerification(params: {
-  token: string;
+  email: string;
+  challengeId: string;
+  code: string;
   workspaces: WorkspacesInterModuleClient;
 }): Promise<ConfirmEmailVerificationResult> {
-  const consumed = await consumeEmailVerification({hashedToken: hashOpaqueToken(params.token)});
-  if (!consumed) {
-    throw new TokenInvalidError('Verification token is invalid or expired');
+  const user = await findUserByEmail({email: emailSchema.parse(params.email)});
+  if (!user) throw new TokenInvalidError('Verification code is invalid or expired');
+  await confirmEmailChallenge({id: params.challengeId, code: params.code, continuation: user.id});
+  await consumeEmailChallengeProof({
+    id: params.challengeId,
+    purpose: PASSWORD_VERIFICATION_PURPOSE,
+    continuation: user.id,
+  });
+
+  const verifiedUser = await markEmailVerified({userId: user.id});
+  if (verifiedUser?.status !== 'active') {
+    throw new TokenInvalidError('Verification code is invalid or expired');
   }
 
-  const user = await markEmailVerified({userId: consumed.userId});
-  if (user?.status !== 'active') {
-    throw new TokenInvalidError('Verification token is invalid or expired');
-  }
+  const token = await signAccessToken(verifiedUser, params.workspaces);
+  const refreshToken = await createRefreshSession(verifiedUser);
 
-  const token = await signAccessToken(user, params.workspaces);
-  const refreshToken = await createRefreshSession(user);
-
-  return {token, refreshToken, user};
+  return {token, refreshToken, user: verifiedUser};
 }
 
 export async function resendEmailVerification(params: {
   email: string;
+  challengeId: string;
+  sourceIp: string;
 }): Promise<ResendEmailVerificationResult> {
-  const rawToken = generateOpaqueToken('emailVerification');
-  const result = await createResendEmailVerification({
-    email: params.email,
-    hashedToken: hashOpaqueToken(rawToken),
-    expiresAt: hoursFromNow(VERIFICATION_TTL_HOURS),
-    cooldownSeconds: EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
-    sendEmail: {
-      verifyLink: verificationLink(rawToken),
-    },
+  const user = await findUserByEmail({email: emailSchema.parse(params.email)});
+  if (!user || user.emailVerifiedAt || user.status !== 'active') {
+    return {nextResendAvailableAt: new Date()};
+  }
+  const result = await resendEmailChallenge({
+    id: params.challengeId,
+    continuation: user.id,
+    sourceIp: params.sourceIp,
   });
 
   return {nextResendAvailableAt: result.nextResendAvailableAt};

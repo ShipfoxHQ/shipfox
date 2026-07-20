@@ -1,6 +1,5 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
-import {emailVerifications} from './schema/email-verifications.js';
 import {authOutbox} from './schema/outbox.js';
 import {passwordResets} from './schema/password-resets.js';
 import {authRateLimits} from './schema/rate-limits.js';
@@ -11,7 +10,6 @@ export const schema = {
   users,
   passwordResets,
   refreshTokens,
-  emailVerifications,
   authOutbox,
   authRateLimits,
 };
