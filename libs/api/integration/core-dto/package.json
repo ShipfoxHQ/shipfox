@@ -41,6 +41,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/inter-module": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

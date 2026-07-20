@@ -1,18 +1,16 @@
 import {createHash} from 'node:crypto';
 import {
-  IntegrationConnectionInactiveError,
-  IntegrationConnectionNotFoundError,
-  IntegrationConnectionWorkspaceMismatchError,
-  IntegrationProviderError,
-  type IntegrationSourceControlService,
+  integrationsInterModuleContract,
   MAX_REPOSITORY_FILE_BYTES,
-} from '@shipfox/api-integration-core';
+} from '@shipfox/api-integration-core-dto';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
 import {hasAgentStepIntegrations} from './has-agent-step-integrations.js';
+import type {DefinitionsSourceControl} from './integrations.js';
 import {parseDefinition} from './parse-definition.js';
 
 export const WORKFLOW_PREFIX = '.shipfox/workflows/';
@@ -24,7 +22,7 @@ export interface SyncSourceContext {
   workspaceId: string;
   sourceConnectionId: string;
   sourceExternalRepositoryId: string;
-  sourceControl: IntegrationSourceControlService;
+  sourceControl: DefinitionsSourceControl;
 }
 
 export interface ResolvedSyncSource {
@@ -173,19 +171,27 @@ export function classifySyncFailure(error: unknown): SyncFailureClassification {
   if (error instanceof DefinitionSyncPermanentError) {
     return {code: error.code, message: error.message, retryable: false};
   }
-  if (
-    error instanceof IntegrationConnectionNotFoundError ||
-    error instanceof IntegrationConnectionInactiveError ||
-    error instanceof IntegrationConnectionWorkspaceMismatchError
-  ) {
-    return {code: 'connection-unavailable', message: error.message, retryable: false};
-  }
-  if (error instanceof IntegrationProviderError) {
-    return {
-      code: providerErrorCode(error.reason),
-      message: error.message,
-      retryable: isProviderReasonRetryable(error.reason),
-    };
+  const methods = [
+    integrationsInterModuleContract.methods.resolveSourceRepository,
+    integrationsInterModuleContract.methods.listSourceFiles,
+    integrationsInterModuleContract.methods.fetchSourceFile,
+  ] as const;
+  for (const method of methods) {
+    if (!isInterModuleKnownError(method, error)) continue;
+    if (
+      error.code === 'connection-not-found' ||
+      error.code === 'connection-inactive' ||
+      error.code === 'connection-workspace-mismatch'
+    ) {
+      return {code: 'connection-unavailable', message: error.message, retryable: false};
+    }
+    if (error.code === 'provider-failure') {
+      return {
+        code: providerErrorCode(error.details.reason),
+        message: error.message,
+        retryable: isProviderReasonRetryable(error.details.reason),
+      };
+    }
   }
   return {
     code: 'unknown',

@@ -1,6 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import {
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationsEventMap,
@@ -42,14 +42,14 @@ export {
 export {createProjectRoutes, requireProjectAccess} from '#presentation/index.js';
 
 export interface CreateProjectsModuleOptions {
-  sourceControl: IntegrationSourceControlService;
+  integrations: IntegrationsModuleClient;
 }
 
-export function createProjectsModule({sourceControl}: CreateProjectsModuleOptions): ShipfoxModule {
+export function createProjectsModule({integrations}: CreateProjectsModuleOptions): ShipfoxModule {
   return {
     name: 'projects',
     database: {db, migrationsPath},
-    routes: createProjectRoutes(sourceControl),
+    routes: createProjectRoutes(integrations),
     e2eRoutes: [projectsE2eRoutes],
     metrics: registerProjectsServiceMetrics,
     publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],

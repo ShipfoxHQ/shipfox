@@ -11,14 +11,8 @@ import {
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
-import {
-  buildAgentToolCatalogs,
-  buildAgentToolSelectionCatalogs,
-  createIntegrationsContext,
-  createWorkspaceConnectionSnapshotLoader,
-  getIntegrationConnectionById,
-  type WebhookDeliverySource,
-} from '@shipfox/api-integration-core';
+import {createIntegrationsContext, type WebhookDeliverySource} from '@shipfox/api-integration-core';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
 import {createLogsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
@@ -29,8 +23,6 @@ import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module'
 import {createTriggersModule} from '@shipfox/api-triggers';
 import {
   createWorkflowsModule,
-  setAgentToolMaterializationServices,
-  setSourceControl,
 } from '@shipfox/api-workflows';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {workspacesModule} from '@shipfox/api-workspaces';
@@ -60,6 +52,7 @@ export async function defaultModules(
   const annotationsClient = interModuleTransport.createClient(annotationsInterModuleContract);
   const secretsClient = interModuleTransport.createClient(secretsInterModuleContract);
   const workspacesClient = interModuleTransport.createClient(workspacesInterModuleContract);
+  const integrationsClient = interModuleTransport.createClient(integrationsInterModuleContract);
   const integrations = await createIntegrationsContext({
     workspaces: workspacesClient,
     secrets: {
@@ -140,30 +133,10 @@ export async function defaultModules(
     agentTools: {workflows: workflowsClient},
     webhookDeliverySource: options.webhookDeliverySource,
   });
-  const [agentToolSelectionCatalogs, agentToolCatalogs] = await Promise.all([
-    buildAgentToolSelectionCatalogs(integrations.registry),
-    buildAgentToolCatalogs(integrations.registry),
-  ]);
-  const loadWorkspaceConnectionSnapshot = createWorkspaceConnectionSnapshotLoader(
-    integrations.registry,
-  );
-
-  // The checkout-token route resolves intents and mints credentials through the
-  // source-control service; wire it into the workflows module before serving.
-  setSourceControl(integrations.sourceControl);
-  setAgentToolMaterializationServices({
-    projects: projectsClient,
-    catalogs: agentToolCatalogs,
-    loadWorkspaceConnectionSnapshot,
-    getIntegrationConnectionById,
-  });
-  const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
+  const projectsModule = createProjectsModule({integrations: integrationsClient});
   const definitionsModule = createDefinitionsModule({
     projects: projectsClient,
-    sourceControl: integrations.sourceControl,
-    agentToolSelectionCatalogs,
-    loadWorkspaceConnectionSnapshot,
-    getIntegrationConnectionById,
+    integrations: integrationsClient,
   });
 
   const modules = [
@@ -182,6 +155,7 @@ export async function defaultModules(
       projects: projectsClient,
       runners: runnersClient,
       secrets: secretsClient,
+      integrations: integrationsClient,
     }),
     annotationsModule,
     (options.createRunnersModule ?? createRunnersModule)({auth: authClient}),

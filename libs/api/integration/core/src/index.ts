@@ -22,6 +22,7 @@ import {
   type IntegrationSourceControlService,
 } from '#core/source-control-service.js';
 import {getIntegrationConnectionById} from '#db/connections.js';
+import {createIntegrationsInterModulePresentation} from '#presentation/inter-module.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
@@ -230,6 +231,9 @@ export async function createIntegrationsContext(
 
   const module: ShipfoxModule = {
     name: 'integrations',
+    interModulePresentations: [
+      createIntegrationsInterModulePresentation({registry, sourceControl}),
+    ],
     startupTasks: runStartupTasks,
     database: [
       {db, migrationsPath},

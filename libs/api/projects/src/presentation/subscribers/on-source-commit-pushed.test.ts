@@ -1,6 +1,7 @@
 import {
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationSourceCommitPushedEvent,
+  type IntegrationsModuleClient,
   type SourcePushPayload,
 } from '@shipfox/api-integration-core-dto';
 import {PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
@@ -140,7 +141,7 @@ describe('onSourceCommitPushed', () => {
   // The source/event filter is the subscription itself, so this module should
   // only receive the typed source-control event.
   it('registers the projects module on INTEGRATION_SOURCE_COMMIT_PUSHED', () => {
-    const module = createProjectsModule({sourceControl: {} as never});
+    const module = createProjectsModule({integrations: {} as IntegrationsModuleClient});
 
     const events = module.subscribers?.map((subscriber) => subscriber.event);
 

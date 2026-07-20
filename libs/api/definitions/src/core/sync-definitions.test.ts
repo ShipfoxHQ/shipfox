@@ -1,10 +1,6 @@
-import {
-  IntegrationConnectionInactiveError,
-  IntegrationConnectionNotFoundError,
-  IntegrationConnectionWorkspaceMismatchError,
-  IntegrationProviderError,
-  type IntegrationSourceControlService,
-} from '@shipfox/api-integration-core';
+import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import {DefinitionSyncPermanentError} from './errors.js';
@@ -349,13 +345,15 @@ describe('classifySyncFailure', () => {
     ['malformed-provider-response', false, 'provider-malformed-response'],
     ['content-too-large', false, 'content-too-large'],
     ['too-many-files', false, 'too-many-files'],
-  ])('maps IntegrationProviderError(%s) to retryable=%s code=%s', (reason, retryable, code) => {
-    const result = classifySyncFailure(
-      // biome-ignore lint/suspicious/noExplicitAny: enumerated reason
-      new IntegrationProviderError(reason as any, 'boom'),
+  ])('maps provider failures (%s) to retryable=%s code=%s', (reason, retryable, code) => {
+    const error = createInterModuleKnownError(
+      integrationsInterModuleContract.methods.resolveSourceRepository,
+      'provider-failure',
+      {reason},
     );
+    const result = classifySyncFailure(error);
 
-    expect(result).toEqual({code, message: 'boom', retryable});
+    expect(result).toEqual({code, message: error.message, retryable});
   });
 
   it('classifies DefinitionSyncPermanentError as non-retryable', () => {
@@ -367,11 +365,15 @@ describe('classifySyncFailure', () => {
   });
 
   it.each([
-    () => new IntegrationConnectionNotFoundError('connection-1'),
-    () => new IntegrationConnectionInactiveError('connection-1'),
-    () => new IntegrationConnectionWorkspaceMismatchError('connection-1'),
-  ])('classifies connection lifecycle errors as non-retryable connection-unavailable', (build) => {
-    const error = build();
+    'connection-not-found',
+    'connection-inactive',
+    'connection-workspace-mismatch',
+  ] as const)('classifies %s as non-retryable connection-unavailable', (code) => {
+    const error = createInterModuleKnownError(
+      integrationsInterModuleContract.methods.resolveSourceRepository,
+      code,
+      {connectionId: '00000000-0000-0000-0000-000000000000'},
+    );
 
     const result = classifySyncFailure(error);
 

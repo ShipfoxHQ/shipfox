@@ -43,13 +43,12 @@
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",
-    "@shipfox/inter-module": "workspace:*",
-    "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/expression": "workspace:*",
+    "@shipfox/inter-module": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",
@@ -69,6 +68,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/regex": "workspace:*",
     "@shipfox/swc": "workspace:*",

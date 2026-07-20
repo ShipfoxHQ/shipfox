@@ -1,5 +1,5 @@
-import type {CheckoutSpec, IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import {getProjectById} from '@shipfox/api-projects';
 import {getJobById, getWorkflowRunByAttemptId} from '#db/workflow-runs.js';
 import {
   CheckoutIntentUnresolvedError,
@@ -20,18 +20,15 @@ export interface CheckoutIntent {
  * (`workflowRunId`/`workflowRunAttemptId`/`workspaceId` in the lease claim are informational).
  * Chain: job → attempt → run → project source metadata. Credential-free.
  */
-export async function resolveCheckoutIntent(
-  jobId: string,
-  projects: ProjectsModuleClient,
-): Promise<CheckoutIntent> {
+export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutIntent> {
   const job = await getJobById(jobId);
   if (!job) throw new JobNotFoundError(jobId);
 
   const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
   if (!run) throw new WorkflowRunNotFoundError(job.workflowRunAttemptId);
 
-  const {project} = await projects.getProjectById({projectId: run.projectId});
-  if (project === null) throw new CheckoutIntentUnresolvedError(run.projectId);
+  const project = await getProjectById(run.projectId);
+  if (!project) throw new CheckoutIntentUnresolvedError(run.projectId);
 
   return {
     workspaceId: project.workspaceId,
@@ -49,20 +46,41 @@ export async function resolveCheckoutIntent(
  */
 export async function createJobCheckoutSpec({
   jobId,
-  sourceControl,
-  projects,
+  integrations,
 }: {
   jobId: string;
-  sourceControl: IntegrationSourceControlService;
-  projects: ProjectsModuleClient;
-}): Promise<{spec: CheckoutSpec; persistCredentials: boolean}> {
-  const intent = await resolveCheckoutIntent(jobId, projects);
-  const spec = await sourceControl.createCheckoutSpec({
+  integrations: IntegrationsModuleClient;
+}): Promise<{
+  spec: {
+    repositoryUrl: string;
+    ref: string;
+    credentials?: {username: string; token: string; expiresAt: Date};
+    gitAuthor?: {name: string; email: string};
+  };
+  persistCredentials: boolean;
+}> {
+  const intent = await resolveCheckoutIntent(jobId);
+  const response = await integrations.createCheckoutSpec({
     workspaceId: intent.workspaceId,
     connectionId: intent.connectionId,
     externalRepositoryId: intent.externalRepositoryId,
     ref: undefined,
     permissions: intent.permissions,
   });
-  return {spec, persistCredentials: intent.persistCredentials};
+  return {
+    spec: {
+      ...response,
+      ...(response.credentials && typeof response.credentials.expiresAt === 'string'
+        ? {
+            credentials: {
+              ...response.credentials,
+              expiresAt: new Date(response.credentials.expiresAt),
+            },
+          }
+        : response.credentials
+          ? {credentials: response.credentials}
+          : {}),
+    },
+    persistCredentials: intent.persistCredentials,
+  };
 }

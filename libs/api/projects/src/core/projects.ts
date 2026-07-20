@@ -1,4 +1,4 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import {
   PROJECT_CREATED,
   PROJECT_SOURCE_BOUND,
@@ -19,13 +19,17 @@ export interface CreateProjectFromSourceParams {
   name: string;
   sourceConnectionId: string;
   sourceExternalRepositoryId: string;
-  sourceControl: IntegrationSourceControlService;
+  integrations: IntegrationsModuleClient;
 }
 
 export async function createProjectFromSource(
   params: CreateProjectFromSourceParams,
 ): Promise<Project> {
-  const source = await params.sourceControl.resolveRepository({
+  let source: {
+    connection: {id: string; provider: string};
+    repository: {externalRepositoryId: string};
+  };
+  source = await params.integrations.resolveSourceRepository({
     workspaceId: params.workspaceId,
     connectionId: params.sourceConnectionId,
     externalRepositoryId: params.sourceExternalRepositoryId,

@@ -35,7 +35,10 @@ export class IntegrationConnectionAlreadyExistsError extends Error {
 }
 
 export class IntegrationCapabilityUnavailableError extends Error {
-  constructor(capability: IntegrationCapability, provider: IntegrationProviderKind) {
+  constructor(
+    public readonly capability: IntegrationCapability,
+    public readonly provider: IntegrationProviderKind,
+  ) {
     super(`Integration provider ${provider} does not expose ${capability}`);
   }
 }
@@ -47,7 +50,7 @@ export class IntegrationCheckoutUnsupportedError extends Error {
 }
 
 export class IntegrationProviderUnavailableError extends Error {
-  constructor(provider: IntegrationProviderKind) {
+  constructor(public readonly provider: IntegrationProviderKind) {
     super(`No integration provider registered for ${provider}`);
   }
 }

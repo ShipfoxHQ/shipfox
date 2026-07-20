@@ -4,8 +4,11 @@ import {
   setUserContext,
   type UserContextMembership,
 } from '@shipfox/api-auth-context';
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {IntegrationConnectionNotFoundError} from '@shipfox/api-integration-core';
+import {
+  type IntegrationsModuleClient,
+  integrationsInterModuleContract,
+} from '@shipfox/api-integration-core-dto';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
@@ -33,30 +36,21 @@ describe('project routes', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let sourceConnectionId: string;
-  let sourceControl: IntegrationSourceControlService;
+  let integrations: Pick<IntegrationsModuleClient, 'resolveSourceRepository'>;
 
   beforeEach(async () => {
     await closeApp();
     workspaceId = crypto.randomUUID();
     sourceConnectionId = crypto.randomUUID();
     authenticatedMemberships = [{workspaceId, role: 'admin'}];
-    sourceControl = {
-      getConnection: vi.fn(),
-      listRepositories: vi.fn(),
-      resolveRepository: vi.fn(async () => {
+    integrations = {
+      resolveSourceRepository: vi.fn(async () => {
         await Promise.resolve();
         return {
           connection: {
             id: sourceConnectionId,
-            workspaceId,
             provider: 'gitea' as const,
-            externalAccountId: 'gitea-owner',
             slug: 'gitea_owner',
-            displayName: 'Gitea',
-            lifecycleStatus: 'active' as const,
-            capabilities: ['source_control' as const],
-            createdAt: new Date(),
-            updatedAt: new Date(),
           },
           repository: {
             externalRepositoryId: 'gitea:gitea-owner/platform',
@@ -70,13 +64,10 @@ describe('project routes', () => {
           },
         };
       }),
-      listFiles: vi.fn(),
-      fetchFile: vi.fn(),
-      createCheckoutSpec: vi.fn(),
     };
     app = await createApp({
       auth: [fakeUserAuth],
-      routes: createProjectRoutes(sourceControl),
+      routes: createProjectRoutes(integrations as IntegrationsModuleClient),
       swagger: false,
     });
     await app.ready();
@@ -129,7 +120,7 @@ describe('project routes', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(sourceControl.resolveRepository).not.toHaveBeenCalled();
+    expect(integrations.resolveSourceRepository).not.toHaveBeenCalled();
   });
 
   test('lists projects for a workspace with source references', async () => {
@@ -164,17 +155,11 @@ describe('project routes', () => {
   test('filters projects by `search` (case-insensitive substring on name)', async () => {
     const names = ['Platform', 'Runner', 'Notifier'];
     for (const [index, name] of names.entries()) {
-      vi.mocked(sourceControl.resolveRepository).mockResolvedValueOnce({
+      vi.mocked(integrations.resolveSourceRepository).mockResolvedValueOnce({
         connection: {
           id: sourceConnectionId,
-          workspaceId,
           provider: 'gitea',
-          externalAccountId: 'gitea-owner',
           slug: 'gitea_owner',
-          displayName: 'Gitea',
-          lifecycleStatus: 'active',
-          createdAt: new Date(),
-          updatedAt: new Date(),
         },
         repository: {
           externalRepositoryId: `gitea:gitea-owner/${name.toLowerCase()}-${index}`,
@@ -242,8 +227,12 @@ describe('project routes', () => {
   });
 
   test('maps missing source connections to a stable error', async () => {
-    vi.mocked(sourceControl.resolveRepository).mockRejectedValueOnce(
-      new IntegrationConnectionNotFoundError(sourceConnectionId),
+    vi.mocked(integrations.resolveSourceRepository).mockRejectedValueOnce(
+      createInterModuleKnownError(
+        integrationsInterModuleContract.methods.resolveSourceRepository,
+        'connection-not-found',
+        {connectionId: sourceConnectionId},
+      ),
     );
 
     const res = await app.inject({

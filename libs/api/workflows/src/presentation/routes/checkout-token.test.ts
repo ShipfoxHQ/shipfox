@@ -52,6 +52,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
           agent: agentTestClient,
           annotations: annotationsTestClient,
           auth: workflowsTestAuthClient,
+          integrations: {createCheckoutSpec} as never,
           projects,
           runners: runnersTestClient,
           secrets,

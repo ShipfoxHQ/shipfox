@@ -1,4 +1,10 @@
-import type {CheckoutSpec} from '@shipfox/api-integration-core';
+type CheckoutSpec = {
+  repositoryUrl: string;
+  ref: string;
+  credentials?: {username: string; token: string; expiresAt: Date} | undefined;
+  gitAuthor?: {name: string; email: string} | undefined;
+};
+
 import type {CheckoutTokenResponseDto} from '@shipfox/api-workflows-dto';
 
 const SCP_LIKE_HOST_RE = /^(?:[^@:/]+@)?([^:/]+):/;
