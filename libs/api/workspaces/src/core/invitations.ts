@@ -85,6 +85,12 @@ export type PreviewInvitationResult =
   | {status: 'already_used'; workspaceName: string}
   | {status: 'invalid'};
 
+export interface AcceptedWorkspaceInvitation {
+  invitation: Invitation;
+  membership: Membership;
+  alreadyMember: boolean;
+}
+
 export async function previewInvitation(params: {token: string}): Promise<PreviewInvitationResult> {
   const invitation = await peekInvitationByRawToken({token: params.token});
   if (!invitation) {
@@ -128,7 +134,7 @@ export async function acceptWorkspaceInvitation(params: {
   userId: string;
   email: string;
   name?: string | null | undefined;
-}): Promise<AcceptInvitationResult> {
+}): Promise<AcceptedWorkspaceInvitation> {
   const result = await reconcileWorkspaceInvitationAcceptance({
     token: params.token,
     email: params.email,

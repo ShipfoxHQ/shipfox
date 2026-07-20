@@ -2,13 +2,8 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
-export type {
-  AcceptInvitationParams,
-  AcceptInvitationResult,
-  CreateInvitationParams,
-} from './invitations.js';
+export type {CreateInvitationParams} from './invitations.js';
 export {
-  acceptInvitation,
   createInvitation,
   findInvitationByToken,
   listOpenInvitationsByWorkspace,
