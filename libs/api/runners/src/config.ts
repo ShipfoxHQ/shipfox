@@ -1,5 +1,5 @@
 import {REGISTRATION_TOKEN_BATCH_HARD_MAX} from '@shipfox/api-runners-dto';
-import {bool, createConfig, num, str} from '@shipfox/config';
+import {bool, createConfig, num} from '@shipfox/config';
 import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 const EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
@@ -41,10 +41,6 @@ export const config = createConfig({
   RUNNERS_RATE_LIMIT_TIMEOUT_MS: num({
     desc: 'Maximum time, in milliseconds, a runners rate-limit storage check may wait before the request fails closed.',
     default: 250,
-  }),
-  RATE_LIMIT_IDENTIFIER_SECRET: str({
-    desc: 'Secret used to HMAC identifiers before storing rate-limit counters. Set a dedicated value in production. When unset, the existing AUTH_JWT_SECRET environment value is used for compatibility with existing deployments.',
-    default: process.env.AUTH_JWT_SECRET,
   }),
   RESERVATION_TTL_SECONDS: num({
     desc: 'Lifetime of a count-based runner reservation, in seconds. Expired reservations stop counting against queued demand.',

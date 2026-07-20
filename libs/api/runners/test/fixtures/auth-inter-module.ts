@@ -1,10 +1,10 @@
 import {JOB_LEASE_TOKEN_AUDIENCE, RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import {jobLeaseTokenKey, runnerSessionTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256} from '@shipfox/node-jwt';
 
-const leaseSecret = process.env.AUTH_JOB_LEASE_TOKEN_SECRET ?? 'test-lease-secret';
-const runnerSessionSecret =
-  process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET ?? 'test-runner-session-secret';
+const leaseSecret = jobLeaseTokenKey();
+const runnerSessionSecret = runnerSessionTokenKey();
 
 export const runnersTestAuthClient: AuthInterModuleClient = {
   async mintRunnerSessionToken(claims) {

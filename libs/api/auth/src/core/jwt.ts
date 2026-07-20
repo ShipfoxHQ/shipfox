@@ -26,13 +26,13 @@ export interface SignUserTokenParams {
   email: string;
   name?: string | null | undefined;
   memberships: TokenMembership[];
-  secret: string;
+  secret: string | Uint8Array;
   expiresIn: string;
 }
 
 export interface VerifyUserTokenParams {
   token: string;
-  secret: string;
+  secret: string | Uint8Array;
 }
 
 export async function signUserToken(params: SignUserTokenParams): Promise<string> {

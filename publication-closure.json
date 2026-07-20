@@ -94,6 +94,7 @@
     "@shipfox/config",
     "@shipfox/expression",
     "@shipfox/inter-module",
+    "@shipfox/node-auth-root-key",
     "@shipfox/node-drizzle",
     "@shipfox/node-egress-guard",
     "@shipfox/node-email",

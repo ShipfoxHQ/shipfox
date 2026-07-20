@@ -401,10 +401,7 @@ function runtimeEnvironment() {
   const postgresDatabase = 'api_test';
 
   return {
-    AUTH_JOB_LEASE_TOKEN_SECRET: 'external-consumer-lease-secret',
-    AUTH_JWT_SECRET: 'external-consumer-jwt-secret',
-    AUTH_RUNNER_SESSION_TOKEN_SECRET: 'external-consumer-runner-secret',
-    EMAIL_CHALLENGE_ROOT_KEY: 'external-consumer-email-challenge-root-key',
+    AUTH_ROOT_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
     DATABASE_URL: `postgres://${postgresUsername}:${postgresPassword}@${postgresHost}:${postgresPort}/${postgresDatabase}`,
     GITEA_BASE_URL: 'https://gitea.example.com',
     GITEA_SERVICE_TOKEN: 'external-consumer-token',

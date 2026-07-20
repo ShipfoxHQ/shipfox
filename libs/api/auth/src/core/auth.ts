@@ -10,6 +10,7 @@ import {
   workspacesInterModuleContract,
 } from '@shipfox/api-workspaces-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config} from '#config.js';
 import {consumePasswordReset, createPasswordReset} from '#db/password-resets.js';
@@ -83,7 +84,7 @@ async function signAccessToken(
     email: user.email,
     name: user.name,
     memberships: memberships.memberships,
-    secret: config.AUTH_JWT_SECRET,
+    secret: userAccessTokenKey(),
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
   });
 }

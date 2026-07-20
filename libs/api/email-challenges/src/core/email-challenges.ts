@@ -1,5 +1,6 @@
 import {createHmac, randomInt, timingSafeEqual} from 'node:crypto';
 import {emailSchema} from '@shipfox/api-common-dto';
+import {emailChallengeKey} from '@shipfox/node-auth-root-key';
 import {mailer} from '@shipfox/node-mailer';
 import {and, eq, gt, isNull, lt, sql} from 'drizzle-orm';
 import {config} from '#config.js';
@@ -16,9 +17,7 @@ const maxFailedAttempts = 5;
 const retentionMs = 24 * 60 * 60 * 1000;
 
 function digest(domain: string, value: string) {
-  return createHmac('sha256', config.EMAIL_CHALLENGE_ROOT_KEY)
-    .update(`${domain}:${value}`)
-    .digest('hex');
+  return createHmac('sha256', emailChallengeKey()).update(`${domain}:${value}`).digest('hex');
 }
 function code() {
   return randomInt(0, 100_000_000).toString().padStart(8, '0');

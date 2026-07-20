@@ -1,6 +1,7 @@
 import type {OutgoingHttpHeaders} from 'node:http';
 import type {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
+import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import {type AppConfig, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {and, desc, eq, sql} from 'drizzle-orm';
@@ -14,7 +15,6 @@ const testConfig = vi.hoisted(
     captured: MailMessage[];
     challenges: Map<string, string>;
     mailer: Mailer;
-    secret: string;
     clientBaseUrl: string;
   } => {
     const captured: MailMessage[] = [];
@@ -28,7 +28,6 @@ const testConfig = vi.hoisted(
       captured,
       challenges: new Map(),
       mailer,
-      secret: 'route-tests-secret',
       clientBaseUrl: 'https://app.example.test',
     };
   },
@@ -48,7 +47,6 @@ const workspaces = workspaceTestDoubles as unknown as WorkspacesInterModuleClien
 
 vi.mock('#config.js', () => ({
   config: {
-    AUTH_JWT_SECRET: testConfig.secret,
     AUTH_JWT_EXPIRES_IN: '15m',
     AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
     AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,
@@ -65,7 +63,7 @@ const CODE_RE = /\b\d{8}\b/u;
 const TOKEN_RE = /token=([\w\-_=]+)/;
 type AuthEmailEventType = typeof AUTH_PASSWORD_RESET_SEND_REQUESTED;
 
-export const ROUTE_TEST_SECRET = testConfig.secret;
+export const ROUTE_TEST_SECRET = userAccessTokenKey();
 export const acceptWorkspaceInvitationMock: ReturnType<typeof vi.fn> =
   workspaceTestDoubles.acceptInvitation;
 export const peekInvitationByRawTokenMock: ReturnType<typeof vi.fn> =

@@ -356,7 +356,8 @@ Speculation about future work ("today X, tomorrow Y") and tracked tasks belong i
 ## Auth & token security
 
 The auth module issues two stateless bearer tokens, a **user session token** and
-a **job lease token**, each signed with its own dedicated secret. The full
+a **job lease token**, each signed with a distinct key derived from
+`AUTH_ROOT_KEY`. Rotating the root invalidates every derived-token type. The full
 security model (trust boundaries, scope, threat model, and rotation) lives in
 `libs/api/auth/README.md#security-model`; read it before touching anything that
 mints, verifies, or carries either token.

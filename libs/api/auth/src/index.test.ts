@@ -4,9 +4,7 @@ import {passwordLoginMethods} from './login-methods.js';
 
 vi.mock('#config.js', () => ({
   config: {
-    AUTH_JWT_SECRET: 'auth-module-test-secret',
     AUTH_JWT_EXPIRES_IN: '15m',
-    AUTH_JOB_LEASE_TOKEN_SECRET: 'auth-module-test-job-secret',
     AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: '90m',
     AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
     AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,

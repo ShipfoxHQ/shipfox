@@ -1,3 +1,4 @@
+import {rateLimitIdentifierKey} from '@shipfox/node-auth-root-key';
 import {
   checkRateLimit,
   hashRateLimitIdentifier,
@@ -107,6 +108,6 @@ export async function checkRunnersRateLimit(params: CheckRunnersRateLimitParams)
   }
 }
 
-function effectiveIdentifierSecret(): Buffer | string {
-  return config.RATE_LIMIT_IDENTIFIER_SECRET;
+function effectiveIdentifierSecret(): Uint8Array {
+  return rateLimitIdentifierKey();
 }

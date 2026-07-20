@@ -19,6 +19,7 @@ pnpm add @shipfox/node-rate-limit
 ## Usage
 
 ```ts
+import {rateLimitIdentifierKey} from '@shipfox/node-auth-root-key';
 import {checkRateLimit} from '@shipfox/node-rate-limit';
 
 await checkRateLimit({
@@ -27,7 +28,7 @@ await checkRateLimit({
   identifier: 'user@example.com',
   limit: 5,
   windowSeconds: 60,
-  identifierSecret: process.env.RATE_LIMIT_IDENTIFIER_SECRET,
+  identifierSecret: rateLimitIdentifierKey(),
   identifierHashDomain: 'shipfox.auth.rate-limit.identifier.v1',
   consume: async (params) => {
     return await consumeRateLimitRow(params);

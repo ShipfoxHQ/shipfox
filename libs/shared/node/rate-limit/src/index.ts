@@ -57,7 +57,7 @@ export interface CheckRateLimitParams<Action extends string, Scope extends strin
   /** Raw identifier for the subject being limited. It is HMACed before storage. */
   identifier: string;
   /** Secret key used to HMAC the raw identifier. */
-  identifierSecret: string | Buffer;
+  identifierSecret: string | Uint8Array;
   /** Domain separator used to keep hashes distinct across products and versions. */
   identifierHashDomain: string;
   /** Atomically consumes one request from the caller-owned backing store. */
@@ -155,7 +155,7 @@ export function hashRateLimitIdentifier<Action extends string, Scope extends str
   action: Action;
   scope: Scope;
   identifier: string;
-  secret: string | Buffer;
+  secret: string | Uint8Array;
   domain: string;
 }): string {
   return createHmac('sha256', params.secret)

@@ -5,6 +5,7 @@ import {
 } from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import {RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
+import {runnerSessionTokenKey} from '@shipfox/node-auth-root-key';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {signHs256} from '@shipfox/node-jwt';
@@ -207,7 +208,7 @@ describe('POST /runners/jobs/request', () => {
         labels: ['linux', 'x64'],
         maxClaims: null,
       },
-      secret: process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET ?? 'test-runner-session-secret',
+      secret: runnerSessionTokenKey(),
       expiresIn: '-1s',
       audience: RUNNER_SESSION_TOKEN_AUDIENCE,
     });

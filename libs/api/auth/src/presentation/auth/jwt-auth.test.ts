@@ -1,3 +1,4 @@
+import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -5,7 +6,7 @@ import {signUserToken} from '#core/jwt.js';
 import {createUser, findUserById} from '#db/users.js';
 import {createJwtAuthMethod, getClientContext} from './jwt-auth.js';
 
-const SECRET = 'test-secret';
+const SECRET = userAccessTokenKey();
 
 function emailFor(suffix: string): string {
   return `${suffix}-${crypto.randomUUID()}@example.com`;
