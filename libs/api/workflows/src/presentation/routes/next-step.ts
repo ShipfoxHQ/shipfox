@@ -1,3 +1,4 @@
+import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import {issueJobLeaseToken, jobLeaseParamsFrom} from '@shipfox/api-auth';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
@@ -8,7 +9,10 @@ import {JobLeaseNotActiveError, JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
 import {toStepDto} from '#presentation/dto/step.js';
 
-export function createNextStepRoute(runners: RunnersInterModuleClient) {
+export function createNextStepRoute(
+  runners: RunnersInterModuleClient,
+  annotations: AnnotationsInterModuleClient,
+) {
   return defineRoute({
     method: 'POST',
     path: '/steps/next',
@@ -46,6 +50,7 @@ export function createNextStepRoute(runners: RunnersInterModuleClient) {
         );
         if (next.dispatched) {
           await warnAgentToolCapabilityMismatchOnDispatch({
+            annotations,
             runners,
             leaseIdentity: leasedJob,
             step: next.step,

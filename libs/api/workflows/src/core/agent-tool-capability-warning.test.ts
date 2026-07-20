@@ -1,3 +1,4 @@
+import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import type {JobLeaseTokenClaims} from '@shipfox/api-auth';
 import {sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
@@ -6,13 +7,32 @@ import {warnAgentToolCapabilityMismatchOnDispatch as warnAgentToolCapabilityMism
 import type {Step} from './entities/step.js';
 
 async function warnAgentToolCapabilityMismatchOnDispatch(
-  params: Omit<Parameters<typeof warnAgentToolCapabilityMismatchOnDispatchImpl>[0], 'runners'>,
+  params: Omit<
+    Parameters<typeof warnAgentToolCapabilityMismatchOnDispatchImpl>[0],
+    'annotations' | 'runners'
+  >,
 ) {
   return await warnAgentToolCapabilityMismatchOnDispatchImpl({
+    annotations: annotationsTestClient,
     runners: runnersTestClient,
     ...params,
   });
 }
+
+const annotationBodiesByExecution = new Map<string, Map<string, string>>();
+
+const annotationsTestClient: AnnotationsInterModuleClient = {
+  replaceOrRemoveAnnotation(input) {
+    const annotations = annotationBodiesByExecution.get(input.jobExecutionId) ?? new Map();
+    annotationBodiesByExecution.set(input.jobExecutionId, annotations);
+    if (input.annotation.op === 'remove') {
+      annotations.delete(input.context);
+    } else {
+      annotations.set(input.context, input.annotation.body);
+    }
+    return Promise.resolve({});
+  },
+};
 
 function lease(params: Partial<JobLeaseTokenClaims> = {}): JobLeaseTokenClaims {
   const now = Math.floor(Date.now() / 1000);
@@ -107,16 +127,11 @@ async function insertRunnerSession(params: {
   `);
 }
 
-async function annotationsFor(
-  jobExecutionId: string,
-): Promise<Array<{context: string; body: string}>> {
-  const result = await db().execute<{context: string; body: string}>(sql`
-    SELECT context, body
-    FROM annotations_annotations
-    WHERE job_execution_id = ${jobExecutionId}
-    ORDER BY sequence
-  `);
-  return [...result.rows];
+function annotationsFor(jobExecutionId: string): Array<{context: string; body: string}> {
+  return Array.from(annotationBodiesByExecution.get(jobExecutionId) ?? [], ([context, body]) => ({
+    context,
+    body,
+  }));
 }
 
 describe('warnAgentToolCapabilityMismatchOnDispatch', () => {

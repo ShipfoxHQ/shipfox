@@ -1,3 +1,4 @@
+import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
@@ -25,7 +26,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@shipfox/api-agent', () => ({agentModule: {name: 'agent'}}));
-vi.mock('@shipfox/annotations', () => ({annotationsModule: {name: 'annotations'}}));
+vi.mock('@shipfox/annotations', () => ({
+  annotationsModule: {
+    name: 'annotations',
+    interModulePresentations: [
+      {
+        contract: annotationsInterModuleContract,
+        handlers: {replaceOrRemoveAnnotation: vi.fn()},
+      },
+    ],
+  },
+}));
 vi.mock('@shipfox/api-auth', () => ({authModule: {name: 'auth'}}));
 vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,

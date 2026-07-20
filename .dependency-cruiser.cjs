@@ -191,6 +191,18 @@ module.exports = {
           },
         ]
       : []),
+    ...(currentPackage.name === '@shipfox/api-workflows'
+      ? [
+          {
+            name: 'workflows-use-annotations-inter-module-api',
+            comment:
+              'Workflows may consume the Annotations DTO contract, but never import the Annotations implementation package.',
+            severity: 'error',
+            from: {path: '^src/'},
+            to: {path: '^\\.\\./annotations/(?:src|dist)/'},
+          },
+        ]
+      : []),
     ...(['@shipfox/api-definitions', '@shipfox/api-secrets', '@shipfox/api-workflows'].includes(
       currentPackage.name,
     )

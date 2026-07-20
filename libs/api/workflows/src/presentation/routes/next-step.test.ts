@@ -1,3 +1,4 @@
+import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import {createLeaseTokenAuthMethod, verifyJobLeaseToken} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq, sql} from 'drizzle-orm';
@@ -43,14 +44,10 @@ async function setRunnerToolCapabilities(
   `);
 }
 
-async function annotationCount(jobExecutionId: string): Promise<number> {
-  const result = await db().execute<{count: string}>(sql`
-    SELECT count(*)::text AS count
-    FROM annotations_annotations
-    WHERE job_execution_id = ${jobExecutionId}
-  `);
-  return Number(result.rows[0]?.count ?? '0');
-}
+const annotationWrites = vi.fn<AnnotationsInterModuleClient['replaceOrRemoveAnnotation']>();
+const annotationsTestClient: AnnotationsInterModuleClient = {
+  replaceOrRemoveAnnotation: annotationWrites.mockResolvedValue({}),
+};
 
 describe('POST /runs/jobs/current/steps/next', () => {
   let app: FastifyInstance;
@@ -58,7 +55,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
+      routes: [createLeaseTokenRouteGroup(runnersTestClient, undefined, annotationsTestClient)],
       swagger: false,
     });
     await app.ready();
@@ -200,6 +197,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
   });
 
   test('writes the tool capability warning only on fresh dispatch', async () => {
+    annotationWrites.mockClear();
     const {jobId, steps} = await arrangeJobWithSteps(1);
     await db()
       .update(stepsTable)
@@ -233,7 +231,13 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
-    expect(await annotationCount(lease.jobExecutionId)).toBe(1);
+    expect(annotationWrites).toHaveBeenCalledTimes(1);
+    expect(annotationWrites).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobExecutionId: lease.jobExecutionId,
+        annotation: expect.objectContaining({op: 'replace'}),
+      }),
+    );
   });
 
   test('returns 404 for a valid token without an active lease', async () => {
