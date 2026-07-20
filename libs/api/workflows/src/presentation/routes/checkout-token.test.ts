@@ -37,6 +37,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
           projects: projects as never,
           runners: runnersTestClient,
           integrations: {createCheckoutSpec} as never,
+          secrets: {} as never,
         }),
       ],
       swagger: false,
