@@ -32,6 +32,7 @@ export type {
 } from './publisher-registry.js';
 export {
   BATCH_SIZE,
+  countPendingOutboxRows,
   drainAll,
   getEventSchema,
   getRegisteredPublisherNames,

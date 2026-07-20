@@ -5,6 +5,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {DISPATCHER_TASK_QUEUE, OUTBOX_RETENTION_WORKFLOW_ID} from '#core/constants.js';
 import {createOutboxDrainerService} from '#core/outbox-drainer-service.js';
+import {registerDispatcherServiceMetrics} from '#metrics/index.js';
 import {createActivities} from '#temporal/index.js';
 
 // Temporal's webpack bundler requires a compiled .js file. Whether running from
@@ -35,6 +36,7 @@ export function createDispatcherModule(
 
       return Promise.resolve();
     },
+    metrics: registerDispatcherServiceMetrics,
     ...(enabled ? {services: [createOutboxDrainerService({pollMs})]} : {}),
     workers: [
       {

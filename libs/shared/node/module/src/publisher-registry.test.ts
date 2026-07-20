@@ -2,7 +2,13 @@ import {createOutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {pgTableCreator} from 'drizzle-orm/pg-core';
 import {z} from 'zod';
+
+const mocks = vi.hoisted(() => ({warn: vi.fn()}));
+
+vi.mock('@shipfox/node-opentelemetry', () => ({logger: () => ({warn: mocks.warn})}));
+
 import {
+  countPendingOutboxRows,
   getEventSchema,
   getRegisteredPublisherNames,
   pruneDispatchedOutboxRows,
@@ -133,5 +139,42 @@ describe('pruneDispatchedOutboxRows', () => {
     });
 
     expect(results).toEqual([]);
+  });
+});
+
+describe('countPendingOutboxRows', () => {
+  beforeEach(() => {
+    mocks.warn.mockClear();
+    resetPublishers();
+  });
+
+  afterEach(() => {
+    resetPublishers();
+  });
+
+  it('returns zero when no publishers are registered', async () => {
+    const pendingRows = await countPendingOutboxRows();
+
+    expect(pendingRows).toBe(0);
+  });
+
+  it('logs failed sources and returns the counts from successful sources', async () => {
+    const failure = new Error('database unavailable');
+    const successfulDb = (() => ({
+      select: () => ({from: () => ({where: () => Promise.resolve([{count: 3}])})}),
+    })) as unknown as () => NodePgDatabase<Record<string, unknown>>;
+    const failedDb = (() => ({
+      select: () => ({from: () => ({where: () => Promise.reject(failure)})}),
+    })) as unknown as () => NodePgDatabase<Record<string, unknown>>;
+    registerPublisher({name: 'successful', table, db: successfulDb});
+    registerPublisher({name: 'failed', table, db: failedDb});
+
+    const pendingRows = await countPendingOutboxRows();
+
+    expect(pendingRows).toBe(3);
+    expect(mocks.warn).toHaveBeenCalledWith(
+      {err: failure, source: 'failed'},
+      'Failed to count pending outbox rows',
+    );
   });
 });

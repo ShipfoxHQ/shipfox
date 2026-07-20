@@ -63,6 +63,7 @@ describe('dispatcherModule', () => {
       },
     ]);
     expect(module.services?.[0]?.name).toBe('outbox-drainer');
+    expect(module.metrics).toBeDefined();
   });
 
   it('passes the configured poll interval to the in-process drainer', () => {
