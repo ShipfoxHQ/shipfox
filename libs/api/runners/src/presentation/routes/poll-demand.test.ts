@@ -401,7 +401,9 @@ describe('POST /provisioners/demand/poll with installation provisioning configur
         fakeProvisionerAuth,
       ],
       routes: createRunnerRoutes(runnersTestAuthClient, {
-        installationProvisioning: {policy: {filterEligibleWorkspaceIds: vi.fn()}},
+        installationProvisioning: {
+          policy: {filterEligibleWorkspaceIds: vi.fn().mockResolvedValue(new Set())},
+        },
       }),
       swagger: false,
     });
@@ -417,7 +419,7 @@ describe('POST /provisioners/demand/poll with installation provisioning configur
     provisionerTokenId = crypto.randomUUID();
   });
 
-  it('returns 501 for installation provisioner credentials', async () => {
+  it('returns opaque empty demand when no workspace is eligible', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/provisioners/demand/poll',
@@ -425,8 +427,8 @@ describe('POST /provisioners/demand/poll with installation provisioning configur
       payload: body({max_reservations: 1}),
     });
 
-    expect(res.statusCode).toBe(501);
-    expect(res.json().code).toBe('installation-provisioning-unavailable');
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({stats: [], reservations: [], terminate_provider_runner_ids: []});
   });
 
   it('still serves workspace provisioner credentials', async () => {

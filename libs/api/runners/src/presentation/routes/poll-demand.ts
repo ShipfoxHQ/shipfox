@@ -2,16 +2,32 @@ import {
   requireProvisionerContext,
   requireWorkspaceProvisionerContext,
 } from '@shipfox/api-auth-context';
+import type {PollDemandTemplateDto} from '@shipfox/api-runners-dto';
 import {pollDemandBodySchema, pollDemandResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {config} from '#config.js';
 import {pollDemand, releaseReservationGrants} from '#core/demand.js';
 import {publishWorkspaceProvisionerCapabilitySnapshot} from '#db/provisioner-capability-snapshots.js';
-import type {ReservationGrant} from '#db/reservations.js';
+import {
+  listQueuedDemandWorkspaceIds,
+  pollInstallationDemandAndReserve,
+  type ReservationGrant,
+  type ReservationTemplate,
+} from '#db/reservations.js';
 import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
 import {toPollDemandResponseDto} from '#presentation/dto/index.js';
 
 const TERMINATE_INTENT_LIMIT = 1000;
+
+function toReservationTemplates(templates: PollDemandTemplateDto[]): ReservationTemplate[] {
+  return templates.map((template) => ({
+    templateKey: template.template_key,
+    labels: template.labels,
+    availableSlots: template.available_slots,
+    starting: template.starting,
+    running: template.running,
+  }));
+}
 
 export function createPollDemandRoute(options: CreateRunnersModuleOptions = {}) {
   return defineRoute({
@@ -25,19 +41,6 @@ export function createPollDemandRoute(options: CreateRunnersModuleOptions = {}) 
       },
     },
     handler: async (request, reply) => {
-      const provisionerContext = requireProvisionerContext(request);
-      // A host that configures installationProvisioning is opting in to installation-scoped
-      // demand polling, but this route doesn't apply the eligibility policy yet: fail loudly
-      // instead of silently ignoring it. Hosts that never opt in fall through to the
-      // requireWorkspaceProvisionerContext 403 below, same as before this option existed.
-      if (provisionerContext.scope === 'installation' && options.installationProvisioning) {
-        throw new ClientError(
-          'Installation demand allocation is unavailable',
-          'installation-provisioning-unavailable',
-          {status: 501},
-        );
-      }
-      const {provisionerTokenId, workspaceId} = requireWorkspaceProvisionerContext(request);
       const abortController = new AbortController();
       let responseFinished = false;
       let responseReservations: ReservationGrant[] = [];
@@ -50,14 +53,43 @@ export function createPollDemandRoute(options: CreateRunnersModuleOptions = {}) 
           void releaseReservationGrants(responseReservations).catch(() => undefined);
         }
       });
+      const provisionerContext = requireProvisionerContext(request);
+      if (provisionerContext.scope === 'installation') {
+        if (!options.installationProvisioning) {
+          throw new ClientError(
+            'Installation provisioner credentials are not accepted on this host',
+            'forbidden',
+            {
+              status: 403,
+            },
+          );
+        }
+        const candidateWorkspaceIds = await listQueuedDemandWorkspaceIds();
+        const eligibleWorkspaceIds =
+          await options.installationProvisioning.policy.filterEligibleWorkspaceIds(
+            candidateWorkspaceIds,
+          );
+        const templates = toReservationTemplates(request.body.templates);
+        const result = await pollInstallationDemandAndReserve({
+          provisionerId: provisionerContext.provisionerTokenId,
+          maxReservations: request.body.max_reservations,
+          ttlSeconds: config.RESERVATION_TTL_SECONDS,
+          templates,
+          capabilityWindowSeconds: config.PROVISIONER_ACTIVE_WINDOW_SECONDS,
+          eligibleWorkspaceIds,
+          signal: abortController.signal,
+          onReservations: (reservations) => {
+            responseReservations.push(...reservations);
+          },
+        });
+        return toPollDemandResponseDto({
+          ...result,
+          terminateRunnerInstanceIds: [],
+        });
+      }
+      const {provisionerTokenId, workspaceId} = requireWorkspaceProvisionerContext(request);
 
-      const templates = request.body.templates.map((template) => ({
-        templateKey: template.template_key,
-        labels: template.labels,
-        availableSlots: template.available_slots,
-        starting: template.starting,
-        running: template.running,
-      }));
+      const templates = toReservationTemplates(request.body.templates);
       await publishWorkspaceProvisionerCapabilitySnapshot({
         workspaceId,
         provisionerId: provisionerTokenId,
