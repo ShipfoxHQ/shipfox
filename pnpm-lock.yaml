@@ -2311,6 +2311,9 @@ importers:
 
   libs/api/dispatcher:
     dependencies:
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
       '@shipfox/node-error-monitoring':
         specifier: workspace:*
         version: link:../../shared/node/error-monitoring

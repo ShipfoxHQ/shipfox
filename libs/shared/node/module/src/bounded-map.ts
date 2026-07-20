@@ -1,5 +1,6 @@
 export interface BoundedMapOptions {
   stopOnError?: boolean | undefined;
+  signal?: AbortSignal | undefined;
 }
 
 export async function boundedMap<T, U>(
@@ -17,9 +18,10 @@ export async function boundedMap<T, U>(
   let aborted = false;
   const errors: unknown[] = [];
   const stopOnError = options.stopOnError ?? true;
+  const {signal} = options;
 
   async function worker(): Promise<void> {
-    while (!aborted && next < items.length) {
+    while (!aborted && !signal?.aborted && next < items.length) {
       const index = next;
       next += 1;
 

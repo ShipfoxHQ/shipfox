@@ -543,6 +543,30 @@ describe('drainAndDispatch', () => {
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 
+  it('stops dispatching further rows in a group once the signal is aborted, without failing the cycle', async () => {
+    const controller = new AbortController();
+    const rows = [
+      event('a', new Date('2026-01-01T00:00:00.000Z')),
+      event('b', new Date('2026-01-01T00:00:01.000Z')),
+      event('c', new Date('2026-01-01T00:00:02.000Z')),
+    ];
+    const handler = vi.fn(async (handled: DomainEvent) => {
+      await Promise.resolve();
+      if ((handled.payload as {jobId: string}).jobId === 'a') controller.abort();
+    });
+    mocks.drainAll.mockResolvedValueOnce(
+      drain(
+        rows.map((row) => ({id: row.id, source: 'workflows', orderingKey: 'run-1', event: row})),
+      ),
+    );
+    mocks.getSubscribers.mockReturnValue([handler]);
+
+    await drainAndDispatch(undefined, controller.signal);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', claims(['a']));
+  });
+
   it('marks completed groups incrementally when a later group fails', async () => {
     const success = event('success', new Date('2026-01-01T00:00:00.000Z'));
     const failure = event('failure', new Date('2026-01-01T00:00:00.000Z'));
