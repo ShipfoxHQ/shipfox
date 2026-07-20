@@ -7,6 +7,7 @@ import {
 } from '@shipfox/api-auth-context';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
+import {assignCapacityRoute} from './assign-capacity.js';
 import {createManualRegistrationTokenRoute} from './create-manual-registration-token.js';
 import {createProvisionerTokenRoute} from './create-provisioner-token.js';
 import {getProvisionerMeRoute} from './get-provisioner-me.js';
@@ -62,6 +63,7 @@ const runnerOnlyRoutes: RouteGroup[] = [
       pollDemandRoute,
       createPlannedCapacityRoute,
       attachProviderRunnerRoute,
+      assignCapacityRoute,
       mintRegistrationTokensRoute,
       reportProvisionedRunnersRoute,
       reconcileProvisionedRunnersRoute,
