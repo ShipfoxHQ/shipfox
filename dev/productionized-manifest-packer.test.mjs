@@ -21,6 +21,7 @@ test('terminates an interrupted pack child before restoring its manifest', async
   const workerPath = join(root, 'worker.mjs');
   const sourceManifest = `${JSON.stringify({imports: {'#*': './src/*'}}, null, 2)}\n`;
   await writeFile(manifestPath, sourceManifest);
+  await writeFile(childPidPath, '');
   await writeFile(
     workerPath,
     `import {createProductionManifestPacker, run} from ${JSON.stringify(helperUrl)};
@@ -52,10 +53,11 @@ async function waitForFile(path) {
   while (Date.now() < deadline) {
     try {
       await access(path);
-      return readFile(path, 'utf8');
+      const contents = await readFile(path, 'utf8');
+      if (/^[1-9]\d*$/.test(contents.trim())) return contents;
     } catch {
-      await delay(20);
     }
+    await delay(20);
   }
   throw new Error(`Timed out waiting for ${path}`);
 }
