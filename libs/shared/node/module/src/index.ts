@@ -34,6 +34,7 @@ export {
   BATCH_SIZE,
   drainAll,
   getEventSchema,
+  getRegisteredPublisherNames,
   markDispatched,
   pruneDispatchedOutboxRows,
   recordDispatchFailure,

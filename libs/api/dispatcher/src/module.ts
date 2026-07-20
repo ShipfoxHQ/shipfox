@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import type {ShipfoxModule} from '@shipfox/node-module';
+import {getRegisteredPublisherNames, type ShipfoxModule} from '@shipfox/node-module';
+import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {
   DISPATCHER_TASK_QUEUE,
@@ -45,6 +46,21 @@ export function createDispatcherModule(
 
   return {
     name: 'dispatcher',
+    startupTasks: () => {
+      const publisherNames = getRegisteredPublisherNames();
+      if (publisherNames.length === 0) {
+        throw new Error(
+          'Outbox dispatcher has no registered publishers. This likely means a duplicate @shipfox/node-module instance split the publisher registry. Ensure the API server and dispatcher resolve the same package instance.',
+        );
+      }
+
+      logger().info(
+        {publisherCount: publisherNames.length, publisherNames},
+        'Outbox dispatcher publishers registered',
+      );
+
+      return Promise.resolve();
+    },
     ...(enabled ? {services: [createOutboxDrainerService({pollMs})]} : {}),
     workers: [
       {

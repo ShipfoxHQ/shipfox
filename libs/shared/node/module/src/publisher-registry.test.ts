@@ -4,6 +4,7 @@ import {pgTableCreator} from 'drizzle-orm/pg-core';
 import {z} from 'zod';
 import {
   getEventSchema,
+  getRegisteredPublisherNames,
   pruneDispatchedOutboxRows,
   registerPublisher,
   resetPublishers,
@@ -72,6 +73,35 @@ describe('getEventSchema', () => {
       registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
 
     expect(register).not.toThrow();
+  });
+});
+
+describe('getRegisteredPublisherNames', () => {
+  beforeEach(() => {
+    resetPublishers();
+  });
+
+  afterEach(() => {
+    resetPublishers();
+  });
+
+  it('returns an empty array when no publishers are registered', () => {
+    expect(getRegisteredPublisherNames()).toEqual([]);
+  });
+
+  it('returns registered publisher names in registration order', () => {
+    registerPublisher({name: 'foo', table, db});
+    registerPublisher({name: 'bar', table, db});
+
+    expect(getRegisteredPublisherNames()).toEqual(['foo', 'bar']);
+  });
+
+  it('forgets registered publishers after resetPublishers', () => {
+    registerPublisher({name: 'foo', table, db});
+
+    resetPublishers();
+
+    expect(getRegisteredPublisherNames()).toEqual([]);
   });
 });
 
