@@ -14,6 +14,7 @@ import {Code, Text} from '@shipfox/react-ui/typography';
 import {cn, humanDuration} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
+import {ConditionErrorBadge} from '#components/workflow-status/condition-error-badge.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import {
   isWorkflowStatus,
@@ -297,6 +298,10 @@ function StepRow({
   expandedContent: ReactNode;
 }) {
   const shouldShowLabelTooltip = entry.step.label.length > 32;
+  const conditionErrored = entry.step.statusReason === 'condition_errored';
+  // An ordinary skip reads as muted; a broken condition stays at full contrast so
+  // it is not mistaken for a routine skip.
+  const muted = entry.carriedOver || (entry.statusVisual.kind === 'skipped' && !conditionErrored);
   const rowContent = (
     <>
       <Icon
@@ -314,6 +319,7 @@ function StepRow({
             {entry.step.label}
           </Text>
           {entry.step.attempts.length > 1 ? <StepAttemptChip attempt={entry} /> : null}
+          {conditionErrored ? <ConditionErrorBadge level="step" /> : null}
           {entry.carriedOver ? <CarriedOverBadge /> : null}
         </div>
       </div>
@@ -323,7 +329,7 @@ function StepRow({
   const rowClasses = cn(
     'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)_auto] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
     selected && 'bg-background-components-hover',
-    entry.carriedOver && 'opacity-[0.55]',
+    muted && 'opacity-[0.55]',
   );
   const button = hasExpandedContent ? (
     <AccordionTrigger

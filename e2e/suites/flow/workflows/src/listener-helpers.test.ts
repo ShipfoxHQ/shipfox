@@ -59,6 +59,7 @@ function listenerJob(overrides: Partial<WorkflowRunJobDetailDto> = {}): Workflow
     mode: 'listening',
     status: 'succeeded',
     status_reason: null,
+    evaluation_trace: null,
     carried_over: false,
     listening: {
       on: [{source: 'fire-source', event: 'received'}],

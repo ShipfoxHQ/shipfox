@@ -73,6 +73,35 @@ export const Statuses: Story = {
   ),
 };
 
+export const SkippedConditions: Story = {
+  render: () => (
+    <div className="grid w-440 grid-cols-1 gap-12">
+      {(
+        [
+          {label: 'default gate skip', statusReason: 'default_gate_rejected'},
+          {label: 'condition skip', statusReason: 'condition_rejected'},
+          {label: 'condition error', statusReason: 'condition_errored'},
+        ] as const
+      ).map((entry, row) => (
+        <JobNode
+          key={entry.statusReason}
+          node={makeNode({
+            id: `job-skip-${entry.statusReason}`,
+            label: entry.label,
+            status: 'skipped',
+            statusReason: entry.statusReason,
+            position: row,
+            dependencies: [],
+          })}
+          selected={false}
+          onSelect={() => undefined}
+          onKeyDown={ignoreKeyDown}
+        />
+      ))}
+    </div>
+  ),
+};
+
 // Storybook freezes `Date.now()` at 2026-06-26T12:00:00Z (see `.storybook/preview.tsx`),
 // so anchors near that instant render deterministic live durations for Argos.
 const QUEUED_AT = '2026-06-26T11:54:00.000Z'; // queued 6m
@@ -295,6 +324,7 @@ function makeNode({
   dependencies,
   mode = 'one_shot',
   listenerStatus = 'inactive',
+  statusReason = null,
   jobExecutions,
   queuedAt = null,
   startedAt = null,
@@ -307,6 +337,7 @@ function makeNode({
   dependencies: string[];
   mode?: WorkflowRunJobDetailDto['mode'];
   listenerStatus?: WorkflowRunJobDetailDto['listener_status'];
+  statusReason?: WorkflowRunJobDetailDto['status_reason'];
   jobExecutions?: WorkflowRunJobDetailDto['job_executions'];
   queuedAt?: string | null;
   startedAt?: string | null;
@@ -319,6 +350,7 @@ function makeNode({
     name: label,
     mode,
     status,
+    status_reason: statusReason,
     listener_status: listenerStatus,
     position,
     dependencies,

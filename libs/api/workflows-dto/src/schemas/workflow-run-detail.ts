@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {jobDtoSchema} from './job.js';
 import {workflowExecutionEventSchema} from './job-listening.js';
-import {stepAttemptDtoSchema, stepDtoSchema} from './step.js';
+import {stepAttemptDtoSchema, stepDtoObjectSchema, stepStatusReasonRefinement} from './step.js';
 import {workflowRunAttemptDtoSchema, workflowRunResponseSchema} from './workflow-run.js';
 
 export const jobExecutionStatusSchema = z.enum([
@@ -33,13 +33,15 @@ export type JobExecutionDto = z.infer<typeof jobExecutionDtoSchema>;
 
 // A step with its attempt history: one entry per dispatched attempt (a restarted
 // step has more than one). `current_attempt` on the step points at the latest.
-export const workflowRunStepDetailDtoSchema = stepDtoSchema.extend({
-  exit_code: z.number().int().nullable(),
-  outputs: z.record(z.string(), z.unknown()).nullable(),
-  response: z.string().nullable(),
-  gate_result: stepAttemptDtoSchema.shape.gate_result,
-  attempts: z.array(stepAttemptDtoSchema),
-});
+export const workflowRunStepDetailDtoSchema = stepDtoObjectSchema
+  .extend({
+    exit_code: z.number().int().nullable(),
+    outputs: z.record(z.string(), z.unknown()).nullable(),
+    response: z.string().nullable(),
+    gate_result: stepAttemptDtoSchema.shape.gate_result,
+    attempts: z.array(stepAttemptDtoSchema),
+  })
+  .refine(...stepStatusReasonRefinement);
 
 export type WorkflowRunStepDetailDto = z.infer<typeof workflowRunStepDetailDtoSchema>;
 

@@ -1,13 +1,16 @@
 import type {
   AgentConfigIssueDto,
+  EvaluationTraceRowEntryDto,
   StepErrorCategoryDto,
   StepErrorReasonDto,
   StepSourceLocationDto,
+  StepStatusReasonDto,
   WorkflowRunStepDetailDto,
 } from '@shipfox/api-workflows-dto';
 import {type StepAttempt, toStepAttempt} from './step-attempt.js';
 
 export type StepErrorReason = StepErrorReasonDto;
+export type StepStatusReason = StepStatusReasonDto;
 export type AgentConfigIssue = AgentConfigIssueDto;
 export type StepErrorCategory = StepErrorCategoryDto;
 
@@ -38,8 +41,12 @@ export interface Step {
   name: string;
   sourceLocation: StepSourceLocation | null;
   status: string;
+  statusReason: StepStatusReason | null;
   type: string;
   config: Record<string, unknown>;
+  // Verbatim server-side condition trace (secrets-free); summarized for display
+  // via `nodeConditionSummary`. Null when the step carries no condition trace.
+  evaluationTrace: EvaluationTraceRowEntryDto[] | null;
   agentConfig: AgentStepConfig | null;
   error: StepError | null;
   position: number;
@@ -57,8 +64,10 @@ export function toStep(dto: WorkflowRunStepDetailDto): Step {
     name: dto.name,
     sourceLocation: dto.source_location ? toStepSourceLocation(dto.source_location) : null,
     status: dto.status,
+    statusReason: dto.status_reason,
     type: dto.type,
     config: dto.config,
+    evaluationTrace: dto.evaluation_trace,
     agentConfig: toAgentStepConfig(dto),
     error: dto.error ? toStepError(dto.error) : null,
     position: dto.position,

@@ -167,6 +167,49 @@ describe('toStepDto error category', () => {
 
     expect(dto.source_location).toBeNull();
   });
+
+  it('maps a skipped step reason and condition trace to snake_case', () => {
+    const dto = toStepDto(
+      step({
+        type: 'run',
+        status: 'skipped',
+        statusReason: 'condition_errored',
+        error: null,
+        evaluationTrace: [
+          {
+            field: 'step.if',
+            expression: 'steps.build.outputs.redy',
+            roots: ['steps'],
+            fillTarget: 'step-dispatch',
+            evaluatedAt: 'step-dispatch',
+            value: 'false',
+            degraded: true,
+          },
+        ],
+      }),
+    );
+
+    expect(dto.status).toBe('skipped');
+    expect(dto.status_reason).toBe('condition_errored');
+    expect(dto.evaluation_trace).toEqual([
+      {
+        field: 'step.if',
+        expression: 'steps.build.outputs.redy',
+        roots: ['steps'],
+        fill_target: 'step-dispatch',
+        evaluated_at: 'step-dispatch',
+        value: 'false',
+        degraded: true,
+      },
+    ]);
+  });
+
+  it('maps a missing condition trace to null', () => {
+    const dto = toStepDto(step({type: 'run', status: 'succeeded', error: null}));
+
+    expect(dto.status_reason).toBeNull();
+    expect(dto.evaluation_trace).toBeNull();
+  });
 });
 
 const baseAttempt: StepAttempt = {

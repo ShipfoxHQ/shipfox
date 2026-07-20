@@ -7,6 +7,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Code} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import type {KeyboardEventHandler, Ref} from 'react';
+import {ConditionErrorBadge} from '#components/workflow-status/condition-error-badge.js';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {JobExecution, JobExecutionStatus, WorkflowRunDetail} from '#core/workflow-run.js';
@@ -70,9 +71,14 @@ export function JobNode({
 }) {
   useTimeTick();
   const visual = getWorkflowStatusVisual(node.status);
+  const conditionErrored = node.statusReason === 'condition_errored';
+  // An ordinary skip reads as muted; a broken condition stays at full contrast so
+  // it is not mistaken for a routine skip.
+  const muted = node.carriedOver || (node.status === 'skipped' && !conditionErrored);
   const accessibleLabel = [
     node.displayName,
     visual.label,
+    conditionErrored ? 'condition error' : undefined,
     formatJobDurationAccessibleLabel(node.displayDuration),
     node.executionCountVisible
       ? executionCountAccessibleLabel(node.jobExecutions.length)
@@ -96,7 +102,7 @@ export function JobNode({
       className={cn(
         'group relative flex h-48 w-208 items-center gap-8 rounded-8 border border-border-neutral-base bg-background-components-base px-10 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',
-        node.carriedOver && 'opacity-[0.55]',
+        muted && 'opacity-[0.55]',
       )}
     >
       {selected ? (
@@ -111,6 +117,7 @@ export function JobNode({
       </div>
       <JobDurationLabel duration={node.displayDuration} />
       {node.executionCountVisible ? <ExecutionCountText executions={node.jobExecutions} /> : null}
+      {conditionErrored ? <ConditionErrorBadge level="job" /> : null}
       {node.carriedOver ? <CarriedOverBadge /> : null}
     </button>
   );

@@ -15,6 +15,7 @@ import {
   type Job,
   type JobExecution,
   type JobExecutionTime,
+  nodeConditionSummary,
   type Step,
   type StepError,
   type StepSourceLocation,
@@ -26,6 +27,7 @@ import {type StepExpandedContext, StepList, type StepListEmptyState} from '../st
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {JobExecutionSwitcher} from './job-execution-switcher.js';
 import {formatJobExecutionTime, JobExecutionTimeText} from './job-execution-time-text.js';
+import {NodeSkipDetail} from './node-skip-detail.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
@@ -87,10 +89,18 @@ export function JobCard({
     attemptError,
     attemptStatus,
     carriedOver,
-  }: StepExpandedContext) =>
-    carriedOver ? (
-      <CarriedOverStepPanel />
-    ) : (
+  }: StepExpandedContext) => {
+    if (carriedOver) return <CarriedOverStepPanel />;
+    if (step.status === 'skipped') {
+      return (
+        <NodeSkipDetail
+          level="step"
+          statusReason={step.statusReason}
+          condition={nodeConditionSummary(step.evaluationTrace, 'step')}
+        />
+      );
+    }
+    return (
       <StepAttemptDetailPanel
         workspaceId={workspaceId}
         step={step}
@@ -100,6 +110,7 @@ export function JobCard({
         attemptStatus={attemptStatus}
       />
     );
+  };
 
   function selectAttempt(attemptId: string | undefined) {
     if (selectedAttemptId === undefined) {
@@ -208,6 +219,18 @@ function JobStatusBadge({status}: {status: Job['status'] | JobExecution['status'
 }
 
 function JobExecutionEmptyState({job}: {job: Job}) {
+  if (job.status === 'skipped') {
+    return (
+      <div className="px-16 py-16">
+        <NodeSkipDetail
+          level="job"
+          statusReason={job.statusReason}
+          condition={nodeConditionSummary(job.evaluationTrace, 'job')}
+        />
+      </div>
+    );
+  }
+
   const emptyState = emptyStateForMissingExecution(job);
 
   return (
@@ -358,6 +381,7 @@ function selectedStepSourceAction(
   for (const step of jobExecution.steps) {
     const selected =
       selectedAttemptId === `carried-over:${step.id}` ||
+      selectedAttemptId === `skipped:${step.id}` ||
       step.attempts.some((attempt) => attempt.id === selectedAttemptId);
     if (selected && step.sourceLocation) {
       return {stepId: step.id, location: step.sourceLocation};
@@ -508,14 +532,6 @@ function emptyStateForMissingExecution(job: Job): StepListEmptyState {
     };
   }
 
-  if (job.status === 'skipped') {
-    return {
-      title: 'This job was skipped',
-      description: skippedJobDescription(job.statusReason),
-      status: 'skipped',
-    };
-  }
-
   if (job.status === 'cancelled') {
     return {
       title: 'Cancelled before start',
@@ -541,26 +557,4 @@ function CarriedOverStepPanel() {
       variant="compact"
     />
   );
-}
-
-function skippedJobDescription(reason: Job['statusReason']): string {
-  switch (reason) {
-    case 'dependency_not_completed':
-      return 'A required job did not complete, so this job was skipped.';
-    case 'default_gate_rejected':
-      return 'A required job did not succeed, so this job was skipped.';
-    case 'condition_false':
-    case 'condition_rejected':
-      return 'The job condition did not match, so this job was skipped.';
-    case 'condition_errored':
-      return 'The job condition could not be evaluated, so this job was skipped.';
-    case 'user_cancelled':
-    case 'run_cancelled':
-    case 'timed_out':
-    case 'runner_lost':
-    case 'step_failed':
-    case 'unknown':
-    case null:
-      return 'This job did not start.';
-  }
 }

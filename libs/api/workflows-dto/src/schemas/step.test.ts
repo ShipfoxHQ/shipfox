@@ -1,4 +1,83 @@
-import {STEP_ERROR_MESSAGE_MAX_LENGTH, stepAttemptDtoSchema, stepErrorDtoSchema} from './step.js';
+import {
+  STEP_ERROR_MESSAGE_MAX_LENGTH,
+  stepAttemptDtoSchema,
+  stepDtoSchema,
+  stepErrorDtoSchema,
+} from './step.js';
+
+const baseStep = {
+  id: '33333333-3333-4333-8333-333333333333',
+  job_execution_id: '44444444-4444-4444-8444-444444444444',
+  key: 'build',
+  name: 'build',
+  source_location: null,
+  status: 'pending',
+  status_reason: null,
+  type: 'run',
+  config: {},
+  evaluation_trace: null,
+  error: null,
+  position: 0,
+  current_attempt: 1,
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:01:00.000Z',
+};
+
+describe('stepDtoSchema', () => {
+  it('accepts a pending step with no skip metadata', () => {
+    const result = stepDtoSchema.parse(baseStep);
+
+    expect(result).toMatchObject({status: 'pending', status_reason: null, evaluation_trace: null});
+  });
+
+  it('accepts a skipped step with its reason and condition trace', () => {
+    const result = stepDtoSchema.parse({
+      ...baseStep,
+      status: 'skipped',
+      status_reason: 'condition_rejected',
+      evaluation_trace: [
+        {
+          field: 'step.if',
+          expression: "steps.test.status == 'failed'",
+          roots: ['steps'],
+          fill_target: 'step-dispatch',
+          evaluated_at: 'step-dispatch',
+          value: 'false',
+        },
+      ],
+    });
+
+    expect(result.status).toBe('skipped');
+    expect(result.status_reason).toBe('condition_rejected');
+    expect(result.evaluation_trace).toHaveLength(1);
+  });
+
+  it('rejects a status outside the step status enum', () => {
+    const result = stepDtoSchema.safeParse({...baseStep, status: 'waiting'});
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a skip reason outside the step reason enum', () => {
+    const result = stepDtoSchema.safeParse({
+      ...baseStep,
+      status: 'skipped',
+      status_reason: 'dependency_not_completed',
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a status_reason on a non-skipped step', () => {
+    const result = stepDtoSchema.safeParse({
+      ...baseStep,
+      status: 'running',
+      status_reason: 'condition_rejected',
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
 
 const baseAttempt = {
   id: '11111111-1111-4111-8111-111111111111',

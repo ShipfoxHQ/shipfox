@@ -10,6 +10,16 @@ export {
   checkoutTokenResponseSchema,
 } from './checkout-token.js';
 export {
+  type EvaluationTraceDto,
+  type EvaluationTraceEntryDto,
+  type EvaluationTraceLimitEntryDto,
+  type EvaluationTraceRowEntryDto,
+  evaluationTraceDtoSchema,
+  evaluationTraceEntryDtoSchema,
+  evaluationTraceLimitEntryDtoSchema,
+  evaluationTraceRowEntryDtoSchema,
+} from './evaluation-trace.js';
+export {
   type JobDto,
   type JobStatusDto,
   type JobStatusReasonDto,
@@ -56,12 +66,16 @@ export {
   type StepErrorDto,
   type StepErrorReasonDto,
   type StepGateResultDto,
+  type StepStatusDto,
+  type StepStatusReasonDto,
   stepAttemptDtoSchema,
   stepDtoSchema,
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
   stepGateResultDtoSchema,
+  stepStatusReasonSchema,
+  stepStatusSchema,
 } from './step.js';
 export {
   type RerunWorkflowRunBodyDto,

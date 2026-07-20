@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {evaluationTraceRowEntryDtoSchema} from './evaluation-trace.js';
 import {
   jobListeningSchema,
   jobModeSchema,
@@ -37,6 +38,10 @@ export const jobDtoSchema = z.object({
   mode: jobModeSchema,
   status: jobStatusSchema,
   status_reason: jobStatusReasonSchema.nullable(),
+  // Server-derived, secrets-free trace of the job's condition evaluation. On a
+  // skipped job it explains the skip (the evaluated `if:` or default gate and its
+  // result); null when the job carries no condition trace.
+  evaluation_trace: z.array(evaluationTraceRowEntryDtoSchema).nullable(),
   carried_over: z.boolean(),
   listening: jobListeningSchema.nullable(),
   listener_status: listenerStatusSchema,

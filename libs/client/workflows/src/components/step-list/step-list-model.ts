@@ -146,11 +146,15 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
     }));
   }
 
-  if (!carriedOverJob) return [];
+  // A skipped step never produced an attempt, so synthesize one placeholder entry
+  // that carries its projection status; without it the skip would be invisible in
+  // the list. Carried-over jobs show their unexecuted steps the same way.
+  const skipped = normalizeStatus(step.status) === 'skipped';
+  if (!carriedOverJob && !skipped) return [];
 
   return [
     {
-      id: `carried-over:${step.id}`,
+      id: skipped ? `skipped:${step.id}` : `carried-over:${step.id}`,
       stepId: step.id,
       jobExecutionId: step.jobExecutionId,
       attempt: step.currentAttempt,
@@ -165,7 +169,7 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
       finishedAt: null,
       displayDuration: null,
       statusVisual: getStepStatusVisual(step.status),
-      carriedOver: true,
+      carriedOver: !skipped && carriedOverJob,
       step,
     },
   ];

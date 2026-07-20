@@ -1,4 +1,5 @@
 import type {
+  EvaluationTraceRowEntryDto,
   JobListeningDto,
   JobModeDto,
   JobStatusDto,
@@ -47,6 +48,7 @@ interface JobFields {
   mode: JobMode;
   status: JobStatus;
   statusReason: JobStatusReason | null;
+  evaluationTrace: EvaluationTraceRowEntryDto[] | null;
   carriedOver: boolean;
   listening: JobListeningDto | null;
   listenerStatus: ListenerStatus;
@@ -66,6 +68,7 @@ export class Job {
   mode!: JobMode;
   status!: JobStatus;
   statusReason!: JobStatusReason | null;
+  evaluationTrace!: EvaluationTraceRowEntryDto[] | null;
   carriedOver!: boolean;
   listening!: JobListeningDto | null;
   listenerStatus!: ListenerStatus;
@@ -136,6 +139,7 @@ export function toJob(dto: WorkflowRunJobDetailDto): Job {
     mode: dto.mode,
     status: dto.status,
     statusReason: dto.status_reason,
+    evaluationTrace: dto.evaluation_trace,
     carriedOver: dto.carried_over,
     listening: dto.listening,
     listenerStatus: dto.listener_status,
