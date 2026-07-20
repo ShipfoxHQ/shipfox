@@ -2,7 +2,7 @@ import {bool, createConfig, num} from '@shipfox/config';
 
 export const config = createConfig({
   OUTBOX_DISPATCHER_ENABLED: bool({
-    desc: 'Whether the API process drains pending outbox events. Use true to run the in-process dispatcher or false to leave dispatch to the Temporal worker.',
+    desc: 'Whether the API process drains pending outbox events. Use true to run the in-process dispatcher or false to disable automatic dispatch.',
     default: true,
   }),
   OUTBOX_DISPATCH_POLL_MS: num({
