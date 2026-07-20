@@ -3,6 +3,8 @@ import {and, asc, eq, gt, inArray, lt, sql} from 'drizzle-orm';
 import type {Tx} from './db.js';
 import {db} from './db.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
+import {provisionerCapabilitySnapshots} from './schema/provisioner-capability-snapshots.js';
+import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {reservations} from './schema/reservations.js';
 
 export interface ReservationTemplate {
@@ -14,6 +16,7 @@ export interface ReservationTemplate {
 }
 
 export interface DemandStat {
+  workspaceId?: string;
   labels: string[];
   queued: number;
   reserved: number;
@@ -22,6 +25,7 @@ export interface DemandStat {
 
 export interface ReservationGrant {
   reservationId: string;
+  workspaceId?: string;
   labels: string[];
   count: number;
   expiresAt: Date;
@@ -33,6 +37,18 @@ export interface PollDemandAndReserveParams {
   maxReservations: number;
   ttlSeconds: number;
   templates: ReservationTemplate[];
+  capabilityWindowSeconds?: number;
+}
+
+export interface InstallationPollDemandAndReserveParams {
+  provisionerId: string;
+  maxReservations: number;
+  ttlSeconds: number;
+  templates: ReservationTemplate[];
+  capabilityWindowSeconds: number;
+  eligibleWorkspaceIds: ReadonlySet<string>;
+  signal?: AbortSignal;
+  onReservations?: (reservations: ReservationGrant[]) => void;
 }
 
 interface NormalizedTemplate {
@@ -60,8 +76,75 @@ export async function pollDemandAndReserveTx(
   params: PollDemandAndReserveParams,
 ): Promise<{stats: DemandStat[]; reservations: ReservationGrant[]}> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
+  return await pollDemandAndReserveLockedTx(tx, params);
+}
 
-  const demandRows = (
+export async function pollInstallationDemandAndReserve(
+  params: InstallationPollDemandAndReserveParams,
+): Promise<{stats: DemandStat[]; reservations: ReservationGrant[]}> {
+  const candidateWorkspaceIds = await listInstallationDemandWorkspaceIds(
+    params.eligibleWorkspaceIds,
+  );
+  const results: Array<{stats: DemandStat[]; reservations: ReservationGrant[]}> = [];
+  let remainingMaxReservations = params.maxReservations;
+  const remainingTemplates = params.templates.map((template) => ({
+    ...template,
+    labels: [...canonicalizeLabels(template.labels)],
+    remainingSlots: template.availableSlots,
+  }));
+  for (const workspaceId of candidateWorkspaceIds) {
+    if (params.signal?.aborted || remainingMaxReservations === 0) break;
+    const result = await db().transaction(async (tx) => {
+      const lockResult = await tx.execute<{locked: boolean}>(
+        sql`select pg_try_advisory_xact_lock(hashtext(${workspaceId})) as locked`,
+      );
+      const locked = lockResult.rows[0];
+      if (!locked?.locked) return {stats: [], reservations: []};
+      return await pollDemandAndReserveLockedTx(tx, {
+        workspaceId,
+        provisionerId: params.provisionerId,
+        maxReservations: remainingMaxReservations,
+        ttlSeconds: params.ttlSeconds,
+        templates: remainingTemplates.map((template) => ({
+          ...template,
+          availableSlots: template.remainingSlots,
+        })),
+        capabilityWindowSeconds: params.capabilityWindowSeconds,
+      });
+    });
+    results.push(result);
+    consumeInstallationTemplateSlots(remainingTemplates, result.reservations);
+    params.onReservations?.(result.reservations);
+    remainingMaxReservations -= result.reservations.reduce(
+      (total, reservation) => total + reservation.count,
+      0,
+    );
+  }
+  return {
+    stats: results.flatMap((result) => result.stats),
+    reservations: results.flatMap((result) => result.reservations),
+  };
+}
+
+function consumeInstallationTemplateSlots(
+  templates: NormalizedTemplate[],
+  reservations: ReservationGrant[],
+): void {
+  for (const reservation of reservations) {
+    const satisfyingTemplates = templates
+      .filter((template) => isSubset(reservation.labels, template.labels))
+      .sort(
+        (a, b) => a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey),
+      );
+    drawSlots(satisfyingTemplates, reservation.count);
+  }
+}
+
+async function pollDemandAndReserveLockedTx(
+  tx: Tx,
+  params: PollDemandAndReserveParams,
+): Promise<{stats: DemandStat[]; reservations: ReservationGrant[]}> {
+  let demandRows = (
     await tx
       .select({
         requiredLabels: pendingJobExecutions.requiredLabels,
@@ -75,6 +158,15 @@ export async function pollDemandAndReserveTx(
     ...row,
     oldestQueuedAt: new Date(row.oldestQueuedAt),
   }));
+  if (params.capabilityWindowSeconds !== undefined) {
+    const capabilityLabels = await listActiveWorkspaceCapabilityLabelsTx(tx, {
+      workspaceId: params.workspaceId,
+      windowSeconds: params.capabilityWindowSeconds,
+    });
+    demandRows = demandRows.filter(
+      (demand) => !capabilityLabels.some((labels) => isSubset(demand.requiredLabels, labels)),
+    );
+  }
 
   const activeReservationRows = await tx
     .select({
@@ -114,6 +206,8 @@ export async function pollDemandAndReserveTx(
   const stats: DemandStat[] = [];
   const grants: ReservationGrant[] = [];
   let remainingMaxReservations = params.maxReservations;
+  const workspaceIdField =
+    params.capabilityWindowSeconds === undefined ? {} : {workspaceId: params.workspaceId};
 
   for (const demand of sortDemandRows(demandRows)) {
     const satisfyingTemplates = templates
@@ -152,6 +246,7 @@ export async function pollDemandAndReserveTx(
       reservedAfterGrant += grant;
       grants.push({
         reservationId: inserted.id,
+        ...workspaceIdField,
         labels: demand.requiredLabels,
         count: grant,
         expiresAt: inserted.expiresAt,
@@ -159,6 +254,7 @@ export async function pollDemandAndReserveTx(
     }
 
     stats.push({
+      ...workspaceIdField,
       labels: demand.requiredLabels,
       queued: demand.queued,
       reserved: reservedAfterGrant,
@@ -167,6 +263,55 @@ export async function pollDemandAndReserveTx(
   }
 
   return {stats, reservations: grants};
+}
+
+async function listInstallationDemandWorkspaceIds(eligibleWorkspaceIds: ReadonlySet<string>) {
+  if (eligibleWorkspaceIds.size === 0) return [];
+  const rows = await db()
+    .select({
+      workspaceId: pendingJobExecutions.workspaceId,
+      oldestQueuedAt: sql<Date>`min(${pendingJobExecutions.createdAt})`,
+    })
+    .from(pendingJobExecutions)
+    .where(inArray(pendingJobExecutions.workspaceId, [...eligibleWorkspaceIds]))
+    .groupBy(pendingJobExecutions.workspaceId)
+    .orderBy(
+      asc(sql`min(${pendingJobExecutions.createdAt})`),
+      asc(pendingJobExecutions.workspaceId),
+    );
+  return rows.map((row) => row.workspaceId);
+}
+
+export async function listQueuedDemandWorkspaceIds(): Promise<string[]> {
+  const rows = await db()
+    .select({workspaceId: pendingJobExecutions.workspaceId})
+    .from(pendingJobExecutions)
+    .groupBy(pendingJobExecutions.workspaceId);
+  return rows.map((row) => row.workspaceId);
+}
+
+async function listActiveWorkspaceCapabilityLabelsTx(
+  tx: Tx,
+  params: {workspaceId: string; windowSeconds: number},
+): Promise<string[][]> {
+  const rows = await tx
+    .select({labels: provisionerCapabilitySnapshots.labels})
+    .from(provisionerCapabilitySnapshots)
+    .innerJoin(
+      provisionerTokens,
+      eq(provisionerTokens.id, provisionerCapabilitySnapshots.provisionerId),
+    )
+    .where(
+      and(
+        eq(provisionerCapabilitySnapshots.workspaceId, params.workspaceId),
+        eq(provisionerTokens.workspaceId, params.workspaceId),
+        eq(provisionerTokens.scope, 'workspace'),
+        sql`${provisionerCapabilitySnapshots.advertisedAt} > now() - (${params.windowSeconds} || ' seconds')::interval`,
+        sql`${provisionerTokens.revokedAt} is null`,
+        sql`(${provisionerTokens.expiresAt} is null or ${provisionerTokens.expiresAt} > now())`,
+      ),
+    );
+  return rows.map((row) => row.labels);
 }
 
 export async function deleteExpiredReservations(params?: {limit?: number}): Promise<number> {

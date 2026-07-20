@@ -17,6 +17,7 @@ export const pollDemandBodySchema = z.object({
 });
 
 export const demandStatSchema = z.object({
+  workspace_id: z.string().uuid().optional(),
   labels: z.array(z.string()),
   queued: z.number().int().min(0),
   reserved: z
@@ -31,6 +32,7 @@ export const demandStatSchema = z.object({
 
 export const reservationGrantSchema = z.object({
   reservation_id: z.string().uuid(),
+  workspace_id: z.string().uuid().optional(),
   labels: z.array(z.string()),
   count: z.number().int().positive(),
   expires_at: z.string().datetime(),

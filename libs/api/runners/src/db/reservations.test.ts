@@ -3,6 +3,7 @@ import {db} from '#db/db.js';
 import {
   deleteReservationsByIds,
   pollDemandAndReserve,
+  pollInstallationDemandAndReserve,
   releaseReservationUnits,
 } from '#db/reservations.js';
 import {reservations} from '#db/schema/reservations.js';
@@ -73,6 +74,54 @@ describe('pollDemandAndReserve', () => {
 
     const reserved = await activeReservedCount();
     expect(reserved).toBeLessThanOrEqual(5);
+  });
+
+  it('allocates eligible workspace heads in oldest-demand order without overselling templates', async () => {
+    const olderWorkspaceId = crypto.randomUUID();
+    const newerWorkspaceId = crypto.randomUUID();
+    await pendingJobFactory.create({workspaceId: olderWorkspaceId, requiredLabels: ['linux']});
+    await pendingJobFactory.create({workspaceId: newerWorkspaceId, requiredLabels: ['linux']});
+
+    const result = await pollInstallationDemandAndReserve({
+      provisionerId,
+      maxReservations: 5,
+      ttlSeconds: 60,
+      templates: [template('linux', ['linux'], 1)],
+      capabilityWindowSeconds: 60,
+      eligibleWorkspaceIds: new Set([olderWorkspaceId, newerWorkspaceId]),
+    });
+
+    expect(result.reservations).toEqual([
+      expect.objectContaining({workspaceId: olderWorkspaceId, labels: ['linux'], count: 1}),
+    ]);
+  });
+
+  it('reports committed installation grants before an aborted poll stops allocating', async () => {
+    const firstWorkspaceId = crypto.randomUUID();
+    const secondWorkspaceId = crypto.randomUUID();
+    const abortController = new AbortController();
+    const reportedReservations: string[] = [];
+    await pendingJobFactory.create({workspaceId: firstWorkspaceId, requiredLabels: ['linux']});
+    await pendingJobFactory.create({workspaceId: secondWorkspaceId, requiredLabels: ['linux']});
+
+    const result = await pollInstallationDemandAndReserve({
+      provisionerId,
+      maxReservations: 2,
+      ttlSeconds: 60,
+      templates: [template('linux', ['linux'], 2)],
+      capabilityWindowSeconds: 60,
+      eligibleWorkspaceIds: new Set([firstWorkspaceId, secondWorkspaceId]),
+      signal: abortController.signal,
+      onReservations: (reservations) => {
+        reportedReservations.push(...reservations.map((reservation) => reservation.reservationId));
+        abortController.abort();
+      },
+    });
+
+    expect(result.reservations).toHaveLength(1);
+    expect(reportedReservations).toEqual(
+      result.reservations.map((reservation) => reservation.reservationId),
+    );
   });
 
   it('does not count expired reservations against demand', async () => {
