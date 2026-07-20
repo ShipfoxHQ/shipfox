@@ -1,4 +1,4 @@
-import {requireProvisionerContext} from '@shipfox/api-auth-context';
+import {requireWorkspaceProvisionerContext} from '@shipfox/api-auth-context';
 import {pollDemandBodySchema, pollDemandResponseSchema} from '@shipfox/api-runners-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {config} from '#config.js';
@@ -19,7 +19,7 @@ export const pollDemandRoute = defineRoute({
     },
   },
   handler: async (request, reply) => {
-    const {provisionerTokenId, workspaceId} = requireProvisionerContext(request);
+    const {provisionerTokenId, workspaceId} = requireWorkspaceProvisionerContext(request);
     const abortController = new AbortController();
     let responseFinished = false;
     let responseReservations: ReservationGrant[] = [];

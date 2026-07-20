@@ -44,10 +44,9 @@ export function buildUserContext(params: BuildUserContextParams): UserContext {
   };
 }
 
-export interface ProvisionerContext {
-  provisionerTokenId: string;
-  workspaceId: string;
-}
+export type ProvisionerContext =
+  | {provisionerTokenId: string; scope: 'installation'}
+  | {provisionerTokenId: string; scope: 'workspace'; workspaceId: string};
 
 export type LeasedJobContext = JobLeaseTokenClaims;
 export type RunnerSessionContext = RunnerSessionTokenClaims;
@@ -128,6 +127,28 @@ export function requireProvisionerContext(request: RequestWithContext): Provisio
   const context = getProvisionerContext(request);
   if (!context) {
     throw new Error('Provisioner context is not available on this request');
+  }
+  return context;
+}
+
+export function requireWorkspaceProvisionerContext(
+  request: RequestWithContext,
+): Extract<ProvisionerContext, {scope: 'workspace'}> {
+  const context = requireProvisionerContext(request);
+  if (context.scope !== 'workspace') {
+    throw new ClientError('Workspace provisioner credential required', 'forbidden', {status: 403});
+  }
+  return context;
+}
+
+export function requireInstallationProvisionerContext(
+  request: RequestWithContext,
+): Extract<ProvisionerContext, {scope: 'installation'}> {
+  const context = requireProvisionerContext(request);
+  if (context.scope !== 'installation') {
+    throw new ClientError('Installation provisioner credential required', 'forbidden', {
+      status: 403,
+    });
   }
   return context;
 }

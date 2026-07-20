@@ -1,10 +1,15 @@
 import {and, desc, eq, gt, isNull, or, sql} from 'drizzle-orm';
-import type {ActiveProvisionerToken, ProvisionerToken} from '#core/entities/provisioner-token.js';
+import type {
+  ActiveProvisionerToken,
+  ProvisionerScope,
+  ProvisionerToken,
+} from '#core/entities/provisioner-token.js';
 import {db} from './db.js';
 import {provisionerTokens, toProvisionerToken} from './schema/provisioner-tokens.js';
 
 export interface CreateProvisionerTokenParams {
-  workspaceId: string;
+  scope: ProvisionerScope;
+  workspaceId?: string | undefined;
   hashedToken: string;
   prefix: string;
   createdByUserId: string;
@@ -18,7 +23,8 @@ export async function createProvisionerToken(
   const rows = await db()
     .insert(provisionerTokens)
     .values({
-      workspaceId: params.workspaceId,
+      scope: params.scope,
+      workspaceId: params.workspaceId ?? null,
       hashedToken: params.hashedToken,
       prefix: params.prefix,
       createdByUserId: params.createdByUserId,
@@ -32,6 +38,36 @@ export async function createProvisionerToken(
   return toProvisionerToken(row);
 }
 
+export async function revokeInstallationProvisionerToken(params: {
+  tokenId: string;
+  revokedByUserId: string;
+}): Promise<ProvisionerToken | undefined> {
+  const rows = await db()
+    .update(provisionerTokens)
+    .set({revokedAt: new Date(), revokedByUserId: params.revokedByUserId, updatedAt: new Date()})
+    .where(
+      and(
+        eq(provisionerTokens.id, params.tokenId),
+        eq(provisionerTokens.scope, 'installation'),
+        isNull(provisionerTokens.revokedAt),
+      ),
+    )
+    .returning();
+
+  const row = rows[0];
+  if (row) return toProvisionerToken(row);
+
+  const existingRows = await db()
+    .select()
+    .from(provisionerTokens)
+    .where(
+      and(eq(provisionerTokens.id, params.tokenId), eq(provisionerTokens.scope, 'installation')),
+    )
+    .limit(1);
+  const existingRow = existingRows[0];
+  return existingRow ? toProvisionerToken(existingRow) : undefined;
+}
+
 export async function listUsableProvisionerTokensByWorkspaceId(
   workspaceId: string,
 ): Promise<ProvisionerToken[]> {
@@ -42,6 +78,7 @@ export async function listUsableProvisionerTokensByWorkspaceId(
     .where(
       and(
         eq(provisionerTokens.workspaceId, workspaceId),
+        eq(provisionerTokens.scope, 'workspace'),
         isNull(provisionerTokens.revokedAt),
         or(isNull(provisionerTokens.expiresAt), gt(provisionerTokens.expiresAt, now)),
       ),
@@ -77,6 +114,7 @@ export async function revokeProvisionerToken(params: {
       and(
         eq(provisionerTokens.id, params.tokenId),
         eq(provisionerTokens.workspaceId, params.workspaceId),
+        eq(provisionerTokens.scope, 'workspace'),
         isNull(provisionerTokens.revokedAt),
       ),
     )
@@ -92,6 +130,7 @@ export async function revokeProvisionerToken(params: {
       and(
         eq(provisionerTokens.id, params.tokenId),
         eq(provisionerTokens.workspaceId, params.workspaceId),
+        eq(provisionerTokens.scope, 'workspace'),
       ),
     )
     .limit(1);
@@ -129,6 +168,7 @@ export async function listActiveProvisionerTokens(params: {
     .where(
       and(
         eq(provisionerTokens.workspaceId, params.workspaceId),
+        eq(provisionerTokens.scope, 'workspace'),
         isNull(provisionerTokens.revokedAt),
         or(isNull(provisionerTokens.expiresAt), gt(provisionerTokens.expiresAt, sql`now()`)),
         sql`${provisionerTokens.lastSeenAt} > now() - (${params.windowSeconds} || ' seconds')::interval`,

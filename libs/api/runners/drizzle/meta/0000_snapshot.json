@@ -787,11 +787,18 @@
           "notNull": true,
           "default": "uuidv7()"
         },
+        "scope": {
+          "name": "scope",
+          "type": "runners_provisioner_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
         "workspace_id": {
           "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "hashed_token": {
           "name": "hashed_token",
@@ -904,7 +911,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "runners_provisioner_tokens_scope_workspace_ck": {
+          "name": "runners_provisioner_tokens_scope_workspace_ck",
+          "value": "(scope = 'workspace' AND workspace_id IS NOT NULL) OR (scope = 'installation' AND workspace_id IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.runners_rate_limits": {
@@ -1557,6 +1569,11 @@
       "name": "runners_provisioned_runner_state",
       "schema": "public",
       "values": ["starting", "running", "stopping", "stopped", "failed", "terminated"]
+    },
+    "public.runners_provisioner_scope": {
+      "name": "runners_provisioner_scope",
+      "schema": "public",
+      "values": ["workspace", "installation"]
     },
     "public.runners_runner_session_registration_token_kind": {
       "name": "runners_runner_session_registration_token_kind",

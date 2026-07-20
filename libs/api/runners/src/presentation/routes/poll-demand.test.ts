@@ -25,6 +25,7 @@ import {pendingJobFactory, provisionedRunnerFactory, runnerSessionFactory} from 
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
+const INSTALLATION_PROVISIONER_TOKEN = 'installation-provisioner-token';
 
 const passthroughAuth = (name: string): AuthMethod => ({
   name,
@@ -41,9 +42,13 @@ describe('POST /provisioners/demand/poll', () => {
     authenticate: (request: FastifyRequest) => {
       const rawToken = extractBearerToken(request.headers.authorization);
       if (rawToken !== VALID_PROVISIONER_TOKEN) {
+        if (rawToken === INSTALLATION_PROVISIONER_TOKEN) {
+          setProvisionerContext(request, {scope: 'installation', provisionerTokenId});
+          return Promise.resolve();
+        }
         throw new ClientError('Invalid provisioner token', 'unauthorized', {status: 401});
       }
-      setProvisionerContext(request, {workspaceId, provisionerTokenId});
+      setProvisionerContext(request, {scope: 'workspace', workspaceId, provisionerTokenId});
       return Promise.resolve();
     },
   };
@@ -90,6 +95,18 @@ describe('POST /provisioners/demand/poll', () => {
     });
     expect(res.json().reservations[0].reservation_id).toEqual(expect.any(String));
     expect(res.json().reservations[0].expires_at).toEqual(expect.any(String));
+  });
+
+  it('rejects installation provisioner credentials from workspace demand polling', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/demand/poll',
+      headers: {authorization: `Bearer ${INSTALLATION_PROVISIONER_TOKEN}`},
+      payload: body({max_reservations: 1}),
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('forbidden');
   });
 
   it('returns stats without reservations in observe-only mode', async () => {

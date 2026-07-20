@@ -3,6 +3,7 @@ import type {ProvisionerToken} from '#core/entities/provisioner-token.js';
 export function toProvisionerTokenDto(token: ProvisionerToken): {
   id: string;
   workspace_id: string;
+  scope: 'workspace';
   prefix: string;
   name: string | null;
   created_by_user_id: string;
@@ -13,6 +14,9 @@ export function toProvisionerTokenDto(token: ProvisionerToken): {
   created_at: string;
   updated_at: string;
 } {
+  if (token.scope !== 'workspace') {
+    throw new Error('Installation provisioner tokens cannot be returned from workspace routes');
+  }
   return {
     id: token.id,
     workspace_id: token.workspaceId,
@@ -25,5 +29,6 @@ export function toProvisionerTokenDto(token: ProvisionerToken): {
     last_seen_at: token.lastSeenAt?.toISOString() ?? null,
     created_at: token.createdAt.toISOString(),
     updated_at: token.updatedAt.toISOString(),
+    scope: 'workspace',
   };
 }

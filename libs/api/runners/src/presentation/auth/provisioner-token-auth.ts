@@ -48,10 +48,14 @@ export function createProvisionerTokenAuthMethod(): AuthMethod {
         });
       }
 
-      const context: ProvisionerContext = {
-        provisionerTokenId: provisionerToken.id,
-        workspaceId: provisionerToken.workspaceId,
-      };
+      const context: ProvisionerContext =
+        provisionerToken.scope === 'installation'
+          ? {provisionerTokenId: provisionerToken.id, scope: 'installation'}
+          : {
+              provisionerTokenId: provisionerToken.id,
+              scope: 'workspace',
+              workspaceId: provisionerToken.workspaceId,
+            };
 
       await touchProvisionerLastSeen({
         tokenId: provisionerToken.id,

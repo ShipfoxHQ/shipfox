@@ -1,6 +1,8 @@
-export interface ProvisionerToken {
+export type ProvisionerScope = 'installation' | 'workspace';
+
+export interface ProvisionerTokenBase {
   id: string;
-  workspaceId: string;
+  scope: ProvisionerScope;
   hashedToken: string;
   prefix: string;
   name: string | null;
@@ -12,5 +14,9 @@ export interface ProvisionerToken {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type ProvisionerToken =
+  | (ProvisionerTokenBase & {scope: 'installation'; workspaceId: null})
+  | (ProvisionerTokenBase & {scope: 'workspace'; workspaceId: string});
 
 export type ActiveProvisionerToken = ProvisionerToken & {lastSeenAt: Date};

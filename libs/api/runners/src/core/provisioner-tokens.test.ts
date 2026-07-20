@@ -4,8 +4,10 @@ import {db} from '#db/db.js';
 import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {provisionerTokenFactory} from '#test/index.js';
 import {
+  createInstallationProvisionerToken,
   createWorkspaceProvisionerToken,
   listUsableProvisionerTokens,
+  revokeInstallationProvisionerToken,
   revokeWorkspaceProvisionerToken,
 } from './provisioner-tokens.js';
 
@@ -32,6 +34,24 @@ describe('provisioner token core', () => {
       .where(eq(provisionerTokens.id, result.token.id));
     expect(rows[0]?.hashedToken).toBe(hashOpaqueToken(result.rawToken));
     expect(rows[0]?.hashedToken).not.toBe(result.rawToken);
+  });
+
+  it('creates and revokes an installation provisioner token without a workspace', async () => {
+    const createdByUserId = crypto.randomUUID();
+
+    const created = await createInstallationProvisionerToken({createdByUserId, name: 'cloud'});
+
+    expect(created.token).toMatchObject({
+      scope: 'installation',
+      workspaceId: null,
+      createdByUserId,
+    });
+    const revoked = await revokeInstallationProvisionerToken({
+      tokenId: created.token.id,
+      revokedByUserId: crypto.randomUUID(),
+    });
+    expect(revoked).toMatchObject({id: created.token.id, scope: 'installation'});
+    expect(revoked.revokedAt).toBeInstanceOf(Date);
   });
 
   it('lists usable tokens and excludes revoked tokens after revoke', async () => {

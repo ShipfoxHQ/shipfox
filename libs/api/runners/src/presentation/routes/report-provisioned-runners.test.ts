@@ -42,7 +42,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
       if (rawToken !== VALID_PROVISIONER_TOKEN) {
         throw new ClientError('Invalid provisioner token', 'unauthorized', {status: 401});
       }
-      setProvisionerContext(request, {workspaceId, provisionerTokenId});
+      setProvisionerContext(request, {scope: 'workspace', workspaceId, provisionerTokenId});
       return Promise.resolve();
     },
   };
