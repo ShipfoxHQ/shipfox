@@ -1,5 +1,7 @@
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {defaultModules} from './modules.js';
 
 const mocks = vi.hoisted(() => ({
@@ -8,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createDefinitionsModule: vi.fn(),
   createIntegrationsContext: vi.fn(),
   createProjectsModule: vi.fn(),
+  createSecretsModule: vi.fn(),
   createTriggersModule: vi.fn(),
   createWorkflowsModule: vi.fn(),
   createWorkspaceConnectionSnapshotLoader: vi.fn(),
@@ -54,6 +57,7 @@ vi.mock('@shipfox/api-runners', () => ({
   },
 }));
 vi.mock('@shipfox/api-secrets', () => ({
+  createSecretsModule: mocks.createSecretsModule,
   deleteSecrets: mocks.deleteSecrets,
   getSecret: mocks.getSecret,
   secretsModule: {name: 'secrets'},
@@ -76,6 +80,7 @@ describe('defaultModules', () => {
     mocks.createDefinitionsModule.mockReset();
     mocks.createIntegrationsContext.mockReset();
     mocks.createProjectsModule.mockReset();
+    mocks.createSecretsModule.mockReset();
     mocks.createTriggersModule.mockReset();
     mocks.createWorkflowsModule.mockReset();
     mocks.createWorkspaceConnectionSnapshotLoader.mockReset();
@@ -95,7 +100,24 @@ describe('defaultModules', () => {
     mocks.buildAgentToolCatalogs.mockResolvedValue(new Map());
     mocks.buildAgentToolSelectionCatalogs.mockResolvedValue(new Map());
     mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
-    mocks.createProjectsModule.mockReturnValue({name: 'projects'});
+    mocks.createProjectsModule.mockReturnValue({
+      name: 'projects',
+      interModulePresentations: [
+        defineInterModulePresentation(projectsInterModuleContract, {
+          getProjectById: () => ({project: null}),
+          requireProjectForWorkspace: () => ({
+            project: {
+              id: crypto.randomUUID(),
+              workspaceId: crypto.randomUUID(),
+              sourceConnectionId: crypto.randomUUID(),
+              sourceExternalRepositoryId: 'repo',
+              name: 'Project',
+            },
+          }),
+        }),
+      ],
+    });
+    mocks.createSecretsModule.mockReturnValue({name: 'secrets'});
     mocks.createDefinitionsModule.mockReturnValue({name: 'definitions'});
     mocks.createWorkflowsModule.mockReturnValue({
       name: 'workflows',

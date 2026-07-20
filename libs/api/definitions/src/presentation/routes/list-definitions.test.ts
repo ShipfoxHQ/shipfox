@@ -1,11 +1,12 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {encodeStringIdCursor} from '@shipfox/node-drizzle';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {markDefinitionSyncState} from '#db/index.js';
 import {definitionFactory} from '#test/index.js';
-import {listDefinitionsRoute} from './list-definitions.js';
+import {buildListDefinitionsRoute} from './list-definitions.js';
 
 const projectAccessState = vi.hoisted(() => ({
   workspaceId: '',
@@ -13,20 +14,20 @@ const projectAccessState = vi.hoisted(() => ({
   sourceExternalRepositoryId: '',
 }));
 
-vi.mock('@shipfox/api-projects', () => ({
-  ProjectNotFoundError: class ProjectNotFoundError extends Error {},
-  requireProjectAccess: vi.fn(({projectId}) =>
+const projects = {
+  getProjectById: vi.fn(({projectId}) =>
     Promise.resolve({
       project: {
         id: projectId,
         workspaceId: projectAccessState.workspaceId,
         sourceConnectionId: projectAccessState.sourceConnectionId,
         sourceExternalRepositoryId: projectAccessState.sourceExternalRepositoryId,
+        name: 'Project',
       },
-      workspaceId: projectAccessState.workspaceId,
     }),
   ),
-}));
+  requireProjectForWorkspace: vi.fn(),
+} as unknown as ProjectsModuleClient;
 
 describe('GET /api/definitions', () => {
   let app: FastifyInstance;
@@ -50,7 +51,7 @@ describe('GET /api/definitions', () => {
       );
       done();
     });
-    app.get('/api/definitions', listDefinitionsRoute);
+    app.get('/api/definitions', buildListDefinitionsRoute(projects));
     await app.ready();
   });
 

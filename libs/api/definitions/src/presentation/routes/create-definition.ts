@@ -8,7 +8,7 @@ import type {
   GetIntegrationConnectionByIdFn,
   LoadWorkspaceConnectionSnapshot,
 } from '@shipfox/api-integration-core';
-import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {DefinitionParseError} from '#core/errors.js';
@@ -16,14 +16,16 @@ import {hasAgentStepIntegrations} from '#core/has-agent-step-integrations.js';
 import {parseDefinition} from '#core/parse-definition.js';
 import {upsertDefinition} from '#db/definitions.js';
 import {toDefinitionDto} from '#presentation/dto/index.js';
+import {requireProjectAccess} from './project-access.js';
 
 export interface CreateDefinitionRouteOptions {
+  projects: ProjectsModuleClient;
   agentToolSelectionCatalogs?: AgentToolSelectionCatalogs | undefined;
   loadWorkspaceConnectionSnapshot?: LoadWorkspaceConnectionSnapshot | undefined;
   getIntegrationConnectionById?: GetIntegrationConnectionByIdFn | undefined;
 }
 
-export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions = {}) {
+export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions) {
   return defineRoute({
     method: 'POST',
     path: '/',
@@ -47,14 +49,11 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
           status: 400,
         });
       }
-      if (error instanceof ProjectNotFoundError) {
-        throw new ClientError(error.message, 'project-not-found', {status: 404});
-      }
       throw error;
     },
     handler: async (request) => {
       const {project_id: projectId, config_path, source, yaml: yamlString, sha, ref} = request.body;
-      const {project} = await requireProjectAccess({request, projectId});
+      const project = await requireProjectAccess(request, projectId, options.projects);
 
       const structurallyParsed = parseDefinition(yamlString);
       const {
@@ -97,5 +96,3 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
     },
   });
 }
-
-export const createDefinitionRoute = buildCreateDefinitionRoute();

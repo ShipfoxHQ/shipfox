@@ -1,24 +1,26 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {buildCreateDefinitionRoute, createDefinitionRoute} from './create-definition.js';
+import {buildCreateDefinitionRoute} from './create-definition.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: '', sourceConnectionId: ''}));
 
-vi.mock('@shipfox/api-projects', () => ({
-  ProjectNotFoundError: class ProjectNotFoundError extends Error {},
-  requireProjectAccess: vi.fn(({projectId}) =>
+const projects = {
+  getProjectById: vi.fn(({projectId}) =>
     Promise.resolve({
       project: {
         id: projectId,
         workspaceId: projectAccessState.workspaceId,
         sourceConnectionId: projectAccessState.sourceConnectionId,
+        sourceExternalRepositoryId: 'repo',
+        name: 'Project',
       },
-      workspaceId: projectAccessState.workspaceId,
     }),
   ),
-}));
+  requireProjectForWorkspace: vi.fn(),
+} as unknown as ProjectsModuleClient;
 
 describe('POST /api/definitions', () => {
   let app: FastifyInstance;
@@ -40,7 +42,7 @@ describe('POST /api/definitions', () => {
       );
       done();
     });
-    app.post('/api/definitions', createDefinitionRoute);
+    app.post('/api/definitions', buildCreateDefinitionRoute({projects}));
     await app.ready();
   });
 
@@ -100,6 +102,7 @@ jobs:
     appWithOptions.post(
       '/api/definitions',
       buildCreateDefinitionRoute({
+        projects,
         agentToolSelectionCatalogs: new Map(),
         loadWorkspaceConnectionSnapshot,
       }),
@@ -165,6 +168,7 @@ jobs:
     appWithOptions.post(
       '/api/definitions',
       buildCreateDefinitionRoute({
+        projects,
         agentToolSelectionCatalogs: new Map([
           [
             'github',

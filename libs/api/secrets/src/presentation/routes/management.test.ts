@@ -4,7 +4,7 @@ import {
   setUserContext,
   type UserContextMembership,
 } from '@shipfox/api-auth-context';
-import {ProjectNotFoundError, requireProjectForWorkspace} from '@shipfox/api-projects';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {
   SECRET_CREATED,
   SECRET_DELETED,
@@ -12,17 +12,22 @@ import {
   VARIABLE_CREATED,
   VARIABLE_DELETED,
 } from '@shipfox/api-secrets-dto';
+import {createInterModuleKnownError, defineInterModulePresentation} from '@shipfox/inter-module';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
+import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
 import {and, eq, isNull, sql} from 'drizzle-orm';
 import {setSecrets} from '#core/index.js';
 import {db, secretsOutbox, secretValues, secretVariables} from '#db/index.js';
-import {secretsRoutes} from './index.js';
+import {createSecretsRoutes} from './index.js';
 
-vi.mock('@shipfox/api-projects', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shipfox/api-projects')>();
-  return {...actual, requireProjectForWorkspace: vi.fn()};
-});
+const requireProjectForWorkspace = vi.fn();
+const projects = createFakeInterModuleClients({
+  projects: defineInterModulePresentation(projectsInterModuleContract, {
+    getProjectById: () => ({project: null}),
+    requireProjectForWorkspace: async (input) => await requireProjectForWorkspace(input),
+  }),
+}).projects;
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 let authenticatedMemberships: UserContextMembership[] = [];
@@ -56,16 +61,21 @@ describe('secrets management routes', () => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     authenticatedMemberships = [{workspaceId, role: 'admin'}];
-    vi.mocked(requireProjectForWorkspace).mockResolvedValue({
-      id: projectId,
-      workspaceId,
-      name: 'Project',
-      sourceConnectionId: crypto.randomUUID(),
-      sourceExternalRepositoryId: 'repo-1',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    requireProjectForWorkspace.mockResolvedValue({
+      project: {
+        id: projectId,
+        workspaceId,
+        name: 'Project',
+        sourceConnectionId: crypto.randomUUID(),
+        sourceExternalRepositoryId: 'repo-1',
+        createdAt: new Date(),
+      },
     });
-    app = await createApp({auth: [fakeUserAuth], routes: secretsRoutes, swagger: false});
+    app = await createApp({
+      auth: [fakeUserAuth],
+      routes: createSecretsRoutes(projects),
+      swagger: false,
+    });
     await app.ready();
   });
 
@@ -76,7 +86,7 @@ describe('secrets management routes', () => {
   });
 
   it('registers management routes under user auth', () => {
-    expect(secretsRoutes[0]?.auth).toBe(AUTH_USER);
+    expect(createSecretsRoutes(projects)[0]?.auth).toBe(AUTH_USER);
   });
 
   it('returns 401 unauthenticated and 403 for non-members', async () => {
@@ -423,8 +433,12 @@ describe('secrets management routes', () => {
   });
 
   it('returns 404 when project_id does not belong to the workspace', async () => {
-    vi.mocked(requireProjectForWorkspace).mockRejectedValueOnce(
-      new ProjectNotFoundError(projectId),
+    requireProjectForWorkspace.mockRejectedValueOnce(
+      createInterModuleKnownError(
+        projectsInterModuleContract.methods.requireProjectForWorkspace,
+        'project-not-found',
+        {projectId},
+      ),
     );
 
     const res = await app.inject({

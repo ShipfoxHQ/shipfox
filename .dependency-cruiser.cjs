@@ -191,6 +191,20 @@ module.exports = {
           },
         ]
       : []),
+    ...(['@shipfox/api-definitions', '@shipfox/api-secrets', '@shipfox/api-workflows'].includes(
+      currentPackage.name,
+    )
+      ? [
+          {
+            name: 'projects-consumers-use-projects-inter-module-api',
+            comment:
+              'Projects consumers may use its DTO contract, but never import the Projects implementation package.',
+            severity: 'error',
+            from: {path: '^(src|test)/'},
+            to: {path: '^\\.\\./projects/(?:src|dist)/'},
+          },
+        ]
+      : []),
   ],
   options: {
     doNotFollow: {

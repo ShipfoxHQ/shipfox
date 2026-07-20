@@ -1,5 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import {requireProjectAccess} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
@@ -12,16 +12,11 @@ import {cancelRunRoute} from './cancel-run.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
 
-vi.mock('@shipfox/api-projects', () => ({
-  requireProjectAccess: vi.fn(({projectId}) =>
-    Promise.resolve({
-      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
-      workspaceId: projectAccessState.workspaceId,
-    }),
-  ),
-}));
-
-const mockRequireProjectAccess = vi.mocked(requireProjectAccess);
+const getProjectById = vi.fn();
+const projects = {
+  getProjectById,
+  requireProjectForWorkspace: vi.fn(),
+} as unknown as ProjectsModuleClient;
 
 describe('POST /api/workflows/runs/:id/cancel', () => {
   let app: FastifyInstance;
@@ -44,7 +39,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
       );
       done();
     });
-    app.post('/api/workflows/runs/:id/cancel', cancelRunRoute);
+    app.post('/api/workflows/runs/:id/cancel', cancelRunRoute(projects));
     await app.ready();
   });
 
@@ -53,7 +48,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
     projectId = crypto.randomUUID();
     definitionId = crypto.randomUUID();
     projectAccessState.workspaceId = workspaceId;
-    mockRequireProjectAccess.mockImplementation(({projectId: requestedProjectId}) =>
+    getProjectById.mockImplementation(({projectId: requestedProjectId}) =>
       Promise.resolve({
         project: {
           id: requestedProjectId,
@@ -61,10 +56,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
           sourceConnectionId: crypto.randomUUID(),
           sourceExternalRepositoryId: `repo:${crypto.randomUUID()}`,
           name: 'Project',
-          createdAt: new Date(),
-          updatedAt: new Date(),
         },
-        workspaceId,
       }),
     );
   });
@@ -97,7 +89,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
 
   test('maps a run disappearing during cancellation to 404', () => {
     let mapped: unknown;
-    const errorHandler = cancelRunRoute.errorHandler as (error: Error) => void;
+    const errorHandler = cancelRunRoute(projects).errorHandler as (error: Error) => void;
 
     try {
       errorHandler(new WorkflowRunNotFoundError(crypto.randomUUID()));
@@ -111,9 +103,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
 
   test('returns 404 when project access is denied', async () => {
     const run = await createRun();
-    mockRequireProjectAccess.mockRejectedValueOnce(
-      new ClientError('Forbidden', 'forbidden', {status: 403}),
-    );
+    getProjectById.mockRejectedValueOnce(new ClientError('Forbidden', 'forbidden', {status: 403}));
 
     const res = await app.inject({
       method: 'POST',

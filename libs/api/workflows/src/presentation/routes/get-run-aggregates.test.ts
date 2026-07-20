@@ -1,4 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -8,15 +9,20 @@ import {getRunAggregatesRoute} from './get-run-aggregates.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
 
-vi.mock('@shipfox/api-projects', () => ({
-  ProjectNotFoundError: class ProjectNotFoundError extends Error {},
-  requireProjectAccess: vi.fn(({projectId}) =>
+const projects = {
+  getProjectById: vi.fn(({projectId}) =>
     Promise.resolve({
-      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
-      workspaceId: projectAccessState.workspaceId,
+      project: {
+        id: projectId,
+        workspaceId: projectAccessState.workspaceId,
+        sourceConnectionId: crypto.randomUUID(),
+        sourceExternalRepositoryId: 'repo',
+        name: 'Project',
+      },
     }),
   ),
-}));
+  requireProjectForWorkspace: vi.fn(),
+} as unknown as ProjectsModuleClient;
 
 describe('GET /api/workflows/runs/aggregates', () => {
   let app: FastifyInstance;
@@ -38,7 +44,7 @@ describe('GET /api/workflows/runs/aggregates', () => {
       );
       done();
     });
-    app.get('/api/workflows/runs/aggregates', getRunAggregatesRoute);
+    app.get('/api/workflows/runs/aggregates', getRunAggregatesRoute(projects));
     await app.ready();
   });
 

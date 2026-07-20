@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
@@ -72,11 +73,17 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
-export function createWorkflowsModule(params: {runners: RunnersInterModuleClient}): ShipfoxModule {
+export function createWorkflowsModule({
+  projects,
+  runners,
+}: {
+  projects: ProjectsModuleClient;
+  runners: RunnersInterModuleClient;
+}): ShipfoxModule {
   return {
     name: 'workflows',
     database: {db, migrationsPath},
-    routes: createWorkflowRoutes(params.runners),
+    routes: createWorkflowRoutes(runners, projects),
     metrics: registerWorkflowsServiceMetrics,
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
@@ -94,7 +101,7 @@ export function createWorkflowsModule(params: {runners: RunnersInterModuleClient
       {
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createOrchestrationActivities(params.runners),
+        activities: () => createOrchestrationActivities(runners),
         workflows: [],
       },
     ],

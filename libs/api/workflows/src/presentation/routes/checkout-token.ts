@@ -1,5 +1,6 @@
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {integrationRouteErrorHandler} from '@shipfox/api-integration-core';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {checkoutTokenResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -12,7 +13,10 @@ import {
 import {sourceControl} from '#core/source-control.js';
 import {toCheckoutTokenDto} from '#presentation/dto/checkout-token.js';
 
-export function createCheckoutTokenRoute(runners: RunnersInterModuleClient) {
+export function createCheckoutTokenRoute(
+  runners: RunnersInterModuleClient,
+  projects: ProjectsModuleClient,
+) {
   return defineRoute({
     method: 'POST',
     path: '/checkout-token',
@@ -52,6 +56,7 @@ export function createCheckoutTokenRoute(runners: RunnersInterModuleClient) {
       const checkout = await createJobCheckoutSpec({
         jobId: leasedJob.jobId,
         sourceControl: sourceControl(),
+        projects,
       });
 
       // The body carries short-lived git credentials; forbid any intermediary or

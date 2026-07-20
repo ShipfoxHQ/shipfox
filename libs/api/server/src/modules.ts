@@ -12,9 +12,10 @@ import {
 } from '@shipfox/api-integration-core';
 import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersModule as defaultRunnersModule} from '@shipfox/api-runners';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
-import {deleteSecrets, getSecret, secretsModule, setSecrets} from '@shipfox/api-secrets';
+import {createSecretsModule, deleteSecrets, getSecret, setSecrets} from '@shipfox/api-secrets';
 import {createTriggersModule} from '@shipfox/api-triggers';
 import {
   createWorkflowsModule,
@@ -40,6 +41,7 @@ export async function defaultModules(
   const interModuleTransport = createInMemoryInterModuleTransport();
   const workflowsClient = interModuleTransport.createClient(workflowsInterModuleContract);
   const runnersClient = interModuleTransport.createClient(runnersInterModuleContract);
+  const projectsClient = interModuleTransport.createClient(projectsInterModuleContract);
   const integrations = await createIntegrationsContext({
     secrets: {
       deleteSecrets,
@@ -102,12 +104,14 @@ export async function defaultModules(
   // source-control service; wire it into the workflows module before serving.
   setSourceControl(integrations.sourceControl);
   setAgentToolMaterializationServices({
+    projects: projectsClient,
     catalogs: agentToolCatalogs,
     loadWorkspaceConnectionSnapshot,
     getIntegrationConnectionById,
   });
   const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
   const definitionsModule = createDefinitionsModule({
+    projects: projectsClient,
     sourceControl: integrations.sourceControl,
     agentToolSelectionCatalogs,
     loadWorkspaceConnectionSnapshot,
@@ -117,12 +121,12 @@ export async function defaultModules(
   const modules = [
     authModule,
     workspacesModule,
-    secretsModule,
+    createSecretsModule(projectsClient),
     agentModule,
     integrations.module,
     projectsModule,
     definitionsModule,
-    createWorkflowsModule({runners: runnersClient}),
+    createWorkflowsModule({projects: projectsClient, runners: runnersClient}),
     annotationsModule,
     options.runnersModule ?? defaultRunnersModule,
     logsModule,

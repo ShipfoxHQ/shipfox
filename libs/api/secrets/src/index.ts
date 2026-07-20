@@ -1,9 +1,10 @@
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {secretsEventSchemas} from '@shipfox/api-secrets-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, secretsOutbox} from '#db/index.js';
 import {registerSecretsServiceMetrics} from '#metrics/index.js';
 import {secretsE2eRoutes} from '#presentation/e2eRoutes/index.js';
-import {secretsRoutes} from '#presentation/routes/index.js';
+import {createSecretsRoutes} from '#presentation/routes/index.js';
 
 export {
   BUILTIN_LOCAL_STORE,
@@ -40,11 +41,19 @@ export {
   WorkspaceSecretCapExceededError,
 } from '#core/index.js';
 
+export function createSecretsModule(projects: ProjectsModuleClient): ShipfoxModule {
+  return {
+    name: 'secrets',
+    database: {db, migrationsPath},
+    routes: createSecretsRoutes(projects),
+    e2eRoutes: [secretsE2eRoutes],
+    metrics: registerSecretsServiceMetrics,
+    publishers: [{name: 'secrets', table: secretsOutbox, db, eventSchemas: secretsEventSchemas}],
+  };
+}
+
+// Migration setup imports this declaration only for the owned database metadata.
 export const secretsModule: ShipfoxModule = {
   name: 'secrets',
   database: {db, migrationsPath},
-  routes: secretsRoutes,
-  e2eRoutes: [secretsE2eRoutes],
-  metrics: registerSecretsServiceMetrics,
-  publishers: [{name: 'secrets', table: secretsOutbox, db, eventSchemas: secretsEventSchemas}],
 };

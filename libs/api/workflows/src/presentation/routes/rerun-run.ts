@@ -1,4 +1,5 @@
 import {requireUserContext} from '@shipfox/api-auth-context';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {rerunWorkflowRunBodySchema, workflowRunResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
@@ -7,42 +8,44 @@ import {createRerunWorkflowRun} from '#db/index.js';
 import {toRunDto} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
 
-export const rerunRunRoute = defineRoute({
-  method: 'POST',
-  path: '/:id/rerun',
-  description: 'Re-run a terminal workflow run',
-  schema: {
-    params: z.object({
-      id: z.string().uuid(),
-    }),
-    body: rerunWorkflowRunBodySchema,
-    response: {
-      200: workflowRunResponseSchema,
+export function rerunRunRoute(projects: ProjectsModuleClient) {
+  return defineRoute({
+    method: 'POST',
+    path: '/:id/rerun',
+    description: 'Re-run a terminal workflow run',
+    schema: {
+      params: z.object({
+        id: z.string().uuid(),
+      }),
+      body: rerunWorkflowRunBodySchema,
+      response: {
+        200: workflowRunResponseSchema,
+      },
     },
-  },
-  errorHandler: (error) => {
-    if (error instanceof SourceRunNotFoundError) {
-      throw new ClientError('Run not found', 'not-found', {status: 404});
-    }
-    if (error instanceof RunNotTerminalError) {
-      throw new ClientError('Run is not terminal', 'run-not-terminal', {status: 409});
-    }
-    if (error instanceof NoFailedJobsError) {
-      throw new ClientError('Run has no failed jobs', 'no-failed-jobs', {status: 409});
-    }
-    throw error;
-  },
-  handler: async (request) => {
-    const {id} = request.params;
-    const sourceRun = await requireAccessibleRun({request, id});
+    errorHandler: (error) => {
+      if (error instanceof SourceRunNotFoundError) {
+        throw new ClientError('Run not found', 'not-found', {status: 404});
+      }
+      if (error instanceof RunNotTerminalError) {
+        throw new ClientError('Run is not terminal', 'run-not-terminal', {status: 409});
+      }
+      if (error instanceof NoFailedJobsError) {
+        throw new ClientError('Run has no failed jobs', 'no-failed-jobs', {status: 409});
+      }
+      throw error;
+    },
+    handler: async (request) => {
+      const {id} = request.params;
+      const sourceRun = await requireAccessibleRun({request, id, projects});
 
-    const actor = requireUserContext(request);
-    const run = await createRerunWorkflowRun({
-      workflowRunId: sourceRun.id,
-      mode: request.body.mode,
-      actorUserId: actor.userId,
-    });
+      const actor = requireUserContext(request);
+      const run = await createRerunWorkflowRun({
+        workflowRunId: sourceRun.id,
+        mode: request.body.mode,
+        actorUserId: actor.userId,
+      });
 
-    return toRunDto(run, run.currentAttempt);
-  },
-});
+      return toRunDto(run, run.currentAttempt);
+    },
+  });
+}
