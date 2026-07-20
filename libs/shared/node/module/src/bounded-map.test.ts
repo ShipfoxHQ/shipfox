@@ -55,6 +55,26 @@ describe('boundedMap', () => {
     expect(seen).toEqual([1, 2]);
   });
 
+  it('stops picking up new work once the signal is aborted, without throwing', async () => {
+    const controller = new AbortController();
+    const seen: number[] = [];
+
+    const result = boundedMap(
+      [1, 2, 3, 4],
+      1,
+      async (value) => {
+        seen.push(value);
+        if (value === 2) controller.abort();
+        await Promise.resolve();
+        return value;
+      },
+      {signal: controller.signal},
+    );
+
+    await expect(result).resolves.toBeDefined();
+    expect(seen).toEqual([1, 2]);
+  });
+
   it('waits for in-flight work to settle before rejecting when stopOnError is true', async () => {
     const settled: number[] = [];
 

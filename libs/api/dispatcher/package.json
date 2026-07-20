@@ -40,6 +40,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/config": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",

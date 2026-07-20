@@ -3,11 +3,28 @@ import {
   DISPATCHER_WORKFLOW_ID,
   OUTBOX_RETENTION_WORKFLOW_ID,
 } from '#core/constants.js';
-import {dispatcherModule} from './module.js';
+import {createDispatcherModule} from './module.js';
+
+const mocks = vi.hoisted(() => ({
+  createOutboxDrainerService: vi.fn(() => ({
+    name: 'outbox-drainer',
+    shutdownTimeoutMs: 5_000,
+    start: vi.fn(),
+  })),
+}));
+
+vi.mock('#core/outbox-drainer-service.js', () => ({
+  createOutboxDrainerService: mocks.createOutboxDrainerService,
+}));
 
 describe('dispatcherModule', () => {
-  it('registers dispatch and retention workflows on the dispatcher worker', () => {
-    const worker = dispatcherModule.workers?.[0];
+  beforeEach(() => {
+    mocks.createOutboxDrainerService.mockClear();
+  });
+
+  it('registers the Temporal dispatch workflows alongside retention when the in-process drainer is disabled', () => {
+    const module = createDispatcherModule({enabled: false});
+    const worker = module.workers?.[0];
 
     expect(worker?.workflows).toEqual([
       {
@@ -29,5 +46,32 @@ describe('dispatcherModule', () => {
         cronSchedule: '0 0 * * *',
       },
     ]);
+  });
+
+  it('registers only the retention workflow on Temporal when the in-process drainer is enabled, so the two dispatchers never race the same rows', () => {
+    const module = createDispatcherModule({enabled: true, pollMs: 250});
+    const worker = module.workers?.[0];
+
+    expect(worker?.workflows).toEqual([
+      {
+        name: 'outboxRetentionWorkflow',
+        id: OUTBOX_RETENTION_WORKFLOW_ID,
+        cronSchedule: '0 0 * * *',
+      },
+    ]);
+    expect(module.services?.[0]?.name).toBe('outbox-drainer');
+  });
+
+  it('does not register the in-process drainer when disabled', () => {
+    const module = createDispatcherModule({enabled: false});
+
+    expect(module.services).toBeUndefined();
+  });
+
+  it('passes the configured poll interval to the in-process drainer', () => {
+    const module = createDispatcherModule({pollMs: 500});
+
+    expect(mocks.createOutboxDrainerService).toHaveBeenCalledWith({pollMs: 500});
+    expect(module.services?.[0]?.name).toBe('outbox-drainer');
   });
 });
