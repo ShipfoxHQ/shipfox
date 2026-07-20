@@ -5,6 +5,7 @@ import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
+import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {buildModel, expression, shellRef, template} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {workflowsOutbox} from '../schema/outbox.js';
@@ -567,6 +568,7 @@ describe('workflow run queries', () => {
             subscriptionId: crypto.randomUUID(),
             userId: crypto.randomUUID(),
           },
+          secrets: createTestSecretsClient(),
         });
       } catch (caught) {
         error = caught;

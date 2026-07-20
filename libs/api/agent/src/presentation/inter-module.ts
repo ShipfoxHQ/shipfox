@@ -1,9 +1,10 @@
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import {SecretDecryptionError} from '@shipfox/api-secrets';
+import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
   type InterModulePresentation,
+  isInterModuleKnownError,
 } from '@shipfox/inter-module';
 import {
   InvalidAgentModelError,
@@ -14,12 +15,12 @@ import {
 } from '#core/errors.js';
 import {resolveAgentConfig} from '#core/resolve-agent-config.js';
 import {resolveRuntimeCredentials} from '#core/resolve-runtime-credentials.js';
-import {createWorkspaceAgentDefaultsResolver} from '#core/workspace-agent-defaults-resolver.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
+import {createWorkspaceAgentDefaultsResolver} from '#core/workspace-agent-defaults-resolver.js';
 
-export function createAgentInterModulePresentation(params: {secrets: AgentSecretsClient}): InterModulePresentation<
-  typeof agentInterModuleContract
-> {
+export function createAgentInterModulePresentation(params: {
+  secrets: AgentSecretsClient;
+}): InterModulePresentation<typeof agentInterModuleContract> {
   return defineInterModulePresentation(agentInterModuleContract, {
     resolveAgentConfig: async ({workspaceId, config}) => {
       try {
@@ -66,7 +67,7 @@ function toResolveRuntimeCredentialsKnownError(error: unknown): unknown {
       {},
     );
   }
-  if (error instanceof SecretDecryptionError) {
+  if (isInterModuleKnownError(secretsInterModuleContract.methods.getSecretsByNamespace, error)) {
     return createInterModuleKnownError(
       agentInterModuleContract.methods.resolveRuntimeCredentials,
       'model-provider-credentials-invalid',

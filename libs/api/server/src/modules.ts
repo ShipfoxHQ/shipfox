@@ -62,19 +62,76 @@ export async function defaultModules(
     secrets: {
       deleteSecrets: async (params) => (await secretsClient.deleteSecrets(params)).deleted,
       linear: {
-        getSecret: async (params) => (await secretsClient.getSecret({...params, namespace: `system/integrations/linear/${params.namespace}`})).value,
-        setSecrets: async (params) => { const {editedBy, ...secretParams} = params; await secretsClient.setSecrets({...secretParams, namespace: `system/integrations/linear/${secretParams.namespace}`, ...(editedBy === undefined ? {} : {editedBy})}); },
-        deleteSecrets: async (params) => (await secretsClient.deleteSecrets({...params, namespace: `system/integrations/linear/${params.namespace}`})).deleted,
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/linear/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/linear/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/linear/${params.namespace}`,
+            })
+          ).deleted,
       },
       jira: {
-        getSecret: async (params) => (await secretsClient.getSecret({...params, namespace: `system/integrations/jira/${params.namespace}`})).value,
-        setSecrets: async (params) => { const {editedBy, ...secretParams} = params; await secretsClient.setSecrets({...secretParams, namespace: `system/integrations/jira/${secretParams.namespace}`, ...(editedBy === undefined ? {} : {editedBy})}); },
-        deleteSecrets: async (params) => (await secretsClient.deleteSecrets({...params, namespace: `system/integrations/jira/${params.namespace}`})).deleted,
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/jira/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/jira/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/jira/${params.namespace}`,
+            })
+          ).deleted,
       },
       slack: {
-        getSecret: async (params) => (await secretsClient.getSecret({...params, namespace: `system/integrations/slack/${params.namespace}`})).value,
-        setSecrets: async (params) => { const {editedBy, ...secretParams} = params; await secretsClient.setSecrets({...secretParams, namespace: `system/integrations/slack/${secretParams.namespace}`, ...(editedBy === undefined ? {} : {editedBy})}); },
-        deleteSecrets: async (params) => (await secretsClient.deleteSecrets({...params, namespace: `system/integrations/slack/${params.namespace}`})).deleted,
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/slack/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/slack/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/slack/${params.namespace}`,
+            })
+          ).deleted,
       },
     },
     agentTools: {workflows: workflowsClient},

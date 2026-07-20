@@ -15,6 +15,7 @@ import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 function reportUrl(stepId: string): string {
@@ -37,6 +38,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
           annotations: annotationsTestClient,
           projects: projectsTestClient,
           runners: runnersTestClient,
+          secrets: createTestSecretsClient(),
         }),
       ],
       swagger: false,
