@@ -16,7 +16,7 @@ export {
 export type {
   ClaimedJobExecution,
   EnqueueJobExecutionParams,
-  ProvisionedRunnerBoundJobExecution,
+  RunnerInstanceBoundJobExecution,
 } from './job-executions.js';
 export {
   cancelRunnerJobs,
@@ -25,7 +25,7 @@ export {
   expireStuckJobExecutions,
   isJobLeaseActive,
   listActiveRunningJobExecutions,
-  listRunningJobExecutionsByProvisionedRunnerTx,
+  listRunningJobExecutionsByRunnerInstanceTx,
   recordHeartbeat,
   releaseJobExecution,
 } from './job-executions.js';
@@ -36,28 +36,6 @@ export {
   resolveManualRegistrationTokenByHash,
   revokeManualRegistrationToken,
 } from './manual-registration-tokens.js';
-export type {
-  ActiveProvisionedRunnerTemplateCount,
-  ProvisionedRunnerReportEvent,
-  ProvisionedRunnerTerminateIntent,
-  ProvisionedRunnerTerminateIntentReason,
-  ReapStaleProvisionedRunnersResult,
-  ReconcileProvisionedRunnersDbResult,
-  ReconcileProvisionedRunnersParams,
-  ReportProvisionedRunnersParams,
-} from './provisioned-runners.js';
-export {
-  attachProviderRunnerId,
-  createPlannedProvisionedCapacity,
-  isTerminalState,
-  listActiveProvisionedRunnerCountsByTemplateTx,
-  listActiveProvisionedRunners,
-  listProvisionerTerminateIntentRowsTx,
-  listProvisionerTerminateIntents,
-  reapStaleProvisionedRunners,
-  reconcileProvisionedRunners,
-  reportProvisionedRunners,
-} from './provisioned-runners.js';
 export {
   hasActiveWorkspaceProvisionerCapability,
   listActiveWorkspaceProvisionerCapabilitySnapshots,
@@ -89,6 +67,28 @@ export {
   pollDemandAndReserve,
   releaseReservationUnits,
 } from './reservations.js';
+export type {
+  ActiveRunnerInstanceTemplateCount,
+  ReapStaleRunnerInstancesResult,
+  ReconcileRunnerInstancesDbResult,
+  ReconcileRunnerInstancesParams,
+  ReportRunnerInstancesParams,
+  RunnerInstanceReportEvent,
+  RunnerInstanceTerminateIntent,
+  RunnerInstanceTerminateIntentReason,
+} from './runner-instances.js';
+export {
+  attachProviderRunnerId,
+  createPlannedProvisionedCapacity,
+  isTerminalState,
+  listActiveRunnerInstanceCountsByTemplateTx,
+  listActiveRunnerInstances,
+  listProvisionerTerminateIntentRowsTx,
+  listProvisionerTerminateIntents,
+  reapStaleRunnerInstances,
+  reconcileRunnerInstances,
+  reportRunnerInstances,
+} from './runner-instances.js';
 export type {
   CreateRunnerSessionParams,
   DeleteExpiredRunnerSessionsParams,

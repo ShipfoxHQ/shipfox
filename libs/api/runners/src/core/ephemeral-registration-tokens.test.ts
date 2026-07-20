@@ -13,7 +13,7 @@ describe('mintEphemeralRegistrationToken', () => {
     const result = await mintEphemeralRegistrationToken({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'gh-runner-7',
+      providerRunnerId: 'gh-runner-7',
       ttlSeconds: 600,
     });
 
@@ -22,7 +22,7 @@ describe('mintEphemeralRegistrationToken', () => {
     );
     expect(result.token.workspaceId).toBe(workspaceId);
     expect(result.token.provisionerId).toBe(provisionerId);
-    expect(result.token.provisionedRunnerId).toBe('gh-runner-7');
+    expect(result.token.providerRunnerId).toBe('gh-runner-7');
     expect(result.token.reservationId).toBeNull();
     expect(result.token.prefix).toBe(result.rawToken.slice(0, 12));
     const [row] = await db()
@@ -40,7 +40,7 @@ describe('mintEphemeralRegistrationToken', () => {
     const result = await mintEphemeralRegistrationToken({
       workspaceId: crypto.randomUUID(),
       provisionerId: crypto.randomUUID(),
-      provisionedRunnerId: 'gh-runner-7',
+      providerRunnerId: 'gh-runner-7',
       ttlSeconds,
     });
 
@@ -56,7 +56,7 @@ describe('mintEphemeralRegistrationToken', () => {
     const result = await mintEphemeralRegistrationToken({
       workspaceId: crypto.randomUUID(),
       provisionerId: crypto.randomUUID(),
-      provisionedRunnerId: 'gh-runner-7',
+      providerRunnerId: 'gh-runner-7',
       reservationId,
       ttlSeconds: 600,
     });
@@ -67,11 +67,11 @@ describe('mintEphemeralRegistrationToken', () => {
   it('rejects a second active token for the same provisioned runner', async () => {
     const workspaceId = crypto.randomUUID();
     const provisionerId = crypto.randomUUID();
-    const provisionedRunnerId = 'gh-runner-7';
+    const providerRunnerId = 'gh-runner-7';
     await mintEphemeralRegistrationToken({
       workspaceId,
       provisionerId,
-      provisionedRunnerId,
+      providerRunnerId,
       ttlSeconds: 600,
     });
 
@@ -79,7 +79,7 @@ describe('mintEphemeralRegistrationToken', () => {
       mintEphemeralRegistrationToken({
         workspaceId,
         provisionerId,
-        provisionedRunnerId,
+        providerRunnerId,
         ttlSeconds: 600,
       }),
     ).rejects.toBeInstanceOf(ActiveEphemeralRegistrationTokenExistsError);
@@ -88,21 +88,21 @@ describe('mintEphemeralRegistrationToken', () => {
   it('allows minting a replacement after the previous token expires', async () => {
     const workspaceId = crypto.randomUUID();
     const provisionerId = crypto.randomUUID();
-    const provisionedRunnerId = 'gh-runner-7';
+    const providerRunnerId = 'gh-runner-7';
     await mintEphemeralRegistrationToken({
       workspaceId,
       provisionerId,
-      provisionedRunnerId,
+      providerRunnerId,
       ttlSeconds: -1,
     });
 
     const replacement = await mintEphemeralRegistrationToken({
       workspaceId,
       provisionerId,
-      provisionedRunnerId,
+      providerRunnerId,
       ttlSeconds: 600,
     });
 
-    expect(replacement.token.provisionedRunnerId).toBe(provisionedRunnerId);
+    expect(replacement.token.providerRunnerId).toBe(providerRunnerId);
   });
 });

@@ -4,9 +4,9 @@ describe('createInMemoryTracker', () => {
   it('counts starting runners per template', () => {
     const tracker = createInMemoryTracker();
 
-    tracker.recordStarting({provisionedRunnerId: 'a', templateKey: 'small'});
-    tracker.recordStarting({provisionedRunnerId: 'b', templateKey: 'small'});
-    tracker.recordStarting({provisionedRunnerId: 'c', templateKey: 'big'});
+    tracker.recordStarting({providerRunnerId: 'a', templateKey: 'small'});
+    tracker.recordStarting({providerRunnerId: 'b', templateKey: 'small'});
+    tracker.recordStarting({providerRunnerId: 'c', templateKey: 'big'});
 
     expect(tracker.countsByTemplate()).toEqual(
       new Map([
@@ -18,7 +18,7 @@ describe('createInMemoryTracker', () => {
 
   it('moves a runner from starting to running', () => {
     const tracker = createInMemoryTracker();
-    tracker.recordStarting({provisionedRunnerId: 'a', templateKey: 'small'});
+    tracker.recordStarting({providerRunnerId: 'a', templateKey: 'small'});
 
     tracker.markRunning('a');
 
@@ -27,7 +27,7 @@ describe('createInMemoryTracker', () => {
 
   it('drops a removed runner from the counts', () => {
     const tracker = createInMemoryTracker();
-    tracker.recordStarting({provisionedRunnerId: 'a', templateKey: 'small'});
+    tracker.recordStarting({providerRunnerId: 'a', templateKey: 'small'});
 
     tracker.remove('a');
 

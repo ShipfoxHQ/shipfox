@@ -1,13 +1,13 @@
 import {
-  MAX_PROVISIONED_RUNNER_REPORT_EVENTS,
-  provisionedRunnerReportEventSchema,
-  reportProvisionedRunnersBodySchema,
-} from './report-provisioned-runners.js';
+  MAX_PROVIDER_RUNNER_REPORT_EVENTS,
+  providerRunnerReportEventSchema,
+  reportRunnerInstancesBodySchema,
+} from './report-runner-instances.js';
 
-describe('provisionedRunnerReportEventSchema', () => {
+describe('providerRunnerReportEventSchema', () => {
   it('accepts minimal provider-agnostic lifecycle events', () => {
-    const result = provisionedRunnerReportEventSchema.safeParse({
-      provisioned_runner_id: 'container-1',
+    const result = providerRunnerReportEventSchema.safeParse({
+      provider_runner_id: 'container-1',
       labels: ['linux'],
       state: 'starting',
       reported_at: new Date().toISOString(),
@@ -17,8 +17,8 @@ describe('provisionedRunnerReportEventSchema', () => {
   });
 
   it('accepts cleanup-confirmed terminated lifecycle events', () => {
-    const result = provisionedRunnerReportEventSchema.safeParse({
-      provisioned_runner_id: 'container-1',
+    const result = providerRunnerReportEventSchema.safeParse({
+      provider_runner_id: 'container-1',
       labels: ['linux'],
       state: 'terminated',
       reported_at: new Date().toISOString(),
@@ -28,8 +28,8 @@ describe('provisionedRunnerReportEventSchema', () => {
   });
 
   it('rejects provider-sensitive extra fields', () => {
-    const result = provisionedRunnerReportEventSchema.safeParse({
-      provisioned_runner_id: 'container-1',
+    const result = providerRunnerReportEventSchema.safeParse({
+      provider_runner_id: 'container-1',
       labels: ['linux'],
       state: 'running',
       reported_at: new Date().toISOString(),
@@ -40,19 +40,19 @@ describe('provisionedRunnerReportEventSchema', () => {
   });
 });
 
-describe('reportProvisionedRunnersBodySchema', () => {
+describe('reportRunnerInstancesBodySchema', () => {
   it('enforces the batch size limit', () => {
     const event = {
-      provisioned_runner_id: 'container-1',
+      provider_runner_id: 'container-1',
       labels: ['linux'],
       state: 'running',
       reported_at: new Date().toISOString(),
     };
 
-    const result = reportProvisionedRunnersBodySchema.safeParse({
-      events: Array.from({length: MAX_PROVISIONED_RUNNER_REPORT_EVENTS + 1}, (_, index) => ({
+    const result = reportRunnerInstancesBodySchema.safeParse({
+      events: Array.from({length: MAX_PROVIDER_RUNNER_REPORT_EVENTS + 1}, (_, index) => ({
         ...event,
-        provisioned_runner_id: `container-${index}`,
+        provider_runner_id: `container-${index}`,
       })),
     });
 

@@ -1,9 +1,9 @@
-import type {ProvisionedRunnerLaunch, ProvisionerIdentity} from '@shipfox/provisioner-core';
+import type {ProviderRunnerLaunch, ProvisionerIdentity} from '@shipfox/provisioner-core';
 import {canonicalizeLabels, parseLabelList} from '@shipfox/runner-labels';
 import type {Ec2TemplateSpec} from '#templates.js';
 
 export const SHIPFOX_TAGS = {
-  provisionedRunnerId: 'shipfox.provisioned_runner_id',
+  providerRunnerId: 'shipfox.provider_runner_id',
   provisionerId: 'shipfox.provisioner_id',
   reservationId: 'shipfox.reservation_id',
   templateKey: 'shipfox.template_key',
@@ -12,7 +12,7 @@ export const SHIPFOX_TAGS = {
 } as const;
 
 export interface ParsedInstanceIdentity {
-  readonly provisionedRunnerId: string;
+  readonly providerRunnerId: string;
   readonly provisionerId?: string;
   readonly reservationId?: string;
   readonly templateKey?: string;
@@ -21,28 +21,28 @@ export interface ParsedInstanceIdentity {
 }
 
 export function buildInstanceTags(args: {
-  launch: ProvisionedRunnerLaunch<Ec2TemplateSpec>;
+  launch: ProviderRunnerLaunch<Ec2TemplateSpec>;
   identity: ProvisionerIdentity;
 }): Record<string, string> {
   return {
-    [SHIPFOX_TAGS.provisionedRunnerId]: args.launch.provisionedRunnerId,
+    [SHIPFOX_TAGS.providerRunnerId]: args.launch.providerRunnerId,
     [SHIPFOX_TAGS.provisionerId]: args.identity.id,
     [SHIPFOX_TAGS.reservationId]: args.launch.reservationId,
     [SHIPFOX_TAGS.templateKey]: args.launch.template.key,
     [SHIPFOX_TAGS.workspaceId]: args.identity.workspaceId,
     [SHIPFOX_TAGS.labels]: args.launch.template.labels.join(','),
-    Name: args.launch.provisionedRunnerId,
+    Name: args.launch.providerRunnerId,
   };
 }
 
 export function parseInstanceIdentity(view: {
   tags: Readonly<Record<string, string>>;
 }): ParsedInstanceIdentity {
-  const provisionedRunnerId = view.tags[SHIPFOX_TAGS.provisionedRunnerId] ?? view.tags.Name ?? '';
+  const providerRunnerId = view.tags[SHIPFOX_TAGS.providerRunnerId] ?? view.tags.Name ?? '';
   const labels = canonicalizeLabels(parseLabelList(view.tags[SHIPFOX_TAGS.labels] ?? ''));
 
   return {
-    provisionedRunnerId,
+    providerRunnerId,
     ...(view.tags[SHIPFOX_TAGS.provisionerId]
       ? {provisionerId: view.tags[SHIPFOX_TAGS.provisionerId]}
       : {}),

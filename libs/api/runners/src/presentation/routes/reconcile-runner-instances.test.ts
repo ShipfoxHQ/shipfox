@@ -17,16 +17,16 @@ import {vi} from '@shipfox/vitest/vi';
 import {and, desc, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {
-  provisionedRunnerAbsentTerminatedCount,
-  provisionedRunnerReconcileCallCount,
-  provisionedRunnerTerminateIntentIssuedCount,
+  providerRunnerAbsentTerminatedCount,
+  providerRunnerReconcileCallCount,
+  providerRunnerTerminateIntentIssuedCount,
   reservationReleasedCount,
 } from '#metrics/instance.js';
-import {provisionedRunnerFactory, reservationFactory, runnerSessionFactory} from '#test/index.js';
+import {providerRunnerFactory, reservationFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -36,7 +36,7 @@ const passthroughAuth = (name: string): AuthMethod => ({
   authenticate: () => Promise.resolve(),
 });
 
-describe('POST /provisioners/provisioned-runners/reconcile', () => {
+describe('POST /provisioners/runner-instances/reconcile', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let provisionerTokenId: string;
@@ -81,27 +81,27 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     const jobId = crypto.randomUUID();
     const workflowRunId = crypto.randomUUID();
     const workflowRunAttemptId = crypto.randomUUID();
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId,
       workflowRunId,
       workflowRunAttemptId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
     });
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
+      url: '/provisioners/runner-instances/reconcile',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: {observed_provisioned_runner_ids: ['provisioned-runner-1']},
+      payload: {observed_provider_runner_ids: ['provisioned-runner-1']},
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       runners: [
         {
-          provisioned_runner_id: 'provisioned-runner-1',
+          provider_runner_id: 'provisioned-runner-1',
           state: 'running',
           reservation_id: null,
           runner_session_id: null,
@@ -114,26 +114,26 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
           desired_intent: 'keep',
         },
       ],
-      terminated_absent_provisioned_runner_ids: [],
+      terminated_absent_provider_runner_ids: [],
     });
   });
 
   it('returns terminate for an observed terminal runner', async () => {
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       state: 'stopped',
     });
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
+      url: '/provisioners/runner-instances/reconcile',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: {observed_provisioned_runner_ids: ['provisioned-runner-1']},
+      payload: {observed_provider_runner_ids: ['provisioned-runner-1']},
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json().runners[0]).toMatchObject({
-      provisioned_runner_id: 'provisioned-runner-1',
+      provider_runner_id: 'provisioned-runner-1',
       state: 'stopped',
       desired_intent: 'terminate',
     });
@@ -142,27 +142,27 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
   it('returns keep for orphan observed ids without leaking ownership details', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
+      url: '/provisioners/runner-instances/reconcile',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: {observed_provisioned_runner_ids: ['orphan-runner']},
+      payload: {observed_provider_runner_ids: ['orphan-runner']},
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json().runners[0]).toMatchObject({
-      provisioned_runner_id: 'orphan-runner',
+      provider_runner_id: 'orphan-runner',
       state: null,
       desired_intent: 'keep',
     });
   });
 
   it('returns terminate for an active runner with a cancelled bound job', async () => {
-    const intentSpy = vi.spyOn(provisionedRunnerTerminateIntentIssuedCount, 'add');
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    const intentSpy = vi.spyOn(providerRunnerTerminateIntentIssuedCount, 'add');
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId: crypto.randomUUID(),
       workflowRunId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
@@ -170,9 +170,9 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
+      url: '/provisioners/runner-instances/reconcile',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: {observed_provisioned_runner_ids: ['provisioned-runner-1']},
+      payload: {observed_provider_runner_ids: ['provisioned-runner-1']},
     });
 
     expect(res.statusCode).toBe(200);
@@ -194,10 +194,10 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
   });
 
   it('returns an empty result for an empty observed set without reaping absent runners', async () => {
-    const reconcileSpy = vi.spyOn(provisionedRunnerReconcileCallCount, 'add');
+    const reconcileSpy = vi.spyOn(providerRunnerReconcileCallCount, 'add');
     const reservationId = await createReservation(2);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: new Date(Date.now() - 300_000),
     });
@@ -205,19 +205,19 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
+      url: '/provisioners/runner-instances/reconcile',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: {observed_provisioned_runner_ids: []},
+      payload: {observed_provider_runner_ids: []},
     });
 
-    const [provisionedRunner] = await db()
+    const [providerRunner] = await db()
       .select()
-      .from(provisionedRunners)
+      .from(providerRunners)
       .where(
         and(
-          eq(provisionedRunners.workspaceId, workspaceId),
-          eq(provisionedRunners.provisionerId, provisionerTokenId),
-          eq(provisionedRunners.provisionedRunnerId, 'provisioned-runner-1'),
+          eq(providerRunners.workspaceId, workspaceId),
+          eq(providerRunners.provisionerId, provisionerTokenId),
+          eq(providerRunners.providerRunnerId, 'provisioned-runner-1'),
         ),
       );
     const [reservation] = await db()
@@ -228,9 +228,9 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       runners: [],
-      terminated_absent_provisioned_runner_ids: [],
+      terminated_absent_provider_runner_ids: [],
     });
-    expect(provisionedRunner?.state).toBe('running');
+    expect(providerRunner?.state).toBe('running');
     expect(reservation?.count).toBe(2);
     expect(
       reconcileSpy.mock.calls
@@ -240,22 +240,22 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
   });
 
   it('increments the reservation release metric when reconcile reaps an absent runner', async () => {
-    const reconcileSpy = vi.spyOn(provisionedRunnerReconcileCallCount, 'add');
-    const absentSpy = vi.spyOn(provisionedRunnerAbsentTerminatedCount, 'add');
+    const reconcileSpy = vi.spyOn(providerRunnerReconcileCallCount, 'add');
+    const absentSpy = vi.spyOn(providerRunnerAbsentTerminatedCount, 'add');
     const addSpy = vi.spyOn(reservationReleasedCount, 'add');
     const reservationId = await createReservation(3);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: new Date(Date.now() - 300_000),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-2',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-2',
       reservationId,
       reportedAt: new Date(Date.now() - 300_000),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-3',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-3',
       reportedAt: new Date(Date.now() - 300_000),
     });
     const reconcileCallsBefore = reconcileSpy.mock.calls.length;
@@ -264,13 +264,13 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
+      url: '/provisioners/runner-instances/reconcile',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: {observed_provisioned_runner_ids: ['observed-runner']},
+      payload: {observed_provider_runner_ids: ['observed-runner']},
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().terminated_absent_provisioned_runner_ids).toEqual([
+    expect(res.json().terminated_absent_provider_runner_ids).toEqual([
       'provisioned-runner-1',
       'provisioned-runner-2',
       'provisioned-runner-3',
@@ -295,14 +295,14 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
   it('returns 401 without valid provisioner auth', async () => {
     const missing = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
-      payload: {observed_provisioned_runner_ids: []},
+      url: '/provisioners/runner-instances/reconcile',
+      payload: {observed_provider_runner_ids: []},
     });
     const invalid = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/reconcile',
+      url: '/provisioners/runner-instances/reconcile',
       headers: {authorization: 'Bearer invalid'},
-      payload: {observed_provisioned_runner_ids: []},
+      payload: {observed_provider_runner_ids: []},
     });
 
     expect(missing.statusCode).toBe(401);
@@ -332,16 +332,16 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     return reservation.id;
   }
 
-  async function createProvisionedRunner(params: {
-    provisionedRunnerId: string;
+  async function createRunnerInstance(params: {
+    providerRunnerId: string;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
     reservationId?: string | null;
     reportedAt?: Date;
   }) {
-    return await provisionedRunnerFactory.create({
+    return await providerRunnerFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: params.provisionedRunnerId,
+      providerRunnerId: params.providerRunnerId,
       reservationId: params.reservationId ?? null,
       state: params.state ?? 'running',
       reportedAt: params.reportedAt ?? new Date(),
@@ -352,7 +352,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     jobId: string;
     workflowRunId: string;
     workflowRunAttemptId: string;
-    provisionedRunnerId: string;
+    providerRunnerId: string;
     lastHeartbeatAt: Date;
     cancellationRequestedAt?: Date | null;
   }) {
@@ -369,7 +369,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId: runnerSession.id,
         provisionerId: provisionerTokenId,
-        provisionedRunnerId: params.provisionedRunnerId,
+        providerRunnerId: params.providerRunnerId,
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
         startedAt: params.lastHeartbeatAt,

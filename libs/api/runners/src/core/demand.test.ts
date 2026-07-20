@@ -1,12 +1,12 @@
 import {
-  calculateProvisionedRunnerCountDivergences,
+  calculateRunnerInstanceCountDivergences,
   nextBackoffInterval,
   pollDemand,
   shouldReturn,
 } from '#core/demand.js';
 
 describe('shouldReturn', () => {
-  const emptyResult = {stats: [], reservations: [], terminateProvisionedRunnerIds: []};
+  const emptyResult = {stats: [], reservations: [], terminateRunnerInstanceIds: []};
 
   it('returns true for observe-only requests', () => {
     const result = shouldReturn(emptyResult, 0, 1, false);
@@ -27,7 +27,7 @@ describe('shouldReturn', () => {
         reservations: [
           {reservationId: crypto.randomUUID(), labels: ['linux'], count: 1, expiresAt: new Date()},
         ],
-        terminateProvisionedRunnerIds: [],
+        terminateRunnerInstanceIds: [],
       },
       1,
       1,
@@ -39,7 +39,7 @@ describe('shouldReturn', () => {
 
   it('returns true when terminate intents exist', () => {
     const result = shouldReturn(
-      {...emptyResult, terminateProvisionedRunnerIds: ['provisioned-runner-1']},
+      {...emptyResult, terminateRunnerInstanceIds: ['provisioned-runner-1']},
       1,
       1,
       false,
@@ -76,7 +76,7 @@ describe('pollDemand', () => {
       signal: new AbortController().signal,
     });
 
-    expect(result).toEqual({stats: [], reservations: [], terminateProvisionedRunnerIds: []});
+    expect(result).toEqual({stats: [], reservations: [], terminateRunnerInstanceIds: []});
   });
 
   it('returns immediately when terminate intents exist without reservation demand', async () => {
@@ -84,8 +84,8 @@ describe('pollDemand', () => {
     const pollDemandAndReserveTx = vi.fn().mockResolvedValue({stats: [], reservations: []});
     const listProvisionerTerminateIntentRowsTx = vi
       .fn()
-      .mockResolvedValue([{provisionedRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'}]);
-    const listActiveProvisionedRunnerCountsByTemplateTx = vi.fn().mockResolvedValue([]);
+      .mockResolvedValue([{providerRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'}]);
+    const listActiveRunnerInstanceCountsByTemplateTx = vi.fn().mockResolvedValue([]);
     vi.doMock('#db/db.js', () => ({
       db: () => ({transaction: (callback: (tx: unknown) => Promise<unknown>) => callback({})}),
     }));
@@ -93,8 +93,8 @@ describe('pollDemand', () => {
       deleteReservationsByIds: vi.fn(),
       pollDemandAndReserveTx,
     }));
-    vi.doMock('#db/provisioned-runners.js', () => ({
-      listActiveProvisionedRunnerCountsByTemplateTx,
+    vi.doMock('#db/runner-instances.js', () => ({
+      listActiveRunnerInstanceCountsByTemplateTx,
       listProvisionerTerminateIntentRowsTx,
     }));
 
@@ -117,14 +117,14 @@ describe('pollDemand', () => {
       expect(result).toEqual({
         stats: [],
         reservations: [],
-        terminateProvisionedRunnerIds: ['provisioned-runner-1'],
+        terminateRunnerInstanceIds: ['provisioned-runner-1'],
       });
       expect(pollDemandAndReserveTx).toHaveBeenCalledOnce();
       expect(listProvisionerTerminateIntentRowsTx).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock('#db/db.js');
       vi.doUnmock('#db/reservations.js');
-      vi.doUnmock('#db/provisioned-runners.js');
+      vi.doUnmock('#db/runner-instances.js');
       vi.resetModules();
     }
   });
@@ -137,7 +137,7 @@ describe('pollDemand', () => {
       abortController.abort();
       return [];
     });
-    const listActiveProvisionedRunnerCountsByTemplateTx = vi.fn().mockResolvedValue([]);
+    const listActiveRunnerInstanceCountsByTemplateTx = vi.fn().mockResolvedValue([]);
     vi.doMock('#db/db.js', () => ({
       db: () => ({transaction: (callback: (tx: unknown) => Promise<unknown>) => callback({})}),
     }));
@@ -145,8 +145,8 @@ describe('pollDemand', () => {
       deleteReservationsByIds: vi.fn(),
       pollDemandAndReserveTx,
     }));
-    vi.doMock('#db/provisioned-runners.js', () => ({
-      listActiveProvisionedRunnerCountsByTemplateTx,
+    vi.doMock('#db/runner-instances.js', () => ({
+      listActiveRunnerInstanceCountsByTemplateTx,
       listProvisionerTerminateIntentRowsTx,
     }));
 
@@ -166,12 +166,12 @@ describe('pollDemand', () => {
         signal: abortController.signal,
       });
 
-      expect(result).toEqual({stats: [], reservations: [], terminateProvisionedRunnerIds: []});
-      expect(listActiveProvisionedRunnerCountsByTemplateTx).not.toHaveBeenCalled();
+      expect(result).toEqual({stats: [], reservations: [], terminateRunnerInstanceIds: []});
+      expect(listActiveRunnerInstanceCountsByTemplateTx).not.toHaveBeenCalled();
     } finally {
       vi.doUnmock('#db/db.js');
       vi.doUnmock('#db/reservations.js');
-      vi.doUnmock('#db/provisioned-runners.js');
+      vi.doUnmock('#db/runner-instances.js');
       vi.resetModules();
     }
   });
@@ -182,7 +182,7 @@ describe('pollDemand', () => {
     const divergenceAdd = vi.fn();
     const pollDemandAndReserveTx = vi.fn().mockResolvedValue({stats: [], reservations: []});
     const listProvisionerTerminateIntentRowsTx = vi.fn().mockResolvedValue([]);
-    const listActiveProvisionedRunnerCountsByTemplateTx = vi
+    const listActiveRunnerInstanceCountsByTemplateTx = vi
       .fn()
       .mockResolvedValue([{templateKey: 'linux', state: 'running', count: 2}]);
     vi.doMock('#db/db.js', () => ({
@@ -192,13 +192,13 @@ describe('pollDemand', () => {
       deleteReservationsByIds: vi.fn(),
       pollDemandAndReserveTx,
     }));
-    vi.doMock('#db/provisioned-runners.js', () => ({
-      listActiveProvisionedRunnerCountsByTemplateTx,
+    vi.doMock('#db/runner-instances.js', () => ({
+      listActiveRunnerInstanceCountsByTemplateTx,
       listProvisionerTerminateIntentRowsTx,
     }));
     vi.doMock('#metrics/instance.js', () => ({
-      provisionedRunnerCountDivergenceCount: {add: divergenceAdd},
-      provisionedRunnerTerminateIntentIssuedCount: {add: vi.fn()},
+      providerRunnerCountDivergenceCount: {add: divergenceAdd},
+      providerRunnerTerminateIntentIssuedCount: {add: vi.fn()},
     }));
 
     try {
@@ -217,7 +217,7 @@ describe('pollDemand', () => {
         signal: new AbortController().signal,
       });
 
-      expect(result).toEqual({stats: [], reservations: [], terminateProvisionedRunnerIds: []});
+      expect(result).toEqual({stats: [], reservations: [], terminateRunnerInstanceIds: []});
       expect(divergenceAdd).toHaveBeenCalledWith(1, {
         template_key: 'linux',
         state: 'running',
@@ -227,16 +227,16 @@ describe('pollDemand', () => {
       vi.unstubAllEnvs();
       vi.doUnmock('#db/db.js');
       vi.doUnmock('#db/reservations.js');
-      vi.doUnmock('#db/provisioned-runners.js');
+      vi.doUnmock('#db/runner-instances.js');
       vi.doUnmock('#metrics/instance.js');
       vi.resetModules();
     }
   });
 });
 
-describe('calculateProvisionedRunnerCountDivergences', () => {
+describe('calculateRunnerInstanceCountDivergences', () => {
   it('returns no divergences when advertised and backend counts match', () => {
-    const result = calculateProvisionedRunnerCountDivergences({
+    const result = calculateRunnerInstanceCountDivergences({
       advertisedTemplates: [template('linux', 1, 2)],
       backendCounts: [
         {templateKey: 'linux', state: 'starting', count: 1},
@@ -248,7 +248,7 @@ describe('calculateProvisionedRunnerCountDivergences', () => {
   });
 
   it('detects backend-higher and advertised-higher counts', () => {
-    const result = calculateProvisionedRunnerCountDivergences({
+    const result = calculateRunnerInstanceCountDivergences({
       advertisedTemplates: [template('linux', 1, 5)],
       backendCounts: [
         {templateKey: 'linux', state: 'starting', count: 3},
@@ -263,7 +263,7 @@ describe('calculateProvisionedRunnerCountDivergences', () => {
   });
 
   it('aggregates duplicate advertised template keys before comparing', () => {
-    const result = calculateProvisionedRunnerCountDivergences({
+    const result = calculateRunnerInstanceCountDivergences({
       advertisedTemplates: [template('linux', 1, 1), template('linux', 2, 3)],
       backendCounts: [
         {templateKey: 'linux', state: 'starting', count: 3},
@@ -275,7 +275,7 @@ describe('calculateProvisionedRunnerCountDivergences', () => {
   });
 
   it('detects backend-only template keys as backend-higher', () => {
-    const result = calculateProvisionedRunnerCountDivergences({
+    const result = calculateRunnerInstanceCountDivergences({
       advertisedTemplates: [template('linux', 0, 0)],
       backendCounts: [{templateKey: 'gpu', state: 'running', count: 2}],
     });

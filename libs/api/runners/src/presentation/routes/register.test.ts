@@ -99,7 +99,7 @@ describe('POST /runners/register', () => {
     expect(rows[0]?.labels).toEqual(['linux', 'x64']);
     expect(rows[0]?.registrationTokenKind).toBe('manual');
     expect(rows[0]?.provisionerId).toBeNull();
-    expect(rows[0]?.provisionedRunnerId).toBeNull();
+    expect(rows[0]?.providerRunnerId).toBeNull();
     expect(rows[0]?.toolCapabilities).toBeNull();
     expect(rows[0]?.toolCapabilitiesReportedAt).toBeNull();
   });
@@ -149,7 +149,7 @@ describe('POST /runners/register', () => {
       .where(eq(runnerSessions.id, body.session_id));
     expect(session?.registrationTokenKind).toBe('ephemeral');
     expect(session?.provisionerId).toBe(token.provisionerId);
-    expect(session?.provisionedRunnerId).toBe(token.provisionedRunnerId);
+    expect(session?.providerRunnerId).toBe(token.providerRunnerId);
     expect(session?.maxClaims).toBe(1);
     expect(session?.claimsUsed).toBe(0);
     expect(session?.toolCapabilities).toEqual({harnesses: {pi: {tools: ['read']}}});

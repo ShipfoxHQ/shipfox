@@ -63,10 +63,10 @@ export class ActiveEphemeralRegistrationTokenExistsError extends Error {
   constructor(
     public readonly workspaceId: string,
     public readonly provisionerId: string,
-    public readonly provisionedRunnerId: string,
+    public readonly providerRunnerId: string,
   ) {
     super(
-      `Active ephemeral registration token already exists for provisioned runner ${provisionedRunnerId} in workspace ${workspaceId}`,
+      `Active ephemeral registration token already exists for provisioned runner ${providerRunnerId} in workspace ${workspaceId}`,
     );
     this.name = 'ActiveEphemeralRegistrationTokenExistsError';
   }
@@ -131,9 +131,9 @@ export class RegistrationTokenBatchExceedsReservationError extends Error {
 }
 
 export class ActiveEphemeralRegistrationTokensExistError extends Error {
-  constructor(public readonly provisionedRunnerIds: string[]) {
+  constructor(public readonly providerRunnerIds: string[]) {
     super(
-      `Active ephemeral registration tokens already exist for provisioned runners: ${provisionedRunnerIds.join(', ')}`,
+      `Active ephemeral registration tokens already exist for provisioned runners: ${providerRunnerIds.join(', ')}`,
     );
     this.name = 'ActiveEphemeralRegistrationTokensExistError';
   }

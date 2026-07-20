@@ -7,7 +7,7 @@ import type {
 import {logger} from '@shipfox/node-opentelemetry';
 import type {ProvisionerClient} from '#api-client.js';
 import {type PlannedLaunchGroup, planLaunches, templateAvailableSlots} from '#capacity.js';
-import type {ProvisionedRunnerTracker} from '#tracker.js';
+import type {ProviderRunnerTracker} from '#tracker.js';
 import type {LaunchRunner, ProvisionerTemplate, TerminateRunners} from '#types.js';
 
 /** The API caps reservations per poll at 1000; never advertise a larger appetite. */
@@ -25,7 +25,7 @@ export type RunnerEnvFactory<Spec> = (args: {
 export interface ProvisionerTickDeps<Spec> {
   readonly client: ProvisionerClient;
   readonly templates: readonly ProvisionerTemplate<Spec>[];
-  readonly tracker: ProvisionedRunnerTracker;
+  readonly tracker: ProviderRunnerTracker;
   readonly launch: LaunchRunner<Spec>;
   readonly terminate?: TerminateRunners;
   readonly buildRunnerEnv: RunnerEnvFactory<Spec>;
@@ -84,11 +84,11 @@ export async function runProvisionerTick<Spec>(
   );
 
   if (
-    response.terminate_provisioned_runner_ids.length > 0 &&
+    response.terminate_provider_runner_ids.length > 0 &&
     !deps.signal?.aborted &&
     deps.terminate
   ) {
-    await deps.terminate(response.terminate_provisioned_runner_ids);
+    await deps.terminate(response.terminate_provider_runner_ids);
   }
 
   const planned = planLaunches({
@@ -131,12 +131,12 @@ async function launchReservation<Spec>(
   // generated ids time-ordered without adding a dependency.
   const plannedRunners = groups.flatMap((group) =>
     Array.from({length: group.count}, () => ({
-      provisionedRunnerId: cryptoWithUuidV7.randomUUIDv7(),
+      providerRunnerId: cryptoWithUuidV7.randomUUIDv7(),
       template: group.template,
     })),
   );
   const templateById = new Map<string, ProvisionerTemplate<Spec>>(
-    plannedRunners.map((runner) => [runner.provisionedRunnerId, runner.template]),
+    plannedRunners.map((runner) => [runner.providerRunnerId, runner.template]),
   );
 
   let attempted = 0;
@@ -148,8 +148,8 @@ async function launchReservation<Spec>(
       minted = await deps.client.mintRegistrationTokens(
         {
           reservation_id: reservationId,
-          provisioned_runners: batch.map((runner) => ({
-            provisioned_runner_id: runner.provisionedRunnerId,
+          runner_instances: batch.map((runner) => ({
+            provider_runner_id: runner.providerRunnerId,
           })),
         },
         deps.signal ? {signal: deps.signal} : {},
@@ -172,17 +172,17 @@ async function launchReservation<Spec>(
 
     for (const token of minted.tokens) {
       if (deps.signal?.aborted) break;
-      const template = templateById.get(token.provisioned_runner_id);
+      const template = templateById.get(token.provider_runner_id);
       if (!template) continue;
 
       deps.tracker.recordStarting({
-        provisionedRunnerId: token.provisioned_runner_id,
+        providerRunnerId: token.provider_runner_id,
         templateKey: template.key,
       });
       attempted += 1;
       try {
         await deps.launch({
-          provisionedRunnerId: token.provisioned_runner_id,
+          providerRunnerId: token.provider_runner_id,
           reservationId,
           template,
           registrationToken: token.registration_token,
@@ -194,9 +194,9 @@ async function launchReservation<Spec>(
         // The launch call rejected, so no resource was created: free the slot now instead
         // of leaving a phantom `starting` runner. A persistent failure (bad image, daemon
         // down) would otherwise drain capacity to zero and wedge the loop until restart.
-        deps.tracker.remove(token.provisioned_runner_id);
+        deps.tracker.remove(token.provider_runner_id);
         logger().error(
-          {err: error, provisionedRunnerId: token.provisioned_runner_id},
+          {err: error, providerRunnerId: token.provider_runner_id},
           'Failed to launch provisioned runner',
         );
       }

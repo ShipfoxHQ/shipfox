@@ -15,8 +15,8 @@ describe('POST /provisioners/demand/poll reservation cleanup', () => {
     const listProvisionerTerminateIntentRowsTx = vi
       .fn()
       .mockRejectedValueOnce(new Error('db unavailable'));
-    vi.doMock('#db/provisioned-runners.js', async (importOriginal) => ({
-      ...(await importOriginal<typeof import('#db/provisioned-runners.js')>()),
+    vi.doMock('#db/runner-instances.js', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('#db/runner-instances.js')>()),
       listProvisionerTerminateIntentRowsTx,
     }));
     const {pollDemandRoute} = await import('./poll-demand.js');
@@ -72,7 +72,7 @@ describe('POST /provisioners/demand/poll reservation cleanup', () => {
       expect(res.statusCode).toBe(500);
       expect(reservationRows).toHaveLength(0);
     } finally {
-      vi.doUnmock('#db/provisioned-runners.js');
+      vi.doUnmock('#db/runner-instances.js');
       vi.resetModules();
       await closeApp();
     }

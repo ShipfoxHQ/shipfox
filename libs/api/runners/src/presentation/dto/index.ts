@@ -1,13 +1,13 @@
 export {toActiveProvisionerDto} from './active-provisioner.js';
 export {toManualRegistrationTokenDto} from './manual-registration-token.js';
 export {
-  toMintRegistrationTokensProvisionedRunners,
   toMintRegistrationTokensResponseDto,
+  toMintRegistrationTokensRunnerInstances,
 } from './mint-registration-tokens.js';
 export {toPollDemandResponseDto} from './poll-demand.js';
+export {toProvisionerTokenDto} from './provisioner-token.js';
 export {
   toActiveRunnersResponseDto,
-  toReconcileProvisionedRunnersResponseDto,
-  toReportProvisionedRunnersResponseDto,
-} from './provisioned-runners.js';
-export {toProvisionerTokenDto} from './provisioner-token.js';
+  toReconcileRunnerInstancesResponseDto,
+  toReportRunnerInstancesResponseDto,
+} from './runner-instances.js';

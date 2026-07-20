@@ -1,51 +1,51 @@
-import {reconcileProvisionedRunnersFromDbResult} from './provisioned-runners.js';
+import {reconcileRunnerInstancesFromDbResult} from './runner-instances.js';
 
-describe('reconcileProvisionedRunnersFromDbResult', () => {
+describe('reconcileRunnerInstancesFromDbResult', () => {
   it('keeps active provisioned runners', () => {
-    const result = reconcileProvisionedRunnersFromDbResult({
-      observedProvisionedRunnerIds: ['provisioned-runner-1'],
-      observedRows: [provisionedRunner({provisionedRunnerId: 'provisioned-runner-1'})],
-      boundJobExecutionsByProvisionedRunnerId: new Map(),
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [providerRunner({providerRunnerId: 'provisioned-runner-1'})],
+      boundJobExecutionsByRunnerInstanceId: new Map(),
     });
 
     expect(result[0]?.desiredIntent).toBe('keep');
   });
 
   it('terminates terminal provisioned runners', () => {
-    const result = reconcileProvisionedRunnersFromDbResult({
-      observedProvisionedRunnerIds: ['provisioned-runner-1'],
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
       observedRows: [
-        provisionedRunner({provisionedRunnerId: 'provisioned-runner-1', state: 'terminated'}),
+        providerRunner({providerRunnerId: 'provisioned-runner-1', state: 'terminated'}),
       ],
-      boundJobExecutionsByProvisionedRunnerId: new Map(),
+      boundJobExecutionsByRunnerInstanceId: new Map(),
     });
 
     expect(result[0]?.desiredIntent).toBe('terminate');
   });
 
   it('keeps orphan observed provisioned runners', () => {
-    const result = reconcileProvisionedRunnersFromDbResult({
-      observedProvisionedRunnerIds: ['provisioned-runner-1'],
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
       observedRows: [],
-      boundJobExecutionsByProvisionedRunnerId: new Map(),
+      boundJobExecutionsByRunnerInstanceId: new Map(),
     });
 
     expect(result[0]).toMatchObject({
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       state: null,
       desiredIntent: 'keep',
     });
   });
 
   it('terminates active provisioned runners with a cancelled latest bound job', () => {
-    const result = reconcileProvisionedRunnersFromDbResult({
-      observedProvisionedRunnerIds: ['provisioned-runner-1'],
-      observedRows: [provisionedRunner({provisionedRunnerId: 'provisioned-runner-1'})],
-      boundJobExecutionsByProvisionedRunnerId: new Map([
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [providerRunner({providerRunnerId: 'provisioned-runner-1'})],
+      boundJobExecutionsByRunnerInstanceId: new Map([
         [
           'provisioned-runner-1',
           boundJobExecution({
-            provisionedRunnerId: 'provisioned-runner-1',
+            providerRunnerId: 'provisioned-runner-1',
             cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
           }),
         ],
@@ -56,15 +56,15 @@ describe('reconcileProvisionedRunnersFromDbResult', () => {
   });
 });
 
-function provisionedRunner(params: {
-  provisionedRunnerId: string;
+function providerRunner(params: {
+  providerRunnerId: string;
   state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
 }) {
   return {
     id: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     provisionerId: crypto.randomUUID(),
-    provisionedRunnerId: params.provisionedRunnerId,
+    providerRunnerId: params.providerRunnerId,
     reservationId: null,
     templateKey: 'linux',
     labels: ['linux'],
@@ -85,7 +85,7 @@ function provisionedRunner(params: {
 }
 
 function boundJobExecution(params: {
-  provisionedRunnerId: string;
+  providerRunnerId: string;
   cancellationRequestedAt?: Date | null;
 }) {
   return {
@@ -93,7 +93,7 @@ function boundJobExecution(params: {
     workflowRunAttemptId: crypto.randomUUID(),
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
-    provisionedRunnerId: params.provisionedRunnerId,
+    providerRunnerId: params.providerRunnerId,
     startedAt: new Date('2025-01-01T00:00:00.000Z'),
     lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
     cancellationRequestedAt: params.cancellationRequestedAt ?? null,

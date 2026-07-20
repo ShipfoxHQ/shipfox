@@ -20,7 +20,7 @@ export const runnerSessionFactory = Factory.define<RunnerSession>(({onCreate}) =
     registrationTokenId: crypto.randomUUID(),
     registrationTokenKind: 'manual',
     provisionerId: null,
-    provisionedRunnerId: null,
+    providerRunnerId: null,
     labels: ['linux', 'x64'],
     toolCapabilities: null,
     toolCapabilitiesReportedAt: null,

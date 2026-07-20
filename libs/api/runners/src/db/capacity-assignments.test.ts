@@ -2,8 +2,8 @@ import {eq, inArray} from 'drizzle-orm';
 import {assignCapacityBatch} from '#db/capacity-assignments.js';
 import {db} from '#db/db.js';
 import {capacityAssignments} from '#db/schema/capacity-assignments.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
 
 describe('assignCapacityBatch', () => {
   let workspaceId: string;
@@ -141,12 +141,12 @@ describe('assignCapacityBatch', () => {
     return row;
   }
 
-  async function createCapacity(overrides: Partial<typeof provisionedRunners.$inferInsert> = {}) {
+  async function createCapacity(overrides: Partial<typeof providerRunners.$inferInsert> = {}) {
     const [row] = await db()
-      .insert(provisionedRunners)
+      .insert(providerRunners)
       .values({
         provisionerId,
-        provisionedRunnerId: crypto.randomUUID(),
+        providerRunnerId: crypto.randomUUID(),
         labels: ['linux'],
         state: 'running',
         reportedAt: new Date(),

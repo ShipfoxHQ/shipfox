@@ -96,12 +96,12 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     const after = Date.now();
     expect(res.statusCode).toBe(200);
     const tokens = res.json().tokens as {
-      provisioned_runner_id: string;
+      provider_runner_id: string;
       registration_token: string;
       expires_at: string;
     }[];
     expect(tokens).toHaveLength(2);
-    expect(tokens.map((token) => token.provisioned_runner_id).sort()).toEqual([
+    expect(tokens.map((token) => token.provider_runner_id).sort()).toEqual([
       'provisioned-runner-a',
       'provisioned-runner-b',
     ]);
@@ -116,7 +116,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
         workspaceId,
         provisionerId: provisionerTokenId,
         reservationId,
-        provisionedRunnerId: minted.provisioned_runner_id,
+        providerRunnerId: minted.provider_runner_id,
       });
       const expiresMs = new Date(minted.expires_at).getTime();
       expect(expiresMs).toBeGreaterThanOrEqual(
@@ -227,7 +227,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     await ephemeralRegistrationTokenFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: 'provisioned-runner-a',
+      providerRunnerId: 'provisioned-runner-a',
       expiresAt: new Date(Date.now() + 60_000),
     });
 
@@ -242,7 +242,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json()).toMatchObject({
       code: 'registration-token-active',
-      details: {provisioned_runner_ids: ['provisioned-runner-a']},
+      details: {provider_runner_ids: ['provisioned-runner-a']},
     });
     expect(persistedCount).toBe(1);
   });
@@ -410,11 +410,11 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     return row?.value ?? 0;
   }
 
-  function body(reservationId: string, provisionedRunnerIds: string[]) {
+  function body(reservationId: string, providerRunnerIds: string[]) {
     return {
       reservation_id: reservationId,
-      provisioned_runners: provisionedRunnerIds.map((provisionedRunnerId) => ({
-        provisioned_runner_id: provisionedRunnerId,
+      runner_instances: providerRunnerIds.map((providerRunnerId) => ({
+        provider_runner_id: providerRunnerId,
       })),
     };
   }

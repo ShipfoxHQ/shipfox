@@ -110,19 +110,19 @@ export interface ActiveRunningJobExecution {
   projectId: string;
   runnerSessionId: string;
   provisionerId: string | null;
-  provisionedRunnerId: string | null;
+  providerRunnerId: string | null;
   requiredLabels: string[];
   runnerLabels: string[];
   startedAt: Date;
   lastHeartbeatAt: Date;
 }
 
-export interface ProvisionedRunnerBoundJobExecution {
+export interface RunnerInstanceBoundJobExecution {
   workflowRunId: string;
   workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;
-  provisionedRunnerId: string;
+  providerRunnerId: string;
   startedAt: Date;
   lastHeartbeatAt: Date;
   cancellationRequestedAt: Date | null;
@@ -145,7 +145,7 @@ export async function claimPendingJobExecution(params: {
 
   return await db().transaction(async (tx) => {
     let provisionerId: string | null = null;
-    let provisionedRunnerId: string | null = null;
+    let providerRunnerId: string | null = null;
 
     if (params.maxClaims !== null) {
       const [session] = await tx
@@ -153,7 +153,7 @@ export async function claimPendingJobExecution(params: {
           maxClaims: runnerSessions.maxClaims,
           claimsUsed: runnerSessions.claimsUsed,
           provisionerId: runnerSessions.provisionerId,
-          provisionedRunnerId: runnerSessions.provisionedRunnerId,
+          providerRunnerId: runnerSessions.providerRunnerId,
         })
         .from(runnerSessions)
         .where(eq(runnerSessions.id, params.runnerSessionId))
@@ -167,7 +167,7 @@ export async function claimPendingJobExecution(params: {
       // Ephemeral sessions are the only capped sessions, and the DB check keeps
       // their provisioned-runner link present as a pair.
       provisionerId = session.provisionerId;
-      provisionedRunnerId = session.provisionedRunnerId;
+      providerRunnerId = session.providerRunnerId;
     }
 
     // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
@@ -206,7 +206,7 @@ export async function claimPendingJobExecution(params: {
         projectId: row.projectId,
         runnerSessionId: params.runnerSessionId,
         provisionerId,
-        provisionedRunnerId,
+        providerRunnerId,
         requiredLabels: row.requiredLabels,
         runnerLabels: params.sessionLabels,
       })
@@ -409,7 +409,7 @@ export async function listActiveRunningJobExecutions(params: {
       projectId: runningJobExecutions.projectId,
       runnerSessionId: runningJobExecutions.runnerSessionId,
       provisionerId: runningJobExecutions.provisionerId,
-      provisionedRunnerId: runningJobExecutions.provisionedRunnerId,
+      providerRunnerId: runningJobExecutions.providerRunnerId,
       requiredLabels: runningJobExecutions.requiredLabels,
       runnerLabels: runningJobExecutions.runnerLabels,
       startedAt: runningJobExecutions.startedAt,
@@ -426,19 +426,19 @@ export async function listActiveRunningJobExecutions(params: {
     .limit(params.limit ?? 1000);
 }
 
-export async function listRunningJobExecutionsByProvisionedRunnerTx(
+export async function listRunningJobExecutionsByRunnerInstanceTx(
   tx: Tx,
   params: {
     workspaceId: string;
     provisionerId: string;
-    provisionedRunnerIds: string[];
+    providerRunnerIds: string[];
   },
-): Promise<ProvisionedRunnerBoundJobExecution[]> {
-  if (params.provisionedRunnerIds.length === 0) return [];
+): Promise<RunnerInstanceBoundJobExecution[]> {
+  if (params.providerRunnerIds.length === 0) return [];
 
   const duplicateRows = await tx
     .select({
-      provisionedRunnerId: runningJobExecutions.provisionedRunnerId,
+      providerRunnerId: runningJobExecutions.providerRunnerId,
       count: count(),
     })
     .from(runningJobExecutions)
@@ -446,21 +446,21 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
       and(
         eq(runningJobExecutions.workspaceId, params.workspaceId),
         eq(runningJobExecutions.provisionerId, params.provisionerId),
-        inArray(runningJobExecutions.provisionedRunnerId, params.provisionedRunnerIds),
+        inArray(runningJobExecutions.providerRunnerId, params.providerRunnerIds),
       ),
     )
-    .groupBy(runningJobExecutions.provisionedRunnerId)
+    .groupBy(runningJobExecutions.providerRunnerId)
     .having(sql`count(*) > 1`);
 
-  const duplicateProvisionedRunnerIds = duplicateRows.flatMap((row) =>
-    row.provisionedRunnerId ? [row.provisionedRunnerId] : [],
+  const duplicateRunnerInstanceIds = duplicateRows.flatMap((row) =>
+    row.providerRunnerId ? [row.providerRunnerId] : [],
   );
-  if (duplicateProvisionedRunnerIds.length > 0) {
+  if (duplicateRunnerInstanceIds.length > 0) {
     logger().warn(
       {
         workspaceId: params.workspaceId,
         provisionerId: params.provisionerId,
-        provisionedRunnerIds: duplicateProvisionedRunnerIds,
+        providerRunnerIds: duplicateRunnerInstanceIds,
       },
       'multiple running job executions are bound to the same provisioned runner',
     );
@@ -471,17 +471,17 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
     workflowRunAttemptId: string;
     jobId: string;
     jobExecutionId: string;
-    provisionedRunnerId: string;
+    providerRunnerId: string;
     startedAt: Date | string;
     lastHeartbeatAt: Date | string;
     cancellationRequestedAt: Date | string | null;
   }>(sql`
-    SELECT DISTINCT ON (${runningJobExecutions.provisionedRunnerId})
+    SELECT DISTINCT ON (${runningJobExecutions.providerRunnerId})
       ${runningJobExecutions.workflowRunId} AS "workflowRunId",
       ${runningJobExecutions.workflowRunAttemptId} AS "workflowRunAttemptId",
       ${runningJobExecutions.jobId} AS "jobId",
       ${runningJobExecutions.jobExecutionId} AS "jobExecutionId",
-      ${runningJobExecutions.provisionedRunnerId} AS "provisionedRunnerId",
+      ${runningJobExecutions.providerRunnerId} AS "providerRunnerId",
       ${runningJobExecutions.startedAt} AS "startedAt",
       ${runningJobExecutions.lastHeartbeatAt} AS "lastHeartbeatAt",
       ${runningJobExecutions.cancellationRequestedAt} AS "cancellationRequestedAt"
@@ -489,11 +489,11 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
     WHERE
       ${runningJobExecutions.workspaceId} = ${params.workspaceId}
       AND ${runningJobExecutions.provisionerId} = ${params.provisionerId}
-      AND ${runningJobExecutions.provisionedRunnerId} IN (${sql.join(
-        params.provisionedRunnerIds.map((provisionedRunnerId) => sql`${provisionedRunnerId}`),
+      AND ${runningJobExecutions.providerRunnerId} IN (${sql.join(
+        params.providerRunnerIds.map((providerRunnerId) => sql`${providerRunnerId}`),
         sql`, `,
       )})
-    ORDER BY ${runningJobExecutions.provisionedRunnerId}, ${runningJobExecutions.startedAt} DESC, ${runningJobExecutions.jobExecutionId} DESC
+    ORDER BY ${runningJobExecutions.providerRunnerId}, ${runningJobExecutions.startedAt} DESC, ${runningJobExecutions.jobExecutionId} DESC
   `);
 
   return result.rows.map((row) => ({
@@ -501,7 +501,7 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
     workflowRunAttemptId: row.workflowRunAttemptId,
     jobId: row.jobId,
     jobExecutionId: row.jobExecutionId,
-    provisionedRunnerId: row.provisionedRunnerId,
+    providerRunnerId: row.providerRunnerId,
     startedAt: toDate(row.startedAt),
     lastHeartbeatAt: toDate(row.lastHeartbeatAt),
     cancellationRequestedAt: row.cancellationRequestedAt

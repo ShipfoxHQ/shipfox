@@ -1,10 +1,10 @@
 import {config} from '#config.js';
 import {deleteExpiredEphemeralRegistrationTokens as deleteExpiredEphemeralRegistrationTokensDb} from '#db/ephemeral-registration-tokens.js';
 import {expireStuckJobExecutions} from '#db/job-executions.js';
-import {reapStaleProvisionedRunners as reapStaleProvisionedRunnersDb} from '#db/provisioned-runners.js';
 import {deleteExpiredReservations} from '#db/reservations.js';
+import {reapStaleRunnerInstances as reapStaleRunnerInstancesDb} from '#db/runner-instances.js';
 import {deleteExpiredRunnerSessions as deleteExpiredRunnerSessionsDb} from '#db/runner-sessions.js';
-import {provisionedRunnerReapedCount, reservationReleasedCount} from '#metrics/instance.js';
+import {providerRunnerReapedCount, reservationReleasedCount} from '#metrics/instance.js';
 import {STUCK_JOB_THRESHOLD_SECONDS} from './maintenance-policy.js';
 
 export interface DetectAndExpireStuckJobsParams {
@@ -30,17 +30,17 @@ export async function deleteExpiredRunnerReservations(params?: {
   return {deleted};
 }
 
-export async function reapStaleProvisionedRunners(params?: {
+export async function reapStaleRunnerInstances(params?: {
   thresholdSeconds?: number;
   limit?: number;
 }): Promise<{reaped: number; reservationsReleased: number}> {
-  const result = await reapStaleProvisionedRunnersDb({
+  const result = await reapStaleRunnerInstancesDb({
     thresholdSeconds:
       params?.thresholdSeconds ?? config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS,
     limit: params?.limit ?? config.RUNNER_STALE_PROVISIONED_RUNNER_REAPER_LIMIT,
   });
 
-  if (result.reaped > 0) provisionedRunnerReapedCount.add(result.reaped);
+  if (result.reaped > 0) providerRunnerReapedCount.add(result.reaped);
   if (result.reservationsReleased > 0) {
     reservationReleasedCount.add(result.reservationsReleased);
   }

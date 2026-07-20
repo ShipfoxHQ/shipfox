@@ -19,7 +19,7 @@ export type RunnerRegistrationContext =
       workspaceId: string;
       provisionerId: string;
       reservationId: string | null;
-      provisionedRunnerId: string;
+      providerRunnerId: string;
     };
 
 export function getRunnerContext(request: FastifyRequest): RunnerRegistrationContext {
@@ -68,7 +68,7 @@ export function createRunnerRegistrationTokenAuthMethod(): AuthMethod {
           workspaceId: ephemeralToken.workspaceId,
           provisionerId: ephemeralToken.provisionerId,
           reservationId: ephemeralToken.reservationId,
-          provisionedRunnerId: ephemeralToken.provisionedRunnerId,
+          providerRunnerId: ephemeralToken.providerRunnerId,
         } satisfies RunnerRegistrationContext;
         return;
       }

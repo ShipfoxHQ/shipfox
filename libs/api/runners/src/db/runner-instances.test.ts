@@ -5,35 +5,35 @@ import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registra
 import {
   attachProviderRunnerId,
   createPlannedProvisionedCapacity,
-  listActiveProvisionedRunnerCountsByTemplateTx,
-  listActiveProvisionedRunners,
+  listActiveRunnerInstanceCountsByTemplateTx,
+  listActiveRunnerInstances,
   listProvisionerTerminateIntentRowsTx,
   listProvisionerTerminateIntents,
-  reapStaleProvisionedRunners,
-  reconcileProvisionedRunners,
-  reportProvisionedRunners,
-} from '#db/provisioned-runners.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
+  reapStaleRunnerInstances,
+  reconcileRunnerInstances,
+  reportRunnerInstances,
+} from '#db/runner-instances.js';
 import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {reservations} from '#db/schema/reservations.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {
   ephemeralRegistrationTokenFactory,
-  provisionedRunnerFactory,
+  providerRunnerFactory,
   provisionerTokenFactory,
   reservationFactory,
   runnerSessionFactory,
 } from '#test/index.js';
 
-function provisionedRunnerRowsFor(params: {workspaceId: string; provisionerId: string}) {
+function providerRunnerRowsFor(params: {workspaceId: string; provisionerId: string}) {
   return db()
     .select()
-    .from(provisionedRunners)
+    .from(providerRunners)
     .where(
       and(
-        eq(provisionedRunners.workspaceId, params.workspaceId),
-        eq(provisionedRunners.provisionerId, params.provisionerId),
+        eq(providerRunners.workspaceId, params.workspaceId),
+        eq(providerRunners.provisionerId, params.provisionerId),
       ),
     );
 }
@@ -53,7 +53,7 @@ function reservationRowsFor(params: {workspaceId: string; provisionerId: string}
 async function insertRunningJobRow(params: {
   workspaceId: string;
   provisionerId: string;
-  provisionedRunnerId: string;
+  providerRunnerId: string;
   jobExecutionId?: string;
   startedAt?: Date;
   cancellationRequestedAt?: Date | null;
@@ -72,7 +72,7 @@ async function insertRunningJobRow(params: {
       projectId: crypto.randomUUID(),
       runnerSessionId: runnerSession.id,
       provisionerId: params.provisionerId,
-      provisionedRunnerId: params.provisionedRunnerId,
+      providerRunnerId: params.providerRunnerId,
       requiredLabels: ['linux'],
       runnerLabels: ['linux'],
       startedAt,
@@ -81,7 +81,7 @@ async function insertRunningJobRow(params: {
     });
 }
 
-describe('reportProvisionedRunners', () => {
+describe('reportRunnerInstances', () => {
   let workspaceId: string;
   let provisionerId: string;
 
@@ -93,21 +93,21 @@ describe('reportProvisionedRunners', () => {
   it('reports and reconciles installation capacity without a workspace assignment', async () => {
     const reportedAt = new Date();
 
-    const report = await reportProvisionedRunners({
+    const report = await reportRunnerInstances({
       workspaceId: null,
       provisionerId,
-      events: [event({provisionedRunnerId: 'installation-runner', reportedAt})],
+      events: [event({providerRunnerId: 'installation-runner', reportedAt})],
     });
-    const reconcile = await reconcileProvisionedRunners({
+    const reconcile = await reconcileRunnerInstances({
       workspaceId: null,
       provisionerId,
-      observedProvisionedRunnerIds: ['installation-runner'],
+      observedRunnerInstanceIds: ['installation-runner'],
       terminateGraceSeconds: 60,
     });
     const [row] = await db()
       .select()
-      .from(provisionedRunners)
-      .where(eq(provisionedRunners.provisionedRunnerId, 'installation-runner'));
+      .from(providerRunners)
+      .where(eq(providerRunners.providerRunnerId, 'installation-runner'));
 
     expect(report).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reconcile.absentIds).toEqual([]);
@@ -118,20 +118,20 @@ describe('reportProvisionedRunners', () => {
   it('dedupes duplicate provisioned runner ids in one batch', async () => {
     const reportedAt = new Date();
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', state: 'starting', reportedAt}),
+        event({providerRunnerId: 'provisioned-runner-1', state: 'starting', reportedAt}),
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: new Date(reportedAt.getTime() + 1),
         }),
       ],
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(rows).toHaveLength(1);
     expect(rows[0]?.state).toBe('running');
@@ -140,19 +140,19 @@ describe('reportProvisionedRunners', () => {
   it('uses state progression to dedupe equal-timestamp provisioned runner reports', async () => {
     const reportedAt = new Date();
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', state: 'running', reportedAt}),
-        event({provisionedRunnerId: 'provisioned-runner-1', state: 'failed', reportedAt}),
-        event({provisionedRunnerId: 'provisioned-runner-2', state: 'failed', reportedAt}),
-        event({provisionedRunnerId: 'provisioned-runner-2', state: 'running', reportedAt}),
+        event({providerRunnerId: 'provisioned-runner-1', state: 'running', reportedAt}),
+        event({providerRunnerId: 'provisioned-runner-1', state: 'failed', reportedAt}),
+        event({providerRunnerId: 'provisioned-runner-2', state: 'failed', reportedAt}),
+        event({providerRunnerId: 'provisioned-runner-2', state: 'running', reportedAt}),
       ],
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId}).orderBy(
-      provisionedRunners.provisionedRunnerId,
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId}).orderBy(
+      providerRunners.providerRunnerId,
     );
     expect(result).toEqual({accepted: 2, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(rows.map((row) => row.state)).toEqual(['failed', 'failed']);
@@ -160,20 +160,20 @@ describe('reportProvisionedRunners', () => {
 
   it('accepts delayed events that move the lifecycle forward', async () => {
     const newest = new Date();
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', state: 'running', reportedAt: newest}),
+        event({providerRunnerId: 'provisioned-runner-1', state: 'running', reportedAt: newest}),
       ],
     });
 
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'failed',
           reason: 'late stale failure',
           reportedAt: new Date(newest.getTime() - 1_000),
@@ -181,19 +181,19 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('failed');
     expect(rows[0]?.reason).toBe('late stale failure');
   });
 
   it('rejects older out-of-order events in the same lifecycle state', async () => {
     const newest = new Date();
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reason: 'fresh',
           reportedAt: newest,
@@ -201,12 +201,12 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reason: 'stale',
           reportedAt: new Date(newest.getTime() - 1_000),
@@ -214,7 +214,7 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('running');
     expect(rows[0]?.reason).toBe('fresh');
   });
@@ -222,12 +222,12 @@ describe('reportProvisionedRunners', () => {
   it('does not let equal-timestamp lower-priority reports flip terminal state', async () => {
     const reservationId = await createReservation(1);
     const reportedAt = new Date('2025-01-01T00:00:00.000Z');
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'running',
           reportedAt,
@@ -235,24 +235,24 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const terminal = await reportProvisionedRunners({
+    const terminal = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           reportedAt,
         }),
       ],
     });
-    const revived = await reportProvisionedRunners({
+    const revived = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'running',
           reportedAt,
@@ -260,41 +260,41 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
     expect(terminal).toEqual({accepted: 1, reservationsReleased: 1, terminateIntentsHonored: []});
     expect(revived).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
-    expect(provisionedRunnerRows[0]?.state).toBe('failed');
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunnerRows[0]?.state).toBe('failed');
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservationRows).toHaveLength(0);
   });
 
   it('clamps future reported times so they do not pin provisioned runner state', async () => {
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'starting',
           reportedAt: new Date(Date.now() + 60 * 60 * 1000),
         }),
       ],
     });
 
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: new Date(),
         }),
       ],
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('running');
     expect(rows[0]?.reportedAt.getTime()).toBeLessThan(Date.now() + 10_000);
   });
@@ -305,34 +305,34 @@ describe('reportProvisionedRunners', () => {
     const stoppedAt = new Date('2025-01-01T00:02:00.000Z');
     const terminatedAt = new Date('2025-01-01T00:03:00.000Z');
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: startedAt,
         }),
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'stopping',
           reportedAt: stoppingAt,
         }),
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'stopped',
           reportedAt: stoppedAt,
         }),
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'terminated',
           reportedAt: terminatedAt,
         }),
       ],
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(rows[0]?.state).toBe('terminated');
     expect(rows[0]?.reportedAt.toISOString()).toBe(terminatedAt.toISOString());
@@ -346,31 +346,31 @@ describe('reportProvisionedRunners', () => {
   it('records delayed lower-state milestones without reviving current state', async () => {
     const terminatedAt = new Date('2025-01-01T00:03:00.000Z');
     const startedAt = new Date('2025-01-01T00:00:00.000Z');
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'terminated',
           reportedAt: terminatedAt,
         }),
       ],
     });
 
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: startedAt,
         }),
       ],
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(rows[0]?.state).toBe('terminated');
     expect(rows[0]?.reportedAt.toISOString()).toBe(terminatedAt.toISOString());
     expect(rows[0]?.startedAt?.toISOString()).toBe(startedAt.toISOString());
@@ -378,22 +378,22 @@ describe('reportProvisionedRunners', () => {
   });
 
   it('uses server update time for active provisioned runner windows', async () => {
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: new Date(Date.now() + 60 * 60 * 1000),
         }),
       ],
     });
     await db().execute(
-      sql`UPDATE runners_provisioned_runners SET updated_at = now() - interval '10 minutes'`,
+      sql`UPDATE runners_runner_instances SET updated_at = now() - interval '10 minutes'`,
     );
 
-    const active = await listActiveProvisionedRunners({workspaceId, windowSeconds: 60});
+    const active = await listActiveRunnerInstances({workspaceId, windowSeconds: 60});
 
     expect(active).toEqual([]);
   });
@@ -401,19 +401,17 @@ describe('reportProvisionedRunners', () => {
   it('releases one reservation unit for a terminal unclaimed provisioned runner', async () => {
     const reservationId = await createReservation(2);
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
-      events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
-      ],
+      events: [event({providerRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'})],
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 1, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
 
   it('does not release a reservation owned by another workspace or provisioner', async () => {
@@ -426,17 +424,17 @@ describe('reportProvisionedRunners', () => {
       provisionerId: crypto.randomUUID(),
     });
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId: otherWorkspaceReservationId,
           state: 'failed',
         }),
         event({
-          provisionedRunnerId: 'provisioned-runner-2',
+          providerRunnerId: 'provisioned-runner-2',
           reservationId: peerProvisionerReservationId,
           state: 'failed',
         }),
@@ -455,19 +453,15 @@ describe('reportProvisionedRunners', () => {
   it('releases a reservation only once across repeated terminal reports', async () => {
     const reservationId = await createReservation(2);
 
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
-      events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
-      ],
+      events: [event({providerRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'})],
     });
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
-      events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
-      ],
+      events: [event({providerRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'})],
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
@@ -478,12 +472,12 @@ describe('reportProvisionedRunners', () => {
   it('does not let a newer running report revive a terminal provisioned runner', async () => {
     const reservationId = await createReservation(2);
     const failedAt = new Date();
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           reportedAt: failedAt,
@@ -491,12 +485,12 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'running',
           reportedAt: new Date(failedAt.getTime() + 1_000),
@@ -504,42 +498,42 @@ describe('reportProvisionedRunners', () => {
       ],
     });
 
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    expect(provisionedRunnerRows[0]?.state).toBe('failed');
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunnerRows[0]?.state).toBe('failed');
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservationRows[0]?.count).toBe(1);
   });
 
   it('tracks provider cleanup as terminated', async () => {
     const reservationId = await createReservation(2);
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'terminated'}),
+        event({providerRunnerId: 'provisioned-runner-1', reservationId, state: 'terminated'}),
       ],
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 1, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
-    expect(provisionedRunnerRows[0]?.state).toBe('terminated');
-    expect(provisionedRunnerRows[0]?.terminatedAt).toBeInstanceOf(Date);
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunnerRows[0]?.state).toBe('terminated');
+    expect(providerRunnerRows[0]?.terminatedAt).toBeInstanceOf(Date);
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
 
   it('releases multiple units from the same reservation in one batch', async () => {
     const reservationId = await createReservation(3);
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
-        event({provisionedRunnerId: 'provisioned-runner-2', reservationId, state: 'stopped'}),
+        event({providerRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
+        event({providerRunnerId: 'provisioned-runner-2', reservationId, state: 'stopped'}),
       ],
     });
 
@@ -551,12 +545,10 @@ describe('reportProvisionedRunners', () => {
   it('deletes a one-unit reservation instead of violating the positive count check', async () => {
     const reservationId = await createReservation(1);
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
-      events: [
-        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
-      ],
+      events: [event({providerRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'})],
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
@@ -575,32 +567,32 @@ describe('reportProvisionedRunners', () => {
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     if (!reservation) throw new Error('Expected reservation');
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId: reservation.id,
           state: 'failed',
         }),
       ],
     });
 
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
 
   it('does not release a reservation for a provisioned runner that already has a runner session', async () => {
     const reservationId = await createReservation(1);
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           runnerSessionId: crypto.randomUUID(),
@@ -609,10 +601,10 @@ describe('reportProvisionedRunners', () => {
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeNull();
   });
 
   it('uses the consumed ephemeral token session before releasing a terminal report', async () => {
@@ -621,7 +613,7 @@ describe('reportProvisionedRunners', () => {
       workspaceId,
       provisionerId,
       reservationId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
     });
     const session = await createRunnerSessionConsumingEphemeralToken({
       ephemeralTokenId: token.id,
@@ -630,12 +622,12 @@ describe('reportProvisionedRunners', () => {
       maxClaims: 1,
     });
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           runnerSessionId: crypto.randomUUID(),
@@ -644,11 +636,11 @@ describe('reportProvisionedRunners', () => {
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
-    expect(provisionedRunnerRows[0]?.runnerSessionId).toBe(session.id);
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
+    expect(providerRunnerRows[0]?.runnerSessionId).toBe(session.id);
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeNull();
   });
 
   it('preserves claimed runner session metadata when a terminal state wins the batch', async () => {
@@ -656,19 +648,19 @@ describe('reportProvisionedRunners', () => {
     const runnerSessionId = crypto.randomUUID();
     const reportedAt = new Date('2025-01-01T00:00:00.000Z');
 
-    const result = await reportProvisionedRunners({
+    const result = await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'running',
           runnerSessionId,
           reportedAt,
         }),
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           reportedAt: new Date(reportedAt.getTime() + 1_000),
@@ -677,41 +669,41 @@ describe('reportProvisionedRunners', () => {
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
     expect(reservationRows[0]?.count).toBe(1);
-    expect(provisionedRunnerRows[0]?.state).toBe('failed');
-    expect(provisionedRunnerRows[0]?.runnerSessionId).toBe(runnerSessionId);
-    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
+    expect(providerRunnerRows[0]?.state).toBe('failed');
+    expect(providerRunnerRows[0]?.runnerSessionId).toBe(runnerSessionId);
+    expect(providerRunnerRows[0]?.reservationReleasedAt).toBeNull();
   });
 
   it('returns honored terminate intents only for the first active-to-terminated transition', async () => {
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       state: 'running',
     });
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
 
-    const first = await reportProvisionedRunners({
+    const first = await reportRunnerInstances({
       workspaceId,
       provisionerId,
-      events: [event({provisionedRunnerId: 'provisioned-runner-1', state: 'terminated'})],
+      events: [event({providerRunnerId: 'provisioned-runner-1', state: 'terminated'})],
     });
-    const second = await reportProvisionedRunners({
+    const second = await reportRunnerInstances({
       workspaceId,
       provisionerId,
-      events: [event({provisionedRunnerId: 'provisioned-runner-1', state: 'terminated'})],
+      events: [event({providerRunnerId: 'provisioned-runner-1', state: 'terminated'})],
     });
 
     expect(first.terminateIntentsHonored).toEqual([
-      {provisionedRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'},
+      {providerRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'},
     ]);
     expect(second.terminateIntentsHonored).toEqual([]);
   });
@@ -743,7 +735,7 @@ describe('reportProvisionedRunners', () => {
   }
 
   function event(params: {
-    provisionedRunnerId?: string;
+    providerRunnerId?: string;
     reservationId?: string | null;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
     reportedAt?: Date;
@@ -751,7 +743,7 @@ describe('reportProvisionedRunners', () => {
     runnerSessionId?: string | null;
   }) {
     return {
-      provisionedRunnerId: params.provisionedRunnerId ?? 'provisioned-runner-1',
+      providerRunnerId: params.providerRunnerId ?? 'provisioned-runner-1',
       reservationId: params.reservationId ?? null,
       templateKey: 'linux',
       labels: ['linux'],
@@ -764,7 +756,7 @@ describe('reportProvisionedRunners', () => {
   }
 });
 
-describe('listActiveProvisionedRunnerCountsByTemplateTx', () => {
+describe('listActiveRunnerInstanceCountsByTemplateTx', () => {
   let workspaceId: string;
   let provisionerId: string;
 
@@ -774,44 +766,44 @@ describe('listActiveProvisionedRunnerCountsByTemplateTx', () => {
   });
 
   it('groups starting and running provisioned runners by template and ignores non-divergence states', async () => {
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'starting-1',
+      providerRunnerId: 'starting-1',
       templateKey: 'linux',
       state: 'starting',
     });
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'running-1',
+      providerRunnerId: 'running-1',
       templateKey: 'linux',
       state: 'running',
     });
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'running-2',
+      providerRunnerId: 'running-2',
       templateKey: 'linux',
       state: 'running',
     });
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'stopping-1',
+      providerRunnerId: 'stopping-1',
       templateKey: 'linux',
       state: 'stopping',
     });
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'null-template',
+      providerRunnerId: 'null-template',
       templateKey: null,
       state: 'running',
     });
 
     const result = await db().transaction((tx) =>
-      listActiveProvisionedRunnerCountsByTemplateTx(tx, {workspaceId, provisionerId}),
+      listActiveRunnerInstanceCountsByTemplateTx(tx, {workspaceId, provisionerId}),
     );
 
     expect(result).toEqual(
@@ -834,11 +826,11 @@ describe('listProvisionerTerminateIntents', () => {
   });
 
   it('includes active provisioned runners whose latest bound job is cancelled', async () => {
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
 
@@ -848,11 +840,11 @@ describe('listProvisionerTerminateIntents', () => {
   });
 
   it('returns structured rows with bounded reasons from the shared query', async () => {
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
 
@@ -860,17 +852,15 @@ describe('listProvisionerTerminateIntents', () => {
       listProvisionerTerminateIntentRowsTx(tx, {workspaceId, provisionerId, limit: 1000}),
     );
 
-    expect(result).toEqual([
-      {provisionedRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'},
-    ]);
+    expect(result).toEqual([{providerRunnerId: 'provisioned-runner-1', reason: 'job-cancelled'}]);
   });
 
   it('excludes active provisioned runners whose latest bound job is healthy', async () => {
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
     });
 
     const result = await listProvisionerTerminateIntents({workspaceId, provisionerId, limit: 1000});
@@ -879,14 +869,14 @@ describe('listProvisionerTerminateIntents', () => {
   });
 
   it('excludes terminal provisioned runners with cancelled bound jobs', async () => {
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       state: 'terminated',
     });
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
 
@@ -896,18 +886,18 @@ describe('listProvisionerTerminateIntents', () => {
   });
 
   it('excludes a cancelled job when it is not the latest bound job', async () => {
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:02:00.000Z'),
     });
 
@@ -918,13 +908,13 @@ describe('listProvisionerTerminateIntents', () => {
 
   it('excludes cancelled jobs for another provisioner', async () => {
     const otherProvisionerId = crypto.randomUUID();
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       provisionerId: otherProvisionerId,
     });
     await insertRunningJobRow({
       workspaceId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       provisionerId: otherProvisionerId,
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
@@ -935,18 +925,18 @@ describe('listProvisionerTerminateIntents', () => {
   });
 
   it('returns one id for duplicate cancelled bound jobs on the same provisioned runner', async () => {
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
     await insertRunningJobRow({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
@@ -957,16 +947,16 @@ describe('listProvisionerTerminateIntents', () => {
   });
 
   it('returns a deterministic subset when the limit truncates results', async () => {
-    for (const provisionedRunnerId of [
+    for (const providerRunnerId of [
       'provisioned-runner-c',
       'provisioned-runner-a',
       'provisioned-runner-b',
     ]) {
-      await createProvisionedRunner({provisionedRunnerId});
+      await createRunnerInstance({providerRunnerId});
       await insertRunningJobRow({
         workspaceId,
         provisionerId,
-        provisionedRunnerId,
+        providerRunnerId,
         cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
       });
     }
@@ -976,21 +966,21 @@ describe('listProvisionerTerminateIntents', () => {
     expect(result).toEqual(['provisioned-runner-a', 'provisioned-runner-b']);
   });
 
-  async function createProvisionedRunner(params: {
-    provisionedRunnerId: string;
+  async function createRunnerInstance(params: {
+    providerRunnerId: string;
     provisionerId?: string;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
   }) {
-    return await provisionedRunnerFactory.create({
+    return await providerRunnerFactory.create({
       workspaceId,
       provisionerId: params.provisionerId ?? provisionerId,
-      provisionedRunnerId: params.provisionedRunnerId,
+      providerRunnerId: params.providerRunnerId,
       state: params.state ?? 'running',
     });
   }
 });
 
-describe('reapStaleProvisionedRunners', () => {
+describe('reapStaleRunnerInstances', () => {
   let workspaceId: string;
   let provisionerId: string;
 
@@ -1002,24 +992,24 @@ describe('reapStaleProvisionedRunners', () => {
 
   it('fails stale unclaimed provisioned runners and releases reservations', async () => {
     const reservationId = await createReservation(2);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: staleAt(),
       updatedAt: staleAt(),
     });
 
-    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    const result = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 100});
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({reaped: 1, reservationsReleased: 1});
-    expect(provisionedRunner).toMatchObject({
+    expect(providerRunner).toMatchObject({
       state: 'failed',
       reason: 'stale-provisioner',
     });
-    expect(provisionedRunner?.failedAt).toBeInstanceOf(Date);
-    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunner?.failedAt).toBeInstanceOf(Date);
+    expect(providerRunner?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservation?.id).toBe(reservationId);
     expect(reservation?.count).toBe(1);
   });
@@ -1035,50 +1025,50 @@ describe('reapStaleProvisionedRunners', () => {
       templateKey: null,
     });
     await db()
-      .update(provisionedRunners)
+      .update(providerRunners)
       .set({reportedAt: staleAt(), updatedAt: staleAt()})
-      .where(eq(provisionedRunners.id, capacity.capacityId));
+      .where(eq(providerRunners.id, capacity.capacityId));
 
-    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    const result = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 100});
     const [row] = await db()
       .select()
-      .from(provisionedRunners)
-      .where(eq(provisionedRunners.id, capacity.capacityId));
+      .from(providerRunners)
+      .where(eq(providerRunners.id, capacity.capacityId));
 
     expect(result.reaped).toBe(1);
-    expect(row).toMatchObject({workspaceId: null, provisionedRunnerId: null, state: 'failed'});
+    expect(row).toMatchObject({workspaceId: null, providerRunnerId: null, state: 'failed'});
   });
 
   it('skips fresh rows, live provisioners, terminal rows, running jobs, and fresh sessions', async () => {
-    await createProvisionedRunner({
-      provisionedRunnerId: 'fresh-row',
+    await createRunnerInstance({
+      providerRunnerId: 'fresh-row',
       reportedAt: new Date(),
       updatedAt: new Date(),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'live-provisioner',
+    await createRunnerInstance({
+      providerRunnerId: 'live-provisioner',
       reportedAt: staleAt(),
       updatedAt: staleAt(),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'terminal-row',
+    await createRunnerInstance({
+      providerRunnerId: 'terminal-row',
       reportedAt: staleAt(),
       updatedAt: staleAt(),
       state: 'failed',
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'running-job',
+    await createRunnerInstance({
+      providerRunnerId: 'running-job',
       reportedAt: staleAt(),
       updatedAt: staleAt(),
     });
-    await insertRunningJob({provisionedRunnerId: 'running-job'});
-    const freshSession = await createProvisionedRunner({
-      provisionedRunnerId: 'fresh-session',
+    await insertRunningJob({providerRunnerId: 'running-job'});
+    const freshSession = await createRunnerInstance({
+      providerRunnerId: 'fresh-session',
       reportedAt: staleAt(),
       updatedAt: staleAt(),
     });
     await createLinkedSession({
-      provisionedRunnerId: freshSession.provisionedRunnerId,
+      providerRunnerId: freshSession.providerRunnerId,
       updatedAt: new Date(),
     });
     await db()
@@ -1086,13 +1076,13 @@ describe('reapStaleProvisionedRunners', () => {
       .set({lastSeenAt: new Date()})
       .where(eq(provisionerTokens.id, provisionerId));
 
-    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    const result = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 100});
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId}).orderBy(
-      provisionedRunners.provisionedRunnerId,
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId}).orderBy(
+      providerRunners.providerRunnerId,
     );
     expect(result).toEqual({reaped: 0, reservationsReleased: 0});
-    expect(rows.map((row) => [row.provisionedRunnerId, row.state])).toEqual([
+    expect(rows.map((row) => [row.providerRunnerId, row.state])).toEqual([
       ['fresh-row', 'running'],
       ['fresh-session', 'running'],
       ['live-provisioner', 'running'],
@@ -1103,29 +1093,29 @@ describe('reapStaleProvisionedRunners', () => {
 
   it('releases reservations for stale rows whose linked session is no longer live', async () => {
     const reservationId = await createReservation(1);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'stale-session',
+    await createRunnerInstance({
+      providerRunnerId: 'stale-session',
       reservationId,
       runnerSessionId: '00000000-0000-4000-8000-000000000001',
       reportedAt: staleAt(),
       updatedAt: staleAt(),
     });
     const session = await createLinkedSession({
-      provisionedRunnerId: 'stale-session',
+      providerRunnerId: 'stale-session',
       updatedAt: staleAt(),
     });
     await db()
-      .update(provisionedRunners)
+      .update(providerRunners)
       .set({runnerSessionId: session.id})
-      .where(eq(provisionedRunners.provisionedRunnerId, 'stale-session'));
+      .where(eq(providerRunners.providerRunnerId, 'stale-session'));
 
-    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    const result = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 100});
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result).toEqual({reaped: 1, reservationsReleased: 1});
-    expect(provisionedRunner?.state).toBe('failed');
-    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunner?.state).toBe('failed');
+    expect(providerRunner?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservationRows.find((row) => row.id === reservationId)).toBeUndefined();
   });
 
@@ -1134,36 +1124,36 @@ describe('reapStaleProvisionedRunners', () => {
     const expiredReservationId = await createReservation(1, {
       expiresAt: new Date(Date.now() - 60_000),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'stale-1',
+    await createRunnerInstance({
+      providerRunnerId: 'stale-1',
       reservationId: activeReservationId,
       reportedAt: staleAt(240_000),
       updatedAt: staleAt(240_000),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'stale-2',
+    await createRunnerInstance({
+      providerRunnerId: 'stale-2',
       reservationId: expiredReservationId,
       reportedAt: staleAt(180_000),
       updatedAt: staleAt(180_000),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'stale-3',
+    await createRunnerInstance({
+      providerRunnerId: 'stale-3',
       reportedAt: staleAt(120_000),
       updatedAt: staleAt(120_000),
     });
 
-    const first = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 2});
-    const second = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 2});
+    const first = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 2});
+    const second = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 2});
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(first).toEqual({reaped: 2, reservationsReleased: 1});
     expect(second).toEqual({reaped: 1, reservationsReleased: 0});
     expect(reservationRows.find((row) => row.id === activeReservationId)?.count).toBe(1);
     expect(reservationRows.find((row) => row.id === expiredReservationId)?.count).toBe(1);
-    expect(provisionedRunnerRows.every((row) => row.state === 'failed')).toBe(true);
+    expect(providerRunnerRows.every((row) => row.state === 'failed')).toBe(true);
     expect(
-      provisionedRunnerRows
+      providerRunnerRows
         .filter((row) => row.reservationId)
         .every((row) => row.reservationReleasedAt instanceof Date),
     ).toBe(true);
@@ -1171,8 +1161,8 @@ describe('reapStaleProvisionedRunners', () => {
 
   it('does not double-release reservations when terminal report and reaper queue on the workspace lock', async () => {
     const reservationId = await createReservation(2);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: staleAt(),
       updatedAt: staleAt(),
@@ -1186,12 +1176,12 @@ describe('reapStaleProvisionedRunners', () => {
     });
 
     await lockHolderReady.promise;
-    const report = reportProvisionedRunners({
+    const report = reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           reportedAt: new Date(),
@@ -1199,7 +1189,7 @@ describe('reapStaleProvisionedRunners', () => {
       ],
     });
     await waitForLockWait({queryLike: '%pg_advisory_xact_lock%'});
-    const reaper = reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    const reaper = reapStaleRunnerInstances({thresholdSeconds: 60, limit: 100});
     try {
       await waitForLockWait({minWaiters: 2, queryLike: '%pg_advisory_xact_lock%'});
     } finally {
@@ -1208,9 +1198,9 @@ describe('reapStaleProvisionedRunners', () => {
     const [reportResult, reaperResult] = await Promise.all([report, reaper, lockHolder]);
 
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(reportResult.reservationsReleased + reaperResult.reservationsReleased).toBe(1);
-    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunner?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservation?.count).toBe(1);
   });
 
@@ -1237,38 +1227,38 @@ describe('reapStaleProvisionedRunners', () => {
     return reservation.id;
   }
 
-  async function createProvisionedRunner(params: {
-    provisionedRunnerId: string;
+  async function createRunnerInstance(params: {
+    providerRunnerId: string;
     reservationId?: string | null;
     runnerSessionId?: string | null;
     reportedAt: Date;
     updatedAt: Date;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
   }) {
-    const row = await provisionedRunnerFactory.create({
+    const row = await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: params.provisionedRunnerId,
+      providerRunnerId: params.providerRunnerId,
       reservationId: params.reservationId ?? null,
       runnerSessionId: params.runnerSessionId ?? null,
       reportedAt: params.reportedAt,
       state: params.state ?? 'running',
     });
     await db()
-      .update(provisionedRunners)
+      .update(providerRunners)
       .set({updatedAt: params.updatedAt})
-      .where(eq(provisionedRunners.id, row.id));
+      .where(eq(providerRunners.id, row.id));
     return {...row, updatedAt: params.updatedAt};
   }
 
-  async function createLinkedSession(params: {provisionedRunnerId: string; updatedAt: Date}) {
+  async function createLinkedSession(params: {providerRunnerId: string; updatedAt: Date}) {
     const session = await runnerSessionFactory.create({workspaceId});
     await db()
       .update(runnerSessions)
       .set({
         registrationTokenKind: 'ephemeral',
         provisionerId,
-        provisionedRunnerId: params.provisionedRunnerId,
+        providerRunnerId: params.providerRunnerId,
         maxClaims: 1,
         updatedAt: params.updatedAt,
       })
@@ -1276,7 +1266,7 @@ describe('reapStaleProvisionedRunners', () => {
     return session;
   }
 
-  async function insertRunningJob(params: {provisionedRunnerId: string}) {
+  async function insertRunningJob(params: {providerRunnerId: string}) {
     const runnerSession = await runnerSessionFactory.create({workspaceId});
 
     await db()
@@ -1290,7 +1280,7 @@ describe('reapStaleProvisionedRunners', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId: runnerSession.id,
         provisionerId,
-        provisionedRunnerId: params.provisionedRunnerId,
+        providerRunnerId: params.providerRunnerId,
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
         startedAt: new Date('2025-01-01T00:00:00.000Z'),
@@ -1303,13 +1293,13 @@ describe('reapStaleProvisionedRunners', () => {
   }
 
   function event(params: {
-    provisionedRunnerId: string;
+    providerRunnerId: string;
     reservationId?: string | null;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
     reportedAt?: Date;
   }) {
     return {
-      provisionedRunnerId: params.provisionedRunnerId,
+      providerRunnerId: params.providerRunnerId,
       reservationId: params.reservationId ?? null,
       templateKey: 'linux',
       labels: ['linux'],
@@ -1322,7 +1312,7 @@ describe('reapStaleProvisionedRunners', () => {
   }
 });
 
-describe('reconcileProvisionedRunners', () => {
+describe('reconcileRunnerInstances', () => {
   let workspaceId: string;
   let provisionerId: string;
 
@@ -1333,76 +1323,76 @@ describe('reconcileProvisionedRunners', () => {
 
   it('terminates stale absent provisioned runners and releases reservations', async () => {
     const reservationId = await createReservation(2);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: staleReportedAt(),
     });
 
-    const result = await reconcileProvisionedRunners({
+    const result = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result.absentIds).toEqual(['provisioned-runner-1']);
     expect(result.reservationsReleased).toBe(1);
-    expect(provisionedRunner?.state).toBe('terminated');
-    expect(provisionedRunner?.terminatedAt).toBeInstanceOf(Date);
+    expect(providerRunner?.state).toBe('terminated');
+    expect(providerRunner?.terminatedAt).toBeInstanceOf(Date);
     expect(reservation?.count).toBe(1);
   });
 
   it('treats an empty observed set as read-only', async () => {
     const reservationId = await createReservation(2);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: staleReportedAt(),
     });
 
-    const result = await reconcileProvisionedRunners({
+    const result = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: [],
+      observedRunnerInstanceIds: [],
       terminateGraceSeconds: 60,
     });
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result.absentIds).toEqual([]);
     expect(result.reservationsReleased).toBe(0);
-    expect(provisionedRunner?.state).toBe('running');
-    expect(provisionedRunner?.terminatedAt).toBeNull();
-    expect(provisionedRunner?.reservationReleasedAt).toBeNull();
+    expect(providerRunner?.state).toBe('running');
+    expect(providerRunner?.terminatedAt).toBeNull();
+    expect(providerRunner?.reservationReleasedAt).toBeNull();
     expect(reservation?.count).toBe(2);
   });
 
   it('keeps fresh absent provisioned runners inside the grace window', async () => {
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reportedAt: new Date(),
     });
 
-    const result = await reconcileProvisionedRunners({
+    const result = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result.absentIds).toEqual([]);
     expect(result.reservationsReleased).toBe(0);
-    expect(provisionedRunner?.state).toBe('running');
+    expect(providerRunner?.state).toBe('running');
   });
 
   it('respects a fresh report that commits after reconcile selects a stale absent row', async () => {
     const reservationId = await createReservation(1);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: staleReportedAt(),
     });
@@ -1411,13 +1401,13 @@ describe('reconcileProvisionedRunners', () => {
 
     const reportTransaction = db().transaction(async (tx) => {
       await tx
-        .update(provisionedRunners)
+        .update(providerRunners)
         .set({reportedAt: sql`now()`, updatedAt: sql`now()`})
         .where(
           and(
-            eq(provisionedRunners.workspaceId, workspaceId),
-            eq(provisionedRunners.provisionerId, provisionerId),
-            eq(provisionedRunners.provisionedRunnerId, 'provisioned-runner-1'),
+            eq(providerRunners.workspaceId, workspaceId),
+            eq(providerRunners.provisionerId, provisionerId),
+            eq(providerRunners.providerRunnerId, 'provisioned-runner-1'),
           ),
         );
       reportTransactionUpdated.resolve();
@@ -1425,50 +1415,50 @@ describe('reconcileProvisionedRunners', () => {
     });
 
     await reportTransactionUpdated.promise;
-    const reconcile = reconcileProvisionedRunners({
+    const reconcile = reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
     try {
-      await waitForLockWait({queryLike: '%provisioned_runners%'});
+      await waitForLockWait({queryLike: '%runner_instances%'});
     } finally {
       releaseReportTransaction.resolve();
     }
     const [result] = await Promise.all([reconcile, reportTransaction]);
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result.absentIds).toEqual([]);
     expect(result.reservationsReleased).toBe(0);
-    expect(provisionedRunner?.state).toBe('running');
-    expect(provisionedRunner?.reservationReleasedAt).toBeNull();
+    expect(providerRunner?.state).toBe('running');
+    expect(providerRunner?.reservationReleasedAt).toBeNull();
     expect(reservation?.count).toBe(1);
   });
 
   it('terminates only stale rows when the observed set is non-empty', async () => {
-    await createProvisionedRunner({
-      provisionedRunnerId: 'stale-runner',
+    await createRunnerInstance({
+      providerRunnerId: 'stale-runner',
       reportedAt: staleReportedAt(),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'fresh-runner',
+    await createRunnerInstance({
+      providerRunnerId: 'fresh-runner',
       reportedAt: new Date(),
     });
 
-    const result = await reconcileProvisionedRunners({
+    const result = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
-    const rows = await provisionedRunnerRowsFor({workspaceId, provisionerId}).orderBy(
-      provisionedRunners.provisionedRunnerId,
+    const rows = await providerRunnerRowsFor({workspaceId, provisionerId}).orderBy(
+      providerRunners.providerRunnerId,
     );
     expect(result.absentIds).toEqual(['stale-runner']);
-    expect(rows.map((row) => [row.provisionedRunnerId, row.state])).toEqual([
+    expect(rows.map((row) => [row.providerRunnerId, row.state])).toEqual([
       ['fresh-runner', 'running'],
       ['stale-runner', 'terminated'],
     ]);
@@ -1480,64 +1470,62 @@ describe('reconcileProvisionedRunners', () => {
     const expiredReservationId = await createReservation(1, {
       expiresAt: new Date(Date.now() - 60_000),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'shared-1',
+    await createRunnerInstance({
+      providerRunnerId: 'shared-1',
       reservationId: sharedReservationId,
       reportedAt: staleReportedAt(),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'shared-2',
+    await createRunnerInstance({
+      providerRunnerId: 'shared-2',
       reservationId: sharedReservationId,
       reportedAt: staleReportedAt(),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'one-unit',
+    await createRunnerInstance({
+      providerRunnerId: 'one-unit',
       reservationId: oneUnitReservationId,
       reportedAt: staleReportedAt(),
     });
-    await createProvisionedRunner({
-      provisionedRunnerId: 'expired',
+    await createRunnerInstance({
+      providerRunnerId: 'expired',
       reservationId: expiredReservationId,
       reportedAt: staleReportedAt(),
     });
 
-    const result = await reconcileProvisionedRunners({
+    const result = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
     const reservationRows = await reservationRowsFor({workspaceId, provisionerId});
-    const provisionedRunnerRows = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const providerRunnerRows = await providerRunnerRowsFor({workspaceId, provisionerId});
     expect(result.reservationsReleased).toBe(3);
     expect(reservationRows).toHaveLength(2);
     expect(reservationRows.find((row) => row.id === sharedReservationId)?.count).toBe(1);
     expect(reservationRows.find((row) => row.id === expiredReservationId)?.count).toBe(1);
     expect(reservationRows.find((row) => row.id === oneUnitReservationId)).toBeUndefined();
-    expect(provisionedRunnerRows.every((row) => row.reservationReleasedAt instanceof Date)).toBe(
-      true,
-    );
+    expect(providerRunnerRows.every((row) => row.reservationReleasedAt instanceof Date)).toBe(true);
   });
 
   it('is idempotent across repeated reconciles', async () => {
     const reservationId = await createReservation(2);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: staleReportedAt(),
     });
 
-    const first = await reconcileProvisionedRunners({
+    const first = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
-    const second = await reconcileProvisionedRunners({
+    const second = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
@@ -1550,53 +1538,53 @@ describe('reconcileProvisionedRunners', () => {
   it('does not touch provisioned runners from another workspace or provisioner', async () => {
     const otherWorkspaceId = crypto.randomUUID();
     const otherProvisionerId = crypto.randomUUID();
-    await createProvisionedRunner({
-      provisionedRunnerId: 'owned-runner',
+    await createRunnerInstance({
+      providerRunnerId: 'owned-runner',
       reportedAt: staleReportedAt(),
     });
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId: otherWorkspaceId,
       provisionerId,
-      provisionedRunnerId: 'other-workspace-runner',
+      providerRunnerId: 'other-workspace-runner',
       reportedAt: staleReportedAt(),
       state: 'running',
     });
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId: otherProvisionerId,
-      provisionedRunnerId: 'other-provisioner-runner',
+      providerRunnerId: 'other-provisioner-runner',
       reportedAt: staleReportedAt(),
       state: 'running',
     });
 
-    await reconcileProvisionedRunners({
+    await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
     const rows = await db()
       .select()
-      .from(provisionedRunners)
+      .from(providerRunners)
       .where(
         or(
           and(
-            eq(provisionedRunners.workspaceId, workspaceId),
-            eq(provisionedRunners.provisionerId, provisionerId),
+            eq(providerRunners.workspaceId, workspaceId),
+            eq(providerRunners.provisionerId, provisionerId),
           ),
           and(
-            eq(provisionedRunners.workspaceId, otherWorkspaceId),
-            eq(provisionedRunners.provisionerId, provisionerId),
+            eq(providerRunners.workspaceId, otherWorkspaceId),
+            eq(providerRunners.provisionerId, provisionerId),
           ),
           and(
-            eq(provisionedRunners.workspaceId, workspaceId),
-            eq(provisionedRunners.provisionerId, otherProvisionerId),
+            eq(providerRunners.workspaceId, workspaceId),
+            eq(providerRunners.provisionerId, otherProvisionerId),
           ),
         ),
       )
-      .orderBy(provisionedRunners.provisionedRunnerId);
-    expect(rows.map((row) => [row.provisionedRunnerId, row.state])).toEqual([
+      .orderBy(providerRunners.providerRunnerId);
+    expect(rows.map((row) => [row.providerRunnerId, row.state])).toEqual([
       ['other-provisioner-runner', 'running'],
       ['other-workspace-runner', 'running'],
       ['owned-runner', 'terminated'],
@@ -1605,30 +1593,30 @@ describe('reconcileProvisionedRunners', () => {
 
   it('terminates session-bound absent runners without releasing their reservation', async () => {
     const reservationId = await createReservation(1);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       runnerSessionId: crypto.randomUUID(),
       reportedAt: staleReportedAt(),
     });
 
-    const result = await reconcileProvisionedRunners({
+    const result = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(result.reservationsReleased).toBe(0);
-    expect(provisionedRunner?.state).toBe('terminated');
-    expect(provisionedRunner?.reservationReleasedAt).toBeNull();
+    expect(providerRunner?.state).toBe('terminated');
+    expect(providerRunner?.reservationReleasedAt).toBeNull();
     expect(reservation?.count).toBe(1);
   });
 
   it('returns a deterministic newest running job execution bound to an observed provisioned runner', async () => {
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1'});
     const lowerJobId = '00000000-0000-4000-8000-000000000001';
     const higherJobId = '00000000-0000-4000-8000-000000000002';
     const lowerJobExecutionId = '10000000-0000-4000-8000-000000000001';
@@ -1636,58 +1624,58 @@ describe('reconcileProvisionedRunners', () => {
     await insertRunningJob({
       jobId: lowerJobId,
       jobExecutionId: lowerJobExecutionId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
     await insertRunningJob({
       jobId: higherJobId,
       jobExecutionId: higherJobExecutionId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
 
-    const result = await reconcileProvisionedRunners({
+    const result = await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['provisioned-runner-1'],
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
       terminateGraceSeconds: 60,
     });
 
     expect(
-      result.boundJobExecutionsByProvisionedRunnerId.get('provisioned-runner-1')?.jobExecutionId,
+      result.boundJobExecutionsByRunnerInstanceId.get('provisioned-runner-1')?.jobExecutionId,
     ).toBe(higherJobExecutionId);
   });
 
   it('does not let a later running report revive a reconcile-terminated runner', async () => {
     const reportedAt = staleReportedAt();
-    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1', reportedAt});
-    await reconcileProvisionedRunners({
+    await createRunnerInstance({providerRunnerId: 'provisioned-runner-1', reportedAt});
+    await reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
 
-    await reportProvisionedRunners({
+    await reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: new Date(reportedAt.getTime() + 120_000),
         }),
       ],
     });
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
-    expect(provisionedRunner?.state).toBe('terminated');
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
+    expect(providerRunner?.state).toBe('terminated');
   });
 
   it('does not double-release reservations when terminal report and reconcile queue on the workspace lock', async () => {
     const reservationId = await createReservation(2);
-    await createProvisionedRunner({
-      provisionedRunnerId: 'provisioned-runner-1',
+    await createRunnerInstance({
+      providerRunnerId: 'provisioned-runner-1',
       reservationId,
       reportedAt: staleReportedAt(),
     });
@@ -1700,12 +1688,12 @@ describe('reconcileProvisionedRunners', () => {
     });
 
     await lockHolderReady.promise;
-    const report = reportProvisionedRunners({
+    const report = reportRunnerInstances({
       workspaceId,
       provisionerId,
       events: [
         event({
-          provisionedRunnerId: 'provisioned-runner-1',
+          providerRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           reportedAt: new Date(),
@@ -1713,10 +1701,10 @@ describe('reconcileProvisionedRunners', () => {
       ],
     });
     await waitForLockWait({queryLike: '%pg_advisory_xact_lock%'});
-    const reconcile = reconcileProvisionedRunners({
+    const reconcile = reconcileRunnerInstances({
       workspaceId,
       provisionerId,
-      observedProvisionedRunnerIds: ['observed-runner'],
+      observedRunnerInstanceIds: ['observed-runner'],
       terminateGraceSeconds: 60,
     });
     try {
@@ -1726,13 +1714,13 @@ describe('reconcileProvisionedRunners', () => {
     }
     const [reportResult, reconcileResult] = await Promise.all([report, reconcile, lockHolder]);
 
-    const [provisionedRunner] = await provisionedRunnerRowsFor({workspaceId, provisionerId});
+    const [providerRunner] = await providerRunnerRowsFor({workspaceId, provisionerId});
     const [reservation] = await reservationRowsFor({workspaceId, provisionerId});
     expect(reportResult.reservationsReleased + reconcileResult.reservationsReleased).toBe(1);
-    expect(provisionedRunner?.state).toSatisfy(
+    expect(providerRunner?.state).toSatisfy(
       (state: string | undefined) => state === 'failed' || state === 'terminated',
     );
-    expect(provisionedRunner?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(providerRunner?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservation?.count).toBe(1);
   });
 
@@ -1759,16 +1747,16 @@ describe('reconcileProvisionedRunners', () => {
     return reservation.id;
   }
 
-  async function createProvisionedRunner(params: {
-    provisionedRunnerId: string;
+  async function createRunnerInstance(params: {
+    providerRunnerId: string;
     reservationId?: string | null;
     runnerSessionId?: string | null;
     reportedAt?: Date;
   }) {
-    return await provisionedRunnerFactory.create({
+    return await providerRunnerFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: params.provisionedRunnerId,
+      providerRunnerId: params.providerRunnerId,
       reservationId: params.reservationId ?? null,
       runnerSessionId: params.runnerSessionId ?? null,
       reportedAt: params.reportedAt ?? new Date(),
@@ -1779,7 +1767,7 @@ describe('reconcileProvisionedRunners', () => {
   async function insertRunningJob(params: {
     jobId: string;
     jobExecutionId?: string;
-    provisionedRunnerId: string;
+    providerRunnerId: string;
     startedAt: Date;
   }) {
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -1795,7 +1783,7 @@ describe('reconcileProvisionedRunners', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId: runnerSession.id,
         provisionerId,
-        provisionedRunnerId: params.provisionedRunnerId,
+        providerRunnerId: params.providerRunnerId,
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
         startedAt: params.startedAt,
@@ -1808,13 +1796,13 @@ describe('reconcileProvisionedRunners', () => {
   }
 
   function event(params: {
-    provisionedRunnerId: string;
+    providerRunnerId: string;
     reservationId?: string | null;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
     reportedAt?: Date;
   }) {
     return {
-      provisionedRunnerId: params.provisionedRunnerId,
+      providerRunnerId: params.providerRunnerId,
       reservationId: params.reservationId ?? null,
       templateKey: 'linux',
       labels: ['linux'],
@@ -1839,24 +1827,24 @@ describe('planned provisioned capacity', () => {
     const attached = await attachProviderRunnerId({
       capacityId: capacity.capacityId,
       provisionerId,
-      provisionedRunnerId: 'container-1',
+      providerRunnerId: 'container-1',
     });
     const rebound = await attachProviderRunnerId({
       capacityId: capacity.capacityId,
       provisionerId,
-      provisionedRunnerId: 'container-2',
+      providerRunnerId: 'container-2',
     });
     const [row] = await db()
       .select()
-      .from(provisionedRunners)
-      .where(eq(provisionedRunners.id, capacity.capacityId));
+      .from(providerRunners)
+      .where(eq(providerRunners.id, capacity.capacityId));
 
     expect(attached).toBe(true);
     expect(rebound).toBe(false);
     expect(row).toMatchObject({
       workspaceId: null,
       provisionerId,
-      provisionedRunnerId: 'container-1',
+      providerRunnerId: 'container-1',
       labels: [],
       state: 'starting',
     });

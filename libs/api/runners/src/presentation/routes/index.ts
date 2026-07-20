@@ -19,9 +19,9 @@ import {listProvisionerTokensRoute} from './list-provisioner-tokens.js';
 import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
 import {attachProviderRunnerRoute, createPlannedCapacityRoute} from './planned-capacity.js';
 import {createPollDemandRoute, pollDemandRoute} from './poll-demand.js';
-import {reconcileProvisionedRunnersRoute} from './reconcile-provisioned-runners.js';
+import {reconcileRunnerInstancesRoute} from './reconcile-runner-instances.js';
 import {registerRoute} from './register.js';
-import {reportProvisionedRunnersRoute} from './report-provisioned-runners.js';
+import {reportRunnerInstancesRoute} from './report-runner-instances.js';
 import {requestJobRoute} from './request-job.js';
 import {revokeManualRegistrationTokenRoute} from './revoke-manual-registration-token.js';
 import {revokeProvisionerTokenRoute} from './revoke-provisioner-token.js';
@@ -65,8 +65,8 @@ const runnerOnlyRoutes: RouteGroup[] = [
       attachProviderRunnerRoute,
       assignCapacityRoute,
       mintRegistrationTokensRoute,
-      reportProvisionedRunnersRoute,
-      reconcileProvisionedRunnersRoute,
+      reportRunnerInstancesRoute,
+      reconcileRunnerInstancesRoute,
     ],
   },
 ];

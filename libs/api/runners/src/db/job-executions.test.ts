@@ -385,10 +385,10 @@ describe('claimPendingJobExecution', () => {
 
   it('enforces a non-null session claim cap from the database', async () => {
     const provisionerId = crypto.randomUUID();
-    const provisionedRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
+    const providerRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
     await db()
       .update(runnerSessions)
-      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, provisionedRunnerId})
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, providerRunnerId})
       .where(eq(runnerSessions.id, runnerSessionId));
     await pendingJobFactory.create({workspaceId});
     await pendingJobFactory.create({workspaceId});
@@ -403,10 +403,10 @@ describe('claimPendingJobExecution', () => {
 
   it('does not spend a claim when a capped session polls an empty queue', async () => {
     const provisionerId = crypto.randomUUID();
-    const provisionedRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
+    const providerRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
     await db()
       .update(runnerSessions)
-      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, provisionedRunnerId})
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, providerRunnerId})
       .where(eq(runnerSessions.id, runnerSessionId));
 
     const empty = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: 1});
@@ -494,15 +494,15 @@ describe('claimPendingJobExecution', () => {
     expect(running[0]?.requiredLabels).toEqual(created.requiredLabels);
     expect(running[0]?.runnerLabels).toEqual(sessionLabels);
     expect(running[0]?.provisionerId).toBeNull();
-    expect(running[0]?.provisionedRunnerId).toBeNull();
+    expect(running[0]?.providerRunnerId).toBeNull();
   });
 
   it('copies an ephemeral session provisioned-runner link onto the running job', async () => {
     const provisionerId = crypto.randomUUID();
-    const provisionedRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
+    const providerRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
     await db()
       .update(runnerSessions)
-      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, provisionedRunnerId})
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, providerRunnerId})
       .where(eq(runnerSessions.id, runnerSessionId));
     const created = await pendingJobFactory.create({workspaceId});
 
@@ -513,7 +513,7 @@ describe('claimPendingJobExecution', () => {
       .from(runningJobExecutions)
       .where(eq(runningJobExecutions.jobId, created.jobId));
     expect(running?.provisionerId).toBe(provisionerId);
-    expect(running?.provisionedRunnerId).toBe(provisionedRunnerId);
+    expect(running?.providerRunnerId).toBe(providerRunnerId);
   });
 
   it('rejects a running job row with a partial provisioned-runner link', async () => {
@@ -563,7 +563,7 @@ describe('claimPendingJobExecution', () => {
       labels: sessionLabels,
       toolCapabilities: {harnesses: {pi: {tools: ['read']}}},
     });
-    const underProvisionedRunner = await runnerSessionFactory.create({
+    const underRunnerInstance = await runnerSessionFactory.create({
       workspaceId,
       labels: sessionLabels,
       toolCapabilities: {harnesses: {pi: {tools: []}}},
@@ -579,7 +579,7 @@ describe('claimPendingJobExecution', () => {
 
     const firstClaim = await claimPendingJobExecution({
       workspaceId,
-      runnerSessionId: underProvisionedRunner.id,
+      runnerSessionId: underRunnerInstance.id,
     });
     const secondClaim = await claimPendingJobExecution({
       workspaceId,

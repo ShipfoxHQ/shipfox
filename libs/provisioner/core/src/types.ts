@@ -1,5 +1,5 @@
 import type {ProvisionerClient} from '#api-client.js';
-import type {ProvisionedRunnerTracker} from '#tracker.js';
+import type {ProviderRunnerTracker} from '#tracker.js';
 
 /**
  * A machine template the provisioner can start runners from. The control loop is
@@ -35,8 +35,8 @@ export interface TemplateCounts {
  * registration token plus the environment the runner container needs. The
  * registration token is a secret and must never be logged.
  */
-export interface ProvisionedRunnerLaunch<Spec = unknown> {
-  readonly provisionedRunnerId: string;
+export interface ProviderRunnerLaunch<Spec = unknown> {
+  readonly providerRunnerId: string;
   readonly reservationId: string;
   readonly template: ProvisionerTemplate<Spec>;
   readonly registrationToken: string;
@@ -46,10 +46,10 @@ export interface ProvisionedRunnerLaunch<Spec = unknown> {
 }
 
 /** Starts one provisioned runner. The provider implementation owns the side effect. */
-export type LaunchRunner<Spec = unknown> = (launch: ProvisionedRunnerLaunch<Spec>) => Promise<void>;
+export type LaunchRunner<Spec = unknown> = (launch: ProviderRunnerLaunch<Spec>) => Promise<void>;
 
 /** Tears down provider resources by provisioned runner id when the backend requests it. */
-export type TerminateRunners = (provisionedRunnerIds: readonly string[]) => Promise<void>;
+export type TerminateRunners = (providerRunnerIds: readonly string[]) => Promise<void>;
 
 export interface ProvisionerIdentity {
   readonly id: string;
@@ -59,7 +59,7 @@ export interface ProvisionerIdentity {
 export interface ProvisionerRuntime {
   readonly client: ProvisionerClient;
   readonly identity: ProvisionerIdentity;
-  readonly tracker: ProvisionedRunnerTracker;
+  readonly tracker: ProviderRunnerTracker;
 }
 
 /**

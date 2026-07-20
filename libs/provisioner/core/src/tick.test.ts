@@ -6,8 +6,8 @@ import type {
 } from '@shipfox/api-runners-dto';
 import type {ProvisionerClient} from '#api-client.js';
 import {runProvisionerTick} from '#tick.js';
-import {createInMemoryTracker, type ProvisionedRunnerTracker} from '#tracker.js';
-import type {ProvisionedRunnerLaunch, ProvisionerTemplate} from '#types.js';
+import {createInMemoryTracker, type ProviderRunnerTracker} from '#tracker.js';
+import type {ProviderRunnerLaunch, ProvisionerTemplate} from '#types.js';
 
 const EXPIRES_AT = '2026-01-01T00:00:00.000Z';
 const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,20 +27,20 @@ function ubuntuTemplate(
 interface Harness {
   readonly pollBodies: PollDemandBodyDto[];
   readonly mintBodies: MintRegistrationTokensBatchBodyDto[];
-  readonly launches: ProvisionedRunnerLaunch<null>[];
+  readonly launches: ProviderRunnerLaunch<null>[];
   readonly terminatedIds: string[][];
   readonly events: string[];
   readonly client: ProvisionerClient;
-  readonly tracker: ProvisionedRunnerTracker;
+  readonly tracker: ProviderRunnerTracker;
 }
 
-type PollDemandResponseFixture = Omit<PollDemandResponseDto, 'terminate_provisioned_runner_ids'> &
-  Partial<Pick<PollDemandResponseDto, 'terminate_provisioned_runner_ids'>>;
+type PollDemandResponseFixture = Omit<PollDemandResponseDto, 'terminate_provider_runner_ids'> &
+  Partial<Pick<PollDemandResponseDto, 'terminate_provider_runner_ids'>>;
 
 function harness(options: {response: PollDemandResponseFixture; mintError?: Error}): Harness {
   const pollBodies: PollDemandBodyDto[] = [];
   const mintBodies: MintRegistrationTokensBatchBodyDto[] = [];
-  const launches: ProvisionedRunnerLaunch<null>[] = [];
+  const launches: ProviderRunnerLaunch<null>[] = [];
   const terminatedIds: string[][] = [];
   const events: string[] = [];
 
@@ -52,7 +52,7 @@ function harness(options: {response: PollDemandResponseFixture; mintError?: Erro
       pollBodies.push(body);
       return Promise.resolve({
         ...options.response,
-        terminate_provisioned_runner_ids: options.response.terminate_provisioned_runner_ids ?? [],
+        terminate_provider_runner_ids: options.response.terminate_provider_runner_ids ?? [],
       });
     },
     mintRegistrationTokens: (body): Promise<MintRegistrationTokensBatchResponseDto> => {
@@ -60,16 +60,16 @@ function harness(options: {response: PollDemandResponseFixture; mintError?: Erro
       mintBodies.push(body);
       if (options.mintError) return Promise.reject(options.mintError);
       return Promise.resolve({
-        tokens: body.provisioned_runners.map((runner) => ({
-          provisioned_runner_id: runner.provisioned_runner_id,
-          registration_token: `sf_ert_${runner.provisioned_runner_id}`,
+        tokens: body.runner_instances.map((runner) => ({
+          provider_runner_id: runner.provider_runner_id,
+          registration_token: `sf_ert_${runner.provider_runner_id}`,
           expires_at: EXPIRES_AT,
         })),
       });
     },
-    reportProvisionedRunners: () => Promise.resolve({accepted: 0, reservations_released: 0}),
-    reconcileProvisionedRunners: () =>
-      Promise.resolve({runners: [], terminated_absent_provisioned_runner_ids: []}),
+    reportRunnerInstances: () => Promise.resolve({accepted: 0, reservations_released: 0}),
+    reconcileRunnerInstances: () =>
+      Promise.resolve({runners: [], terminated_absent_provider_runner_ids: []}),
   };
 
   return {
@@ -130,7 +130,7 @@ describe('runProvisionerTick', () => {
       templates: [{template_key: 'small', available_slots: 5, starting: 0, running: 0}],
     });
     expect(fixture.mintBodies[0]?.reservation_id).toBe('r1');
-    expect(fixture.mintBodies[0]?.provisioned_runners).toHaveLength(3);
+    expect(fixture.mintBodies[0]?.runner_instances).toHaveLength(3);
     expect(fixture.launches).toHaveLength(3);
     expect(result).toMatchObject({
       reservationCount: 1,
@@ -149,7 +149,7 @@ describe('runProvisionerTick', () => {
     for (const launch of fixture.launches) {
       expect(launch.template.key).toBe('small');
       expect(launch.runnerEnv.SHIPFOX_RUNNER_REGISTRATION_TOKEN).toBe(
-        `sf_ert_${launch.provisionedRunnerId}`,
+        `sf_ert_${launch.providerRunnerId}`,
       );
     }
     expect(fixture.tracker.countsByTemplate()).toEqual(
@@ -163,9 +163,9 @@ describe('runProvisionerTick', () => {
 
     await runTick(fixture, {templates: [template]});
 
-    expect(fixture.mintBodies[0]?.provisioned_runners).toHaveLength(2);
-    for (const runner of fixture.mintBodies[0]?.provisioned_runners ?? []) {
-      expect(runner.provisioned_runner_id).toMatch(UUID_V7_PATTERN);
+    expect(fixture.mintBodies[0]?.runner_instances).toHaveLength(2);
+    for (const runner of fixture.mintBodies[0]?.runner_instances ?? []) {
+      expect(runner.provider_runner_id).toMatch(UUID_V7_PATTERN);
     }
   });
 
@@ -173,7 +173,7 @@ describe('runProvisionerTick', () => {
     const template = ubuntuTemplate({key: 'small', maxConcurrency: 5});
     const fixture = harness({response: {stats: [], reservations: [reservation(3)]}});
     for (const id of ['a', 'b', 'c', 'd', 'e']) {
-      fixture.tracker.recordStarting({provisionedRunnerId: id, templateKey: 'small'});
+      fixture.tracker.recordStarting({providerRunnerId: id, templateKey: 'small'});
     }
 
     const result = await runTick(fixture, {templates: [template]});
@@ -190,8 +190,8 @@ describe('runProvisionerTick', () => {
   it('caps reservations and launches at the remaining free slots', async () => {
     const template = ubuntuTemplate({key: 'small', maxConcurrency: 5});
     const fixture = harness({response: {stats: [], reservations: [reservation(10)]}});
-    fixture.tracker.recordStarting({provisionedRunnerId: 'a', templateKey: 'small'});
-    fixture.tracker.recordStarting({provisionedRunnerId: 'b', templateKey: 'small'});
+    fixture.tracker.recordStarting({providerRunnerId: 'a', templateKey: 'small'});
+    fixture.tracker.recordStarting({providerRunnerId: 'b', templateKey: 'small'});
 
     await runTick(fixture, {templates: [template]});
 
@@ -214,7 +214,7 @@ describe('runProvisionerTick', () => {
 
     await runTick(fixture, {templates: [template], batchSize: 2});
 
-    expect(fixture.mintBodies.map((body) => body.provisioned_runners.length)).toEqual([2, 2, 1]);
+    expect(fixture.mintBodies.map((body) => body.runner_instances.length)).toEqual([2, 2, 1]);
     expect(fixture.launches).toHaveLength(5);
   });
 
@@ -262,7 +262,7 @@ describe('runProvisionerTick', () => {
 
   it('launches only the runners that received a token when mint returns a shortfall', async () => {
     const template = ubuntuTemplate({key: 'small'});
-    const launches: ProvisionedRunnerLaunch<null>[] = [];
+    const launches: ProviderRunnerLaunch<null>[] = [];
     const tracker = createInMemoryTracker();
     const client: ProvisionerClient = {
       getIdentity: () => Promise.resolve({id: 'p', scope: 'workspace', workspace_id: 'w'}),
@@ -270,19 +270,19 @@ describe('runProvisionerTick', () => {
         Promise.resolve({
           stats: [],
           reservations: [reservation(2)],
-          terminate_provisioned_runner_ids: [],
+          terminate_provider_runner_ids: [],
         }),
       mintRegistrationTokens: (body) =>
         Promise.resolve({
-          tokens: body.provisioned_runners.slice(0, 1).map((runner) => ({
-            provisioned_runner_id: runner.provisioned_runner_id,
-            registration_token: `sf_ert_${runner.provisioned_runner_id}`,
+          tokens: body.runner_instances.slice(0, 1).map((runner) => ({
+            provider_runner_id: runner.provider_runner_id,
+            registration_token: `sf_ert_${runner.provider_runner_id}`,
             expires_at: EXPIRES_AT,
           })),
         }),
-      reportProvisionedRunners: () => Promise.resolve({accepted: 0, reservations_released: 0}),
-      reconcileProvisionedRunners: () =>
-        Promise.resolve({runners: [], terminated_absent_provisioned_runner_ids: []}),
+      reportRunnerInstances: () => Promise.resolve({accepted: 0, reservations_released: 0}),
+      reconcileRunnerInstances: () =>
+        Promise.resolve({runners: [], terminated_absent_provider_runner_ids: []}),
     };
 
     const result = await runProvisionerTick({
@@ -336,7 +336,7 @@ describe('runProvisionerTick', () => {
       response: {
         stats: [],
         reservations: [reservation(1)],
-        terminate_provisioned_runner_ids: ['runner-old'],
+        terminate_provider_runner_ids: ['runner-old'],
       },
     });
 
@@ -361,7 +361,7 @@ describe('runProvisionerTick', () => {
       response: {
         stats: [],
         reservations: [reservation(1)],
-        terminate_provisioned_runner_ids: ['runner-old'],
+        terminate_provider_runner_ids: ['runner-old'],
       },
     });
     const error = new Error('docker daemon down');

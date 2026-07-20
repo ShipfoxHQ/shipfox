@@ -1,4 +1,4 @@
-export type ProvisionedRunnerState =
+export type RunnerInstanceState =
   | 'starting'
   | 'running'
   | 'stopping'
@@ -6,15 +6,15 @@ export type ProvisionedRunnerState =
   | 'failed'
   | 'terminated';
 
-export interface ProvisionedRunner {
+export interface RunnerInstance {
   id: string;
   workspaceId: string | null;
   provisionerId: string;
-  provisionedRunnerId: string;
+  providerRunnerId: string;
   reservationId: string | null;
   templateKey: string | null;
   labels: string[];
-  state: ProvisionedRunnerState;
+  state: RunnerInstanceState;
   reason: string | null;
   runnerSessionId: string | null;
   providerKind: string | null;

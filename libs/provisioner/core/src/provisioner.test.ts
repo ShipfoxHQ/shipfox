@@ -149,8 +149,8 @@ describe('runProvisionerIteration', () => {
   });
 });
 
-type PollDemandResponseFixture = Omit<PollDemandResponseDto, 'terminate_provisioned_runner_ids'> &
-  Partial<Pick<PollDemandResponseDto, 'terminate_provisioned_runner_ids'>>;
+type PollDemandResponseFixture = Omit<PollDemandResponseDto, 'terminate_provider_runner_ids'> &
+  Partial<Pick<PollDemandResponseDto, 'terminate_provider_runner_ids'>>;
 
 function harness(options: {response: PollDemandResponseFixture; onPoll?: () => void}): {
   client: ProvisionerClient;
@@ -171,22 +171,22 @@ function harness(options: {response: PollDemandResponseFixture; onPoll?: () => v
         pollBodies.push(body);
         return Promise.resolve({
           ...options.response,
-          terminate_provisioned_runner_ids: options.response.terminate_provisioned_runner_ids ?? [],
+          terminate_provider_runner_ids: options.response.terminate_provider_runner_ids ?? [],
         });
       },
       mintRegistrationTokens: (body) => {
         mintBodies.push(body);
         return Promise.resolve({
-          tokens: body.provisioned_runners.map((runner) => ({
-            provisioned_runner_id: runner.provisioned_runner_id,
-            registration_token: `sf_ert_${runner.provisioned_runner_id}`,
+          tokens: body.runner_instances.map((runner) => ({
+            provider_runner_id: runner.provider_runner_id,
+            registration_token: `sf_ert_${runner.provider_runner_id}`,
             expires_at: EXPIRES_AT,
           })),
         });
       },
-      reportProvisionedRunners: () => Promise.resolve({accepted: 0, reservations_released: 0}),
-      reconcileProvisionedRunners: () =>
-        Promise.resolve({runners: [], terminated_absent_provisioned_runner_ids: []}),
+      reportRunnerInstances: () => Promise.resolve({accepted: 0, reservations_released: 0}),
+      reconcileRunnerInstances: () =>
+        Promise.resolve({runners: [], terminated_absent_provider_runner_ids: []}),
     },
   };
 }

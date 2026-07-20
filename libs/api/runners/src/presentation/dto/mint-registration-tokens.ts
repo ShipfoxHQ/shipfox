@@ -1,14 +1,14 @@
 import type {
   MintedRegistrationTokenDto,
   MintRegistrationTokensBatchResponseDto,
-  MintRegistrationTokensProvisionedRunnerDto,
+  MintRegistrationTokensRunnerInstanceDto,
 } from '@shipfox/api-runners-dto';
 import type {MintEphemeralRegistrationTokensBatchResult} from '#core/ephemeral-registration-tokens.js';
 
-export function toMintRegistrationTokensProvisionedRunners(
-  provisionedRunners: MintRegistrationTokensProvisionedRunnerDto[],
+export function toMintRegistrationTokensRunnerInstances(
+  providerRunners: MintRegistrationTokensRunnerInstanceDto[],
 ) {
-  return provisionedRunners.map((runner) => ({provisionedRunnerId: runner.provisioned_runner_id}));
+  return providerRunners.map((runner) => ({providerRunnerId: runner.provider_runner_id}));
 }
 
 export function toMintRegistrationTokensResponseDto(
@@ -21,7 +21,7 @@ function toMintedRegistrationTokenDto(
   result: MintEphemeralRegistrationTokensBatchResult,
 ): MintedRegistrationTokenDto {
   return {
-    provisioned_runner_id: result.provisionedRunnerId,
+    provider_runner_id: result.providerRunnerId,
     registration_token: result.rawToken,
     expires_at: result.token.expiresAt.toISOString(),
   };

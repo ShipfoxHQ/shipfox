@@ -1,4 +1,4 @@
-import type {ProvisionedRunnerLaunch, ProvisionerIdentity} from '@shipfox/provisioner-core';
+import type {ProviderRunnerLaunch, ProvisionerIdentity} from '@shipfox/provisioner-core';
 import {buildContainerLabels, parseContainerIdentity, SHIPFOX_LABELS} from '#container-identity.js';
 import type {DockerContainerView} from '#docker-engine.js';
 import type {DockerTemplateSpec} from '#templates.js';
@@ -8,8 +8,8 @@ const identity: ProvisionerIdentity = {
   workspaceId: '00000000-0000-4000-8000-000000000002',
 };
 
-const launch: ProvisionedRunnerLaunch<DockerTemplateSpec> = {
-  provisionedRunnerId: 'runner-1',
+const launch: ProviderRunnerLaunch<DockerTemplateSpec> = {
+  providerRunnerId: 'runner-1',
   reservationId: '00000000-0000-4000-8000-000000000003',
   registrationToken: 'sf_ert_secret',
   registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
@@ -30,7 +30,7 @@ describe('container identity labels', () => {
     const parsed = parseContainerIdentity(view({name: 'runner-1', labels}));
 
     expect(parsed).toEqual({
-      provisionedRunnerId: 'runner-1',
+      providerRunnerId: 'runner-1',
       provisionerId: identity.id,
       reservationId: launch.reservationId,
       templateKey: 'small',
@@ -41,11 +41,11 @@ describe('container identity labels', () => {
 
   it('falls back to the container name when the provisioned runner label is missing', () => {
     const labels = buildContainerLabels({launch, identity});
-    delete labels[SHIPFOX_LABELS.provisionedRunnerId];
+    delete labels[SHIPFOX_LABELS.providerRunnerId];
 
     const parsed = parseContainerIdentity(view({name: '/runner-1', labels}));
 
-    expect(parsed.provisionedRunnerId).toBe('runner-1');
+    expect(parsed.providerRunnerId).toBe('runner-1');
   });
 
   it('allows reservation_id to be absent', () => {

@@ -1,12 +1,12 @@
 import type {
-  ReconcileProvisionedRunnersBodyDto,
-  ReconcileProvisionedRunnersResponseDto,
-  ReportProvisionedRunnersBodyDto,
-  ReportProvisionedRunnersResponseDto,
+  ReconcileRunnerInstancesBodyDto,
+  ReconcileRunnerInstancesResponseDto,
+  ReportRunnerInstancesBodyDto,
+  ReportRunnerInstancesResponseDto,
 } from '@shipfox/api-runners-dto';
 import type {
-  ProvisionedRunnerLaunch,
-  ProvisionedRunnerTracker,
+  ProviderRunnerLaunch,
+  ProviderRunnerTracker,
   ProvisionerClient,
   ProvisionerTemplate,
 } from '@shipfox/provisioner-core';
@@ -35,7 +35,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.launch(launch());
 
     expect(client.reportBodies[0]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       reservation_id: RESERVATION_ID,
       template_key: 'small',
       labels: ['ubuntu22'],
@@ -49,7 +49,7 @@ describe('createDockerLifecycle', () => {
       nanoCpus: 1_500_000_000,
       memoryBytes: 2 * 1024 ** 3,
     });
-    expect(engine.created[0]?.labels['shipfox.provisioned_runner_id']).toBe('runner-1');
+    expect(engine.created[0]?.labels['shipfox.provider_runner_id']).toBe('runner-1');
   });
 
   it('reports failed and rethrows when the engine fails to launch', async () => {
@@ -111,7 +111,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.observe();
 
     expect(client.reportBodies[1]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'failed',
     });
   });
@@ -130,7 +130,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.flush();
 
     expect(client.reportBodies[1]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'failed',
     });
   });
@@ -228,7 +228,7 @@ describe('createDockerLifecycle', () => {
 
     await lifecycle.reconcile();
 
-    expect(client.reconcileBodies).toEqual([{observed_provisioned_runner_ids: []}]);
+    expect(client.reconcileBodies).toEqual([{observed_provider_runner_ids: []}]);
   });
 
   it('tick retries backend reconcile until the first success, then observes locally', async () => {
@@ -239,7 +239,7 @@ describe('createDockerLifecycle', () => {
       reconcileErrors: [new Error('api down')],
       reconcileResponse: {
         runners: [reconciledRunner('runner-1', 'keep')],
-        terminated_absent_provisioned_runner_ids: [],
+        terminated_absent_provider_runner_ids: [],
       },
     });
     const lifecycle = makeLifecycle({engine, client});
@@ -265,16 +265,16 @@ describe('createDockerLifecycle', () => {
     const client = fakeClient({
       reconcileResponse: {
         runners: [reconciledRunner('runner-1', 'terminate')],
-        terminated_absent_provisioned_runner_ids: [],
+        terminated_absent_provider_runner_ids: [],
       },
     });
     const lifecycle = makeLifecycle({engine, client});
 
     await lifecycle.reconcile();
 
-    expect(client.reconcileBodies[0]).toEqual({observed_provisioned_runner_ids: ['runner-1']});
+    expect(client.reconcileBodies[0]).toEqual({observed_provider_runner_ids: ['runner-1']});
     expect(client.reportBodies[0]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'terminated',
       reason: 'backend-terminate',
     });
@@ -290,7 +290,7 @@ describe('createDockerLifecycle', () => {
     const client = fakeClient({
       reconcileResponse: {
         runners: [reconciledRunner('runner-1', 'terminate')],
-        terminated_absent_provisioned_runner_ids: [],
+        terminated_absent_provider_runner_ids: [],
       },
     });
     const lifecycle = makeLifecycle({engine, client});
@@ -309,7 +309,7 @@ describe('createDockerLifecycle', () => {
     const client = fakeClient({
       reconcileResponse: {
         runners: [reconciledRunner('runner-1', 'keep')],
-        terminated_absent_provisioned_runner_ids: [],
+        terminated_absent_provider_runner_ids: [],
       },
     });
     const lifecycle = makeLifecycle({engine, client, tracker});
@@ -317,7 +317,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.reconcile();
 
     expect(client.reportBodies[0]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'running',
     });
     expect(tracker.countsByTemplate()).toEqual(new Map([['small', {starting: 0, running: 1}]]));
@@ -330,7 +330,7 @@ describe('createDockerLifecycle', () => {
     const client = fakeClient({
       reconcileResponse: {
         runners: [reconciledRunner('runner-1', 'keep')],
-        terminated_absent_provisioned_runner_ids: [],
+        terminated_absent_provider_runner_ids: [],
       },
     });
     const lifecycle = makeLifecycle({engine, client});
@@ -366,7 +366,7 @@ describe('createDockerLifecycle', () => {
     const client = fakeClient({
       reconcileResponse: {
         runners: [reconciledRunner('runner-1', 'keep')],
-        terminated_absent_provisioned_runner_ids: [],
+        terminated_absent_provider_runner_ids: [],
       },
     });
     const lifecycle = makeLifecycle({engine, client});
@@ -376,7 +376,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.tick();
     await lifecycle.tick();
 
-    expect(client.reconcileBodies).toEqual([{observed_provisioned_runner_ids: ['runner-0']}]);
+    expect(client.reconcileBodies).toEqual([{observed_provider_runner_ids: ['runner-0']}]);
   });
 
   it('terminate kills and reports matching managed containers', async () => {
@@ -389,7 +389,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.terminate(['runner-1']);
 
     expect(client.reportBodies[0]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'terminated',
       reason: 'backend-terminate',
     });
@@ -411,7 +411,7 @@ describe('createDockerLifecycle', () => {
   it('terminate still kills matching containers when labels are unresolvable', async () => {
     const engine = fakeEngine({
       containers: [
-        container({state: 'running', labels: {'shipfox.provisioned_runner_id': 'runner-1'}}),
+        container({state: 'running', labels: {'shipfox.provider_runner_id': 'runner-1'}}),
       ],
     });
     const client = fakeClient();
@@ -501,7 +501,7 @@ describe('createDockerLifecycle', () => {
         .slice(2)
         .flatMap((body) => body.events)
         .some(
-          (event) => event.provisioned_runner_id === 'terminal-runner' && event.state === 'stopped',
+          (event) => event.provider_runner_id === 'terminal-runner' && event.state === 'stopped',
         ),
     ).toBe(true);
   });
@@ -517,7 +517,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.flush();
 
     expect(client.reportBodies[1]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'failed',
     });
   });
@@ -534,7 +534,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.flush();
 
     expect(client.reportBodies[1]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'starting',
     });
   });
@@ -551,7 +551,7 @@ describe('createDockerLifecycle', () => {
     await lifecycle.flush();
 
     expect(client.reportBodies[1]?.events[0]).toMatchObject({
-      provisioned_runner_id: 'runner-1',
+      provider_runner_id: 'runner-1',
       state: 'starting',
     });
   });
@@ -561,7 +561,7 @@ function makeLifecycle(
   args: {
     engine?: ReturnType<typeof fakeEngine>;
     client?: ReturnType<typeof fakeClient>;
-    tracker?: ProvisionedRunnerTracker;
+    tracker?: ProviderRunnerTracker;
     registrationDeadlineMs?: number;
   } = {},
 ) {
@@ -580,9 +580,9 @@ function makeLifecycle(
   });
 }
 
-function launch(): ProvisionedRunnerLaunch<DockerTemplateSpec> {
+function launch(): ProviderRunnerLaunch<DockerTemplateSpec> {
   return {
-    provisionedRunnerId: 'runner-1',
+    providerRunnerId: 'runner-1',
     reservationId: RESERVATION_ID,
     registrationToken: 'sf_ert_secret',
     registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
@@ -595,14 +595,14 @@ function fakeClient(
   options: {
     reportErrors?: Error[];
     reconcileErrors?: Error[];
-    reconcileResponse?: ReconcileProvisionedRunnersResponseDto;
+    reconcileResponse?: ReconcileRunnerInstancesResponseDto;
   } = {},
 ): ProvisionerClient & {
-  reportBodies: ReportProvisionedRunnersBodyDto[];
-  reconcileBodies: ReconcileProvisionedRunnersBodyDto[];
+  reportBodies: ReportRunnerInstancesBodyDto[];
+  reconcileBodies: ReconcileRunnerInstancesBodyDto[];
 } {
-  const reportBodies: ReportProvisionedRunnersBodyDto[] = [];
-  const reconcileBodies: ReconcileProvisionedRunnersBodyDto[] = [];
+  const reportBodies: ReportRunnerInstancesBodyDto[] = [];
+  const reconcileBodies: ReconcileRunnerInstancesBodyDto[] = [];
   const reportErrors = [...(options.reportErrors ?? [])];
   const reconcileErrors = [...(options.reconcileErrors ?? [])];
   return {
@@ -615,22 +615,22 @@ function fakeClient(
         workspace_id: '00000000-0000-4000-8000-000000000002',
       }),
     pollDemand: () =>
-      Promise.resolve({stats: [], reservations: [], terminate_provisioned_runner_ids: []}),
+      Promise.resolve({stats: [], reservations: [], terminate_provider_runner_ids: []}),
     mintRegistrationTokens: () => Promise.resolve({tokens: []}),
-    reportProvisionedRunners: (body): Promise<ReportProvisionedRunnersResponseDto> => {
+    reportRunnerInstances: (body): Promise<ReportRunnerInstancesResponseDto> => {
       reportBodies.push(body);
       const error = reportErrors.shift();
       if (error) return Promise.reject(error);
       return Promise.resolve({accepted: body.events.length, reservations_released: 0});
     },
-    reconcileProvisionedRunners: (body): Promise<ReconcileProvisionedRunnersResponseDto> => {
+    reconcileRunnerInstances: (body): Promise<ReconcileRunnerInstancesResponseDto> => {
       reconcileBodies.push(body);
       const error = reconcileErrors.shift();
       if (error) return Promise.reject(error);
       return Promise.resolve(
         options.reconcileResponse ?? {
           runners: [],
-          terminated_absent_provisioned_runner_ids: [],
+          terminated_absent_provider_runner_ids: [],
         },
       );
     },
@@ -687,23 +687,23 @@ function fakeEngine(
   };
 }
 
-function testTracker(): ProvisionedRunnerTracker {
+function testTracker(): ProviderRunnerTracker {
   const runners = new Map<string, {templateKey: string; state: 'starting' | 'running'}>();
   return {
-    recordStarting: ({provisionedRunnerId, templateKey}) => {
-      runners.set(provisionedRunnerId, {templateKey, state: 'starting'});
+    recordStarting: ({providerRunnerId, templateKey}) => {
+      runners.set(providerRunnerId, {templateKey, state: 'starting'});
     },
-    markRunning: (provisionedRunnerId) => {
-      const runner = runners.get(provisionedRunnerId);
+    markRunning: (providerRunnerId) => {
+      const runner = runners.get(providerRunnerId);
       if (runner) runner.state = 'running';
     },
-    remove: (provisionedRunnerId) => {
-      runners.delete(provisionedRunnerId);
+    remove: (providerRunnerId) => {
+      runners.delete(providerRunnerId);
     },
     replaceAll: (nextRunners) => {
       runners.clear();
       for (const runner of nextRunners) {
-        runners.set(runner.provisionedRunnerId, {
+        runners.set(runner.providerRunnerId, {
           templateKey: runner.templateKey,
           state: runner.state,
         });
@@ -734,7 +734,7 @@ function container(args: {
     id: name,
     name,
     labels: args.labels ?? {
-      'shipfox.provisioned_runner_id': name,
+      'shipfox.provider_runner_id': name,
       'shipfox.provisioner_id': '00000000-0000-4000-8000-000000000001',
       'shipfox.reservation_id': RESERVATION_ID,
       'shipfox.template_key': 'small',
@@ -749,11 +749,11 @@ function container(args: {
 }
 
 function reconciledRunner(
-  provisionedRunnerId: string,
+  providerRunnerId: string,
   desiredIntent: 'keep' | 'terminate',
-): ReconcileProvisionedRunnersResponseDto['runners'][number] {
+): ReconcileRunnerInstancesResponseDto['runners'][number] {
   return {
-    provisioned_runner_id: provisionedRunnerId,
+    provider_runner_id: providerRunnerId,
     state: 'running',
     reservation_id: RESERVATION_ID,
     runner_session_id: null,

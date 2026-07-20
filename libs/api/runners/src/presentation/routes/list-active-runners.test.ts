@@ -12,7 +12,7 @@ import type {AuthMethod} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
@@ -73,11 +73,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     const runnerSessionId = runnerSession.id;
     await db()
-      .insert(provisionedRunners)
+      .insert(providerRunners)
       .values({
         workspaceId,
         provisionerId: crypto.randomUUID(),
-        provisionedRunnerId: 'provisioned-runner-1',
+        providerRunnerId: 'provisioned-runner-1',
         labels: ['linux'],
         state: 'running',
         runnerSessionId,
@@ -108,7 +108,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     expect(res.json().runners).toEqual([
       expect.objectContaining({
         runner_session_id: runnerSessionId,
-        provisioned_runner_id: 'provisioned-runner-1',
+        provider_runner_id: 'provisioned-runner-1',
         state: 'busy',
         labels: ['linux'],
       }),
@@ -121,11 +121,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     const firstJobId = crypto.randomUUID();
     const secondJobId = crypto.randomUUID();
     await db()
-      .insert(provisionedRunners)
+      .insert(providerRunners)
       .values({
         workspaceId,
         provisionerId: crypto.randomUUID(),
-        provisionedRunnerId: 'provisioned-runner-1',
+        providerRunnerId: 'provisioned-runner-1',
         labels: ['linux'],
         state: 'running',
         runnerSessionId,
@@ -172,13 +172,13 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
       expect.arrayContaining([
         expect.objectContaining({
           runner_session_id: runnerSessionId,
-          provisioned_runner_id: 'provisioned-runner-1',
+          provider_runner_id: 'provisioned-runner-1',
           state: 'busy',
           job_id: firstJobId,
         }),
         expect.objectContaining({
           runner_session_id: runnerSessionId,
-          provisioned_runner_id: 'provisioned-runner-1',
+          provider_runner_id: 'provisioned-runner-1',
           state: 'busy',
           job_id: secondJobId,
         }),
@@ -192,11 +192,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     const runnerSessionId = runnerSession.id;
     const jobId = crypto.randomUUID();
     await db()
-      .insert(provisionedRunners)
+      .insert(providerRunners)
       .values({
         workspaceId,
         provisionerId,
-        provisionedRunnerId: 'provisioned-runner-1',
+        providerRunnerId: 'provisioned-runner-1',
         labels: ['linux'],
         state: 'running',
         runnerSessionId: null,
@@ -214,7 +214,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId,
         provisionerId,
-        provisionedRunnerId: 'provisioned-runner-1',
+        providerRunnerId: 'provisioned-runner-1',
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
       });
@@ -229,7 +229,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     expect(res.json().runners).toEqual([
       expect.objectContaining({
         runner_session_id: runnerSessionId,
-        provisioned_runner_id: 'provisioned-runner-1',
+        provider_runner_id: 'provisioned-runner-1',
         provisioner_id: provisionerId,
         state: 'busy',
         job_id: jobId,
@@ -253,7 +253,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId,
         provisionerId,
-        provisionedRunnerId: 'provisioned-runner-1',
+        providerRunnerId: 'provisioned-runner-1',
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
       });
@@ -268,7 +268,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     expect(res.json().runners).toEqual([
       expect.objectContaining({
         runner_session_id: runnerSessionId,
-        provisioned_runner_id: 'provisioned-runner-1',
+        provider_runner_id: 'provisioned-runner-1',
         provisioner_id: provisionerId,
         state: 'busy',
         job_id: jobId,
@@ -284,12 +284,12 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     const older = new Date(Date.now() - 1000);
     const newer = new Date();
     await db()
-      .insert(provisionedRunners)
+      .insert(providerRunners)
       .values([
         {
           workspaceId,
           provisionerId,
-          provisionedRunnerId: 'provisioned-runner-b',
+          providerRunnerId: 'provisioned-runner-b',
           labels: ['linux'],
           state: 'running',
           runnerSessionId,
@@ -300,7 +300,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         {
           workspaceId,
           provisionerId,
-          provisionedRunnerId: 'provisioned-runner-a',
+          providerRunnerId: 'provisioned-runner-a',
           labels: ['linux'],
           state: 'running',
           runnerSessionId: null,
@@ -320,7 +320,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId,
         provisionerId,
-        provisionedRunnerId: 'provisioned-runner-a',
+        providerRunnerId: 'provisioned-runner-a',
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
       });
@@ -338,13 +338,13 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
       expect.arrayContaining([
         expect.objectContaining({
           runner_session_id: runnerSessionId,
-          provisioned_runner_id: 'provisioned-runner-a',
+          provider_runner_id: 'provisioned-runner-a',
           state: 'busy',
           job_id: jobId,
         }),
         expect.objectContaining({
           runner_session_id: runnerSessionId,
-          provisioned_runner_id: 'provisioned-runner-b',
+          provider_runner_id: 'provisioned-runner-b',
           state: 'running',
           job_id: null,
         }),
