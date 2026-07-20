@@ -1,36 +1,36 @@
-import type {Buffer} from 'node:buffer';
 import {randomUUID} from 'node:crypto';
-import formBodyPlugin from '@fastify/formbody';
 import type {
   GetIntegrationConnectionByIdFn,
   IntegrationTx,
   PublishIntegrationEventReceivedFn,
 } from '@shipfox/api-integration-core-dto';
-import {WEBHOOK_PROVIDER, WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
+import {
+  createStoredWebhookRequest,
+  type StoredWebhookRequest,
+  WEBHOOK_MAX_RAW_BODY_BYTES,
+} from '@shipfox/api-integration-core-dto';
+import {WEBHOOK_PROVIDER} from '@shipfox/api-integration-webhook-dto';
 import {ClientError, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {FastifyPluginAsync} from 'fastify';
 import fp from 'fastify-plugin';
 import {z} from 'zod';
-import {redactHeaders, WEBHOOK_INBOUND_BODY_LIMIT} from '#constants.js';
+import {WEBHOOK_ACCEPTED_CONTENT_TYPES, WEBHOOK_INBOUND_BODY_LIMIT} from '#constants.js';
+import {createGenericWebhookProcessor} from '#core/webhook-processor.js';
 
 const MAX_DELIVERY_ID_HEADER_LENGTH = 200;
-const acceptedContentTypes = new Set([
-  'application/json',
-  'application/x-www-form-urlencoded',
-  'text/plain',
-]);
-const FORM_URLENCODED_CONTENT_TYPE_RE = /^application\/x-www-form-urlencoded(?:;.*)?$/i;
-
-const formBodyRoutePlugin: FastifyPluginAsync = fp(async (app) => {
-  await app.register(formBodyPlugin, {bodyLimit: WEBHOOK_INBOUND_BODY_LIMIT});
-
-  app.addContentTypeParser(
-    FORM_URLENCODED_CONTENT_TYPE_RE,
-    {parseAs: 'buffer', bodyLimit: WEBHOOK_INBOUND_BODY_LIMIT},
-    (_request, body: Buffer, done) => {
-      done(null, Object.fromEntries(new URLSearchParams(body.toString('utf8'))));
-    },
-  );
+const acceptedContentTypes = new Set<string>(WEBHOOK_ACCEPTED_CONTENT_TYPES);
+const rawWebhookBodyPlugin: FastifyPluginAsync = fp((app) => {
+  app.removeAllContentTypeParsers();
+  for (const contentType of acceptedContentTypes) {
+    app.addContentTypeParser(
+      contentType,
+      {parseAs: 'buffer', bodyLimit: WEBHOOK_INBOUND_BODY_LIMIT},
+      (_request, body, done) => {
+        done(null, body);
+      },
+    );
+  }
+  return Promise.resolve();
 });
 
 export interface CreateWebhookInboundRoutesOptions {
@@ -64,7 +64,12 @@ function deliveryIdFor(header: string | string[] | undefined): string {
   return value;
 }
 
+function hasDeliveryId(header: string | string[] | undefined): boolean {
+  return Boolean(Array.isArray(header) ? header[0] : header);
+}
+
 export function createWebhookInboundRoutes(options: CreateWebhookInboundRoutesOptions): RouteGroup {
+  const processor = createGenericWebhookProcessor(options);
   const inboundRoute = defineRoute({
     method: 'POST',
     path: '/:connectionId',
@@ -94,29 +99,25 @@ export function createWebhookInboundRoutes(options: CreateWebhookInboundRoutesOp
         throw new ClientError('Webhook connection not found', 'not-found', {status: 404});
       }
 
-      const deliveryId = deliveryIdFor(request.headers['x-delivery-id']);
-      const receivedAt = new Date().toISOString();
-      await options.coreDb().transaction(async (tx) => {
-        await options.publishIntegrationEventReceived({
-          tx,
-          event: {
-            provider: WEBHOOK_PROVIDER,
-            source: connection.slug,
-            event: WEBHOOK_RECEIVED_EVENT,
-            workspaceId: connection.workspaceId,
-            connectionId: connection.id,
-            connectionName: connection.displayName,
-            deliveryId,
-            receivedAt,
-            payload: {
-              method: request.method,
-              headers: redactHeaders(request.headers),
-              query: request.query,
-              body: request.body,
-            },
+      const deliveryHeader = request.headers['x-delivery-id'];
+      const deliveryId = deliveryIdFor(deliveryHeader);
+      const result = await processor.process(
+        createGenericStoredWebhookRequest(
+          {
+            body: request.body,
+            connectionId,
+            headers: request.headers,
+            rawQueryString: request.raw.url?.split('?')[1] ?? '',
+            requestId: hasDeliveryId(deliveryHeader) ? randomUUID() : deliveryId,
           },
-        });
-      });
+          new Date().toISOString(),
+        ),
+        connection,
+      );
+
+      if (result.outcome === 'discarded' && result.reason === 'malformed_payload') {
+        throw new ClientError('Malformed webhook payload', 'malformed-payload', {status: 400});
+      }
 
       reply.code(202);
       return {delivery_id: deliveryId};
@@ -126,7 +127,52 @@ export function createWebhookInboundRoutes(options: CreateWebhookInboundRoutesOp
   return {
     prefix: '/webhook',
     auth: [],
-    plugins: [formBodyRoutePlugin],
+    plugins: [rawWebhookBodyPlugin],
     routes: [inboundRoute],
   };
+}
+
+function createGenericStoredWebhookRequest(
+  input: {
+    body: unknown;
+    connectionId: string;
+    headers: Record<string, string | string[] | undefined>;
+    rawQueryString: string;
+    requestId: string;
+  },
+  receivedAt: string,
+): StoredWebhookRequest {
+  if (!(input.body instanceof Uint8Array)) {
+    throw new ClientError('Expected raw webhook body', 'invalid-webhook-request', {status: 400});
+  }
+  if (input.body.byteLength > WEBHOOK_MAX_RAW_BODY_BYTES) {
+    throw new ClientError('Webhook request body is too large', 'body-too-large', {status: 413});
+  }
+
+  try {
+    return createStoredWebhookRequest({
+      requestId: input.requestId,
+      routeId: 'webhook.connection',
+      receivedAt,
+      rawQueryString: input.rawQueryString,
+      headers: webhookHeaders(input.headers),
+      body: input.body,
+      connectionId: input.connectionId,
+    });
+  } catch (error) {
+    throw new ClientError('Webhook request metadata is invalid', 'invalid-webhook-request', {
+      cause: error,
+    });
+  }
+}
+
+function webhookHeaders(
+  headers: Record<string, string | string[] | undefined>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).flatMap(([name, value]) => {
+      if (value === undefined) return [];
+      return [[name.toLowerCase(), Array.isArray(value) ? value.join(', ') : value]];
+    }),
+  );
 }
