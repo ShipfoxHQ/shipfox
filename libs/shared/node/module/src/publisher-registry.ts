@@ -94,6 +94,10 @@ export function registerPublisher(config: PublisherSource): void {
   }
 }
 
+export function getRegisteredPublisherNames(): string[] {
+  return _sources.map((source) => source.name);
+}
+
 export function getEventSchema(type: string): ZodType | undefined {
   return _schemasByType.get(type);
 }
