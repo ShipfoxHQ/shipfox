@@ -302,6 +302,69 @@ jobs:
           export IMAGE_REGISTRIES="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           turbo image --filter "${{ matrix.package }}"
 
+  publish-runner-image-candidate:
+    name: Publish runner image candidate (${{ matrix.architecture }})
+    needs: [static-verification, tests, e2e]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Configure candidate AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 7200
+          role-session-name: shipfox-runner-image-candidate
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_CANDIDATE_ROLE_ARN }}
+
+      - name: Build runner image tooling
+        run: turbo build --filter=@shipfox/runner-image...
+
+      - name: Build runner image candidate
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          BUILD_ATTEMPT: ${{ github.run_attempt }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          BUILD_REVISION: ${{ github.sha }}
+          PACKER_LOG: "1"
+          PACKER_LOG_PATH: ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+          RUNNER_IMAGE_CANDIDATE_RESULT_PATH: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
+        run: pnpm --filter=@shipfox/runner-image image:candidate -- --output "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH"
+
+      - name: Report runner image candidate
+        env:
+          RUNNER_IMAGE_CANDIDATE_RESULT_PATH: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
+        run: |
+          set -euo pipefail
+          jq -r '"- Candidate \(.architecture): \(.region):\(.amiId) for \(.revision) (\(.status))"' "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Packer diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-image-candidate-packer-diagnostics-${{ matrix.architecture }}
+          path: |
+            ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+            infra/images/runner/packer-manifest.json
+          if-no-files-found: warn
+
   publish-application-release:
     name: Publish application release
     needs: [publish-images]

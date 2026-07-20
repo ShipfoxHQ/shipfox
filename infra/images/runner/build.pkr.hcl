@@ -73,8 +73,10 @@ build {
       architecture   = var.architecture
       build_attempt  = var.build_attempt
       build_number   = var.build_number
+      candidate_id   = var.candidate_id
       encrypted      = "true"
       image_os       = var.image_os
+      lifecycle      = var.image_lifecycle
       revision       = var.revision
       runner_version = var.runner_version
     }

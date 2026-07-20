@@ -9,6 +9,7 @@ import {qemuSourceImageArgs} from './qemu.js';
 const WHITESPACE_PATTERN = /\s+/;
 
 export type RunnerImagePlatform = 'aws' | 'qemu';
+export type RunnerImageLifecycle = 'candidate' | 'release';
 
 export interface RunnerImageBuild {
   os: string;
@@ -16,9 +17,12 @@ export interface RunnerImageBuild {
   architecture: 'amd64' | 'arm64';
   buildAttempt: string;
   buildNumber: string;
+  candidateExpiresAt?: string;
+  candidateId?: string;
+  lifecycle: RunnerImageLifecycle;
   nodeVersion: string;
   revision: string;
-  runnerVersion: string;
+  runnerVersion?: string;
   extraPackerArgs: string[];
 }
 
@@ -48,16 +52,23 @@ export function packerBuildArgs(
     '-var',
     `build_number=${build.buildNumber}`,
     '-var',
+    `image_lifecycle=${build.lifecycle}`,
+    '-var',
     `node_version=${build.nodeVersion}`,
     '-var',
     `revision=${build.revision}`,
-    '-var',
-    `runner_version=${build.runnerVersion}`,
     '-var',
     `platform=${build.platform}`,
     '-var',
     `runner_workspace=${workspacePath}`,
   ];
+  if (build.candidateId) {
+    args.push('-var', `candidate_id=${build.candidateId}`);
+  }
+  if (build.candidateExpiresAt) {
+    args.push('-var', `candidate_expires_at=${build.candidateExpiresAt}`);
+  }
+  if (build.runnerVersion) args.push('-var', `runner_version=${build.runnerVersion}`);
   if (build.platform === 'qemu') args.push(...qemuSourceImageArgs(rootDir));
   return [...args, ...build.extraPackerArgs, '.'];
 }

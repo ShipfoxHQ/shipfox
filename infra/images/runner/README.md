@@ -7,7 +7,7 @@
 Builds run the production deploy inside the target VM. This is required because the runner contains architecture-specific native payloads. The wrapper obtains the Node version from `mise`, prunes `@shipfox/runner`, and then invokes Packer.
 
 ```sh
-BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image image:build
+BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image image:candidate -- --output /tmp/runner-image-candidate.json
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
 ```
 
@@ -34,27 +34,13 @@ With `InstanceInitiatedShutdownBehavior=terminate` and Spot `InstanceInterruptio
 
 On EC2, launch a runner with a short max lifetime, stop the provisioner, and verify the instance terminates before that bound. For Spot, request an interruption notice in a test environment and verify the runner stops claiming work, drains, and powers off before reclaim. These drills feed the EC2 provisioner deployment runbook.
 
-## Release, promotion, rollback, retention
+## Candidate builds
 
-Dispatch the **Build runner image** workflow from `main` with the required architecture, published runner version, and publish option. It assumes the repository's `AWS_RUNNER_IMAGE_ROLE_ARN` through GitHub OIDC, builds an AMI in `us-east-1`, and publishes a strict release catalog to `ghcr.io/shipfoxhq/runner-image-releases`. The catalog is immutable at the source revision and `latest` points to the most recently published two-architecture catalog.
+After every successful merge to `main`, CI builds one candidate AMI per architecture in the candidate AWS account. Candidates are not releases: CI does not publish a catalog, set a latest pointer, or record a release version.
 
-```sh
-oras pull ghcr.io/shipfoxhq/runner-image-releases:latest
-cat runner-image-release.json
-```
+The candidate command writes its AMI ID, architecture, region, source SHA, and whether it built or reused the image to its required `--output` JSON file. The AMI tags are the discovery contract. Internal users resolve an available image by its exact source SHA and architecture with `shipfox.managed=true`, `shipfox.lifecycle=candidate`, `shipfox.revision`, and `shipfox.architecture`. Candidates also record their GitHub build metadata and an expiry timestamp for account-level cleanup.
 
-Each catalog entry records its AMI ID and region, target architecture, image OS, runner version, build number and attempt, creation time, encryption status, source AMI when AWS reports it, source revision, and GitHub Actions build metadata. The workflow requires the runner version explicitly because `@shipfox/runner` is not independently versioned in this repository. AWS tags are the durable truth: each AMI has `shipfox.managed=true`, plus its revision, runner version, architecture, OS, build number, and build attempt. The catalog is the convenient, machine-readable selection index.
-
-To promote without rebuilding, choose an approved catalog AMI and set that ID in the EC2 provisioner template’s `ami` value. Operators may also move their own `shipfox.channel=stable` tag to the approved AMI. To roll back, point the template or channel at a previous catalog AMI. No image rebuild is needed for either operation.
-
-For retention, keep the last N approved AMIs for each architecture and preserve any image referenced by a deployed template. During the manual drill, deregister an older image and then remove its snapshots only after confirming they are not shared:
-
-```sh
-aws ec2 deregister-image --image-id ami-0123456789abcdef0
-aws ec2 delete-snapshot --snapshot-id snap-0123456789abcdef0
-```
-
-Automated pruning is deferred. The release workflow retains Packer diagnostics on failure so an operator can investigate a failed build before retrying.
+CI assumes `AWS_RUNNER_IMAGE_CANDIDATE_ROLE_ARN` through GitHub OIDC. The role must belong to the candidate account and trust only `ShipfoxHQ/shipfox` builds from `main`. Candidate AMIs must not be used by production provisioning.
 
 QEMU output is test-only and is not published as a distributed artifact. The supported consumer path is a local or CI build followed by a boot test:
 
