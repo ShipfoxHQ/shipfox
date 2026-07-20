@@ -21,6 +21,7 @@ import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {db, definitionsOutbox, migrationsPath} from '#db/index.js';
 import {createDefinitionRoutes} from '#presentation/index.js';
+import {createDefinitionsInterModulePresentation} from '#presentation/inter-module.js';
 import {
   onProjectSourceBound,
   onProjectSourceCommitObserved,
@@ -103,5 +104,6 @@ export function createDefinitionsModule({
         workflows: [],
       },
     ],
+    interModulePresentations: [createDefinitionsInterModulePresentation()],
   };
 }

@@ -14,7 +14,7 @@ import {
   type AgentThinking,
   type MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
 import {
   type AgentToolMaterializationContext,

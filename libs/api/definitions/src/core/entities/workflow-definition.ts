@@ -1,12 +1,9 @@
+import type {WorkflowModel, WorkflowSourceSnapshot} from '@shipfox/api-definitions-dto';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
-import type {WorkflowModel} from './workflow-model.js';
+
+export type {WorkflowSourceSnapshot};
 
 export type WorkflowSpec = WorkflowDocument;
-
-export interface WorkflowSourceSnapshot {
-  content: string;
-  format: 'yaml';
-}
 
 export interface WorkflowDefinitionPayload {
   document: WorkflowDocument;

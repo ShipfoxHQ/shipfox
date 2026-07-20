@@ -1,5 +1,5 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   type AvailabilitySite,
   capTraceEntries,

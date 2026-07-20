@@ -1,8 +1,9 @@
+import {DEFAULT_JOB_SUCCESS} from '@shipfox/api-definitions-dto';
 import type {ExpressionTypeEnvironment} from '@shipfox/expression';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {validatePredicateExpression} from './validate-predicate-expression.js';
 
-export const DEFAULT_JOB_SUCCESS = "!executions.exists(e, e.status == 'failed')";
+export {DEFAULT_JOB_SUCCESS};
 
 export function normalizeJobSuccess(params: {
   source: string | undefined;

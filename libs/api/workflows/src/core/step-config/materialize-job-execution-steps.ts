@@ -2,7 +2,7 @@ import {
   type AgentDefaultsResolver,
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {WorkflowExpression} from '@shipfox/expression';
 import type {
   AgentToolMaterializationContext,

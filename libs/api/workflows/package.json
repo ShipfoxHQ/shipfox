@@ -45,7 +45,7 @@
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/annotations": "workspace:*",
-    "@shipfox/api-definitions": "workspace:*",
+    "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-runners": "workspace:*",
@@ -70,6 +70,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@shipfox/api-definitions": "workspace:*",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/node-jwt": "workspace:*",

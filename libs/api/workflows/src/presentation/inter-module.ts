@@ -1,3 +1,4 @@
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {
   createInterModuleKnownError,
@@ -15,13 +16,13 @@ import {
 } from '#core/index.js';
 import {deliverEventToListener} from '#db/job-listener-events.js';
 
-export function createWorkflowsInterModulePresentation(): InterModulePresentation<
-  typeof workflowsInterModuleContract
-> {
+export function createWorkflowsInterModulePresentation(params: {
+  definitions: DefinitionsInterModuleClient;
+}): InterModulePresentation<typeof workflowsInterModuleContract> {
   return defineInterModulePresentation(workflowsInterModuleContract, {
     startRunFromTrigger: async (input) => {
       try {
-        const run = await runWorkflow({
+        const run = await runWorkflow(params.definitions, {
           workspaceId: input.workspaceId,
           projectId: input.projectId,
           definitionId: input.definitionId,

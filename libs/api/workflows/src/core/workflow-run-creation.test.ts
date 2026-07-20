@@ -1,4 +1,4 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {buildModel, template} from '#test/helpers/workflow-runs.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
 import {

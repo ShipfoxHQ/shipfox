@@ -1,1 +1,1 @@
-export const DEFAULT_RUN_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
+export {DEFAULT_RUN_TIMEOUT_MS} from '@shipfox/api-definitions-dto';

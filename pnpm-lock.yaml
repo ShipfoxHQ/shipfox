@@ -2183,6 +2183,9 @@ importers:
       '@shipfox/expression':
         specifier: workspace:*
         version: link:../../shared/expression
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -2283,6 +2286,15 @@ importers:
 
   libs/api/definitions-dto:
     dependencies:
+      '@shipfox/expression':
+        specifier: workspace:*
+        version: link:../../shared/expression
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -3689,6 +3701,9 @@ importers:
       '@shipfox/api-definitions':
         specifier: workspace:*
         version: link:../definitions
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../definitions-dto
       '@shipfox/api-dispatcher':
         specifier: workspace:*
         version: link:../dispatcher
@@ -3914,9 +3929,9 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
-      '@shipfox/api-definitions':
+      '@shipfox/api-definitions-dto':
         specifier: workspace:*
-        version: link:../definitions
+        version: link:../definitions-dto
       '@shipfox/api-integration-core':
         specifier: workspace:*
         version: link:../integration/core
@@ -3987,6 +4002,9 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
+      '@shipfox/api-definitions':
+        specifier: workspace:*
+        version: link:../definitions
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome

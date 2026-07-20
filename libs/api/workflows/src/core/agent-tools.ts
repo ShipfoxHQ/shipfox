@@ -2,7 +2,7 @@ import type {
   MaterializedAgentIntegrationConfigDto,
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {
   AgentToolCatalogEntry,
   AgentToolCatalogMethod,

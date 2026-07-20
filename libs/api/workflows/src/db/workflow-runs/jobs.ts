@@ -1,3 +1,4 @@
+import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import {WORKFLOWS_JOB_TERMINATED} from '@shipfox/api-workflows-dto';
 import {and, asc, desc, eq, inArray, notInArray, sql} from 'drizzle-orm';
 import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
@@ -161,7 +162,9 @@ export async function evaluateJobActivations(
       const target = targetsByJobId.get(input.jobId);
       if (!target) throw new Error(`Cannot evaluate missing activation job: ${input.jobId}`);
       const job = toJob(target.job);
-      const modelJob = target.attempt.model?.jobs.find((item) => item.key === target.job.key);
+      const model =
+        target.attempt.model === null ? null : readPersistedWorkflowModel(target.attempt.model);
+      const modelJob = model?.jobs.find((item) => item.key === target.job.key);
       const decision = decideJobActivation({
         run: toWorkflowRun(target.run),
         job,

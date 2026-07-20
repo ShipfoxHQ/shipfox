@@ -1,4 +1,5 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   WORKFLOWS_JOB_ACTIVATED,
   type WorkflowsJobActivatedEventDto,
@@ -191,16 +192,18 @@ export async function drainListenerEventsIntoExecution(
     if (bufferedEvents.length === 0) return {result: {kind: 'empty' as const}};
 
     const target = await loadListenerMaterializationTarget(params.jobId, tx);
+    const model =
+      target.attempt.model === null ? null : readPersistedWorkflowModel(target.attempt.model);
     const agentToolContext =
       target.attempt.agentToolMaterialization === null
         ? await loadAgentToolMaterializationContext({
-            model: target.attempt.model,
+            model,
             workspaceId: target.run.workspaceId,
             projectId: target.run.projectId,
           })
         : undefined;
     const materialized = materializeListenerExecution({
-      model: target.attempt.model,
+      model,
       run: toWorkflowRun(target.run),
       job: toJob(target.job),
       sequence: params.expectedSequence,

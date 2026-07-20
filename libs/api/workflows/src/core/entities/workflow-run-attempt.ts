@@ -1,4 +1,4 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import type {WorkflowRunStatus} from './workflow-run.js';
 

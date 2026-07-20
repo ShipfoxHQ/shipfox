@@ -1,4 +1,4 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {Job} from '../entities/job.js';
 import type {JobExecution} from '../entities/job-execution.js';
 import type {Step, StepAttempt} from '../entities/step.js';

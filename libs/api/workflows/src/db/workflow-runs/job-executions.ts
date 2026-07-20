@@ -1,3 +1,4 @@
+import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import {WORKFLOWS_JOB_EXECUTION_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import {and, asc, desc, eq, isNull, notInArray, sql} from 'drizzle-orm';
 import type {JobStatusReason} from '#core/entities/job.js';
@@ -135,7 +136,8 @@ async function resolveJobExecutionOutputs(
     .where(eq(jobExecutions.id, params.jobExecutionId))
     .limit(1);
   if (!target) throw new JobNotFoundError(params.jobExecutionId);
-  const model = target.attempt.model;
+  const model =
+    target.attempt.model === null ? null : readPersistedWorkflowModel(target.attempt.model);
   if (!model) return null;
   const modelJob = model.jobs.find((job) => job.key === target.job.key);
   if (!modelJob || modelJob.outputs === undefined) return null;

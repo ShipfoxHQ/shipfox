@@ -1,6 +1,7 @@
 import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {createWorkspaceAgentDefaultsResolver} from '@shipfox/api-agent/core/workspace-agent-defaults-resolver';
-import {getDefinitionById} from '@shipfox/api-definitions';
+import {workflowModelFromSnapshot} from '@shipfox/api-definitions-dto';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
@@ -15,14 +16,20 @@ export interface RunWorkflowParams {
   triggerIdempotencyKey?: string | undefined;
 }
 
-export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRun> {
-  const definition = await getDefinitionById(params.definitionId);
+export async function runWorkflow(
+  definitions: DefinitionsInterModuleClient,
+  params: RunWorkflowParams,
+): Promise<WorkflowRun> {
+  const {definition} = await definitions.getDefinitionForWorkflowRun({
+    definitionId: params.definitionId,
+  });
   if (!definition) throw new DefinitionNotFoundError(params.definitionId);
 
   if (definition.projectId !== params.projectId) {
     throw new ProjectMismatchError(definition.projectId, params.projectId);
   }
-  const resolveAgentDefaults = modelHasAgentStep(definition.model)
+  const model = workflowModelFromSnapshot(definition.model);
+  const resolveAgentDefaults = modelHasAgentStep(model)
     ? await createWorkspaceAgentDefaultsResolver(params.workspaceId)
     : catalogDefaultAgentResolver;
 
@@ -31,7 +38,7 @@ export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRu
     projectId: params.projectId,
     definitionId: definition.id,
     name: definition.name,
-    model: definition.model,
+    model,
     triggerPayload: params.triggerPayload,
     inputs: params.inputs,
     sourceSnapshot: definition.sourceSnapshot,
