@@ -72,7 +72,7 @@ describe('resolveCheckoutIntent', () => {
 });
 
 describe('createJobCheckoutSpec', () => {
-  it('passes the resolved intent and an undefined ref to the service', async () => {
+  it('passes the resolved intent without a ref to the service', async () => {
     const project = projectFactory.build();
     getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
@@ -94,7 +94,6 @@ describe('createJobCheckoutSpec', () => {
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
       externalRepositoryId: project.sourceExternalRepositoryId,
-      ref: undefined,
       permissions: {contents: 'read'},
     });
   });

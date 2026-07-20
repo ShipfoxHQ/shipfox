@@ -44,8 +44,8 @@ export async function resolveCheckoutIntent(
 
 /**
  * Resolves the job's checkout intent and exchanges it for a short-lived,
- * scoped checkout spec. `ref` is left undefined so the provider defaults to the
- * repository's default branch.
+ * scoped checkout spec. Omitting `ref` lets the provider use the repository's
+ * default branch while preserving the JSON-only inter-module boundary.
  */
 export async function createJobCheckoutSpec({
   jobId,
@@ -69,7 +69,6 @@ export async function createJobCheckoutSpec({
     workspaceId: intent.workspaceId,
     connectionId: intent.connectionId,
     externalRepositoryId: intent.externalRepositoryId,
-    ref: undefined,
     permissions: intent.permissions,
   });
   const {credentials, gitAuthor, ...checkout} = response;
