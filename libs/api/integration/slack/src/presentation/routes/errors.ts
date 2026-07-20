@@ -2,6 +2,11 @@ import {
   ConnectionSlugConflictError,
   type IntegrationProviderErrorReason,
 } from '@shipfox/api-integration-core-dto';
+import {
+  MembershipRequiredError,
+  WorkspaceInactiveError,
+  WorkspaceNotFoundError,
+} from '@shipfox/api-workspaces/errors';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   SlackAuthorizationScopeMismatchError,
@@ -22,6 +27,15 @@ function providerStatus(reason: IntegrationProviderErrorReason): number {
 }
 
 export function slackRouteErrorHandler(error: unknown): never {
+  if (error instanceof WorkspaceNotFoundError) {
+    throw new ClientError(error.message, 'not-found', {status: 404});
+  }
+  if (error instanceof MembershipRequiredError) {
+    throw new ClientError(error.message, 'forbidden', {status: 403});
+  }
+  if (error instanceof WorkspaceInactiveError) {
+    throw new ClientError(error.message, 'workspace-inactive', {status: 403});
+  }
   if (error instanceof SlackInstallStateError) {
     throw new ClientError(error.message, 'invalid-slack-install-state', {status: 400});
   }

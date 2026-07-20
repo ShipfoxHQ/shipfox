@@ -4550,6 +4550,9 @@ importers:
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../../api/integration/sentry-dto
+      '@shipfox/api-integration-slack-dto':
+        specifier: workspace:*
+        version: link:../../api/integration/slack-dto
       '@shipfox/api-integration-webhook-dto':
         specifier: workspace:*
         version: link:../../api/integration/webhook-dto

@@ -1,13 +1,11 @@
 import type {LinearCallbackResponseDto} from '@shipfox/api-integration-linear-dto';
 import {useRefreshAuth} from '@shipfox/client-auth';
-import {ButtonLink} from '@shipfox/react-ui/button';
-import {Callout} from '@shipfox/react-ui/callout';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
-import {Text} from '@shipfox/react-ui/typography';
 import {useQueryClient} from '@tanstack/react-query';
-import {Link, useNavigate, useSearch} from '@tanstack/react-router';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useNavigate, useSearch} from '@tanstack/react-router';
+import {useEffect, useMemo, useState} from 'react';
+import {CallbackStatusShell} from '#components/callback-status-shell.js';
 import {integrationsQueryKeys, useCompleteLinearCallbackMutation} from '#hooks/api/integrations.js';
 import {
   classifyLinearCallbackError,
@@ -123,53 +121,14 @@ function LinearCallbackFailurePage({
   failure: LinearCallbackFailure;
   workspaceId: string | undefined;
 }) {
-  const headingRef = useRef<HTMLHeadingElement>(null);
-
-  useEffect(() => {
-    headingRef.current?.focus();
-  }, []);
-
-  const recoveryVariant = failure.startOver || failure.signIn ? 'muted' : 'base';
-  const switchAccountHref = workspaceId
-    ? `/auth/logout?redirect=${encodeURIComponent(`/workspaces/${workspaceId}/integrations/linear`)}`
-    : '/auth/logout';
-  const settingsLink = workspaceId ? (
-    <ButtonLink asChild variant={recoveryVariant} className="min-h-44 w-full sm:w-fit">
-      <Link to="/workspaces/$wid/settings/integrations" params={{wid: workspaceId}}>
-        Back to integrations
-      </Link>
-    </ButtonLink>
-  ) : (
-    <ButtonLink asChild variant={recoveryVariant} className="min-h-44 w-full sm:w-fit">
-      <Link to="/">Back to Shipfox</Link>
-    </ButtonLink>
-  );
-
   return (
-    <main className="flex min-h-screen bg-background-subtle-base px-16 py-32">
-      <div className="mx-auto flex w-full max-w-[480px] flex-col justify-center gap-20">
-        <h2 ref={headingRef} tabIndex={-1} className="text-24 font-semibold outline-none">
-          {failure.title ?? 'Linear install could not be completed'}
-        </h2>
-        <Callout role="alert" type="error">
-          <Text size="sm">{failure.message}</Text>
-        </Callout>
-        <div className="flex flex-col gap-8 sm:flex-row sm:items-center">
-          {failure.signIn ? (
-            <ButtonLink asChild className="min-h-44 w-full sm:w-fit">
-              <Link to={switchAccountHref}>Switch account</Link>
-            </ButtonLink>
-          ) : null}
-          {failure.startOver && workspaceId ? (
-            <ButtonLink asChild className="min-h-44 w-full sm:w-fit">
-              <Link to="/workspaces/$wid/integrations/linear" params={{wid: workspaceId}}>
-                Start over
-              </Link>
-            </ButtonLink>
-          ) : null}
-          {settingsLink}
-        </div>
-      </div>
-    </main>
+    <CallbackStatusShell
+      title={failure.title ?? 'Linear install could not be completed'}
+      message={failure.message}
+      startOver={failure.startOver}
+      switchAccount={failure.signIn}
+      workspaceId={workspaceId}
+      installPath="/workspaces/$wid/integrations/linear"
+    />
   );
 }

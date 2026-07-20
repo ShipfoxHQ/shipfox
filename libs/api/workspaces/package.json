@@ -28,6 +28,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./errors": {
+      "workspace-source": {
+        "types": "./src/core/errors.ts",
+        "default": "./src/core/errors.ts"
+      },
+      "default": {
+        "types": "./dist/core/errors.d.ts",
+        "default": "./dist/core/errors.js"
+      }
     }
   },
   "scripts": {

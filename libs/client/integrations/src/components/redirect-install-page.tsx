@@ -10,6 +10,7 @@ import {useEffect, useRef, useState} from 'react';
 interface RedirectInstallPageProps {
   installRequest: (body: {workspace_id: string}) => Promise<{install_url: string}>;
   errorFallbackMessage: string;
+  loadingLabel?: string;
   /**
    * Runs before leaving the app (e.g. to persist the workspace id for a
    * state-less provider callback). Must not throw — a failed side effect
@@ -23,6 +24,7 @@ interface RedirectInstallPageProps {
 export function RedirectInstallPage({
   installRequest,
   errorFallbackMessage,
+  loadingLabel = 'Starting installation',
   beforeRedirect,
   assignLocation = (url) => window.location.assign(url),
 }: RedirectInstallPageProps) {
@@ -64,5 +66,5 @@ export function RedirectInstallPage({
     );
   }
 
-  return <FullPageLoader />;
+  return <FullPageLoader aria-label={loadingLabel} />;
 }

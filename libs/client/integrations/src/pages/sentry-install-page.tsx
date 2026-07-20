@@ -7,6 +7,7 @@ export function SentryInstallPage() {
     <RedirectInstallPage
       installRequest={createSentryInstall}
       errorFallbackMessage="Could not start Sentry install."
+      loadingLabel="Connecting Sentry"
       // Sentry's redirect has no state param; the stored id lets the callback
       // pre-select this workspace. Saving never throws (see helper).
       beforeRedirect={(workspaceId) => {
