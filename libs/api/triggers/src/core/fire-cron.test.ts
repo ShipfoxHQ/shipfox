@@ -1,3 +1,5 @@
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {triggersDecisions} from '#db/schema/decisions.js';
@@ -7,26 +9,9 @@ import {TriggerSubscriptionNotCronError} from './errors.js';
 
 const runWorkflow = vi.fn();
 
-// Keep a real-enough permanent-error class + the classifier so the cron path's
-// permanent/transient branching is exercised without loading the workflows module graph.
-vi.mock('@shipfox/api-workflows', () => {
-  class DefinitionNotFoundError extends Error {
-    constructor(definitionId: string) {
-      super(`Definition not found: ${definitionId}`);
-      this.name = 'DefinitionNotFoundError';
-    }
-  }
-  return {
-    runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-    DefinitionNotFoundError,
-    isPermanentRunWorkflowError: (error: unknown) => error instanceof DefinitionNotFoundError,
-  };
-});
-
-import {DefinitionNotFoundError} from '@shipfox/api-workflows';
-
-// Import after mocks so the function under test sees the spy.
 const {fireCronSubscription} = await import('./fire-cron.js');
+
+const workflows = {startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args)} as never;
 
 const SLOT = new Date('2026-07-05T02:00:00.000Z');
 
@@ -59,6 +44,7 @@ describe('fireCronSubscription', () => {
     runWorkflow.mockResolvedValue(run);
 
     const result = await fireCronSubscription({
+      workflows,
       subscriptionId: subscription.id,
       scheduledSlot: SLOT,
     });
@@ -72,7 +58,7 @@ describe('fireCronSubscription', () => {
       scheduleId: subscription.id,
     });
     expect(payload.inputs).toEqual({environment: 'staging'});
-    expect(payload.triggerIdempotencyKey).toBe(`${subscription.id}:${SLOT.toISOString()}`);
+    expect(payload.idempotencyKey).toBe(`${subscription.id}:${SLOT.toISOString()}`);
     const [event] = await eventsForWorkspace(subscription.workspaceId);
     if (!event) throw new Error('received event not found');
     expect(event.origin).toBe('cron');
@@ -92,9 +78,16 @@ describe('fireCronSubscription', () => {
       event: 'tick',
       config: {},
     });
-    runWorkflow.mockRejectedValue(new DefinitionNotFoundError('def-gone'));
+    runWorkflow.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'definition-not-found',
+        {definitionId: crypto.randomUUID()},
+      ),
+    );
 
     const result = await fireCronSubscription({
+      workflows,
       subscriptionId: subscription.id,
       scheduledSlot: SLOT,
     });
@@ -106,7 +99,7 @@ describe('fireCronSubscription', () => {
     expect(event.processedAt).toBeInstanceOf(Date);
     const decisions = await decisionsForEvent(event.id);
     expect(decisions[0]?.decision).toBe('dispatch-error');
-    expect(decisions[0]?.reason).toContain('Definition not found');
+    expect(decisions[0]?.reason).toContain('definition-not-found');
   });
 
   test('re-throws and leaves the event non-terminal on a transient failure', async () => {
@@ -118,7 +111,7 @@ describe('fireCronSubscription', () => {
     runWorkflow.mockRejectedValue(new Error('cron boom'));
 
     await expect(
-      fireCronSubscription({subscriptionId: subscription.id, scheduledSlot: SLOT}),
+      fireCronSubscription({workflows, subscriptionId: subscription.id, scheduledSlot: SLOT}),
     ).rejects.toThrow('cron boom');
 
     const [event] = await eventsForWorkspace(subscription.workspaceId);
@@ -137,7 +130,7 @@ describe('fireCronSubscription', () => {
     });
 
     await expect(
-      fireCronSubscription({subscriptionId: subscription.id, scheduledSlot: SLOT}),
+      fireCronSubscription({workflows, subscriptionId: subscription.id, scheduledSlot: SLOT}),
     ).rejects.toThrow(TriggerSubscriptionNotCronError);
 
     expect(await eventsForWorkspace(subscription.workspaceId)).toHaveLength(0);

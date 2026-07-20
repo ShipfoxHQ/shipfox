@@ -1,3 +1,4 @@
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {defaultModules} from './modules.js';
 
 const mocks = vi.hoisted(() => ({
@@ -6,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   createDefinitionsModule: vi.fn(),
   createIntegrationsContext: vi.fn(),
   createProjectsModule: vi.fn(),
+  createTriggersModule: vi.fn(),
+  createWorkflowsModule: vi.fn(),
   createWorkspaceConnectionSnapshotLoader: vi.fn(),
   deleteSecrets: vi.fn(),
   getIntegrationConnectionById: vi.fn(),
@@ -39,8 +42,9 @@ vi.mock('@shipfox/api-secrets', () => ({
   secretsModule: {name: 'secrets'},
   setSecrets: mocks.setSecrets,
 }));
-vi.mock('@shipfox/api-triggers', () => ({triggersModule: {name: 'triggers'}}));
+vi.mock('@shipfox/api-triggers', () => ({createTriggersModule: mocks.createTriggersModule}));
 vi.mock('@shipfox/api-workflows', () => ({
+  createWorkflowsModule: mocks.createWorkflowsModule,
   loadRunningLeasedStep: mocks.loadRunningLeasedStep,
   setAgentToolMaterializationServices: mocks.setAgentToolMaterializationServices,
   setSourceControl: mocks.setSourceControl,
@@ -55,6 +59,8 @@ describe('defaultModules', () => {
     mocks.createDefinitionsModule.mockReset();
     mocks.createIntegrationsContext.mockReset();
     mocks.createProjectsModule.mockReset();
+    mocks.createTriggersModule.mockReset();
+    mocks.createWorkflowsModule.mockReset();
     mocks.createWorkspaceConnectionSnapshotLoader.mockReset();
     mocks.deleteSecrets.mockReset();
     mocks.getIntegrationConnectionById.mockReset();
@@ -74,6 +80,19 @@ describe('defaultModules', () => {
     mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
     mocks.createProjectsModule.mockReturnValue({name: 'projects'});
     mocks.createDefinitionsModule.mockReturnValue({name: 'definitions'});
+    mocks.createWorkflowsModule.mockReturnValue({
+      name: 'workflows',
+      interModulePresentations: [
+        {
+          contract: workflowsInterModuleContract,
+          handlers: {
+            deliverEventToJobListener: vi.fn(),
+            startRunFromTrigger: vi.fn(),
+          },
+        },
+      ],
+    });
+    mocks.createTriggersModule.mockReturnValue({name: 'triggers'});
   });
 
   it('returns the API modules in lifecycle order', async () => {

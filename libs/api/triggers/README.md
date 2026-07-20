@@ -11,18 +11,38 @@ runs and inspect received trigger events.
 Register the module with the API module runner:
 
 ```ts
-import {triggersModule} from '@shipfox/api-triggers';
+import {createTriggersModule} from '@shipfox/api-triggers';
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {createApp, listen} from '@shipfox/node-fastify';
 import {initializeModules, startModuleWorkers} from '@shipfox/node-module';
+import {
+  createInMemoryInterModuleTransport,
+  registerInterModulePresentations,
+} from '@shipfox/node-module/inter-module';
 
+const transport = createInMemoryInterModuleTransport();
+const workflows = transport.createClient(workflowsInterModuleContract);
+const modules = [createTriggersModule({workflows}) /* and other modules */];
+registerInterModulePresentations({transport, modules});
+transport.seal();
 const {auth, routes, workers} = await initializeModules({
-  modules: [triggersModule /* and other modules */],
+  modules,
 });
 
 await createApp({auth, routes});
 await startModuleWorkers({workers});
 await listen();
 ```
+
+### Migration from `triggersModule`
+
+`triggersModule` is replaced by `createTriggersModule({workflows})`. The API
+composition root creates the Workflows client from
+`@shipfox/api-workflows-dto/inter-module`, passes it to Triggers, registers the
+Workflows presentation, and seals the transport before the server starts. Cron
+activities, integration subscribers, and the manual route use that one injected
+client. Callers must keep the deterministic cron or integration key when they
+retry a trigger command. The manual route creates one new key for each request.
 
 This adds:
 

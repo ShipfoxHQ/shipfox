@@ -1,5 +1,4 @@
 import {randomUUID} from 'node:crypto';
-import {isPermanentRunWorkflowError, runWorkflow, type WorkflowRun} from '@shipfox/api-workflows';
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
 import {
   eventOutcomeCount,
@@ -13,8 +12,10 @@ import {
   TriggerWorkspaceMismatchError,
 } from './errors.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
+import {isPermanentStartRunError, type WorkflowsModuleClient} from './workflows-client.js';
 
 export interface FireManualSubscriptionParams {
+  workflows: WorkflowsModuleClient;
   subscriptionId: string;
   callerWorkspaceId: string;
   userId: string;
@@ -23,7 +24,7 @@ export interface FireManualSubscriptionParams {
 
 export async function fireManualSubscription(
   params: FireManualSubscriptionParams,
-): Promise<WorkflowRun> {
+): Promise<{id: string; name: string}> {
   const subscription = await getTriggerSubscriptionById(params.subscriptionId);
   if (!subscription) throw new TriggerSubscriptionNotFoundError(params.subscriptionId);
   if (subscription.source !== 'manual') {
@@ -55,9 +56,9 @@ export async function fireManualSubscription(
 
   eventReceivedCount.add(1, {provider: 'manual'});
 
-  let run: WorkflowRun;
+  let run: {id: string; name: string};
   try {
-    run = await runWorkflow({
+    run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
       definitionId: subscription.workflowDefinitionId,
@@ -69,11 +70,12 @@ export async function fireManualSubscription(
         userId: params.userId,
       },
       inputs: params.inputs ?? readConfigInputs(subscription),
+      idempotencyKey: randomUUID(),
     });
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await failure.dispatchErrored(subscription, toReason(error));
-    if (isPermanentRunWorkflowError(error)) {
+    if (isPermanentStartRunError(error)) {
       eventOutcomeCount.add(1, {provider: 'manual', outcome: 'errored'});
       await failure.allErrored(1);
     } else {

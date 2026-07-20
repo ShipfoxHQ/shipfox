@@ -1,3 +1,5 @@
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {eq} from 'drizzle-orm';
 import type {CronSchedule} from '#core/entities/cron-schedule.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
@@ -10,24 +12,17 @@ import {cronScheduleFactory, triggerSubscriptionFactory} from '#test/index.js';
 
 const runWorkflow = vi.fn();
 
-vi.mock('@shipfox/api-workflows', () => {
-  class DefinitionNotFoundError extends Error {
-    constructor(definitionId: string) {
-      super(`Definition not found: ${definitionId}`);
-      this.name = 'DefinitionNotFoundError';
-    }
-  }
-  return {
-    runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-    DefinitionNotFoundError,
-    isPermanentRunWorkflowError: (error: unknown) => error instanceof DefinitionNotFoundError,
-  };
-});
-
-import {DefinitionNotFoundError} from '@shipfox/api-workflows';
-
-// Import after mocks so the function under test sees the spy.
 const {drainDueCronSchedules} = await import('./drain-cron-schedules.js');
+
+const workflows = {startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args)} as never;
+
+function drain(params: {
+  batchSize: number;
+  jitterWindowSeconds: number;
+  onScheduleProcessed?: () => void;
+}) {
+  return drainDueCronSchedules({workflows, ...params});
+}
 
 const MINUTE_MS = 60 * 1000;
 
@@ -62,7 +57,7 @@ async function createCronSchedule(params: {
 
 function callsWithKey(key: string) {
   return runWorkflow.mock.calls.filter(
-    ([params]) => (params as {triggerIdempotencyKey?: string}).triggerIdempotencyKey === key,
+    ([params]) => (params as {idempotencyKey?: string}).idempotencyKey === key,
   );
 }
 
@@ -87,7 +82,7 @@ describe('drainDueCronSchedules', () => {
     const run = {id: crypto.randomUUID(), name: 'Cron run'};
     runWorkflow.mockResolvedValue(run);
 
-    const summary = await drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0});
+    const summary = await drain({batchSize: 1000, jitterWindowSeconds: 0});
 
     expect(callsWithKey(key)).toHaveLength(1);
     expect(summary.fired).toBeGreaterThanOrEqual(1);
@@ -114,7 +109,7 @@ describe('drainDueCronSchedules', () => {
     const {subscription, key} = await createCronSchedule({nextFireAt: future});
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'r'});
 
-    await drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0});
+    await drain({batchSize: 1000, jitterWindowSeconds: 0});
 
     expect(callsWithKey(key)).toHaveLength(0);
     const row = await reload(subscription.id);
@@ -129,7 +124,7 @@ describe('drainDueCronSchedules', () => {
     });
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'r'});
 
-    await drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0});
+    await drain({batchSize: 1000, jitterWindowSeconds: 0});
 
     expect(callsWithKey(key)).toHaveLength(1);
     const row = await reload(subscription.id);
@@ -145,10 +140,10 @@ describe('drainDueCronSchedules', () => {
     });
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'r'});
 
-    await drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0});
+    await drain({batchSize: 1000, jitterWindowSeconds: 0});
 
     const [params] = callsWithKey(key)[0] as [Record<string, unknown>];
-    expect(params.triggerIdempotencyKey).toBe(key);
+    expect(params.idempotencyKey).toBe(key);
     expect(params.inputs).toEqual({environment: 'staging'});
     expect(params.triggerPayload).toEqual({
       provider: 'cron',
@@ -162,9 +157,15 @@ describe('drainDueCronSchedules', () => {
     const {subscription, key} = await createCronSchedule({
       nextFireAt: new Date(Date.now() - MINUTE_MS),
     });
-    runWorkflow.mockRejectedValue(new DefinitionNotFoundError('def-gone'));
+    runWorkflow.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'definition-not-found',
+        {definitionId: crypto.randomUUID()},
+      ),
+    );
 
-    await drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0});
+    await drain({batchSize: 1000, jitterWindowSeconds: 0});
 
     const [event] = await db()
       .select()
@@ -187,7 +188,7 @@ describe('drainDueCronSchedules', () => {
     });
     runWorkflow.mockRejectedValue(new Error('database unavailable'));
 
-    await drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0});
+    await drain({batchSize: 1000, jitterWindowSeconds: 0});
 
     const row = await reload(subscription.id);
     expect(row.nextFireAt.getTime()).toBe(schedule.nextFireAt.getTime());
@@ -199,7 +200,7 @@ describe('drainDueCronSchedules', () => {
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'r'});
     const onScheduleProcessed = vi.fn();
 
-    const summary = await drainDueCronSchedules({
+    const summary = await drain({
       batchSize: 1000,
       jitterWindowSeconds: 0,
       onScheduleProcessed,
@@ -216,7 +217,7 @@ describe('drainDueCronSchedules', () => {
     }
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'r'});
 
-    const summary = await drainDueCronSchedules({batchSize: 3, jitterWindowSeconds: 0});
+    const summary = await drain({batchSize: 3, jitterWindowSeconds: 0});
 
     expect(summary.claimed).toBe(3);
     expect(runWorkflow).toHaveBeenCalledTimes(3);
@@ -241,8 +242,8 @@ describe('drainDueCronSchedules', () => {
     });
 
     await Promise.all([
-      drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0}),
-      drainDueCronSchedules({batchSize: 1000, jitterWindowSeconds: 0}),
+      drain({batchSize: 1000, jitterWindowSeconds: 0}),
+      drain({batchSize: 1000, jitterWindowSeconds: 0}),
     ]);
 
     for (const {subscription, schedule, key} of mine) {

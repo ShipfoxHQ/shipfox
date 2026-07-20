@@ -4,12 +4,6 @@ const runWorkflow = vi.fn();
 const deliverEventToListener = vi.fn();
 const insertReceivedEvent = vi.fn();
 
-vi.mock('@shipfox/api-workflows', () => ({
-  runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-  deliverEventToListener: (...args: unknown[]) => deliverEventToListener(...args),
-  isPermanentRunWorkflowError: () => false,
-}));
-
 vi.mock('#db/event-history.js', () => ({
   insertReceivedEvent: (...args: unknown[]) => insertReceivedEvent(...args),
   markReceivedEventDiscarded: vi.fn(),
@@ -26,6 +20,11 @@ vi.mock('#db/event-history.js', () => ({
 
 // Import after mocks so the code under test sees the spies.
 const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js');
+
+const workflows = {
+  startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args),
+  deliverEventToJobListener: (...args: unknown[]) => deliverEventToListener(...args),
+};
 
 describe('dispatchIntegrationEvent resilience to history-write failure', () => {
   beforeEach(() => {
@@ -48,6 +47,7 @@ describe('dispatchIntegrationEvent resilience to history-write failure', () => {
 
     await expect(
       dispatchIntegrationEvent({
+        workflows,
         eventRef: crypto.randomUUID(),
         workspaceId,
         provider: 'github',

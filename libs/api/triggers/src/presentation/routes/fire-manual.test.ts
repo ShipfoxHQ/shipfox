@@ -1,5 +1,9 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {WorkflowRun} from '@shipfox/api-workflows';
+import {
+  type WorkflowsModuleClient,
+  workflowsInterModuleContract,
+} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -7,33 +11,13 @@ import {triggerSubscriptionFactory} from '#test/index.js';
 
 const fireManualSubscriptionMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@shipfox/api-workflows', () => {
-  class InterpolationUnresolvableError extends Error {
-    readonly field: string;
-    readonly source: string;
-    readonly envKey?: string;
-
-    constructor(
-      definitionId: string,
-      params: {readonly field: string; readonly source: string; readonly envKey?: string},
-    ) {
-      super(`Workflow interpolation cannot be resolved for definition ${definitionId}`);
-      this.name = 'InterpolationUnresolvableError';
-      this.field = params.field;
-      this.source = params.source;
-      if (params.envKey !== undefined) this.envKey = params.envKey;
-    }
-  }
-  return {InterpolationUnresolvableError};
-});
-
 vi.mock('#core/fire-manual.js', () => ({
   fireManualSubscription: fireManualSubscriptionMock,
 }));
 
-import {InterpolationUnresolvableError} from '@shipfox/api-workflows';
+const {createFireManualTriggerRoute} = await import('./fire-manual.js');
 
-const {fireManualTriggerRoute} = await import('./fire-manual.js');
+const workflows = {} as WorkflowsModuleClient;
 
 describe('POST /:definitionId/fire-manual', () => {
   let app: FastifyInstance;
@@ -51,7 +35,7 @@ describe('POST /:definitionId/fire-manual', () => {
       );
       done();
     });
-    app.post('/:definitionId/fire-manual', fireManualTriggerRoute);
+    app.post('/:definitionId/fire-manual', createFireManualTriggerRoute(workflows));
     await app.ready();
   });
 
@@ -65,7 +49,7 @@ describe('POST /:definitionId/fire-manual', () => {
     const definitionId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockResolvedValue({id: runId} satisfies Pick<WorkflowRun, 'id'>);
+    fireManualSubscriptionMock.mockResolvedValue({id: runId, name: 'Manual run'});
 
     const res = await app.inject({
       method: 'POST',
@@ -81,11 +65,11 @@ describe('POST /:definitionId/fire-manual', () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
     fireManualSubscriptionMock.mockRejectedValue(
-      new InterpolationUnresolvableError(definitionId, {
-        field: 'env',
-        source: 'event.ref',
-        envKey: 'REF',
-      }),
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'interpolation-unresolvable',
+        {definitionId, field: 'env', source: 'event.ref', envKey: 'REF'},
+      ),
     );
 
     const res = await app.inject({

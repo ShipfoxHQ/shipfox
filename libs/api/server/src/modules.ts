@@ -14,17 +14,24 @@ import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
 import {deleteSecrets, getSecret, secretsModule, setSecrets} from '@shipfox/api-secrets';
-import {triggersModule} from '@shipfox/api-triggers';
+import {createTriggersModule} from '@shipfox/api-triggers';
 import {
+  createWorkflowsModule,
   loadRunningLeasedStep,
   setAgentToolMaterializationServices,
   setSourceControl,
-  workflowsModule,
 } from '@shipfox/api-workflows';
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import type {ShipfoxModule} from '@shipfox/node-module';
+import {
+  createInMemoryInterModuleTransport,
+  registerInterModulePresentations,
+} from '@shipfox/node-module/inter-module';
 
 export async function defaultModules(): Promise<ShipfoxModule[]> {
+  const interModuleTransport = createInMemoryInterModuleTransport();
+  const workflowsClient = interModuleTransport.createClient(workflowsInterModuleContract);
   const integrations = await createIntegrationsContext({
     secrets: {
       deleteSecrets,
@@ -97,7 +104,7 @@ export async function defaultModules(): Promise<ShipfoxModule[]> {
     getIntegrationConnectionById,
   });
 
-  return [
+  const modules = [
     authModule,
     workspacesModule,
     secretsModule,
@@ -105,11 +112,14 @@ export async function defaultModules(): Promise<ShipfoxModule[]> {
     integrations.module,
     projectsModule,
     definitionsModule,
-    workflowsModule,
+    createWorkflowsModule(),
     annotationsModule,
     runnersModule,
     logsModule,
-    triggersModule,
+    createTriggersModule({workflows: workflowsClient}),
     dispatcherModule,
   ];
+  registerInterModulePresentations({transport: interModuleTransport, modules});
+  interModuleTransport.seal();
+  return modules;
 }

@@ -1,4 +1,5 @@
 import type {IntegrationEventReceivedEvent} from '@shipfox/api-integration-core-dto';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {DomainEvent} from '@shipfox/node-outbox';
 
 const dispatchIntegrationEvent = vi.fn();
@@ -7,8 +8,9 @@ vi.mock('#core/dispatch-integration-event.js', () => ({
   dispatchIntegrationEvent: (...args: unknown[]) => dispatchIntegrationEvent(...args),
 }));
 
-// Import after mocks so the subscriber sees the spy.
-const {onIntegrationEventReceived} = await import('./on-integration-event-received.js');
+const {createOnIntegrationEventReceived} = await import('./on-integration-event-received.js');
+
+const workflows = {} as WorkflowsModuleClient;
 
 describe('onIntegrationEventReceived', () => {
   beforeEach(() => {
@@ -35,9 +37,10 @@ describe('onIntegrationEventReceived', () => {
       payload: envelope,
     };
 
-    await onIntegrationEventReceived(envelope, event);
+    await createOnIntegrationEventReceived(workflows)(envelope, event);
 
     expect(dispatchIntegrationEvent).toHaveBeenCalledWith({
+      workflows,
       eventRef: event.id,
       workspaceId: envelope.workspaceId,
       provider: envelope.provider,
