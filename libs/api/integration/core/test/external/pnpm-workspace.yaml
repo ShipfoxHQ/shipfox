@@ -1,0 +1,2 @@
+overrides:
+  "@shipfox/api-integration-core-dto": "file:./api-integration-core-dto.tgz"

@@ -1,0 +1,18 @@
+{
+  "name": "api-integration-core-webhook-external-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --project tsconfig.json --noEmit",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@shipfox/api-integration-core": "file:./api-integration-core.tgz",
+    "@shipfox/api-integration-core-dto": "file:./api-integration-core-dto.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "typescript": "^5.9.3"
+  }
+}
