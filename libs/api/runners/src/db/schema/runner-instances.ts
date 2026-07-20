@@ -1,10 +1,10 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {index, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
-import type {ProvisionedRunner} from '#core/entities/provisioned-runner.js';
+import type {RunnerInstance} from '#core/entities/runner-instance.js';
 import {pgTable} from './common.js';
 
-export const provisionedRunnerStateEnum = pgEnum('runners_provisioned_runner_state', [
+export const providerRunnerStateEnum = pgEnum('runners_provider_runner_state', [
   'starting',
   'running',
   'stopping',
@@ -13,19 +13,19 @@ export const provisionedRunnerStateEnum = pgEnum('runners_provisioned_runner_sta
   'terminated',
 ]);
 
-export const provisionedRunners = pgTable(
-  'provisioned_runners',
+export const providerRunners = pgTable(
+  'runner_instances',
   {
     id: uuidv7PrimaryKey(),
     // Kept during the protocol migration for legacy workspace capacity. New capacity is owned
     // only by its provisioner and has no workspace assignment.
     workspaceId: uuid('workspace_id'),
     provisionerId: uuid('provisioner_id').notNull(),
-    provisionedRunnerId: text('provisioned_runner_id'),
+    providerRunnerId: text('provider_runner_id'),
     reservationId: uuid('reservation_id'),
     templateKey: text('template_key'),
     labels: text('labels').array().notNull().default([]),
-    state: provisionedRunnerStateEnum('state').notNull(),
+    state: providerRunnerStateEnum('state').notNull(),
     reason: text('reason'),
     runnerSessionId: uuid('runner_session_id'),
     providerKind: text('provider_kind'),
@@ -40,34 +40,31 @@ export const provisionedRunners = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('runners_provisioned_runners_provisioner_runner_unique')
-      .on(table.provisionerId, table.provisionedRunnerId)
-      .where(sql`${table.provisionedRunnerId} is not null`),
-    index('runners_provisioned_runners_workspace_state_updated_idx').on(
-      table.state,
-      table.updatedAt,
-    ),
-    index('runners_provisioned_runners_stale_reaper_idx').on(
+    uniqueIndex('runners_runner_instances_provisioner_runner_unique')
+      .on(table.provisionerId, table.providerRunnerId)
+      .where(sql`${table.providerRunnerId} is not null`),
+    index('runners_runner_instances_workspace_state_updated_idx').on(table.state, table.updatedAt),
+    index('runners_runner_instances_stale_reaper_idx').on(
       table.state,
       table.updatedAt,
       table.reportedAt,
     ),
-    index('runners_provisioned_runners_active_template_counts_idx')
+    index('runners_runner_instances_active_template_counts_idx')
       .on(table.provisionerId, table.state, table.templateKey)
       .where(sql`"state" in ('starting', 'running') and "template_key" is not null`),
   ],
 );
 
-export type ProvisionedRunnerDb = typeof provisionedRunners.$inferSelect;
-export type ProvisionedRunnerInsertDb = typeof provisionedRunners.$inferInsert;
+export type RunnerInstanceDb = typeof providerRunners.$inferSelect;
+export type RunnerInstanceInsertDb = typeof providerRunners.$inferInsert;
 
-export function toProvisionedRunner(row: ProvisionedRunnerDb): ProvisionedRunner {
-  if (!row.provisionedRunnerId) throw new Error('Planned capacity has no provider runner identity');
+export function toRunnerInstance(row: RunnerInstanceDb): RunnerInstance {
+  if (!row.providerRunnerId) throw new Error('Planned capacity has no provider runner identity');
   return {
     id: row.id,
     workspaceId: row.workspaceId,
     provisionerId: row.provisionerId,
-    provisionedRunnerId: row.provisionedRunnerId,
+    providerRunnerId: row.providerRunnerId,
     reservationId: row.reservationId,
     templateKey: row.templateKey,
     labels: row.labels,

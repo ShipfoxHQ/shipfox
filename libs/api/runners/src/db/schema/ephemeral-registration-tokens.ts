@@ -11,7 +11,7 @@ export const ephemeralRegistrationTokens = pgTable(
     workspaceId: uuid('workspace_id').notNull(),
     provisionerId: uuid('provisioner_id').notNull(),
     reservationId: uuid('reservation_id'),
-    provisionedRunnerId: text('provisioned_runner_id').notNull(),
+    providerRunnerId: text('provider_runner_id').notNull(),
     hashedToken: text('hashed_token').notNull(),
     prefix: text('prefix').notNull(),
     expiresAt: timestamp('expires_at', {withTimezone: true}).notNull(),
@@ -22,10 +22,10 @@ export const ephemeralRegistrationTokens = pgTable(
   (table) => [
     uniqueIndex('runners_ephemeral_registration_tokens_hashed_token_unique').on(table.hashedToken),
     index('runners_ephemeral_registration_tokens_reservation_id_idx').on(table.reservationId),
-    index('runners_ephemeral_registration_tokens_active_provisioned_runner_idx').on(
+    index('runners_ephemeral_registration_tokens_active_provider_runner_idx').on(
       table.workspaceId,
       table.provisionerId,
-      table.provisionedRunnerId,
+      table.providerRunnerId,
       table.consumedAt,
       table.expiresAt,
     ),
@@ -47,7 +47,7 @@ export function toEphemeralRegistrationToken(
     workspaceId: row.workspaceId,
     provisionerId: row.provisionerId,
     reservationId: row.reservationId,
-    provisionedRunnerId: row.provisionedRunnerId,
+    providerRunnerId: row.providerRunnerId,
     hashedToken: row.hashedToken,
     prefix: row.prefix,
     expiresAt: row.expiresAt,

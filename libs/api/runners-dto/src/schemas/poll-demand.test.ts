@@ -19,7 +19,7 @@ describe('pollDemandResponseSchema', () => {
           expires_at: 'not-a-date',
         },
       ],
-      terminate_provisioned_runner_ids: [],
+      terminate_provider_runner_ids: [],
     });
 
     expect(result.success).toBe(false);

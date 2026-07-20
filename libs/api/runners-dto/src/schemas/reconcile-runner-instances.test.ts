@@ -1,30 +1,30 @@
 import {
-  MAX_OBSERVED_PROVISIONED_RUNNER_ID_LENGTH,
+  MAX_OBSERVED_PROVIDER_RUNNER_ID_LENGTH,
   MAX_RECONCILE_OBSERVED_RUNNERS,
-  reconcileProvisionedRunnersBodySchema,
-  reconcileProvisionedRunnersResponseSchema,
-} from './reconcile-provisioned-runners.js';
+  reconcileRunnerInstancesBodySchema,
+  reconcileRunnerInstancesResponseSchema,
+} from './reconcile-runner-instances.js';
 
-describe('reconcileProvisionedRunnersBodySchema', () => {
+describe('reconcileRunnerInstancesBodySchema', () => {
   it('accepts observed provisioned runner ids', () => {
-    const result = reconcileProvisionedRunnersBodySchema.safeParse({
-      observed_provisioned_runner_ids: ['01JPROVISIONEDRUNNER000001'],
+    const result = reconcileRunnerInstancesBodySchema.safeParse({
+      observed_provider_runner_ids: ['01JPROVISIONEDRUNNER000001'],
     });
 
     expect(result.success).toBe(true);
   });
 
   it('accepts an empty observed set', () => {
-    const result = reconcileProvisionedRunnersBodySchema.safeParse({
-      observed_provisioned_runner_ids: [],
+    const result = reconcileRunnerInstancesBodySchema.safeParse({
+      observed_provider_runner_ids: [],
     });
 
     expect(result.success).toBe(true);
   });
 
   it('rejects observed sets above the reconcile limit', () => {
-    const result = reconcileProvisionedRunnersBodySchema.safeParse({
-      observed_provisioned_runner_ids: Array.from(
+    const result = reconcileRunnerInstancesBodySchema.safeParse({
+      observed_provider_runner_ids: Array.from(
         {length: MAX_RECONCILE_OBSERVED_RUNNERS + 1},
         (_, index) => `runner-${index}`,
       ),
@@ -34,24 +34,24 @@ describe('reconcileProvisionedRunnersBodySchema', () => {
   });
 
   it('rejects over-length provisioned runner ids', () => {
-    const result = reconcileProvisionedRunnersBodySchema.safeParse({
-      observed_provisioned_runner_ids: ['a'.repeat(MAX_OBSERVED_PROVISIONED_RUNNER_ID_LENGTH + 1)],
+    const result = reconcileRunnerInstancesBodySchema.safeParse({
+      observed_provider_runner_ids: ['a'.repeat(MAX_OBSERVED_PROVIDER_RUNNER_ID_LENGTH + 1)],
     });
 
     expect(result.success).toBe(false);
   });
 
   it('rejects duplicate provisioned runner ids', () => {
-    const result = reconcileProvisionedRunnersBodySchema.safeParse({
-      observed_provisioned_runner_ids: ['provisioned-runner-1', 'provisioned-runner-1'],
+    const result = reconcileRunnerInstancesBodySchema.safeParse({
+      observed_provider_runner_ids: ['provisioned-runner-1', 'provisioned-runner-1'],
     });
 
     expect(result.success).toBe(false);
   });
 
   it('rejects extra fields', () => {
-    const result = reconcileProvisionedRunnersBodySchema.safeParse({
-      observed_provisioned_runner_ids: [],
+    const result = reconcileRunnerInstancesBodySchema.safeParse({
+      observed_provider_runner_ids: [],
       provisioner_hostname: 'worker-1',
     });
 
@@ -59,12 +59,12 @@ describe('reconcileProvisionedRunnersBodySchema', () => {
   });
 });
 
-describe('reconcileProvisionedRunnersResponseSchema', () => {
+describe('reconcileRunnerInstancesResponseSchema', () => {
   it('parses reconciled provisioned runner responses', () => {
-    const result = reconcileProvisionedRunnersResponseSchema.safeParse({
+    const result = reconcileRunnerInstancesResponseSchema.safeParse({
       runners: [
         {
-          provisioned_runner_id: 'provisioned-runner-1',
+          provider_runner_id: 'provisioned-runner-1',
           state: 'running',
           reservation_id: crypto.randomUUID(),
           runner_session_id: crypto.randomUUID(),
@@ -77,7 +77,7 @@ describe('reconcileProvisionedRunnersResponseSchema', () => {
           desired_intent: 'keep',
         },
       ],
-      terminated_absent_provisioned_runner_ids: ['provisioned-runner-2'],
+      terminated_absent_provider_runner_ids: ['provisioned-runner-2'],
     });
 
     expect(result.success).toBe(true);

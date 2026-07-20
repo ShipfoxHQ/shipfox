@@ -40,9 +40,7 @@ describe('createProvisionerClient', () => {
   });
 
   it('pollDemand posts to /demand/poll with the token and parses the response', async () => {
-    stubFetch(() =>
-      jsonResponse({stats: [], reservations: [], terminate_provisioned_runner_ids: []}),
-    );
+    stubFetch(() => jsonResponse({stats: [], reservations: [], terminate_provider_runner_ids: []}));
 
     const result = await client().pollDemand({
       wait_seconds: 30,
@@ -52,7 +50,7 @@ describe('createProvisionerClient', () => {
       ],
     });
 
-    expect(result).toEqual({stats: [], reservations: [], terminate_provisioned_runner_ids: []});
+    expect(result).toEqual({stats: [], reservations: [], terminate_provider_runner_ids: []});
     expect(calls[0]?.url).toContain('provisioners/demand/poll');
     expect(calls[0]?.method).toBe('POST');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
@@ -63,7 +61,7 @@ describe('createProvisionerClient', () => {
       jsonResponse({
         tokens: [
           {
-            provisioned_runner_id: 'r1',
+            provider_runner_id: 'r1',
             registration_token: 'sf_ert_x',
             expires_at: '2026-01-01T00:00:00.000Z',
           },
@@ -73,7 +71,7 @@ describe('createProvisionerClient', () => {
 
     const result = await client().mintRegistrationTokens({
       reservation_id: RESERVATION_ID,
-      provisioned_runners: [{provisioned_runner_id: 'r1'}],
+      runner_instances: [{provider_runner_id: 'r1'}],
     });
 
     expect(result.tokens[0]?.registration_token).toBe('sf_ert_x');
@@ -82,13 +80,13 @@ describe('createProvisionerClient', () => {
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
-  it('reportProvisionedRunners posts lifecycle events with the token and parses the response', async () => {
+  it('reportRunnerInstances posts lifecycle events with the token and parses the response', async () => {
     stubFetch(() => jsonResponse({accepted: 1, reservations_released: 1}));
 
-    const result = await client().reportProvisionedRunners({
+    const result = await client().reportRunnerInstances({
       events: [
         {
-          provisioned_runner_id: 'provisioned-runner-1',
+          provider_runner_id: 'provisioned-runner-1',
           reservation_id: RESERVATION_ID,
           template_key: 'small',
           labels: ['ubuntu22'],
@@ -100,17 +98,17 @@ describe('createProvisionerClient', () => {
     });
 
     expect(result).toEqual({accepted: 1, reservations_released: 1});
-    expect(calls[0]?.url).toContain('provisioners/provisioned-runners/report');
+    expect(calls[0]?.url).toContain('provisioners/runner-instances/report');
     expect(calls[0]?.method).toBe('POST');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
-  it('reconcileProvisionedRunners posts observed ids with the token and parses intent', async () => {
+  it('reconcileRunnerInstances posts observed ids with the token and parses intent', async () => {
     stubFetch(() =>
       jsonResponse({
         runners: [
           {
-            provisioned_runner_id: 'runner-1',
+            provider_runner_id: 'runner-1',
             state: 'running',
             reservation_id: RESERVATION_ID,
             runner_session_id: null,
@@ -118,21 +116,21 @@ describe('createProvisionerClient', () => {
             desired_intent: 'keep',
           },
         ],
-        terminated_absent_provisioned_runner_ids: ['runner-2'],
+        terminated_absent_provider_runner_ids: ['runner-2'],
       }),
     );
 
-    const result = await client().reconcileProvisionedRunners({
-      observed_provisioned_runner_ids: ['runner-1'],
+    const result = await client().reconcileRunnerInstances({
+      observed_provider_runner_ids: ['runner-1'],
     });
 
     expect(result.runners[0]?.desired_intent).toBe('keep');
-    expect(result.terminated_absent_provisioned_runner_ids).toEqual(['runner-2']);
-    expect(calls[0]?.url).toContain('provisioners/provisioned-runners/reconcile');
+    expect(result.terminated_absent_provider_runner_ids).toEqual(['runner-2']);
+    expect(calls[0]?.url).toContain('provisioners/runner-instances/reconcile');
     expect(calls[0]?.method).toBe('POST');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
-      observed_provisioned_runner_ids: ['runner-1'],
+      observed_provider_runner_ids: ['runner-1'],
     });
   });
 
@@ -156,13 +154,13 @@ describe('createProvisionerClient', () => {
     await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
   });
 
-  it('maps a 403 on reportProvisionedRunners to ProvisionerAuthenticationError', async () => {
+  it('maps a 403 on reportRunnerInstances to ProvisionerAuthenticationError', async () => {
     stubFetch(() => new Response(null, {status: 403}));
 
-    const request = client().reportProvisionedRunners({
+    const request = client().reportRunnerInstances({
       events: [
         {
-          provisioned_runner_id: 'provisioned-runner-1',
+          provider_runner_id: 'provisioned-runner-1',
           labels: ['ubuntu22'],
           state: 'running',
           reported_at: '2026-01-01T00:00:00.000Z',
@@ -173,11 +171,11 @@ describe('createProvisionerClient', () => {
     await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
   });
 
-  it('maps a 401 on reconcileProvisionedRunners to ProvisionerAuthenticationError', async () => {
+  it('maps a 401 on reconcileRunnerInstances to ProvisionerAuthenticationError', async () => {
     stubFetch(() => new Response(null, {status: 401}));
 
-    const request = client().reconcileProvisionedRunners({
-      observed_provisioned_runner_ids: ['runner-1'],
+    const request = client().reconcileRunnerInstances({
+      observed_provider_runner_ids: ['runner-1'],
     });
 
     await expect(request).rejects.toThrow(ProvisionerAuthenticationError);

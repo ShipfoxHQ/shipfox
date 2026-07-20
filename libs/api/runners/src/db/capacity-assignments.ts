@@ -8,8 +8,8 @@ import {
 } from '#core/errors.js';
 import {db} from './db.js';
 import {capacityAssignments, toCapacityAssignment} from './schema/capacity-assignments.js';
-import {provisionedRunners} from './schema/provisioned-runners.js';
 import {reservations} from './schema/reservations.js';
+import {providerRunners} from './schema/runner-instances.js';
 
 export async function assignCapacityBatch(params: {
   provisionerId: string;
@@ -65,11 +65,11 @@ export async function assignCapacityBatch(params: {
 
     const capacities = await tx
       .select()
-      .from(provisionedRunners)
+      .from(providerRunners)
       .where(
         and(
-          eq(provisionedRunners.provisionerId, params.provisionerId),
-          inArray(provisionedRunners.id, newCapacityIds),
+          eq(providerRunners.provisionerId, params.provisionerId),
+          inArray(providerRunners.id, newCapacityIds),
         ),
       );
     if (capacities.length !== newCapacityIds.length)
@@ -78,7 +78,7 @@ export async function assignCapacityBatch(params: {
       if (capacity.state !== 'starting' && capacity.state !== 'running')
         throw new CapacityNotAssignableError(capacity.id);
       if (
-        !capacity.provisionedRunnerId ||
+        !capacity.providerRunnerId ||
         capacity.labels.length === 0 ||
         !reservation.requiredLabels.every((label) => capacity.labels.includes(label))
       ) {

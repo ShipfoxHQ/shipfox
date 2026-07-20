@@ -1,32 +1,32 @@
-import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
+import type {RunnerInstance, RunnerInstanceState} from '#core/entities/runner-instance.js';
 import {
   attachProviderRunnerId as attachProviderRunnerIdDb,
   createPlannedProvisionedCapacity as createPlannedProvisionedCapacityDb,
   isTerminalState,
-  listActiveProvisionedRunners,
+  listActiveRunnerInstances,
   listActiveRunningJobExecutions,
-  type ProvisionedRunnerReportEvent,
-  reconcileProvisionedRunners as reconcileProvisionedRunnersDb,
-  reportProvisionedRunners as reportProvisionedRunnersDb,
+  type RunnerInstanceReportEvent,
+  reconcileRunnerInstances as reconcileRunnerInstancesDb,
+  reportRunnerInstances as reportRunnerInstancesDb,
 } from '#db/index.js';
 import type {
   ActiveRunningJobExecution,
-  ProvisionedRunnerBoundJobExecution,
+  RunnerInstanceBoundJobExecution,
 } from '#db/job-executions.js';
 import {
-  provisionedRunnerAbsentTerminatedCount,
-  provisionedRunnerReconcileCallCount,
-  provisionedRunnerReportCount,
-  provisionedRunnerTerminateIntentHonoredCount,
-  provisionedRunnerTerminateIntentIssuedCount,
+  providerRunnerAbsentTerminatedCount,
+  providerRunnerReconcileCallCount,
+  providerRunnerReportCount,
+  providerRunnerTerminateIntentHonoredCount,
+  providerRunnerTerminateIntentIssuedCount,
   reservationReleasedCount,
 } from '#metrics/instance.js';
 import {config} from '../config.js';
 
-export interface ReportProvisionedRunnersParams {
+export interface ReportRunnerInstancesParams {
   workspaceId: string | null;
   provisionerId: string;
-  events: ProvisionedRunnerReportEvent[];
+  events: RunnerInstanceReportEvent[];
 }
 
 export function createPlannedProvisionedCapacity(params: {
@@ -40,20 +40,20 @@ export function createPlannedProvisionedCapacity(params: {
 export function attachProviderRunnerId(params: {
   capacityId: string;
   provisionerId: string;
-  provisionedRunnerId: string;
+  providerRunnerId: string;
 }): Promise<boolean> {
   return attachProviderRunnerIdDb(params);
 }
 
-export interface ReportProvisionedRunnersResult {
+export interface ReportRunnerInstancesResult {
   accepted: number;
   reservationsReleased: number;
 }
 
-export interface ReconcileProvisionedRunnersParams {
+export interface ReconcileRunnerInstancesParams {
   workspaceId: string | null;
   provisionerId: string;
-  observedProvisionedRunnerIds: string[];
+  observedRunnerInstanceIds: string[];
 }
 
 export type ReconcileDesiredIntent = 'keep' | 'terminate';
@@ -67,9 +67,9 @@ export interface ReconciledBoundJobExecution {
   cancellationRequestedAt: Date | null;
 }
 
-export interface ReconciledProvisionedRunner {
-  provisionedRunnerId: string;
-  state: ProvisionedRunnerState | null;
+export interface ReconciledRunnerInstance {
+  providerRunnerId: string;
+  state: RunnerInstanceState | null;
   reservationId: string | null;
   runnerSessionId: string | null;
   boundJobExecution: ReconciledBoundJobExecution | null;
@@ -77,16 +77,16 @@ export interface ReconciledProvisionedRunner {
   desiredIntentReason: ReconcileDesiredIntentReason | null;
 }
 
-export interface ReconcileProvisionedRunnersResult {
-  runners: ReconciledProvisionedRunner[];
-  terminatedAbsentProvisionedRunnerIds: string[];
+export interface ReconcileRunnerInstancesResult {
+  runners: ReconciledRunnerInstance[];
+  terminatedAbsentRunnerInstanceIds: string[];
 }
 
 export type ActiveRunnerState = 'starting' | 'running' | 'stopping' | 'busy';
 
 export interface ActiveRunner {
   runnerSessionId: string | null;
-  provisionedRunnerId: string | null;
+  providerRunnerId: string | null;
   provisionerId: string | null;
   state: ActiveRunnerState;
   labels: string[];
@@ -99,43 +99,42 @@ export interface ActiveRunner {
   lastHeartbeatAt: Date | null;
 }
 
-export async function reportProvisionedRunners(
-  params: ReportProvisionedRunnersParams,
-): Promise<ReportProvisionedRunnersResult> {
-  const result = await reportProvisionedRunnersDb(params);
+export async function reportRunnerInstances(
+  params: ReportRunnerInstancesParams,
+): Promise<ReportRunnerInstancesResult> {
+  const result = await reportRunnerInstancesDb(params);
 
   for (const event of params.events) {
-    provisionedRunnerReportCount.add(1, {state: event.state});
+    providerRunnerReportCount.add(1, {state: event.state});
   }
   for (const intent of result.terminateIntentsHonored) {
-    provisionedRunnerTerminateIntentHonoredCount.add(1, {reason: intent.reason});
+    providerRunnerTerminateIntentHonoredCount.add(1, {reason: intent.reason});
   }
   if (result.reservationsReleased > 0) reservationReleasedCount.add(result.reservationsReleased);
 
   return result;
 }
 
-export async function reconcileProvisionedRunners(
-  params: ReconcileProvisionedRunnersParams,
-): Promise<ReconcileProvisionedRunnersResult> {
-  const result = await reconcileProvisionedRunnersDb({
+export async function reconcileRunnerInstances(
+  params: ReconcileRunnerInstancesParams,
+): Promise<ReconcileRunnerInstancesResult> {
+  const result = await reconcileRunnerInstancesDb({
     ...params,
     terminateGraceSeconds: config.RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS,
   });
 
   if (result.reservationsReleased > 0) reservationReleasedCount.add(result.reservationsReleased);
-  provisionedRunnerReconcileCallCount.add(1);
-  if (result.absentIds.length > 0)
-    provisionedRunnerAbsentTerminatedCount.add(result.absentIds.length);
+  providerRunnerReconcileCallCount.add(1);
+  if (result.absentIds.length > 0) providerRunnerAbsentTerminatedCount.add(result.absentIds.length);
 
-  const runners = reconcileProvisionedRunnersFromDbResult({
-    observedProvisionedRunnerIds: params.observedProvisionedRunnerIds,
+  const runners = reconcileRunnerInstancesFromDbResult({
+    observedRunnerInstanceIds: params.observedRunnerInstanceIds,
     observedRows: result.observedRows,
-    boundJobExecutionsByProvisionedRunnerId: result.boundJobExecutionsByProvisionedRunnerId,
+    boundJobExecutionsByRunnerInstanceId: result.boundJobExecutionsByRunnerInstanceId,
   });
   for (const runner of runners) {
     if (runner.desiredIntentReason) {
-      provisionedRunnerTerminateIntentIssuedCount.add(1, {
+      providerRunnerTerminateIntentIssuedCount.add(1, {
         surface: 'reconcile',
         reason: runner.desiredIntentReason,
       });
@@ -144,28 +143,27 @@ export async function reconcileProvisionedRunners(
 
   return {
     runners,
-    terminatedAbsentProvisionedRunnerIds: result.absentIds,
+    terminatedAbsentRunnerInstanceIds: result.absentIds,
   };
 }
 
-export function reconcileProvisionedRunnersFromDbResult(params: {
-  observedProvisionedRunnerIds: string[];
-  observedRows: ProvisionedRunner[];
-  boundJobExecutionsByProvisionedRunnerId: Map<string, ProvisionedRunnerBoundJobExecution>;
-}): ReconciledProvisionedRunner[] {
-  const rowsByProvisionedRunnerId = new Map(
-    params.observedRows.map((row) => [row.provisionedRunnerId, row]),
+export function reconcileRunnerInstancesFromDbResult(params: {
+  observedRunnerInstanceIds: string[];
+  observedRows: RunnerInstance[];
+  boundJobExecutionsByRunnerInstanceId: Map<string, RunnerInstanceBoundJobExecution>;
+}): ReconciledRunnerInstance[] {
+  const rowsByRunnerInstanceId = new Map(
+    params.observedRows.map((row) => [row.providerRunnerId, row]),
   );
 
-  return params.observedProvisionedRunnerIds.map((provisionedRunnerId) => {
-    const row = rowsByProvisionedRunnerId.get(provisionedRunnerId);
-    const boundJobExecution =
-      params.boundJobExecutionsByProvisionedRunnerId.get(provisionedRunnerId);
+  return params.observedRunnerInstanceIds.map((providerRunnerId) => {
+    const row = rowsByRunnerInstanceId.get(providerRunnerId);
+    const boundJobExecution = params.boundJobExecutionsByRunnerInstanceId.get(providerRunnerId);
 
     const desiredIntentReason = getDesiredIntentReason(row, boundJobExecution);
 
     return {
-      provisionedRunnerId,
+      providerRunnerId,
       state: row?.state ?? null,
       reservationId: row?.reservationId ?? null,
       runnerSessionId: row?.runnerSessionId ?? null,
@@ -179,8 +177,8 @@ export function reconcileProvisionedRunnersFromDbResult(params: {
 }
 
 export async function listActiveRunners(params: {workspaceId: string}): Promise<ActiveRunner[]> {
-  const [provisionedRunnerRows, jobExecutionRows] = await Promise.all([
-    listActiveProvisionedRunners({
+  const [providerRunnerRows, jobExecutionRows] = await Promise.all([
+    listActiveRunnerInstances({
       workspaceId: params.workspaceId,
       windowSeconds: config.RUNNER_ACTIVE_WINDOW_SECONDS,
     }),
@@ -190,11 +188,11 @@ export async function listActiveRunners(params: {workspaceId: string}): Promise<
     }),
   ]);
 
-  return mergeActiveRunners(provisionedRunnerRows, jobExecutionRows);
+  return mergeActiveRunners(providerRunnerRows, jobExecutionRows);
 }
 
 function toReconciledBoundJobExecution(
-  jobExecution: ProvisionedRunnerBoundJobExecution,
+  jobExecution: RunnerInstanceBoundJobExecution,
 ): ReconciledBoundJobExecution {
   return {
     jobId: jobExecution.jobId,
@@ -206,15 +204,15 @@ function toReconciledBoundJobExecution(
 }
 
 export function desiredIntent(
-  row: ProvisionedRunner | undefined,
-  boundJobExecution: ProvisionedRunnerBoundJobExecution | undefined,
+  row: RunnerInstance | undefined,
+  boundJobExecution: RunnerInstanceBoundJobExecution | undefined,
 ): ReconcileDesiredIntent {
   return getDesiredIntentReason(row, boundJobExecution) ? 'terminate' : 'keep';
 }
 
 function getDesiredIntentReason(
-  row: ProvisionedRunner | undefined,
-  boundJobExecution: ProvisionedRunnerBoundJobExecution | undefined,
+  row: RunnerInstance | undefined,
+  boundJobExecution: RunnerInstanceBoundJobExecution | undefined,
 ): ReconcileDesiredIntentReason | null {
   if (!row) return null;
   if (isTerminalState(row.state)) return 'terminal-state';
@@ -223,55 +221,49 @@ function getDesiredIntentReason(
 }
 
 function mergeActiveRunners(
-  provisionedRunners: ProvisionedRunner[],
+  providerRunners: RunnerInstance[],
   jobExecutions: ActiveRunningJobExecution[],
 ): ActiveRunner[] {
   const jobExecutionsByRunnerSessionId = new Map<string, ActiveRunningJobExecution[]>();
-  const jobExecutionsByProvisionedRunnerId = new Map<string, ActiveRunningJobExecution[]>();
+  const jobExecutionsByRunnerInstanceId = new Map<string, ActiveRunningJobExecution[]>();
   for (const jobExecution of jobExecutions) {
     const runnerJobExecutions =
       jobExecutionsByRunnerSessionId.get(jobExecution.runnerSessionId) ?? [];
     runnerJobExecutions.push(jobExecution);
     jobExecutionsByRunnerSessionId.set(jobExecution.runnerSessionId, runnerJobExecutions);
 
-    if (jobExecution.provisionerId && jobExecution.provisionedRunnerId) {
-      const key = provisionedRunnerKey(
-        jobExecution.provisionerId,
-        jobExecution.provisionedRunnerId,
-      );
-      const provisionedRunnerJobExecutions = jobExecutionsByProvisionedRunnerId.get(key) ?? [];
-      provisionedRunnerJobExecutions.push(jobExecution);
-      jobExecutionsByProvisionedRunnerId.set(key, provisionedRunnerJobExecutions);
+    if (jobExecution.provisionerId && jobExecution.providerRunnerId) {
+      const key = providerRunnerKey(jobExecution.provisionerId, jobExecution.providerRunnerId);
+      const providerRunnerJobExecutions = jobExecutionsByRunnerInstanceId.get(key) ?? [];
+      providerRunnerJobExecutions.push(jobExecution);
+      jobExecutionsByRunnerInstanceId.set(key, providerRunnerJobExecutions);
     }
   }
 
   const merged: ActiveRunner[] = [];
   const usedJobExecutionIds = new Set<string>();
 
-  for (const provisionedRunner of provisionedRunners) {
-    const provisionedRunnerJobExecutions =
-      jobExecutionsByProvisionedRunnerId.get(
-        provisionedRunnerKey(
-          provisionedRunner.provisionerId,
-          provisionedRunner.provisionedRunnerId,
-        ),
+  for (const providerRunner of providerRunners) {
+    const providerRunnerJobExecutions =
+      jobExecutionsByRunnerInstanceId.get(
+        providerRunnerKey(providerRunner.provisionerId, providerRunner.providerRunnerId),
       ) ??
-      (provisionedRunner.runnerSessionId
-        ? jobExecutionsByRunnerSessionId.get(provisionedRunner.runnerSessionId)
+      (providerRunner.runnerSessionId
+        ? jobExecutionsByRunnerSessionId.get(providerRunner.runnerSessionId)
         : undefined);
-    if (!provisionedRunnerJobExecutions || provisionedRunnerJobExecutions.length === 0) {
-      merged.push(toActiveRunner(provisionedRunner, undefined));
+    if (!providerRunnerJobExecutions || providerRunnerJobExecutions.length === 0) {
+      merged.push(toActiveRunner(providerRunner, undefined));
       continue;
     }
 
     let emitted = false;
-    for (const jobExecution of provisionedRunnerJobExecutions) {
+    for (const jobExecution of providerRunnerJobExecutions) {
       if (usedJobExecutionIds.has(jobExecution.jobExecutionId)) continue;
       usedJobExecutionIds.add(jobExecution.jobExecutionId);
-      merged.push(toActiveRunner(provisionedRunner, jobExecution));
+      merged.push(toActiveRunner(providerRunner, jobExecution));
       emitted = true;
     }
-    if (!emitted) merged.push(toActiveRunner(provisionedRunner, undefined));
+    if (!emitted) merged.push(toActiveRunner(providerRunner, undefined));
   }
 
   for (const jobExecution of jobExecutions) {
@@ -282,32 +274,31 @@ function mergeActiveRunners(
   return merged.sort(compareActiveRunners);
 }
 
-function provisionedRunnerKey(provisionerId: string, provisionedRunnerId: string): string {
-  return `${provisionerId}:${provisionedRunnerId}`;
+function providerRunnerKey(provisionerId: string, providerRunnerId: string): string {
+  return `${provisionerId}:${providerRunnerId}`;
 }
 
 function toActiveRunner(
-  provisionedRunner: ProvisionedRunner | undefined,
+  providerRunner: RunnerInstance | undefined,
   jobExecution: ActiveRunningJobExecution | undefined,
 ): ActiveRunner {
   return {
-    runnerSessionId: provisionedRunner?.runnerSessionId ?? jobExecution?.runnerSessionId ?? null,
-    provisionedRunnerId:
-      provisionedRunner?.provisionedRunnerId ?? jobExecution?.provisionedRunnerId ?? null,
-    provisionerId: provisionedRunner?.provisionerId ?? jobExecution?.provisionerId ?? null,
-    state: jobExecution ? 'busy' : toActiveRunnerState(provisionedRunner?.state ?? 'running'),
-    labels: provisionedRunner?.labels ?? jobExecution?.runnerLabels ?? [],
-    templateKey: provisionedRunner?.templateKey ?? null,
-    providerKind: provisionedRunner?.providerKind ?? null,
+    runnerSessionId: providerRunner?.runnerSessionId ?? jobExecution?.runnerSessionId ?? null,
+    providerRunnerId: providerRunner?.providerRunnerId ?? jobExecution?.providerRunnerId ?? null,
+    provisionerId: providerRunner?.provisionerId ?? jobExecution?.provisionerId ?? null,
+    state: jobExecution ? 'busy' : toActiveRunnerState(providerRunner?.state ?? 'running'),
+    labels: providerRunner?.labels ?? jobExecution?.runnerLabels ?? [],
+    templateKey: providerRunner?.templateKey ?? null,
+    providerKind: providerRunner?.providerKind ?? null,
     jobId: jobExecution?.jobId ?? null,
     workflowRunAttemptId: jobExecution?.workflowRunAttemptId ?? null,
     projectId: jobExecution?.projectId ?? null,
-    reportedAt: provisionedRunner?.reportedAt ?? null,
+    reportedAt: providerRunner?.reportedAt ?? null,
     lastHeartbeatAt: jobExecution?.lastHeartbeatAt ?? null,
   };
 }
 
-function toActiveRunnerState(state: ProvisionedRunnerState): ActiveRunnerState {
+function toActiveRunnerState(state: RunnerInstanceState): ActiveRunnerState {
   if (state === 'starting' || state === 'stopping') return state;
   return 'running';
 }

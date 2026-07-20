@@ -3,12 +3,6 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {db} from '#db/db.js';
 import {
-  type ActiveProvisionedRunnerTemplateCount,
-  listActiveProvisionedRunnerCountsByTemplateTx,
-  listProvisionerTerminateIntentRowsTx,
-  type ProvisionedRunnerTerminateIntent,
-} from '#db/provisioned-runners.js';
-import {
   type DemandStat,
   deleteReservationsByIds,
   pollDemandAndReserveTx,
@@ -16,8 +10,14 @@ import {
   type ReservationTemplate,
 } from '#db/reservations.js';
 import {
-  provisionedRunnerCountDivergenceCount,
-  provisionedRunnerTerminateIntentIssuedCount,
+  type ActiveRunnerInstanceTemplateCount,
+  listActiveRunnerInstanceCountsByTemplateTx,
+  listProvisionerTerminateIntentRowsTx,
+  type RunnerInstanceTerminateIntent,
+} from '#db/runner-instances.js';
+import {
+  providerRunnerCountDivergenceCount,
+  providerRunnerTerminateIntentIssuedCount,
 } from '#metrics/instance.js';
 
 export interface PollDemandParams {
@@ -34,10 +34,10 @@ export interface PollDemandParams {
 export interface PollDemandResult {
   stats: DemandStat[];
   reservations: ReservationGrant[];
-  terminateProvisionedRunnerIds: string[];
+  terminateRunnerInstanceIds: string[];
 }
 
-export interface ProvisionedRunnerCountDivergence {
+export interface RunnerInstanceCountDivergence {
   templateKey: string;
   state: 'starting' | 'running';
   direction: 'backend-higher' | 'advertised-higher';
@@ -46,8 +46,8 @@ export interface ProvisionedRunnerCountDivergence {
 
 interface PollDemandSnapshot {
   result: PollDemandResult;
-  divergences: ProvisionedRunnerCountDivergence[];
-  terminateIntents: ProvisionedRunnerTerminateIntent[];
+  divergences: RunnerInstanceCountDivergence[];
+  terminateIntents: RunnerInstanceTerminateIntent[];
 }
 
 export async function pollDemand(params: PollDemandParams): Promise<PollDemandResult> {
@@ -62,7 +62,7 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
   );
   let interval = config.RESERVATION_POLL_INTERVAL_MS;
   let lastSnapshot: PollDemandSnapshot = {
-    result: {stats: [], reservations: [], terminateProvisionedRunnerIds: []},
+    result: {stats: [], reservations: [], terminateRunnerInstanceIds: []},
     divergences: [],
     terminateIntents: [],
   };
@@ -87,7 +87,7 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
       });
       const result: PollDemandResult = {
         ...demand,
-        terminateProvisionedRunnerIds: terminateIntents.map((intent) => intent.provisionedRunnerId),
+        terminateRunnerInstanceIds: terminateIntents.map((intent) => intent.providerRunnerId),
       };
 
       if (!shouldReturn(result, params.maxReservations, totalCapacity, deadlinePassed)) {
@@ -97,9 +97,9 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
       return {
         result,
         terminateIntents,
-        divergences: calculateProvisionedRunnerCountDivergences({
+        divergences: calculateRunnerInstanceCountDivergences({
           advertisedTemplates: params.templates,
-          backendCounts: await listActiveProvisionedRunnerCountsByTemplateTx(tx, {
+          backendCounts: await listActiveRunnerInstanceCountsByTemplateTx(tx, {
             workspaceId: params.workspaceId,
             provisionerId: params.provisionerId,
           }),
@@ -145,7 +145,7 @@ export function shouldReturn(
     maxReservations === 0 ||
     totalCapacity === 0 ||
     result.reservations.length > 0 ||
-    result.terminateProvisionedRunnerIds.length > 0 ||
+    result.terminateRunnerInstanceIds.length > 0 ||
     deadlinePassed
   );
 }
@@ -158,10 +158,10 @@ export function withJitter(ms: number): number {
   return Math.random() * ms;
 }
 
-export function calculateProvisionedRunnerCountDivergences(params: {
+export function calculateRunnerInstanceCountDivergences(params: {
   advertisedTemplates: ReservationTemplate[];
-  backendCounts: ActiveProvisionedRunnerTemplateCount[];
-}): ProvisionedRunnerCountDivergence[] {
+  backendCounts: ActiveRunnerInstanceTemplateCount[];
+}): RunnerInstanceCountDivergence[] {
   const advertisedCounts = new Map<string, number>();
   const backendCounts = new Map<string, number>();
 
@@ -212,10 +212,10 @@ function recordPollDemandMetrics(params: PollDemandParams, snapshot: PollDemandS
         ? {template_key: divergence.templateKey}
         : {}),
     };
-    provisionedRunnerCountDivergenceCount.add(divergence.delta, attributes);
+    providerRunnerCountDivergenceCount.add(divergence.delta, attributes);
   }
   for (const intent of snapshot.terminateIntents) {
-    provisionedRunnerTerminateIntentIssuedCount.add(1, {
+    providerRunnerTerminateIntentIssuedCount.add(1, {
       surface: 'poll-demand',
       reason: intent.reason,
     });

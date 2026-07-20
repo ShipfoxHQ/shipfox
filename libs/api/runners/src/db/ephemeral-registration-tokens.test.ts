@@ -44,7 +44,7 @@ describe('createEphemeralRegistrationTokensBatch', () => {
     });
 
     expect(result).toHaveLength(2);
-    expect(result.map((token) => token.provisionedRunnerId).sort()).toEqual([
+    expect(result.map((token) => token.providerRunnerId).sort()).toEqual([
       'provisioned-runner-a',
       'provisioned-runner-b',
     ]);
@@ -53,14 +53,14 @@ describe('createEphemeralRegistrationTokensBatch', () => {
     expect(result.every((token) => token.provisionerId === provisionerId)).toBe(true);
     expect(
       await resolveEphemeralRegistrationTokenByHash(hashOpaqueToken(rawTokens[0] ?? '')),
-    ).toEqual(expect.objectContaining({provisionedRunnerId: 'provisioned-runner-a'}));
+    ).toEqual(expect.objectContaining({providerRunnerId: 'provisioned-runner-a'}));
   });
 
   it('rejects the batch and inserts no rows when any provisioned runner already has an active token', async () => {
     await ephemeralRegistrationTokenFactory.create({
       workspaceId,
       provisionerId,
-      provisionedRunnerId: 'provisioned-runner-a',
+      providerRunnerId: 'provisioned-runner-a',
       expiresAt: new Date(Date.now() + 60_000),
     });
     const rawToken = generateOpaqueToken('ephemeralRegistrationToken');
@@ -85,7 +85,7 @@ describe('createEphemeralRegistrationTokensBatch', () => {
         ),
       );
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.provisionedRunnerId).toBe('provisioned-runner-a');
+    expect(rows[0]?.providerRunnerId).toBe('provisioned-runner-a');
   });
 
   it('allows sequential batches that exactly reach the reservation count', async () => {
@@ -152,7 +152,7 @@ describe('createEphemeralRegistrationTokensBatch', () => {
       workspaceId,
       provisionerId,
       reservationId,
-      provisionedRunnerId: 'provisioned-runner-consumed',
+      providerRunnerId: 'provisioned-runner-consumed',
       expiresAt: new Date(Date.now() + 60_000),
     });
     await db()
@@ -163,7 +163,7 @@ describe('createEphemeralRegistrationTokensBatch', () => {
       workspaceId,
       provisionerId,
       reservationId,
-      provisionedRunnerId: 'provisioned-runner-expired',
+      providerRunnerId: 'provisioned-runner-expired',
       expiresAt: new Date(Date.now() - 60_000),
     });
 
@@ -209,9 +209,9 @@ describe('createEphemeralRegistrationTokensBatch', () => {
     return rows.length;
   }
 
-  function row(provisionedRunnerId: string, rawToken: string) {
+  function row(providerRunnerId: string, rawToken: string) {
     return {
-      provisionedRunnerId,
+      providerRunnerId,
       hashedToken: hashOpaqueToken(rawToken),
       prefix: extractDisplayPrefix(rawToken),
     };
@@ -303,7 +303,7 @@ describe('deleteExpiredEphemeralRegistrationTokens', () => {
         id,
         workspaceId,
         provisionerId,
-        provisionedRunnerId: `provisioned-${id}`,
+        providerRunnerId: `provisioned-${id}`,
         hashedToken: crypto.randomUUID(),
         prefix: 'sfxr_test',
         expiresAt: params.expiresAt,

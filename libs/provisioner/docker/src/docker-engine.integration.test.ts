@@ -14,7 +14,7 @@ describe.skipIf(!hasDockerDaemon())('DockerEngine integration', () => {
         env: {},
         labels: {
           'shipfox.provisioner_id': '00000000-0000-4000-8000-000000000001',
-          'shipfox.provisioned_runner_id': name,
+          'shipfox.provider_runner_id': name,
         },
         nanoCpus: 100_000_000,
         memoryBytes: 32 * 1024 * 1024,

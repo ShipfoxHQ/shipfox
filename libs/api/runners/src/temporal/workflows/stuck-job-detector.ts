@@ -8,7 +8,7 @@ const {
   deleteExpiredReservationsActivity,
   deleteExpiredRunnerSessionsActivity,
   detectAndExpireStuckJobsActivity,
-  reapStaleProvisionedRunnersActivity,
+  reapStaleRunnerInstancesActivity,
 } = proxyActivities<ReturnType<typeof createRunnersMaintenanceActivities>>({
   startToCloseTimeout: '60s',
 });
@@ -57,7 +57,7 @@ export async function stuckJobDetector(): Promise<void> {
     });
   }
 
-  const {reaped, reservationsReleased} = await reapStaleProvisionedRunnersActivity();
+  const {reaped, reservationsReleased} = await reapStaleRunnerInstancesActivity();
   if (reaped > 0) {
     log.info('Stuck-job detector reaped stale provisioned runners', {
       reaped,

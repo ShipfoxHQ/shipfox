@@ -20,7 +20,7 @@ It never reserves more than its templates have free capacity.
 
 - `startProvisioner({adapter})` — run the loop until a shutdown signal. The adapter
   supplies the provider's templates and its launcher.
-- `ProvisionerAdapter`, `ProvisionerTemplate`, `LaunchRunner`, `ProvisionedRunnerLaunch`
+- `ProvisionerAdapter`, `ProvisionerTemplate`, `LaunchRunner`, `ProviderRunnerLaunch`
   — the contract a provider implements.
 - `loggingLaunch` — a default launcher that records each planned runner without
   starting it (used until a provider ships a real launcher).

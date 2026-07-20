@@ -130,8 +130,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "provisioned_runner_id": {
-          "name": "provisioned_runner_id",
+        "provider_runner_id": {
+          "name": "provider_runner_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -205,8 +205,8 @@
           "method": "btree",
           "with": {}
         },
-        "runners_ephemeral_registration_tokens_active_provisioned_runner_idx": {
-          "name": "runners_ephemeral_registration_tokens_active_provisioned_runner_idx",
+        "runners_ephemeral_registration_tokens_active_provider_runner_idx": {
+          "name": "runners_ephemeral_registration_tokens_active_provider_runner_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -221,7 +221,7 @@
               "nulls": "last"
             },
             {
-              "expression": "provisioned_runner_id",
+              "expression": "provider_runner_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -614,8 +614,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.runners_provisioned_runners": {
-      "name": "runners_provisioned_runners",
+    "public.runners_runner_instances": {
+      "name": "runners_runner_instances",
       "schema": "",
       "columns": {
         "id": {
@@ -637,8 +637,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "provisioned_runner_id": {
-          "name": "provisioned_runner_id",
+        "provider_runner_id": {
+          "name": "provider_runner_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -664,7 +664,7 @@
         },
         "state": {
           "name": "state",
-          "type": "runners_provisioned_runner_state",
+          "type": "runners_provider_runner_state",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -745,8 +745,8 @@
         }
       },
       "indexes": {
-        "runners_provisioned_runners_provisioner_runner_unique": {
-          "name": "runners_provisioned_runners_provisioner_runner_unique",
+        "runners_runner_instances_provisioner_runner_unique": {
+          "name": "runners_runner_instances_provisioner_runner_unique",
           "columns": [
             {
               "expression": "provisioner_id",
@@ -755,20 +755,20 @@
               "nulls": "last"
             },
             {
-              "expression": "provisioned_runner_id",
+              "expression": "provider_runner_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": true,
-          "where": "\"runners_provisioned_runners\".\"provisioned_runner_id\" is not null",
+          "where": "\"runners_runner_instances\".\"provider_runner_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "runners_provisioned_runners_workspace_state_updated_idx": {
-          "name": "runners_provisioned_runners_workspace_state_updated_idx",
+        "runners_runner_instances_workspace_state_updated_idx": {
+          "name": "runners_runner_instances_workspace_state_updated_idx",
           "columns": [
             {
               "expression": "state",
@@ -788,8 +788,8 @@
           "method": "btree",
           "with": {}
         },
-        "runners_provisioned_runners_stale_reaper_idx": {
-          "name": "runners_provisioned_runners_stale_reaper_idx",
+        "runners_runner_instances_stale_reaper_idx": {
+          "name": "runners_runner_instances_stale_reaper_idx",
           "columns": [
             {
               "expression": "state",
@@ -815,8 +815,8 @@
           "method": "btree",
           "with": {}
         },
-        "runners_provisioned_runners_active_template_counts_idx": {
-          "name": "runners_provisioned_runners_active_template_counts_idx",
+        "runners_runner_instances_active_template_counts_idx": {
+          "name": "runners_runner_instances_active_template_counts_idx",
           "columns": [
             {
               "expression": "provisioner_id",
@@ -1363,8 +1363,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "provisioned_runner_id": {
-          "name": "provisioned_runner_id",
+        "provider_runner_id": {
+          "name": "provider_runner_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1443,8 +1443,8 @@
           "method": "btree",
           "with": {}
         },
-        "runners_runner_sessions_provisioned_runner_updated_idx": {
-          "name": "runners_runner_sessions_provisioned_runner_updated_idx",
+        "runners_runner_sessions_provider_runner_updated_idx": {
+          "name": "runners_runner_sessions_provider_runner_updated_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -1459,7 +1459,7 @@
               "nulls": "last"
             },
             {
-              "expression": "provisioned_runner_id",
+              "expression": "provider_runner_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1489,7 +1489,7 @@
         },
         "runners_runner_sessions_link_ck": {
           "name": "runners_runner_sessions_link_ck",
-          "value": "((\"runners_runner_sessions\".\"registration_token_kind\" = 'manual' AND \"runners_runner_sessions\".\"provisioner_id\" IS NULL AND \"runners_runner_sessions\".\"provisioned_runner_id\" IS NULL) OR (\"runners_runner_sessions\".\"registration_token_kind\" = 'ephemeral' AND \"runners_runner_sessions\".\"provisioner_id\" IS NOT NULL AND \"runners_runner_sessions\".\"provisioned_runner_id\" IS NOT NULL))"
+          "value": "((\"runners_runner_sessions\".\"registration_token_kind\" = 'manual' AND \"runners_runner_sessions\".\"provisioner_id\" IS NULL AND \"runners_runner_sessions\".\"provider_runner_id\" IS NULL) OR (\"runners_runner_sessions\".\"registration_token_kind\" = 'ephemeral' AND \"runners_runner_sessions\".\"provisioner_id\" IS NOT NULL AND \"runners_runner_sessions\".\"provider_runner_id\" IS NOT NULL))"
         }
       },
       "isRLSEnabled": false
@@ -1553,8 +1553,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "provisioned_runner_id": {
-          "name": "provisioned_runner_id",
+        "provider_runner_id": {
+          "name": "provider_runner_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1630,8 +1630,8 @@
           "method": "btree",
           "with": {}
         },
-        "runners_running_jobs_provisioned_runner_started_idx": {
-          "name": "runners_running_jobs_provisioned_runner_started_idx",
+        "runners_running_jobs_provider_runner_started_idx": {
+          "name": "runners_running_jobs_provider_runner_started_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -1646,7 +1646,7 @@
               "nulls": "last"
             },
             {
-              "expression": "provisioned_runner_id",
+              "expression": "provider_runner_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1680,7 +1680,7 @@
               "nulls": "last"
             },
             {
-              "expression": "provisioned_runner_id",
+              "expression": "provider_runner_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1746,15 +1746,15 @@
       "checkConstraints": {
         "runners_running_jobs_link_ck": {
           "name": "runners_running_jobs_link_ck",
-          "value": "(\"runners_running_jobs\".\"provisioner_id\" IS NULL) = (\"runners_running_jobs\".\"provisioned_runner_id\" IS NULL)"
+          "value": "(\"runners_running_jobs\".\"provisioner_id\" IS NULL) = (\"runners_running_jobs\".\"provider_runner_id\" IS NULL)"
         }
       },
       "isRLSEnabled": false
     }
   },
   "enums": {
-    "public.runners_provisioned_runner_state": {
-      "name": "runners_provisioned_runner_state",
+    "public.runners_provider_runner_state": {
+      "name": "runners_provider_runner_state",
       "schema": "public",
       "values": ["starting", "running", "stopping", "stopped", "failed", "terminated"]
     },

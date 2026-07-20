@@ -3,7 +3,7 @@ import {
   deleteExpiredReservationsActivity,
   deleteExpiredRunnerSessionsActivity,
   detectAndExpireStuckJobsActivity,
-  reapStaleProvisionedRunnersActivity,
+  reapStaleRunnerInstancesActivity,
 } from './maintenance-activities.js';
 
 export function createRunnersMaintenanceActivities() {
@@ -12,6 +12,6 @@ export function createRunnersMaintenanceActivities() {
     deleteExpiredReservationsActivity,
     deleteExpiredRunnerSessionsActivity,
     detectAndExpireStuckJobsActivity,
-    reapStaleProvisionedRunnersActivity,
+    reapStaleRunnerInstancesActivity,
   };
 }

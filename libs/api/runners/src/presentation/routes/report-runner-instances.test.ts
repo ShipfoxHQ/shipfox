@@ -17,10 +17,10 @@ import {vi} from '@shipfox/vitest/vi';
 import {and, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
-import {provisionedRunnerTerminateIntentHonoredCount} from '#metrics/instance.js';
-import {provisionedRunnerFactory, runnerSessionFactory} from '#test/index.js';
+import {providerRunnerTerminateIntentHonoredCount} from '#metrics/instance.js';
+import {providerRunnerFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -30,7 +30,7 @@ const passthroughAuth = (name: string): AuthMethod => ({
   authenticate: () => Promise.resolve(),
 });
 
-describe('POST /provisioners/provisioned-runners/report', () => {
+describe('POST /provisioners/runner-instances/report', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let provisionerTokenId: string;
@@ -76,12 +76,12 @@ describe('POST /provisioners/provisioned-runners/report', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/report',
+      url: '/provisioners/runner-instances/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: [
           {
-            provisioned_runner_id: 'provisioned-runner-1',
+            provider_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'starting',
             reported_at: reportedAt,
@@ -93,11 +93,11 @@ describe('POST /provisioners/provisioned-runners/report', () => {
 
     const rows = await db()
       .select()
-      .from(provisionedRunners)
+      .from(providerRunners)
       .where(
         and(
-          eq(provisionedRunners.workspaceId, workspaceId),
-          eq(provisionedRunners.provisionerId, provisionerTokenId),
+          eq(providerRunners.workspaceId, workspaceId),
+          eq(providerRunners.provisionerId, provisionerTokenId),
         ),
       );
     expect(res.statusCode).toBe(200);
@@ -105,7 +105,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
     expect(rows[0]).toMatchObject({
       workspaceId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       state: 'starting',
       labels: ['linux'],
       providerKind: 'docker',
@@ -115,7 +115,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
 
   it('returns 400 when the batch exceeds the DTO limit', async () => {
     const event = {
-      provisioned_runner_id: 'provisioned-runner-1',
+      provider_runner_id: 'provisioned-runner-1',
       labels: ['linux'],
       state: 'running',
       reported_at: new Date().toISOString(),
@@ -123,12 +123,12 @@ describe('POST /provisioners/provisioned-runners/report', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/report',
+      url: '/provisioners/runner-instances/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: Array.from({length: 1001}, (_, index) => ({
           ...event,
-          provisioned_runner_id: `provisioned-runner-${index}`,
+          provider_runner_id: `provisioned-runner-${index}`,
         })),
       },
     });
@@ -137,12 +137,12 @@ describe('POST /provisioners/provisioned-runners/report', () => {
   });
 
   it('increments the honored terminate-intent metric once for a terminated report', async () => {
-    const honoredSpy = vi.spyOn(provisionedRunnerTerminateIntentHonoredCount, 'add');
+    const honoredSpy = vi.spyOn(providerRunnerTerminateIntentHonoredCount, 'add');
     const runnerSession = await runnerSessionFactory.create({workspaceId});
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       state: 'running',
     });
     await db()
@@ -156,7 +156,7 @@ describe('POST /provisioners/provisioned-runners/report', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId: runnerSession.id,
         provisionerId: provisionerTokenId,
-        provisionedRunnerId: 'provisioned-runner-1',
+        providerRunnerId: 'provisioned-runner-1',
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
         startedAt: new Date('2025-01-01T00:00:00.000Z'),
@@ -167,12 +167,12 @@ describe('POST /provisioners/provisioned-runners/report', () => {
 
     const first = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/report',
+      url: '/provisioners/runner-instances/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: [
           {
-            provisioned_runner_id: 'provisioned-runner-1',
+            provider_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'terminated',
             reported_at: new Date().toISOString(),
@@ -182,12 +182,12 @@ describe('POST /provisioners/provisioned-runners/report', () => {
     });
     const second = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/report',
+      url: '/provisioners/runner-instances/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: [
           {
-            provisioned_runner_id: 'provisioned-runner-1',
+            provider_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'terminated',
             reported_at: new Date().toISOString(),
@@ -210,12 +210,12 @@ describe('POST /provisioners/provisioned-runners/report', () => {
   it('returns 400 for provider-sensitive extra fields', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/report',
+      url: '/provisioners/runner-instances/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: [
           {
-            provisioned_runner_id: 'provisioned-runner-1',
+            provider_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'running',
             reported_at: new Date().toISOString(),
@@ -231,11 +231,11 @@ describe('POST /provisioners/provisioned-runners/report', () => {
   it('returns 401 without provisioner auth', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/provisioned-runners/report',
+      url: '/provisioners/runner-instances/report',
       payload: {
         events: [
           {
-            provisioned_runner_id: 'provisioned-runner-1',
+            provider_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'running',
             reported_at: new Date().toISOString(),

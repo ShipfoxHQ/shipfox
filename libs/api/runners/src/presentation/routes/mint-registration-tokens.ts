@@ -14,8 +14,8 @@ import {
   ReservationNotFoundError,
 } from '#core/errors.js';
 import {
-  toMintRegistrationTokensProvisionedRunners,
   toMintRegistrationTokensResponseDto,
+  toMintRegistrationTokensRunnerInstances,
 } from '#presentation/dto/index.js';
 import {createProvisionerMintRateLimitPreHandler} from './rate-limit.js';
 
@@ -50,7 +50,7 @@ export const mintRegistrationTokensRoute = defineRoute({
     if (error instanceof ActiveEphemeralRegistrationTokensExistError) {
       throw new ClientError('Registration token already active', 'registration-token-active', {
         status: 409,
-        details: {provisioned_runner_ids: error.provisionedRunnerIds},
+        details: {provider_runner_ids: error.providerRunnerIds},
       });
     }
     if (error instanceof RegistrationTokenBatchTooLargeError) {
@@ -70,9 +70,7 @@ export const mintRegistrationTokensRoute = defineRoute({
       workspaceId,
       provisionerId: provisionerTokenId,
       reservationId: request.body.reservation_id,
-      provisionedRunners: toMintRegistrationTokensProvisionedRunners(
-        request.body.provisioned_runners,
-      ),
+      providerRunners: toMintRegistrationTokensRunnerInstances(request.body.runner_instances),
       ttlSeconds: config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS,
       maxBatchSize: config.REGISTRATION_TOKEN_BATCH_MAX,
     });

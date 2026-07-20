@@ -23,8 +23,8 @@ export {
   type MintEphemeralRegistrationTokenParams,
   type MintEphemeralRegistrationTokenResult,
   type MintEphemeralRegistrationTokensBatchParams,
-  type MintEphemeralRegistrationTokensBatchProvisionedRunner,
   type MintEphemeralRegistrationTokensBatchResult,
+  type MintEphemeralRegistrationTokensBatchRunnerInstance,
   mintEphemeralRegistrationToken,
   mintEphemeralRegistrationTokensBatch,
 } from '#core/ephemeral-registration-tokens.js';

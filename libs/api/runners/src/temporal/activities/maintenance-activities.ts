@@ -3,7 +3,7 @@ import {
   deleteExpiredRunnerReservations,
   deleteExpiredRunnerSessions,
   detectAndExpireStuckJobs,
-  reapStaleProvisionedRunners,
+  reapStaleRunnerInstances,
 } from '#core/maintenance.js';
 
 export function detectAndExpireStuckJobsActivity(params: {
@@ -18,11 +18,11 @@ export function deleteExpiredReservationsActivity(params?: {
   return deleteExpiredRunnerReservations(params);
 }
 
-export function reapStaleProvisionedRunnersActivity(params?: {
+export function reapStaleRunnerInstancesActivity(params?: {
   thresholdSeconds: number;
   limit: number;
 }): Promise<{reaped: number; reservationsReleased: number}> {
-  return reapStaleProvisionedRunners(params);
+  return reapStaleRunnerInstances(params);
 }
 
 export function deleteExpiredRunnerSessionsActivity(params?: {

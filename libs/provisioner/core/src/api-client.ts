@@ -7,12 +7,12 @@ import {
   type ProvisionerIdentityResponseDto,
   pollDemandResponseSchema,
   provisionerIdentityResponseSchema,
-  type ReconcileProvisionedRunnersBodyDto,
-  type ReconcileProvisionedRunnersResponseDto,
-  type ReportProvisionedRunnersBodyDto,
-  type ReportProvisionedRunnersResponseDto,
-  reconcileProvisionedRunnersResponseSchema,
-  reportProvisionedRunnersResponseSchema,
+  type ReconcileRunnerInstancesBodyDto,
+  type ReconcileRunnerInstancesResponseDto,
+  type ReportRunnerInstancesBodyDto,
+  type ReportRunnerInstancesResponseDto,
+  reconcileRunnerInstancesResponseSchema,
+  reportRunnerInstancesResponseSchema,
 } from '@shipfox/api-runners-dto';
 import ky, {HTTPError, type KyInstance} from 'ky';
 
@@ -37,14 +37,14 @@ export interface ProvisionerClient {
     body: MintRegistrationTokensBatchBodyDto,
     options?: {signal?: AbortSignal},
   ): Promise<MintRegistrationTokensBatchResponseDto>;
-  reportProvisionedRunners(
-    body: ReportProvisionedRunnersBodyDto,
+  reportRunnerInstances(
+    body: ReportRunnerInstancesBodyDto,
     options?: {signal?: AbortSignal},
-  ): Promise<ReportProvisionedRunnersResponseDto>;
-  reconcileProvisionedRunners(
-    body: ReconcileProvisionedRunnersBodyDto,
+  ): Promise<ReportRunnerInstancesResponseDto>;
+  reconcileRunnerInstances(
+    body: ReconcileRunnerInstancesBodyDto,
     options?: {signal?: AbortSignal},
-  ): Promise<ReconcileProvisionedRunnersResponseDto>;
+  ): Promise<ReconcileRunnerInstancesResponseDto>;
 }
 
 export function createProvisionerClient(params: {
@@ -86,23 +86,23 @@ export function createProvisionerClient(params: {
       });
     },
 
-    reportProvisionedRunners(body, options = {}) {
+    reportRunnerInstances(body, options = {}) {
       return withAuthMapping(async () => {
-        const response = await api.post('provisioners/provisioned-runners/report', {
+        const response = await api.post('provisioners/runner-instances/report', {
           json: body,
           ...(options.signal ? {signal: options.signal} : {}),
         });
-        return reportProvisionedRunnersResponseSchema.parse(await response.json());
+        return reportRunnerInstancesResponseSchema.parse(await response.json());
       });
     },
 
-    reconcileProvisionedRunners(body, options = {}) {
+    reconcileRunnerInstances(body, options = {}) {
       return withAuthMapping(async () => {
-        const response = await api.post('provisioners/provisioned-runners/reconcile', {
+        const response = await api.post('provisioners/runner-instances/reconcile', {
           json: body,
           ...(options.signal ? {signal: options.signal} : {}),
         });
-        return reconcileProvisionedRunnersResponseSchema.parse(await response.json());
+        return reconcileRunnerInstancesResponseSchema.parse(await response.json());
       });
     },
   };

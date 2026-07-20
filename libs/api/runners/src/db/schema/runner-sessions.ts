@@ -21,7 +21,7 @@ export const runnerSessions = pgTable(
     registrationTokenKind:
       runnerSessionRegistrationTokenKindEnum('registration_token_kind').notNull(),
     provisionerId: uuid('provisioner_id'),
-    provisionedRunnerId: text('provisioned_runner_id'),
+    providerRunnerId: text('provider_runner_id'),
     labels: text('labels').array().notNull(),
     toolCapabilities: jsonb('tool_capabilities').$type<RunnerToolCapabilitiesDto | null>(),
     toolCapabilitiesReportedAt: timestamp('tool_capabilities_reported_at', {withTimezone: true}),
@@ -42,10 +42,10 @@ export const runnerSessions = pgTable(
     ),
     check(
       'runners_runner_sessions_link_ck',
-      sql`((${table.registrationTokenKind} = 'manual' AND ${table.provisionerId} IS NULL AND ${table.provisionedRunnerId} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.provisionerId} IS NOT NULL AND ${table.provisionedRunnerId} IS NOT NULL))`,
+      sql`((${table.registrationTokenKind} = 'manual' AND ${table.provisionerId} IS NULL AND ${table.providerRunnerId} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.provisionerId} IS NOT NULL AND ${table.providerRunnerId} IS NOT NULL))`,
     ),
-    index('runners_runner_sessions_provisioned_runner_updated_idx')
-      .on(table.workspaceId, table.provisionerId, table.provisionedRunnerId, table.updatedAt)
+    index('runners_runner_sessions_provider_runner_updated_idx')
+      .on(table.workspaceId, table.provisionerId, table.providerRunnerId, table.updatedAt)
       .where(sql`"provisioner_id" IS NOT NULL`),
   ],
 );
@@ -65,7 +65,7 @@ export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
     registrationTokenId: row.registrationTokenId,
     registrationTokenKind: row.registrationTokenKind,
     provisionerId: row.provisionerId,
-    provisionedRunnerId: row.provisionedRunnerId,
+    providerRunnerId: row.providerRunnerId,
     labels: row.labels,
     toolCapabilities: row.toolCapabilities,
     toolCapabilitiesReportedAt: row.toolCapabilitiesReportedAt,

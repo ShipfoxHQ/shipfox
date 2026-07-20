@@ -1,6 +1,6 @@
 import type {TemplateCounts} from '#types.js';
 
-export type ProvisionedRunnerLifecycle = 'starting' | 'running';
+export type ProviderRunnerLifecycle = 'starting' | 'running';
 
 /**
  * The provisioner's in-memory view of the runners it is managing, grouped per
@@ -9,15 +9,15 @@ export type ProvisionedRunnerLifecycle = 'starting' | 'running';
  * book-keeping, seeded as it starts runners; the backend stays the source of truth
  * for demand and reconciliation.
  */
-export interface ProvisionedRunnerTracker {
-  recordStarting(args: {provisionedRunnerId: string; templateKey: string}): void;
-  markRunning(provisionedRunnerId: string): void;
-  remove(provisionedRunnerId: string): void;
+export interface ProviderRunnerTracker {
+  recordStarting(args: {providerRunnerId: string; templateKey: string}): void;
+  markRunning(providerRunnerId: string): void;
+  remove(providerRunnerId: string): void;
   replaceAll(
     runners: readonly {
-      provisionedRunnerId: string;
+      providerRunnerId: string;
       templateKey: string;
-      state: ProvisionedRunnerLifecycle;
+      state: ProviderRunnerLifecycle;
     }[],
   ): void;
   countsByTemplate(): Map<string, TemplateCounts>;
@@ -25,27 +25,27 @@ export interface ProvisionedRunnerTracker {
 
 interface TrackedRunner {
   templateKey: string;
-  state: ProvisionedRunnerLifecycle;
+  state: ProviderRunnerLifecycle;
 }
 
-export function createInMemoryTracker(): ProvisionedRunnerTracker {
+export function createInMemoryTracker(): ProviderRunnerTracker {
   const runners = new Map<string, TrackedRunner>();
 
   return {
-    recordStarting({provisionedRunnerId, templateKey}) {
-      runners.set(provisionedRunnerId, {templateKey, state: 'starting'});
+    recordStarting({providerRunnerId, templateKey}) {
+      runners.set(providerRunnerId, {templateKey, state: 'starting'});
     },
-    markRunning(provisionedRunnerId) {
-      const runner = runners.get(provisionedRunnerId);
+    markRunning(providerRunnerId) {
+      const runner = runners.get(providerRunnerId);
       if (runner) runner.state = 'running';
     },
-    remove(provisionedRunnerId) {
-      runners.delete(provisionedRunnerId);
+    remove(providerRunnerId) {
+      runners.delete(providerRunnerId);
     },
     replaceAll(nextRunners) {
       runners.clear();
       for (const runner of nextRunners) {
-        runners.set(runner.provisionedRunnerId, {
+        runners.set(runner.providerRunnerId, {
           templateKey: runner.templateKey,
           state: runner.state,
         });

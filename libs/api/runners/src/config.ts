@@ -110,7 +110,7 @@ export const config = createConfig({
     default: 10,
   }),
   PROVISIONED_RUNNER_COUNT_DIVERGENCE_TEMPLATE_KEY_LABEL_ENABLED: bool({
-    desc: 'Whether runners_provisioned_runner_count_divergence includes template_key as a metric label. Use true or false. Defaults to false because template keys can create high-cardinality metric series. Set true only when template keys are bounded and stable.',
+    desc: 'Whether runners_provider_runner_count_divergence includes template_key as a metric label. Use true or false. Defaults to false because template keys can create high-cardinality metric series. Set true only when template keys are bounded and stable.',
     default: false,
   }),
 });

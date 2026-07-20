@@ -9,7 +9,7 @@ import {SHIPFOX_TAGS} from '#instance-identity.js';
 const runArgs: RunInstanceArgs = {
   clientToken: 'runner-1',
   tags: {
-    [SHIPFOX_TAGS.provisionedRunnerId]: 'runner-1',
+    [SHIPFOX_TAGS.providerRunnerId]: 'runner-1',
     [SHIPFOX_TAGS.provisionerId]: 'provisioner-1',
     Name: 'runner-1',
   },

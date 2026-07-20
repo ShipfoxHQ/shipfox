@@ -2,20 +2,16 @@ import {vi} from '@shipfox/vitest/vi';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
-import {provisionedRunnerReapedCount, reservationReleasedCount} from '#metrics/instance.js';
-import {
-  provisionedRunnerFactory,
-  provisionerTokenFactory,
-  reservationFactory,
-} from '#test/index.js';
+import {providerRunnerReapedCount, reservationReleasedCount} from '#metrics/instance.js';
+import {providerRunnerFactory, provisionerTokenFactory, reservationFactory} from '#test/index.js';
 import {
   deleteExpiredEphemeralRegistrationTokens,
   deleteExpiredRunnerReservations,
   deleteExpiredRunnerSessions,
-  reapStaleProvisionedRunners,
+  reapStaleRunnerInstances,
 } from './maintenance.js';
 
 describe('deleteExpiredRunnerReservations', () => {
@@ -55,7 +51,7 @@ describe('deleteExpiredRunnerReservations', () => {
   });
 });
 
-describe('reapStaleProvisionedRunners', () => {
+describe('reapStaleRunnerInstances', () => {
   it('returns reaped counts and records maintenance metrics', async () => {
     const workspaceId = crypto.randomUUID();
     const provisioner = await provisionerTokenFactory.create({workspaceId});
@@ -71,21 +67,21 @@ describe('reapStaleProvisionedRunners', () => {
       .from(reservations)
       .where(eq(reservations.workspaceId, workspaceId));
     if (!reservation) throw new Error('Expected reservation');
-    const provisionedRunner = await provisionedRunnerFactory.create({
+    const providerRunner = await providerRunnerFactory.create({
       workspaceId,
       provisionerId: provisioner.id,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       reservationId: reservation.id,
       reportedAt: new Date(Date.now() - 120_000),
     });
     await db()
-      .update(provisionedRunners)
+      .update(providerRunners)
       .set({updatedAt: new Date(Date.now() - 120_000)})
-      .where(eq(provisionedRunners.id, provisionedRunner.id));
-    const reapedSpy = vi.spyOn(provisionedRunnerReapedCount, 'add');
+      .where(eq(providerRunners.id, providerRunner.id));
+    const reapedSpy = vi.spyOn(providerRunnerReapedCount, 'add');
     const releasedSpy = vi.spyOn(reservationReleasedCount, 'add');
 
-    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    const result = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 100});
 
     expect(result).toEqual({reaped: 1, reservationsReleased: 1});
     expect(reapedSpy).toHaveBeenCalledWith(1);
@@ -173,7 +169,7 @@ describe('deleteExpiredRunnerSessions', () => {
       registrationTokenId: crypto.randomUUID(),
       registrationTokenKind: params.kind,
       provisionerId,
-      provisionedRunnerId: params.kind === 'ephemeral' ? `provisioned-${params.id}` : null,
+      providerRunnerId: params.kind === 'ephemeral' ? `provisioned-${params.id}` : null,
       labels: ['linux'],
       maxClaims: params.kind === 'ephemeral' ? 1 : null,
       claimsUsed: 0,
@@ -240,7 +236,7 @@ describe('deleteExpiredEphemeralRegistrationTokens', () => {
       id: params.id,
       workspaceId,
       provisionerId: crypto.randomUUID(),
-      provisionedRunnerId: `provisioned-${params.id}`,
+      providerRunnerId: `provisioned-${params.id}`,
       hashedToken: crypto.randomUUID(),
       prefix: 'sfxr_test',
       expiresAt: params.expiresAt,

@@ -2,12 +2,12 @@ import {verifyRunnerSessionToken} from '@shipfox/api-auth';
 import {and, eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {
   ephemeralRegistrationTokenFactory,
   manualRegistrationTokenFactory,
-  provisionedRunnerFactory,
+  providerRunnerFactory,
 } from '#test/index.js';
 import {
   EmptyRunnerLabelsError,
@@ -37,7 +37,7 @@ describe('registerRunnerSession', () => {
     expect(result.session.labels).toEqual(['linux', 'x64']);
     expect(result.session.registrationTokenKind).toBe('manual');
     expect(result.session.provisionerId).toBeNull();
-    expect(result.session.provisionedRunnerId).toBeNull();
+    expect(result.session.providerRunnerId).toBeNull();
     expect(result.session.maxClaims).toBeNull();
     expect(result.session.claimsUsed).toBe(0);
 
@@ -71,7 +71,7 @@ describe('registerRunnerSession', () => {
         workspaceId,
         provisionerId: token.provisionerId,
         reservationId: token.reservationId,
-        provisionedRunnerId: token.provisionedRunnerId,
+        providerRunnerId: token.providerRunnerId,
       },
       labels: [' Linux ', 'x64'],
     });
@@ -80,7 +80,7 @@ describe('registerRunnerSession', () => {
     expect(result.maxClaims).toBe(1);
     expect(result.session.registrationTokenKind).toBe('ephemeral');
     expect(result.session.provisionerId).toBe(token.provisionerId);
-    expect(result.session.provisionedRunnerId).toBe(token.provisionedRunnerId);
+    expect(result.session.providerRunnerId).toBe(token.providerRunnerId);
     expect(result.session.maxClaims).toBe(1);
     expect(result.session.claimsUsed).toBe(0);
 
@@ -96,7 +96,7 @@ describe('registerRunnerSession', () => {
       .from(runnerSessions)
       .where(eq(runnerSessions.id, result.session.id));
     expect(session?.provisionerId).toBe(token.provisionerId);
-    expect(session?.provisionedRunnerId).toBe(token.provisionedRunnerId);
+    expect(session?.providerRunnerId).toBe(token.providerRunnerId);
 
     const claims = await verifyRunnerSessionToken(result.sessionToken);
     expect(claims?.maxClaims).toBe(1);
@@ -104,10 +104,10 @@ describe('registerRunnerSession', () => {
 
   it('links an existing provisioned runner row when consuming an ephemeral token', async () => {
     const token = await ephemeralRegistrationTokenFactory.create({workspaceId});
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId: token.provisionerId,
-      provisionedRunnerId: token.provisionedRunnerId,
+      providerRunnerId: token.providerRunnerId,
       runnerSessionId: null,
       state: 'starting',
     });
@@ -119,22 +119,22 @@ describe('registerRunnerSession', () => {
         workspaceId,
         provisionerId: token.provisionerId,
         reservationId: token.reservationId,
-        provisionedRunnerId: token.provisionedRunnerId,
+        providerRunnerId: token.providerRunnerId,
       },
       labels: ['linux'],
     });
 
-    const [provisionedRunner] = await db()
+    const [providerRunner] = await db()
       .select()
-      .from(provisionedRunners)
+      .from(providerRunners)
       .where(
         and(
-          eq(provisionedRunners.workspaceId, workspaceId),
-          eq(provisionedRunners.provisionerId, token.provisionerId),
-          eq(provisionedRunners.provisionedRunnerId, token.provisionedRunnerId),
+          eq(providerRunners.workspaceId, workspaceId),
+          eq(providerRunners.provisionerId, token.provisionerId),
+          eq(providerRunners.providerRunnerId, token.providerRunnerId),
         ),
       );
-    expect(provisionedRunner?.runnerSessionId).toBe(result.session.id);
+    expect(providerRunner?.runnerSessionId).toBe(result.session.id);
   });
 
   it('rejects a second consume of the same ephemeral token', async () => {
@@ -145,7 +145,7 @@ describe('registerRunnerSession', () => {
       workspaceId,
       provisionerId: token.provisionerId,
       reservationId: token.reservationId,
-      provisionedRunnerId: token.provisionedRunnerId,
+      providerRunnerId: token.providerRunnerId,
     };
 
     await registerRunnerSession({credential, labels: ['linux']});
@@ -166,7 +166,7 @@ describe('registerRunnerSession', () => {
           workspaceId: crypto.randomUUID(),
           provisionerId: token.provisionerId,
           reservationId: token.reservationId,
-          provisionedRunnerId: token.provisionedRunnerId,
+          providerRunnerId: token.providerRunnerId,
         },
         labels: ['linux'],
       }),
@@ -183,7 +183,7 @@ describe('registerRunnerSession', () => {
           registrationTokenId: crypto.randomUUID(),
           registrationTokenKind: 'ephemeral',
           provisionerId: crypto.randomUUID(),
-          provisionedRunnerId: `provisioned-runner-${crypto.randomUUID()}`,
+          providerRunnerId: `provisioned-runner-${crypto.randomUUID()}`,
           labels: ['linux'],
           maxClaims: null,
           claimsUsed: 0,

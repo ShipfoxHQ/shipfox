@@ -12,7 +12,7 @@ import {
 } from '#api-client.js';
 import {config} from '#config.js';
 import {type RunnerEnvFactory, runProvisionerTick} from '#tick.js';
-import {createInMemoryTracker, type ProvisionedRunnerTracker} from '#tracker.js';
+import {createInMemoryTracker, type ProviderRunnerTracker} from '#tracker.js';
 import type {ProvisionerAdapter, ProvisionerTemplate} from '#types.js';
 
 /** The demand poll accepts at most 100 advertised templates per request. */
@@ -42,7 +42,7 @@ export interface RunProvisionerIterationDeps<Spec> {
   readonly adapter: ProvisionerAdapter<Spec>;
   readonly client: ProvisionerClient;
   readonly templates: readonly ProvisionerTemplate<Spec>[];
-  readonly tracker: ProvisionedRunnerTracker;
+  readonly tracker: ProviderRunnerTracker;
   readonly currentInterval: number;
   readonly degraded: boolean;
   readonly signal?: AbortSignal;

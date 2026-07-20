@@ -1,11 +1,11 @@
 import {
   MAX_RECONCILE_OBSERVED_RUNNERS,
-  type ProvisionedRunnerReportEventDto,
+  type RunnerInstanceReportEventDto,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {
-  ProvisionedRunnerLaunch,
-  ProvisionedRunnerTracker,
+  ProviderRunnerLaunch,
+  ProviderRunnerTracker,
   ProvisionerClient,
   ProvisionerIdentity,
   ProvisionerTemplate,
@@ -23,17 +23,17 @@ const REPORT_BACKLOG_LOG_EVERY_PASSES = 5;
 const EMPTY_TERMINATE_INTENT_IDS = new Set<string>();
 
 type TrackerSeed = {
-  provisionedRunnerId: string;
+  providerRunnerId: string;
   templateKey: string;
   state: 'starting' | 'running';
 };
 
 export interface DockerLifecycle {
-  launch(launch: ProvisionedRunnerLaunch<DockerTemplateSpec>): Promise<void>;
+  launch(launch: ProviderRunnerLaunch<DockerTemplateSpec>): Promise<void>;
   observe(): Promise<void>;
   reconcile(): Promise<void>;
   tick(): Promise<void>;
-  terminate(provisionedRunnerIds: readonly string[]): Promise<void>;
+  terminate(providerRunnerIds: readonly string[]): Promise<void>;
   flush(): Promise<void>;
 }
 
@@ -41,7 +41,7 @@ interface DockerLifecycleOptions {
   engine: DockerEngine;
   client: ProvisionerClient;
   identity: ProvisionerIdentity;
-  tracker: ProvisionedRunnerTracker;
+  tracker: ProviderRunnerTracker;
   templates: readonly ProvisionerTemplate<DockerTemplateSpec>[];
   now?: () => Date;
   registrationDeadlineMs: number;
@@ -52,27 +52,27 @@ interface DockerLifecycleContext {
   readonly engine: DockerEngine;
   readonly client: ProvisionerClient;
   readonly identity: ProvisionerIdentity;
-  readonly tracker: ProvisionedRunnerTracker;
+  readonly tracker: ProviderRunnerTracker;
   readonly templatesByKey: ReadonlyMap<string, ProvisionerTemplate<DockerTemplateSpec>>;
   readonly now: () => Date;
   readonly registrationDeadlineMs: number;
   readonly providerKind: string;
   readonly knownLiveIds: Set<string>;
   readonly knownTemplateKeys: Map<string, string>;
-  readonly pendingReports: ProvisionedRunnerReportEventDto[];
+  readonly pendingReports: RunnerInstanceReportEventDto[];
   backendReconcileSucceeded: boolean;
   reportBacklogPasses: number;
 }
 
 interface ObservationPlan {
   readonly trackerRunners: TrackerSeed[];
-  readonly liveEvents: ProvisionedRunnerReportEventDto[];
+  readonly liveEvents: RunnerInstanceReportEventDto[];
   readonly terminalActions: TerminalAction[];
 }
 
 interface TerminalAction {
-  readonly provisionedRunnerId: string;
-  readonly event?: ProvisionedRunnerReportEventDto;
+  readonly providerRunnerId: string;
+  readonly event?: RunnerInstanceReportEventDto;
   readonly remove?: string;
   readonly killAndRemove?: string;
 }
@@ -113,12 +113,12 @@ export function createDockerLifecycle(args: DockerLifecycleOptions): DockerLifec
 
 async function launch(
   context: DockerLifecycleContext,
-  runner: ProvisionedRunnerLaunch<DockerTemplateSpec>,
+  runner: ProviderRunnerLaunch<DockerTemplateSpec>,
 ): Promise<void> {
   const labels = buildContainerLabels({launch: runner, identity: context.identity});
   await reportEvents(context, [
     {
-      provisioned_runner_id: runner.provisionedRunnerId,
+      provider_runner_id: runner.providerRunnerId,
       reservation_id: runner.reservationId,
       template_key: runner.template.key,
       labels: [...runner.template.labels],
@@ -130,19 +130,19 @@ async function launch(
 
   try {
     await context.engine.createAndStart({
-      name: runner.provisionedRunnerId,
+      name: runner.providerRunnerId,
       image: runner.template.spec.image,
       env: runner.runnerEnv,
       labels,
       nanoCpus: Math.round(runner.template.spec.cpu * 1_000_000_000),
       memoryBytes: parseMemoryToBytes(runner.template.spec.memory),
     });
-    context.knownLiveIds.add(runner.provisionedRunnerId);
-    context.knownTemplateKeys.set(runner.provisionedRunnerId, runner.template.key);
+    context.knownLiveIds.add(runner.providerRunnerId);
+    context.knownTemplateKeys.set(runner.providerRunnerId, runner.template.key);
   } catch (error) {
     await reportEvents(context, [
       {
-        provisioned_runner_id: runner.provisionedRunnerId,
+        provider_runner_id: runner.providerRunnerId,
         reservation_id: runner.reservationId,
         template_key: runner.template.key,
         labels: [...runner.template.labels],
@@ -165,11 +165,11 @@ async function observe(context: DockerLifecycleContext): Promise<void> {
 async function reconcile(context: DockerLifecycleContext): Promise<void> {
   await reportEvents(context, []);
   const containers = await context.engine.listManaged(context.identity.id);
-  const observedProvisionedRunnerIds = observedRunnerIds(containers);
-  if (observedProvisionedRunnerIds.length > MAX_RECONCILE_OBSERVED_RUNNERS) {
+  const observedProviderRunnerIds = observedRunnerIds(containers);
+  if (observedProviderRunnerIds.length > MAX_RECONCILE_OBSERVED_RUNNERS) {
     logger().error(
       {
-        observedCount: observedProvisionedRunnerIds.length,
+        observedCount: observedProviderRunnerIds.length,
         maxObserved: MAX_RECONCILE_OBSERVED_RUNNERS,
       },
       'Skipping backend reconcile because observed provisioned runner count exceeds the API limit',
@@ -178,18 +178,18 @@ async function reconcile(context: DockerLifecycleContext): Promise<void> {
     return;
   }
 
-  const response = await context.client.reconcileProvisionedRunners({
-    observed_provisioned_runner_ids: observedProvisionedRunnerIds,
+  const response = await context.client.reconcileRunnerInstances({
+    observed_provider_runner_ids: observedProviderRunnerIds,
   });
   const terminateIntentIds = new Set(
     response.runners
       .filter((runner) => runner.desired_intent === 'terminate')
-      .map((runner) => runner.provisioned_runner_id),
+      .map((runner) => runner.provider_runner_id),
   );
 
-  if (response.terminated_absent_provisioned_runner_ids.length > 0) {
+  if (response.terminated_absent_provider_runner_ids.length > 0) {
     logger().info(
-      {provisionedRunnerIds: response.terminated_absent_provisioned_runner_ids},
+      {providerRunnerIds: response.terminated_absent_provider_runner_ids},
       'Backend terminated provisioned runners absent from Docker',
     );
   }
@@ -209,15 +209,15 @@ async function tick(context: DockerLifecycleContext): Promise<void> {
 
 async function terminate(
   context: DockerLifecycleContext,
-  provisionedRunnerIds: readonly string[],
+  providerRunnerIds: readonly string[],
 ): Promise<void> {
-  if (provisionedRunnerIds.length === 0) return;
+  if (providerRunnerIds.length === 0) return;
 
-  const ids = new Set(provisionedRunnerIds);
+  const ids = new Set(providerRunnerIds);
   const containers = await context.engine.listManaged(context.identity.id);
   const actions = containers.flatMap((container) => {
     const parsed = parseContainerIdentity(container);
-    return ids.has(parsed.provisionedRunnerId)
+    return ids.has(parsed.providerRunnerId)
       ? [terminalActionFor(context, container, 'backend-terminate')]
       : [];
   });
@@ -253,8 +253,8 @@ function recordContainerObservation(
   terminateIntentIds: ReadonlySet<string>,
 ): void {
   const parsed = parseContainerIdentity(container);
-  listedIds.add(parsed.provisionedRunnerId);
-  if (terminateIntentIds.has(parsed.provisionedRunnerId)) {
+  listedIds.add(parsed.providerRunnerId);
+  if (terminateIntentIds.has(parsed.providerRunnerId)) {
     plan.terminalActions.push(terminalActionFor(context, container, 'backend-terminate'));
     return;
   }
@@ -262,7 +262,7 @@ function recordContainerObservation(
   const labels = labelsFor(context, parsed.templateKey, parsed.labels);
   if (labels.length === 0) {
     logger().warn(
-      {provisionedRunnerId: parsed.provisionedRunnerId},
+      {providerRunnerId: parsed.providerRunnerId},
       'Skipping provisioned runner report because labels are unavailable',
     );
     return;
@@ -287,7 +287,7 @@ function recordContainerObservation(
   }
 
   plan.terminalActions.push({
-    provisionedRunnerId: parsed.provisionedRunnerId,
+    providerRunnerId: parsed.providerRunnerId,
     event: eventFor(
       container,
       mapped.state,
@@ -308,16 +308,16 @@ function recordLiveContainer(
   labels: readonly string[],
   mapped: LiveContainerState,
 ): void {
-  context.knownLiveIds.add(parsed.provisionedRunnerId);
+  context.knownLiveIds.add(parsed.providerRunnerId);
   if (parsed.templateKey) {
-    context.knownTemplateKeys.set(parsed.provisionedRunnerId, parsed.templateKey);
+    context.knownTemplateKeys.set(parsed.providerRunnerId, parsed.templateKey);
   }
   plan.liveEvents.push(
     eventFor(container, mapped.state, labels, context.providerKind, context.now(), mapped.reason),
   );
   if (parsed.templateKey) {
     plan.trackerRunners.push({
-      provisionedRunnerId: parsed.provisionedRunnerId,
+      providerRunnerId: parsed.providerRunnerId,
       templateKey: parsed.templateKey,
       state: mapped.state,
     });
@@ -329,17 +329,17 @@ function synthesizeVanishedContainers(
   plan: ObservationPlan,
   listedIds: ReadonlySet<string>,
 ): void {
-  for (const provisionedRunnerId of [...context.knownLiveIds]) {
-    if (listedIds.has(provisionedRunnerId)) continue;
-    context.knownLiveIds.delete(provisionedRunnerId);
-    const templateKey = context.knownTemplateKeys.get(provisionedRunnerId);
-    context.knownTemplateKeys.delete(provisionedRunnerId);
+  for (const providerRunnerId of [...context.knownLiveIds]) {
+    if (listedIds.has(providerRunnerId)) continue;
+    context.knownLiveIds.delete(providerRunnerId);
+    const templateKey = context.knownTemplateKeys.get(providerRunnerId);
+    context.knownTemplateKeys.delete(providerRunnerId);
     const template = templateKey ? context.templatesByKey.get(templateKey) : undefined;
     if (!template) continue;
     plan.terminalActions.push({
-      provisionedRunnerId,
+      providerRunnerId,
       event: {
-        provisioned_runner_id: provisionedRunnerId,
+        provider_runner_id: providerRunnerId,
         template_key: template.key,
         labels: [...template.labels],
         state: 'terminated',
@@ -379,15 +379,15 @@ async function applyTerminalActions(
     if (action.killAndRemove) await context.engine.killAndRemove(action.killAndRemove);
     if (action.remove) await context.engine.remove(action.remove);
     if (action.event) await reportEvents(context, [action.event]);
-    context.knownLiveIds.delete(action.provisionedRunnerId);
-    context.knownTemplateKeys.delete(action.provisionedRunnerId);
-    context.tracker.remove(action.provisionedRunnerId);
+    context.knownLiveIds.delete(action.providerRunnerId);
+    context.knownTemplateKeys.delete(action.providerRunnerId);
+    context.tracker.remove(action.providerRunnerId);
   }
 }
 
 async function reportEvents(
   context: DockerLifecycleContext,
-  events: readonly ProvisionedRunnerReportEventDto[],
+  events: readonly RunnerInstanceReportEventDto[],
 ): Promise<void> {
   const queued = context.pendingReports.splice(0);
   const reports = [...queued, ...events];
@@ -397,7 +397,7 @@ async function reportEvents(
   for (let index = 0; index < batches.length; index += 1) {
     const batch = batches[index] ?? [];
     try {
-      await context.client.reportProvisionedRunners({events: batch});
+      await context.client.reportRunnerInstances({events: batch});
     } catch (error) {
       if (error instanceof ProvisionerAuthenticationError) {
         bufferReports(context, [...batch, ...batches.slice(index + 1).flat()]);
@@ -434,17 +434,17 @@ function terminalActionFor(
   const labels = labelsFor(context, parsed.templateKey, parsed.labels);
   if (labels.length === 0) {
     logger().warn(
-      {provisionedRunnerId: parsed.provisionedRunnerId},
+      {providerRunnerId: parsed.providerRunnerId},
       'Skipping provisioned runner report because labels are unavailable',
     );
     return {
-      provisionedRunnerId: parsed.provisionedRunnerId,
+      providerRunnerId: parsed.providerRunnerId,
       killAndRemove: container.name,
     };
   }
 
   return {
-    provisionedRunnerId: parsed.provisionedRunnerId,
+    providerRunnerId: parsed.providerRunnerId,
     event: eventFor(container, 'terminated', labels, context.providerKind, context.now(), reason),
     killAndRemove: container.name,
   };
@@ -452,15 +452,13 @@ function terminalActionFor(
 
 function observedRunnerIds(containers: readonly DockerContainerView[]): string[] {
   return [
-    ...new Set(
-      containers.map((container) => parseContainerIdentity(container).provisionedRunnerId),
-    ),
+    ...new Set(containers.map((container) => parseContainerIdentity(container).providerRunnerId)),
   ];
 }
 
 function bufferReports(
   context: DockerLifecycleContext,
-  events: readonly ProvisionedRunnerReportEventDto[],
+  events: readonly RunnerInstanceReportEventDto[],
 ): void {
   context.pendingReports.push(...events);
   if (context.pendingReports.length <= MAX_PENDING_REPORTS) return;
@@ -508,7 +506,7 @@ function reportBacklogIfNeeded(context: DockerLifecycleContext): void {
   }
 }
 
-function isTerminalReportEvent(event: ProvisionedRunnerReportEventDto): boolean {
+function isTerminalReportEvent(event: RunnerInstanceReportEventDto): boolean {
   return event.state === 'stopped' || event.state === 'failed' || event.state === 'terminated';
 }
 
@@ -533,15 +531,15 @@ function labelsFor(
 
 function eventFor(
   container: DockerContainerView,
-  state: ProvisionedRunnerReportEventDto['state'],
+  state: RunnerInstanceReportEventDto['state'],
   labels: readonly string[],
   providerKind: string,
   reportedAt: Date,
   reason?: string,
-): ProvisionedRunnerReportEventDto {
+): RunnerInstanceReportEventDto {
   const parsed = parseContainerIdentity(container);
   return {
-    provisioned_runner_id: parsed.provisionedRunnerId,
+    provider_runner_id: parsed.providerRunnerId,
     ...(parsed.reservationId ? {reservation_id: parsed.reservationId} : {}),
     ...(parsed.templateKey ? {template_key: parsed.templateKey} : {}),
     labels: [...labels],
@@ -553,7 +551,7 @@ function eventFor(
 }
 
 function mapContainerState(container: DockerContainerView): {
-  state: ProvisionedRunnerReportEventDto['state'];
+  state: RunnerInstanceReportEventDto['state'];
   reason?: string;
 } {
   switch (container.state) {

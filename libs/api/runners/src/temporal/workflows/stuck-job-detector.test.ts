@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({
   deleteExpiredReservationsActivity: vi.fn(),
   deleteExpiredRunnerSessionsActivity: vi.fn(),
   detectAndExpireStuckJobsActivity: vi.fn(),
-  reapStaleProvisionedRunnersActivity: vi.fn(),
+  reapStaleRunnerInstancesActivity: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
 }));
@@ -19,7 +19,7 @@ vi.mock('@temporalio/workflow', () => ({
     deleteExpiredReservationsActivity: mocks.deleteExpiredReservationsActivity,
     deleteExpiredRunnerSessionsActivity: mocks.deleteExpiredRunnerSessionsActivity,
     detectAndExpireStuckJobsActivity: mocks.detectAndExpireStuckJobsActivity,
-    reapStaleProvisionedRunnersActivity: mocks.reapStaleProvisionedRunnersActivity,
+    reapStaleRunnerInstancesActivity: mocks.reapStaleRunnerInstancesActivity,
   })),
 }));
 
@@ -30,7 +30,7 @@ describe('stuckJobDetector', () => {
     mocks.deleteExpiredReservationsActivity.mockResolvedValue({deleted: 0});
     mocks.deleteExpiredRunnerSessionsActivity.mockResolvedValue({deleted: 0});
     mocks.detectAndExpireStuckJobsActivity.mockResolvedValue({expired: 0});
-    mocks.reapStaleProvisionedRunnersActivity.mockResolvedValue({
+    mocks.reapStaleRunnerInstancesActivity.mockResolvedValue({
       reaped: 0,
       reservationsReleased: 0,
     });

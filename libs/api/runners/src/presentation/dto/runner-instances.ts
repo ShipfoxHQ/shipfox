@@ -1,10 +1,10 @@
 import type {
   ActiveRunner,
-  ReconcileProvisionedRunnersResult,
-  ReportProvisionedRunnersResult,
-} from '#core/provisioned-runners.js';
+  ReconcileRunnerInstancesResult,
+  ReportRunnerInstancesResult,
+} from '#core/runner-instances.js';
 
-export function toReportProvisionedRunnersResponseDto(result: ReportProvisionedRunnersResult): {
+export function toReportRunnerInstancesResponseDto(result: ReportRunnerInstancesResult): {
   accepted: number;
   reservations_released: number;
 } {
@@ -14,12 +14,10 @@ export function toReportProvisionedRunnersResponseDto(result: ReportProvisionedR
   };
 }
 
-export function toReconcileProvisionedRunnersResponseDto(
-  result: ReconcileProvisionedRunnersResult,
-): {
+export function toReconcileRunnerInstancesResponseDto(result: ReconcileRunnerInstancesResult): {
   runners: Array<{
-    provisioned_runner_id: string;
-    state: ReconcileProvisionedRunnersResult['runners'][number]['state'];
+    provider_runner_id: string;
+    state: ReconcileRunnerInstancesResult['runners'][number]['state'];
     reservation_id: string | null;
     runner_session_id: string | null;
     bound_job: {
@@ -28,13 +26,13 @@ export function toReconcileProvisionedRunnersResponseDto(
       last_heartbeat_at: string;
       cancellation_requested_at: string | null;
     } | null;
-    desired_intent: ReconcileProvisionedRunnersResult['runners'][number]['desiredIntent'];
+    desired_intent: ReconcileRunnerInstancesResult['runners'][number]['desiredIntent'];
   }>;
-  terminated_absent_provisioned_runner_ids: string[];
+  terminated_absent_provider_runner_ids: string[];
 } {
   return {
     runners: result.runners.map((runner) => ({
-      provisioned_runner_id: runner.provisionedRunnerId,
+      provider_runner_id: runner.providerRunnerId,
       state: runner.state,
       reservation_id: runner.reservationId,
       runner_session_id: runner.runnerSessionId,
@@ -49,14 +47,14 @@ export function toReconcileProvisionedRunnersResponseDto(
         : null,
       desired_intent: runner.desiredIntent,
     })),
-    terminated_absent_provisioned_runner_ids: result.terminatedAbsentProvisionedRunnerIds,
+    terminated_absent_provider_runner_ids: result.terminatedAbsentRunnerInstanceIds,
   };
 }
 
 export function toActiveRunnersResponseDto(runners: ActiveRunner[]): {
   runners: Array<{
     runner_session_id: string | null;
-    provisioned_runner_id: string | null;
+    provider_runner_id: string | null;
     provisioner_id: string | null;
     state: ActiveRunner['state'];
     labels: string[];
@@ -72,7 +70,7 @@ export function toActiveRunnersResponseDto(runners: ActiveRunner[]): {
   return {
     runners: runners.map((runner) => ({
       runner_session_id: runner.runnerSessionId,
-      provisioned_runner_id: runner.provisionedRunnerId,
+      provider_runner_id: runner.providerRunnerId,
       provisioner_id: runner.provisionerId,
       state: runner.state,
       labels: runner.labels,

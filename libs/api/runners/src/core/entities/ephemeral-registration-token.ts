@@ -3,7 +3,7 @@ export interface EphemeralRegistrationToken {
   workspaceId: string;
   provisionerId: string;
   reservationId: string | null;
-  provisionedRunnerId: string;
+  providerRunnerId: string;
   hashedToken: string;
   prefix: string;
   expiresAt: Date;

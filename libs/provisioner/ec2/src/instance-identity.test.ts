@@ -1,4 +1,4 @@
-import type {ProvisionedRunnerLaunch, ProvisionerIdentity} from '@shipfox/provisioner-core';
+import type {ProviderRunnerLaunch, ProvisionerIdentity} from '@shipfox/provisioner-core';
 import {buildInstanceTags, parseInstanceIdentity, SHIPFOX_TAGS} from '#instance-identity.js';
 import type {Ec2TemplateSpec} from '#templates.js';
 
@@ -7,8 +7,8 @@ const identity: ProvisionerIdentity = {
   workspaceId: '00000000-0000-4000-8000-000000000002',
 };
 
-const launch: ProvisionedRunnerLaunch<Ec2TemplateSpec> = {
-  provisionedRunnerId: 'runner-1',
+const launch: ProviderRunnerLaunch<Ec2TemplateSpec> = {
+  providerRunnerId: 'runner-1',
   reservationId: '00000000-0000-4000-8000-000000000003',
   registrationToken: 'sf_ert_secret',
   registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
@@ -37,7 +37,7 @@ describe('instance identity tags', () => {
     const tags = buildInstanceTags({launch, identity});
 
     expect(tags).toEqual({
-      [SHIPFOX_TAGS.provisionedRunnerId]: 'runner-1',
+      [SHIPFOX_TAGS.providerRunnerId]: 'runner-1',
       [SHIPFOX_TAGS.provisionerId]: identity.id,
       [SHIPFOX_TAGS.reservationId]: launch.reservationId,
       [SHIPFOX_TAGS.templateKey]: 'small',
@@ -54,7 +54,7 @@ describe('instance identity tags', () => {
     const parsed = parseInstanceIdentity({tags});
 
     expect(parsed).toEqual({
-      provisionedRunnerId: 'runner-1',
+      providerRunnerId: 'runner-1',
       provisionerId: identity.id,
       reservationId: launch.reservationId,
       templateKey: 'small',
@@ -65,16 +65,16 @@ describe('instance identity tags', () => {
 
   it('uses Name when the provisioned runner tag is absent', () => {
     const tags = buildInstanceTags({launch, identity});
-    delete tags[SHIPFOX_TAGS.provisionedRunnerId];
+    delete tags[SHIPFOX_TAGS.providerRunnerId];
 
     const parsed = parseInstanceIdentity({tags});
 
-    expect(parsed.provisionedRunnerId).toBe('runner-1');
+    expect(parsed.providerRunnerId).toBe('runner-1');
   });
 
   it('omits optional fields when their tags are absent', () => {
     const parsed = parseInstanceIdentity({tags: {Name: 'runner-1'}});
 
-    expect(parsed).toEqual({provisionedRunnerId: 'runner-1', labels: []});
+    expect(parsed).toEqual({providerRunnerId: 'runner-1', labels: []});
   });
 });

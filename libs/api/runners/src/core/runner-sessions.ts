@@ -25,7 +25,7 @@ export type RunnerRegistrationCredential =
       workspaceId: string;
       provisionerId: string;
       reservationId: string | null;
-      provisionedRunnerId: string;
+      providerRunnerId: string;
     };
 
 export async function registerRunnerSession(params: {

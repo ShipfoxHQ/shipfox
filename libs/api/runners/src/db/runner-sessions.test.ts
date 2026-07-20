@@ -101,7 +101,7 @@ describe('deleteExpiredRunnerSessions', () => {
     const registrationTokenId = crypto.randomUUID();
     const createdAt = new Date(Date.now() - params.createdDaysAgo * 24 * 60 * 60 * 1000);
     const provisionerId = params.kind === 'ephemeral' ? crypto.randomUUID() : null;
-    const provisionedRunnerId =
+    const providerRunnerId =
       params.kind === 'ephemeral' ? `provisioned-${crypto.randomUUID()}` : null;
 
     await db()
@@ -113,7 +113,7 @@ describe('deleteExpiredRunnerSessions', () => {
         registrationTokenId,
         registrationTokenKind: params.kind,
         provisionerId,
-        provisionedRunnerId,
+        providerRunnerId,
         labels: ['linux'],
         maxClaims: params.kind === 'ephemeral' ? 1 : null,
         claimsUsed: 0,

@@ -18,7 +18,7 @@ export const runningJobExecutions = pgTable(
       .notNull()
       .references(() => runnerSessions.id),
     provisionerId: uuid('provisioner_id'),
-    provisionedRunnerId: text('provisioned_runner_id'),
+    providerRunnerId: text('provider_runner_id'),
     requiredLabels: text('required_labels').array().notNull(),
     runnerLabels: text('runner_labels').array().notNull(),
     startedAt: timestamp('started_at', {withTimezone: true}).notNull().defaultNow(),
@@ -31,17 +31,17 @@ export const runningJobExecutions = pgTable(
       .on(table.startedAt)
       .where(sql`"first_heartbeat_at" IS NULL`),
     index('runners_running_jobs_last_heartbeat_at_idx').on(table.lastHeartbeatAt),
-    index('runners_running_jobs_provisioned_runner_started_idx')
-      .on(table.workspaceId, table.provisionerId, table.provisionedRunnerId, table.startedAt.desc())
+    index('runners_running_jobs_provider_runner_started_idx')
+      .on(table.workspaceId, table.provisionerId, table.providerRunnerId, table.startedAt.desc())
       .where(sql`"provisioner_id" IS NOT NULL`),
     index('runners_running_jobs_cancellation_requested_idx')
-      .on(table.workspaceId, table.provisionerId, table.provisionedRunnerId)
+      .on(table.workspaceId, table.provisionerId, table.providerRunnerId)
       .where(sql`"cancellation_requested_at" IS NOT NULL`),
     index('runners_running_jobs_job_id_idx').on(table.jobId),
     index('runners_running_jobs_runner_session_id_idx').on(table.runnerSessionId),
     check(
       'runners_running_jobs_link_ck',
-      sql`(${table.provisionerId} IS NULL) = (${table.provisionedRunnerId} IS NULL)`,
+      sql`(${table.provisionerId} IS NULL) = (${table.providerRunnerId} IS NULL)`,
     ),
   ],
 );

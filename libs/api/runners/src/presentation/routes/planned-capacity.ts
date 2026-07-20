@@ -42,7 +42,7 @@ export const attachProviderRunnerRoute = defineRoute({
     const attached = await attachProviderRunnerId({
       capacityId: request.params.capacityId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: request.body.provisioned_runner_id,
+      providerRunnerId: request.body.provider_runner_id,
     });
     return {attached};
   },

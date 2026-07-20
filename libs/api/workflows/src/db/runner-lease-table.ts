@@ -17,7 +17,7 @@ export const runnerSessions = pgTable('runner_sessions', {
   registrationTokenKind:
     runnerSessionRegistrationTokenKindEnum('registration_token_kind').notNull(),
   provisionerId: uuid('provisioner_id'),
-  provisionedRunnerId: text('provisioned_runner_id'),
+  providerRunnerId: text('provider_runner_id'),
   labels: text('labels').array().notNull(),
   maxClaims: integer('max_claims'),
   claimsUsed: integer('claims_used').notNull().default(0),

@@ -20,10 +20,10 @@ import {db} from '#db/db.js';
 import {provisionerCapabilitySnapshots} from '#db/schema/provisioner-capability-snapshots.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {
-  provisionedRunnerCountDivergenceCount,
-  provisionedRunnerTerminateIntentIssuedCount,
+  providerRunnerCountDivergenceCount,
+  providerRunnerTerminateIntentIssuedCount,
 } from '#metrics/instance.js';
-import {pendingJobFactory, provisionedRunnerFactory, runnerSessionFactory} from '#test/index.js';
+import {pendingJobFactory, providerRunnerFactory, runnerSessionFactory} from '#test/index.js';
 import {createRunnerRoutes, runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -93,7 +93,7 @@ describe('POST /provisioners/demand/poll', () => {
     expect(res.json()).toMatchObject({
       stats: [{labels: ['linux'], queued: 1, reserved: 1}],
       reservations: [{labels: ['linux'], count: 1}],
-      terminate_provisioned_runner_ids: [],
+      terminate_provider_runner_ids: [],
     });
     expect(res.json().reservations[0].reservation_id).toEqual(expect.any(String));
     expect(res.json().reservations[0].expires_at).toEqual(expect.any(String));
@@ -137,7 +137,7 @@ describe('POST /provisioners/demand/poll', () => {
     expect(res.json()).toMatchObject({
       stats: [{labels: ['linux'], queued: 1, reserved: 0}],
       reservations: [],
-      terminate_provisioned_runner_ids: [],
+      terminate_provider_runner_ids: [],
     });
     const snapshots = await db()
       .select()
@@ -169,14 +169,14 @@ describe('POST /provisioners/demand/poll', () => {
   });
 
   it('returns terminate intent ids for active provisioned runners with cancelled latest jobs', async () => {
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       state: 'running',
     });
     await insertRunningJob({
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
 
@@ -202,29 +202,29 @@ describe('POST /provisioners/demand/poll', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
       reservations: [],
-      terminate_provisioned_runner_ids: ['provisioned-runner-1'],
+      terminate_provider_runner_ids: ['provisioned-runner-1'],
     });
   });
 
   it('records count divergence and terminate-intent metrics for the returned poll result', async () => {
-    const divergenceSpy = vi.spyOn(provisionedRunnerCountDivergenceCount, 'add');
-    const intentSpy = vi.spyOn(provisionedRunnerTerminateIntentIssuedCount, 'add');
-    await provisionedRunnerFactory.create({
+    const divergenceSpy = vi.spyOn(providerRunnerCountDivergenceCount, 'add');
+    const intentSpy = vi.spyOn(providerRunnerTerminateIntentIssuedCount, 'add');
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       templateKey: 'linux',
       state: 'running',
     });
-    await provisionedRunnerFactory.create({
+    await providerRunnerFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
-      provisionedRunnerId: 'provisioned-runner-2',
+      providerRunnerId: 'provisioned-runner-2',
       templateKey: 'linux',
       state: 'running',
     });
     await insertRunningJob({
-      provisionedRunnerId: 'provisioned-runner-1',
+      providerRunnerId: 'provisioned-runner-1',
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
     });
     const divergenceCallsBefore = divergenceSpy.mock.calls.length;
@@ -252,7 +252,7 @@ describe('POST /provisioners/demand/poll', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
       reservations: [],
-      terminate_provisioned_runner_ids: ['provisioned-runner-1'],
+      terminate_provider_runner_ids: ['provisioned-runner-1'],
     });
     const divergenceCalls = divergenceSpy.mock.calls
       .slice(divergenceCallsBefore)
@@ -342,7 +342,7 @@ describe('POST /provisioners/demand/poll', () => {
   }
 
   async function insertRunningJob(params: {
-    provisionedRunnerId: string;
+    providerRunnerId: string;
     cancellationRequestedAt?: Date | null;
   }) {
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -358,7 +358,7 @@ describe('POST /provisioners/demand/poll', () => {
         projectId: crypto.randomUUID(),
         runnerSessionId: runnerSession.id,
         provisionerId: provisionerTokenId,
-        provisionedRunnerId: params.provisionedRunnerId,
+        providerRunnerId: params.providerRunnerId,
         requiredLabels: ['linux'],
         runnerLabels: ['linux'],
         startedAt: new Date('2025-01-01T00:00:00.000Z'),

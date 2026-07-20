@@ -5,11 +5,11 @@ import {ephemeralRegistrationTokens} from './schema/ephemeral-registration-token
 import {manualRegistrationTokens} from './schema/manual-registration-tokens.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
-import {provisionedRunners} from './schema/provisioned-runners.js';
 import {provisionerCapabilitySnapshots} from './schema/provisioner-capability-snapshots.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {runnersRateLimits} from './schema/rate-limits.js';
 import {reservations} from './schema/reservations.js';
+import {providerRunners} from './schema/runner-instances.js';
 import {runnerSessions} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
@@ -17,7 +17,7 @@ export const schema = {
   capacityAssignments,
   ephemeralRegistrationTokens,
   pendingJobExecutions,
-  provisionedRunners,
+  providerRunners,
   provisionerCapabilitySnapshots,
   provisionerTokens,
   runnersRateLimits,

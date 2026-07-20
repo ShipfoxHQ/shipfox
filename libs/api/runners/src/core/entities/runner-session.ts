@@ -7,7 +7,7 @@ export interface RunnerSession {
   registrationTokenId: string;
   registrationTokenKind: 'manual' | 'ephemeral';
   provisionerId: string | null;
-  provisionedRunnerId: string | null;
+  providerRunnerId: string | null;
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto | null;
   toolCapabilitiesReportedAt: Date | null;

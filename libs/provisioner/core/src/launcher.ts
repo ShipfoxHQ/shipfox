@@ -8,7 +8,7 @@ import type {LaunchRunner} from '#types.js';
 export const loggingLaunch: LaunchRunner = (launch) => {
   logger().info(
     {
-      provisionedRunnerId: launch.provisionedRunnerId,
+      providerRunnerId: launch.providerRunnerId,
       reservationId: launch.reservationId,
       templateKey: launch.template.key,
       labels: launch.template.labels,

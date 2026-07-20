@@ -37,7 +37,7 @@ becomes the template's selection cost, so generic demand lands on the cheapest b
 
 This package loads and validates Docker template configuration, joins the shared
 provisioner control loop, and starts one Docker container per reserved runner. Each
-container is named by its `provisioned_runner_id` and carries `shipfox.*` labels so a
+container is named by its `provider_runner_id` and carries `shipfox.*` labels so a
 restarted provisioner can rebuild local capacity from Docker state.
 
 The provider reports lifecycle through the API:
@@ -80,4 +80,4 @@ honors the injected environment:
 - `SHIPFOX_POLL_MAX_DURATION_MS`
 
 The image must not bake in a static manual registration token. Registration uses the single-use
-ephemeral registration token (`sf_ert_...`) minted for the reserved `provisioned_runner_id`.
+ephemeral registration token (`sf_ert_...`) minted for the reserved `provider_runner_id`.
