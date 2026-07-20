@@ -32,20 +32,27 @@ describe('Annotations inter-module presentation', () => {
   test('replaces and removes a warning annotation through PostgreSQL', async () => {
     const presentation = createAnnotationsInterModulePresentation();
     const target = input();
+    const handlerContext = {signal: new AbortController().signal};
 
-    await presentation.handlers.replaceOrRemoveAnnotation({
-      ...target,
-      annotation: {op: 'replace', style: 'warning', body: 'Missing tool'},
-    });
+    await presentation.handlers.replaceOrRemoveAnnotation(
+      {
+        ...target,
+        annotation: {op: 'replace', style: 'warning', body: 'Missing tool'},
+      },
+      handlerContext,
+    );
     const afterReplace = await db()
       .select()
       .from(annotations)
       .where(eq(annotations.jobExecutionId, target.jobExecutionId));
 
-    await presentation.handlers.replaceOrRemoveAnnotation({
-      ...target,
-      annotation: {op: 'remove'},
-    });
+    await presentation.handlers.replaceOrRemoveAnnotation(
+      {
+        ...target,
+        annotation: {op: 'remove'},
+      },
+      handlerContext,
+    );
     const afterRemove = await db()
       .select()
       .from(annotations)
