@@ -8,8 +8,8 @@ import {
   type WebhookRouteId,
 } from '@shipfox/api-integration-core-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
-import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
+import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {WebhookProcessorNotConfiguredError} from '#core/errors.js';
