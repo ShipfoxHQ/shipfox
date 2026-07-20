@@ -23,6 +23,7 @@ import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/wo
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
@@ -52,6 +53,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
       routes: [
         createLeaseTokenRouteGroup({
           agent: agentTestClient,
+          annotations: annotationsTestClient,
           projects: projectsTestClient,
           runners: runnersTestClient,
         }),

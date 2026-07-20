@@ -10,6 +10,7 @@ import {
 } from '#db/workflow-runs.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
@@ -33,6 +34,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       routes: [
         createLeaseTokenRouteGroup({
           agent: agentTestClient,
+          annotations: annotationsTestClient,
           projects: projectsTestClient,
           runners: runnersTestClient,
         }),

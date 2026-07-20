@@ -14,6 +14,7 @@ import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
@@ -44,7 +45,12 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
       routes: [
-        createLeaseTokenRouteGroup({agent: agentTestClient, projects, runners: runnersTestClient}),
+        createLeaseTokenRouteGroup({
+          agent: agentTestClient,
+          annotations: annotationsTestClient,
+          projects,
+          runners: runnersTestClient,
+        }),
       ],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
