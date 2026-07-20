@@ -1,3 +1,8 @@
+import {randomUUID} from 'node:crypto';
+import {
+  createStoredWebhookRequest,
+  WEBHOOK_MAX_RAW_BODY_BYTES,
+} from '@shipfox/api-integration-core-dto';
 import {
   ClientError,
   defineRoute,
@@ -5,48 +10,36 @@ import {
   rawBodyPlugin,
   WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
-import {logger} from '@shipfox/node-opentelemetry';
-import {config} from '#config.js';
-import {verifySentrySignature} from '#core/signature.js';
-import {handleInstallationResource} from './installation-handler.js';
-import {handleIssueResource} from './issue-handler.js';
+import {createSentryWebhookProcessor} from '#core/webhook-processor.js';
 import type {SentryWebhookContext} from './webhook-context.js';
-import {recordAndDrop} from './webhook-delivery.js';
-import {parseSentryWebhookRequest} from './webhook-request.js';
-
-const ISSUE_RESOURCE = 'issue';
-const INSTALLATION_RESOURCE = 'installation';
 
 export type {SentryWebhookContext} from './webhook-context.js';
 
 export function createSentryWebhookRoutes(context: SentryWebhookContext): RouteGroup {
+  const processor = createSentryWebhookProcessor(context);
   const webhookRoute = defineRoute({
     method: 'POST',
     path: '/',
     auth: [],
     description: 'Sentry integration webhook receiver.',
     options: {bodyLimit: WEBHOOK_BODY_LIMIT},
-    handler: (request, reply) => {
-      const {deliveryId, resource, signature, signatureHeaderName, rawBody} =
-        parseSentryWebhookRequest(request);
-
-      if (!verifySentrySignature({rawBody, signature, secret: config.SENTRY_APP_CLIENT_SECRET})) {
-        throw new ClientError('invalid signature', 'invalid-signature', {status: 401});
+    handler: async (request, reply) => {
+      const body = request.body;
+      if (!(body instanceof Uint8Array)) {
+        throw new ClientError('expected raw JSON body', 'invalid-body');
       }
-      logger().debug(
-        {deliveryId, signatureHeader: signatureHeaderName},
-        'sentry webhook: signature verified',
+      if (body.byteLength > WEBHOOK_MAX_RAW_BODY_BYTES) {
+        throw new ClientError('Webhook request body is too large', 'body-too-large', {status: 413});
+      }
+
+      const result = await processor.process(
+        createSentryStoredWebhookRequest(
+          body,
+          request.headers,
+          request.raw.url?.split('?')[1] ?? '',
+        ),
       );
-
-      if (resource === ISSUE_RESOURCE) {
-        return handleIssueResource({context, reply, deliveryId, rawBody});
-      }
-      if (resource === INSTALLATION_RESOURCE) {
-        return handleInstallationResource({context, reply, deliveryId, rawBody});
-      }
-
-      // Unsupported resources are acknowledged so Sentry does not retry or disable the app.
-      return recordAndDrop({context, reply, deliveryId});
+      return sendSentryWebhookResponse(reply, result, request.headers);
     },
   });
 
@@ -56,4 +49,65 @@ export function createSentryWebhookRoutes(context: SentryWebhookContext): RouteG
     plugins: [rawBodyPlugin],
     routes: [webhookRoute],
   };
+}
+
+function createSentryStoredWebhookRequest(
+  body: Uint8Array,
+  headers: Record<string, string | string[] | undefined>,
+  rawQueryString: string,
+) {
+  try {
+    return createStoredWebhookRequest({
+      requestId: randomUUID(),
+      routeId: 'sentry',
+      receivedAt: new Date().toISOString(),
+      rawQueryString,
+      headers: sentryWebhookHeaders(headers),
+      body,
+    });
+  } catch (error) {
+    throw new ClientError('Webhook request metadata is invalid', 'invalid-webhook-request', {
+      cause: error,
+    });
+  }
+}
+
+function sentryWebhookHeaders(headers: Record<string, string | string[] | undefined>) {
+  return Object.fromEntries(
+    [
+      'content-type',
+      'request-id',
+      'sentry-hook-resource',
+      'sentry-hook-signature',
+      'sentry-app-signature',
+    ].flatMap((name) => {
+      const value = headers[name];
+      return typeof value === 'string' ? [[name, value]] : [];
+    }),
+  );
+}
+
+function sendSentryWebhookResponse(
+  reply: {code(statusCode: number): void},
+  result: import('@shipfox/api-integration-core-dto').WebhookProcessingResult,
+  headers: Record<string, string | string[] | undefined>,
+) {
+  if (result.outcome === 'discarded' && result.reason === 'invalid_signature') {
+    reply.code(401);
+    return {error: 'invalid signature'};
+  }
+  if (result.outcome === 'discarded' && result.reason === 'missing_required_input') {
+    const hasSignature =
+      typeof headers['sentry-hook-signature'] === 'string' ||
+      typeof headers['sentry-app-signature'] === 'string';
+    if (!hasSignature) {
+      reply.code(401);
+      return {error: 'missing signature'};
+    }
+    reply.code(400);
+    return {error: 'missing required input'};
+  }
+
+  reply.code(204);
+  return null;
 }
