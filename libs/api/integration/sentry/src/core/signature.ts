@@ -1,7 +1,7 @@
 import {verifyHexHmacSignature} from '@shipfox/node-fastify';
 
 export interface VerifySentrySignatureParams {
-  rawBody: string;
+  rawBody: string | Uint8Array;
   signature: string;
   secret: string;
 }

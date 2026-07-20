@@ -46,6 +46,11 @@ export {
   handleSentryIssueEvent,
 } from '#core/webhook.js';
 export type {
+  CreateSentryWebhookProcessorOptions,
+  SentryWebhookProcessor,
+} from '#core/webhook-processor.js';
+export {createSentryWebhookProcessor} from '#core/webhook-processor.js';
+export type {
   PersistVerifiedUnclaimedInstallationParams,
   SentryInstallation,
   SentryInstallationStatus,
