@@ -77,6 +77,7 @@ try {
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
   await run(process.execPath, ['auth-email-seams.mjs'], fixtureRoot);
   await run(process.execPath, ['invitation-reconciliation.mjs'], fixtureRoot);
+  await run(process.execPath, ['email-challenge-seams.mjs'], fixtureRoot);
   await run(process.execPath, ['inter-module-runtime.mjs'], fixtureRoot);
   await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
   await run(
@@ -298,6 +299,34 @@ try {
 `,
     ),
     writeFile(
+      join(root, 'email-challenge-seams.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});
+
+const {createPostgresClient, pgClient, closePostgresClient} = await import('@shipfox/node-postgres');
+const {initializeModules} = await import('@shipfox/node-module');
+const {createEmailChallenge, emailChallengesModule} = await import('@shipfox/api-email-challenges');
+
+createPostgresClient();
+try {
+  await initializeModules({modules: [emailChallengesModule]});
+  const challenge = await createEmailChallenge({
+    email: '  packed-email-challenge@example.com  ',
+    purpose: 'packed-consumer',
+    continuation: 'packed-consumer-continuation',
+    sourceIp: '127.0.0.1',
+  });
+  if (!challenge.id || challenge.nextResendAvailableAt <= new Date()) {
+    throw new Error('Packed email challenge returned an invalid public handle.');
+  }
+  await pgClient().query('DELETE FROM email_challenges_challenges WHERE id = $1', [challenge.id]);
+  await pgClient().query('DELETE FROM email_challenges_send_limits');
+  console.log('Packed email-challenge seam created one normalized, server-side challenge.');
+} finally {
+  await closePostgresClient();
+}
+`,
+    ),
+    writeFile(
       join(root, 'development-conditions.mjs'),
       `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nawait import('@shipfox/api-server/instrumentation');\nprocess.exit(0);\n`,
     ),
@@ -370,6 +399,7 @@ function runtimeEnvironment() {
     AUTH_JOB_LEASE_TOKEN_SECRET: 'external-consumer-lease-secret',
     AUTH_JWT_SECRET: 'external-consumer-jwt-secret',
     AUTH_RUNNER_SESSION_TOKEN_SECRET: 'external-consumer-runner-secret',
+    EMAIL_CHALLENGE_ROOT_KEY: 'external-consumer-email-challenge-root-key',
     DATABASE_URL: `postgres://${postgresUsername}:${postgresPassword}@${postgresHost}:${postgresPort}/${postgresDatabase}`,
     GITEA_BASE_URL: 'https://gitea.example.com',
     GITEA_SERVICE_TOKEN: 'external-consumer-token',
