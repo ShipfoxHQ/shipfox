@@ -57,9 +57,9 @@ CREATE TABLE "runners_pending_jobs" (
 --> statement-breakpoint
 CREATE TABLE "runners_provisioned_runners" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"workspace_id" uuid NOT NULL,
+	"workspace_id" uuid,
 	"provisioner_id" uuid NOT NULL,
-	"provisioned_runner_id" text NOT NULL,
+	"provisioned_runner_id" text,
 	"reservation_id" uuid,
 	"template_key" text,
 	"labels" text[] DEFAULT '{}' NOT NULL,
