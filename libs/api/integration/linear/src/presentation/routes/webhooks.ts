@@ -1,30 +1,28 @@
-import {Buffer} from 'node:buffer';
+import {randomUUID} from 'node:crypto';
 import type {
   GetIntegrationConnectionByIdFn,
-  IntegrationTx,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
+  StoredWebhookRequest,
+  WebhookProcessingResult,
 } from '@shipfox/api-integration-core-dto';
 import {
-  LINEAR_PROVIDER,
-  linearWebhookBaseEnvelopeSchema,
-} from '@shipfox/api-integration-linear-dto';
+  createStoredWebhookRequest,
+  WEBHOOK_MAX_RAW_BODY_BYTES,
+} from '@shipfox/api-integration-core-dto';
 import {
+  ClientError,
   defineRoute,
   type RouteGroup,
   rawBodyPlugin,
-  verifyHexHmacSignature,
   WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
-import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import {config} from '#config.js';
-import {handleLinearWebhook} from '#core/webhook.js';
+import {createLinearWebhookProcessor} from '#core/webhook-processor.js';
 
 const DELIVERY_HEADER = 'linear-delivery';
 const EVENT_HEADER = 'linear-event';
 const SIGNATURE_HEADER = 'linear-signature';
-const WEBHOOK_REPLAY_WINDOW_MS = 60_000;
 
 export interface CreateLinearWebhookRoutesOptions {
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
@@ -34,6 +32,7 @@ export interface CreateLinearWebhookRoutesOptions {
 }
 
 export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOptions): RouteGroup {
+  const processor = createLinearWebhookProcessor(options);
   const webhookRoute = defineRoute({
     method: 'POST',
     path: '/',
@@ -41,6 +40,7 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
     description: 'Linear webhook receiver.',
     options: {bodyLimit: WEBHOOK_BODY_LIMIT},
     handler: async (request, reply) => {
+      const receivedAt = new Date().toISOString();
       const deliveryHeader = request.headers[DELIVERY_HEADER];
       const event = request.headers[EVENT_HEADER];
       const signature = request.headers[SIGNATURE_HEADER];
@@ -59,76 +59,22 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
       }
 
       const body = request.body;
-      if (!Buffer.isBuffer(body)) {
+      if (!(body instanceof Uint8Array)) {
         reply.code(400);
         return {error: 'expected raw JSON body'};
       }
-      const rawBody = body.toString('utf8');
+      const result = await processor.process(
+        createLinearStoredWebhookRequest(
+          {
+            body,
+            headers: request.headers,
+            rawQueryString: request.raw.url?.split('?')[1] ?? '',
+          },
+          receivedAt,
+        ),
+      );
 
-      if (
-        !verifyHexHmacSignature({
-          rawBody,
-          signature,
-          secret: config.LINEAR_WEBHOOK_SIGNING_SECRET,
-        })
-      ) {
-        reply.code(401);
-        return {error: 'invalid signature'};
-      }
-
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(rawBody);
-      } catch (error) {
-        logger().warn(
-          {deliveryId: deliveryHeader, err: error},
-          'linear webhook payload JSON parse failed',
-        );
-        reply.code(400);
-        return {error: 'malformed JSON'};
-      }
-
-      const payload = linearWebhookBaseEnvelopeSchema.safeParse(parsedJson);
-      if (!payload.success) {
-        logger().warn(
-          {deliveryId: deliveryHeader, issues: payload.error.issues},
-          'linear webhook envelope failed schema validation',
-        );
-        await recordSignedDeliveryOnly(options, deliveryHeader);
-        reply.code(200);
-        return null;
-      }
-
-      if (Math.abs(Date.now() - payload.data.webhookTimestamp) > WEBHOOK_REPLAY_WINDOW_MS) {
-        reply.code(401);
-        return {error: 'stale webhook timestamp'};
-      }
-
-      if (event !== payload.data.type) {
-        logger().warn(
-          {deliveryId: deliveryHeader, event, type: payload.data.type},
-          'linear webhook event header did not match payload type',
-        );
-        await recordSignedDeliveryOnly(options, deliveryHeader);
-        reply.code(200);
-        return null;
-      }
-
-      await options.coreDb().transaction(async (tx) => {
-        await handleLinearWebhook({
-          tx,
-          // Linear documents this header as the delivery UUID; the signed timestamp is per-send.
-          deliveryId: deliveryHeader,
-          payload: payload.data,
-          rawPayload: parsedJson,
-          publishIntegrationEventReceived: options.publishIntegrationEventReceived,
-          recordDeliveryOnly: options.recordDeliveryOnly,
-          getIntegrationConnectionById: options.getIntegrationConnectionById,
-        });
-      });
-
-      reply.code(200);
-      return null;
+      return sendLinearWebhookResponse(reply, result);
     },
   });
 
@@ -140,15 +86,67 @@ export function createLinearWebhookRoutes(options: CreateLinearWebhookRoutesOpti
   };
 }
 
-async function recordSignedDeliveryOnly(
-  options: Pick<CreateLinearWebhookRoutesOptions, 'coreDb' | 'recordDeliveryOnly'>,
-  deliveryId: string,
-): Promise<void> {
-  await options.coreDb().transaction(async (tx: IntegrationTx) => {
-    await options.recordDeliveryOnly({
-      tx,
-      provider: LINEAR_PROVIDER,
-      deliveryId,
+function createLinearStoredWebhookRequest(
+  input: {
+    body: Uint8Array;
+    headers: Record<string, string | string[] | undefined>;
+    rawQueryString: string;
+  },
+  receivedAt: string,
+): StoredWebhookRequest {
+  if (input.body.byteLength > WEBHOOK_MAX_RAW_BODY_BYTES) {
+    throw new ClientError('Webhook request body is too large', 'body-too-large', {status: 413});
+  }
+
+  try {
+    return createStoredWebhookRequest({
+      requestId: randomUUID(),
+      routeId: 'linear',
+      receivedAt,
+      rawQueryString: input.rawQueryString,
+      headers: linearWebhookHeaders(input.headers),
+      body: input.body,
     });
-  });
+  } catch (error) {
+    throw new ClientError('Webhook request metadata is invalid', 'invalid-webhook-request', {
+      cause: error,
+    });
+  }
+}
+
+function linearWebhookHeaders(headers: Record<string, string | string[] | undefined>) {
+  return Object.fromEntries(
+    ['content-type', DELIVERY_HEADER, EVENT_HEADER, SIGNATURE_HEADER, 'linear-timestamp'].flatMap(
+      (name) => {
+        const value = headers[name];
+        return typeof value === 'string' ? [[name, value]] : [];
+      },
+    ),
+  );
+}
+
+function sendLinearWebhookResponse(
+  reply: {code(statusCode: number): void},
+  result: WebhookProcessingResult,
+) {
+  if (result.outcome !== 'discarded') {
+    reply.code(200);
+    return null;
+  }
+
+  if (result.reason === 'invalid_signature') {
+    reply.code(401);
+    return {error: 'invalid signature'};
+  }
+  if (result.reason === 'stale_at_receipt') {
+    reply.code(401);
+    return {error: 'stale webhook timestamp'};
+  }
+  if (result.reason === 'malformed_payload') {
+    reply.code(400);
+    return {error: 'malformed JSON'};
+  }
+
+  reply.code(200);
+  return null;
 }

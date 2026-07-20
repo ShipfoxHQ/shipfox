@@ -68,6 +68,11 @@ export {
 export type {HandleLinearWebhookOutcome, HandleLinearWebhookParams} from '#core/webhook.js';
 export {handleLinearWebhook} from '#core/webhook.js';
 export type {
+  CreateLinearWebhookProcessorOptions,
+  LinearWebhookProcessor,
+} from '#core/webhook-processor.js';
+export {createLinearWebhookProcessor} from '#core/webhook-processor.js';
+export type {
   LinearInstallation,
   LinearInstallationStatus,
   UpdateLinearInstallationTokenExpiryParams,

@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 import {createHmac, timingSafeEqual} from 'node:crypto';
 
 export interface VerifyHexHmacSignatureParams {
-  rawBody: string;
+  rawBody: string | Uint8Array;
   signature: string;
   secret: string;
 }

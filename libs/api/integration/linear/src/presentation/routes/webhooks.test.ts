@@ -1,5 +1,6 @@
 import {createHmac, randomUUID} from 'node:crypto';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {WEBHOOK_MAX_RAW_BODY_BYTES} from '@shipfox/api-integration-core-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
@@ -263,6 +264,42 @@ describe('Linear webhook route', () => {
     });
 
     expect(res.statusCode).toBe(401);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('rejects a body too large for the shared webhook request before processing it', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const body = 'a'.repeat(WEBHOOK_MAX_RAW_BODY_BYTES + 1);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers: signedHeaders(body, 'Issue', randomUUID()),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(413);
+    expect(res.json()).toEqual({code: 'body-too-large'});
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid stored request metadata before processing it', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const body = JSON.stringify(linearPayload());
+    const headers = signedHeaders(body, 'Issue', randomUUID());
+    headers['linear-event'] = 'a'.repeat(8 * 1024 + 1);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/linear',
+      headers,
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({code: 'invalid-webhook-request'});
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
