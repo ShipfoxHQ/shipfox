@@ -2,11 +2,7 @@ import {registerPublisher, resetPublishers} from '@shipfox/node-module';
 import {createOutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {pgTableCreator} from 'drizzle-orm/pg-core';
-import {
-  DISPATCHER_WORKER_COUNT,
-  DISPATCHER_WORKFLOW_ID,
-  OUTBOX_RETENTION_WORKFLOW_ID,
-} from '#core/constants.js';
+import {OUTBOX_RETENTION_WORKFLOW_ID} from '#core/constants.js';
 import {createDispatcherModule} from './module.js';
 
 const mocks = vi.hoisted(() => ({
@@ -41,33 +37,21 @@ describe('dispatcherModule', () => {
     resetPublishers();
   });
 
-  it('registers the Temporal dispatch workflows alongside retention when the in-process drainer is disabled', () => {
+  it('registers only the retention workflow on Temporal and does not start the drainer when disabled', () => {
     const module = createDispatcherModule({enabled: false});
     const worker = module.workers?.[0];
 
     expect(worker?.workflows).toEqual([
-      {
-        name: 'outboxDispatcherWorkflow',
-        id: DISPATCHER_WORKFLOW_ID,
-        args: [{workerIndex: 0, workerCount: DISPATCHER_WORKER_COUNT}],
-      },
-      ...Array.from({length: DISPATCHER_WORKER_COUNT - 1}, (_, index) => {
-        const workerIndex = index + 1;
-        return {
-          name: 'outboxDispatcherWorkflow',
-          id: `${DISPATCHER_WORKFLOW_ID}-${workerIndex}`,
-          args: [{workerIndex, workerCount: DISPATCHER_WORKER_COUNT}],
-        };
-      }),
       {
         name: 'outboxRetentionWorkflow',
         id: OUTBOX_RETENTION_WORKFLOW_ID,
         cronSchedule: '0 0 * * *',
       },
     ]);
+    expect(module.services).toBeUndefined();
   });
 
-  it('registers only the retention workflow on Temporal when the in-process drainer is enabled, so the two dispatchers never race the same rows', () => {
+  it('registers the drainer service without adding Temporal dispatch workflows', () => {
     const module = createDispatcherModule({enabled: true, pollMs: 250});
     const worker = module.workers?.[0];
 
@@ -79,12 +63,6 @@ describe('dispatcherModule', () => {
       },
     ]);
     expect(module.services?.[0]?.name).toBe('outbox-drainer');
-  });
-
-  it('does not register the in-process drainer when disabled', () => {
-    const module = createDispatcherModule({enabled: false});
-
-    expect(module.services).toBeUndefined();
   });
 
   it('passes the configured poll interval to the in-process drainer', () => {
