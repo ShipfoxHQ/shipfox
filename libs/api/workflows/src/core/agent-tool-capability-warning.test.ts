@@ -1,8 +1,18 @@
 import type {JobLeaseTokenClaims} from '@shipfox/api-auth';
 import {sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {warnAgentToolCapabilityMismatchOnDispatch} from './agent-tool-capability-warning.js';
+import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {warnAgentToolCapabilityMismatchOnDispatch as warnAgentToolCapabilityMismatchOnDispatchImpl} from './agent-tool-capability-warning.js';
 import type {Step} from './entities/step.js';
+
+async function warnAgentToolCapabilityMismatchOnDispatch(
+  params: Omit<Parameters<typeof warnAgentToolCapabilityMismatchOnDispatchImpl>[0], 'runners'>,
+) {
+  return await warnAgentToolCapabilityMismatchOnDispatchImpl({
+    runners: runnersTestClient,
+    ...params,
+  });
+}
 
 function lease(params: Partial<JobLeaseTokenClaims> = {}): JobLeaseTokenClaims {
   const now = Math.floor(Date.now() / 1000);

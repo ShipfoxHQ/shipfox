@@ -11,7 +11,7 @@ import {
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
 import type {LeasedJobContext} from '@shipfox/api-auth-context';
-import {getEffectiveRunnerToolCapabilities, unadvertisedRunnerTools} from '@shipfox/api-runners';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {recordWorkflowAgentToolWarningFailed} from '#metrics/instance.js';
 import type {Step} from './entities/step.js';
@@ -22,6 +22,7 @@ type WarningFailureReason = 'budget' | 'lookup' | 'write';
 type WarningReason = 'known-absence' | 'harness-not-advertised' | 'unknown-or-stale';
 
 export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
+  runners: RunnersInterModuleClient;
   leaseIdentity: LeasedJobContext;
   step: Step;
 }): Promise<void> {
@@ -34,9 +35,11 @@ export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
   const harness = harnessSchema.safeParse(config.harness);
   if (!harness.success) return;
 
-  let effective: Awaited<ReturnType<typeof getEffectiveRunnerToolCapabilities>>;
+  let effective: Awaited<
+    ReturnType<RunnersInterModuleClient['getEffectiveRunnerToolCapabilities']>
+  >;
   try {
-    effective = await getEffectiveRunnerToolCapabilities({
+    effective = await params.runners.getEffectiveRunnerToolCapabilities({
       runnerSessionId: params.leaseIdentity.runnerSessionId,
     });
   } catch (error) {
@@ -48,11 +51,8 @@ export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
     return;
   }
 
-  const missing = unadvertisedRunnerTools({
-    harness: harness.data,
-    requestedTools,
-    capabilities: effective.capabilities,
-  });
+  const advertised = new Set(effective.capabilities.harnesses[harness.data]?.tools ?? []);
+  const missing = requestedTools.filter((tool) => !advertised.has(tool));
   const context = `agent-tool-capability:${params.step.id}`;
 
   const operation =
@@ -67,7 +67,7 @@ export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
             missing,
             reason: warningReason({
               reportFresh: effective.reportFresh,
-              harnessKnown: effective.harnessKnown(harness.data),
+              harnessKnown: effective.capabilities.harnesses[harness.data] !== undefined,
             }),
           }),
         };
@@ -103,7 +103,7 @@ export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
         missing,
         reason: warningReason({
           reportFresh: effective.reportFresh,
-          harnessKnown: effective.harnessKnown(harness.data),
+          harnessKnown: effective.capabilities.harnesses[harness.data] !== undefined,
         }),
       },
       'Runner missing requested agent tools; dispatch is continuing',

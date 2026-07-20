@@ -1,5 +1,5 @@
 import {type LeasedJobContext, requireLeasedJobContext} from '@shipfox/api-auth-context';
-import {isJobLeaseActive} from '@shipfox/api-runners';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
 import type {Step} from '#core/entities/step.js';
 import {getJobScope, getStepByIdForJobExecution} from '#db/index.js';
@@ -12,13 +12,14 @@ export interface LoadedRunningLeasedStep {
 }
 
 export async function loadRunningLeasedStep(params: {
+  runners: RunnersInterModuleClient;
   request: object;
   stepId: string;
   attempt: number;
 }): Promise<LoadedRunningLeasedStep> {
   const leasedJob = requireLeasedJobContext(params.request);
 
-  const leaseIsActive = await isJobLeaseActive({
+  const {active: leaseIsActive} = await params.runners.getLeaseState({
     jobId: leasedJob.jobId,
     jobExecutionId: leasedJob.jobExecutionId,
     runnerSessionId: leasedJob.runnerSessionId,

@@ -11,7 +11,8 @@ import {
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
-import {leaseTokenRouteGroup} from './index.js';
+import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createLeaseTokenRouteGroup} from './index.js';
 
 function reportUrl(stepId: string): string {
   return `/runs/jobs/current/steps/${stepId}/report`;
@@ -27,7 +28,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [leaseTokenRouteGroup],
+      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
       swagger: false,
     });
     await app.ready();

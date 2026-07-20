@@ -13,6 +13,7 @@ import {
 import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule as defaultRunnersModule} from '@shipfox/api-runners';
+import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {deleteSecrets, getSecret, secretsModule, setSecrets} from '@shipfox/api-secrets';
 import {createTriggersModule} from '@shipfox/api-triggers';
 import {
@@ -38,6 +39,7 @@ export async function defaultModules(
 ): Promise<ShipfoxModule[]> {
   const interModuleTransport = createInMemoryInterModuleTransport();
   const workflowsClient = interModuleTransport.createClient(workflowsInterModuleContract);
+  const runnersClient = interModuleTransport.createClient(runnersInterModuleContract);
   const integrations = await createIntegrationsContext({
     secrets: {
       deleteSecrets,
@@ -84,7 +86,9 @@ export async function defaultModules(
           }),
       },
     },
-    agentTools: {loadLeasedAgentStep: loadRunningLeasedStep},
+    agentTools: {
+      loadLeasedAgentStep: (params) => loadRunningLeasedStep({runners: runnersClient, ...params}),
+    },
   });
   const [agentToolSelectionCatalogs, agentToolCatalogs] = await Promise.all([
     buildAgentToolSelectionCatalogs(integrations.registry),
@@ -118,7 +122,7 @@ export async function defaultModules(
     integrations.module,
     projectsModule,
     definitionsModule,
-    createWorkflowsModule(),
+    createWorkflowsModule({runners: runnersClient}),
     annotationsModule,
     options.runnersModule ?? defaultRunnersModule,
     logsModule,

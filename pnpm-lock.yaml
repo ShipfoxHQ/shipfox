@@ -3460,6 +3460,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -3554,6 +3557,9 @@ importers:
 
   libs/api/runners-dto:
     dependencies:
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/runner-labels':
         specifier: workspace:*
         version: link:../../shared/common/runner-labels
@@ -3695,6 +3701,9 @@ importers:
       '@shipfox/api-runners':
         specifier: workspace:*
         version: link:../runners
+      '@shipfox/api-runners-dto':
+        specifier: workspace:*
+        version: link:../runners-dto
       '@shipfox/api-secrets':
         specifier: workspace:*
         version: link:../secrets

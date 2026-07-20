@@ -14,7 +14,8 @@ import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/wo
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
-import {leaseTokenRouteGroup} from './index.js';
+import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createLeaseTokenRouteGroup} from './index.js';
 
 const {captureExceptionMock} = vi.hoisted(() => ({captureExceptionMock: vi.fn()}));
 vi.mock('@shipfox/api-agent/core/resolve-runtime-credentials', async (importOriginal) => {
@@ -33,7 +34,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [leaseTokenRouteGroup],
+      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });

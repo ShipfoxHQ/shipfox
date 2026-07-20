@@ -15,6 +15,7 @@ import {
   createRunnerRoutes,
   onWorkflowsJobExecutionTimedOut,
 } from '#presentation/index.js';
+import {createRunnersInterModulePresentation} from '#presentation/inter-module.js';
 import {createRunnersMaintenanceActivities} from '#temporal/activities/index.js';
 import {RUNNERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
@@ -27,18 +28,6 @@ export {
   mintEphemeralRegistrationToken,
   mintEphemeralRegistrationTokensBatch,
 } from '#core/ephemeral-registration-tokens.js';
-export {
-  type EffectiveRunnerToolCapabilitiesResult,
-  getEffectiveRunnerToolCapabilities,
-  unadvertisedRunnerTools,
-} from '#core/runner-tool-capabilities.js';
-export {
-  cancelRunnerJobs,
-  type EnqueueJobExecutionParams,
-  enqueueJobExecution,
-  isJobLeaseActive,
-  releaseJobExecution,
-} from '#db/index.js';
 export type {
   CreateRunnersModuleOptions,
   InstallationProvisioningPolicy,
@@ -68,6 +57,7 @@ export function createRunnersModule(options: CreateRunnersModuleOptions = {}): S
         ],
       },
     ],
+    interModulePresentations: [createRunnersInterModulePresentation()],
   };
 }
 

@@ -1,4 +1,8 @@
-import {cancelRunnerJobs, enqueueJobExecution, releaseJobExecution} from '@shipfox/api-runners';
+import {
+  type RunnersInterModuleClient,
+  runnersInterModuleContract,
+} from '@shipfox/api-runners-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ApplicationFailure} from '@temporalio/common';
 import {defaultJobConditionTrace} from '#core/condition-trace.js';
 import type {JobStatus, JobStatusReason, ResolutionReason} from '#core/entities/job.js';
@@ -200,39 +204,45 @@ export async function resolveLeaseExpiredJobExecutionActivity(params: {
 // Best-effort lease cleanup on job finalization. Idempotent: deleting an
 // already-released (or already-reaped) lease is a no-op. The workflow wraps the
 // call so a persistent failure never blocks the DAG result.
-export async function releaseLeaseActivity(params: {jobExecutionId: string}): Promise<void> {
-  await releaseJobExecution({jobExecutionId: params.jobExecutionId});
+export function createReleaseLeaseActivity(runners: RunnersInterModuleClient) {
+  return async function releaseLeaseActivity(params: {jobExecutionId: string}): Promise<void> {
+    await runners.releaseJobExecution({jobExecutionId: params.jobExecutionId});
+  };
 }
 
-export async function enqueueJobExecutionForRunner(params: {
-  workspaceId: string;
-  workflowRunId: string;
-  jobId: string;
-  jobExecutionId: string;
-  runAttemptId: string;
-  projectId: string;
-  requiredLabels: string[];
-}): Promise<void> {
-  try {
-    await enqueueJobExecution({
-      workspaceId: params.workspaceId,
-      workflowRunId: params.workflowRunId,
-      workflowRunAttemptId: params.runAttemptId,
-      jobId: params.jobId,
-      jobExecutionId: params.jobExecutionId,
-      projectId: params.projectId,
-      requiredLabels: params.requiredLabels,
-    });
-  } catch (err) {
-    if (err instanceof Error && err.name === 'EmptyRequiredLabelsError') {
-      throw ApplicationFailure.nonRetryable(err.message, err.name);
+export function createEnqueueJobExecutionForRunner(runners: RunnersInterModuleClient) {
+  return async function enqueueJobExecutionForRunner(params: {
+    workspaceId: string;
+    workflowRunId: string;
+    jobId: string;
+    jobExecutionId: string;
+    runAttemptId: string;
+    projectId: string;
+    requiredLabels: string[];
+  }): Promise<void> {
+    try {
+      await runners.enqueueJobExecution({
+        workspaceId: params.workspaceId,
+        workflowRunId: params.workflowRunId,
+        workflowRunAttemptId: params.runAttemptId,
+        jobId: params.jobId,
+        jobExecutionId: params.jobExecutionId,
+        projectId: params.projectId,
+        requiredLabels: params.requiredLabels,
+      });
+    } catch (err) {
+      if (isInterModuleKnownError(runnersInterModuleContract.methods.enqueueJobExecution, err)) {
+        throw ApplicationFailure.nonRetryable(err.message, err.name);
+      }
+      throw err;
     }
-    throw err;
-  }
+  };
 }
 
-export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Promise<void> {
-  await cancelRunnerJobs({jobIds: params.jobIds});
+export function createCancelRunnerJobsActivity(runners: RunnersInterModuleClient) {
+  return async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Promise<void> {
+    await runners.cancelJobs(params);
+  };
 }
 
 export async function failJobExecutionAsTimedOutActivity(params: {

@@ -1,3 +1,4 @@
+import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {defaultModules} from './modules.js';
 
@@ -35,7 +36,23 @@ vi.mock('@shipfox/api-integration-core', () => ({
 }));
 vi.mock('@shipfox/api-logs', () => ({logsModule: {name: 'logs'}}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
-vi.mock('@shipfox/api-runners', () => ({runnersModule: {name: 'runners'}}));
+vi.mock('@shipfox/api-runners', () => ({
+  runnersModule: {
+    name: 'runners',
+    interModulePresentations: [
+      {
+        contract: runnersInterModuleContract,
+        handlers: {
+          cancelJobs: vi.fn(),
+          enqueueJobExecution: vi.fn(),
+          getEffectiveRunnerToolCapabilities: vi.fn(),
+          getLeaseState: vi.fn(),
+          releaseJobExecution: vi.fn(),
+        },
+      },
+    ],
+  },
+}));
 vi.mock('@shipfox/api-secrets', () => ({
   deleteSecrets: mocks.deleteSecrets,
   getSecret: mocks.getSecret,
@@ -116,7 +133,21 @@ describe('defaultModules', () => {
   });
 
   it('replaces only the runners module when a host provides one', async () => {
-    const runnersModule = {name: 'runners'};
+    const runnersModule = {
+      name: 'runners',
+      interModulePresentations: [
+        {
+          contract: runnersInterModuleContract,
+          handlers: {
+            cancelJobs: vi.fn(),
+            enqueueJobExecution: vi.fn(),
+            getEffectiveRunnerToolCapabilities: vi.fn(),
+            getLeaseState: vi.fn(),
+            releaseJobExecution: vi.fn(),
+          },
+        },
+      ],
+    };
 
     const modules = await defaultModules({runnersModule});
 
@@ -161,7 +192,7 @@ describe('defaultModules', () => {
           setSecrets: expect.any(Function),
         },
       },
-      agentTools: {loadLeasedAgentStep: mocks.loadRunningLeasedStep},
+      agentTools: {loadLeasedAgentStep: expect.any(Function)},
     });
 
     const integrationsOptions = mocks.createIntegrationsContext.mock.calls[0]?.[0] as {
@@ -182,7 +213,14 @@ describe('defaultModules', () => {
           setSecrets: (params: {namespace: string}) => unknown;
         };
       };
+      agentTools: {loadLeasedAgentStep: (params: {stepId: string}) => unknown};
     };
+    integrationsOptions.agentTools.loadLeasedAgentStep({stepId: 'step-1'});
+    expect(mocks.loadRunningLeasedStep).toHaveBeenCalledWith({
+      stepId: 'step-1',
+      runners: expect.objectContaining({enqueueJobExecution: expect.any(Function)}),
+    });
+
     integrationsOptions.secrets.linear.getSecret({namespace: 'workspace'});
     integrationsOptions.secrets.linear.setSecrets({namespace: 'workspace'});
     integrationsOptions.secrets.linear.deleteSecrets({namespace: 'workspace'});

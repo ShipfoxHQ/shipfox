@@ -15,7 +15,8 @@ import {
 } from '#db/workflow-runs.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
-import {leaseTokenRouteGroup} from './index.js';
+import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createLeaseTokenRouteGroup} from './index.js';
 
 const URL_PREFIX = '/runs/jobs/current/steps';
 
@@ -26,7 +27,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [leaseTokenRouteGroup],
+      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });
