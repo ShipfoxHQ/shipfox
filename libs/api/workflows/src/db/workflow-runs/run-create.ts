@@ -54,13 +54,16 @@ export interface CreateWorkflowRunParams {
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
-  const agentToolContext = await loadAgentToolMaterializationContext({
-    model: params.model,
-    workspaceId: params.workspaceId,
-    projectId: params.projectId,
-    integrations: params.integrations,
-    projects: params.projects,
-  });
+  const agentToolContext =
+    params.integrations === undefined
+      ? undefined
+      : await loadAgentToolMaterializationContext({
+          model: params.model,
+          workspaceId: params.workspaceId,
+          projectId: params.projectId,
+          integrations: params.integrations,
+          projects: params.projects,
+        });
   const agentToolMaterialization = createAgentToolMaterializationSnapshot({
     model: params.model,
     context: agentToolContext,

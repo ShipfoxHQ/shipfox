@@ -1,6 +1,6 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
-import {getProjectById} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
@@ -11,8 +11,8 @@ import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createLeaseTokenRouteGroup, createWorkflowRoutes} from './index.js';
 
-vi.mock('@shipfox/api-projects', () => ({getProjectById: vi.fn()}));
-const mockGetProjectById = vi.mocked(getProjectById);
+const getProjectById = vi.fn();
+const projects = {getProjectById} as Pick<ProjectsModuleClient, 'getProjectById'>;
 
 const URL = '/runs/jobs/current/checkout-token';
 
@@ -33,7 +33,8 @@ describe('POST /runs/jobs/current/checkout-token', () => {
       auth: [createLeaseTokenAuthMethod()],
       routes: [
         createLeaseTokenRouteGroup({
-          projects: {getProjectById: mockGetProjectById} as never,
+          annotations: {} as never,
+          projects: projects as never,
           runners: runnersTestClient,
           integrations: {createCheckoutSpec} as never,
         }),
@@ -46,7 +47,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   beforeEach(() => {
     createCheckoutSpec.mockReset();
-    mockGetProjectById.mockReset();
+    getProjectById.mockReset();
     clearLogLines();
   });
 
@@ -97,7 +98,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('returns basic auth for a GitHub-style spec with credentials', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-secret-token'));
     const token = await mintActiveLeaseToken({jobId: job.id});
@@ -127,7 +128,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('omits auth for a credential-free (debug) spec', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockResolvedValue({
       repositoryUrl: 'https://example.com/acme/repo.git',
@@ -172,7 +173,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     'skipped',
   ] as const)('returns 404 and mints nothing without an active lease for %s job', async (status) => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id, status}});
     const token = await mintLeaseToken({jobId: job.id});
 
@@ -189,7 +190,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('returns checkout credentials while the parent job projection is still pending', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create(
       {},
       {transient: {projectId: project.id, status: 'pending'}},
@@ -216,7 +217,9 @@ describe('POST /runs/jobs/current/checkout-token', () => {
       [projectA.id, projectA],
       [projectB.id, projectB],
     ]);
-    mockGetProjectById.mockImplementation((id: string) => Promise.resolve(projectsById.get(id)));
+    getProjectById.mockImplementation((input: {projectId: string}) =>
+      Promise.resolve({project: projectsById.get(input.projectId) ?? null}),
+    );
     const jobA = await jobFactory.create({}, {transient: {projectId: projectA.id}});
     const jobB = await jobFactory.create({}, {transient: {projectId: projectB.id}});
     createCheckoutSpec.mockResolvedValue(githubSpec('token'));
@@ -242,7 +245,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('passes the project workspace, never the lease workspace claim', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockResolvedValue(githubSpec('token'));
     const token = await mintActiveLeaseToken({
@@ -258,7 +261,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   });
 
   test('returns 404 when the run has no project linkage', async () => {
-    mockGetProjectById.mockResolvedValue(undefined);
+    getProjectById.mockResolvedValue({project: null});
     const project = {id: crypto.randomUUID(), workspaceId: crypto.randomUUID()};
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     const token = await mintActiveLeaseToken({jobId: job.id});
@@ -275,7 +278,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('maps a rate-limited provider error to 429 with retry_after_seconds', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockRejectedValue(
       createInterModuleKnownError(
@@ -299,7 +302,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('maps an inactive connection error to 422', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockRejectedValue(
       createInterModuleKnownError(
@@ -321,7 +324,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('maps an unsupported-checkout provider error to 422', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockRejectedValue(
       createInterModuleKnownError(
@@ -344,7 +347,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('surfaces an unexpected provider error as a 500 server-error', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockRejectedValue(new Error('unexpected provider failure'));
     const token = await mintActiveLeaseToken({jobId: job.id});
@@ -361,7 +364,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test('never writes the minted token to a log line', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     const secret = 'ghs-super-secret-token-value';
     createCheckoutSpec.mockResolvedValue(githubSpec(secret));

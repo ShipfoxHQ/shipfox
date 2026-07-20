@@ -9,7 +9,7 @@ import type {
   IntegrationProviderKind,
   IntegrationsModuleClient,
 } from '@shipfox/api-integration-core-dto';
-import {getProjectById} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {AgentIntegrationMaterializationError} from './errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
@@ -56,12 +56,16 @@ export async function loadAgentToolMaterializationContext(params: {
   readonly workspaceId: string;
   readonly projectId: string;
   readonly integrations?: IntegrationsModuleClient | undefined;
+  readonly projects?: ProjectsModuleClient | undefined;
   readonly jobs?: readonly WorkflowModelJob[] | undefined;
 }): Promise<AgentToolMaterializationContext | undefined> {
   if (!modelHasAgentStepIntegrations(params.model, params.jobs)) return undefined;
 
-  const project = await getProjectById(params.projectId);
-  if (project === undefined) {
+  if (params.projects === undefined) {
+    throw new AgentIntegrationMaterializationError('Project access is not configured');
+  }
+  const {project} = await params.projects.getProjectById({projectId: params.projectId});
+  if (project === null) {
     throw new AgentIntegrationMaterializationError(
       `Project ${params.projectId} was not found while materializing agent integrations`,
     );

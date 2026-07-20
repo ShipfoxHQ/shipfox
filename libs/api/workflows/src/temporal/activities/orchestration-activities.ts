@@ -285,11 +285,16 @@ export async function activateJobListenerActivity(params: {
 
 export function createDrainListenerEventsActivity(clients: {
   agent: AgentInterModuleClient;
-  integrations: IntegrationsModuleClient;
-  projects: ProjectsModuleClient;
+  integrations?: IntegrationsModuleClient | undefined;
+  projects?: ProjectsModuleClient | undefined;
 }) {
-  return async (params: {jobId: string; expectedSequence: number; maxSize?: number | undefined}) =>
-    await drainListenerEventsIntoExecution({...params, ...clients});
+  return async function drainListenerEventsActivity(params: {
+    jobId: string;
+    expectedSequence: number;
+    maxSize?: number | undefined;
+  }) {
+    return await drainListenerEventsIntoExecution({...params, ...clients});
+  };
 }
 
 export async function peekListenerBufferActivity(params: {jobId: string}) {
