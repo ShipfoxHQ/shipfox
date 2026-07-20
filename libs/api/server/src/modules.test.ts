@@ -9,8 +9,8 @@ import {
   secretsInterModuleContract,
 } from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
-import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {defaultModules} from './modules.js';
 
 const mocks = vi.hoisted(() => ({
