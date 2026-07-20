@@ -86,13 +86,7 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
     });
     execFileSync('packer', ['init', '.'], {cwd: rootDir, stdio: 'inherit'});
     await rm(manifestPath, {force: true});
-    const output = execFileSync('packer', packerBuildArgs(build, workspacePath, rootDir), {
-      cwd: rootDir,
-      encoding: 'utf8',
-      // A full AMI bake (apt, node, pnpm install) streams well past the 1 MB default,
-      // and an ENOBUFS throw would discard the already-built AMI. Give it ample room.
-      maxBuffer: 256 * 1024 * 1024,
-    });
+    const output = runPackerBuild(build, workspacePath, rootDir);
     process.stdout.write(output);
     if (build.platform !== 'aws') return {amiId: null};
 
@@ -105,6 +99,31 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
   } finally {
     await rm(stageDir, {force: true, recursive: true});
   }
+}
+
+function runPackerBuild(build: RunnerImageBuild, workspacePath: string, rootDir: string): string {
+  try {
+    return execFileSync('packer', packerBuildArgs(build, workspacePath, rootDir), {
+      cwd: rootDir,
+      encoding: 'utf8',
+      // A full AMI bake (apt, node, pnpm install) streams well past the 1 MB default,
+      // and an ENOBUFS throw would discard the already-built AMI. Give it ample room.
+      maxBuffer: 256 * 1024 * 1024,
+    });
+  } catch (error) {
+    writePackerFailureOutput(error);
+    throw error;
+  }
+}
+
+function writePackerFailureOutput(error: unknown): void {
+  if (!(error instanceof Error)) return;
+  const processError = error as NodeJS.ErrnoException & {
+    stdout?: string | Buffer;
+    stderr?: string | Buffer;
+  };
+  if (processError.stdout) process.stdout.write(processError.stdout);
+  if (processError.stderr) process.stderr.write(processError.stderr);
 }
 
 function isMissingManifest(error: unknown): boolean {

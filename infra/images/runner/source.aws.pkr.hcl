@@ -12,7 +12,7 @@ source "amazon-ebs" "build_image" {
   source_ami_filter {
     filters = {
       architecture        = local.aws_architecture
-      name                = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-${local.aws_architecture}-server-*"
+      name                = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-${local.ubuntu_architecture}-server-*"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
     }
