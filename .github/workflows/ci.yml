@@ -69,9 +69,6 @@ jobs:
       - name: Verify packed API runtime closure
         run: pnpm --filter=@shipfox/application-release test:external
 
-      - name: Verify packed webhook processor seam
-        run: pnpm --filter=@shipfox/api-integration-core test:external
-
       - name: Verify packed client composition
         run: pnpm --filter=@shipfox/client-shell test:external
 

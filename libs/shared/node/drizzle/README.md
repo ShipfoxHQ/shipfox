@@ -50,7 +50,6 @@ turbo type --filter=@shipfox/node-drizzle
 turbo type:emit --filter=@shipfox/node-drizzle
 turbo build --filter=@shipfox/node-drizzle
 turbo test --filter=@shipfox/node-drizzle
-pnpm --filter=@shipfox/node-drizzle test:external
 ```
 
 ## License

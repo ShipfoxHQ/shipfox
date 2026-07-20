@@ -4,5 +4,5 @@
     "rootDir": "."
   },
   "include": ["src", "vitest.config.ts", "node_modules/@shipfox/vitest/globals.d.ts"],
-  "exclude": ["test/external"]
+  "exclude": []
 }

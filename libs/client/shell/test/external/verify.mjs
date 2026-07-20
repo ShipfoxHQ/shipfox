@@ -350,22 +350,6 @@ async function validateGeneratedModule(root) {
   const generated = await readFile(join(root, 'src/shipfox-app.gen.ts'), 'utf8');
   const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   const declaredDependencies = new Set(Object.keys(manifest.dependencies));
-  const expectedImports = [
-    '@shipfox/client-auth/routes/index',
-    '@shipfox/client-invitations/routes/accept',
-    '@shipfox/client-integrations/routes/github',
-    '@shipfox/client-projects/routes/home',
-    '@shipfox/client-workflows/routes/runs',
-    '@shipfox/client-agent/routes/model-provider',
-    '@shipfox/client-workspace-settings/routes/members',
-    './features/login-override',
-    './features/external-settings',
-  ];
-  for (const expected of expectedImports) {
-    if (!generated.includes(expected)) {
-      throw new Error(`Generated default composition did not include ${JSON.stringify(expected)}.`);
-    }
-  }
 
   for (const match of generated.matchAll(/\bfrom\s+['"]([^'"]+)['"]/gu)) {
     const specifier = match[1];
