@@ -36,7 +36,7 @@ export type InterModuleHandlerFn = (input: unknown, context: InterModuleHandlerC
  * dispatch boundary. Any synchronous throw or eventual async rejection is
  * drained — the reporter's own failure never affects the caller's outcome.
  */
-export function drainReport(
+function drainReport(
   reportInternalError: InterModuleReportInternalError,
   error: unknown,
   context: {phase: InterModuleInternalErrorPhase; module: string; method: string},
@@ -51,18 +51,17 @@ export function drainReport(
   }
 }
 
-export type InterModuleInputResolution =
+type InterModuleInputResolution =
   | {kind: 'valid'; value: unknown}
   | {kind: 'validation-error'}
   | {kind: 'opaque-error'; phase: InterModuleInternalErrorPhase; reportError: unknown};
 
 /**
- * The input half of the dispatch boundary, shared by every transport: a raw
- * JSON guard, synchronous schema validation, a parsed-value JSON guard, and a
- * JSON copy severing shared references. Transport-agnostic and side-effect
- * free (callers report and trace around it).
+ * The input half of the dispatch boundary: a raw JSON guard, synchronous
+ * schema validation, a parsed-value JSON guard, and a JSON copy severing
+ * shared references.
  */
-export function resolveInterModuleInput(
+function resolveInterModuleInput(
   methodContract: InterModuleMethodContract,
   rawInput: unknown,
 ): InterModuleInputResolution {
@@ -111,11 +110,8 @@ export interface RunInterModuleCallOptions {
  * Resolves with the method's output or rejects with a known error, a
  * validation rejection, an opaque failure, or the call's `AbortSignal` reason.
  *
- * Used by the in-memory transport, where the client and the presentation share
- * one call stack and each gets its own `INTERNAL` span. A split transport
- * (e.g. HTTP) instead composes `resolveInterModuleInput` on the caller side and
- * `invokeHandlerWithCancellation` on the producer side around its own
- * `CLIENT`/`SERVER` spans.
+ * The client and the presentation share one call stack, so each gets its own
+ * `INTERNAL` span.
  */
 export function runInterModuleCall(callOptions: RunInterModuleCallOptions): Promise<unknown> {
   const {module, method, methodContract, tracer, transportName, reportInternalError} = callOptions;
@@ -198,7 +194,7 @@ export function runInterModuleCall(callOptions: RunInterModuleCallOptions): Prom
   }
 }
 
-export type SafeParseResult =
+type SafeParseResult =
   | {kind: 'valid'; data: unknown}
   | {kind: 'invalid'}
   | {kind: 'defect'; error: unknown};
@@ -207,10 +203,9 @@ export type SafeParseResult =
  * Runs `schema.safeParse(value)`, classifying a schema that throws instead of
  * returning `{success: false}` (e.g. one that behaves asynchronously) as a
  * `defect` rather than letting the exception escape. Shared by both halves of
- * the dispatch boundary and by any transport that re-validates a value crossed
- * over the wire (e.g. a serialized transport's client checking a response).
+ * the dispatch boundary (input and output validation).
  */
-export function safeParseWithDefectDetection(
+function safeParseWithDefectDetection(
   schema: InterModuleMethodContract['input'],
   value: unknown,
 ): SafeParseResult {
@@ -223,20 +218,19 @@ export function safeParseWithDefectDetection(
   }
 }
 
-export type HandlerSettlement =
+type HandlerSettlement =
   | {outcome: 'success'; value: unknown}
   | {outcome: 'known-error'; error: InterModuleKnownError}
   | {outcome: 'opaque'; phase: InterModuleInternalErrorPhase; reportError: unknown}
   | {outcome: 'cancelled'; reason: unknown};
 
 /**
- * The producer half of the dispatch boundary, shared by every transport: races
- * the handler's settlement against `signal`, revives a declared known error
- * into a fresh copy, and validates and copies a successful output. Never
- * throws — callers translate the returned settlement (a local reject, an HTTP
- * response envelope, ...).
+ * The producer half of the dispatch boundary: races the handler's settlement
+ * against `signal`, revives a declared known error into a fresh copy, and
+ * validates and copies a successful output. Never throws — the caller
+ * translates the returned settlement into its own rejection or resolution.
  */
-export async function invokeHandlerWithCancellation(params: {
+async function invokeHandlerWithCancellation(params: {
   methodContract: InterModuleMethodContract;
   handler: InterModuleHandlerFn;
   input: unknown;

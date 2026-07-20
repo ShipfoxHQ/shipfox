@@ -1,4 +1,4 @@
-import {type Span, SpanKind, SpanStatusCode, trace} from '@shipfox/node-opentelemetry';
+import {type Span, type SpanKind, SpanStatusCode, trace} from '@shipfox/node-opentelemetry';
 
 const TRACER_NAME = '@shipfox/node-module/inter-module';
 
@@ -15,21 +15,12 @@ export function resolveInterModuleTracer(
   return tracer ?? trace.getTracer(TRACER_NAME);
 }
 
-export function startInterModuleSpan(
-  tracer: ReturnType<typeof trace.getTracer>,
-  name: string,
-  kind: (typeof SpanKind)[keyof typeof SpanKind] = SpanKind.INTERNAL,
-): Span {
-  return tracer.startSpan(name, {kind});
-}
-
 /**
- * Runs `fn` with `name` activated as the current span for its duration —
- * unlike `startInterModuleSpan` (which only creates a span without making it
- * "current"), this is required whenever `fn` itself creates further spans that
- * must nest under it. `tracer.startSpan` alone leaves two sequentially created
- * spans as unrelated siblings; only an active span is picked up as the parent
- * context for spans started later.
+ * Runs `fn` with `name` activated as the current span for its duration. This
+ * is required whenever `fn` itself creates further spans that must nest under
+ * it: `tracer.startSpan` alone leaves two sequentially created spans as
+ * unrelated siblings; only an active span is picked up as the parent context
+ * for spans started later.
  */
 export function startActiveInterModuleSpan<T>(
   tracer: ReturnType<typeof trace.getTracer>,
