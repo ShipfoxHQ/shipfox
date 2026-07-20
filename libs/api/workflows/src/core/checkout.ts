@@ -67,19 +67,19 @@ export async function createJobCheckoutSpec({
     ref: undefined,
     permissions: intent.permissions,
   });
+  const {credentials, gitAuthor, ...checkout} = response;
   return {
     spec: {
-      ...response,
-      ...(response.credentials && typeof response.credentials.expiresAt === 'string'
+      ...checkout,
+      ...(credentials
         ? {
             credentials: {
-              ...response.credentials,
-              expiresAt: new Date(response.credentials.expiresAt),
+              ...credentials,
+              expiresAt: new Date(credentials.expiresAt),
             },
           }
-        : response.credentials
-          ? {credentials: response.credentials}
-          : {}),
+        : {}),
+      ...(gitAuthor ? {gitAuthor} : {}),
     },
     persistCredentials: intent.persistCredentials,
   };

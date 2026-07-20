@@ -1,38 +1,23 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
-import {
-  type CheckoutSpec,
-  IntegrationCheckoutUnsupportedError,
-  IntegrationConnectionInactiveError,
-  IntegrationProviderError,
-  type IntegrationSourceControlService,
-} from '@shipfox/api-integration-core';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {getProjectById} from '@shipfox/api-projects';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
-import {clearSourceControl, setSourceControl} from '#core/source-control.js';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
-import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
-import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
-import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
-import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
+import {createWorkflowRoutes} from './index.js';
 
-const mockGetProjectById = vi.fn();
-const projects = {
-  getProjectById: async ({projectId}: {projectId: string}) => ({
-    project: await mockGetProjectById(projectId),
-  }),
-  requireProjectForWorkspace: vi.fn(),
-} as unknown as ProjectsModuleClient;
+vi.mock('@shipfox/api-projects', () => ({getProjectById: vi.fn()}));
+const mockGetProjectById = vi.mocked(getProjectById);
 
 const URL = '/runs/jobs/current/checkout-token';
-const secrets = createTestSecretsClient();
 
-const githubSpec = (token: string): CheckoutSpec => ({
+const githubSpec = (token: string) => ({
   repositoryUrl: 'https://github.com/acme/repo.git',
   ref: 'main',
   credentials: {username: 'x-access-token', token, expiresAt: new Date('2026-06-10T12:00:00.000Z')},
@@ -44,18 +29,13 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   const {logger, lines: logLines, clear: clearLogLines} = createCapturingLogger();
 
   beforeAll(async () => {
-    setSourceControl({createCheckoutSpec} as unknown as IntegrationSourceControlService);
+    const [, checkoutRouteGroup] = createWorkflowRoutes({createCheckoutSpec} as never);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
       routes: [
         createLeaseTokenRouteGroup({
-          agent: agentTestClient,
-          annotations: annotationsTestClient,
-          auth: workflowsTestAuthClient,
-          integrations: {createCheckoutSpec} as never,
-          projects,
           runners: runnersTestClient,
-          secrets,
+          integrations: {createCheckoutSpec} as never,
         }),
       ],
       swagger: false,
@@ -72,7 +52,6 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   afterAll(async () => {
     await closeApp();
-    clearSourceControl();
   });
 
   describe('lease-token auth', () => {
@@ -153,7 +132,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     createCheckoutSpec.mockResolvedValue({
       repositoryUrl: 'https://example.com/acme/repo.git',
       ref: 'trunk',
-    } satisfies CheckoutSpec);
+    });
     const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
@@ -279,7 +258,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   });
 
   test('returns 404 when the run has no project linkage', async () => {
-    mockGetProjectById.mockResolvedValue(null);
+    mockGetProjectById.mockResolvedValue(undefined);
     const project = {id: crypto.randomUUID(), workspaceId: crypto.randomUUID()};
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     const token = await mintActiveLeaseToken({jobId: job.id});
@@ -299,7 +278,11 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     mockGetProjectById.mockResolvedValue(project);
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockRejectedValue(
-      new IntegrationProviderError('rate-limited', 'slow down', 60),
+      createInterModuleKnownError(
+        integrationsInterModuleContract.methods.createCheckoutSpec,
+        'provider-failure',
+        {reason: 'rate-limited', retryAfterSeconds: 60},
+      ),
     );
     const token = await mintActiveLeaseToken({jobId: job.id});
 
@@ -319,7 +302,11 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     mockGetProjectById.mockResolvedValue(project);
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     createCheckoutSpec.mockRejectedValue(
-      new IntegrationConnectionInactiveError(project.sourceConnectionId),
+      createInterModuleKnownError(
+        integrationsInterModuleContract.methods.createCheckoutSpec,
+        'connection-inactive',
+        {connectionId: project.sourceConnectionId},
+      ),
     );
     const token = await mintActiveLeaseToken({jobId: job.id});
 
@@ -336,7 +323,13 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
-    createCheckoutSpec.mockRejectedValue(new IntegrationCheckoutUnsupportedError('github'));
+    createCheckoutSpec.mockRejectedValue(
+      createInterModuleKnownError(
+        integrationsInterModuleContract.methods.createCheckoutSpec,
+        'checkout-unsupported',
+        {provider: 'github'},
+      ),
+    );
     const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
