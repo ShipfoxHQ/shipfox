@@ -23,5 +23,14 @@ export function createAgentDefaultsResolver(
   agent: AgentInterModuleClient,
   workspaceId: string | null,
 ): AgentDefaultsResolver {
-  return async (config) => await agent.resolveAgentConfig({workspaceId, config});
+  return async (config) =>
+    await agent.resolveAgentConfig({
+      workspaceId,
+      config: {
+        ...(config.harness === undefined ? {} : {harness: config.harness}),
+        ...(config.provider === undefined ? {} : {provider: config.provider}),
+        ...(config.model === undefined ? {} : {model: config.model}),
+        ...(config.thinking === undefined ? {} : {thinking: config.thinking}),
+      },
+    });
 }

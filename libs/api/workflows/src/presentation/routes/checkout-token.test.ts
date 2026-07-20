@@ -267,7 +267,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   });
 
   test('returns 404 when the run has no project linkage', async () => {
-    mockGetProjectById.mockResolvedValue(undefined);
+    mockGetProjectById.mockResolvedValue(null);
     const project = {id: crypto.randomUUID(), workspaceId: crypto.randomUUID()};
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     const token = await mintActiveLeaseToken({jobId: job.id});

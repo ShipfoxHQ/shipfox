@@ -381,7 +381,10 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('model-provider-credentials-invalid');
     expect(captureExceptionMock).toHaveBeenCalledWith(
-      expect.objectContaining({name: 'SecretDecryptionError'}),
+      expect.objectContaining({
+        name: 'InterModuleKnownError',
+        code: 'model-provider-credentials-invalid',
+      }),
     );
     expect(JSON.stringify(res.json())).not.toContain('sk-');
   });

@@ -119,7 +119,7 @@ describe('runWorkflow', () => {
     expect(run.triggerSource).toBe('manual');
     expect(run.triggerEvent).toBe('fire');
     expect(run.triggerPayload).toEqual(triggerPayload);
-    expect(mockResolveAgentConfig).toHaveBeenCalledWith({workspaceId: null, config: {}});
+    expect(mockResolveAgentConfig).not.toHaveBeenCalled();
   });
 
   test('builds the workspace agent resolver only when the definition has an agent step', async () => {
