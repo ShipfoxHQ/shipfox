@@ -111,14 +111,9 @@ describe('checkRunnersRateLimit', () => {
     });
   });
 
-  it('uses the configured identifier secret', async () => {
+  it('uses the root-derived identifier key', async () => {
     vi.resetModules();
-    vi.doMock('#config.js', () => ({
-      config: {
-        RATE_LIMIT_IDENTIFIER_SECRET: 'configured-secret',
-        RUNNERS_RATE_LIMIT_TIMEOUT_MS: 250,
-      },
-    }));
+    vi.stubEnv('AUTH_ROOT_KEY', 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=');
 
     try {
       const firstModule = await import('./rate-limit.js');
@@ -127,12 +122,7 @@ describe('checkRunnersRateLimit', () => {
         scope: 'provisioner',
         identifier: 'provisioner-token-id',
       });
-      vi.doMock('#config.js', () => ({
-        config: {
-          RATE_LIMIT_IDENTIFIER_SECRET: 'a-different-configured-secret',
-          RUNNERS_RATE_LIMIT_TIMEOUT_MS: 250,
-        },
-      }));
+      vi.stubEnv('AUTH_ROOT_KEY', 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=');
       vi.resetModules();
       const secondModule = await import('./rate-limit.js');
       const secondHash = secondModule.hashRunnersRateLimitIdentifier({
@@ -145,7 +135,7 @@ describe('checkRunnersRateLimit', () => {
       expect(secondHash).toMatch(HMAC_HEX_PATTERN);
       expect(firstHash).not.toBe(secondHash);
     } finally {
-      vi.doUnmock('#config.js');
+      vi.unstubAllEnvs();
       vi.resetModules();
     }
   });

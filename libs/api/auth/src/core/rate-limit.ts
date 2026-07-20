@@ -1,4 +1,4 @@
-import {createHmac} from 'node:crypto';
+import {rateLimitIdentifierKey} from '@shipfox/node-auth-root-key';
 import {
   checkRateLimit,
   hashRateLimitIdentifier,
@@ -6,7 +6,6 @@ import {
   type RateLimitPolicy,
   RateLimitUnavailableError,
 } from '@shipfox/node-rate-limit';
-import {config} from '#config.js';
 import {consumeAuthRateLimit, pruneExpiredAuthRateLimits} from '#db/rate-limits.js';
 import {
   type AuthRateLimitAction,
@@ -64,17 +63,10 @@ export class AuthRateLimitUnavailableError extends RateLimitUnavailableError<
 }
 
 const DEFAULT_TIMEOUT_MS = 250;
-const IDENTIFIER_SECRET_DERIVATION_DOMAIN = 'shipfox.auth.rate-limit.identifier-secret.v1';
 const IDENTIFIER_HASH_DOMAIN = 'shipfox.auth.rate-limit.identifier.v1';
 
-function effectiveIdentifierSecret(): Buffer | string {
-  if (config.RATE_LIMIT_IDENTIFIER_SECRET) {
-    return config.RATE_LIMIT_IDENTIFIER_SECRET;
-  }
-
-  return createHmac('sha256', config.AUTH_JWT_SECRET)
-    .update(IDENTIFIER_SECRET_DERIVATION_DOMAIN)
-    .digest();
+function effectiveIdentifierSecret(): Uint8Array {
+  return rateLimitIdentifierKey();
 }
 
 export function hashAuthRateLimitIdentifier(params: {

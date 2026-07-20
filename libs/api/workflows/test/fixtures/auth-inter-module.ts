@@ -1,8 +1,9 @@
 import {JOB_LEASE_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import {jobLeaseTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256} from '@shipfox/node-jwt';
 
-const leaseSecret = process.env.AUTH_JOB_LEASE_TOKEN_SECRET ?? 'test-lease-secret';
+const leaseSecret = jobLeaseTokenKey();
 
 export const workflowsTestAuthClient: AuthInterModuleClient = {
   mintRunnerSessionToken() {

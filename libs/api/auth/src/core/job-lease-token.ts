@@ -3,6 +3,7 @@ import {
   type JobLeaseTokenClaims,
   jobLeaseTokenClaimsSchema,
 } from '@shipfox/api-auth-dto';
+import {jobLeaseTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256, verifyHs256} from '@shipfox/node-jwt';
 import {config} from '#config.js';
 import {recordTokenIssued, recordTokenVerified} from '#metrics/index.js';
@@ -57,7 +58,7 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
           }
         : {}),
     },
-    secret: config.AUTH_JOB_LEASE_TOKEN_SECRET,
+    secret: jobLeaseTokenKey(),
     expiresIn: config.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN,
     audience: JOB_LEASE_TOKEN_AUDIENCE,
   });
@@ -70,7 +71,7 @@ export async function verifyJobLeaseToken(token: string): Promise<JobLeaseTokenC
   try {
     const claims = await verifyHs256({
       token,
-      secret: config.AUTH_JOB_LEASE_TOKEN_SECRET,
+      secret: jobLeaseTokenKey(),
       schema: jobLeaseTokenClaimsSchema,
       audience: JOB_LEASE_TOKEN_AUDIENCE,
     });

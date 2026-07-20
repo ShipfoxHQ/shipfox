@@ -84,31 +84,6 @@ describe.each([
   });
 });
 
-describe('RATE_LIMIT_IDENTIFIER_SECRET validation', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  it('uses the existing JWT secret when no dedicated identifier secret is set', async () => {
-    const previous = process.env.RATE_LIMIT_IDENTIFIER_SECRET;
-    delete process.env.RATE_LIMIT_IDENTIFIER_SECRET;
-    vi.resetModules();
-
-    try {
-      const {config} = await import('#config.js');
-
-      expect(config.RATE_LIMIT_IDENTIFIER_SECRET).toBe(process.env.AUTH_JWT_SECRET);
-    } finally {
-      if (previous === undefined) {
-        delete process.env.RATE_LIMIT_IDENTIFIER_SECRET;
-      } else {
-        process.env.RATE_LIMIT_IDENTIFIER_SECRET = previous;
-      }
-    }
-  });
-});
-
 describe('RUNNER_NO_FIRST_HEARTBEAT_GRACE_SECONDS validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

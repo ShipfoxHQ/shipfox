@@ -258,12 +258,6 @@ describe('checkAuthRateLimit', () => {
     });
     const pruneExpiredAuthRateLimits = vi.fn(() => pendingPrune);
     vi.resetModules();
-    vi.doMock('#config.js', () => ({
-      config: {
-        AUTH_JWT_SECRET: 'jwt-secret',
-        RATE_LIMIT_IDENTIFIER_SECRET: undefined,
-      },
-    }));
     vi.doMock('#db/rate-limits.js', () => ({
       consumeAuthRateLimit,
       pruneExpiredAuthRateLimits,
@@ -293,7 +287,6 @@ describe('checkAuthRateLimit', () => {
       expect(pruneExpiredAuthRateLimits).toHaveBeenCalledWith({now});
     } finally {
       finishPrune?.(0);
-      vi.doUnmock('#config.js');
       vi.doUnmock('#db/rate-limits.js');
       vi.doUnmock('#metrics/index.js');
       vi.resetModules();
@@ -421,41 +414,31 @@ describe('checkAuthRateLimit', () => {
     });
   });
 
-  it('uses the configured identifier secret when present', async () => {
+  it('uses the root-derived identifier key', async () => {
     vi.resetModules();
-    vi.doMock('#config.js', () => ({
-      config: {
-        AUTH_JWT_SECRET: 'jwt-secret',
-        RATE_LIMIT_IDENTIFIER_SECRET: 'configured-secret',
-      },
-    }));
+    vi.stubEnv('AUTH_ROOT_KEY', 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=');
 
     try {
-      const configuredSecretModule = await import('./rate-limit.js');
-      const configuredSecretHash = configuredSecretModule.hashAuthRateLimitIdentifier({
+      const firstModule = await import('./rate-limit.js');
+      const firstHash = firstModule.hashAuthRateLimitIdentifier({
         action: 'login',
         scope: 'email',
         identifier: 'person@example.com',
       });
-      vi.doMock('#config.js', () => ({
-        config: {
-          AUTH_JWT_SECRET: 'jwt-secret',
-          RATE_LIMIT_IDENTIFIER_SECRET: undefined,
-        },
-      }));
+      vi.stubEnv('AUTH_ROOT_KEY', 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=');
       vi.resetModules();
-      const derivedSecretModule = await import('./rate-limit.js');
-      const derivedSecretHash = derivedSecretModule.hashAuthRateLimitIdentifier({
+      const secondModule = await import('./rate-limit.js');
+      const secondHash = secondModule.hashAuthRateLimitIdentifier({
         action: 'login',
         scope: 'email',
         identifier: 'person@example.com',
       });
 
-      expect(configuredSecretHash).toMatch(HMAC_HEX_PATTERN);
-      expect(derivedSecretHash).toMatch(HMAC_HEX_PATTERN);
-      expect(configuredSecretHash).not.toBe(derivedSecretHash);
+      expect(firstHash).toMatch(HMAC_HEX_PATTERN);
+      expect(secondHash).toMatch(HMAC_HEX_PATTERN);
+      expect(firstHash).not.toBe(secondHash);
     } finally {
-      vi.doUnmock('#config.js');
+      vi.unstubAllEnvs();
       vi.resetModules();
     }
   });

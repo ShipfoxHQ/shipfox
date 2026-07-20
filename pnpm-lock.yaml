@@ -1929,6 +1929,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/node-auth-root-key':
+        specifier: workspace:*
+        version: link:../../shared/node/auth-root-key
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
@@ -2014,6 +2017,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
+      '@shipfox/node-auth-root-key':
+        specifier: workspace:*
+        version: link:../../shared/node/auth-root-key
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -2402,6 +2408,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
+      '@shipfox/node-auth-root-key':
+        specifier: workspace:*
+        version: link:../../shared/node/auth-root-key
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -3335,6 +3344,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
+      '@shipfox/node-auth-root-key':
+        specifier: workspace:*
+        version: link:../../shared/node/auth-root-key
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
@@ -3545,6 +3557,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
+      '@shipfox/node-auth-root-key':
+        specifier: workspace:*
+        version: link:../../shared/node/auth-root-key
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -4114,6 +4129,9 @@ importers:
       '@shipfox/depcruise':
         specifier: workspace:*
         version: link:../../../tools/depcruise
+      '@shipfox/node-auth-root-key':
+        specifier: workspace:*
+        version: link:../../shared/node/auth-root-key
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
@@ -6423,6 +6441,28 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../tools/vitest
+
+  libs/shared/node/auth-root-key:
+    dependencies:
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../common/config
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
 
   libs/shared/node/drizzle:
     dependencies:

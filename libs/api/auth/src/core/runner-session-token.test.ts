@@ -1,10 +1,11 @@
 import {JOB_LEASE_TOKEN_AUDIENCE, RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
+import {runnerSessionTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256} from '@shipfox/node-jwt';
 import {generateKeyPair, SignJWT} from 'jose';
 import {issueJobLeaseToken, verifyJobLeaseToken} from './job-lease-token.js';
 import {issueRunnerSessionToken, verifyRunnerSessionToken} from './runner-session-token.js';
 
-const SECRET = process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET ?? 'test-runner-session-secret';
+const SECRET = runnerSessionTokenKey();
 
 function claims() {
   return {

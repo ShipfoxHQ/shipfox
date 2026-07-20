@@ -48,17 +48,14 @@ Required environment:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AUTH_JWT_SECRET` | none | Secret used to sign and verify access tokens. |
+| `AUTH_ROOT_KEY` | none | Canonical base64 for 32 random bytes used to derive separate authentication and email-challenge keys. Generate it with `openssl rand -base64 32`. |
 | `AUTH_JWT_EXPIRES_IN` | `15m` | Access token lifetime. |
-| `AUTH_JOB_LEASE_TOKEN_SECRET` | none | Secret used to sign and verify job lease tokens. |
 | `AUTH_JOB_LEASE_TOKEN_EXPIRES_IN` | `90m` | Job lease token lifetime. |
-| `AUTH_RUNNER_SESSION_TOKEN_SECRET` | none | Secret used to sign and verify runner session tokens. |
 | `AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN` | `1h` | Runner session token lifetime. |
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |
 | `AUTH_REFRESH_ROTATION_GRACE_SECONDS` | `30` | Grace window for accepting a just-rotated refresh token during concurrent refreshes. |
 | `AUTH_REFRESH_COOKIE_NAME` | `shipfox_refresh_token` | HTTP cookie name for refresh sessions. |
 | `AUTH_PASSWORD_ENABLED` | `true` | Enables password and email-verification routes. Set to `false` when another module provides login. Server construction fails if no login method is available. |
-| `RATE_LIMIT_IDENTIFIER_SECRET` | none | Optional secret used to HMAC identifiers before storing rate-limit counters. When unset, the module derives a stable key from `AUTH_JWT_SECRET`. |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in email verification and password reset links. |
 
 Email delivery uses the shared `@shipfox/node-mailer` configuration.
@@ -72,8 +69,13 @@ The module issues three kinds of bearer token, all presented as
 HMAC-SHA256 and verified by checking its signature and expiry alone, with no
 database read on the request path. They differ in who they authenticate and what
 they grant, and the stateless tradeoff is accepted for a different reason in each
-case. Each token class has a dedicated secret and audience, so one token type
-cannot be used in place of another.
+case. Each token class uses a separate key derived from `AUTH_ROOT_KEY` and a
+fixed audience, so one token type cannot be used in place of another.
+
+Changing `AUTH_ROOT_KEY` invalidates every user session token, runner session
+token, job lease token, email challenge, and rate-limit identifier created with
+the previous root. The module does not support rotating one derived key by
+itself.
 
 ### User session token
 
@@ -112,7 +114,7 @@ use the per-job lease token instead.
   the labels it registers with. The labels are immutable after registration and
   signed into the session token, but they are not an authorization boundary in v1.
   Treat the registration token's workspace scope as the trust boundary.
-- **Mechanics.** Signed with HMAC-SHA256 using `AUTH_RUNNER_SESSION_TOKEN_SECRET`
+- **Mechanics.** Signed with HMAC-SHA256 using the derived runner-session key
   and the `runner-session` audience. The default lifetime is `1h`, short enough
   to bound the residual claim window when a registration token is revoked.
 - **Tradeoff — no per-session revocation in v1.** Claim stays stateless and does
@@ -146,14 +148,14 @@ progress and drives that job to completion.
   downstream only *verifies* — an in-process signature check, with no callback to
   the issuer. The runner, and the untrusted agent workload it hosts, never mints
   or modifies a token; it only presents the one it was handed.
-- **Mechanics.** Signed with HMAC-SHA256 using a dedicated secret, separate from
-  the user-session secret. Its claims name the job, job execution, and surrounding
+- **Mechanics.** Signed with HMAC-SHA256 using the job-lease key derived from
+  `AUTH_ROOT_KEY`. Its claims name the job, job execution, and surrounding
   context and nothing more, and it carries a fixed audience so a token minted for
   one purpose cannot be replayed against another. It is short-lived (bounded in
   hours, not days), with heartbeat issuing a fresh short lease for the same live
-  execution. The signing secret is supplied through configuration, never embedded
-  in code or committed. The raw token must **never** be written to logs, traces, or
-  error payloads — there is no automatic redaction to fall back on.
+  execution. The root key is supplied through configuration, never embedded in
+  code or committed. The raw token must **never** be written to logs, traces, or
+  error payloads. There is no automatic redaction to fall back on.
 - **Defense in depth — server state is the final authority.** A valid token is
   never sufficient on its own to advance work. On the lease's own request path the
   gate is server-side step and progression state: a report against a step that has
@@ -171,10 +173,9 @@ progress and drives that job to completion.
 - **Threat model.** A leaked or replayed token has a deliberately small blast
   radius: it grants action on one already-claimed job execution while that
   execution remains live. It cannot claim new work, impersonate a runner, or reach
-  other workspaces. If the *signing secret* leaks, the response is to rotate it;
-  rotation invalidates every live lease at once (they fail signature verification)
-  and forces fresh claims. Isolating this secret from the user-session secret is
-  what lets one be rotated without disrupting the other.
+  other workspaces. If `AUTH_ROOT_KEY` leaks, rotate it. This invalidates every
+  live token and email challenge derived from the old root, including every live
+  lease, and forces fresh claims.
 - **Tradeoff — no per-token revocation.** A single outstanding lease cannot be
   revoked on its own by token ID. The claiming runner's credential is not
   re-checked on each request, so a lease for already-claimed work can continue to
@@ -222,7 +223,7 @@ The public auth endpoints include an application-layer abuse baseline for open s
 | `POST /auth/password-reset` | 30 email-send attempts per hour | 3 email-send attempts per hour |
 | `POST /auth/verify-email/resend` | Shared with password reset | Shared with password reset |
 
-Counters are stored in PostgreSQL as fixed windows in `auth_rate_limits`. IP addresses and email addresses are HMAC-SHA256 values before storage; raw identifiers are not persisted. `RATE_LIMIT_IDENTIFIER_SECRET` is optional. Set it when you want a dedicated HMAC secret, or leave it unset to derive the key from `AUTH_JWT_SECRET`.
+Counters are stored in PostgreSQL as fixed windows in `auth_rate_limits`. IP addresses and email addresses are HMAC-SHA256 values before storage; raw identifiers are not persisted. The identifier key is derived from `AUTH_ROOT_KEY` separately from every token key.
 
 The limiter uses `request.ip`, so production deployments behind a reverse proxy must configure the API app's `API_TRUST_PROXY` setting. Keep the default `false` when clients connect directly. Use a positive hop count such as `1`, or a trusted proxy IP/CIDR such as `10.0.0.0/8`, when proxy headers are controlled by infrastructure you operate.
 

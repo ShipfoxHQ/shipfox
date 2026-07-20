@@ -1,18 +1,17 @@
 {
-  "name": "@shipfox/annotations",
+  "name": "@shipfox/node-auth-root-key",
   "license": "MIT",
-  "version": "5.0.0",
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/api/annotations"
+    "directory": "libs/shared/node/auth-root-key"
   },
   "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#test/*": "./test/*",
     "#*": {
       "workspace-source": "./src/*",
       "default": "./dist/*"
@@ -40,31 +39,13 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/annotations-dto": "workspace:*",
-    "@shipfox/api-auth-context": "workspace:*",
-    "@shipfox/config": "workspace:*",
-    "@shipfox/inter-module": "workspace:*",
-    "@shipfox/node-drizzle": "workspace:*",
-    "@shipfox/node-fastify": "workspace:*",
-    "@shipfox/node-module": "workspace:*",
-    "@shipfox/node-postgres": "workspace:*",
-    "drizzle-orm": "catalog:",
-    "zod": "catalog:"
+    "@shipfox/config": "workspace:*"
   },
   "devDependencies": {
-    "@shipfox/node-auth-root-key": "workspace:*",
-    "@shipfox/api-auth": "workspace:*",
-    "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
-    "@shipfox/node-jwt": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*",
-    "@types/pg": "catalog:",
-    "drizzle-kit": "catalog:",
-    "fastify": "catalog:",
-    "fastify-type-provider-zod": "catalog:",
-    "fishery": "catalog:"
+    "@shipfox/vitest": "workspace:*"
   }
 }

@@ -1,4 +1,5 @@
 import {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
+import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {and, desc, eq, sql} from 'drizzle-orm';
@@ -55,7 +56,6 @@ const testConfig = vi.hoisted(
 
 vi.mock('#config.js', () => ({
   config: {
-    AUTH_JWT_SECRET: 'auth-core-test-secret',
     AUTH_JWT_EXPIRES_IN: '15m',
     AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
     AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,
@@ -509,7 +509,7 @@ describe('auth core', () => {
 
     const result = await login({email: user.email, password: user.plainPassword});
 
-    const claims = await verifyUserToken({token: result.token, secret: 'auth-core-test-secret'});
+    const claims = await verifyUserToken({token: result.token, secret: userAccessTokenKey()});
     expect(claims.name).toBe(user.name);
     expect(claims.memberships).toEqual([
       {workspaceId: workspaceA, role: 'admin'},
@@ -530,7 +530,7 @@ describe('auth core', () => {
 
     const refreshedClaims = await verifyUserToken({
       token: refreshed.token,
-      secret: 'auth-core-test-secret',
+      secret: userAccessTokenKey(),
     });
     expect(refreshedClaims.memberships).toEqual([{workspaceId: newWorkspaceId, role: 'admin'}]);
   });

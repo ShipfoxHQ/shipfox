@@ -3,6 +3,7 @@ import {
   type RunnerSessionTokenClaims,
   runnerSessionTokenClaimsSchema,
 } from '@shipfox/api-auth-dto';
+import {runnerSessionTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256, verifyHs256} from '@shipfox/node-jwt';
 import {config} from '#config.js';
 import {recordTokenIssued, recordTokenVerified} from '#metrics/index.js';
@@ -21,7 +22,7 @@ export async function issueRunnerSessionToken(
       labels: claims.labels,
       maxClaims: claims.maxClaims,
     },
-    secret: config.AUTH_RUNNER_SESSION_TOKEN_SECRET,
+    secret: runnerSessionTokenKey(),
     expiresIn: config.AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN,
     audience: RUNNER_SESSION_TOKEN_AUDIENCE,
   });
@@ -36,7 +37,7 @@ export async function verifyRunnerSessionToken(
   try {
     const claims = await verifyHs256({
       token,
-      secret: config.AUTH_RUNNER_SESSION_TOKEN_SECRET,
+      secret: runnerSessionTokenKey(),
       schema: runnerSessionTokenClaimsSchema,
       audience: RUNNER_SESSION_TOKEN_AUDIENCE,
     });

@@ -47,6 +47,7 @@
     "@shipfox/config": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-auth-root-key": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",

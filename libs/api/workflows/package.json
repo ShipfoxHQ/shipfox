@@ -70,6 +70,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@shipfox/node-auth-root-key": "workspace:*",
     "@shipfox/annotations": "workspace:*",
     "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-agent": "workspace:*",

@@ -1,22 +1,13 @@
 import {bool, createConfig, num, str} from '@shipfox/config';
 
 export const config = createConfig({
-  AUTH_JWT_SECRET: str({
-    desc: 'Secret used to sign and verify user access tokens (JWTs). Required, with no default, so startup fails when it is missing.',
-  }),
   AUTH_JWT_EXPIRES_IN: str({
     desc: 'How long an access token stays valid. Accepts a duration string such as 15m, 1h, or 7d.',
     default: '15m',
   }),
-  AUTH_JOB_LEASE_TOKEN_SECRET: str({
-    desc: 'Secret used to sign and verify job lease tokens. Required, with no default, so startup fails when it is missing.',
-  }),
   AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: str({
     desc: 'How long a job lease token stays valid. Set it longer than the longest job (JOB_MAX_DURATION is 60 minutes) plus a safety margin.',
     default: '90m',
-  }),
-  AUTH_RUNNER_SESSION_TOKEN_SECRET: str({
-    desc: 'Secret used to sign and verify runner session tokens. Required, with no default, so startup fails when it is missing.',
   }),
   AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN: str({
     desc: 'How long a runner session token stays valid. A revoked registration token can leave existing sessions usable until this lifetime ends.',
@@ -37,10 +28,6 @@ export const config = createConfig({
   AUTH_PASSWORD_ENABLED: bool({
     desc: 'Whether password login is available. Use true or false. Defaults to true. When false, password and email-verification routes are not registered, and server startup requires another module to contribute a login method.',
     default: true,
-  }),
-  RATE_LIMIT_IDENTIFIER_SECRET: str({
-    desc: 'Optional secret used to HMAC identifiers before storing rate-limit counters. Leave it unset to derive a stable key from AUTH_JWT_SECRET.',
-    default: undefined,
   }),
   CLIENT_BASE_URL: str({
     desc: 'Base URL of the client app. Used to build links in emails such as password resets.',

@@ -1,7 +1,7 @@
 import {jwtVerify, SignJWT} from 'jose';
 
-function encodeSecret(secret: string): Uint8Array {
-  return new TextEncoder().encode(secret);
+function keyMaterial(secret: string | Uint8Array): Uint8Array {
+  return typeof secret === 'string' ? new TextEncoder().encode(secret) : secret;
 }
 
 const UNIT_SECONDS: Record<string, number> = {
@@ -53,7 +53,7 @@ export function durationToSeconds(value: string): number {
 
 export interface SignHs256Params {
   payload: Record<string, unknown>;
-  secret: string;
+  secret: string | Uint8Array;
   expiresIn: string;
   subject?: string;
   audience?: string;
@@ -72,12 +72,12 @@ export async function signHs256(params: SignHs256Params): Promise<string> {
     jwt.setAudience(params.audience);
   }
 
-  return await jwt.sign(encodeSecret(params.secret));
+  return await jwt.sign(keyMaterial(params.secret));
 }
 
 export interface VerifyHs256Params<T> {
   token: string;
-  secret: string;
+  secret: string | Uint8Array;
   // Structural so any Zod schema (or equivalent) satisfies it without coupling
   // this package to a validation library.
   schema: {parse(data: unknown): T};
@@ -86,7 +86,7 @@ export interface VerifyHs256Params<T> {
 }
 
 export async function verifyHs256<T>(params: VerifyHs256Params<T>): Promise<T> {
-  const {payload} = await jwtVerify(params.token, encodeSecret(params.secret), {
+  const {payload} = await jwtVerify(params.token, keyMaterial(params.secret), {
     algorithms: ['HS256'],
     ...(params.audience !== undefined ? {audience: params.audience} : {}),
   });

@@ -1,9 +1,10 @@
 import {JOB_LEASE_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
+import {jobLeaseTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256} from '@shipfox/node-jwt';
 import {issueJobLeaseToken, verifyJobLeaseToken} from './job-lease-token.js';
 
 // Matches test/env.ts; the codec reads this same value from config.
-const SECRET = process.env.AUTH_JOB_LEASE_TOKEN_SECRET ?? 'test-lease-secret';
+const SECRET = jobLeaseTokenKey();
 
 function claims() {
   return {
