@@ -1,17 +1,18 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
+import {emailSchema} from '@shipfox/api-common-dto';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config} from '#config.js';
 import {
-  type AcceptInvitationResult,
-  acceptInvitation,
   createInvitation,
   findInvitationById,
   findInvitationByToken,
   listOpenInvitationsByWorkspace,
+  reconcileInvitationAcceptance,
   revokeInvitation,
 } from '#db/invitations.js';
 import {getWorkspaceById} from '#db/workspaces.js';
 import type {Invitation} from './entities/invitation.js';
+import type {Membership} from './entities/membership.js';
 import {
   InvitationEmailMismatchError,
   InvitationNotFoundError,
@@ -40,6 +41,7 @@ export async function createWorkspaceInvitation(params: {
   invitedByDisplay?: string | null;
   invitedByMemberships: ReadonlyArray<UserContextMembership>;
 }): Promise<Invitation> {
+  const email = emailSchema.parse(params.email);
   const {workspace} = await requireWorkspaceMembership({
     workspaceId: params.workspaceId,
     userId: params.invitedByUserId,
@@ -49,7 +51,7 @@ export async function createWorkspaceInvitation(params: {
   const rawToken = generateOpaqueToken('invitation');
   const invitation = await createInvitation({
     workspaceId: params.workspaceId,
-    email: params.email,
+    email,
     hashedToken: hashOpaqueToken(rawToken),
     expiresAt: daysFromNow(INVITATION_TTL_DAYS),
     invitedByUserId: params.invitedByUserId,
@@ -95,6 +97,10 @@ export async function previewInvitation(params: {token: string}): Promise<Previe
     return {status: 'invalid'};
   }
 
+  if (invitation.revokedAt !== null) {
+    return {status: 'invalid'};
+  }
+
   if (invitation.acceptedAt !== null) {
     return {status: 'already_used', workspaceName: workspace.name};
   }
@@ -123,32 +129,75 @@ export async function acceptWorkspaceInvitation(params: {
   email: string;
   name?: string | null | undefined;
 }): Promise<AcceptInvitationResult> {
-  const invitation = await peekInvitationByRawToken({token: params.token});
-  if (!invitation) {
-    throw new TokenInvalidError('Invitation token is invalid');
+  const result = await reconcileWorkspaceInvitationAcceptance({
+    token: params.token,
+    email: params.email,
+    userId: params.userId,
+    name: params.name,
+  });
+  if (result.status === 'accepted') {
+    return {
+      invitation: result.invitation,
+      membership: result.membership,
+      alreadyMember: result.alreadyMember,
+    };
   }
-
-  if (invitation.acceptedAt !== null) {
+  if (result.status === 'already_accepted' || result.status === 'consumed_by_another_user') {
     throw new TokenAlreadyUsedError();
   }
-
-  if (invitation.expiresAt.getTime() <= Date.now()) {
+  if (result.status === 'expired') {
     throw new TokenExpiredError();
   }
-
-  if (params.email !== invitation.email) {
+  if (result.status === 'email_mismatch') {
     throw new InvitationEmailMismatchError();
   }
+  throw new TokenInvalidError(
+    result.status === 'revoked' ? 'Invitation token has been revoked' : 'Invitation is invalid',
+  );
+}
 
-  const result = await acceptInvitation({
+export type WorkspaceInvitationReconciliation =
+  | {
+      status: 'accepted' | 'already_accepted';
+      invitation: Invitation;
+      membership: Membership;
+      alreadyMember: boolean;
+    }
+  | {
+      status: 'invalid' | 'expired' | 'revoked' | 'consumed_by_another_user' | 'email_mismatch';
+    };
+
+export async function reconcileWorkspaceInvitationAcceptance(params: {
+  token: string;
+  userId: string;
+  email: string;
+  name?: string | null | undefined;
+}): Promise<WorkspaceInvitationReconciliation> {
+  const invitation = await peekInvitationByRawToken({token: params.token});
+  if (!invitation) return {status: 'invalid'};
+
+  const result = await reconcileInvitationAcceptance({
     invitationId: invitation.id,
     acceptedByUserId: params.userId,
+    email: emailSchema.parse(params.email),
     acceptedByUserName: params.name,
   });
-  if (!result) {
-    throw new TokenInvalidError('Invitation is no longer valid');
+  if (result.status === 'accepted') {
+    return {
+      status: result.status,
+      invitation: result.invitation,
+      membership: result.membership,
+      alreadyMember: result.alreadyMember,
+    };
   }
-
+  if (result.status === 'already_accepted') {
+    return {
+      status: result.status,
+      invitation: result.invitation,
+      membership: result.membership,
+      alreadyMember: true,
+    };
+  }
   return result;
 }
 

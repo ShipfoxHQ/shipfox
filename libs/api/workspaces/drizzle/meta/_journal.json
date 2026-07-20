@@ -29,6 +29,13 @@
       "when": 1782352229611,
       "tag": "0003_outgoing_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784571790437,
+      "tag": "0004_tired_talon",
+      "breakpoints": true
     }
   ]
 }

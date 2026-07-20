@@ -1,7 +1,9 @@
 import {WORKSPACES_INVITATION_SEND_REQUESTED} from '@shipfox/api-workspaces-dto';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
+import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {and, desc, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
+import {findInvitationByToken, revokeInvitation} from '#db/invitations.js';
 import {createMembership} from '#db/memberships.js';
 import {workspacesOutbox} from '#db/schema/outbox.js';
 import {userFactory, workspaceFactory} from '#test/index.js';
@@ -10,7 +12,11 @@ import {
   OpenInvitationExistsError,
   TokenAlreadyUsedError,
 } from './errors.js';
-import {acceptWorkspaceInvitation, createWorkspaceInvitation} from './invitations.js';
+import {
+  acceptWorkspaceInvitation,
+  createWorkspaceInvitation,
+  previewInvitation,
+} from './invitations.js';
 
 const testConfig = vi.hoisted(
   (): {
@@ -241,11 +247,38 @@ describe('invitations core', () => {
     const result = await acceptWorkspaceInvitation({
       token,
       userId: invitee.userId,
-      email: invitee.email,
+      email: `  ${invitee.email.toUpperCase()}  `,
     });
     expect(result.membership.workspaceId).toBe(workspace.id);
 
     const reused = acceptWorkspaceInvitation({token, userId: invitee.userId, email: invitee.email});
     await expect(reused).rejects.toBeInstanceOf(TokenAlreadyUsedError);
+  });
+
+  test('previewInvitation treats a revoked invitation as invalid', async () => {
+    const inviter = userFactory.build();
+    const workspace = await workspaceFactory.create();
+    await createMembership({
+      userId: inviter.userId,
+      userEmail: inviter.email,
+      userName: inviter.name,
+      workspaceId: workspace.id,
+    });
+    const email = `revoked-${crypto.randomUUID()}@example.com`;
+    await createWorkspaceInvitation({
+      workspaceId: workspace.id,
+      email,
+      invitedByUserId: inviter.userId,
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
+    });
+    const payload = await latestInvitationPayload(email);
+    const token = extractToken(payload.inviteLink);
+    const invitation = await findInvitationByToken({hashedToken: hashOpaqueToken(token)});
+    if (!invitation) throw new Error('Expected stored invitation');
+    await revokeInvitation({invitationId: invitation.id});
+
+    const result = await previewInvitation({token});
+
+    expect(result).toEqual({status: 'invalid'});
   });
 });

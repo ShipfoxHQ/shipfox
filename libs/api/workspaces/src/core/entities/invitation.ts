@@ -4,6 +4,7 @@ export interface Invitation {
   email: string;
   hashedToken: string;
   expiresAt: Date;
+  revokedAt: Date | null;
   acceptedAt: Date | null;
   acceptedByUserId: string | null;
   invitedByUserId: string;

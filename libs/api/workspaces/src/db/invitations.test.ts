@@ -3,13 +3,14 @@ import {eq, sql} from 'drizzle-orm';
 import {OpenInvitationExistsError} from '#core/errors.js';
 import {db} from './db.js';
 import {
-  acceptInvitation,
   createInvitation,
   findInvitationByToken,
   listOpenInvitationsByWorkspace,
+  reconcileInvitationAcceptance,
   revokeInvitation,
 } from './invitations.js';
 import {invitations} from './schema/invitations.js';
+import {memberships} from './schema/memberships.js';
 import {createWorkspace} from './workspaces.js';
 
 function emailFor(suffix: string): string {
@@ -94,7 +95,7 @@ describe('invitations db', () => {
     expect(stillThere).toHaveLength(0);
   });
 
-  test('acceptInvitation creates membership + marks accepted (transactional)', async () => {
+  test('reconcileInvitationAcceptance creates membership + marks accepted transactionally', async () => {
     const inviter = await createUser({email: emailFor('inviter'), hashedPassword: 'h'});
     const accepter = await createUser({email: emailFor('accepter'), hashedPassword: 'h'});
     const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
@@ -107,18 +108,22 @@ describe('invitations db', () => {
       skipEmail: true,
     });
 
-    const result = await acceptInvitation({
+    const result = await reconcileInvitationAcceptance({
       invitationId: inv.id,
       acceptedByUserId: accepter.userId,
+      email: accepter.email,
     });
 
-    expect(result?.invitation.acceptedAt).toBeInstanceOf(Date);
-    expect(result?.invitation.acceptedByUserId).toBe(accepter.userId);
-    expect(result?.membership.userId).toBe(accepter.userId);
-    expect(result?.alreadyMember).toBe(false);
+    expect(result.status).toBe('accepted');
+    if (result.status === 'accepted') {
+      expect(result.invitation.acceptedAt).toBeInstanceOf(Date);
+      expect(result.invitation.acceptedByUserId).toBe(accepter.userId);
+      expect(result.membership.userId).toBe(accepter.userId);
+      expect(result.alreadyMember).toBe(false);
+    }
   });
 
-  test('acceptInvitation is idempotent when caller is already a member', async () => {
+  test('reconcileInvitationAcceptance accepts an existing member', async () => {
     const inviter = await createUser({email: emailFor('inviter'), hashedPassword: 'h'});
     const member = await createUser({email: emailFor('member'), hashedPassword: 'h'});
     const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
@@ -133,13 +138,148 @@ describe('invitations db', () => {
       skipEmail: true,
     });
 
-    const result = await acceptInvitation({invitationId: inv.id, acceptedByUserId: member.userId});
+    const result = await reconcileInvitationAcceptance({
+      invitationId: inv.id,
+      acceptedByUserId: member.userId,
+      email: member.email,
+    });
 
-    expect(result?.alreadyMember).toBe(true);
-    expect(result?.membership.id).toBe(existing.id);
+    expect(result.status).toBe('accepted');
+    if (result.status === 'accepted') {
+      expect(result.alreadyMember).toBe(true);
+      expect(result.membership.id).toBe(existing.id);
+    }
   });
 
-  test('acceptInvitation returns undefined when expired', async () => {
+  test('reconciles a retry after the initial acceptance commits', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const accepter = await createUser({email: emailFor('accepter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email: accepter.email,
+      hashedToken: hashOpaqueToken(`retry-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+
+    await reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+    const retry = await reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+
+    expect(retry.status).toBe('already_accepted');
+    if (retry.status === 'already_accepted') {
+      expect(retry.membership.userId).toBe(accepter.userId);
+    }
+  });
+
+  test('reconciles an accepted invitation after expiry and email changes', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const accepter = await createUser({email: emailFor('accepter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email: accepter.email,
+      hashedToken: hashOpaqueToken(`accepted-expired-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+    await reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+    await db()
+      .update(invitations)
+      .set({expiresAt: new Date(Date.now() - 1_000)})
+      .where(eq(invitations.id, invitation.id));
+
+    const retry = await reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: emailFor('different-address'),
+    });
+
+    expect(retry.status).toBe('already_accepted');
+  });
+
+  test('serializes concurrent acceptance and rejects the other user', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const firstUser = await createUser({email: emailFor('first')});
+    const secondUser = await createUser({email: emailFor('second')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitationEmail = emailFor('guest');
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email: invitationEmail,
+      hashedToken: hashOpaqueToken(`race-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+
+    const results = await Promise.all([
+      reconcileInvitationAcceptance({
+        invitationId: invitation.id,
+        acceptedByUserId: firstUser.userId,
+        email: invitationEmail,
+      }),
+      reconcileInvitationAcceptance({
+        invitationId: invitation.id,
+        acceptedByUserId: secondUser.userId,
+        email: invitationEmail,
+      }),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual([
+      'accepted',
+      'consumed_by_another_user',
+    ]);
+    const accepted = results.find((result) => result.status === 'accepted');
+    const membershipsForWorkspace = await db()
+      .select()
+      .from(memberships)
+      .where(eq(memberships.workspaceId, workspace.id));
+    expect(accepted?.status).toBe('accepted');
+    expect(membershipsForWorkspace).toHaveLength(1);
+    expect(membershipsForWorkspace[0]?.userId).toBe(
+      accepted?.status === 'accepted' ? accepted.invitation.acceptedByUserId : undefined,
+    );
+  });
+
+  test('returns revoked without granting membership', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const accepter = await createUser({email: emailFor('accepter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email: accepter.email,
+      hashedToken: hashOpaqueToken(`revoked-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+    await revokeInvitation({invitationId: invitation.id});
+
+    const result = await reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+
+    expect(result).toEqual({status: 'revoked'});
+  });
+
+  test('reconcileInvitationAcceptance returns expired before granting membership', async () => {
     const inviter = await createUser({email: emailFor('inviter'), hashedPassword: 'h'});
     const accepter = await createUser({email: emailFor('accepter'), hashedPassword: 'h'});
     const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
@@ -156,12 +296,13 @@ describe('invitations db', () => {
       .returning();
     if (!inserted) throw new Error('insert failed');
 
-    const result = await acceptInvitation({
+    const result = await reconcileInvitationAcceptance({
       invitationId: inserted.id,
       acceptedByUserId: accepter.userId,
+      email: accepter.email,
     });
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual({status: 'expired'});
   });
 
   test('lists only open invitations and revokes them', async () => {
@@ -182,6 +323,34 @@ describe('invitations db', () => {
 
     expect(before.some((i) => i.id === inv.id)).toBe(true);
     expect(after.some((i) => i.id === inv.id)).toBe(false);
+  });
+
+  test('does not revoke an accepted invitation receipt', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const accepter = await createUser({email: emailFor('accepter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email: accepter.email,
+      hashedToken: hashOpaqueToken(`accepted-revoke-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+    await reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+
+    await revokeInvitation({invitationId: invitation.id});
+    const retry = await reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+
+    expect(retry.status).toBe('already_accepted');
   });
 
   test('findInvitationByToken returns matching row', async () => {
