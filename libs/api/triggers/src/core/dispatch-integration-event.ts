@@ -80,6 +80,7 @@ export async function dispatchIntegrationEvent(
     }
     triggerEngagedCount += 1;
 
+    const inputs = readConfigInputs(subscription);
     try {
       const run = await params.workflows.startRunFromTrigger({
         workspaceId: subscription.workspaceId,
@@ -92,7 +93,7 @@ export async function dispatchIntegrationEvent(
           deliveryId: params.deliveryId,
           data: params.payload,
         },
-        inputs: readConfigInputs(subscription),
+        ...(inputs === undefined ? {} : {inputs}),
         idempotencyKey: `${subscription.id}:${params.eventRef}`,
       });
       await history.triggered(subscription, run);

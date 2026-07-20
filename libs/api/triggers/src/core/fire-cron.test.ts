@@ -102,6 +102,24 @@ describe('fireCronSubscription', () => {
     expect(decisions[0]?.reason).toContain('definition-not-found');
   });
 
+  test('omits inputs when the subscription has no configured inputs', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'cron',
+      event: 'tick',
+      config: {},
+    });
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Cron run'});
+
+    await fireCronSubscription({
+      workflows,
+      subscriptionId: subscription.id,
+      scheduledSlot: SLOT,
+    });
+
+    const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).not.toHaveProperty('inputs');
+  });
+
   test('re-throws and leaves the event non-terminal on a transient failure', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'cron',

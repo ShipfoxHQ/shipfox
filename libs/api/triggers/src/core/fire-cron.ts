@@ -57,6 +57,7 @@ export async function fireCronSubscription(
     eventRef,
   };
 
+  const inputs = readConfigInputs(subscription);
   let run: {id: string; name: string};
   try {
     run = await params.workflows.startRunFromTrigger({
@@ -69,7 +70,7 @@ export async function fireCronSubscription(
         event: 'tick',
         scheduleId: subscription.id,
       },
-      inputs: readConfigInputs(subscription),
+      ...(inputs === undefined ? {} : {inputs}),
       idempotencyKey: eventRef,
     });
   } catch (error) {

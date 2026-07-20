@@ -56,6 +56,7 @@ export async function fireManualSubscription(
 
   eventReceivedCount.add(1, {provider: 'manual'});
 
+  const inputs = params.inputs ?? readConfigInputs(subscription);
   let run: {id: string; name: string};
   try {
     run = await params.workflows.startRunFromTrigger({
@@ -69,7 +70,7 @@ export async function fireManualSubscription(
         subscriptionId: subscription.id,
         userId: params.userId,
       },
-      inputs: params.inputs ?? readConfigInputs(subscription),
+      ...(inputs === undefined ? {} : {inputs}),
       idempotencyKey: randomUUID(),
     });
   } catch (error) {

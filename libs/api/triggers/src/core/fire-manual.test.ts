@@ -49,6 +49,8 @@ describe('fireManualSubscription (trigger history)', () => {
     });
 
     expect(result).toEqual(run);
+    const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).not.toHaveProperty('inputs');
     const [event] = await db()
       .select()
       .from(triggersReceivedEvents)

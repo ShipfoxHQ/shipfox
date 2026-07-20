@@ -329,6 +329,21 @@ describe('dispatchIntegrationEvent', () => {
     expect(runWorkflow).toHaveBeenCalledWith(expect.objectContaining({inputs: {env: 'staging'}}));
   });
 
+  test('omits inputs when the subscription has no configured inputs', async () => {
+    const workspaceId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+
+    await dispatch({workspaceId});
+
+    const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).not.toHaveProperty('inputs');
+  });
+
   test('runs only subscriptions whose trigger filter matches the payload', async () => {
     const workspaceId = crypto.randomUUID();
     const matching = await triggerSubscriptionFactory.create({
