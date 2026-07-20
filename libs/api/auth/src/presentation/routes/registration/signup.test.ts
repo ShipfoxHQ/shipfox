@@ -36,7 +36,7 @@ describe('POST /auth/signup', () => {
     const email = uniqueEmail('signup');
 
     const res = await signup(app, {
-      email: email.toUpperCase(),
+      email: `  ${email.toUpperCase()}  `,
       password,
       name: '  New User  ',
     });
@@ -77,6 +77,16 @@ describe('POST /auth/signup', () => {
     await signup(app, {email, password});
 
     const res = await signup(app, {email, password});
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('email-taken');
+  });
+
+  test('transforms a whitespace/case-equivalent duplicate email into 409', async () => {
+    const email = uniqueEmail('duplicate-equivalent');
+    await signup(app, {email, password});
+
+    const res = await signup(app, {email: `  ${email.toUpperCase()}  `, password});
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('email-taken');

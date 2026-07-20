@@ -1,6 +1,5 @@
+import {emailSchema} from '@shipfox/api-common-dto';
 import {z} from 'zod';
-
-const invitationEmailSchema = z.string().trim().toLowerCase().email().max(254);
 
 export const invitationDtoSchema = z.object({
   id: z.string().uuid(),
@@ -17,7 +16,7 @@ export const invitationDtoSchema = z.object({
 export type InvitationDto = z.infer<typeof invitationDtoSchema>;
 
 export const createInvitationBodySchema = z.object({
-  email: invitationEmailSchema,
+  email: emailSchema,
 });
 
 export type CreateInvitationBodyDto = z.infer<typeof createInvitationBodySchema>;

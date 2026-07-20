@@ -29,6 +29,8 @@ export type {
   ProvisionUserParams,
 } from '#core/auth.js';
 export {createSessionForUser, provisionUser} from '#core/auth.js';
+export type {EmailOwner, FindUserByEmailParams} from '#core/email-owner.js';
+export {findUserByEmail} from '#core/email-owner.js';
 export type {User, UserStatus} from '#core/entities/user.js';
 export {
   AuthDependencyUnavailableError,
