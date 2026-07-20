@@ -34,8 +34,8 @@ export const config = createConfig({
     default: 250,
   }),
   RATE_LIMIT_IDENTIFIER_SECRET: str({
-    desc: 'Optional secret used to HMAC identifiers before storing rate-limit counters. Leave it unset to derive a stable key from AUTH_JWT_SECRET.',
-    default: undefined,
+    desc: 'Secret used to HMAC identifiers before storing rate-limit counters. Set a dedicated value in production. When unset, the existing AUTH_JWT_SECRET environment value is used for compatibility with existing deployments.',
+    default: process.env.AUTH_JWT_SECRET,
   }),
   RESERVATION_TTL_SECONDS: num({
     desc: 'Lifetime of a count-based runner reservation, in seconds. Expired reservations stop counting against queued demand.',

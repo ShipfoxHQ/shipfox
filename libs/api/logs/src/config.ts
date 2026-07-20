@@ -1,6 +1,4 @@
-import {config as authConfig} from '@shipfox/api-auth/config';
 import {bool, createConfig, num, str, url} from '@shipfox/config';
-import {durationToSeconds} from '@shipfox/node-jwt';
 
 export const config = createConfig({
   LOG_STORAGE_S3_ENDPOINT: url({
@@ -48,7 +46,7 @@ export const config = createConfig({
     default: 900,
   }),
   LOG_STREAM_REAP_AFTER_SECONDS: num({
-    desc: 'How long a log stream may stay open before the reaper cron force-closes it as abandoned. This is the backstop for a stream a runner started after its job already went terminal (the one-shot close sweep had already run); the reaper marks it truncated so it re-enters the compaction and retention lifecycle. Must be greater than AUTH_JOB_LEASE_TOKEN_EXPIRES_IN (the job lease lifetime, default 90 minutes) so a still-valid lease can never be force-closed mid-append, which would silently truncate live logs. Defaults to 7200 seconds (2 hours).',
+    desc: 'How long a log stream may stay open before the reaper cron force-closes it as abandoned. This is the backstop for a stream a runner started after its job already went terminal (the one-shot close sweep had already run); the reaper marks it truncated so it re-enters the compaction and retention lifecycle. The application validates that this exceeds the Auth job lease lifetime. Defaults to 7200 seconds (2 hours).',
     default: 7200,
   }),
   LOG_APPEND_BODY_LIMIT_BYTES: num({
@@ -115,16 +113,13 @@ if (!Number.isInteger(config.LOG_RETENTION_DAYS) || config.LOG_RETENTION_DAYS < 
   );
 }
 
-// A stream still accepts appends until its job lease expires, so reaping it any sooner would
-// truncate live logs. Validate against the real lease TTL read from auth's config (not a
-// hardcoded floor), so raising AUTH_JOB_LEASE_TOKEN_EXPIRES_IN can never silently outrun the
-// reaper window.
-const jobLeaseTtlSeconds = durationToSeconds(authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN);
-if (
-  !Number.isFinite(config.LOG_STREAM_REAP_AFTER_SECONDS) ||
-  config.LOG_STREAM_REAP_AFTER_SECONDS <= jobLeaseTtlSeconds
-) {
-  throw new Error(
-    `LOG_STREAM_REAP_AFTER_SECONDS (${config.LOG_STREAM_REAP_AFTER_SECONDS}) must be greater than the job lease TTL (${jobLeaseTtlSeconds}s, from AUTH_JOB_LEASE_TOKEN_EXPIRES_IN=${authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN}); a smaller value would let the reaper force-close a stream a still-valid lease is appending to and silently truncate live logs.`,
-  );
+export function validateLogStreamReapAfterSeconds(jobLeaseTokenTtlSeconds: number): void {
+  if (
+    !Number.isFinite(config.LOG_STREAM_REAP_AFTER_SECONDS) ||
+    config.LOG_STREAM_REAP_AFTER_SECONDS <= jobLeaseTokenTtlSeconds
+  ) {
+    throw new Error(
+      `LOG_STREAM_REAP_AFTER_SECONDS (${config.LOG_STREAM_REAP_AFTER_SECONDS}) must be greater than the Auth job lease TTL (${jobLeaseTokenTtlSeconds}s); a smaller value would let the reaper force-close a stream a still-valid lease is appending to and silently truncate live logs.`,
+    );
+  }
 }

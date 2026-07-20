@@ -7,6 +7,7 @@ import {
 } from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createWorkflowRoutes} from './index.js';
@@ -33,6 +34,7 @@ afterEach(async () => {
 describe('workflow route auth', () => {
   const workflowRoutes = createWorkflowRoutes(
     runnersTestClient,
+    workflowsTestAuthClient,
     undefined,
     undefined,
     createTestSecretsClient(),

@@ -13,6 +13,7 @@ import {
   getWorkflowRunByAttemptId,
 } from '#db/workflow-runs.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
@@ -62,6 +63,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
           undefined,
           annotationsTestClient,
           createTestSecretsClient(),
+          workflowsTestAuthClient,
         ),
       ],
       swagger: false,

@@ -14,6 +14,7 @@ import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 import {createRunnerSessionAuthMethod} from '#presentation/auth/runner-session-auth.js';
 import {authE2eRoutes} from '#presentation/e2eRoutes/index.js';
+import {createAuthInterModulePresentation} from '#presentation/inter-module.js';
 import {authRoutes} from '#presentation/routes/index.js';
 import {
   onEmailVerificationSendRequested,
@@ -71,4 +72,5 @@ export const authModule: ShipfoxModule = {
     subscriber(AUTH_EMAIL_VERIFICATION_SEND_REQUESTED, onEmailVerificationSendRequested),
     subscriber(AUTH_PASSWORD_RESET_SEND_REQUESTED, onPasswordResetSendRequested),
   ],
+  interModulePresentations: [createAuthInterModulePresentation()],
 };

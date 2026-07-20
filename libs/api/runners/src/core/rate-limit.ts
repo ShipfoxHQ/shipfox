@@ -1,5 +1,3 @@
-import {createHmac} from 'node:crypto';
-import {config as authConfig} from '@shipfox/api-auth/config';
 import {
   checkRateLimit,
   hashRateLimitIdentifier,
@@ -56,7 +54,6 @@ export class RunnersRateLimitUnavailableError extends RateLimitUnavailableError<
 }
 
 const IDENTIFIER_HASH_DOMAIN = 'shipfox.runners.rate-limit.identifier.v1';
-const IDENTIFIER_SECRET_DERIVATION_DOMAIN = 'shipfox.runners.rate-limit.identifier-secret.v1';
 
 export function hashRunnersRateLimitIdentifier(params: {
   action: RunnersRateLimitAction;
@@ -111,11 +108,5 @@ export async function checkRunnersRateLimit(params: CheckRunnersRateLimitParams)
 }
 
 function effectiveIdentifierSecret(): Buffer | string {
-  if (config.RATE_LIMIT_IDENTIFIER_SECRET) {
-    return config.RATE_LIMIT_IDENTIFIER_SECRET;
-  }
-
-  return createHmac('sha256', authConfig.AUTH_JWT_SECRET)
-    .update(IDENTIFIER_SECRET_DERIVATION_DOMAIN)
-    .digest();
+  return config.RATE_LIMIT_IDENTIFIER_SECRET;
 }

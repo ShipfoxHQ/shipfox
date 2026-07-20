@@ -26,8 +26,13 @@ import {
   providerRunnerTerminateIntentIssuedCount,
   reservationReleasedCount,
 } from '#metrics/instance.js';
-import {providerRunnerFactory, reservationFactory, runnerSessionFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {
+  providerRunnerFactory,
+  reservationFactory,
+  runnerSessionFactory,
+  runnersTestAuthClient,
+} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
 
@@ -62,7 +67,7 @@ describe('POST /provisioners/runner-instances/reconcile', () => {
         passthroughAuth(AUTH_LEASED_JOB),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();

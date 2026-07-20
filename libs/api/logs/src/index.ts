@@ -8,6 +8,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
+import {validateLogStreamReapAfterSeconds} from '#config.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/index.js';
 import {logsOutbox} from '#db/schema/outbox.js';
@@ -26,7 +27,15 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<WorkflowsEventMapDto & LogsEventMap>();
 
-export function createLogsModule({workflows}: {workflows: WorkflowsModuleClient}): ShipfoxModule {
+export function createLogsModule({
+  workflows,
+  jobLeaseTokenTtlSeconds,
+}: {
+  workflows: WorkflowsModuleClient;
+  jobLeaseTokenTtlSeconds: number;
+}): ShipfoxModule {
+  validateLogStreamReapAfterSeconds(jobLeaseTokenTtlSeconds);
+
   return {
     name: 'logs',
     database: {db, migrationsPath},

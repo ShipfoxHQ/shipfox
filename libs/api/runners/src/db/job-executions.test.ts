@@ -8,7 +8,7 @@ import {eq, sql} from 'drizzle-orm';
 import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
 import {detectAndExpireStuckJobs} from '#core/maintenance.js';
-import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
+import {pendingJobFactory, runnerSessionFactory, runnersTestAuthClient} from '#test/index.js';
 import {db} from './db.js';
 import {
   cancelRunnerJobs,
@@ -758,6 +758,7 @@ describe('claimJobExecution', () => {
     const created = await pendingJobFactory.create({workspaceId});
 
     const claimed = await claimJobExecution({
+      auth: runnersTestAuthClient,
       workspaceId,
       runnerSessionId,
       sessionLabels,
@@ -781,6 +782,7 @@ describe('claimJobExecution', () => {
 
   it('returns null and mints no token when the queue is empty', async () => {
     const claimed = await claimJobExecution({
+      auth: runnersTestAuthClient,
       workspaceId,
       runnerSessionId,
       sessionLabels,

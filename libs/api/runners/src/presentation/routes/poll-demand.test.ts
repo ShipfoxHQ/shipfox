@@ -23,8 +23,13 @@ import {
   providerRunnerCountDivergenceCount,
   providerRunnerTerminateIntentIssuedCount,
 } from '#metrics/instance.js';
-import {pendingJobFactory, providerRunnerFactory, runnerSessionFactory} from '#test/index.js';
-import {createRunnerRoutes, runnerRoutes} from './index.js';
+import {
+  pendingJobFactory,
+  providerRunnerFactory,
+  runnerSessionFactory,
+  runnersTestAuthClient,
+} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
 const INSTALLATION_PROVISIONER_TOKEN = 'installation-provisioner-token';
@@ -64,7 +69,7 @@ describe('POST /provisioners/demand/poll', () => {
         passthroughAuth(AUTH_LEASED_JOB),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();
@@ -395,7 +400,7 @@ describe('POST /provisioners/demand/poll with installation provisioning configur
         passthroughAuth(AUTH_LEASED_JOB),
         fakeProvisionerAuth,
       ],
-      routes: createRunnerRoutes({
+      routes: createRunnerRoutes(runnersTestAuthClient, {
         installationProvisioning: {policy: {filterEligibleWorkspaceIds: vi.fn()}},
       }),
       swagger: false,

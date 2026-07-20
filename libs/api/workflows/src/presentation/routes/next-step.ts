@@ -1,6 +1,6 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
-import {issueJobLeaseToken, jobLeaseParamsFrom} from '@shipfox/api-auth';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -12,6 +12,7 @@ import {toStepDto} from '#presentation/dto/step.js';
 export function createNextStepRoute(
   runners: RunnersInterModuleClient,
   annotations: AnnotationsInterModuleClient,
+  auth: AuthInterModuleClient,
 ) {
   return defineRoute({
     method: 'POST',
@@ -42,12 +43,20 @@ export function createNextStepRoute(
       });
 
       if (next.kind === 'step') {
-        const leaseToken = await issueJobLeaseToken(
-          jobLeaseParamsFrom(leasedJob, {
-            currentStepId: next.step.id,
-            currentStepAttempt: next.step.currentAttempt,
-          }),
-        );
+        const {token: leaseToken} = await auth.mintJobLeaseToken({
+          workflowRunId: leasedJob.workflowRunId,
+          ...(leasedJob.workflowRunAttempt === undefined
+            ? {}
+            : {workflowRunAttempt: leasedJob.workflowRunAttempt}),
+          workflowRunAttemptId: leasedJob.workflowRunAttemptId,
+          jobId: leasedJob.jobId,
+          jobExecutionId: leasedJob.jobExecutionId,
+          projectId: leasedJob.projectId,
+          workspaceId: leasedJob.workspaceId,
+          runnerSessionId: leasedJob.runnerSessionId,
+          currentStepId: next.step.id,
+          currentStepAttempt: next.step.currentAttempt,
+        });
         if (next.dispatched) {
           await warnAgentToolCapabilityMismatchOnDispatch({
             annotations,

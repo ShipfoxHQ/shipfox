@@ -24,8 +24,8 @@ import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tok
 import {runnersRateLimits} from '#db/schema/rate-limits.js';
 import {reservations} from '#db/schema/reservations.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
-import {ephemeralRegistrationTokenFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {ephemeralRegistrationTokenFactory, runnersTestAuthClient} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
 
@@ -67,7 +67,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
         passthroughAuth(AUTH_LEASED_JOB),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();

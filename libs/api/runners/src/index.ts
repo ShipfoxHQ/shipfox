@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import {runnersEventSchemas} from '@shipfox/api-runners-dto';
 import {
   WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
@@ -50,12 +51,15 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<WorkflowsEventMapDto>();
 
-export function createRunnersModule(options: CreateRunnersModuleOptions = {}): ShipfoxModule {
+export function createRunnersModule({
+  auth,
+  ...options
+}: CreateRunnersModuleOptions & {auth: AuthInterModuleClient}): ShipfoxModule {
   return {
     name: 'runners',
     database: {db, migrationsPath},
     auth: [createRunnerRegistrationTokenAuthMethod(), createProvisionerTokenAuthMethod()],
-    routes: createRunnerRoutes(options),
+    routes: createRunnerRoutes(auth, options),
     metrics: registerRunnersServiceMetrics,
     publishers: [{name: 'runners', table: runnersOutbox, db, eventSchemas: runnersEventSchemas}],
     subscribers: [subscriber(WORKFLOWS_JOB_EXECUTION_TIMED_OUT, onWorkflowsJobExecutionTimedOut)],
@@ -72,5 +76,3 @@ export function createRunnersModule(options: CreateRunnersModuleOptions = {}): S
     interModulePresentations: [createRunnersInterModulePresentation()],
   };
 }
-
-export const runnersModule = createRunnersModule();

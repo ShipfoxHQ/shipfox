@@ -53,6 +53,7 @@
     "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/api-agent": "workspace:*",
     "@shipfox/api-auth": "workspace:*",
+    "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-dispatcher": "workspace:*",
@@ -71,6 +72,7 @@
     "@shipfox/config": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
+    "@shipfox/node-jwt": "workspace:*",
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*"

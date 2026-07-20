@@ -1,4 +1,5 @@
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
+import {authInterModuleContract} from '@shipfox/api-auth-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   createIntegrationsContext: vi.fn(),
   createLogsModule: vi.fn(),
   createProjectsModule: vi.fn(),
+  createRunnersModule: vi.fn(),
   createSecretsModule: vi.fn(),
   createTriggersModule: vi.fn(),
   createWorkflowsModule: vi.fn(),
@@ -41,8 +43,24 @@ vi.mock('@shipfox/annotations', () => ({
     ],
   },
 }));
+vi.mock('@shipfox/api-auth', () => ({
+  authModule: {
+    name: 'auth',
+    interModulePresentations: [
+      {
+        contract: authInterModuleContract,
+        handlers: {
+          mintJobLeaseToken: vi.fn(),
+          mintRunnerSessionToken: vi.fn(),
+        },
+      },
+    ],
+  },
+}));
 vi.mock('@shipfox/api-agent', () => ({createAgentModule: mocks.createAgentModule}));
-vi.mock('@shipfox/api-auth', () => ({authModule: {name: 'auth'}}));
+vi.mock('@shipfox/api-auth/config', () => ({
+  config: {AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: '90m'},
+}));
 vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,
 }));
@@ -56,23 +74,7 @@ vi.mock('@shipfox/api-integration-core', () => ({
 }));
 vi.mock('@shipfox/api-logs', () => ({createLogsModule: mocks.createLogsModule}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
-vi.mock('@shipfox/api-runners', () => ({
-  runnersModule: {
-    name: 'runners',
-    interModulePresentations: [
-      {
-        contract: runnersInterModuleContract,
-        handlers: {
-          cancelJobs: vi.fn(),
-          enqueueJobExecution: vi.fn(),
-          getEffectiveRunnerToolCapabilities: vi.fn(),
-          getLeaseState: vi.fn(),
-          releaseJobExecution: vi.fn(),
-        },
-      },
-    ],
-  },
-}));
+vi.mock('@shipfox/api-runners', () => ({createRunnersModule: mocks.createRunnersModule}));
 vi.mock('@shipfox/api-secrets', () => ({
   createSecretsModule: mocks.createSecretsModule,
   deleteSecrets: mocks.deleteSecrets,
@@ -97,6 +99,7 @@ describe('defaultModules', () => {
     mocks.createIntegrationsContext.mockReset();
     mocks.createLogsModule.mockReset();
     mocks.createProjectsModule.mockReset();
+    mocks.createRunnersModule.mockReset();
     mocks.createSecretsModule.mockReset();
     mocks.createTriggersModule.mockReset();
     mocks.createWorkflowsModule.mockReset();
@@ -150,6 +153,21 @@ describe('defaultModules', () => {
       ],
     });
     mocks.createAgentModule.mockReturnValue({name: 'agent'});
+    mocks.createRunnersModule.mockReturnValue({
+      name: 'runners',
+      interModulePresentations: [
+        {
+          contract: runnersInterModuleContract,
+          handlers: {
+            cancelJobs: vi.fn(),
+            enqueueJobExecution: vi.fn(),
+            getEffectiveRunnerToolCapabilities: vi.fn(),
+            getLeaseState: vi.fn(),
+            releaseJobExecution: vi.fn(),
+          },
+        },
+      ],
+    });
     mocks.createDefinitionsModule.mockReturnValue({
       name: 'definitions',
       interModulePresentations: [
@@ -196,7 +214,7 @@ describe('defaultModules', () => {
     ]);
   });
 
-  it('replaces only the runners module when a host provides one', async () => {
+  it('injects Auth into a host-provided runners module factory', async () => {
     const runnersModule = {
       name: 'runners',
       interModulePresentations: [
@@ -213,9 +231,11 @@ describe('defaultModules', () => {
       ],
     };
 
-    const modules = await defaultModules({runnersModule});
+    const createRunnersModule = vi.fn(() => runnersModule);
+    const modules = await defaultModules({createRunnersModule});
 
     expect(modules).toContain(runnersModule);
+    expect(createRunnersModule).toHaveBeenCalledWith({auth: expect.any(Object)});
     expect(modules.filter((module) => module.name === 'runners')).toEqual([runnersModule]);
     expect(modules.map((module) => module.name)).toEqual([
       'auth',
@@ -273,6 +293,7 @@ describe('defaultModules', () => {
     );
     expect(mocks.createLogsModule).toHaveBeenCalledWith({
       workflows: expect.objectContaining({getStepLogContext: expect.any(Function)}),
+      jobLeaseTokenTtlSeconds: 5400,
     });
 
     const scope = {workspaceId: crypto.randomUUID(), projectId: null, namespace: 'workspace'};

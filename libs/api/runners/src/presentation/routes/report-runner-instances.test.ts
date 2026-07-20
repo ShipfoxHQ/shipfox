@@ -20,8 +20,8 @@ import {db} from '#db/db.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {providerRunnerTerminateIntentHonoredCount} from '#metrics/instance.js';
-import {providerRunnerFactory, runnerSessionFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {providerRunnerFactory, runnerSessionFactory, runnersTestAuthClient} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
 
@@ -56,7 +56,7 @@ describe('POST /provisioners/runner-instances/report', () => {
         passthroughAuth(AUTH_LEASED_JOB),
         fakeProvisionerAuth,
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();

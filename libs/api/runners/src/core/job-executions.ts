@@ -1,4 +1,4 @@
-import {issueJobLeaseToken} from '@shipfox/api-auth';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import {claimPendingJobExecution} from '#db/job-executions.js';
 import {jobExecutionClaimedCount} from '#metrics/instance.js';
 import {config} from '../config.js';
@@ -12,6 +12,7 @@ export interface ClaimJobExecutionResult {
 }
 
 export async function claimJobExecution(params: {
+  auth: AuthInterModuleClient;
   workspaceId: string;
   runnerSessionId: string;
   sessionLabels: string[];
@@ -27,7 +28,7 @@ export async function claimJobExecution(params: {
   }
   jobExecutionClaimedCount.add(1, {outcome: 'claimed'});
 
-  const leaseToken = await issueJobLeaseToken({
+  const {token: leaseToken} = await params.auth.mintJobLeaseToken({
     workflowRunId: claimed.workflowRunId,
     workflowRunAttemptId: claimed.workflowRunAttemptId,
     jobId: claimed.jobId,

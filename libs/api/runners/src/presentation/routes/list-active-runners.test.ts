@@ -14,8 +14,8 @@ import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
-import {runnerSessionFactory} from '#test/index.js';
-import {runnerRoutes} from './index.js';
+import {runnerSessionFactory, runnersTestAuthClient} from '#test/index.js';
+import {createRunnerRoutes} from './index.js';
 
 let authenticatedMemberships: ReadonlyArray<UserContextMembership> = [];
 
@@ -59,7 +59,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         passthroughAuth(AUTH_LEASED_JOB),
         passthroughAuth(AUTH_PROVISIONER_TOKEN),
       ],
-      routes: runnerRoutes,
+      routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
     });
     await app.ready();

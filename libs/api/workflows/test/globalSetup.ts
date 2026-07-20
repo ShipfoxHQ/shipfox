@@ -1,7 +1,8 @@
 import './env.js';
 import {annotationsModule} from '@shipfox/annotations';
 import {createAgentModule} from '@shipfox/api-agent';
-import {runnersModule} from '@shipfox/api-runners';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import {createRunnersModule} from '@shipfox/api-runners';
 import {runMigrations} from '@shipfox/node-drizzle';
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
 import {sql} from 'drizzle-orm';
@@ -9,6 +10,7 @@ import {closeDb, db, migrationsPath} from '#db/index.js';
 
 export async function setup() {
   createPostgresClient();
+  const runnersModule = createRunnersModule({auth: {} as AuthInterModuleClient});
 
   const agentModule = createAgentModule({
     secrets: {

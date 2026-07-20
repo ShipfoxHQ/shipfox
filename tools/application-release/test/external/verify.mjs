@@ -148,10 +148,15 @@ import {createServer, defaultModules} from '@shipfox/api-server';
 const policy: InstallationProvisioningPolicy = {
   filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),
 };
-const runnersModule = createRunnersModule({installationProvisioning: {policy}});
 
 void createServer({
-  modules: [...(await defaultModules({runnersModule})), {name: 'external-dummy'}],
+  modules: [
+    ...(await defaultModules({
+      createRunnersModule: ({auth}) =>
+        createRunnersModule({auth, installationProvisioning: {policy}}),
+    })),
+    {name: 'external-dummy'},
+  ],
 });
 `,
     ),
