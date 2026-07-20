@@ -1,16 +1,20 @@
-import {and, eq, isNull, lt, sql} from 'drizzle-orm';
+import {and, eq, inArray, isNull, lt, ne, sql} from 'drizzle-orm';
 import {SentryInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {sentryInstallations, toSentryInstallation} from './schema/installations.js';
 
 export type SentryInstallationStatus = 'installed' | 'deleted';
+export type SentryInstallationRowStatus =
+  | 'pending'
+  | 'exchange-succeeded'
+  | SentryInstallationStatus;
 
 export interface SentryInstallation {
   id: string;
   connectionId: string | null;
   installationUuid: string;
   orgSlug: string;
-  status: string;
+  status: SentryInstallationRowStatus;
   codeHash: string | null;
   installerUserId: string | null;
   createdAt: Date;
@@ -27,6 +31,12 @@ export interface UpsertSentryInstallationParams {
 }
 
 export interface PersistVerifiedUnclaimedInstallationParams {
+  installationUuid: string;
+  orgSlug: string;
+  codeHash: string;
+}
+
+export interface ClaimSentryInstallationVerificationParams {
   installationUuid: string;
   orgSlug: string;
   codeHash: string;
@@ -53,15 +63,10 @@ export async function upsertSentryInstallation(
     })
     .onConflictDoUpdate({
       target: sentryInstallations.installationUuid,
-      // TOCTOU guard: allow the update only when this installation is unclaimed
-      // (connection_id IS NULL, the first claim of a verified-unclaimed row) or
-      // already owned by this same connection (idempotent reconnect). A concurrent
-      // claim of the same installation to a different workspace commits its own
-      // connection_id first; this losing transaction then sees a different non-null
-      // connection_id, the predicate is false, Postgres updates nothing, and the
-      // empty RETURNING below rolls it back instead of silently repointing the
-      // installation (cross-tenant event misroute).
-      setWhere: sql`${sentryInstallations.connectionId} is null or ${sentryInstallations.connectionId} = ${params.connectionId}`,
+      // A deleted UUID is terminal. Otherwise, allow the first claim of an
+      // unclaimed row or an idempotent reconnect by its current connection. This
+      // blocks both a concurrent cross-workspace claim and a claim racing deletion.
+      setWhere: sql`${sentryInstallations.status} <> 'deleted' and (${sentryInstallations.connectionId} is null or ${sentryInstallations.connectionId} = ${params.connectionId})`,
       set: {
         connectionId: params.connectionId,
         orgSlug: params.orgSlug,
@@ -80,9 +85,8 @@ export async function upsertSentryInstallation(
 /**
  * Inserts the verified-but-unclaimed install half (`connection_id = NULL`,
  * `status = 'installed'`) after a successful code exchange. Idempotent on the
- * installation uuid: a conflicting row refreshes only `code_hash`/`org_slug`/
- * `updated_at`, so a webhook that lands after a claim never clobbers the
- * `connection_id` it set nor downgrades a `deleted` tombstone back to installed.
+ * installation uuid: a pending row becomes installed, a claimed row keeps its
+ * `connection_id`, and a deleted tombstone never becomes installed again.
  */
 export async function persistVerifiedUnclaimedInstallation(
   params: PersistVerifiedUnclaimedInstallationParams,
@@ -101,23 +105,97 @@ export async function persistVerifiedUnclaimedInstallation(
     })
     .onConflictDoUpdate({
       target: sentryInstallations.installationUuid,
+      setWhere: ne(sentryInstallations.status, 'deleted'),
       set: {
         orgSlug: params.orgSlug,
+        status: 'installed',
         codeHash: params.codeHash,
         updatedAt: now,
       },
     })
     .returning();
 
-  if (!row) throw new Error('Sentry installation persist returned no rows');
+  if (!row) {
+    const existing = await getSentryInstallationByInstallationUuid(params.installationUuid, {
+      tx: executor,
+    });
+    if (existing) return existing;
+    throw new Error('Sentry installation persist returned no rows');
+  }
+  return toSentryInstallation(row);
+}
+
+export async function claimSentryInstallationVerification(
+  params: ClaimSentryInstallationVerificationParams,
+  options: {tx?: unknown} = {},
+): Promise<SentryInstallation> {
+  const executor = (options.tx ?? db()) as SentryDb | SentryTx;
+  const [inserted] = await executor
+    .insert(sentryInstallations)
+    .values({
+      connectionId: null,
+      installationUuid: params.installationUuid,
+      orgSlug: params.orgSlug,
+      status: 'pending',
+      codeHash: params.codeHash,
+    })
+    .onConflictDoNothing({target: sentryInstallations.installationUuid})
+    .returning();
+
+  if (inserted) return toSentryInstallation(inserted);
+
+  const existing = await getSentryInstallationByInstallationUuid(params.installationUuid, {
+    tx: executor,
+  });
+  if (!existing) throw new Error('Sentry installation verification claim returned no rows');
+  return existing;
+}
+
+export async function completeSentryInstallationVerification(
+  params: {installationUuid: string; codeHash: string},
+  options: {tx?: unknown} = {},
+): Promise<SentryInstallation | undefined> {
+  const executor = (options.tx ?? db()) as SentryDb | SentryTx;
+  const [row] = await executor
+    .update(sentryInstallations)
+    .set({status: 'installed', updatedAt: new Date()})
+    .where(
+      and(
+        eq(sentryInstallations.installationUuid, params.installationUuid),
+        eq(sentryInstallations.status, 'exchange-succeeded'),
+        eq(sentryInstallations.codeHash, params.codeHash),
+      ),
+    )
+    .returning();
+  if (!row) return undefined;
+  return toSentryInstallation(row);
+}
+
+export async function markSentryInstallationExchangeSucceeded(
+  params: {installationUuid: string; codeHash: string},
+  options: {tx?: unknown} = {},
+): Promise<SentryInstallation | undefined> {
+  const executor = (options.tx ?? db()) as SentryDb | SentryTx;
+  const [row] = await executor
+    .update(sentryInstallations)
+    .set({status: 'exchange-succeeded', updatedAt: new Date()})
+    .where(
+      and(
+        eq(sentryInstallations.installationUuid, params.installationUuid),
+        eq(sentryInstallations.status, 'pending'),
+        eq(sentryInstallations.codeHash, params.codeHash),
+      ),
+    )
+    .returning();
+  if (!row) return undefined;
   return toSentryInstallation(row);
 }
 
 /**
- * Verified installs no user has claimed yet (`connection_id IS NULL`,
- * `status='installed'`). Tombstoned rows are excluded so the TTL cron stays
- * idempotent and the unclaimed metric stays accurate. Pass `olderThan` to scope
- * to stale rows for the cron.
+ * Install claims no user has bound to a connection yet. This includes pending
+ * and exchanged claims so abandoned verification work remains observable.
+ * Tombstoned rows are excluded. Pass `olderThan` to scope by the most recent
+ * state transition for retention work.
  */
 export async function listUnclaimedSentryInstallations(
   params: {olderThan?: Date} = {},
@@ -126,10 +204,10 @@ export async function listUnclaimedSentryInstallations(
   const executor = (options.tx ?? db()) as SentryDb | SentryTx;
   const conditions = [
     isNull(sentryInstallations.connectionId),
-    eq(sentryInstallations.status, 'installed'),
+    inArray(sentryInstallations.status, ['pending', 'exchange-succeeded', 'installed']),
   ];
   if (params.olderThan) {
-    conditions.push(lt(sentryInstallations.createdAt, params.olderThan));
+    conditions.push(lt(sentryInstallations.updatedAt, params.olderThan));
   }
   const rows = await executor
     .select()
@@ -169,39 +247,62 @@ export async function getSentryInstallationByConnectionId(
 }
 
 /**
- * Tombstones verified-unclaimed installs older than `olderThan` (the TTL cleanup
- * cron). Bounds a never-claimed install rather than leaving it pending forever.
- * Returns how many rows were tombstoned. We hold no Sentry token for these rows
- * (tokens are never persisted), so the Sentry-side uninstall is out of scope here.
+ * Releases abandoned pending claims and tombstones verified-unclaimed installs
+ * older than `olderThan`. Pending claims have not durably completed an exchange,
+ * so deleting them allows a later signed creation to try again. Exchanged and
+ * installed rows stay terminal after expiry. We hold no Sentry token for these
+ * rows, so the Sentry-side uninstall is out of scope here.
  */
 export async function pruneUnclaimedSentryInstallations(
   params: {olderThan: Date},
   options: {tx?: unknown} = {},
-): Promise<{tombstoned: number}> {
+): Promise<{releasedPending: number; tombstoned: number}> {
   const executor = (options.tx ?? db()) as SentryDb | SentryTx;
-  const result = await executor
+  const releasedPending = await executor
+    .delete(sentryInstallations)
+    .where(
+      and(
+        isNull(sentryInstallations.connectionId),
+        eq(sentryInstallations.status, 'pending'),
+        lt(sentryInstallations.updatedAt, params.olderThan),
+      ),
+    );
+  const tombstoned = await executor
     .update(sentryInstallations)
     .set({status: 'deleted', updatedAt: new Date()})
     .where(
       and(
         isNull(sentryInstallations.connectionId),
-        eq(sentryInstallations.status, 'installed'),
-        lt(sentryInstallations.createdAt, params.olderThan),
+        inArray(sentryInstallations.status, ['exchange-succeeded', 'installed']),
+        lt(sentryInstallations.updatedAt, params.olderThan),
       ),
     );
-  return {tombstoned: result.rowCount ?? 0};
+  return {
+    releasedPending: releasedPending.rowCount ?? 0,
+    tombstoned: tombstoned.rowCount ?? 0,
+  };
 }
 
 export async function markSentryInstallationDeleted(
   params: {installationUuid: string},
   options: {tx?: unknown} = {},
-): Promise<SentryInstallation | undefined> {
+): Promise<SentryInstallation> {
   const executor = (options.tx ?? db()) as SentryDb | SentryTx;
   const [row] = await executor
-    .update(sentryInstallations)
-    .set({status: 'deleted', updatedAt: new Date()})
-    .where(eq(sentryInstallations.installationUuid, params.installationUuid))
+    .insert(sentryInstallations)
+    .values({
+      connectionId: null,
+      installationUuid: params.installationUuid,
+      // A reordered delete can arrive without organization data. Deleted rows never expose an organization URL.
+      orgSlug: '',
+      status: 'deleted',
+      codeHash: null,
+    })
+    .onConflictDoUpdate({
+      target: sentryInstallations.installationUuid,
+      set: {status: 'deleted', updatedAt: new Date()},
+    })
     .returning();
-  if (!row) return undefined;
+  if (!row) throw new Error('Sentry installation deletion returned no rows');
   return toSentryInstallation(row);
 }

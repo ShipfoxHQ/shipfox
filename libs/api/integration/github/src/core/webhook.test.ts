@@ -299,70 +299,70 @@ describe('handleGithubEvent', () => {
     });
   });
 
-  it('requests cached installation token cleanup when the installation is deleted', async () => {
+  it('returns the cached installation token cleanup handle when the installation is deleted', async () => {
     const installationId = 7791;
     const connection = fakeConnection();
     await seedInstallation(installationId, connection.id);
     const handlers = deps({connection});
-    const deleteInstallationTokenSecret = vi.fn(() => Promise.resolve());
 
     const result = await handleGithubEvent({
       tx: db(),
       deliveryId: randomUUID(),
       event: 'installation',
       payload: {action: 'deleted', installation: {id: installationId}},
-      deleteInstallationTokenSecret,
       ...handlers,
     });
 
     expect(result.outcome).toBe('published-envelope');
-    expect(deleteInstallationTokenSecret).toHaveBeenCalledWith({
+    expect(result.installationTokenCleanup).toEqual({
       workspaceId: connection.workspaceId,
       installationId,
     });
   });
 
-  it('does not clean up cached installation tokens for duplicate lifecycle deliveries', async () => {
+  it('keeps the cleanup handle for duplicate lifecycle deliveries', async () => {
     const installationId = 7792;
     const connection = fakeConnection();
     await seedInstallation(installationId, connection.id);
     const handlers = deps({connection, publishIntegrationEventReceivedResult: {published: false}});
-    const deleteInstallationTokenSecret = vi.fn(() => Promise.resolve());
 
     const result = await handleGithubEvent({
       tx: db(),
       deliveryId: randomUUID(),
       event: 'installation',
       payload: {action: 'suspend', installation: {id: installationId}},
-      deleteInstallationTokenSecret,
       ...handlers,
     });
 
     expect(result.outcome).toBe('duplicate-envelope');
-    expect(deleteInstallationTokenSecret).not.toHaveBeenCalled();
+    expect(result.installationTokenCleanup).toEqual({
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
   });
 
-  it('does not fail lifecycle webhook handling when cached token cleanup fails', async () => {
+  it('returns the cleanup handle for a deletion delivered after the connection is disabled', async () => {
     const installationId = 7793;
-    const connection = fakeConnection();
+    const connection = fakeConnection({lifecycleStatus: 'disabled'});
     await seedInstallation(installationId, connection.id);
     const handlers = deps({connection});
-    const deleteInstallationTokenSecret = vi.fn(() => Promise.reject(new Error('store down')));
 
     const result = await handleGithubEvent({
       tx: db(),
       deliveryId: randomUUID(),
       event: 'installation',
       payload: {action: 'deleted', installation: {id: installationId}},
-      deleteInstallationTokenSecret,
       ...handlers,
     });
 
-    expect(result.outcome).toBe('published-envelope');
-    expect(deleteInstallationTokenSecret).toHaveBeenCalledWith({
-      workspaceId: connection.workspaceId,
-      installationId,
+    expect(result).toEqual({
+      outcome: 'inactive-connection',
+      installationTokenCleanup: {
+        workspaceId: connection.workspaceId,
+        installationId,
+      },
     });
+    expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
 
   it('publishes a bare resource envelope when action is malformed', async () => {

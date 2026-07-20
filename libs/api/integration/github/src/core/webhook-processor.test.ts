@@ -1,10 +1,51 @@
 import {createHmac, randomUUID} from 'node:crypto';
-import {createStoredWebhookRequest, decodeWebhookBody} from '@shipfox/api-integration-core-dto';
+import {
+  createStoredWebhookRequest,
+  decodeWebhookBody,
+  type IntegrationConnection,
+} from '@shipfox/api-integration-core-dto';
+import {db} from '#db/db.js';
+import {githubInstallations} from '#db/schema/installations.js';
+import {githubInstallationFactory} from '#test/index.js';
 import {createGithubWebhookProcessor} from './webhook-processor.js';
 
 const WEBHOOK_SECRET = 'test-webhook-secret';
 
+function fakeConnection(id: string): IntegrationConnection {
+  return {
+    id,
+    workspaceId: randomUUID(),
+    provider: 'github',
+    externalAccountId: '123',
+    slug: 'github_shipfox',
+    displayName: 'GitHub shipfox',
+    lifecycleStatus: 'active',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function signedInstallationRequest(deliveryId: string, installationId: number) {
+  const body = Buffer.from(JSON.stringify({action: 'deleted', installation: {id: installationId}}));
+  return createStoredWebhookRequest({
+    requestId: randomUUID(),
+    routeId: 'github',
+    receivedAt: new Date().toISOString(),
+    rawQueryString: '',
+    headers: {
+      'x-github-delivery': deliveryId,
+      'x-github-event': 'installation',
+      'x-hub-signature-256': `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`,
+    },
+    body,
+  });
+}
+
 describe('GitHub webhook processor', () => {
+  beforeEach(async () => {
+    await db().delete(githubInstallations);
+  });
+
   it('discards a stored request with an invalid signature before opening a transaction', async () => {
     const coreDb = vi.fn();
     const processor = createGithubWebhookProcessor({
@@ -82,5 +123,44 @@ describe('GitHub webhook processor', () => {
 
     expect(Buffer.from(decodeWebhookBody(request.body))).toEqual(rawBody);
     expect(result).toMatchObject({outcome: 'discarded', reason: 'malformed_payload'});
+  });
+
+  it('retries credential cleanup after the delivery transaction commits', async () => {
+    const installationId = 8412;
+    const connectionId = randomUUID();
+    const connection = fakeConnection(connectionId);
+    const deliveryId = randomUUID();
+    await githubInstallationFactory.create({
+      connectionId,
+      installationId: String(installationId),
+    });
+    const publishIntegrationEventReceived = vi
+      .fn()
+      .mockResolvedValueOnce({published: true})
+      .mockResolvedValueOnce({published: false});
+    const deleteInstallationTokenSecret = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('secret store unavailable'))
+      .mockResolvedValueOnce(1);
+    const processor = createGithubWebhookProcessor({
+      coreDb: db,
+      publishIntegrationEventReceived,
+      publishSourcePush: vi.fn(),
+      recordDeliveryOnly: vi.fn(),
+      getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+      deleteInstallationTokenSecret,
+    });
+    const request = signedInstallationRequest(deliveryId, installationId);
+
+    const firstAttempt = processor.process(request);
+    await expect(firstAttempt).rejects.toThrow('secret store unavailable');
+    const retryResult = await processor.process(request);
+
+    expect(retryResult).toEqual({outcome: 'duplicate', deliveryId});
+    expect(deleteInstallationTokenSecret).toHaveBeenCalledTimes(2);
+    expect(deleteInstallationTokenSecret).toHaveBeenLastCalledWith({
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
   });
 });

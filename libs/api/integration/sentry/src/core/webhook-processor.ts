@@ -24,8 +24,8 @@ import {
   normalizeSentryIssueAction,
 } from '#core/webhook.js';
 import {
+  completeSentryInstallationVerification,
   getSentryInstallationByInstallationUuid,
-  persistVerifiedUnclaimedInstallation,
 } from '#db/installations.js';
 import {verifySentrySignature} from './signature.js';
 
@@ -167,14 +167,18 @@ async function processInstallationResource(
     verifyInstall: config.SENTRY_APP_VERIFY_INSTALL,
     getSentryInstallation: ({installationUuid}) =>
       getSentryInstallationByInstallationUuid(installationUuid),
-    persistUnclaimedAndRecordDelivery: ({installationUuid, orgSlug, codeHash, deliveryId: id}) =>
+    persistUnclaimedAndRecordDelivery: ({installationUuid, codeHash, deliveryId: id}) =>
       context.coreDb().transaction(async (tx) => {
-        const persisted = await persistVerifiedUnclaimedInstallation(
-          {installationUuid, orgSlug, codeHash},
+        const completed = await completeSentryInstallationVerification(
+          {installationUuid, codeHash},
           {tx},
         );
         await context.recordDeliveryOnly({tx, provider: SENTRY_PROVIDER, deliveryId: id});
-        return persisted;
+        if (completed) return completed;
+
+        const current = await getSentryInstallationByInstallationUuid(installationUuid, {tx});
+        if (!current) throw new Error('Sentry installation verification lost its claim');
+        return current;
       }),
     recordDelivery: (id) => recordDeliveryOnly(context, id),
   });
