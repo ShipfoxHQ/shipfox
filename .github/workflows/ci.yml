@@ -354,7 +354,7 @@ jobs:
           PACKER_LOG: "1"
           PACKER_LOG_PATH: ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
           RUNNER_IMAGE_CANDIDATE_RESULT_PATH: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
-        run: pnpm --filter=@shipfox/runner-image image:candidate -- --output "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH"
+        run: node infra/images/runner/bin/build-runner-image-candidate.js --output "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH"
 
       - name: Report runner image candidate
         env:

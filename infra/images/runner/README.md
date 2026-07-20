@@ -7,7 +7,7 @@
 Builds run the production deploy inside the target VM. This is required because the runner contains architecture-specific native payloads. The wrapper obtains the Node version from `mise`, prunes `@shipfox/runner`, and then invokes Packer.
 
 ```sh
-BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image image:candidate -- --output /tmp/runner-image-candidate.json
+BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image-candidate.js --output /tmp/runner-image-candidate.json
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
 ```
 
