@@ -2,7 +2,7 @@ import type {
   StoredWebhookRequest,
   WebhookRequestProcessor,
 } from '@shipfox/api-integration-core-dto';
-import {type ModuleService, startModuleServices} from '@shipfox/node-module';
+import {createOutboxRegistry, type ModuleService, startModuleServices} from '@shipfox/node-module';
 import {createIntegrationsContext, WebhookProcessorNotConfiguredError} from './index.js';
 
 const request = {
@@ -44,7 +44,10 @@ describe('createIntegrationsContext', () => {
     expect(deliverySource.createService).toHaveBeenCalledWith(context.webhookProcessor);
 
     const result = await context.webhookProcessor.process(request);
-    const services = await startModuleServices({services: context.module.services ?? []});
+    const services = await startModuleServices({
+      services: context.module.services ?? [],
+      context: {outboxRegistry: createOutboxRegistry()},
+    });
     await services.stop();
 
     expect(result).toEqual({outcome: 'processed', deliveryId: 'delivery-1'});

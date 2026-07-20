@@ -1,4 +1,4 @@
-import {registerPublisher, resetPublishers} from '@shipfox/node-module';
+import {createOutboxRegistry, registerPublisher} from '@shipfox/node-module';
 import {createOutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {pgTableCreator} from 'drizzle-orm/pg-core';
@@ -25,16 +25,13 @@ vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
 
 const table = createOutboxTable(pgTableCreator((name) => name));
 const db = (() => undefined) as unknown as () => NodePgDatabase<Record<string, unknown>>;
+let outboxRegistry = createOutboxRegistry();
 
 describe('dispatcherModule', () => {
   beforeEach(() => {
-    resetPublishers();
+    outboxRegistry = createOutboxRegistry();
     mocks.createOutboxDrainerService.mockClear();
     mocks.info.mockReset();
-  });
-
-  afterEach(() => {
-    resetPublishers();
   });
 
   it('registers only the retention workflow on Temporal and does not start the drainer when disabled', () => {
@@ -76,17 +73,17 @@ describe('dispatcherModule', () => {
   it('fails boot when its publisher registry is empty', () => {
     const startupTasks = createDispatcherModule({enabled: false}).startupTasks;
 
-    expect(startupTasks).toThrow(
-      'duplicate @shipfox/node-module instance split the publisher registry',
+    expect(() => startupTasks?.({outboxRegistry})).toThrow(
+      'Ensure module initialization provides the registry',
     );
   });
 
   it('logs registered publisher names at boot', async () => {
-    registerPublisher({name: 'auth', table, db});
-    registerPublisher({name: 'workspaces', table, db});
+    registerPublisher(outboxRegistry, {name: 'auth', table, db});
+    registerPublisher(outboxRegistry, {name: 'workspaces', table, db});
     const startupTasks = createDispatcherModule({enabled: false}).startupTasks;
 
-    await startupTasks?.();
+    await startupTasks?.({outboxRegistry});
 
     expect(mocks.info).toHaveBeenCalledOnce();
     expect(mocks.info).toHaveBeenCalledWith(

@@ -9,74 +9,81 @@ vi.mock('@shipfox/node-opentelemetry', () => ({logger: () => ({warn: mocks.warn}
 
 import {
   countPendingOutboxRows,
+  createOutboxRegistry,
   getEventSchema,
   getRegisteredPublisherNames,
   pruneDispatchedOutboxRows,
   registerPublisher,
-  resetPublishers,
 } from './publisher-registry.js';
 
 const table = createOutboxTable(pgTableCreator((name) => name));
 const db = (() => undefined) as unknown as () => NodePgDatabase<Record<string, unknown>>;
 const fooSchema = z.object({id: z.string()});
 const CONFLICTING_SCHEMA = /Conflicting outbox event schema/;
+let registry = createOutboxRegistry();
 
 describe('getEventSchema', () => {
   beforeEach(() => {
-    resetPublishers();
-  });
-
-  afterEach(() => {
-    resetPublishers();
+    registry = createOutboxRegistry();
   });
 
   it('returns the schema a publisher registered for an event type', () => {
-    registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+    registerPublisher(registry, {name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
 
-    const schema = getEventSchema('foo.created');
+    const schema = getEventSchema(registry, 'foo.created');
 
     expect(schema).toBe(fooSchema);
   });
 
   it('returns undefined for an event type with no registered schema', () => {
-    registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+    registerPublisher(registry, {name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
 
-    const schema = getEventSchema('foo.unknown');
+    const schema = getEventSchema(registry, 'foo.unknown');
 
     expect(schema).toBeUndefined();
   });
 
   it('returns undefined for a publisher that registered no schemas', () => {
-    registerPublisher({name: 'bar', table, db});
+    registerPublisher(registry, {name: 'bar', table, db});
 
-    const schema = getEventSchema('bar.created');
+    const schema = getEventSchema(registry, 'bar.created');
 
     expect(schema).toBeUndefined();
   });
 
-  it('forgets registered schemas after resetPublishers', () => {
-    registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+  it('keeps schemas isolated to their registry', () => {
+    registerPublisher(registry, {name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
 
-    resetPublishers();
+    registry = createOutboxRegistry();
 
-    expect(getEventSchema('foo.created')).toBeUndefined();
+    expect(getEventSchema(registry, 'foo.created')).toBeUndefined();
   });
 
   it('throws when two publishers register a different schema for the same event type', () => {
     const otherSchema = z.object({id: z.string()});
-    registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+    registerPublisher(registry, {name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
 
     const register = () =>
-      registerPublisher({name: 'bar', table, db, eventSchemas: {'foo.created': otherSchema}});
+      registerPublisher(registry, {
+        name: 'bar',
+        table,
+        db,
+        eventSchemas: {'foo.created': otherSchema},
+      });
 
     expect(register).toThrow(CONFLICTING_SCHEMA);
   });
 
   it('allows re-registering the identical schema for an event type', () => {
-    registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+    registerPublisher(registry, {name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
 
     const register = () =>
-      registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+      registerPublisher(registry, {
+        name: 'foo',
+        table,
+        db,
+        eventSchemas: {'foo.created': fooSchema},
+      });
 
     expect(register).not.toThrow();
   });
@@ -84,40 +91,32 @@ describe('getEventSchema', () => {
 
 describe('getRegisteredPublisherNames', () => {
   beforeEach(() => {
-    resetPublishers();
-  });
-
-  afterEach(() => {
-    resetPublishers();
+    registry = createOutboxRegistry();
   });
 
   it('returns an empty array when no publishers are registered', () => {
-    expect(getRegisteredPublisherNames()).toEqual([]);
+    expect(getRegisteredPublisherNames(registry)).toEqual([]);
   });
 
   it('returns registered publisher names in registration order', () => {
-    registerPublisher({name: 'foo', table, db});
-    registerPublisher({name: 'bar', table, db});
+    registerPublisher(registry, {name: 'foo', table, db});
+    registerPublisher(registry, {name: 'bar', table, db});
 
-    expect(getRegisteredPublisherNames()).toEqual(['foo', 'bar']);
+    expect(getRegisteredPublisherNames(registry)).toEqual(['foo', 'bar']);
   });
 
-  it('forgets registered publishers after resetPublishers', () => {
-    registerPublisher({name: 'foo', table, db});
+  it('keeps publisher names isolated to their registry', () => {
+    registerPublisher(registry, {name: 'foo', table, db});
 
-    resetPublishers();
+    registry = createOutboxRegistry();
 
-    expect(getRegisteredPublisherNames()).toEqual([]);
+    expect(getRegisteredPublisherNames(registry)).toEqual([]);
   });
 });
 
 describe('pruneDispatchedOutboxRows', () => {
   beforeEach(() => {
-    resetPublishers();
-  });
-
-  afterEach(() => {
-    resetPublishers();
+    registry = createOutboxRegistry();
   });
 
   it.each([
@@ -126,13 +125,13 @@ describe('pruneDispatchedOutboxRows', () => {
     ['maxBatchesPerSource', {retentionDays: 7, batchSize: 5_000, maxBatchesPerSource: 0}],
     ['retentionDays', {retentionDays: 7.5, batchSize: 5_000, maxBatchesPerSource: 200}],
   ])('rejects a non-positive-integer %s before touching the database', async (name, options) => {
-    const prune = pruneDispatchedOutboxRows(options);
+    const prune = pruneDispatchedOutboxRows(registry, options);
 
     await expect(prune).rejects.toThrow(`${name} must be a positive integer`);
   });
 
   it('returns no results when no publishers are registered', async () => {
-    const results = await pruneDispatchedOutboxRows({
+    const results = await pruneDispatchedOutboxRows(registry, {
       retentionDays: 7,
       batchSize: 5_000,
       maxBatchesPerSource: 200,
@@ -145,15 +144,11 @@ describe('pruneDispatchedOutboxRows', () => {
 describe('countPendingOutboxRows', () => {
   beforeEach(() => {
     mocks.warn.mockClear();
-    resetPublishers();
-  });
-
-  afterEach(() => {
-    resetPublishers();
+    registry = createOutboxRegistry();
   });
 
   it('returns zero when no publishers are registered', async () => {
-    const pendingRows = await countPendingOutboxRows();
+    const pendingRows = await countPendingOutboxRows(registry);
 
     expect(pendingRows).toBe(0);
   });
@@ -166,10 +161,10 @@ describe('countPendingOutboxRows', () => {
     const failedDb = (() => ({
       select: () => ({from: () => ({where: () => Promise.reject(failure)})}),
     })) as unknown as () => NodePgDatabase<Record<string, unknown>>;
-    registerPublisher({name: 'successful', table, db: successfulDb});
-    registerPublisher({name: 'failed', table, db: failedDb});
+    registerPublisher(registry, {name: 'successful', table, db: successfulDb});
+    registerPublisher(registry, {name: 'failed', table, db: failedDb});
 
-    const pendingRows = await countPendingOutboxRows();
+    const pendingRows = await countPendingOutboxRows(registry);
 
     expect(pendingRows).toBe(3);
     expect(mocks.warn).toHaveBeenCalledWith(

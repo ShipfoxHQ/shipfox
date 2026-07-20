@@ -1,4 +1,7 @@
+import {createOutboxRegistry} from '@shipfox/node-module';
 import {createOutboxDrainerService} from './outbox-drainer-service.js';
+
+const context = {outboxRegistry: createOutboxRegistry()};
 
 describe('createOutboxDrainerService', () => {
   it('drains pending batches before idling and stops without another claim', async () => {
@@ -15,7 +18,7 @@ describe('createOutboxDrainerService', () => {
       },
     });
 
-    const handle = await service.start();
+    const handle = await service.start(context);
     await vi.waitFor(() => expect(sleeps).toEqual([25]));
 
     await handle.stop();
@@ -36,7 +39,7 @@ describe('createOutboxDrainerService', () => {
       },
     });
 
-    const handle = await service.start();
+    const handle = await service.start(context);
     await vi.waitFor(() => expect(drain).toHaveBeenCalledTimes(1));
 
     await handle.stop();
@@ -62,7 +65,7 @@ describe('createOutboxDrainerService', () => {
       logError,
     });
 
-    const handle = await service.start();
+    const handle = await service.start(context);
     await vi.waitFor(() => expect(sleeps).toEqual([1_000, 25]));
 
     await handle.stop();

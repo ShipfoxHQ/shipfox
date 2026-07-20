@@ -3,6 +3,7 @@ import type {AuthMethod, RouteExport} from '@shipfox/node-fastify';
 import type {OutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {ZodType} from 'zod';
+import type {OutboxRegistry} from './publisher-registry.js';
 import type {ModuleSubscriber} from './subscriber.js';
 
 export interface ModuleDatabase {
@@ -47,8 +48,12 @@ export interface WorkflowStart {
 export interface ModuleWorker {
   taskQueue: string;
   workflowsPath: string;
-  activities: () => object;
+  activities: (context: ModuleRuntimeContext) => object;
   workflows: WorkflowStart[];
+}
+
+export interface ModuleRuntimeContext {
+  outboxRegistry: OutboxRegistry;
 }
 
 export interface ModuleServiceHandle {
@@ -59,7 +64,7 @@ export interface ModuleServiceHandle {
 export interface ModuleService {
   name: string;
   shutdownTimeoutMs: number;
-  start(): Promise<ModuleServiceHandle>;
+  start(context: ModuleRuntimeContext): Promise<ModuleServiceHandle>;
 }
 
 /**
@@ -67,9 +72,9 @@ export interface ModuleService {
  * fetch the service metrics provider inside the callback so ordinary module
  * imports do not bind the metrics port.
  */
-export type ModuleMetricsRegistration = () => void;
+export type ModuleMetricsRegistration = (context: ModuleRuntimeContext) => void;
 
-export type ModuleStartupTasks = () => Promise<void>;
+export type ModuleStartupTasks = (context: ModuleRuntimeContext) => Promise<void>;
 
 /**
  * A user-facing mechanism that establishes a standard Shipfox session.

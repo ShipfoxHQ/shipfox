@@ -10,10 +10,10 @@ import {
   temporalClient,
   type Worker,
 } from '@shipfox/node-temporal';
-import {registerPublisher} from './publisher-registry.js';
-import {subscribe} from './registry.js';
+import {createOutboxRegistry, registerPublisher, subscribe} from './publisher-registry.js';
 import type {
   ModuleDatabase,
+  ModuleRuntimeContext,
   ModuleService,
   ModuleServiceHandle,
   ModuleWorker,
@@ -30,10 +30,12 @@ export interface InitializedModules {
   e2eRoutes: RouteExport[];
   workers: ModuleWorker[];
   services: ModuleService[];
+  outboxRegistry: ModuleRuntimeContext['outboxRegistry'];
 }
 
 export interface StartModuleWorkersOptions {
   workers: ModuleWorker[];
+  context: ModuleRuntimeContext;
   onWorkerFailure?: (error: unknown, worker: ModuleWorker) => void | Promise<void>;
 }
 
@@ -43,6 +45,7 @@ export interface ModuleWorkersHandle {
 
 export interface StartModuleServicesOptions {
   services: ModuleService[];
+  context: ModuleRuntimeContext;
   onServiceFailure?: (error: unknown, service: ModuleService) => void | Promise<void>;
 }
 
@@ -75,6 +78,7 @@ export async function initializeModules(
   const e2eRoutes: RouteExport[] = [];
   const workers: ModuleWorker[] = [];
   const services: ModuleService[] = [];
+  const outboxRegistry = createOutboxRegistry();
 
   for (const mod of options.modules) {
     logger().info({module: mod.name}, 'Initializing module');
@@ -94,13 +98,13 @@ export async function initializeModules(
 
     if (mod.publishers) {
       for (const pub of mod.publishers) {
-        registerPublisher(pub);
+        registerPublisher(outboxRegistry, pub);
       }
     }
 
     if (mod.subscribers) {
       for (const sub of mod.subscribers) {
-        subscribe(sub.event, sub.handler);
+        subscribe(outboxRegistry, sub.event, sub.handler);
       }
     }
 
@@ -127,7 +131,7 @@ export async function initializeModules(
     logger().info({module: mod.name}, 'Module initialized');
   }
 
-  return {auth, routes, e2eRoutes, workers, services};
+  return {auth, routes, e2eRoutes, workers, services, outboxRegistry};
 }
 
 function normalizeModuleDatabases(database: ModuleDatabase | ModuleDatabase[]): ModuleDatabase[] {
@@ -145,21 +149,27 @@ function moduleMigrationTableName(moduleName: string, index: number): string {
  * import modules from binding the metrics port, and isolates registration
  * failures from the boot path.
  */
-export function registerModuleMetrics(options: {modules: ShipfoxModule[]}): void {
+export function registerModuleMetrics(options: {
+  modules: ShipfoxModule[];
+  context: ModuleRuntimeContext;
+}): void {
   for (const mod of options.modules) {
     if (!mod.metrics) continue;
     try {
       logger().info({module: mod.name}, 'Registering module metrics');
-      mod.metrics();
+      mod.metrics(options.context);
     } catch (error) {
       logger().warn({err: error, module: mod.name}, 'Failed to register module metrics');
     }
   }
 }
 
-export async function runModuleStartupTasks(options: {modules: ShipfoxModule[]}): Promise<void> {
+export async function runModuleStartupTasks(options: {
+  modules: ShipfoxModule[];
+  context: ModuleRuntimeContext;
+}): Promise<void> {
   for (const mod of options.modules) {
-    await mod.startupTasks?.();
+    await mod.startupTasks?.(options.context);
   }
 }
 
@@ -174,7 +184,7 @@ export async function startModuleServices(
 
   try {
     for (const definition of options.services) {
-      const handle = await definition.start();
+      const handle = await definition.start(options.context);
       const startedService = {definition, handle};
       services.push(startedService);
       observeModuleServiceCompletion({startedService, isStopping: () => stopping, options});
@@ -303,7 +313,7 @@ export async function startModuleWorkers(
           connection,
           taskQueue: workerDef.taskQueue,
           workflowsPath: workerDef.workflowsPath,
-          activities: workerDef.activities(),
+          activities: workerDef.activities(options.context),
         });
         const startedWorker: StartedModuleWorker = {worker};
         workers.push(startedWorker);

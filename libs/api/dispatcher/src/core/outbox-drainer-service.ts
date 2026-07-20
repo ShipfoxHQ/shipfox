@@ -14,7 +14,6 @@ interface OutboxDrainerServiceOptions {
 }
 
 export function createOutboxDrainerService(options: OutboxDrainerServiceOptions): ModuleService {
-  const drain = options.runDrainCycle ?? ((signal) => runDrainCycle(undefined, signal));
   const wait = options.sleep ?? interruptibleSleep;
   const logError =
     options.logError ?? ((error) => logger().error({err: error}, 'Outbox drain failed'));
@@ -22,7 +21,10 @@ export function createOutboxDrainerService(options: OutboxDrainerServiceOptions)
   return {
     name: 'outbox-drainer',
     shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
-    start: () => {
+    start: (context) => {
+      const drain =
+        options.runDrainCycle ??
+        ((signal) => runDrainCycle(context.outboxRegistry, undefined, signal));
       const abortController = new AbortController();
       const finished = runOutboxDrainer({
         drain,

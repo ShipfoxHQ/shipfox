@@ -11,6 +11,14 @@ interface PublisherSource {
   eventSchemas?: Record<string, ZodType>;
 }
 
+export type EventHandler = (event: DomainEvent) => Promise<void>;
+
+export interface OutboxRegistry {
+  sources: PublisherSource[];
+  schemasByType: Map<string, ZodType>;
+  subscribers: Map<string, EventHandler[]>;
+}
+
 export interface DrainedEvent {
   source: string;
   orderingKey: string;
@@ -71,18 +79,19 @@ export interface PrunedOutboxSource {
   capped: boolean;
 }
 
-const _sources: PublisherSource[] = [];
-const _schemasByType = new Map<string, ZodType>();
-
 export const BATCH_SIZE = 500;
 const MAX_DISPATCH_ATTEMPTS = 5;
 const CLAIM_LEASE_EXTENSION_SECONDS = 120;
 
-export function registerPublisher(config: PublisherSource): void {
-  _sources.push(config);
+export function createOutboxRegistry(): OutboxRegistry {
+  return {sources: [], schemasByType: new Map(), subscribers: new Map()};
+}
+
+export function registerPublisher(registry: OutboxRegistry, config: PublisherSource): void {
+  registry.sources.push(config);
 
   for (const [type, schema] of Object.entries(config.eventSchemas ?? {})) {
-    const existing = _schemasByType.get(type);
+    const existing = registry.schemasByType.get(type);
     // Each event type is namespaced to one owning module, so two publishers claiming the
     // same type is a misconfiguration. Fail loudly at startup rather than silently keeping
     // one and masking the drift. A module re-registering its own schema is a no-op.
@@ -91,20 +100,30 @@ export function registerPublisher(config: PublisherSource): void {
         `Conflicting outbox event schema for "${type}": registered by more than one publisher. Each event type must have exactly one owning publisher.`,
       );
     }
-    _schemasByType.set(type, schema);
+    registry.schemasByType.set(type, schema);
   }
 }
 
-export function getRegisteredPublisherNames(): string[] {
-  return _sources.map((source) => source.name);
+export function getRegisteredPublisherNames(registry: OutboxRegistry): string[] {
+  return registry.sources.map((source) => source.name);
 }
 
-export function getEventSchema(type: string): ZodType | undefined {
-  return _schemasByType.get(type);
+export function getEventSchema(registry: OutboxRegistry, type: string): ZodType | undefined {
+  return registry.schemasByType.get(type);
 }
 
-export async function countPendingOutboxRows(): Promise<number> {
-  const sources = [..._sources];
+export function subscribe(registry: OutboxRegistry, type: string, handler: EventHandler): void {
+  const existing = registry.subscribers.get(type) ?? [];
+  existing.push(handler);
+  registry.subscribers.set(type, existing);
+}
+
+export function getSubscribers(registry: OutboxRegistry, type: string): EventHandler[] {
+  return registry.subscribers.get(type) ?? [];
+}
+
+export async function countPendingOutboxRows(registry: OutboxRegistry): Promise<number> {
+  const sources = [...registry.sources];
   const results = await Promise.allSettled(
     sources.map(async (source) => {
       const [row] = await source
@@ -127,12 +146,15 @@ export async function countPendingOutboxRows(): Promise<number> {
   }, 0);
 }
 
-export async function drainAll(options: DrainAllOptions = {}): Promise<DrainAllResult> {
+export async function drainAll(
+  registry: OutboxRegistry,
+  options: DrainAllOptions = {},
+): Promise<DrainAllResult> {
   const partition = normalizePartition(options.partition);
   const results: DrainedEvent[] = [];
   let hasMore = false;
 
-  for (const source of _sources) {
+  for (const source of registry.sources) {
     const rows = await claimSourceRows(source, partition);
     if (rows.length === BATCH_SIZE) hasMore = true;
 
@@ -211,11 +233,12 @@ async function claimSourceRows(
 }
 
 export async function markDispatched(
+  registry: OutboxRegistry,
   source: string,
   claims: string[] | OutboxDispatchClaim[],
 ): Promise<void> {
   if (claims.length === 0) return;
-  const config = _sources.find((s) => s.name === source);
+  const config = registry.sources.find((s) => s.name === source);
   if (!config) return;
 
   if (isDispatchClaims(claims)) {
@@ -264,10 +287,11 @@ function isDispatchClaims(
 }
 
 export async function renewDispatchClaim(
+  registry: OutboxRegistry,
   source: string,
   claim: OutboxDispatchClaim,
 ): Promise<Date | undefined> {
-  const config = _sources.find((s) => s.name === source);
+  const config = registry.sources.find((s) => s.name === source);
   if (!config) return undefined;
 
   const table = sql.raw(quoteIdentifier(getTableName(config.table)));
@@ -285,12 +309,13 @@ export async function renewDispatchClaim(
 }
 
 export async function recordDispatchFailure(
+  registry: OutboxRegistry,
   source: string,
   id: string,
   failure: OutboxDispatchFailure,
   claimExpiresAt?: Date,
 ): Promise<void> {
-  const config = _sources.find((s) => s.name === source);
+  const config = registry.sources.find((s) => s.name === source);
   if (!config) return;
 
   await config
@@ -316,6 +341,7 @@ export async function recordDispatchFailure(
 }
 
 export async function pruneDispatchedOutboxRows(
+  registry: OutboxRegistry,
   options: PruneDispatchedOutboxRowsOptions,
 ): Promise<PrunedOutboxSource[]> {
   assertPositiveInteger(options.retentionDays, 'retentionDays');
@@ -324,7 +350,7 @@ export async function pruneDispatchedOutboxRows(
 
   const results: PrunedOutboxSource[] = [];
 
-  for (const source of _sources) {
+  for (const source of registry.sources) {
     let deleted = 0;
     let capped = false;
 
@@ -344,11 +370,6 @@ export async function pruneDispatchedOutboxRows(
   }
 
   return results;
-}
-
-export function resetPublishers(): void {
-  _sources.length = 0;
-  _schemasByType.clear();
 }
 
 async function deleteDispatchedBatch(

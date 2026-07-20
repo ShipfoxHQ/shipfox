@@ -33,8 +33,9 @@ describe('registerDispatcherServiceMetrics', () => {
 
   test('observes the pending rows across registered publishers', async () => {
     mocks.countPendingOutboxRows.mockResolvedValue(7);
+    const outboxRegistry = {} as never;
 
-    registerDispatcherServiceMetrics();
+    registerDispatcherServiceMetrics({outboxRegistry});
     const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
     const observer = {observe: vi.fn()};
 
@@ -44,5 +45,6 @@ describe('registerDispatcherServiceMetrics', () => {
       description: 'Outbox events awaiting dispatch, including claimed and retry-delayed events',
     });
     expect(observer.observe).toHaveBeenCalledWith(mocks.gauge, 7);
+    expect(mocks.countPendingOutboxRows).toHaveBeenCalledWith(outboxRegistry);
   });
 });
