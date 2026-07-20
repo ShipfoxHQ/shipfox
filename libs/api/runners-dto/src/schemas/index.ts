@@ -1,4 +1,10 @@
 export {
+  type AssignCapacityBatchBodyDto,
+  type AssignCapacityBatchResponseDto,
+  assignCapacityBatchBodySchema,
+  assignCapacityBatchResponseSchema,
+} from './assign-capacity.js';
+export {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
   RUNNER_SESSION_EXHAUSTED_CODE,

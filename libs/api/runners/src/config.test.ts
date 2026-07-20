@@ -27,7 +27,6 @@ describe('EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS validation', () => {
     expect(config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS).toBe(3600);
   });
 });
-
 describe('REGISTRATION_TOKEN_BATCH_MAX validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

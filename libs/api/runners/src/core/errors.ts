@@ -86,6 +86,25 @@ export class ReservationExpiredError extends Error {
   }
 }
 
+export class CapacityNotAssignableError extends Error {
+  constructor(public readonly capacityId: string) {
+    super(`Capacity cannot be assigned: ${capacityId}`);
+    this.name = 'CapacityNotAssignableError';
+  }
+}
+export class CapacityAlreadyAssignedError extends Error {
+  constructor(public readonly capacityId: string) {
+    super(`Capacity is already assigned: ${capacityId}`);
+    this.name = 'CapacityAlreadyAssignedError';
+  }
+}
+export class ReservationAlreadyAssignedError extends Error {
+  constructor(public readonly reservationId: string) {
+    super(`Reservation is already assigned: ${reservationId}`);
+    this.name = 'ReservationAlreadyAssignedError';
+  }
+}
+
 export class RegistrationTokenBatchTooLargeError extends Error {
   constructor(
     public readonly requested: number,

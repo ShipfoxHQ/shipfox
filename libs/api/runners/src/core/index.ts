@@ -1,3 +1,5 @@
+export {assignCapacityBatch} from './capacity-assignments.js';
+export type {CapacityAssignment} from './entities/capacity-assignment.js';
 export type {EphemeralRegistrationToken} from './entities/ephemeral-registration-token.js';
 export type {ManualRegistrationToken} from './entities/manual-registration-token.js';
 export type {

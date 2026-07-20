@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+export {assignCapacityBatch} from './capacity-assignments.js';
 export {closeDb, db, schema} from './db.js';
 export type {
   CreateEphemeralRegistrationTokenParams,

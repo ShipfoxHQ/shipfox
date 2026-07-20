@@ -1,5 +1,6 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
+import {capacityAssignments} from './schema/capacity-assignments.js';
 import {ephemeralRegistrationTokens} from './schema/ephemeral-registration-tokens.js';
 import {manualRegistrationTokens} from './schema/manual-registration-tokens.js';
 import {runnersOutbox} from './schema/outbox.js';
@@ -13,6 +14,7 @@ import {runnerSessions} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
 export const schema = {
+  capacityAssignments,
   ephemeralRegistrationTokens,
   pendingJobExecutions,
   provisionedRunners,
