@@ -13,6 +13,7 @@ import {
 } from './resolve-authorized-tools.js';
 
 export type {LeasedAgentStepLoader} from './resolve-authorized-tools.js';
+export {createWorkflowsLeasedAgentStepLoader} from './resolve-authorized-tools.js';
 
 export interface CreateAgentToolsGatewayRoutesParams {
   loadLeasedAgentStep: LeasedAgentStepLoader;

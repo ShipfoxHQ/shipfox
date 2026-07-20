@@ -6,12 +6,13 @@ import {
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/index.js';
 import {logsOutbox} from '#db/schema/outbox.js';
 import {registerLogsServiceMetrics} from '#metrics/service.js';
-import {logsRoutes} from '#presentation/routes/index.js';
+import {createLogsRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';
 import {onLogStreamClosed} from '#presentation/subscribers/on-log-stream-closed.js';
 import {onStepAttemptTerminated} from '#presentation/subscribers/on-step-attempt-terminated.js';
@@ -25,53 +26,55 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<WorkflowsEventMapDto & LogsEventMap>();
 
-export const logsModule: ShipfoxModule = {
-  name: 'logs',
-  database: {db, migrationsPath},
-  routes: logsRoutes,
-  metrics: registerLogsServiceMetrics,
-  // `logs.stream.closed` is written by the close paths: the job-terminated subscriber
-  // force-closes streams the runner never ended, and the closed event drives compaction.
-  publishers: [{name: 'logs', table: logsOutbox, db, eventSchemas: logsEventSchemas}],
-  subscribers: [
-    subscriber(WORKFLOWS_STEP_ATTEMPT_TERMINATED, onStepAttemptTerminated),
-    subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
-    subscriber(LOG_STREAM_CLOSED, onLogStreamClosed),
-  ],
-  workers: [
-    {
-      taskQueue: LOGS_LIFECYCLE_TASK_QUEUE,
-      workflowsPath,
-      activities: createLogsActivities,
-      // Temporal cron schedules are fixed after creation, so making cadence configurable would
-      // look adjustable while keeping the old schedule. Tune LOG_RETENTION_DAYS for the horizon.
-      workflows: [
-        {
-          name: 'retentionSweepCron',
-          id: 'logs-retention-sweep',
-          cronSchedule: '0 * * * *',
-        },
-        // Offset from retention's top-of-hour sweep; stale-stream age is governed by
-        // LOG_STREAM_REAP_AFTER_SECONDS.
-        {
-          name: 'reapStaleOpenStreamsCron',
-          id: 'logs-reap-stale-open-streams',
-          cronSchedule: '5,15,25,35,45,55 * * * *',
-        },
-      ],
-    },
-    // Compaction runs on its own queue so long uploads cannot starve the lifecycle sweep.
-    {
-      taskQueue: LOGS_COMPACTION_TASK_QUEUE,
-      workflowsPath,
-      activities: createLogsActivities,
-      workflows: [
-        {
-          name: 'compactionReconcileCron',
-          id: 'logs-compaction-reconcile',
-          cronSchedule: '*/10 * * * *',
-        },
-      ],
-    },
-  ],
-};
+export function createLogsModule({workflows}: {workflows: WorkflowsModuleClient}): ShipfoxModule {
+  return {
+    name: 'logs',
+    database: {db, migrationsPath},
+    routes: createLogsRoutes(workflows),
+    metrics: registerLogsServiceMetrics,
+    // `logs.stream.closed` is written by the close paths: the job-terminated subscriber
+    // force-closes streams the runner never ended, and the closed event drives compaction.
+    publishers: [{name: 'logs', table: logsOutbox, db, eventSchemas: logsEventSchemas}],
+    subscribers: [
+      subscriber(WORKFLOWS_STEP_ATTEMPT_TERMINATED, onStepAttemptTerminated),
+      subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
+      subscriber(LOG_STREAM_CLOSED, onLogStreamClosed),
+    ],
+    workers: [
+      {
+        taskQueue: LOGS_LIFECYCLE_TASK_QUEUE,
+        workflowsPath,
+        activities: createLogsActivities,
+        // Temporal cron schedules are fixed after creation, so making cadence configurable would
+        // look adjustable while keeping the old schedule. Tune LOG_RETENTION_DAYS for the horizon.
+        workflows: [
+          {
+            name: 'retentionSweepCron',
+            id: 'logs-retention-sweep',
+            cronSchedule: '0 * * * *',
+          },
+          // Offset from retention's top-of-hour sweep; stale-stream age is governed by
+          // LOG_STREAM_REAP_AFTER_SECONDS.
+          {
+            name: 'reapStaleOpenStreamsCron',
+            id: 'logs-reap-stale-open-streams',
+            cronSchedule: '5,15,25,35,45,55 * * * *',
+          },
+        ],
+      },
+      // Compaction runs on its own queue so long uploads cannot starve the lifecycle sweep.
+      {
+        taskQueue: LOGS_COMPACTION_TASK_QUEUE,
+        workflowsPath,
+        activities: createLogsActivities,
+        workflows: [
+          {
+            name: 'compactionReconcileCron',
+            id: 'logs-compaction-reconcile',
+            cronSchedule: '*/10 * * * *',
+          },
+        ],
+      },
+    ],
+  };
+}

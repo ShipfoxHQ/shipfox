@@ -35,9 +35,10 @@ import {
   compactStreamActivity,
 } from '#temporal/activities/compact-stream.js';
 import {ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
+import {createTestWorkflowsClient} from '#test/fixtures/workflows-client.js';
 import {findStream} from '#test/queries.js';
 import {onStepAttemptTerminated} from '../subscribers/on-step-attempt-terminated.js';
-import {logsRoutes} from './index.js';
+import {createLogsRoutes} from './index.js';
 
 // AUTH_USER stub: a `Bearer user` request is a member of whatever workspace it names in the
 // `x-test-workspace` header, so each test grants or withholds access against the arranged
@@ -159,7 +160,7 @@ describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [fakeUserAuth, stubLeaseAuth],
-      routes: logsRoutes,
+      routes: createLogsRoutes(createTestWorkflowsClient()),
       swagger: false,
     });
     await app.ready();

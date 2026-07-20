@@ -2420,9 +2420,15 @@ importers:
       '@shipfox/api-integration-webhook':
         specifier: workspace:*
         version: link:../webhook
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../workflows-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
@@ -3213,9 +3219,6 @@ importers:
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../logs-dto
-      '@shipfox/api-workflows':
-        specifier: workspace:*
-        version: link:../workflows
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto
@@ -3265,6 +3268,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
@@ -4071,6 +4077,9 @@ importers:
 
   libs/api/workflows-dto:
     dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../agent-dto
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module

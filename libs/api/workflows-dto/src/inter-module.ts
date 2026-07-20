@@ -1,3 +1,4 @@
+import {harnessSchema, materializedAgentIntegrationSchema} from '@shipfox/api-agent-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
 
@@ -82,6 +83,32 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         receivedAt: z.string().datetime(),
       }),
       output: z.object({buffered: z.boolean(), skipped: z.boolean()}),
+    },
+    getStepLogContext: {
+      input: z.object({stepId: idSchema}),
+      output: z.object({harness: harnessSchema}),
+    },
+    getLeasedAgentToolContext: {
+      input: z.object({
+        jobId: idSchema,
+        jobExecutionId: idSchema,
+        runnerSessionId: idSchema,
+        stepId: idSchema,
+        attempt: z.number().int().positive(),
+      }),
+      output: z.object({
+        workspaceId: idSchema,
+        integrations: z.array(materializedAgentIntegrationSchema),
+      }),
+      errors: {
+        'lease-not-active': z.object({}),
+        'step-not-found': z.object({}),
+        'job-not-found': z.object({}),
+        'step-attempt-mismatch': z.object({}),
+        'step-not-running': z.object({}),
+        'leased-step-not-agent': z.object({}),
+        'agent-step-config-invalid': z.object({}),
+      },
     },
   },
 });

@@ -1,5 +1,8 @@
 import {type LogRecord, parseLogRecordLine} from '@shipfox/api-logs-dto';
-import {appendLogs, setStepLookupForTesting} from '#core/append-logs.js';
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {defineInterModulePresentation} from '@shipfox/inter-module';
+import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
+import {appendLogs} from '#core/append-logs.js';
 import {LeaseStreamMismatchError, MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
 import {jobAccountingFactory} from '#test/factories/job-accounting.js';
 import {
@@ -12,8 +15,6 @@ import {
   sessionLine,
 } from '#test/fixtures/ndjson.js';
 import {findAccounting, findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
-
-const mockSteps = new Map<string, {config: Record<string, unknown>}>();
 
 interface Ctx {
   jobId: string;
@@ -48,20 +49,6 @@ function recordsFromChunks(chunks: Awaited<ReturnType<typeof listChunks>>): LogR
 }
 
 describe('appendLogs', () => {
-  let restoreStepLookup: () => void;
-
-  beforeAll(() => {
-    restoreStepLookup = setStepLookupForTesting((stepId) => Promise.resolve(mockSteps.get(stepId)));
-  });
-
-  afterAll(() => {
-    restoreStepLookup();
-  });
-
-  beforeEach(() => {
-    mockSteps.clear();
-  });
-
   describe('offset-CAS', () => {
     it('extends committed_length and stores one runner chunk on an in-order append', async () => {
       const ctx = newCtx();
@@ -203,7 +190,14 @@ describe('appendLogs', () => {
     it('selects the Claude parser from the step harness', async () => {
       const ctx = newCtx();
       await allowLargeLogBudget(ctx);
-      mockSteps.set(ctx.stepId, {config: {harness: 'claude'}});
+      const workflows = createFakeInterModuleClients({
+        workflows: defineInterModulePresentation(workflowsInterModuleContract, {
+          startRunFromTrigger: vi.fn(),
+          deliverEventToJobListener: vi.fn(),
+          getStepLogContext: () => ({harness: 'claude'}),
+          getLeasedAgentToolContext: vi.fn(),
+        }),
+      }).workflows;
       const body = ndjsonBody(
         sessionLine(
           JSON.stringify({
@@ -216,7 +210,7 @@ describe('appendLogs', () => {
         ),
       );
 
-      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+      await appendLogs({...ctx, attempt: 1, offset: 0, body}, workflows);
 
       const stream = await findStream({...ctx, attempt: 1});
       const rows = recordsFromChunks(await listChunks(stream?.id as string)).map((record) => {

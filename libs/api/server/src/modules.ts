@@ -13,7 +13,7 @@ import {
   getIntegrationConnectionById,
   type WebhookDeliverySource,
 } from '@shipfox/api-integration-core';
-import {logsModule} from '@shipfox/api-logs';
+import {createLogsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersModule as defaultRunnersModule} from '@shipfox/api-runners';
@@ -23,7 +23,6 @@ import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module'
 import {createTriggersModule} from '@shipfox/api-triggers';
 import {
   createWorkflowsModule,
-  loadRunningLeasedStep,
   setAgentToolMaterializationServices,
   setSourceControl,
 } from '@shipfox/api-workflows';
@@ -126,9 +125,7 @@ export async function defaultModules(
           ).deleted,
       },
     },
-    agentTools: {
-      loadLeasedAgentStep: (params) => loadRunningLeasedStep({runners: runnersClient, ...params}),
-    },
+    agentTools: {workflows: workflowsClient},
     webhookDeliverySource: options.webhookDeliverySource,
   });
   const [agentToolSelectionCatalogs, agentToolCatalogs] = await Promise.all([
@@ -174,7 +171,7 @@ export async function defaultModules(
     }),
     annotationsModule,
     options.runnersModule ?? defaultRunnersModule,
-    logsModule,
+    createLogsModule({workflows: workflowsClient}),
     createTriggersModule({workflows: workflowsClient}),
     dispatcherModule,
   ];

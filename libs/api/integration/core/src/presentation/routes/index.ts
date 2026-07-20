@@ -1,10 +1,11 @@
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {IntegrationSourceControlService} from '#core/source-control-service.js';
 import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
 import {
   createAgentToolsGatewayRoutes,
-  type LeasedAgentStepLoader,
+  createWorkflowsLeasedAgentStepLoader,
 } from './agent-tools-gateway/index.js';
 import {createListIntegrationConnectionsRoute} from './list-connections.js';
 import {createListIntegrationProvidersRoute} from './list-providers.js';
@@ -14,12 +15,10 @@ import {
   createUpdateIntegrationConnectionRoute,
 } from './manage-connections.js';
 
-export type {LeasedAgentStepLoader} from './agent-tools-gateway/index.js';
-
 export interface CreateIntegrationRoutesOptions {
   agentTools?:
     | {
-        loadLeasedAgentStep: LeasedAgentStepLoader;
+        workflows: WorkflowsModuleClient;
         getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
       }
     | undefined;
@@ -35,7 +34,7 @@ export function createIntegrationRoutes(
     ? [
         createAgentToolsGatewayRoutes({
           registry,
-          loadLeasedAgentStep: options.agentTools.loadLeasedAgentStep,
+          loadLeasedAgentStep: createWorkflowsLeasedAgentStepLoader(options.agentTools.workflows),
           getIntegrationConnectionById: options.agentTools.getIntegrationConnectionById,
         }),
       ]
