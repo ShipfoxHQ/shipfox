@@ -15,12 +15,7 @@ import type {ConnectGithubInstallationInput} from '#core/install.js';
 import {verifyGithubInstallState} from '#core/state.js';
 import {createGithubIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
-}));
-
-const {requireWorkspaceMembership} = await import('@shipfox/api-workspaces');
-const requireWorkspaceMembershipMock = vi.mocked(requireWorkspaceMembership);
+const requireWorkspaceMembershipMock = vi.fn(() => Promise.resolve());
 let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
@@ -111,6 +106,7 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
     publishSourcePush: vi.fn(() => Promise.resolve({published: false})),
     recordDeliveryOnly: vi.fn(() => Promise.resolve()),
     getIntegrationConnectionById: vi.fn(() => Promise.resolve(undefined)),
+    requireActiveWorkspaceMembership: requireWorkspaceMembershipMock,
   });
   const app = await createApp({
     auth: [fakeUserAuth],

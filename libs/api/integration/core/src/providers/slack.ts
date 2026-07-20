@@ -162,6 +162,9 @@ async function loadSlackModuleParts(
       publishIntegrationEventReceived,
       recordDeliveryOnly,
       getIntegrationConnectionById,
+      ...(options.requireActiveWorkspaceMembership
+        ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+        : {}),
     },
   });
 

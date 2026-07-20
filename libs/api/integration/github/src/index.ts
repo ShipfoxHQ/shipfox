@@ -121,6 +121,9 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
         github,
         getExistingGithubConnection: options.getExistingGithubConnection,
         connectGithubInstallation: options.connectGithubInstallation,
+        ...(options.requireActiveWorkspaceMembership
+          ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+          : {}),
       }),
       createGithubWebhookRoutes({
         coreDb: options.coreDb,

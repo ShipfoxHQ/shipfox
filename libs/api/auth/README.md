@@ -7,12 +7,23 @@ Shipfox API Auth provides the server-side auth module for Shipfox APIs. It owns 
 Register the module with the API module runner:
 
 ```ts
-import {authModule} from '@shipfox/api-auth';
+import {createAuthModule} from '@shipfox/api-auth';
+import {workspacesModule} from '@shipfox/api-workspaces';
+import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import {createApp, listen} from '@shipfox/node-fastify';
-import {initializeModules} from '@shipfox/node-module';
+import {
+  initializeModules,
+  registerInterModulePresentations,
+} from '@shipfox/node-module';
+import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 
+const interModuleTransport = createInMemoryInterModuleTransport();
+const workspaces = interModuleTransport.createClient(workspacesInterModuleContract);
+const modules = [workspacesModule, createAuthModule({workspaces})];
+registerInterModulePresentations({transport: interModuleTransport, modules});
+interModuleTransport.seal();
 const {auth, routes} = await initializeModules({
-  modules: [authModule],
+  modules,
 });
 
 await createApp({auth, routes});
@@ -219,10 +230,13 @@ This app-layer limiter protects semantic auth work such as Argon2 verification a
 
 ## API
 
-The package exports the module entry point:
+The package exports a module factory. Pass it the Workspaces inter-module client from the
+application composition:
 
 ```ts
-import {authModule} from '@shipfox/api-auth';
+import {createAuthModule} from '@shipfox/api-auth';
+
+const authModule = createAuthModule({workspaces});
 ```
 
 It also exports lower-level pieces for tests and advanced integration:

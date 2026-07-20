@@ -8,14 +8,14 @@ import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {and, desc, eq, sql} from 'drizzle-orm';
 import {
   changePassword,
-  confirmEmailVerification,
-  confirmPasswordReset,
-  createSessionForUser,
+  confirmEmailVerification as coreConfirmEmailVerification,
+  confirmPasswordReset as coreConfirmPasswordReset,
+  createSessionForUser as coreCreateSessionForUser,
+  login as coreLogin,
+  refreshAccessToken as coreRefreshAccessToken,
   getCurrentUser,
-  login,
   logout,
   provisionUser,
-  refreshAccessToken,
   requestPasswordReset,
   resendEmailVerification,
   signup,
@@ -72,12 +72,25 @@ vi.mock('#config.js', () => ({
   mailer: testConfig.mailer,
 }));
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  listMembershipsByUser: vi.fn(() => Promise.resolve([])),
-}));
+const listMembershipsByUserMock = vi.fn(() =>
+  Promise.resolve({memberships: [] as Array<{workspaceId: string; role: 'admin'}>}),
+);
+const workspaces = {
+  listMembershipsForTokenClaims: listMembershipsByUserMock,
+  preflightInvitationAcceptance: vi.fn(),
+  acceptInvitation: vi.fn(),
+  requireActiveMembership: vi.fn(),
+};
 
-const {listMembershipsByUser} = await import('@shipfox/api-workspaces');
-const listMembershipsByUserMock = vi.mocked(listMembershipsByUser);
+const login = (params: {email: string; password: string}) => coreLogin({...params, workspaces});
+const createSessionForUser = (params: {userId?: string; email?: string}) =>
+  coreCreateSessionForUser({...params, workspaces});
+const refreshAccessToken = (params: {refreshToken: string}) =>
+  coreRefreshAccessToken({...params, workspaces});
+const confirmEmailVerification = (params: {token: string}) =>
+  coreConfirmEmailVerification({...params, workspaces});
+const confirmPasswordReset = (params: {token: string; newPassword: string}) =>
+  coreConfirmPasswordReset({...params, workspaces});
 
 const TOKEN_RE = /token=([\w\-_=]+)/;
 
@@ -617,28 +630,12 @@ describe('auth core', () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const workspaceA = crypto.randomUUID();
     const workspaceB = crypto.randomUUID();
-    listMembershipsByUserMock.mockResolvedValueOnce([
-      {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        userEmail: user.email,
-        userName: null,
-        workspaceId: workspaceA,
-        workspaceName: 'Workspace A',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        userEmail: user.email,
-        userName: null,
-        workspaceId: workspaceB,
-        workspaceName: 'Workspace B',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+    listMembershipsByUserMock.mockResolvedValueOnce({
+      memberships: [
+        {workspaceId: workspaceA, role: 'admin'},
+        {workspaceId: workspaceB, role: 'admin'},
+      ],
+    });
 
     const result = await login({email: user.email, password: user.plainPassword});
 
@@ -652,22 +649,13 @@ describe('auth core', () => {
 
   test('refresh re-fetches memberships so newly-added workspaces appear in the next token', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
-    listMembershipsByUserMock.mockResolvedValueOnce([]);
+    listMembershipsByUserMock.mockResolvedValueOnce({memberships: []});
     const loginResult = await login({email: user.email, password: user.plainPassword});
 
     const newWorkspaceId = crypto.randomUUID();
-    listMembershipsByUserMock.mockResolvedValueOnce([
-      {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        userEmail: user.email,
-        userName: null,
-        workspaceId: newWorkspaceId,
-        workspaceName: 'New Workspace',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+    listMembershipsByUserMock.mockResolvedValueOnce({
+      memberships: [{workspaceId: newWorkspaceId, role: 'admin'}],
+    });
     const refreshed = await refreshAccessToken({refreshToken: loginResult.refreshToken});
 
     const refreshedClaims = await verifyUserToken({
@@ -688,7 +676,7 @@ describe('auth core', () => {
 
   test('refresh fails closed when listMembershipsByUser throws', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
-    listMembershipsByUserMock.mockResolvedValueOnce([]);
+    listMembershipsByUserMock.mockResolvedValueOnce({memberships: []});
     const loginResult = await login({email: user.email, password: user.plainPassword});
 
     listMembershipsByUserMock.mockRejectedValueOnce(new Error('workspaces DB down'));

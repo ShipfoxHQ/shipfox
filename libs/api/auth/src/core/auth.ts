@@ -1,13 +1,9 @@
 import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS, emailSchema} from '@shipfox/api-auth-dto';
 import {
-  acceptWorkspaceInvitation,
-  InvitationEmailMismatchError,
-  listMembershipsByUser,
-  peekInvitationByRawToken,
-  TokenAlreadyUsedError,
-  TokenExpiredError,
-  TokenInvalidError as WorkspacesTokenInvalidError,
-} from '@shipfox/api-workspaces';
+  type WorkspacesInterModuleClient,
+  workspacesInterModuleContract,
+} from '@shipfox/api-workspaces-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config} from '#config.js';
 import {
@@ -40,6 +36,9 @@ import {
   EmailNotVerifiedError,
   EmailTakenError,
   InvalidCredentialsError,
+  InvitationEmailMismatchError,
+  TokenAlreadyUsedError,
+  TokenExpiredError,
   TokenInvalidError,
   UserNotFoundError,
 } from './errors.js';
@@ -69,15 +68,20 @@ function recordRefreshOutcome(outcome: AuthTokenRefreshOutcome): void {
   recordTokenRefreshed(outcome);
 }
 
-async function signAccessToken(user: User): Promise<string> {
-  const memberships = await listMembershipsByUser({userId: user.id}).catch((error: unknown) => {
-    throw new AuthDependencyUnavailableError('workspaces', error);
-  });
+async function signAccessToken(
+  user: User,
+  workspaces: WorkspacesInterModuleClient,
+): Promise<string> {
+  const memberships = await workspaces
+    .listMembershipsForTokenClaims({userId: user.id})
+    .catch((error: unknown) => {
+      throw new AuthDependencyUnavailableError('workspaces', error);
+    });
   return await signUserToken({
     userId: user.id,
     email: user.email,
     name: user.name,
-    memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
+    memberships: memberships.memberships,
     secret: config.AUTH_JWT_SECRET,
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
   });
@@ -105,6 +109,33 @@ function verificationLink(rawToken: string): string {
 
 function passwordResetLink(rawToken: string): string {
   return `${config.CLIENT_BASE_URL}/auth/reset?token=${rawToken}`;
+}
+
+function invitationErrorFromKnownError(
+  error: unknown,
+  method: 'preflightInvitationAcceptance' | 'acceptInvitation',
+): Error {
+  const contractMethod = workspacesInterModuleContract.methods[method];
+  if (!isInterModuleKnownError(contractMethod, error)) return error as Error;
+
+  if (error.code === 'invitation-token-invalid')
+    return new TokenInvalidError('Invitation token is invalid');
+  if (error.code === 'invitation-token-used') return new TokenAlreadyUsedError();
+  if (error.code === 'invitation-token-expired') return new TokenExpiredError();
+  return new InvitationEmailMismatchError();
+}
+
+function invitationErrorMessage(
+  code:
+    | 'invitation-token-invalid'
+    | 'invitation-token-used'
+    | 'invitation-token-expired'
+    | 'invitation-email-mismatch',
+): string {
+  if (code === 'invitation-token-invalid') return 'Invitation token is invalid';
+  if (code === 'invitation-token-used') return 'Invitation has already been accepted';
+  if (code === 'invitation-token-expired') return 'Invitation has expired';
+  return 'Signup email does not match the invitation';
 }
 
 async function createAndQueueEmailVerification(user: User): Promise<void> {
@@ -162,6 +193,7 @@ export async function signup(params: SignupParams): Promise<User> {
 
 export interface SignupWithInvitationParams extends SignupParams {
   invitationToken: string;
+  workspaces: WorkspacesInterModuleClient;
 }
 
 export interface SignupWithInvitationResult extends LoginResult {
@@ -175,18 +207,13 @@ export async function signupWithInvitation(
   // Step 1: Pre-validate the invitation BEFORE any user write so an invalid
   // token never produces an orphan user. Re-validation happens again inside
   // acceptWorkspaceInvitation (race-safe) after the user is created.
-  const invitation = await peekInvitationByRawToken({token: params.invitationToken});
-  if (!invitation) {
-    throw new WorkspacesTokenInvalidError('Invitation token is invalid');
-  }
-  if (invitation.acceptedAt !== null) {
-    throw new TokenAlreadyUsedError();
-  }
-  if (invitation.expiresAt.getTime() <= Date.now()) {
-    throw new TokenExpiredError();
-  }
-  if (invitation.email !== params.email) {
-    throw new InvitationEmailMismatchError();
+  try {
+    await params.workspaces.preflightInvitationAcceptance({
+      token: params.invitationToken,
+      email: params.email,
+    });
+  } catch (error) {
+    throw invitationErrorFromKnownError(error, 'preflightInvitationAcceptance');
   }
 
   // Step 2: Create the user as verified. The invitation email is the proof of
@@ -210,7 +237,7 @@ export async function signupWithInvitation(
   let membership: SignupWithInvitationResult['membership'] = null;
   let acceptError: SignupWithInvitationResult['acceptError'];
   try {
-    const result = await acceptWorkspaceInvitation({
+    const result = await params.workspaces.acceptInvitation({
       token: params.invitationToken,
       userId: user.id,
       email: user.email,
@@ -222,13 +249,8 @@ export async function signupWithInvitation(
       workspaceId: result.membership.workspaceId,
     };
   } catch (error) {
-    if (
-      error instanceof WorkspacesTokenInvalidError ||
-      error instanceof TokenAlreadyUsedError ||
-      error instanceof TokenExpiredError ||
-      error instanceof InvitationEmailMismatchError
-    ) {
-      acceptError = {code: error.name, message: error.message};
+    if (isInterModuleKnownError(workspacesInterModuleContract.methods.acceptInvitation, error)) {
+      acceptError = {code: error.code, message: invitationErrorMessage(error.code)};
     } else {
       acceptError = {
         code: 'AcceptFailed',
@@ -239,7 +261,7 @@ export async function signupWithInvitation(
 
   // Step 4: Issue session. signAccessToken reads memberships through the
   // workspaces module API, so a successful accept is reflected in the JWT.
-  const token = await signAccessToken(user);
+  const token = await signAccessToken(user, params.workspaces);
   const refreshToken = await createRefreshSession(user);
 
   if (acceptError) {
@@ -272,6 +294,7 @@ export async function createUser(params: CreateUserParams): Promise<User> {
 export interface LoginParams {
   email: string;
   password: string;
+  workspaces: WorkspacesInterModuleClient;
 }
 
 export interface LoginResult {
@@ -301,7 +324,7 @@ export async function login(params: LoginParams): Promise<LoginResult> {
     throw new EmailNotVerifiedError();
   }
 
-  const token = await signAccessToken(user);
+  const token = await signAccessToken(user, params.workspaces);
   const refreshToken = await createRefreshSession(user);
 
   return {token, refreshToken, user};
@@ -310,6 +333,7 @@ export async function login(params: LoginParams): Promise<LoginResult> {
 export interface CreateSessionForUserParams {
   userId?: string | undefined;
   email?: string | undefined;
+  workspaces: WorkspacesInterModuleClient;
 }
 
 export interface CreateSessionForUserResult {
@@ -343,7 +367,7 @@ export async function createSessionForUser(
     throw new InvalidCredentialsError();
   }
 
-  const token = await signAccessToken(user);
+  const token = await signAccessToken(user, params.workspaces);
   const refreshToken = await createRefreshSession(user);
 
   return {token, refreshToken, user};
@@ -358,6 +382,7 @@ export interface RefreshAccessTokenResult {
 
 export async function refreshAccessToken(params: {
   refreshToken: string;
+  workspaces: WorkspacesInterModuleClient;
 }): Promise<RefreshAccessTokenResult> {
   const currentHashedToken = hashOpaqueToken(params.refreshToken);
   const current = await findRefreshTokenByHash({hashedToken: currentHashedToken});
@@ -377,7 +402,7 @@ export async function refreshAccessToken(params: {
   // second tab); past it, reuse of a retired token means a compromised session.
   if (current.rotatedAt) {
     if (isWithinRotationGrace(current)) {
-      const token = await signAccessToken(user);
+      const token = await signAccessToken(user, params.workspaces);
       recordRefreshOutcome('grace');
       return {token, refreshToken: undefined, user};
     }
@@ -401,12 +426,12 @@ export async function refreshAccessToken(params: {
       recordRefreshOutcome('rejected');
       throw new TokenInvalidError('Refresh token is invalid or expired');
     }
-    const token = await signAccessToken(user);
+    const token = await signAccessToken(user, params.workspaces);
     recordRefreshOutcome('grace');
     return {token, refreshToken: undefined, user};
   }
 
-  const token = await signAccessToken(user);
+  const token = await signAccessToken(user, params.workspaces);
   recordRefreshOutcome('rotated');
   return {token, refreshToken: nextRefreshToken, user};
 }
@@ -423,6 +448,7 @@ export interface ResendEmailVerificationResult {
 
 export async function confirmEmailVerification(params: {
   token: string;
+  workspaces: WorkspacesInterModuleClient;
 }): Promise<ConfirmEmailVerificationResult> {
   const consumed = await consumeEmailVerification({hashedToken: hashOpaqueToken(params.token)});
   if (!consumed) {
@@ -434,7 +460,7 @@ export async function confirmEmailVerification(params: {
     throw new TokenInvalidError('Verification token is invalid or expired');
   }
 
-  const token = await signAccessToken(user);
+  const token = await signAccessToken(user, params.workspaces);
   const refreshToken = await createRefreshSession(user);
 
   return {token, refreshToken, user};
@@ -485,6 +511,7 @@ export interface ConfirmPasswordResetResult {
 export async function confirmPasswordReset(params: {
   token: string;
   newPassword: string;
+  workspaces: WorkspacesInterModuleClient;
 }): Promise<ConfirmPasswordResetResult> {
   const consumed = await consumePasswordReset({hashedToken: hashOpaqueToken(params.token)});
   if (!consumed) {
@@ -504,7 +531,7 @@ export async function confirmPasswordReset(params: {
 
   await revokeRefreshTokensForUser({userId: consumed.userId});
 
-  const token = await signAccessToken(user);
+  const token = await signAccessToken(user, params.workspaces);
   const refreshToken = await createRefreshSession(user);
 
   return {token, refreshToken, user};

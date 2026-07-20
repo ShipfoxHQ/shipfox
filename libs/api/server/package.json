@@ -69,6 +69,7 @@
     "@shipfox/api-triggers": "workspace:*",
     "@shipfox/api-workflows": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
+    "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",

@@ -26,9 +26,8 @@ import {
   startModuleServices,
   startModuleWorkers,
 } from '@shipfox/node-module';
-import {authModule} from '@shipfox/api-auth';
 
-const modules = [authModule];
+const modules = [{name: 'example'}];
 const {auth, routes, services, workers} = await initializeModules({
   modules,
 });

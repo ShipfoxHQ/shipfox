@@ -7,7 +7,6 @@ import {
   linearCallbackQuerySchema,
   linearCallbackResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
-import {requireWorkspaceMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {LinearApiClient} from '#api/client.js';
 import {config} from '#config.js';
@@ -33,6 +32,11 @@ export interface CreateLinearIntegrationRoutesOptions {
   ) => Promise<IntegrationConnection<'linear'>>;
   disconnectLinearInstallation: (input: {connectionId: string}) => Promise<void>;
   connectionCapabilities: IntegrationCapability[];
+  requireActiveWorkspaceMembership?: (input: {
+    workspaceId: string;
+    userId: string;
+    memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+  }) => Promise<unknown>;
 }
 
 export function createLinearIntegrationRoutes({
@@ -42,6 +46,7 @@ export function createLinearIntegrationRoutes({
   connectLinearInstallation,
   disconnectLinearInstallation,
   connectionCapabilities,
+  requireActiveWorkspaceMembership,
 }: CreateLinearIntegrationRoutesOptions): RouteGroup {
   const createInstallRoute = defineRoute({
     method: 'POST',
@@ -95,7 +100,8 @@ export function createLinearIntegrationRoutes({
           errorDescription: query.error_description,
           sessionUserId: actor.userId,
           sessionMemberships: actor.memberships,
-          requireWorkspaceMembership,
+          requireWorkspaceMembership:
+            requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
         });
       }
       const connection = await handleLinearCallback({
@@ -105,7 +111,8 @@ export function createLinearIntegrationRoutes({
         state: query.state,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
-        requireWorkspaceMembership,
+        requireWorkspaceMembership:
+          requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
         getExistingLinearConnection,
         connectLinearInstallation,
         disconnectLinearInstallation,
@@ -119,6 +126,14 @@ export function createLinearIntegrationRoutes({
     prefix: '/integrations/linear',
     routes: [createInstallRoute, callbackApiRoute],
   };
+}
+
+function unavailableWorkspaceMembershipCheck(_input: {
+  workspaceId: string;
+  userId: string;
+  memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+}): Promise<never> {
+  return Promise.reject(new Error('Workspaces inter-module client is not configured'));
 }
 
 function isLinearOAuthErrorCallback(

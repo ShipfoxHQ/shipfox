@@ -164,6 +164,7 @@ export function createSlackIntegrationProvider(
       getExistingSlackConnection,
       connectSlackInstallation,
       disconnectSlackInstallation,
+      requireActiveWorkspaceMembership,
     } = options.routes;
     routes.push(
       createSlackIntegrationRoutes({
@@ -173,6 +174,7 @@ export function createSlackIntegrationProvider(
         getExistingSlackConnection,
         connectSlackInstallation,
         disconnectSlackInstallation,
+        ...(requireActiveWorkspaceMembership ? {requireActiveWorkspaceMembership} : {}),
       }),
     );
   }

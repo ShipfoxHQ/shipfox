@@ -6,7 +6,6 @@ import {
   githubCallbackQuerySchema,
   githubCallbackResponseSchema,
 } from '@shipfox/api-integration-github-dto';
-import {requireWorkspaceMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {GithubApiClient} from '#api/client.js';
 import {config} from '#config.js';
@@ -23,12 +22,18 @@ export interface CreateGithubIntegrationRoutesOptions {
   connectGithubInstallation: (
     input: ConnectGithubInstallationInput,
   ) => Promise<IntegrationConnection<'github'>>;
+  requireActiveWorkspaceMembership?: (input: {
+    workspaceId: string;
+    userId: string;
+    memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+  }) => Promise<unknown>;
 }
 
 export function createGithubIntegrationRoutes({
   github,
   getExistingGithubConnection,
   connectGithubInstallation,
+  requireActiveWorkspaceMembership,
 }: CreateGithubIntegrationRoutesOptions): RouteGroup {
   const createInstallRoute = defineRoute({
     method: 'POST',
@@ -77,7 +82,8 @@ export function createGithubIntegrationRoutes({
         state: request.query.state,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
-        requireWorkspaceMembership,
+        requireWorkspaceMembership:
+          requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
         getExistingGithubConnection,
         connectGithubInstallation,
       });
@@ -90,4 +96,12 @@ export function createGithubIntegrationRoutes({
     prefix: '/integrations/github',
     routes: [createInstallRoute, callbackApiRoute],
   };
+}
+
+function unavailableWorkspaceMembershipCheck(_input: {
+  workspaceId: string;
+  userId: string;
+  memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+}): Promise<never> {
+  return Promise.reject(new Error('Workspaces inter-module client is not configured'));
 }

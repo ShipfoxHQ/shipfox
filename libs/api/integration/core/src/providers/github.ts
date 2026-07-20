@@ -126,6 +126,9 @@ async function loadGithubModuleParts(
     coreDb: db,
     deleteSecrets: options.secrets?.deleteSecrets,
     agentTools: {tokenProvider},
+    ...(options.requireActiveWorkspaceMembership
+      ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+      : {}),
   });
 
   return {

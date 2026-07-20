@@ -2002,9 +2002,6 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../workspaces
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../workspaces-dto
@@ -2481,6 +2478,9 @@ importers:
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../workflows-dto
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../../workspaces-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -3822,6 +3822,9 @@ importers:
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../workspaces
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../workspaces-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -4187,6 +4190,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -4257,6 +4263,9 @@ importers:
       '@shipfox/api-common-dto':
         specifier: workspace:*
         version: link:../common-dto
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       zod:
         specifier: 'catalog:'
         version: 4.4.3

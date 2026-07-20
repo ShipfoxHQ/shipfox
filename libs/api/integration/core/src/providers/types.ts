@@ -1,3 +1,4 @@
+import type {UserContextMembership} from '@shipfox/api-auth-context';
 import type {WebhookRequestProcessor, WebhookRouteId} from '@shipfox/api-integration-core-dto';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {ModuleDatabase, ModuleWorker} from '@shipfox/node-module';
@@ -39,6 +40,13 @@ export interface IntegrationProviderModule {
 
 export interface IntegrationProviderModuleLoadOptions {
   secrets?: IntegrationProviderSecrets | undefined;
+  requireActiveWorkspaceMembership?:
+    | ((input: {
+        workspaceId: string;
+        userId: string;
+        memberships: ReadonlyArray<UserContextMembership>;
+      }) => Promise<unknown>)
+    | undefined;
 }
 
 export interface IntegrationProviderSecrets {

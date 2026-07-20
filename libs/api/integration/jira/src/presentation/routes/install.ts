@@ -12,7 +12,6 @@ import {
   jiraCallbackQuerySchema,
   jiraCallbackResponseSchema,
 } from '@shipfox/api-integration-jira-dto';
-import {requireWorkspaceMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {JiraApiClient} from '#api/client.js';
 import {config} from '#config.js';
@@ -41,11 +40,18 @@ export interface CreateJiraIntegrationRoutesOptions {
   ): Promise<IntegrationConnection<'jira'>>;
   disconnectJiraInstallation(input: {connectionId: string}): Promise<void>;
   connectionCapabilities: IntegrationCapability[];
+  requireActiveWorkspaceMembership?: (input: {
+    workspaceId: string;
+    userId: string;
+    memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+  }) => Promise<unknown>;
 }
 
 export function createJiraIntegrationRoutes(
   options: CreateJiraIntegrationRoutesOptions,
 ): RouteGroup {
+  const requireMembership =
+    options.requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck;
   const installRoute = defineRoute({
     method: 'POST',
     path: '/install',
@@ -87,7 +93,7 @@ export function createJiraIntegrationRoutes(
           errorDescription: query.error_description,
           sessionUserId: actor.userId,
           sessionMemberships: actor.memberships,
-          requireWorkspaceMembership,
+          requireWorkspaceMembership: requireMembership,
         });
       const result = await handleJiraCallback({
         ...options,
@@ -95,7 +101,7 @@ export function createJiraIntegrationRoutes(
         state: query.state,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
-        requireWorkspaceMembership,
+        requireWorkspaceMembership: requireMembership,
       });
       return 'sites' in result
         ? {
@@ -127,7 +133,7 @@ export function createJiraIntegrationRoutes(
         state: request.body.state,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
-        requireWorkspaceMembership,
+        requireWorkspaceMembership: requireMembership,
       });
       return toIntegrationConnectionDto(connection, {capabilities: options.connectionCapabilities});
     },
@@ -136,6 +142,14 @@ export function createJiraIntegrationRoutes(
     prefix: '/integrations/jira',
     routes: [installRoute, callbackApiRoute, siteSelectionRoute],
   };
+}
+
+function unavailableWorkspaceMembershipCheck(_input: {
+  workspaceId: string;
+  userId: string;
+  memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+}): Promise<never> {
+  return Promise.reject(new Error('Workspaces inter-module client is not configured'));
 }
 
 function isJiraOAuthErrorCallback(query: JiraCallbackQueryDto): query is JiraCallbackQueryDto & {

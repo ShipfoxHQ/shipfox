@@ -3,7 +3,7 @@ import {
   AUTH_PASSWORD_RESET_SEND_REQUESTED,
   authEventSchemas,
 } from '@shipfox/api-auth-dto';
-import {authModule} from './index.js';
+import {createAuthModule} from './index.js';
 import {passwordLoginMethods} from './login-methods.js';
 
 vi.mock('#config.js', () => ({
@@ -25,6 +25,14 @@ vi.mock('@shipfox/node-mailer', () => ({
 }));
 
 describe('authModule', () => {
+  const authModule = createAuthModule({
+    workspaces: {
+      listMembershipsForTokenClaims: vi.fn(),
+      preflightInvitationAcceptance: vi.fn(),
+      acceptInvitation: vi.fn(),
+      requireActiveMembership: vi.fn(),
+    },
+  });
   test('declares password login only when password login is enabled', () => {
     expect(passwordLoginMethods(true)).toEqual([{id: 'password'}]);
     expect(passwordLoginMethods(false)).toEqual([]);

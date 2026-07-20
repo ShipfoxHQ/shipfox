@@ -11,6 +11,7 @@ import {
 const fixtureSource = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(fixtureSource, '../..');
 const dtoPackageRoot = resolve(packageRoot, '../core-dto');
+const agentDtoPackageRoot = resolve(packageRoot, '../../agent-dto');
 const interModulePackageRoot = resolve(packageRoot, '../../../shared/common/inter-module');
 const workflowsDtoPackageRoot = resolve(packageRoot, '../../workflows-dto');
 const fixtureRoot = await mkdtemp(join(tmpdir(), 'api-integration-webhook-external-'));
@@ -52,6 +53,7 @@ try {
   });
   await rename(join(fixtureRoot, 'package.template.json'), join(fixtureRoot, 'package.json'));
   await packPackage(dtoPackageRoot, join(fixtureRoot, 'api-integration-core-dto.tgz'));
+  await packPackage(agentDtoPackageRoot, join(fixtureRoot, 'api-agent-dto.tgz'));
   await packPackage(interModulePackageRoot, join(fixtureRoot, 'inter-module.tgz'));
   await packPackage(workflowsDtoPackageRoot, join(fixtureRoot, 'api-workflows-dto.tgz'));
   await packPackage(packageRoot, join(fixtureRoot, 'api-integration-core.tgz'));

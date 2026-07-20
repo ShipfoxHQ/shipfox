@@ -3,13 +3,14 @@ import {
   AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
   type AUTH_PASSWORD_RESET_SEND_REQUESTED,
 } from '@shipfox/api-auth-dto';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {type AppConfig, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {and, desc, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {authOutbox} from '#db/schema/outbox.js';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
-import {authRoutes} from '#presentation/routes/index.js';
+import {buildAuthRoutes} from '#presentation/routes/index.js';
 
 const testConfig = vi.hoisted(
   (): {
@@ -35,44 +36,16 @@ const testConfig = vi.hoisted(
 );
 
 const workspaceTestDoubles = vi.hoisted(() => {
-  class InvitationEmailMismatchError extends Error {
-    constructor(message = 'Invitation email does not match') {
-      super(message);
-      this.name = 'InvitationEmailMismatchError';
-    }
-  }
-
-  class TokenAlreadyUsedError extends Error {
-    constructor(message = 'Invitation token has already been used') {
-      super(message);
-      this.name = 'TokenAlreadyUsedError';
-    }
-  }
-
-  class TokenExpiredError extends Error {
-    constructor(message = 'Invitation token has expired') {
-      super(message);
-      this.name = 'TokenExpiredError';
-    }
-  }
-
-  class TokenInvalidError extends Error {
-    constructor(message = 'Invitation token is invalid') {
-      super(message);
-      this.name = 'TokenInvalidError';
-    }
-  }
-
   return {
-    acceptWorkspaceInvitation: vi.fn(),
-    peekInvitationByRawToken: vi.fn(),
-    listMembershipsByUser: vi.fn(() => Promise.resolve([])),
-    InvitationEmailMismatchError,
-    TokenAlreadyUsedError,
-    TokenExpiredError,
-    TokenInvalidError,
+    acceptInvitation: vi.fn(),
+    preflightInvitationAcceptance: vi.fn(),
+    listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
+    requireActiveMembership: vi.fn(),
   };
-});
+}) as {
+  [Method in keyof WorkspacesInterModuleClient]: ReturnType<typeof vi.fn>;
+};
+const workspaces = workspaceTestDoubles as unknown as WorkspacesInterModuleClient;
 
 vi.mock('#config.js', () => ({
   config: {
@@ -87,42 +60,25 @@ vi.mock('#config.js', () => ({
   mailer: testConfig.mailer,
 }));
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  acceptWorkspaceInvitation: workspaceTestDoubles.acceptWorkspaceInvitation,
-  peekInvitationByRawToken: workspaceTestDoubles.peekInvitationByRawToken,
-  InvitationEmailMismatchError: workspaceTestDoubles.InvitationEmailMismatchError,
-  listMembershipsByUser: workspaceTestDoubles.listMembershipsByUser,
-  TokenAlreadyUsedError: workspaceTestDoubles.TokenAlreadyUsedError,
-  TokenExpiredError: workspaceTestDoubles.TokenExpiredError,
-  TokenInvalidError: workspaceTestDoubles.TokenInvalidError,
-}));
-
-const {acceptWorkspaceInvitation, peekInvitationByRawToken, listMembershipsByUser} = await import(
-  '@shipfox/api-workspaces'
-);
-
 const TOKEN_RE = /token=([\w\-_=]+)/;
 type AuthEmailEventType =
   | typeof AUTH_EMAIL_VERIFICATION_SEND_REQUESTED
   | typeof AUTH_PASSWORD_RESET_SEND_REQUESTED;
 
 export const ROUTE_TEST_SECRET = testConfig.secret;
-export const acceptWorkspaceInvitationMock = vi.mocked(acceptWorkspaceInvitation);
-export const peekInvitationByRawTokenMock = vi.mocked(peekInvitationByRawToken);
-export const listMembershipsByUserMock = vi.mocked(listMembershipsByUser);
-export const workspaceErrors = {
-  InvitationEmailMismatchError: workspaceTestDoubles.InvitationEmailMismatchError,
-  TokenAlreadyUsedError: workspaceTestDoubles.TokenAlreadyUsedError,
-  TokenExpiredError: workspaceTestDoubles.TokenExpiredError,
-  TokenInvalidError: workspaceTestDoubles.TokenInvalidError,
-};
+export const acceptWorkspaceInvitationMock: ReturnType<typeof vi.fn> =
+  workspaceTestDoubles.acceptInvitation;
+export const peekInvitationByRawTokenMock: ReturnType<typeof vi.fn> =
+  workspaceTestDoubles.preflightInvitationAcceptance;
+export const listMembershipsByUserMock: ReturnType<typeof vi.fn> =
+  workspaceTestDoubles.listMembershipsForTokenClaims;
 
 export function resetCapturedMail(): void {
   testConfig.captured.length = 0;
   acceptWorkspaceInvitationMock.mockReset();
   peekInvitationByRawTokenMock.mockReset();
   listMembershipsByUserMock.mockReset();
-  listMembershipsByUserMock.mockResolvedValue([]);
+  listMembershipsByUserMock.mockResolvedValue({memberships: []});
 }
 
 export function capturedMail(): MailMessage[] {
@@ -186,7 +142,7 @@ export async function createAuthTestApp(params?: {
 }): Promise<FastifyInstance> {
   const appConfig: AppConfig = {
     auth: [createJwtAuthMethod()],
-    routes: [authRoutes],
+    routes: [buildAuthRoutes(true, workspaces)],
     swagger: false,
   };
   if (params?.fastifyOptions) appConfig.fastifyOptions = params.fastifyOptions;
@@ -264,7 +220,7 @@ export async function createVerifiedSession(prefix: string): Promise<{
   const email = uniqueEmail(prefix);
   const password = 'correct horse battery staple';
   const user = await createUser({email, password, name: prefix, verified: true});
-  const session = await createSessionForUser({userId: user.id});
+  const session = await createSessionForUser({userId: user.id, workspaces});
 
   return {
     email,
