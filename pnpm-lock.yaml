@@ -6761,6 +6761,9 @@ importers:
       '@temporalio/worker':
         specifier: 'catalog:'
         version: 1.18.1(@swc/helpers@0.5.23)(tslib@2.8.1)
+      '@temporalio/workflow':
+        specifier: 'catalog:'
+        version: 1.18.1
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

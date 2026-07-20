@@ -48,7 +48,8 @@
     "@temporalio/client": "catalog:",
     "@temporalio/common": "catalog:",
     "@temporalio/interceptors-opentelemetry": "catalog:",
-    "@temporalio/worker": "catalog:"
+    "@temporalio/worker": "catalog:",
+    "@temporalio/workflow": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
