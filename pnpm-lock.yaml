@@ -1892,6 +1892,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -3695,6 +3698,9 @@ importers:
       '@shipfox/annotations':
         specifier: workspace:*
         version: link:../annotations
+      '@shipfox/annotations-dto':
+        specifier: workspace:*
+        version: link:../annotations-dto
       '@shipfox/api-agent':
         specifier: workspace:*
         version: link:../agent
@@ -4002,6 +4008,9 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@shipfox/annotations':
+        specifier: workspace:*
+        version: link:../annotations
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
