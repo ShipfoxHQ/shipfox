@@ -8,10 +8,6 @@ const listenerFilterErrored = vi.fn();
 const listenerDispatchErrored = vi.fn();
 const loggerWarn = vi.fn();
 
-vi.mock('@shipfox/api-workflows', () => ({
-  deliverEventToListener: (...args: unknown[]) => deliverEventToListener(...args),
-}));
-
 vi.mock('@shipfox/node-opentelemetry', () => ({
   logger: () => ({warn: loggerWarn}),
 }));
@@ -33,6 +29,10 @@ vi.mock('#db/job-listener-subscriptions.js', async (importOriginal) => {
 
 const {routeEventToJobListeners} = await import('./route-event-to-job-listeners.js');
 
+const workflows = {
+  deliverEventToJobListener: (...args: unknown[]) => deliverEventToListener(...args),
+} as never;
+
 interface RouteOverrides {
   eventRef?: string;
   workspaceId?: string;
@@ -43,6 +43,7 @@ interface RouteOverrides {
 
 function route(overrides: RouteOverrides = {}) {
   return routeEventToJobListeners({
+    workflows,
     history: buildHistory(),
     eventRef: overrides.eventRef ?? crypto.randomUUID(),
     workspaceId: overrides.workspaceId ?? crypto.randomUUID(),

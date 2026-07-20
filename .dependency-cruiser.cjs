@@ -179,6 +179,18 @@ module.exports = {
           },
         ]
       : []),
+    ...(currentPackage.name === '@shipfox/api-triggers'
+      ? [
+          {
+            name: 'triggers-use-workflows-inter-module-api',
+            comment:
+              'Triggers may consume the Workflows DTO contract, but never the Workflows implementation package.',
+            severity: 'error',
+            from: {path: '^(src|test)/'},
+            to: {path: '^\\.\\./workflows/(?:src|dist)/'},
+          },
+        ]
+      : []),
   ],
   options: {
     doNotFollow: {

@@ -1,10 +1,14 @@
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {Context} from '@temporalio/activity';
 import {config} from '#config.js';
 import {type CronDrainSummary, drainDueCronSchedules} from '#core/drain-cron-schedules.js';
 
-export async function drainCronBatchActivity(): Promise<CronDrainSummary> {
+export async function drainCronBatchActivity(
+  workflows: WorkflowsModuleClient,
+): Promise<CronDrainSummary> {
   const ctx = Context.current();
   return await drainDueCronSchedules({
+    workflows,
     batchSize: config.TRIGGER_CRON_CLAIM_BATCH,
     jitterWindowSeconds: config.TRIGGER_CRON_JITTER_WINDOW_SECONDS,
     onScheduleProcessed: () => ctx.heartbeat(),

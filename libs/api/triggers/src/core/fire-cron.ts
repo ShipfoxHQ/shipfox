@@ -1,11 +1,12 @@
-import {isPermanentRunWorkflowError, runWorkflow, type WorkflowRun} from '@shipfox/api-workflows';
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
 import {cronFiredCount, cronFireLag} from '#metrics/instance.js';
 import {readConfigInputs} from './config.js';
 import {TriggerSubscriptionNotCronError, TriggerSubscriptionNotFoundError} from './errors.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
+import {isPermanentStartRunError, type WorkflowsModuleClient} from './workflows-client.js';
 
 export interface FireCronSubscriptionParams {
+  workflows: WorkflowsModuleClient;
   subscriptionId: string;
   /**
    * The `next_fire_at` value the schedule held when it was claimed. Anchoring the
@@ -16,7 +17,7 @@ export interface FireCronSubscriptionParams {
 }
 
 export type FireCronSubscriptionResult =
-  | {outcome: 'fired'; run: WorkflowRun}
+  | {outcome: 'fired'; run: {id: string; name: string}}
   | {outcome: 'errored'};
 
 /**
@@ -56,9 +57,10 @@ export async function fireCronSubscription(
     eventRef,
   };
 
-  let run: WorkflowRun;
+  const inputs = readConfigInputs(subscription);
+  let run: {id: string; name: string};
   try {
-    run = await runWorkflow({
+    run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
       definitionId: subscription.workflowDefinitionId,
@@ -68,13 +70,13 @@ export async function fireCronSubscription(
         event: 'tick',
         scheduleId: subscription.id,
       },
-      inputs: readConfigInputs(subscription),
-      triggerIdempotencyKey: eventRef,
+      ...(inputs === undefined ? {} : {inputs}),
+      idempotencyKey: eventRef,
     });
   } catch (error) {
     const failure = await beginTriggerHistory(historyBase);
     await failure.dispatchErrored(subscription, toReason(error));
-    if (isPermanentRunWorkflowError(error)) {
+    if (isPermanentStartRunError(error)) {
       recordFire('errored', params.scheduledSlot);
       await failure.allErrored(1);
       return {outcome: 'errored'};

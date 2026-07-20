@@ -3,8 +3,10 @@ import {advanceCronSchedule, claimDueCronSchedules, selectDbNow} from '#db/cron-
 import {db} from '#db/db.js';
 import {computeNextFireAt} from './compute-next-fire-at.js';
 import {fireCronSubscription} from './fire-cron.js';
+import type {WorkflowsModuleClient} from './workflows-client.js';
 
 export interface DrainDueCronSchedulesParams {
+  readonly workflows: WorkflowsModuleClient;
   readonly batchSize: number;
   readonly jitterWindowSeconds: number;
   /**
@@ -67,6 +69,7 @@ export async function drainDueCronSchedules(
             lastFiredAt: scheduledSlot,
           });
           return await fireCronSubscription({
+            workflows: params.workflows,
             subscriptionId: schedule.subscriptionId,
             scheduledSlot,
           });

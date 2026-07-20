@@ -1,3 +1,5 @@
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {triggersDecisions} from '#db/schema/decisions.js';
@@ -7,26 +9,9 @@ import {TriggerSubscriptionNotManualError} from './errors.js';
 
 const runWorkflow = vi.fn();
 
-// Keep real-enough permanent-error classes + the classifier so the manual path's
-// permanent/transient branching is exercised without loading the workflows module graph.
-vi.mock('@shipfox/api-workflows', () => {
-  class DefinitionNotFoundError extends Error {
-    constructor(definitionId: string) {
-      super(`Definition not found: ${definitionId}`);
-      this.name = 'DefinitionNotFoundError';
-    }
-  }
-  return {
-    runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-    DefinitionNotFoundError,
-    isPermanentRunWorkflowError: (error: unknown) => error instanceof DefinitionNotFoundError,
-  };
-});
-
-import {DefinitionNotFoundError} from '@shipfox/api-workflows';
-
-// Import after mocks so the function under test sees the spy.
 const {fireManualSubscription} = await import('./fire-manual.js');
+
+const workflows = {startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args)} as never;
 
 function eventsForWorkspace(workspaceId: string) {
   return db()
@@ -57,12 +42,15 @@ describe('fireManualSubscription (trigger history)', () => {
     runWorkflow.mockResolvedValue(run);
 
     const result = await fireManualSubscription({
+      workflows,
       subscriptionId: subscription.id,
       callerWorkspaceId: subscription.workspaceId,
       userId: crypto.randomUUID(),
     });
 
     expect(result).toEqual(run);
+    const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).not.toHaveProperty('inputs');
     const [event] = await db()
       .select()
       .from(triggersReceivedEvents)
@@ -88,6 +76,7 @@ describe('fireManualSubscription (trigger history)', () => {
 
     await expect(
       fireManualSubscription({
+        workflows,
         subscriptionId: subscription.id,
         callerWorkspaceId: subscription.workspaceId,
         userId: crypto.randomUUID(),
@@ -114,15 +103,22 @@ describe('fireManualSubscription (trigger history)', () => {
       event: 'fire',
       config: {},
     });
-    runWorkflow.mockRejectedValue(new DefinitionNotFoundError('def-gone'));
+    runWorkflow.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'definition-not-found',
+        {definitionId: crypto.randomUUID()},
+      ),
+    );
 
     await expect(
       fireManualSubscription({
+        workflows,
         subscriptionId: subscription.id,
         callerWorkspaceId: subscription.workspaceId,
         userId: crypto.randomUUID(),
       }),
-    ).rejects.toThrow('Definition not found');
+    ).rejects.toThrow('definition-not-found');
 
     const events = await eventsForWorkspace(subscription.workspaceId);
     expect(events).toHaveLength(1);
@@ -133,7 +129,7 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(event.processedAt).toBeInstanceOf(Date);
     const decisions = await decisionsForEvent(event.id);
     expect(decisions[0]?.decision).toBe('dispatch-error');
-    expect(decisions[0]?.reason).toContain('Definition not found');
+    expect(decisions[0]?.reason).toContain('definition-not-found');
   });
 
   test('does not record a received event when the subscription is not a manual trigger', async () => {
@@ -145,6 +141,7 @@ describe('fireManualSubscription (trigger history)', () => {
 
     await expect(
       fireManualSubscription({
+        workflows,
         subscriptionId: subscription.id,
         callerWorkspaceId: subscription.workspaceId,
         userId: crypto.randomUUID(),

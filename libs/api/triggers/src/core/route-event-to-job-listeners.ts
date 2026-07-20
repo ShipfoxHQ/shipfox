@@ -1,11 +1,12 @@
-import {deliverEventToListener, type JobListenerEventDisposition} from '@shipfox/api-workflows';
 import {logger} from '@shipfox/node-opentelemetry';
 import {findMatchingJobListenerSubscriptions} from '#db/job-listener-subscriptions.js';
 import {evaluateStoredFilter, type StoredFilterEvaluation} from './config.js';
 import type {JobListenerSubscription} from './entities/job-listener-subscription.js';
 import {type TriggerHistoryRecorder, toReason} from './record-trigger-history.js';
+import type {WorkflowsModuleClient} from './workflows-client.js';
 
 export interface RouteEventToJobListenersParams {
+  workflows: WorkflowsModuleClient;
   history: TriggerHistoryRecorder;
   eventRef: string;
   workspaceId: string;
@@ -70,7 +71,7 @@ export async function routeEventToJobListeners(
   for (const subscription of effectiveMatchByJobId.values()) {
     const disposition = listenerDisposition(subscription);
     try {
-      const result = await deliverEventToListener({
+      const result = await params.workflows.deliverEventToJobListener({
         jobId: subscription.jobId,
         disposition,
         eventRef: params.eventRef,
@@ -79,7 +80,7 @@ export async function routeEventToJobListeners(
         event: params.event,
         provider: params.provider,
         payload: params.payload,
-        receivedAt: params.receivedAt,
+        receivedAt: params.receivedAt.toISOString(),
       });
       if (!result.skipped) {
         acceptedJobCount += 1;
@@ -153,7 +154,7 @@ function readFilterSnapshot(
   };
 }
 
-function listenerDisposition(subscription: JobListenerSubscription): JobListenerEventDisposition {
+function listenerDisposition(subscription: JobListenerSubscription): 'fire' | 'resolve' {
   return subscription.kind === 'until' ? 'resolve' : 'fire';
 }
 

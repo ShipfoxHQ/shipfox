@@ -1,4 +1,3 @@
-import {isPermanentRunWorkflowError, runWorkflow} from '@shipfox/api-workflows';
 import {findMatchingSubscriptions} from '#db/subscriptions.js';
 import {
   eventOutcomeCount,
@@ -8,8 +7,10 @@ import {
 import {evaluateTriggerFilter, readConfigInputs} from './config.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
+import {isPermanentStartRunError, type WorkflowsModuleClient} from './workflows-client.js';
 
 export interface DispatchIntegrationEventParams {
+  workflows: WorkflowsModuleClient;
   eventRef: string;
   workspaceId: string;
   provider: string;
@@ -79,8 +80,9 @@ export async function dispatchIntegrationEvent(
     }
     triggerEngagedCount += 1;
 
+    const inputs = readConfigInputs(subscription);
     try {
-      const run = await runWorkflow({
+      const run = await params.workflows.startRunFromTrigger({
         workspaceId: subscription.workspaceId,
         projectId: subscription.projectId,
         definitionId: subscription.workflowDefinitionId,
@@ -91,8 +93,8 @@ export async function dispatchIntegrationEvent(
           deliveryId: params.deliveryId,
           data: params.payload,
         },
-        inputs: readConfigInputs(subscription),
-        triggerIdempotencyKey: `${subscription.id}:${params.eventRef}`,
+        ...(inputs === undefined ? {} : {inputs}),
+        idempotencyKey: `${subscription.id}:${params.eventRef}`,
       });
       await history.triggered(subscription, run);
       triggeredCount += 1;
@@ -101,7 +103,7 @@ export async function dispatchIntegrationEvent(
       await history.dispatchErrored(subscription, toReason(error));
       // Track presence with a flag, not `firstTransientError === undefined`: a thrown
       // value of `undefined` is still a transient failure and must drive the replay.
-      if (!isPermanentRunWorkflowError(error) && !sawTransientError) {
+      if (!isPermanentStartRunError(error) && !sawTransientError) {
         sawTransientError = true;
         firstTransientError = error;
       }
@@ -109,6 +111,7 @@ export async function dispatchIntegrationEvent(
   }
 
   const listenerResult = await routeEventToJobListeners({
+    workflows: params.workflows,
     history,
     eventRef: params.eventRef,
     workspaceId: params.workspaceId,

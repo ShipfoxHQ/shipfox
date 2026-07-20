@@ -1,0 +1,68 @@
+import {
+  type WorkflowsModuleClient,
+  workflowsInterModuleContract,
+} from '@shipfox/api-workflows-dto/inter-module';
+import {
+  createInterModuleClient,
+  createInterModuleKnownError,
+  defineInterModulePresentation,
+} from '@shipfox/inter-module';
+import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
+import {isPermanentStartRunError} from './workflows-client.js';
+
+const input = {
+  workspaceId: '00000000-0000-4000-8000-000000000001',
+  projectId: '00000000-0000-4000-8000-000000000002',
+  definitionId: '00000000-0000-4000-8000-000000000003',
+  triggerPayload: {
+    provider: 'github',
+    source: 'github',
+    event: 'push',
+    deliveryId: 'delivery-1',
+    data: {ref: 'refs/heads/main'},
+  },
+  idempotencyKey: 'subscription-1:event-1',
+};
+
+function localWorkflowsClient(): WorkflowsModuleClient {
+  return createFakeInterModuleClients({
+    workflows: defineInterModulePresentation(workflowsInterModuleContract, {
+      startRunFromTrigger: ({definitionId}) => {
+        if (definitionId.endsWith('0003')) return {id: definitionId, name: 'Build'};
+        throw createInterModuleKnownError(
+          workflowsInterModuleContract.methods.startRunFromTrigger,
+          'definition-not-found',
+          {definitionId},
+        );
+      },
+      deliverEventToJobListener: () => ({buffered: true, skipped: false}),
+    }),
+  }).workflows;
+}
+
+function serializedWorkflowsClient(local: WorkflowsModuleClient): WorkflowsModuleClient {
+  return createInterModuleClient(workflowsInterModuleContract, async (call) => {
+    const copiedInput = JSON.parse(JSON.stringify(call.input)) as never;
+    const client = local as unknown as Record<string, (input: never) => Promise<unknown>>;
+    return await client[call.method]?.(copiedInput);
+  }) as WorkflowsModuleClient;
+}
+
+async function runConsumerSuite(client: WorkflowsModuleClient): Promise<void> {
+  await expect(client.startRunFromTrigger(input)).resolves.toEqual({
+    id: input.definitionId,
+    name: 'Build',
+  });
+
+  const result = client.startRunFromTrigger({...input, definitionId: crypto.randomUUID()});
+  await expect(result).rejects.toSatisfy(isPermanentStartRunError);
+}
+
+describe('WorkflowsModuleClient consumer parity', () => {
+  test('keeps local and serialized clients equivalent for trigger consumers', async () => {
+    const local = localWorkflowsClient();
+
+    await runConsumerSuite(local);
+    await runConsumerSuite(serializedWorkflowsClient(local));
+  });
+});

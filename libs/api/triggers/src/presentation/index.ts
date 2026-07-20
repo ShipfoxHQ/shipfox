@@ -1,6 +1,6 @@
-export {triggerRoutes as routes} from './routes/index.js';
+export {createTriggerRoutes} from './routes/index.js';
 export {
+  createOnIntegrationEventReceived,
   onDefinitionDeleted,
   onDefinitionResolved,
-  onIntegrationEventReceived,
 } from './subscribers/index.js';

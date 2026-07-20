@@ -5,11 +5,6 @@ const insertReceivedEvent = vi.fn();
 const markReceivedEventRouted = vi.fn();
 const upsertTriggeredDecision = vi.fn();
 
-vi.mock('@shipfox/api-workflows', () => ({
-  runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-  isPermanentRunWorkflowError: () => false,
-}));
-
 vi.mock('#db/event-history.js', () => ({
   insertReceivedEvent: (...args: unknown[]) => insertReceivedEvent(...args),
   markReceivedEventDiscarded: vi.fn(),
@@ -27,6 +22,8 @@ vi.mock('#db/event-history.js', () => ({
 // Import after mocks so the code under test sees the spies.
 const {beginTriggerHistory, toReason} = await import('./record-trigger-history.js');
 const {fireManualSubscription} = await import('./fire-manual.js');
+
+const workflows = {startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args)} as never;
 
 describe('trigger history is best-effort and never blocks triggering', () => {
   beforeEach(() => {
@@ -80,6 +77,7 @@ describe('trigger history is best-effort and never blocks triggering', () => {
     });
 
     const result = await fireManualSubscription({
+      workflows,
       subscriptionId: subscription.id,
       callerWorkspaceId: subscription.workspaceId,
       userId: crypto.randomUUID(),

@@ -1,3 +1,5 @@
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {triggersDecisions} from '#db/schema/decisions.js';
@@ -7,37 +9,28 @@ import {jobListenerSubscriptionFactory, triggerSubscriptionFactory} from '#test/
 const runWorkflow = vi.fn();
 const deliverEventToListener = vi.fn();
 
-// Mock the package root but keep real-enough permanent-error classes + the classifier, so the
-// dispatcher's permanent/transient branching is exercised without loading the workflows module graph.
-vi.mock('@shipfox/api-workflows', () => {
-  class DefinitionNotFoundError extends Error {
-    constructor(definitionId: string) {
-      super(`Definition not found: ${definitionId}`);
-      this.name = 'DefinitionNotFoundError';
-    }
-  }
-  class ProjectMismatchError extends Error {
-    constructor(definitionProjectId: string, requestProjectId: string) {
-      super(
-        `Definition belongs to project ${definitionProjectId}, but request targets project ${requestProjectId}`,
-      );
-      this.name = 'ProjectMismatchError';
-    }
-  }
-  return {
-    runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-    deliverEventToListener: (...args: unknown[]) => deliverEventToListener(...args),
-    DefinitionNotFoundError,
-    ProjectMismatchError,
-    isPermanentRunWorkflowError: (error: unknown) =>
-      error instanceof DefinitionNotFoundError || error instanceof ProjectMismatchError,
-  };
-});
-
-import {DefinitionNotFoundError, ProjectMismatchError} from '@shipfox/api-workflows';
-
-// Import after mocks so the core dispatcher sees the spy.
 const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js');
+
+const workflows = {
+  startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args),
+  deliverEventToJobListener: (...args: unknown[]) => deliverEventToListener(...args),
+};
+
+function definitionNotFound(_definitionId: string) {
+  return createInterModuleKnownError(
+    workflowsInterModuleContract.methods.startRunFromTrigger,
+    'definition-not-found',
+    {definitionId: crypto.randomUUID()},
+  );
+}
+
+function projectMismatch() {
+  return createInterModuleKnownError(
+    workflowsInterModuleContract.methods.startRunFromTrigger,
+    'project-mismatch',
+    {},
+  );
+}
 
 interface DispatchOverrides {
   eventRef?: string;
@@ -53,6 +46,7 @@ interface DispatchOverrides {
 
 function dispatch(overrides: DispatchOverrides = {}): Promise<void> {
   return dispatchIntegrationEvent({
+    workflows,
     eventRef: overrides.eventRef ?? crypto.randomUUID(),
     provider: overrides.provider ?? overrides.source ?? 'github',
     source: overrides.source ?? 'github',
@@ -317,7 +311,7 @@ describe('dispatchIntegrationEvent', () => {
     await dispatch({workspaceId, eventRef});
 
     expect(runWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({triggerIdempotencyKey: `${subscription.id}:${eventRef}`}),
+      expect.objectContaining({idempotencyKey: `${subscription.id}:${eventRef}`}),
     );
   });
 
@@ -333,6 +327,21 @@ describe('dispatchIntegrationEvent', () => {
     await dispatch({workspaceId});
 
     expect(runWorkflow).toHaveBeenCalledWith(expect.objectContaining({inputs: {env: 'staging'}}));
+  });
+
+  test('omits inputs when the subscription has no configured inputs', async () => {
+    const workspaceId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+
+    await dispatch({workspaceId});
+
+    const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).not.toHaveProperty('inputs');
   });
 
   test('runs only subscriptions whose trigger filter matches the payload', async () => {
@@ -789,7 +798,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     });
     const run = {id: crypto.randomUUID(), name: 'Build and test'};
     runWorkflow.mockImplementation(({projectId}: {projectId: string}) => {
-      if (projectId === poison.projectId) throw new DefinitionNotFoundError('def-gone');
+      if (projectId === poison.projectId) throw definitionNotFound('def-gone');
       return run;
     });
 
@@ -805,7 +814,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     const errored = decisions.find((d) => d.subscriptionId === poison.id);
     const triggered = decisions.find((d) => d.subscriptionId === healthy.id);
     expect(errored?.decision).toBe('dispatch-error');
-    expect(errored?.reason).toContain('Definition not found');
+    expect(errored?.reason).toContain('definition-not-found');
     expect(triggered?.decision).toBe('triggered');
     expect(triggered?.runId).toBe(run.id);
   });
@@ -826,7 +835,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
       config: {},
     });
     runWorkflow.mockImplementation(() => {
-      throw new ProjectMismatchError('proj-a', 'proj-b');
+      throw projectMismatch();
     });
 
     await dispatch({workspaceId, eventRef});
@@ -858,7 +867,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
       config: {},
     });
     runWorkflow.mockImplementation(({projectId}: {projectId: string}) => {
-      if (projectId === permanent.projectId) throw new DefinitionNotFoundError('def-gone');
+      if (projectId === permanent.projectId) throw definitionNotFound('def-gone');
       throw new Error('transient boom');
     });
 
@@ -900,7 +909,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     // A later permanent failure must not downgrade a run recorded during a prior
     // transiently failed attempt.
     runWorkflow.mockImplementation(() => {
-      throw new DefinitionNotFoundError('def-gone');
+      throw definitionNotFound('def-gone');
     });
     await dispatch({workspaceId, eventRef});
 
@@ -939,7 +948,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     if (!event) throw new Error('received event not found');
     expect(await decisionsForEvent(event.id)).toHaveLength(1);
     // `runWorkflow` is mocked here; run-row dedup depends on stable keys at its boundary.
-    const keys = runWorkflow.mock.calls.map(([params]) => params.triggerIdempotencyKey);
+    const keys = runWorkflow.mock.calls.map(([params]) => params.idempotencyKey);
     expect(keys).toEqual([`${subscription.id}:${eventRef}`, `${subscription.id}:${eventRef}`]);
   });
 

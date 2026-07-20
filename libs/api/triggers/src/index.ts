@@ -14,14 +14,15 @@ import {
   WORKFLOWS_JOB_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, triggersOutbox} from '#db/index.js';
 import {registerTriggersServiceMetrics} from '#metrics/index.js';
-import {routes} from '#presentation/index.js';
+import {createTriggerRoutes} from '#presentation/index.js';
 import {
+  createOnIntegrationEventReceived,
   onDefinitionDeleted,
   onDefinitionResolved,
-  onIntegrationEventReceived,
   onJobActivated,
   onJobTerminated,
 } from '#presentation/subscribers/index.js';
@@ -66,43 +67,49 @@ const subscriber = subscriberFactory<
   DefinitionsEventMap & IntegrationsEventMap & WorkflowsEventMapDto
 >();
 
-export const triggersModule: ShipfoxModule = {
-  name: 'triggers',
-  database: {db, migrationsPath},
-  routes,
-  metrics: registerTriggersServiceMetrics,
-  publishers: [{name: 'triggers', table: triggersOutbox, db}],
-  subscribers: [
-    subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
-    subscriber(DEFINITION_DELETED, onDefinitionDeleted),
-    subscriber(INTEGRATION_EVENT_RECEIVED, onIntegrationEventReceived),
-    subscriber(WORKFLOWS_JOB_ACTIVATED, onJobActivated),
-    subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
-  ],
-  workers: [
-    {
-      taskQueue: TRIGGERS_MAINTENANCE_TASK_QUEUE,
-      workflowsPath: temporalWorkflowsPath,
-      activities: createTriggersMaintenanceActivities,
-      workflows: [
-        {
-          name: 'pruneTriggerEventsCron',
-          id: 'triggers-prune-trigger-events',
-          cronSchedule: '0 * * * *',
-        },
-      ],
-    },
-    {
-      taskQueue: TRIGGERS_CRON_TASK_QUEUE,
-      workflowsPath: temporalWorkflowsPath,
-      activities: createTriggersCronActivities,
-      workflows: [
-        {
-          name: 'cronTickCron',
-          id: 'triggers-cron-tick',
-          cronSchedule: '* * * * *',
-        },
-      ],
-    },
-  ],
-};
+export interface CreateTriggersModuleOptions {
+  workflows: WorkflowsModuleClient;
+}
+
+export function createTriggersModule({workflows}: CreateTriggersModuleOptions): ShipfoxModule {
+  return {
+    name: 'triggers',
+    database: {db, migrationsPath},
+    routes: createTriggerRoutes(workflows),
+    metrics: registerTriggersServiceMetrics,
+    publishers: [{name: 'triggers', table: triggersOutbox, db}],
+    subscribers: [
+      subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
+      subscriber(DEFINITION_DELETED, onDefinitionDeleted),
+      subscriber(INTEGRATION_EVENT_RECEIVED, createOnIntegrationEventReceived(workflows)),
+      subscriber(WORKFLOWS_JOB_ACTIVATED, onJobActivated),
+      subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
+    ],
+    workers: [
+      {
+        taskQueue: TRIGGERS_MAINTENANCE_TASK_QUEUE,
+        workflowsPath: temporalWorkflowsPath,
+        activities: createTriggersMaintenanceActivities,
+        workflows: [
+          {
+            name: 'pruneTriggerEventsCron',
+            id: 'triggers-prune-trigger-events',
+            cronSchedule: '0 * * * *',
+          },
+        ],
+      },
+      {
+        taskQueue: TRIGGERS_CRON_TASK_QUEUE,
+        workflowsPath: temporalWorkflowsPath,
+        activities: () => createTriggersCronActivities(workflows),
+        workflows: [
+          {
+            name: 'cronTickCron',
+            id: 'triggers-cron-tick',
+            cronSchedule: '* * * * *',
+          },
+        ],
+      },
+    ],
+  };
+}

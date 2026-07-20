@@ -27,6 +27,7 @@ import {
   onWorkflowRunCancelled,
   routes,
 } from '#presentation/index.js';
+import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
 export {
@@ -71,29 +72,34 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
-export const workflowsModule: ShipfoxModule = {
-  name: 'workflows',
-  database: {db, migrationsPath},
-  routes,
-  metrics: registerWorkflowsServiceMetrics,
-  publishers: [
-    {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
-  ],
-  subscribers: [
-    subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, onWorkflowRunAttemptCreated),
-    subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
-    subscriber(WORKFLOWS_JOB_EVENT_DELIVERED, onJobEventDelivered),
-    subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
-    subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),
-    subscriber(RUNNER_JOB_QUEUED, onRunnerJobQueued),
-    subscriber(RUNNER_JOB_CLAIMED, onRunnerJobClaimed),
-  ],
-  workers: [
-    {
-      taskQueue: WORKFLOWS_TASK_QUEUE,
-      workflowsPath,
-      activities: createOrchestrationActivities,
-      workflows: [],
-    },
-  ],
-};
+export function createWorkflowsModule(): ShipfoxModule {
+  return {
+    name: 'workflows',
+    database: {db, migrationsPath},
+    routes,
+    metrics: registerWorkflowsServiceMetrics,
+    publishers: [
+      {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
+    ],
+    subscribers: [
+      subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, onWorkflowRunAttemptCreated),
+      subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
+      subscriber(WORKFLOWS_JOB_EVENT_DELIVERED, onJobEventDelivered),
+      subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
+      subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),
+      subscriber(RUNNER_JOB_QUEUED, onRunnerJobQueued),
+      subscriber(RUNNER_JOB_CLAIMED, onRunnerJobClaimed),
+    ],
+    workers: [
+      {
+        taskQueue: WORKFLOWS_TASK_QUEUE,
+        workflowsPath,
+        activities: createOrchestrationActivities,
+        workflows: [],
+      },
+    ],
+    interModulePresentations: [createWorkflowsInterModulePresentation()],
+  };
+}
+
+export const workflowsModule = createWorkflowsModule();
