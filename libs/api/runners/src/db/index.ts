@@ -57,6 +57,12 @@ export {
   reconcileProvisionedRunners,
   reportProvisionedRunners,
 } from './provisioned-runners.js';
+export {
+  hasActiveWorkspaceProvisionerCapability,
+  listActiveWorkspaceProvisionerCapabilitySnapshots,
+  listStaleWorkspaceProvisionerCapabilitySnapshots,
+  publishWorkspaceProvisionerCapabilitySnapshot,
+} from './provisioner-capability-snapshots.js';
 export type {CreateProvisionerTokenParams} from './provisioner-tokens.js';
 export {
   createProvisionerToken,

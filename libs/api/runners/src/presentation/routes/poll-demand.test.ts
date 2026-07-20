@@ -14,8 +14,10 @@ import {
   extractBearerToken,
 } from '@shipfox/node-fastify';
 import {vi} from '@shipfox/vitest/vi';
+import {eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
+import {provisionerCapabilitySnapshots} from '#db/schema/provisioner-capability-snapshots.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {
   provisionedRunnerCountDivergenceCount,
@@ -137,6 +139,33 @@ describe('POST /provisioners/demand/poll', () => {
       reservations: [],
       terminate_provisioned_runner_ids: [],
     });
+    const snapshots = await db()
+      .select()
+      .from(provisionerCapabilitySnapshots)
+      .where(eq(provisionerCapabilitySnapshots.provisionerId, provisionerTokenId));
+    expect(snapshots).toEqual([
+      expect.objectContaining({
+        workspaceId,
+        labels: ['linux'],
+        availableSlots: 1,
+        starting: 0,
+        running: 1,
+      }),
+    ]);
+
+    const withdrawal = await app.inject({
+      method: 'POST',
+      url: '/provisioners/demand/poll',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {wait_seconds: 0, max_reservations: 0, templates: []},
+    });
+    const clearedSnapshots = await db()
+      .select()
+      .from(provisionerCapabilitySnapshots)
+      .where(eq(provisionerCapabilitySnapshots.provisionerId, provisionerTokenId));
+
+    expect(withdrawal.statusCode).toBe(200);
+    expect(clearedSnapshots).toEqual([]);
   });
 
   it('returns terminate intent ids for active provisioned runners with cancelled latest jobs', async () => {

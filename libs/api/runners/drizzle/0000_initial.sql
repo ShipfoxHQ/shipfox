@@ -78,6 +78,19 @@ CREATE TABLE "runners_provisioned_runners" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "runners_provisioner_capability_snapshots" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"provisioner_id" uuid NOT NULL,
+	"template_key" text NOT NULL,
+	"labels" text[] NOT NULL,
+	"available_slots" integer NOT NULL,
+	"starting" integer NOT NULL,
+	"running" integer NOT NULL,
+	"advertised_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "runners_provisioner_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"scope" "runners_provisioner_scope" NOT NULL,
@@ -172,6 +185,8 @@ CREATE UNIQUE INDEX "runners_provisioned_runners_provisioner_runner_unique" ON "
 CREATE INDEX "runners_provisioned_runners_workspace_state_updated_idx" ON "runners_provisioned_runners" USING btree ("state","updated_at");--> statement-breakpoint
 CREATE INDEX "runners_provisioned_runners_stale_reaper_idx" ON "runners_provisioned_runners" USING btree ("state","updated_at","reported_at");--> statement-breakpoint
 CREATE INDEX "runners_provisioned_runners_active_template_counts_idx" ON "runners_provisioned_runners" USING btree ("provisioner_id","state","template_key") WHERE "state" in ('starting', 'running') and "template_key" is not null;--> statement-breakpoint
+CREATE INDEX "runners_provisioner_capability_snapshots_workspace_active_idx" ON "runners_provisioner_capability_snapshots" USING btree ("workspace_id","advertised_at");--> statement-breakpoint
+CREATE INDEX "runners_provisioner_capability_snapshots_provisioner_idx" ON "runners_provisioner_capability_snapshots" USING btree ("provisioner_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_provisioner_tokens_hashed_token_unique" ON "runners_provisioner_tokens" USING btree ("hashed_token");--> statement-breakpoint
 CREATE INDEX "runners_provisioner_tokens_workspace_last_seen_idx" ON "runners_provisioner_tokens" USING btree ("workspace_id","last_seen_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_rate_limits_window_unique" ON "runners_rate_limits" USING btree ("action","scope","identifier_hmac","window_start");--> statement-breakpoint
