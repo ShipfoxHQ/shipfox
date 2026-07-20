@@ -93,4 +93,14 @@ describe('custom icons', () => {
     expect(markup).toContain('aria-label="Caller label"');
     expect(markup).not.toContain('<title>');
   });
+
+  it('renders the Slack glyph with the caller color', () => {
+    const markup = renderToStaticMarkup(createElement(SlackLogo, {size: 24}));
+
+    expect(markup).toContain('fill="currentColor"');
+    expect(markup).not.toContain('#E01E5A');
+    expect(markup).not.toContain('#36C5F0');
+    expect(markup).not.toContain('#2EB67D');
+    expect(markup).not.toContain('#ECB22E');
+  });
 });
