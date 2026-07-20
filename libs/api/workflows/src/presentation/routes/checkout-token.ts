@@ -39,13 +39,21 @@ export function createCheckoutTokenRoute(clients: {
       if (error instanceof CheckoutIntentUnresolvedError)
         throw new ClientError(error.message, 'checkout-unavailable', {status: 404});
       if (known?.code === 'connection-not-found')
-        throw new ClientError('Integration connection not found', 'integration-connection-not-found', {
-          status: 404,
-        });
+        throw new ClientError(
+          'Integration connection not found',
+          'integration-connection-not-found',
+          {
+            status: 404,
+          },
+        );
       if (known?.code === 'connection-inactive')
-        throw new ClientError('Integration connection is not active', 'integration-connection-inactive', {
-          status: 422,
-        });
+        throw new ClientError(
+          'Integration connection is not active',
+          'integration-connection-inactive',
+          {
+            status: 422,
+          },
+        );
       if (known?.code === 'connection-workspace-mismatch')
         throw new ClientError(
           'Integration connection does not belong to this workspace',
@@ -53,17 +61,29 @@ export function createCheckoutTokenRoute(clients: {
           {status: 403},
         );
       if (known?.code === 'provider-unavailable')
-        throw new ClientError('Integration provider is unavailable', 'integration-provider-unavailable', {
-          status: 422,
-        });
+        throw new ClientError(
+          'Integration provider is unavailable',
+          'integration-provider-unavailable',
+          {
+            status: 422,
+          },
+        );
       if (known?.code === 'capability-unavailable')
-        throw new ClientError('Integration capability is unavailable', 'integration-capability-unavailable', {
-          status: 422,
-        });
+        throw new ClientError(
+          'Integration capability is unavailable',
+          'integration-capability-unavailable',
+          {
+            status: 422,
+          },
+        );
       if (known?.code === 'checkout-unsupported')
-        throw new ClientError('Integration checkout is unsupported', 'integration-checkout-unsupported', {
-          status: 422,
-        });
+        throw new ClientError(
+          'Integration checkout is unsupported',
+          'integration-checkout-unsupported',
+          {
+            status: 422,
+          },
+        );
       if (known?.code === 'provider-failure') {
         const status =
           known.details.reason === 'rate-limited'

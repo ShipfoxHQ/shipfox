@@ -9,8 +9,7 @@ import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
-import {createLeaseTokenRouteGroup} from './index.js';
-import {createWorkflowRoutes} from './index.js';
+import {createLeaseTokenRouteGroup, createWorkflowRoutes} from './index.js';
 
 vi.mock('@shipfox/api-projects', () => ({getProjectById: vi.fn()}));
 const mockGetProjectById = vi.mocked(getProjectById);
@@ -29,7 +28,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   const {logger, lines: logLines, clear: clearLogLines} = createCapturingLogger();
 
   beforeAll(async () => {
-    const [, checkoutRouteGroup] = createWorkflowRoutes({createCheckoutSpec} as never);
+    const [, _checkoutRouteGroup] = createWorkflowRoutes({createCheckoutSpec} as never);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
       routes: [
