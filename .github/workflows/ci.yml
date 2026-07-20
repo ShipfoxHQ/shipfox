@@ -340,7 +340,7 @@ jobs:
           aws-region: us-east-1
           role-duration-seconds: 7200
           role-session-name: shipfox-runner-image-candidate
-          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_CANDIDATE_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
 
       - name: Build runner image tooling
         run: turbo build --filter=@shipfox/runner-image...

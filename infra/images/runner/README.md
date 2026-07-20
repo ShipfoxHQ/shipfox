@@ -40,7 +40,7 @@ After every successful merge to `main`, CI builds one candidate AMI per architec
 
 The candidate command writes its AMI ID, architecture, region, source SHA, and whether it built or reused the image to its required `--output` JSON file. The AMI tags are the discovery contract. Internal users resolve an available image by its exact source SHA and architecture with `shipfox.managed=true`, `shipfox.lifecycle=candidate`, `shipfox.revision`, and `shipfox.architecture`. Candidates also record their GitHub build metadata and an expiry timestamp for account-level cleanup.
 
-CI assumes `AWS_RUNNER_IMAGE_CANDIDATE_ROLE_ARN` through GitHub OIDC. The role must belong to the candidate account and trust only `ShipfoxHQ/shipfox` builds from `main`. Candidate AMIs must not be used by production provisioning.
+CI assumes `AWS_RUNNER_IMAGE_ROLE_ARN` through GitHub OIDC. The role must belong to the candidate account and trust only `ShipfoxHQ/shipfox` builds from `main`. Candidate AMIs must not be used by production provisioning.
 
 QEMU output is test-only and is not published as a distributed artifact. The supported consumer path is a local or CI build followed by a boot test:
 
