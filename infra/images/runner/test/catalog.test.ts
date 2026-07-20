@@ -29,7 +29,7 @@ function input(architecture: 'amd64' | 'arm64' = 'amd64') {
         createdAt: '2026-07-19T10:15:00Z',
         encrypted: true,
         imageOs: 'ubuntu24',
-        region: 'us-east-1',
+        region: 'eu-central-1',
         runnerVersion: '0.1.0',
         sourceAmi: 'ami-0123abc456def7890',
       },
@@ -130,7 +130,7 @@ describe('runner-image-catalog CLI', () => {
             builder_type: 'amazon-ebs',
             packer_run_uuid: 'run-123',
             build_time: 1_784_390_400,
-            artifact_id: 'us-east-1:ami-0123abc456def7890',
+            artifact_id: 'eu-central-1:ami-0123abc456def7890',
             custom_data: {
               architecture: 'amd64',
               build_attempt: '1',
