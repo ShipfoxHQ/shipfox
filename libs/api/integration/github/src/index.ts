@@ -49,6 +49,11 @@ export {handleGithubCallback} from '#core/install.js';
 export {signGithubInstallState, verifyGithubInstallState} from '#core/state.js';
 export type {HandleGithubEventOutcome} from '#core/webhook.js';
 export {handleGithubEvent} from '#core/webhook.js';
+export type {
+  CreateGithubWebhookProcessorOptions,
+  GithubWebhookProcessor,
+} from '#core/webhook-processor.js';
+export {createGithubWebhookProcessor} from '#core/webhook-processor.js';
 export type {GithubInstallation, UpsertGithubInstallationParams} from '#db/installations.js';
 export {
   getGithubInstallationByConnectionId,
