@@ -52,6 +52,7 @@ export const createPlannedCapacityBodySchema = z
 
 export const createPlannedCapacityResponseSchema = z.object({
   capacity_id: z.string().uuid(),
+  bootstrap_credential: z.string().min(1),
 });
 
 export const attachProviderRunnerBodySchema = z

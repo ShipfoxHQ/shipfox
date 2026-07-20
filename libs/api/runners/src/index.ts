@@ -10,6 +10,8 @@ import {db, migrationsPath, runnersOutbox} from '#db/index.js';
 import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
 import {registerRunnersServiceMetrics} from '#metrics/index.js';
 import {
+  createCapacityBootstrapAuthMethod,
+  createCapacitySessionAuthMethod,
   createProvisionerTokenAuthMethod,
   createRunnerRegistrationTokenAuthMethod,
   createRunnerRoutes,
@@ -54,7 +56,12 @@ export function createRunnersModule(options: CreateRunnersModuleOptions = {}): S
   return {
     name: 'runners',
     database: {db, migrationsPath},
-    auth: [createRunnerRegistrationTokenAuthMethod(), createProvisionerTokenAuthMethod()],
+    auth: [
+      createRunnerRegistrationTokenAuthMethod(),
+      createProvisionerTokenAuthMethod(),
+      createCapacityBootstrapAuthMethod(),
+      createCapacitySessionAuthMethod(),
+    ],
     routes: createRunnerRoutes(options),
     metrics: registerRunnersServiceMetrics,
     publishers: [{name: 'runners', table: runnersOutbox, db, eventSchemas: runnersEventSchemas}],

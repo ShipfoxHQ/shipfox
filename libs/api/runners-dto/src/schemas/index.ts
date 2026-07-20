@@ -5,6 +5,15 @@ export {
   assignCapacityBatchResponseSchema,
 } from './assign-capacity.js';
 export {
+  type CapacitySessionResponseDto,
+  capacityHeartbeatResponseSchema,
+  capacitySessionResponseSchema,
+  type DeclareCapacityBodyDto,
+  declareCapacityBodySchema,
+  declareCapacityResponseSchema,
+  exchangeCapacityBootstrapBodySchema,
+} from './capacity-session.js';
+export {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
   RUNNER_SESSION_EXHAUSTED_CODE,

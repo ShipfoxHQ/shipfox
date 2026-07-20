@@ -1,4 +1,6 @@
 import {
+  AUTH_CAPACITY_BOOTSTRAP_CREDENTIAL,
+  AUTH_CAPACITY_SESSION,
   AUTH_LEASED_JOB,
   AUTH_PROVISIONER_TOKEN,
   AUTH_RUNNER_REGISTRATION_TOKEN,
@@ -8,6 +10,13 @@ import {
 import type {RouteGroup} from '@shipfox/node-fastify';
 import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
 import {assignCapacityRoute} from './assign-capacity.js';
+import {
+  attachCapacityProviderRunnerRoute,
+  capacityHeartbeatRoute,
+  declareCapacityRoute,
+  exchangeCapacityBootstrapRoute,
+  reconcileCapacityRoute,
+} from './capacity-session.js';
 import {createManualRegistrationTokenRoute} from './create-manual-registration-token.js';
 import {createProvisionerTokenRoute} from './create-provisioner-token.js';
 import {getProvisionerMeRoute} from './get-provisioner-me.js';
@@ -71,6 +80,24 @@ const runnerOnlyRoutes: RouteGroup[] = [
   },
 ];
 
+const capacityRoutes: RouteGroup[] = [
+  {
+    prefix: '/capacity',
+    auth: AUTH_CAPACITY_BOOTSTRAP_CREDENTIAL,
+    routes: [exchangeCapacityBootstrapRoute],
+  },
+  {
+    prefix: '/capacity',
+    auth: AUTH_CAPACITY_SESSION,
+    routes: [
+      declareCapacityRoute,
+      attachCapacityProviderRunnerRoute,
+      capacityHeartbeatRoute,
+      reconcileCapacityRoute,
+    ],
+  },
+];
+
 export const provisionerRoutes: RouteGroup[] = [
   {
     prefix: '/workspaces/:workspaceId/provisioners/tokens',
@@ -102,6 +129,7 @@ export function createRunnerRoutes(options: CreateRunnersModuleOptions = {}): Ro
         : route,
     ),
     ...provisionerRoutes,
+    ...capacityRoutes,
   ];
 }
 

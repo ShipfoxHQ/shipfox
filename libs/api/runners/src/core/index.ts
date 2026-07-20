@@ -1,4 +1,10 @@
 export {assignCapacityBatch} from './capacity-assignments.js';
+export {
+  createPlannedCapacityWithBootstrapCredential,
+  declareCapacity,
+  exchangeCapacityBootstrapCredential,
+  issueCapacityBootstrapCredential,
+} from './capacity-sessions.js';
 export type {CapacityAssignment} from './entities/capacity-assignment.js';
 export type {EphemeralRegistrationToken} from './entities/ephemeral-registration-token.js';
 export type {ManualRegistrationToken} from './entities/manual-registration-token.js';

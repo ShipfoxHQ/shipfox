@@ -1,4 +1,6 @@
 import {
+  AUTH_CAPACITY_BOOTSTRAP_CREDENTIAL,
+  AUTH_CAPACITY_SESSION,
   AUTH_LEASED_JOB,
   AUTH_PROVISIONER_TOKEN,
   AUTH_RUNNER_REGISTRATION_TOKEN,
@@ -62,6 +64,8 @@ describe('POST /provisioners/demand/poll', () => {
         passthroughAuth(AUTH_RUNNER_REGISTRATION_TOKEN),
         passthroughAuth(AUTH_RUNNER_SESSION),
         passthroughAuth(AUTH_LEASED_JOB),
+        passthroughAuth(AUTH_CAPACITY_BOOTSTRAP_CREDENTIAL),
+        passthroughAuth(AUTH_CAPACITY_SESSION),
         fakeProvisionerAuth,
       ],
       routes: runnerRoutes,
@@ -393,6 +397,8 @@ describe('POST /provisioners/demand/poll with installation provisioning configur
         passthroughAuth(AUTH_RUNNER_REGISTRATION_TOKEN),
         passthroughAuth(AUTH_RUNNER_SESSION),
         passthroughAuth(AUTH_LEASED_JOB),
+        passthroughAuth(AUTH_CAPACITY_BOOTSTRAP_CREDENTIAL),
+        passthroughAuth(AUTH_CAPACITY_SESSION),
         fakeProvisionerAuth,
       ],
       routes: createRunnerRoutes({

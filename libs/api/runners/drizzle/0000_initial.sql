@@ -213,3 +213,31 @@ CREATE INDEX "runners_running_jobs_provisioned_runner_started_idx" ON "runners_r
 CREATE INDEX "runners_running_jobs_cancellation_requested_idx" ON "runners_running_jobs" USING btree ("workspace_id","provisioner_id","provisioned_runner_id") WHERE "cancellation_requested_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "runners_running_jobs_job_id_idx" ON "runners_running_jobs" USING btree ("job_id");--> statement-breakpoint
 CREATE INDEX "runners_running_jobs_runner_session_id_idx" ON "runners_running_jobs" USING btree ("runner_session_id");
+--> statement-breakpoint
+CREATE TABLE "runners_capacity_bootstrap_credentials" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"capacity_id" uuid NOT NULL,
+	"provisioner_id" uuid NOT NULL,
+	"hashed_token" text NOT NULL,
+	"prefix" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"consumed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "runners_capacity_sessions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"capacity_id" uuid NOT NULL,
+	"provisioner_id" uuid NOT NULL,
+	"hashed_token" text NOT NULL,
+	"prefix" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"closed_at" timestamp with time zone,
+	"last_seen_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_capacity_bootstrap_credentials_hashed_token_unique" ON "runners_capacity_bootstrap_credentials" USING btree ("hashed_token");--> statement-breakpoint
+CREATE INDEX "runners_capacity_bootstrap_credentials_capacity_idx" ON "runners_capacity_bootstrap_credentials" USING btree ("capacity_id","consumed_at","expires_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_capacity_sessions_hashed_token_unique" ON "runners_capacity_sessions" USING btree ("hashed_token");--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_capacity_sessions_capacity_active_unique" ON "runners_capacity_sessions" USING btree ("capacity_id") WHERE "runners_capacity_sessions"."closed_at" is null;

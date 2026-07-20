@@ -12,6 +12,8 @@ export const tokenTypeParts = {
   refreshToken: 'r',
   manualRegistrationToken: 'mrt',
   ephemeralRegistrationToken: 'ert',
+  capacityBootstrapCredential: 'cbc',
+  capacitySession: 'cs',
   provisionerToken: 'pt',
 } as const;
 

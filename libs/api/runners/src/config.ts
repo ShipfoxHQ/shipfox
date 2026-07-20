@@ -3,8 +3,17 @@ import {bool, createConfig, num, str} from '@shipfox/config';
 import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 const EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
+const CAPACITY_TTL_HARD_MAX_SECONDS = 3600;
 
 export const config = createConfig({
+  CAPACITY_BOOTSTRAP_CREDENTIAL_TTL_SECONDS: num({
+    desc: 'Lifetime of a single-use capacity bootstrap credential, in seconds. The launched capacity uses it once to create its capacity-only session.',
+    default: 300,
+  }),
+  CAPACITY_SESSION_TTL_SECONDS: num({
+    desc: 'Lifetime of a capacity-only session, in seconds. The session can only report and reconcile its own unassigned capacity.',
+    default: 300,
+  }),
   EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS: num({
     desc: `Lifetime of a provisioner-minted runner registration token, in seconds. The token can be exchanged once by a runner before this time passes. Set this between 1 and ${EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS}.`,
     default: 300,
@@ -124,6 +133,17 @@ if (
   throw new Error(
     `EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS (${config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS}) must be a whole number of seconds between 1 and ${EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS}.`,
   );
+}
+
+for (const [name, value] of [
+  ['CAPACITY_BOOTSTRAP_CREDENTIAL_TTL_SECONDS', config.CAPACITY_BOOTSTRAP_CREDENTIAL_TTL_SECONDS],
+  ['CAPACITY_SESSION_TTL_SECONDS', config.CAPACITY_SESSION_TTL_SECONDS],
+] as const) {
+  if (!Number.isInteger(value) || value < 1 || value > CAPACITY_TTL_HARD_MAX_SECONDS) {
+    throw new Error(
+      `${name} (${value}) must be a whole number of seconds between 1 and ${CAPACITY_TTL_HARD_MAX_SECONDS}.`,
+    );
+  }
 }
 
 if (

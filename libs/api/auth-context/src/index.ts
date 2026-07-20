@@ -7,6 +7,8 @@ export const AUTH_RUNNER_REGISTRATION_TOKEN = 'runner-registration-token';
 export const AUTH_RUNNER_SESSION = 'runner-session';
 export const AUTH_LEASED_JOB = 'leased-job';
 export const AUTH_PROVISIONER_TOKEN = 'provisioner-token';
+export const AUTH_CAPACITY_SESSION = 'capacity-session';
+export const AUTH_CAPACITY_BOOTSTRAP_CREDENTIAL = 'capacity-bootstrap-credential';
 
 export type WorkspaceStatus = 'active' | 'suspended' | 'deleted';
 
@@ -50,6 +52,11 @@ export type ProvisionerContext =
 
 export type LeasedJobContext = JobLeaseTokenClaims;
 export type RunnerSessionContext = RunnerSessionTokenClaims;
+export interface CapacitySessionContext {
+  capacityId: string;
+  provisionerId: string;
+  sessionId: string;
+}
 
 type RequestWithContext = object;
 
@@ -57,6 +64,7 @@ const USER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/user');
 const LEASED_JOB_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/leased-job');
 const PROVISIONER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/provisioner');
 const RUNNER_SESSION_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/runner-session');
+const CAPACITY_SESSION_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/capacity-session');
 
 export function setUserContext(request: RequestWithContext, context: UserContext): void {
   (request as Record<symbol, unknown>)[USER_CONTEXT_KEY] = context;
@@ -193,5 +201,20 @@ export function requireRunnerSessionContext(request: RequestWithContext): Runner
   if (!context) {
     throw new Error('Runner session context is not available on this request');
   }
+  return context;
+}
+
+export function setCapacitySessionContext(
+  request: RequestWithContext,
+  context: CapacitySessionContext,
+): void {
+  (request as Record<symbol, unknown>)[CAPACITY_SESSION_CONTEXT_KEY] = context;
+}
+
+export function requireCapacitySessionContext(request: RequestWithContext): CapacitySessionContext {
+  const context = (request as Record<symbol, unknown>)[CAPACITY_SESSION_CONTEXT_KEY] as
+    | CapacitySessionContext
+    | undefined;
+  if (!context) throw new Error('Capacity session context is not available on this request');
   return context;
 }

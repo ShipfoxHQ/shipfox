@@ -1,4 +1,6 @@
 export {
+  createCapacityBootstrapAuthMethod,
+  createCapacitySessionAuthMethod,
   createProvisionerTokenAuthMethod,
   createRunnerRegistrationTokenAuthMethod,
 } from './auth/index.js';

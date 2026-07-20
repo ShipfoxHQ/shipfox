@@ -7,7 +7,8 @@ import {
 } from '@shipfox/api-runners-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {attachProviderRunnerId, createPlannedProvisionedCapacity} from '#core/index.js';
+import {config} from '#config.js';
+import {attachProviderRunnerId, createPlannedCapacityWithBootstrapCredential} from '#core/index.js';
 
 export const createPlannedCapacityRoute = defineRoute({
   method: 'POST',
@@ -19,12 +20,13 @@ export const createPlannedCapacityRoute = defineRoute({
   },
   handler: async (request) => {
     const {provisionerTokenId} = requireProvisionerContext(request);
-    const result = await createPlannedProvisionedCapacity({
+    const result = await createPlannedCapacityWithBootstrapCredential({
       provisionerId: provisionerTokenId,
       providerKind: request.body.provider_kind ?? null,
       templateKey: request.body.template_key ?? null,
+      ttlSeconds: config.CAPACITY_BOOTSTRAP_CREDENTIAL_TTL_SECONDS,
     });
-    return {capacity_id: result.capacityId};
+    return {capacity_id: result.capacityId, bootstrap_credential: result.bootstrapCredential};
   },
 });
 
