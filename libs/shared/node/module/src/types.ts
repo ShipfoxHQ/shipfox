@@ -51,6 +51,17 @@ export interface ModuleWorker {
   workflows: WorkflowStart[];
 }
 
+export interface ModuleServiceHandle {
+  stop(): Promise<void>;
+  finished: Promise<void>;
+}
+
+export interface ModuleService {
+  name: string;
+  shutdownTimeoutMs: number;
+  start(): Promise<ModuleServiceHandle>;
+}
+
 /**
  * Hook for observable gauges over shared service state. Implementations must
  * fetch the service metrics provider inside the callback so ordinary module
@@ -79,6 +90,7 @@ export interface ShipfoxModule {
   publishers?: ModulePublisher[];
   subscribers?: ModuleSubscriber[];
   workers?: ModuleWorker[];
+  services?: ModuleService[];
   metrics?: ModuleMetricsRegistration;
   startupTasks?: ModuleStartupTasks;
   /**

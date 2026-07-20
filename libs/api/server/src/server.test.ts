@@ -1,4 +1,6 @@
 import type {
+  ModuleService,
+  ModuleServicesHandle,
   ModuleWorker,
   ModuleWorkersHandle,
   ShipfoxModule,
@@ -8,6 +10,7 @@ import {createServer, runServer, type ServerHandle} from './server.js';
 
 const mocks = vi.hoisted(() => {
   const workersHandle = {stop: vi.fn()};
+  const servicesHandle = {stop: vi.fn()};
   return {
     captureException: vi.fn(),
     closeApp: vi.fn(),
@@ -27,9 +30,11 @@ const mocks = vi.hoisted(() => {
     resetSubscribers: vi.fn(),
     runModuleStartupTasks: vi.fn(),
     shutdownServiceMetrics: vi.fn(),
+    startModuleServices: vi.fn(),
     startModuleWorkers: vi.fn(),
     startServiceMetrics: vi.fn(),
     workersHandle,
+    servicesHandle,
     apiConfig: {
       API_PORT: undefined as number | undefined,
       API_TRUST_PROXY: 'false',
@@ -54,6 +59,7 @@ vi.mock('@shipfox/node-module', () => ({
   resetPublishers: mocks.resetPublishers,
   resetSubscribers: mocks.resetSubscribers,
   runModuleStartupTasks: mocks.runModuleStartupTasks,
+  startModuleServices: mocks.startModuleServices,
   startModuleWorkers: mocks.startModuleWorkers,
 }));
 vi.mock('@shipfox/node-opentelemetry', () => ({
@@ -87,10 +93,26 @@ function worker(taskQueue = 'runtime-queue'): ModuleWorker {
   };
 }
 
+function service(name = 'runtime-service'): ModuleService {
+  return {name, shutdownTimeoutMs: 10_000, start: vi.fn()};
+}
+
 function lastStartModuleWorkersOptions(): StartModuleWorkersOptions {
   const options = mocks.startModuleWorkers.mock.calls.at(-1)?.[0];
   if (!options) throw new Error('startModuleWorkers was not called');
   return options as StartModuleWorkersOptions;
+}
+
+function lastStartModuleServicesOptions(): {
+  services: ModuleService[];
+  onServiceFailure?: (error: unknown, service: ModuleService) => void | Promise<void>;
+} {
+  const options = mocks.startModuleServices.mock.calls.at(-1)?.[0];
+  if (!options) throw new Error('startModuleServices was not called');
+  return options as {
+    services: ModuleService[];
+    onServiceFailure?: (error: unknown, service: ModuleService) => void | Promise<void>;
+  };
 }
 
 function resetMocks(): void {
@@ -114,9 +136,11 @@ function resetMocks(): void {
   mocks.resetSubscribers.mockReset();
   mocks.runModuleStartupTasks.mockReset();
   mocks.shutdownServiceMetrics.mockReset();
+  mocks.startModuleServices.mockReset();
   mocks.startModuleWorkers.mockReset();
   mocks.startServiceMetrics.mockReset();
   mocks.workersHandle.stop.mockReset();
+  mocks.servicesHandle.stop.mockReset();
   mocks.apiConfig.API_PORT = undefined;
   mocks.apiConfig.API_TRUST_PROXY = 'false';
   mocks.apiConfig.E2E_ENABLED = false;
@@ -132,13 +156,16 @@ function resetMocks(): void {
     routes: [],
     e2eRoutes: [],
     workers: [worker()],
+    services: [service()],
   });
   mocks.listen.mockResolvedValue('http://127.0.0.1:3000');
   mocks.parseApiTrustProxy.mockReturnValue(false);
   mocks.runModuleStartupTasks.mockResolvedValue(undefined);
   mocks.shutdownServiceMetrics.mockResolvedValue(undefined);
   mocks.startModuleWorkers.mockResolvedValue(mocks.workersHandle);
+  mocks.startModuleServices.mockResolvedValue(mocks.servicesHandle);
   mocks.workersHandle.stop.mockResolvedValue(undefined);
+  mocks.servicesHandle.stop.mockResolvedValue(undefined);
 }
 
 const servers: ServerHandle[] = [];
@@ -201,6 +228,7 @@ describe('createServer', () => {
     await server.start();
 
     expect(mocks.startModuleWorkers).toHaveBeenCalledOnce();
+    expect(mocks.startModuleServices).toHaveBeenCalledOnce();
     expect(mocks.listen).toHaveBeenCalledOnce();
   });
 
@@ -230,6 +258,35 @@ describe('createServer', () => {
     );
   });
 
+  it('starts module services after workers and before listening for HTTP requests', async () => {
+    const server = await createTestServer({modules: [module()]});
+    let resolveServices: ((handle: ModuleServicesHandle) => void) | undefined;
+    const servicesStarted = new Promise<void>((resolve) => {
+      mocks.startModuleServices.mockImplementationOnce(
+        () =>
+          new Promise<ModuleServicesHandle>((innerResolve) => {
+            resolveServices = innerResolve;
+            resolve();
+          }),
+      );
+    });
+
+    const start = server.start();
+    await servicesStarted;
+
+    expect(mocks.listen).not.toHaveBeenCalled();
+    expect(mocks.startModuleWorkers.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.startModuleServices.mock.invocationCallOrder[0] ?? 0,
+    );
+
+    resolveServices?.(mocks.servicesHandle);
+    await start;
+
+    expect(mocks.startModuleServices.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.listen.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
   it('passes API_PORT to the HTTP listener when configured', async () => {
     mocks.apiConfig.API_PORT = 55_291;
     const server = await createTestServer({modules: [module()]});
@@ -248,6 +305,20 @@ describe('createServer', () => {
 
     await expect(result).rejects.toBe(failure);
     expect(mocks.listen).not.toHaveBeenCalled();
+  });
+
+  it('does not listen when module service startup fails', async () => {
+    const failure = new Error('service configuration invalid');
+    mocks.startModuleServices.mockRejectedValueOnce(failure);
+    const server = await createTestServer({modules: [module()]});
+
+    const result = server.start();
+
+    await expect(result).rejects.toBe(failure);
+    expect(mocks.listen).not.toHaveBeenCalled();
+
+    await server.stop();
+    expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
   });
 
   it('releases service metrics and Postgres when boot fails', async () => {
@@ -305,6 +376,7 @@ describe('createServer', () => {
     await secondStop;
 
     expect(mocks.closeApp).toHaveBeenCalledOnce();
+    expect(mocks.servicesHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
@@ -319,6 +391,7 @@ describe('createServer', () => {
     await server.stop();
 
     expect(mocks.closeApp).toHaveBeenCalledOnce();
+    expect(mocks.servicesHandle.stop).not.toHaveBeenCalled();
     expect(mocks.workersHandle.stop).not.toHaveBeenCalled();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
@@ -351,6 +424,7 @@ describe('createServer', () => {
 
     expect(mocks.listen).not.toHaveBeenCalled();
     expect(mocks.closeApp).toHaveBeenCalledOnce();
+    expect(mocks.servicesHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
@@ -366,6 +440,9 @@ describe('createServer', () => {
     await server.stop();
 
     expect(mocks.closeApp.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.servicesHandle.stop.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(mocks.servicesHandle.stop.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.workersHandle.stop.mock.invocationCallOrder[0] ?? 0,
     );
     expect(mocks.workersHandle.stop.mock.invocationCallOrder[0]).toBeLessThan(
@@ -400,6 +477,7 @@ describe('createServer', () => {
     const result = server.stop();
 
     await expect(result).rejects.toBeInstanceOf(AggregateError);
+    expect(mocks.servicesHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
@@ -443,6 +521,27 @@ describe('createServer', () => {
     );
   });
 
+  it('reports service failures after closing HTTP and error monitoring', async () => {
+    const onServiceFailure = vi.fn();
+    const server = await createTestServer({modules: [module()], onServiceFailure});
+    await server.start();
+    const failure = new Error('poller failed');
+    const failedService = service();
+
+    await lastStartModuleServicesOptions().onServiceFailure?.(failure, failedService);
+
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      {err: failure, service: 'runtime-service'},
+      'Module service stopped unexpectedly',
+    );
+    expect(mocks.captureException).toHaveBeenCalledWith(failure);
+    expect(mocks.closeApp).toHaveBeenCalledOnce();
+    expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
+    expect(mocks.closeErrorMonitoring.mock.invocationCallOrder[0]).toBeLessThan(
+      onServiceFailure.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
   it('reports a timed-out HTTP close before invoking the worker failure hook', async () => {
     vi.useFakeTimers();
     const onWorkerFailure = vi.fn();
@@ -459,7 +558,7 @@ describe('createServer', () => {
 
     expect(mocks.logger.error).toHaveBeenCalledWith(
       {timeoutMs: 10_000},
-      'Timed out closing HTTP server after worker failure',
+      'Timed out closing HTTP server after module runtime failure',
     );
     expect(onWorkerFailure).toHaveBeenCalledWith(
       failure,
@@ -478,7 +577,7 @@ describe('createServer', () => {
 
     expect(mocks.logger.error).toHaveBeenCalledWith(
       {err: closeFailure},
-      'Failed to close HTTP server after worker failure',
+      'Failed to close HTTP server after module runtime failure',
     );
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
     expect(mocks.closeErrorMonitoring.mock.invocationCallOrder[0]).toBeLessThan(
@@ -519,6 +618,7 @@ describe('runServer', () => {
     await expect(result).rejects.toBe(failure);
     expect(onStartupFailure).toHaveBeenCalledWith(failure);
     expect(mocks.closeApp).toHaveBeenCalledOnce();
+    expect(mocks.servicesHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.workersHandle.stop).toHaveBeenCalledOnce();
     expect(mocks.shutdownServiceMetrics).toHaveBeenCalledOnce();
     expect(mocks.closePostgresClient).toHaveBeenCalledOnce();
@@ -557,10 +657,25 @@ describe('runServer', () => {
   it('exits unsuccessfully when a module worker fails', async () => {
     vi.spyOn(process, 'once').mockImplementation((() => process) as never);
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
-    await runServer({modules: [module()]});
+    const handle = await runServer({modules: [module()]});
 
     await lastStartModuleWorkersOptions().onWorkerFailure?.(new Error('poller failed'), worker());
 
     expect(exitSpy).toHaveBeenCalledWith(1);
+    await handle.stop();
+  });
+
+  it('exits unsuccessfully when a module service fails', async () => {
+    vi.spyOn(process, 'once').mockImplementation((() => process) as never);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const handle = await runServer({modules: [module()]});
+
+    await lastStartModuleServicesOptions().onServiceFailure?.(
+      new Error('poller failed'),
+      service(),
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    await handle.stop();
   });
 });

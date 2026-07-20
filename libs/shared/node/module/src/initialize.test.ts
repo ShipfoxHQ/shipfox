@@ -1,5 +1,10 @@
-import {registerModuleMetrics, runModuleStartupTasks, startModuleWorkers} from './initialize.js';
-import type {ModuleWorker, ShipfoxModule} from './types.js';
+import {
+  registerModuleMetrics,
+  runModuleStartupTasks,
+  startModuleServices,
+  startModuleWorkers,
+} from './initialize.js';
+import type {ModuleService, ModuleServiceHandle, ModuleWorker, ShipfoxModule} from './types.js';
 
 const mocks = vi.hoisted(() => ({
   closeTemporalClient: vi.fn(),
@@ -108,6 +113,252 @@ describe('runModuleStartupTasks', () => {
 
     await expect(result).rejects.toBe(failure);
     expect(later).not.toHaveBeenCalled();
+  });
+});
+
+function moduleService(overrides: Partial<ModuleService> = {}): ModuleService {
+  return {
+    name: 'test-service',
+    shutdownTimeoutMs: 100,
+    start: vi.fn(),
+    ...overrides,
+  };
+}
+
+function moduleServiceHandle(overrides: Partial<ModuleServiceHandle> = {}): ModuleServiceHandle {
+  return {
+    stop: vi.fn().mockResolvedValue(undefined),
+    finished: new Promise(() => undefined),
+    ...overrides,
+  };
+}
+
+describe('startModuleServices', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    mocks.logger.error.mockReset();
+    mocks.logger.info.mockReset();
+    mocks.logger.warn.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns a no-op handle when no services are declared', async () => {
+    const handle = await startModuleServices({services: []});
+
+    await handle.stop();
+  });
+
+  it('starts services sequentially', async () => {
+    const calls: string[] = [];
+    const first = moduleService({
+      name: 'first',
+      start: async () => {
+        calls.push('first:start');
+        await Promise.resolve();
+        calls.push('first:end');
+        return moduleServiceHandle();
+      },
+    });
+    const second = moduleService({
+      name: 'second',
+      start: () => {
+        calls.push('second');
+        return Promise.resolve(moduleServiceHandle());
+      },
+    });
+
+    const handle = await startModuleServices({services: [first, second]});
+
+    expect(calls).toEqual(['first:start', 'first:end', 'second']);
+    await handle.stop();
+  });
+
+  it('stops started services in reverse order when a later service fails to start', async () => {
+    const failure = new Error('invalid configuration');
+    const firstHandle = moduleServiceHandle();
+    const first = moduleService({name: 'first', start: vi.fn().mockResolvedValue(firstHandle)});
+    const second = moduleService({name: 'second', start: vi.fn().mockRejectedValue(failure)});
+
+    const result = startModuleServices({services: [first, second]});
+
+    await expect(result).rejects.toBe(failure);
+    expect(firstHandle.stop).toHaveBeenCalledOnce();
+  });
+
+  it('stops services in reverse startup order and only once', async () => {
+    const calls: string[] = [];
+    const firstHandle = moduleServiceHandle({
+      stop: vi.fn(() => {
+        calls.push('first');
+        return Promise.resolve();
+      }),
+    });
+    const secondHandle = moduleServiceHandle({
+      stop: vi.fn(() => {
+        calls.push('second');
+        return Promise.resolve();
+      }),
+    });
+    const first = moduleService({name: 'first', start: vi.fn().mockResolvedValue(firstHandle)});
+    const second = moduleService({name: 'second', start: vi.fn().mockResolvedValue(secondHandle)});
+    const handle = await startModuleServices({services: [first, second]});
+
+    const firstStop = handle.stop();
+    const secondStop = handle.stop();
+    await firstStop;
+    await secondStop;
+
+    expect(calls).toEqual(['second', 'first']);
+    expect(firstHandle.stop).toHaveBeenCalledOnce();
+    expect(secondHandle.stop).toHaveBeenCalledOnce();
+  });
+
+  it('continues stopping services after a stop failure', async () => {
+    const failure = new Error('service stop failed');
+    const firstHandle = moduleServiceHandle();
+    const secondHandle = moduleServiceHandle({stop: vi.fn().mockRejectedValue(failure)});
+    const handle = await startModuleServices({
+      services: [
+        moduleService({name: 'first', start: vi.fn().mockResolvedValue(firstHandle)}),
+        moduleService({name: 'second', start: vi.fn().mockResolvedValue(secondHandle)}),
+      ],
+    });
+
+    await handle.stop();
+
+    expect(firstHandle.stop).toHaveBeenCalledOnce();
+    expect(secondHandle.stop).toHaveBeenCalledOnce();
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {err: failure, service: 'second'},
+      'Failed to stop module service',
+    );
+  });
+
+  it('bounds service shutdown and observes a late stop failure', async () => {
+    vi.useFakeTimers();
+    const failure = new Error('late stop failure');
+    let rejectStop: (error: Error) => void = () => undefined;
+    const pendingStop = new Promise<void>((_resolve, reject) => {
+      rejectStop = reject;
+    });
+    const service = moduleService({
+      name: 'slow',
+      shutdownTimeoutMs: 10,
+      start: vi.fn().mockResolvedValue(moduleServiceHandle({stop: vi.fn(() => pendingStop)})),
+    });
+    const handle = await startModuleServices({services: [service]});
+
+    const stop = handle.stop();
+    await vi.advanceTimersByTimeAsync(10);
+    await stop;
+    rejectStop(failure);
+    await flushMicrotasks();
+
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      {service: 'slow', timeoutMs: 10},
+      'Timed out stopping module service',
+    );
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {err: failure, service: 'slow'},
+      'Module service stop failed after timeout',
+    );
+  });
+
+  it('reports unexpected service completion but suppresses completion during deliberate shutdown', async () => {
+    let resolveFinished: () => void = () => undefined;
+    const finished = new Promise<void>((resolve) => {
+      resolveFinished = resolve;
+    });
+    const onServiceFailure = vi.fn();
+    const service = moduleService({
+      name: 'finishing',
+      start: vi.fn().mockResolvedValue(moduleServiceHandle({finished})),
+    });
+    await startModuleServices({services: [service], onServiceFailure});
+
+    resolveFinished();
+    await flushMicrotasks();
+
+    expect(onServiceFailure).toHaveBeenCalledWith(
+      expect.objectContaining({message: 'Module service finishing stopped unexpectedly'}),
+      service,
+    );
+
+    let resolveStoppingFinished: () => void = () => undefined;
+    const stoppingFinished = new Promise<void>((resolve) => {
+      resolveStoppingFinished = resolve;
+    });
+    const stoppingFailure = vi.fn();
+    const stoppingService = moduleService({
+      name: 'stopping',
+      start: vi.fn().mockResolvedValue(
+        moduleServiceHandle({
+          finished: stoppingFinished,
+          stop: vi.fn(async () => resolveStoppingFinished()),
+        }),
+      ),
+    });
+    const stoppingHandle = await startModuleServices({
+      services: [stoppingService],
+      onServiceFailure: stoppingFailure,
+    });
+
+    await stoppingHandle.stop();
+    await flushMicrotasks();
+
+    expect(stoppingFailure).not.toHaveBeenCalled();
+  });
+
+  it('reports an unexpected service failure', async () => {
+    const failure = new Error('poller crashed');
+    const onServiceFailure = vi.fn();
+    const service = moduleService({
+      name: 'failing',
+      start: vi.fn().mockResolvedValue(moduleServiceHandle({finished: Promise.reject(failure)})),
+    });
+
+    await startModuleServices({services: [service], onServiceFailure});
+    await flushMicrotasks();
+
+    expect(onServiceFailure).toHaveBeenCalledWith(failure, service);
+  });
+
+  it('logs the original service failure when the runtime failure callback rejects', async () => {
+    const failure = new Error('poller crashed');
+    const handlerFailure = new Error('shutdown failed');
+    const onServiceFailure = vi.fn().mockRejectedValue(handlerFailure);
+    const service = moduleService({
+      name: 'failing',
+      start: vi.fn().mockResolvedValue(moduleServiceHandle({finished: Promise.reject(failure)})),
+    });
+
+    await startModuleServices({services: [service], onServiceFailure});
+    await flushMicrotasks();
+
+    expect(onServiceFailure).toHaveBeenCalledWith(failure, service);
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      {err: handlerFailure, serviceErr: failure, service: 'failing'},
+      'Module service failure handler failed',
+    );
+  });
+
+  it('logs runtime service failures when no failure callback is provided', async () => {
+    const failure = new Error('poller crashed');
+    const service = moduleService({
+      name: 'failing',
+      start: vi.fn().mockResolvedValue(moduleServiceHandle({finished: Promise.reject(failure)})),
+    });
+
+    await startModuleServices({services: [service]});
+    await flushMicrotasks();
+
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      {err: failure, service: 'failing'},
+      'Module service stopped unexpectedly',
+    );
   });
 });
 
