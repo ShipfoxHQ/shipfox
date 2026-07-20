@@ -91,6 +91,7 @@
     "@shipfox/client-workspace-settings",
     "@shipfox/config",
     "@shipfox/expression",
+    "@shipfox/inter-module",
     "@shipfox/node-drizzle",
     "@shipfox/node-egress-guard",
     "@shipfox/node-email",

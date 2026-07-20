@@ -87,6 +87,44 @@ export const acmeSsoModule: ShipfoxModule = {
 
 Each identifier has one owning module. Duplicate identifiers fail during server construction. A module that contributes a login method must also create a login-ready session for a verified, active user.
 
+## Inter-module transport
+
+`@shipfox/node-module/inter-module` is the instance-owned in-memory transport for calls between bounded contexts. It builds on the browser-safe contract primitives in [`@shipfox/inter-module`](../../common/inter-module/README.md).
+
+```ts
+import {createInterModuleClient, defineInterModuleContract, defineInterModulePresentation} from '@shipfox/inter-module';
+import {createInMemoryInterModuleTransport, registerInterModulePresentations} from '@shipfox/node-module/inter-module';
+
+const transport = createInMemoryInterModuleTransport();
+
+// Clients can be created before presentations, so two modules can call each
+// other without a code import cycle.
+const widgets = transport.createClient(widgetsInterModuleContract);
+const orders = transport.createClient(ordersInterModuleContract);
+
+const modules = [createWidgetsModule({clients: {orders}}), createOrdersModule({clients: {widgets}})];
+
+registerInterModulePresentations({transport, modules});
+transport.seal(); // rejects a client whose module never got a presentation registered
+```
+
+`createClient`/`register` reject a duplicate or mismatched-contract-object call
+immediately, without recording anything — the rejected call never corrupts the
+graph, so fixing the caller and retrying that same call is always enough to
+recover.
+
+A module declares its producer presentations on `ShipfoxModule.interModulePresentations`; `registerInterModulePresentations` registers all of them in array order. `@shipfox/node-module/inter-module/testing` builds a fake client per named presentation for callers under test, without depending on Vitest:
+
+```ts
+import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
+
+const clients = createFakeInterModuleClients({
+  widgets: defineInterModulePresentation(widgetsInterModuleContract, {
+    getWidget: ({id}) => ({id, name: 'Fake widget'}),
+  }),
+});
+```
+
 ## Development
 
 ```sh

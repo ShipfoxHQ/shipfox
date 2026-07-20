@@ -1,7 +1,9 @@
+import {readFileSync} from 'node:fs';
 import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {parse as parseYaml} from 'yaml';
 
 import {
   createProductionManifestPacker,
@@ -48,9 +50,14 @@ try {
     return [name, tarball];
   });
 
-  const dependencies = Object.fromEntries(
-    tarballs.map(([name, tarball]) => [name, `file:${tarball}`]),
-  );
+  const dependencies = {
+    ...Object.fromEntries(tarballs.map(([name, tarball]) => [name, `file:${tarball}`])),
+    // The inter-module fixture script below imports `zod` directly (not only
+    // through a packed tarball's own dependency), so pnpm's strict
+    // node_modules layout needs it declared here too, or it is a phantom
+    // dependency the fixture cannot resolve.
+    zod: readCatalogVersion(repositoryRoot, 'zod'),
+  };
   const entryPoints = closure.flatMap((name) =>
     listPublicPackageEntryPoints(name, workspacePackages.get(name)?.manifest.exports),
   );
@@ -69,6 +76,7 @@ try {
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
   await run(process.execPath, ['auth-email-seams.mjs'], fixtureRoot);
+  await run(process.execPath, ['inter-module-runtime.mjs'], fixtureRoot);
   await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
   await run(
     resolve(repositoryRoot, 'tools/application-release/node_modules/.bin/tsx'),
@@ -115,7 +123,7 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
             strict: true,
             target: 'ES2024',
           },
-          include: ['types.ts', 'composition.ts'],
+          include: ['types.ts', 'composition.ts', 'inter-module-contract.ts'],
         },
         null,
         2,
@@ -138,6 +146,111 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
 void createServer({
   modules: [...(await defaultModules()), {name: 'external-dummy'}],
 });
+`,
+    ),
+    writeFile(
+      join(root, 'inter-module-contract.ts'),
+      `import {
+  defineInterModuleContract,
+  defineInterModulePresentation,
+  isInterModuleKnownError,
+} from '@shipfox/inter-module';
+import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
+import {z} from 'zod';
+
+const widgetsContract = defineInterModuleContract({
+  module: 'widgets',
+  methods: {
+    getWidget: {
+      input: z.object({id: z.string()}),
+      output: z.object({id: z.string(), name: z.string()}),
+      errors: {
+        'not-found': z.object({id: z.string()}),
+        conflict: z.object({id: z.string(), reason: z.string()}),
+      },
+    },
+  },
+});
+
+defineInterModulePresentation(widgetsContract, {
+  getWidget: ({id}) => ({id, name: 'Widget'}),
+});
+
+const transport = createInMemoryInterModuleTransport();
+const client = transport.createClient(widgetsContract);
+
+void client.getWidget({id: 'w-1'}).catch((error: unknown) => {
+  if (!isInterModuleKnownError(widgetsContract.methods.getWidget, error)) throw error;
+
+  // Switch on the destructured discriminant, not the property access \`error.code\`
+  // directly: TypeScript only narrows a switch discriminant to \`never\` in an
+  // exhaustive default when it is a plain local, not a dotted expression.
+  const {code} = error;
+  switch (code) {
+    case 'not-found':
+      void (error.details.id satisfies string);
+      return;
+    case 'conflict':
+      void (error.details.reason satisfies string);
+      return;
+    default: {
+      const exhaustive: never = code;
+      throw new Error(\`Unhandled known error code: \${exhaustive as string}\`);
+    }
+  }
+});
+`,
+    ),
+    writeFile(
+      join(root, 'inter-module-runtime.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});
+
+const {
+  createInterModuleKnownError,
+  defineInterModuleContract,
+  defineInterModulePresentation,
+  isInterModuleKnownError,
+} = await import('@shipfox/inter-module');
+const {createInMemoryInterModuleTransport} = await import('@shipfox/node-module/inter-module');
+const {z} = await import('zod');
+
+const widgetsContract = defineInterModuleContract({
+  module: 'widgets',
+  methods: {
+    getWidget: {
+      input: z.object({id: z.string()}),
+      output: z.object({id: z.string(), name: z.string()}),
+      errors: {'not-found': z.object({id: z.string()})},
+    },
+  },
+});
+
+const transport = createInMemoryInterModuleTransport();
+const client = transport.createClient(widgetsContract);
+transport.register(
+  defineInterModulePresentation(widgetsContract, {
+    getWidget: ({id}) => {
+      if (id === 'missing') {
+        throw createInterModuleKnownError(widgetsContract.methods.getWidget, 'not-found', {id});
+      }
+      return {id, name: 'Widget'};
+    },
+  }),
+);
+transport.seal();
+
+const result = await client.getWidget({id: 'w-1'});
+if (result.name !== 'Widget') {
+  throw new Error('Packed inter-module transport returned an unexpected result.');
+}
+
+const rejection = await client.getWidget({id: 'missing'}).catch((error) => error);
+if (!isInterModuleKnownError(widgetsContract.methods.getWidget, rejection)) {
+  throw new Error('Packed inter-module transport did not produce a recognizable known error.');
+}
+
+console.log('Executed a successful call and a known-error call through the packed inter-module transport.');
+process.exit(0);
 `,
     ),
     writeFile(
@@ -278,6 +391,15 @@ function runtimeEnvironment() {
 
 function safePackageName(name) {
   return name.replace('@shipfox/', '').replaceAll('/', '-');
+}
+
+function readCatalogVersion(rootDir, dependencyName) {
+  const workspace = parseYaml(readFileSync(join(rootDir, 'pnpm-workspace.yaml'), 'utf8'));
+  const version = workspace.catalog?.[dependencyName];
+  if (!version) {
+    throw new Error(`No catalog entry for ${dependencyName} in pnpm-workspace.yaml`);
+  }
+  return version;
 }
 
 async function emitDeclarationFiles(packageNames) {
