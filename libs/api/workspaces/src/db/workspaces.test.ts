@@ -1,4 +1,4 @@
-import {acceptInvitation, createInvitation} from './invitations.js';
+import {createInvitation, reconcileInvitationAcceptance} from './invitations.js';
 import {createMembership} from './memberships.js';
 import {
   createWorkspace,
@@ -98,9 +98,10 @@ describe('workspace queries', () => {
         invitedByUserId: crypto.randomUUID(),
         skipEmail: true,
       });
-      await acceptInvitation({
+      await reconcileInvitationAcceptance({
         invitationId: acceptedInvitation.id,
         acceptedByUserId: crypto.randomUUID(),
+        email: acceptedInvitation.email,
       });
 
       const metrics = await getWorkspaceServiceMetrics();

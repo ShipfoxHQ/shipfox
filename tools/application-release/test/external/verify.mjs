@@ -76,6 +76,7 @@ try {
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
   await run(process.execPath, ['auth-email-seams.mjs'], fixtureRoot);
+  await run(process.execPath, ['invitation-reconciliation.mjs'], fixtureRoot);
   await run(process.execPath, ['inter-module-runtime.mjs'], fixtureRoot);
   await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
   await run(
@@ -270,6 +271,31 @@ process.exit(0);
     writeFile(
       join(root, 'auth-email-seams.mjs'),
       `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst {createPostgresClient, pgClient, closePostgresClient} = await import('@shipfox/node-postgres');\nconst {initializeModules} = await import('@shipfox/node-module');\nconst {authModule, provisionUser, findUserByEmail} = await import('@shipfox/api-auth');\nconst {emailSchema} = await import('@shipfox/api-common-dto');\n\ncreatePostgresClient();\ntry {\n  await initializeModules({modules: [authModule]});\n\n  const email = \`packed-consumer-\${crypto.randomUUID()}@example.com\`;\n  const equivalentInput = \`  \${email.toUpperCase()}  \`;\n  if (emailSchema.parse(equivalentInput) !== email) {\n    throw new Error('Packed emailSchema did not normalize the equivalent raw input.');\n  }\n\n  const user = await provisionUser({email});\n  try {\n    const owner = await findUserByEmail({email: equivalentInput});\n    if (!owner) throw new Error('Packed findUserByEmail did not resolve the provisioned owner.');\n    if (owner.id !== user.id || owner.email !== email || owner.status !== 'active') {\n      throw new Error('Packed findUserByEmail returned an unexpected owner.');\n    }\n    const keys = Object.keys(owner).sort();\n    if (keys.join(',') !== 'email,id,status') {\n      throw new Error(\`Packed EmailOwner projection leaked extra fields: \${keys.join(',')}\`);\n    }\n    console.log('Packed auth-email seams provisioned and looked up one owner via installed tarballs.');\n  } finally {\n    try {\n      await pgClient().query('DELETE FROM auth_users WHERE id = $1', [user.id]);\n    } catch (cleanupError) {\n      console.error('Packed auth-email seams cleanup failed:', cleanupError);\n    }\n  }\n} finally {\n  await closePostgresClient();\n}\n`,
+    ),
+    writeFile(
+      join(root, 'invitation-reconciliation.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});
+
+const {createPostgresClient, closePostgresClient} = await import('@shipfox/node-postgres');
+const {initializeModules} = await import('@shipfox/node-module');
+const {workspacesModule, reconcileWorkspaceInvitationAcceptance} = await import('@shipfox/api-workspaces');
+
+createPostgresClient();
+try {
+  await initializeModules({modules: [workspacesModule]});
+  const outcome = await reconcileWorkspaceInvitationAcceptance({
+    token: 'packed-consumer-invalid-invitation',
+    userId: crypto.randomUUID(),
+    email: 'packed-consumer@example.com',
+  });
+  if (outcome.status !== 'invalid') {
+    throw new Error('Packed invitation reconciliation returned ' + outcome.status + ' for an unknown token.');
+  }
+  console.log('Packed workspace invitation reconciliation seam returned an explicit outcome.');
+} finally {
+  await closePostgresClient();
+}
+`,
     ),
     writeFile(
       join(root, 'development-conditions.mjs'),

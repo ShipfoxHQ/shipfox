@@ -50,6 +50,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-common-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
