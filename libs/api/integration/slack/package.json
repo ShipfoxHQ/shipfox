@@ -53,9 +53,6 @@
     "ky": "catalog:",
     "zod": "catalog:"
   },
-  "peerDependencies": {
-    "@shipfox/api-secrets": "workspace:*"
-  },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",

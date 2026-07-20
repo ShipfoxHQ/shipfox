@@ -10,7 +10,6 @@ import {
   type UpdateCustomModelProviderBodyDto,
   type UpdateCustomModelProviderHeaderRequestDto,
 } from '@shipfox/api-agent-dto';
-import {deleteSecrets, getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {assertEgressAllowed} from '@shipfox/node-egress-guard';
 import {
   deleteModelProviderConfig,
@@ -38,6 +37,7 @@ import {
   probeCustomModelProviderCredentials,
   runProviderProbe,
 } from './model-provider-validation.js';
+import {type AgentSecretsClient, requireAgentSecretsClient} from './secrets-client.js';
 
 export interface CreateCustomModelProviderConfigParams {
   workspaceId: string;
@@ -55,6 +55,7 @@ export interface UpdateCustomModelProviderConfigParams {
 
 export interface CustomModelProviderConfigServiceOptions {
   probe?: typeof probeCustomModelProviderCredentials | undefined;
+  secrets?: AgentSecretsClient | undefined;
 }
 
 interface SplitHeaders {
@@ -69,6 +70,7 @@ export async function createCustomModelProviderConfig(
   options: CustomModelProviderConfigServiceOptions = {},
 ): Promise<ModelProviderConfig> {
   const probe = options.probe ?? probeCustomModelProviderCredentials;
+  const secrets = requireAgentSecretsClient(options.secrets);
 
   const existing = await getModelProviderConfig({
     workspaceId: params.workspaceId,
@@ -123,7 +125,7 @@ export async function createCustomModelProviderConfig(
   }
 
   try {
-    await setSecrets({
+    await secrets.setSecrets({
       workspaceId: params.workspaceId,
       namespace: agentSystemNamespace(params.body.slug),
       values: customCredentialsToStoreValues(secretCredentials),
@@ -134,7 +136,7 @@ export async function createCustomModelProviderConfig(
       workspaceId: params.workspaceId,
       providerId: params.body.slug,
     });
-    await deleteSecrets({
+    await secrets.deleteSecrets({
       workspaceId: params.workspaceId,
       namespace: agentSystemNamespace(params.body.slug),
     });
@@ -147,9 +149,10 @@ export async function updateCustomModelProviderConfig(
   options: CustomModelProviderConfigServiceOptions = {},
 ): Promise<ModelProviderConfig> {
   const probe = options.probe ?? probeCustomModelProviderCredentials;
+  const secrets = requireAgentSecretsClient(options.secrets);
 
   const existing = await getExistingCustomConfig(params.workspaceId, params.providerId);
-  const existingSecrets = await getCustomProviderSecrets({
+  const existingSecrets = await getCustomProviderSecrets(secrets, {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
   });
@@ -204,7 +207,7 @@ export async function updateCustomModelProviderConfig(
   });
 
   const namespace = agentSystemNamespace(params.providerId);
-  await setSecrets({
+  await secrets.setSecrets({
     workspaceId: params.workspaceId,
     namespace,
     values: customCredentialsToStoreValues(newSecretCredentials),
@@ -227,7 +230,7 @@ export async function updateCustomModelProviderConfig(
       defaultThinking: existing.defaultThinking,
     });
   } catch (error) {
-    await rollbackCustomProviderSecretUpdate({
+    await rollbackCustomProviderSecretUpdate(secrets, {
       workspaceId: params.workspaceId,
       namespace,
       existingSecrets,
@@ -236,7 +239,7 @@ export async function updateCustomModelProviderConfig(
     throw error;
   }
 
-  await pruneStaleCustomHeaderSecrets({
+  await pruneStaleCustomHeaderSecrets(secrets, {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
     existingSecrets,
@@ -247,13 +250,17 @@ export async function updateCustomModelProviderConfig(
   return updated;
 }
 
-export async function resolveCustomModelProviderDiscoveryParams(params: {
-  workspaceId: string;
-  providerId: ModelProviderRef;
-  body: DiscoverCustomModelProviderModelsBySlugBodyDto;
-}): Promise<DiscoverCustomModelProviderModelsBodyDto> {
+export async function resolveCustomModelProviderDiscoveryParams(
+  params: {
+    workspaceId: string;
+    providerId: ModelProviderRef;
+    body: DiscoverCustomModelProviderModelsBySlugBodyDto;
+  },
+  options: {secrets?: AgentSecretsClient | undefined} = {},
+): Promise<DiscoverCustomModelProviderModelsBodyDto> {
+  const secrets = requireAgentSecretsClient(options.secrets);
   const existing = await getExistingCustomConfig(params.workspaceId, params.providerId);
-  const existingSecrets = await getCustomProviderSecrets({
+  const existingSecrets = await getCustomProviderSecrets(secrets, {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
   });
@@ -434,11 +441,14 @@ function selectProbeModel(
   return model;
 }
 
-async function getCustomProviderSecrets(params: {
-  workspaceId: string;
-  providerId: ModelProviderRef;
-}): Promise<Record<string, string>> {
-  const values = await getSecretsByNamespace({
+async function getCustomProviderSecrets(
+  secrets: AgentSecretsClient,
+  params: {
+    workspaceId: string;
+    providerId: ModelProviderRef;
+  },
+): Promise<Record<string, string>> {
+  const {values} = await secrets.getSecretsByNamespace({
     workspaceId: params.workspaceId,
     namespace: agentSystemNamespace(params.providerId),
   });
@@ -474,12 +484,15 @@ function normalizedUrl(value: string): string {
   return normalizeCustomProviderBaseUrl(value);
 }
 
-async function rollbackCustomProviderSecretUpdate(params: {
-  workspaceId: string;
-  namespace: string;
-  existingSecrets: Record<string, string>;
-  attemptedSecrets: Record<string, string>;
-}): Promise<void> {
+async function rollbackCustomProviderSecretUpdate(
+  secrets: AgentSecretsClient,
+  params: {
+    workspaceId: string;
+    namespace: string;
+    existingSecrets: Record<string, string>;
+    attemptedSecrets: Record<string, string>;
+  },
+): Promise<void> {
   const attemptedKeys = Object.keys(params.attemptedSecrets);
   if (attemptedKeys.length === 0) return;
 
@@ -490,7 +503,7 @@ async function rollbackCustomProviderSecretUpdate(params: {
     }),
   );
   if (Object.keys(secretsToRestore).length > 0) {
-    await setSecrets({
+    await secrets.setSecrets({
       workspaceId: params.workspaceId,
       namespace: params.namespace,
       values: customCredentialsToStoreValues(secretsToRestore),
@@ -500,20 +513,23 @@ async function rollbackCustomProviderSecretUpdate(params: {
   const newKeys = attemptedKeys.filter((key) => params.existingSecrets[key] === undefined);
   if (newKeys.length === 0) return;
 
-  await deleteSecrets({
+  await secrets.deleteSecrets({
     workspaceId: params.workspaceId,
     namespace: params.namespace,
     keys: newKeys.map(customCredentialToStoreKey),
   });
 }
 
-async function pruneStaleCustomHeaderSecrets(params: {
-  workspaceId: string;
-  providerId: ModelProviderRef;
-  existingSecrets: Record<string, string>;
-  newSecrets: Record<string, string>;
-  replaceHeaders: boolean;
-}): Promise<void> {
+async function pruneStaleCustomHeaderSecrets(
+  secrets: AgentSecretsClient,
+  params: {
+    workspaceId: string;
+    providerId: ModelProviderRef;
+    existingSecrets: Record<string, string>;
+    newSecrets: Record<string, string>;
+    replaceHeaders: boolean;
+  },
+): Promise<void> {
   if (!params.replaceHeaders) return;
 
   const nextKeys = new Set(Object.keys(params.newSecrets));
@@ -522,7 +538,7 @@ async function pruneStaleCustomHeaderSecrets(params: {
   );
   if (staleKeys.length === 0) return;
 
-  await deleteSecrets({
+  await secrets.deleteSecrets({
     workspaceId: params.workspaceId,
     namespace: agentSystemNamespace(params.providerId),
     keys: staleKeys.map(customCredentialToStoreKey),

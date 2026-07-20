@@ -2,7 +2,8 @@ import {createCustomModelProviderConfig, testAndSaveModelProviderConfig} from '@
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
-import {SecretDecryptionError} from '@shipfox/api-secrets';
+import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
 import {eq} from 'drizzle-orm';
@@ -15,6 +16,7 @@ import {workflowModel} from '#test/factories/workflow-model.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 const {captureExceptionMock} = vi.hoisted(() => ({captureExceptionMock: vi.fn()}));
@@ -26,6 +28,7 @@ vi.mock('@shipfox/api-agent/core/resolve-runtime-credentials', async (importOrig
 vi.mock('@shipfox/node-error-monitoring', () => ({captureException: captureExceptionMock}));
 
 const URL = '/runs/jobs/current/agent-runtime-config';
+const secrets = createTestSecretsClient();
 
 describe('GET /runs/jobs/current/agent-runtime-config', () => {
   let app: FastifyInstance;
@@ -34,7 +37,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
+      routes: [createLeaseTokenRouteGroup(runnersTestClient, undefined, undefined, secrets)],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });
@@ -175,7 +178,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
           models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
         },
       },
-      {probe: async () => undefined},
+      {probe: async () => undefined, secrets},
     );
     const {job, step} = await createRunningAgentStep({
       workspaceId,
@@ -348,7 +351,13 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
   test('returns 409 and reports when workspace credentials cannot be decrypted', async () => {
     const {job, step} = await createRunningAgentStep();
-    vi.mocked(resolveRuntimeCredentials).mockRejectedValueOnce(new SecretDecryptionError());
+    vi.mocked(resolveRuntimeCredentials).mockRejectedValueOnce(
+      createInterModuleKnownError(
+        secretsInterModuleContract.methods.getSecretsByNamespace,
+        'secret-decryption-failed',
+        {},
+      ),
+    );
     const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
@@ -360,7 +369,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('model-provider-credentials-invalid');
     expect(captureExceptionMock).toHaveBeenCalledWith(
-      expect.objectContaining({name: 'SecretDecryptionError'}),
+      expect.objectContaining({name: 'InterModuleKnownError'}),
     );
     expect(JSON.stringify(res.json())).not.toContain('sk-');
   });
@@ -395,7 +404,7 @@ async function saveWorkspaceCredential(workspaceId: string, apiKey: string) {
       providerId: 'anthropic',
       credentials: {api_key: apiKey},
     },
-    {probe: async () => undefined},
+    {probe: async () => undefined, secrets},
   );
 }
 

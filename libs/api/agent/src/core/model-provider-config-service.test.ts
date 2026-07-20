@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import * as secretStore from '@shipfox/api-secrets';
 import * as modelProviderDb from '#db/index.js';
 import {getModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
+import {getSecretsByNamespace, setSecrets} from '#test/fixtures/secrets-client.js';
 import {agentSystemNamespace} from './credential-fingerprints.js';
 import {
   createCustomModelProviderConfig,
@@ -22,8 +22,6 @@ import {
   testAndSaveModelProviderConfig,
   updateModelProviderConfigDefaultModel,
 } from './model-provider-config-service.js';
-
-const {getSecretsByNamespace, setSecrets} = secretStore;
 
 describe('testAndSaveModelProviderConfig', () => {
   let workspaceId: string;

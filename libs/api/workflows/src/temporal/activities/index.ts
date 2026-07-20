@@ -1,4 +1,5 @@
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   activateJobListenerActivity,
   bulkSetStepStatuses,
@@ -21,17 +22,23 @@ import {
   settleListenerJobExecutionActivity,
 } from './orchestration-activities.js';
 
-export function createOrchestrationActivities(runners: RunnersInterModuleClient) {
+export function createOrchestrationActivities(
+  runners: RunnersInterModuleClient,
+  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
+) {
   return {
     loadRunAttemptDag,
     setRunAttemptStatus,
     setJobStatus,
-    setJobExecutionStatus,
+    setJobExecutionStatus: async (params: Parameters<typeof setJobExecutionStatus>[0]) =>
+      await setJobExecutionStatus(params, secrets),
     bulkSetStepStatuses,
     cancelRunnerJobsActivity: createCancelRunnerJobsActivity(runners),
     enqueueJobExecutionForRunner: createEnqueueJobExecutionForRunner(runners),
     evaluateJobActivationsActivity,
-    failJobExecutionAsTimedOutActivity,
+    failJobExecutionAsTimedOutActivity: async (
+      params: Parameters<typeof failJobExecutionAsTimedOutActivity>[0],
+    ) => await failJobExecutionAsTimedOutActivity(params, secrets),
     failRunAsTimedOutActivity,
     activateJobListenerActivity,
     drainListenerEventsActivity,
@@ -39,7 +46,9 @@ export function createOrchestrationActivities(runners: RunnersInterModuleClient)
     resolveJobListenerActivity,
     settleListenerJobExecutionActivity,
     recordListenerFiringOutcomeActivity,
-    resolveLeaseExpiredJobExecutionActivity,
+    resolveLeaseExpiredJobExecutionActivity: async (
+      params: Parameters<typeof resolveLeaseExpiredJobExecutionActivity>[0],
+    ) => await resolveLeaseExpiredJobExecutionActivity(params, secrets),
     resolveJobStatusFromJobExecutionsActivity,
     releaseLeaseActivity: createReleaseLeaseActivity(runners),
   };

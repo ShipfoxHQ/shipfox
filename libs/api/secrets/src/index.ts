@@ -4,6 +4,7 @@ import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, secretsOutbox} from '#db/index.js';
 import {registerSecretsServiceMetrics} from '#metrics/index.js';
 import {secretsE2eRoutes} from '#presentation/e2eRoutes/index.js';
+import {createSecretsInterModulePresentation} from '#presentation/inter-module.js';
 import {createSecretsRoutes} from '#presentation/routes/index.js';
 
 export {
@@ -49,6 +50,7 @@ export function createSecretsModule(projects: ProjectsModuleClient): ShipfoxModu
     e2eRoutes: [secretsE2eRoutes],
     metrics: registerSecretsServiceMetrics,
     publishers: [{name: 'secrets', table: secretsOutbox, db, eventSchemas: secretsEventSchemas}],
+    interModulePresentations: [createSecretsInterModulePresentation()],
   };
 }
 

@@ -2,6 +2,7 @@ import {
   type RunnersInterModuleClient,
   runnersInterModuleContract,
 } from '@shipfox/api-runners-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ApplicationFailure} from '@temporalio/common';
 import {defaultJobConditionTrace} from '#core/condition-trace.js';
@@ -165,17 +166,21 @@ function jobStatusEvaluationTrace(params: {
     : undefined;
 }
 
-export async function setJobExecutionStatus(params: {
-  jobExecutionId: string;
-  status: Exclude<JobStatus, 'skipped'>;
-  version: number;
-  statusReason?: JobStatusReason | null | undefined;
-}): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
+export async function setJobExecutionStatus(
+  params: {
+    jobExecutionId: string;
+    status: Exclude<JobStatus, 'skipped'>;
+    version: number;
+    statusReason?: JobStatusReason | null | undefined;
+  },
+  secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
+): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
   const updated = await updateJobExecutionStatus({
     jobExecutionId: params.jobExecutionId,
     status: params.status,
     expectedVersion: params.version,
     statusReason: params.statusReason,
+    secrets,
   });
   return {newVersion: updated.version, status: updated.status};
 }
@@ -187,12 +192,12 @@ export async function bulkSetStepStatuses(params: {
   await bulkUpdateStepStatuses(params);
 }
 
-export async function resolveLeaseExpiredJobExecutionActivity(params: {
-  jobExecutionId: string;
-  expectedVersion: number;
-}): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
+export async function resolveLeaseExpiredJobExecutionActivity(
+  params: {jobExecutionId: string; expectedVersion: number},
+  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
+): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
   try {
-    return await resolveJobExecutionAfterLeaseExpiry(params);
+    return await resolveJobExecutionAfterLeaseExpiry({...params, secrets});
   } catch (err) {
     if (err instanceof JobNotFoundError) {
       throw ApplicationFailure.nonRetryable(err.message, err.name);
@@ -245,15 +250,15 @@ export function createCancelRunnerJobsActivity(runners: RunnersInterModuleClient
   };
 }
 
-export async function failJobExecutionAsTimedOutActivity(params: {
-  jobExecutionId: string;
-  runAttemptId: string;
-  expectedVersion: number;
-}): Promise<{newVersion: number}> {
+export async function failJobExecutionAsTimedOutActivity(
+  params: {jobExecutionId: string; runAttemptId: string; expectedVersion: number},
+  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
+): Promise<{newVersion: number}> {
   const jobExecution = await failJobExecutionAsTimedOut({
     jobExecutionId: params.jobExecutionId,
     workflowRunAttemptId: params.runAttemptId,
     expectedVersion: params.expectedVersion,
+    secrets,
   });
   return {newVersion: jobExecution.version};
 }

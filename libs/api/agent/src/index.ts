@@ -1,7 +1,8 @@
 import type {ShipfoxModule} from '@shipfox/node-module';
+import type {AgentSecretsClient} from '#core/secrets-client.js';
 import {db, migrationsPath} from '#db/index.js';
-import {agentE2eRoutes} from '#presentation/e2eRoutes/index.js';
-import {routes} from '#presentation/index.js';
+import {createAgentE2eRoutes} from '#presentation/e2eRoutes/index.js';
+import {createAgentRoutes} from '#presentation/routes/index.js';
 
 export {
   type AgentConfigResolutionContext,
@@ -35,9 +36,11 @@ export {
   upsertModelProviderConfig,
 } from '#db/index.js';
 
-export const agentModule: ShipfoxModule = {
-  name: 'agent',
-  database: {db, migrationsPath},
-  routes,
-  e2eRoutes: [agentE2eRoutes],
-};
+export function createAgentModule(params: {secrets: AgentSecretsClient}): ShipfoxModule {
+  return {
+    name: 'agent',
+    database: {db, migrationsPath},
+    routes: createAgentRoutes(params.secrets),
+    e2eRoutes: [createAgentE2eRoutes(params.secrets)],
+  };
+}

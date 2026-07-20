@@ -1,5 +1,6 @@
 import {getModelProviderCredentialKeys} from '@shipfox/api-agent-dto';
-import {SecretValueTooLargeError, WorkspaceSecretCapExceededError} from '@shipfox/api-secrets';
+import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {EgressDeniedError} from '@shipfox/node-egress-guard';
 import {ClientError} from '@shipfox/node-fastify';
 import {
@@ -104,17 +105,16 @@ export function translateModelProviderRouteError(error: unknown): never {
     });
   }
 
-  if (error instanceof WorkspaceSecretCapExceededError) {
-    throw new ClientError('Workspace secret cap exceeded', 'workspace-secret-cap-exceeded', {
-      status: 409,
-      details: {cap: error.cap},
-    });
-  }
-
-  if (error instanceof SecretValueTooLargeError) {
-    throw new ClientError(error.message, 'value-too-large', {
+  if (isInterModuleKnownError(secretsInterModuleContract.methods.setSecrets, error)) {
+    if (error.code === 'workspace-secret-cap-exceeded') {
+      throw new ClientError('Workspace secret cap exceeded', 'workspace-secret-cap-exceeded', {
+        status: 409,
+        details: {cap: error.details.cap},
+      });
+    }
+    throw new ClientError('Secret value is too large', 'value-too-large', {
       status: 400,
-      details: {max_bytes: error.maxBytes},
+      details: {max_bytes: error.details.maxBytes},
     });
   }
 

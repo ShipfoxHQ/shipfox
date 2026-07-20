@@ -13,8 +13,8 @@ import {
 
 let secrets: LinearSecretsStore;
 
-beforeAll(async () => {
-  secrets = await import('@shipfox/api-secrets');
+beforeEach(() => {
+  secrets = createInMemorySecretsStore();
 });
 
 function createConnectionContext() {
@@ -64,6 +64,20 @@ function storedToken(input: {
     namespace: linearSecretsNamespace(input.connectionId),
     key: input.key,
   });
+}
+
+function createInMemorySecretsStore(): LinearSecretsStore {
+  const values = new Map<string, string>();
+  const id = (params: {workspaceId: string; namespace: string; key: string}) =>
+    `${params.workspaceId}\0${params.namespace}\0${params.key}`;
+  return {
+    getSecret: async (params) => values.get(id(params)) ?? null,
+    setSecrets: async (params) => {
+      await Promise.resolve();
+      for (const [key, value] of Object.entries(params.values))
+        values.set(id({...params, key}), value);
+    },
+  };
 }
 
 describe('createLinearTokenStore.storeTokens', () => {

@@ -5,7 +5,6 @@ import {
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
-import {deleteSecrets, getSecretsByNamespace, setSecrets} from '@shipfox/api-secrets';
 import {
   deleteModelProviderConfig as deleteModelProviderConfigRow,
   getModelProviderConfig,
@@ -22,6 +21,7 @@ import {
 } from './errors.js';
 import {buildModelProviderCatalog} from './model-provider-catalog.js';
 import {probeModelProviderCredentials, runProviderProbe} from './model-provider-validation.js';
+import {type AgentSecretsClient, requireAgentSecretsClient} from './secrets-client.js';
 
 export interface TestAndSaveModelProviderConfigParams {
   workspaceId: string;
@@ -35,6 +35,7 @@ export interface TestAndSaveModelProviderConfigParams {
 
 export interface TestAndSaveModelProviderConfigOptions {
   probe?: typeof probeModelProviderCredentials;
+  secrets?: AgentSecretsClient | undefined;
   pruneStaleSecrets?:
     | ((params: {workspaceId: string; namespace: string; expectedKeys: string[]}) => Promise<void>)
     | undefined;
@@ -51,6 +52,7 @@ export async function testAndSaveModelProviderConfig(
   options: TestAndSaveModelProviderConfigOptions = {},
 ): Promise<ModelProviderConfig> {
   const probe = options.probe ?? probeModelProviderCredentials;
+  const secrets = requireAgentSecretsClient(options.secrets);
   const entry = getModelProviderEntry(params.providerId);
   if (entry === undefined || entry.support_status !== 'supported') {
     throw new UnsupportedModelProviderError(params.providerId);
@@ -83,10 +85,11 @@ export async function testAndSaveModelProviderConfig(
     secrets: Object.values(params.credentials),
     signal: params.signal,
   });
-  const pruneStaleSecrets = options.pruneStaleSecrets ?? pruneStaleProviderCredentialSecrets;
+  const pruneStaleSecrets =
+    options.pruneStaleSecrets ?? ((input) => pruneStaleProviderCredentialSecrets(secrets, input));
   const namespace = agentSystemNamespace(params.providerId);
   const values = credentialsToStoreValues(params.providerId, params.credentials);
-  await setSecrets({
+  await secrets.setSecrets({
     workspaceId: params.workspaceId,
     namespace,
     values,
@@ -154,12 +157,13 @@ export async function updateModelProviderConfigDefaultModel(
   return config;
 }
 
-export async function deleteModelProviderConfig(params: {
-  workspaceId: string;
-  providerId: ModelProviderRef;
-}): Promise<boolean> {
+export async function deleteModelProviderConfig(
+  params: {workspaceId: string; providerId: ModelProviderRef},
+  options: {secrets?: AgentSecretsClient | undefined} = {},
+): Promise<boolean> {
+  const secrets = requireAgentSecretsClient(options.secrets);
   const deleted = await deleteModelProviderConfigRow(params);
-  await deleteSecrets({
+  await secrets.deleteSecrets({
     workspaceId: params.workspaceId,
     namespace: agentSystemNamespace(params.providerId),
   });
@@ -186,12 +190,11 @@ function resolveDefaultModel(
   return {probeModel: model, storedModel: requestedModel ?? null};
 }
 
-async function pruneStaleProviderCredentialSecrets(params: {
-  workspaceId: string;
-  namespace: string;
-  expectedKeys: string[];
-}): Promise<void> {
-  const stored = await getSecretsByNamespace({
+async function pruneStaleProviderCredentialSecrets(
+  secrets: AgentSecretsClient,
+  params: {workspaceId: string; namespace: string; expectedKeys: string[]},
+): Promise<void> {
+  const {values: stored} = await secrets.getSecretsByNamespace({
     workspaceId: params.workspaceId,
     namespace: params.namespace,
   });
@@ -199,7 +202,7 @@ async function pruneStaleProviderCredentialSecrets(params: {
   const staleKeys = Object.keys(stored).filter((key) => !expected.has(key));
   if (staleKeys.length === 0) return;
 
-  await deleteSecrets({
+  await secrets.deleteSecrets({
     workspaceId: params.workspaceId,
     namespace: params.namespace,
     keys: staleKeys,

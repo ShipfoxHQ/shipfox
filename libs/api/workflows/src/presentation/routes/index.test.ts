@@ -8,6 +8,7 @@ import {
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createWorkflowRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
@@ -30,7 +31,12 @@ afterEach(async () => {
 });
 
 describe('workflow route auth', () => {
-  const workflowRoutes = createWorkflowRoutes(runnersTestClient);
+  const workflowRoutes = createWorkflowRoutes(
+    runnersTestClient,
+    undefined,
+    undefined,
+    createTestSecretsClient(),
+  );
   test('uses user auth', () => {
     expect(workflowRoutes[0]?.auth).toBe(AUTH_USER);
   });

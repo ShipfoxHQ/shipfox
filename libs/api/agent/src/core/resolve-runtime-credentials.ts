@@ -7,7 +7,8 @@ import {
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
-import {getSecretsByNamespace, SecretDecryptionError} from '@shipfox/api-secrets';
+import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {config} from '#config.js';
 import {getModelProviderConfig} from '#db/index.js';
 import {agentRuntimeConfigResolvedCount} from '#metrics/index.js';
@@ -18,6 +19,7 @@ import {
 } from './credential-fingerprints.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {ModelProviderConfigNotFoundError} from './errors.js';
+import {type AgentSecretsClient, requireAgentSecretsClient} from './secrets-client.js';
 
 export interface ResolveRuntimeCredentialsParams {
   workspaceId: string;
@@ -34,7 +36,10 @@ interface RuntimeCredentialsConfig {
 
 interface ResolveRuntimeCredentialsOptions {
   runtimeConfig?: RuntimeCredentialsConfig | undefined;
-  getCredentialBag?: typeof getSecretsByNamespace | undefined;
+  secrets?: AgentSecretsClient | undefined;
+  getCredentialBag?:
+    | ((params: {workspaceId: string; namespace: string}) => Promise<Record<string, string>>)
+    | undefined;
 }
 
 export async function resolveRuntimeCredentials(
@@ -42,7 +47,7 @@ export async function resolveRuntimeCredentials(
   options?: ResolveRuntimeCredentialsOptions,
 ): Promise<AgentRuntimeCredentialsResponseDto> {
   const runtimeConfig = options?.runtimeConfig ?? config;
-  const getCredentialBag = options?.getCredentialBag ?? getSecretsByNamespace;
+  const secrets = options?.secrets;
   const providerConfig = await getModelProviderConfig({
     workspaceId: params.workspaceId,
     providerId: params.provider,
@@ -50,10 +55,17 @@ export async function resolveRuntimeCredentials(
 
   if (providerConfig) {
     try {
-      const values = await getCredentialBag({
-        workspaceId: params.workspaceId,
-        namespace: agentSystemNamespace(params.provider),
-      });
+      const values = options?.getCredentialBag
+        ? await options.getCredentialBag({
+            workspaceId: params.workspaceId,
+            namespace: agentSystemNamespace(params.provider),
+          })
+        : (
+            await requireAgentSecretsClient(secrets).getSecretsByNamespace({
+              workspaceId: params.workspaceId,
+              namespace: agentSystemNamespace(params.provider),
+            })
+          ).values;
       if (providerConfig.kind === 'custom') {
         const credentials = storeValuesToCustomRuntimeCredentials(values);
         agentRuntimeConfigResolvedCount.add(1, {source: 'workspace', outcome: 'resolved'});
@@ -68,7 +80,9 @@ export async function resolveRuntimeCredentials(
       agentRuntimeConfigResolvedCount.add(1, {source: 'workspace', outcome: 'resolved'});
       return toResponse(params, credentials, providerConfig);
     } catch (error) {
-      if (error instanceof SecretDecryptionError) {
+      if (
+        isInterModuleKnownError(secretsInterModuleContract.methods.getSecretsByNamespace, error)
+      ) {
         agentRuntimeConfigResolvedCount.add(1, {
           source: 'workspace',
           outcome: 'decryption_failed',

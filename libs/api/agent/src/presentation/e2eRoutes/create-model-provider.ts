@@ -1,9 +1,9 @@
 import {DEFAULT_AGENT_THINKING, getModelProviderEntry} from '@shipfox/api-agent-dto';
-import {setSecrets} from '@shipfox/api-secrets';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {agentSystemNamespace} from '#core/credential-fingerprints.js';
 import {listHarnessProviderModels} from '#core/harness/registry.js';
+import type {AgentSecretsClient} from '#core/secrets-client.js';
 import {upsertModelProviderConfig} from '#db/index.js';
 
 const createE2eModelProviderBodySchema = z.object({
@@ -18,44 +18,46 @@ const createE2eModelProviderResponseSchema = z.object({
   provider_id: z.literal('anthropic'),
 });
 
-export const createE2eModelProviderRoute = defineRoute({
-  method: 'POST',
-  path: '/model-provider',
-  description: 'Create an Anthropic model provider config for E2E tests.',
-  schema: {
-    body: createE2eModelProviderBodySchema,
-    response: {201: createE2eModelProviderResponseSchema},
-  },
-  handler: async (request, reply) => {
-    const entry = getModelProviderEntry(request.body.provider_id);
-    if (entry === undefined || entry.default_model === null) {
-      throw new ClientError('Unsupported E2E model provider', 'unsupported-model-provider', {
-        status: 400,
-      });
-    }
-    const defaultModel = request.body.default_model ?? entry.default_model;
-    const supportedModels = listHarnessProviderModels('claude', request.body.provider_id);
-    if (!supportedModels.some((model) => model.id === defaultModel)) {
-      throw new ClientError('Unsupported Anthropic default model', 'unsupported-model', {
-        status: 400,
-        details: {default_model: defaultModel},
-      });
-    }
+export function createE2eModelProviderRoute(secrets: AgentSecretsClient) {
+  return defineRoute({
+    method: 'POST',
+    path: '/model-provider',
+    description: 'Create an Anthropic model provider config for E2E tests.',
+    schema: {
+      body: createE2eModelProviderBodySchema,
+      response: {201: createE2eModelProviderResponseSchema},
+    },
+    handler: async (request, reply) => {
+      const entry = getModelProviderEntry(request.body.provider_id);
+      if (entry === undefined || entry.default_model === null) {
+        throw new ClientError('Unsupported E2E model provider', 'unsupported-model-provider', {
+          status: 400,
+        });
+      }
+      const defaultModel = request.body.default_model ?? entry.default_model;
+      const supportedModels = listHarnessProviderModels('claude', request.body.provider_id);
+      if (!supportedModels.some((model) => model.id === defaultModel)) {
+        throw new ClientError('Unsupported Anthropic default model', 'unsupported-model', {
+          status: 400,
+          details: {default_model: defaultModel},
+        });
+      }
 
-    await setSecrets({
-      workspaceId: request.body.workspace_id,
-      namespace: agentSystemNamespace(request.body.provider_id),
-      values: {API_KEY: request.body.api_key},
-    });
-    await upsertModelProviderConfig({
-      workspaceId: request.body.workspace_id,
-      providerId: request.body.provider_id,
-      defaultModel,
-      defaultThinking: DEFAULT_AGENT_THINKING,
-      setAsDefault: request.body.set_as_default,
-    });
+      await secrets.setSecrets({
+        workspaceId: request.body.workspace_id,
+        namespace: agentSystemNamespace(request.body.provider_id),
+        values: {API_KEY: request.body.api_key},
+      });
+      await upsertModelProviderConfig({
+        workspaceId: request.body.workspace_id,
+        providerId: request.body.provider_id,
+        defaultModel,
+        defaultThinking: DEFAULT_AGENT_THINKING,
+        setAsDefault: request.body.set_as_default,
+      });
 
-    reply.code(201);
-    return {provider_id: request.body.provider_id};
-  },
-});
+      reply.code(201);
+      return {provider_id: request.body.provider_id};
+    },
+  });
+}

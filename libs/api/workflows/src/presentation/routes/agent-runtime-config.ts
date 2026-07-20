@@ -6,14 +6,21 @@ import {
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
-import {SecretDecryptionError} from '@shipfox/api-secrets';
+import {
+  type SecretsInterModuleClient,
+  secretsInterModuleContract,
+} from '@shipfox/api-secrets-dto/inter-module';
 import {agentRuntimeConfigQuerySchema} from '@shipfox/api-workflows-dto';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {ZodError} from 'zod';
 import {loadRunningLeasedStep} from './leased-step.js';
 
-export function createAgentRuntimeConfigRoute(runners: RunnersInterModuleClient) {
+export function createAgentRuntimeConfigRoute(
+  runners: RunnersInterModuleClient,
+  secrets: SecretsInterModuleClient,
+) {
   return defineRoute({
     method: 'GET',
     path: '/agent-runtime-config',
@@ -26,7 +33,9 @@ export function createAgentRuntimeConfigRoute(runners: RunnersInterModuleClient)
       },
     },
     errorHandler: (error) => {
-      if (error instanceof SecretDecryptionError) {
+      if (
+        isInterModuleKnownError(secretsInterModuleContract.methods.getSecretsByNamespace, error)
+      ) {
         captureException(error);
         throw new ClientError(
           'Model provider credentials could not be decrypted',
@@ -69,13 +78,16 @@ export function createAgentRuntimeConfigRoute(runners: RunnersInterModuleClient)
         throw error;
       }
 
-      const runtimeConfig = await resolveRuntimeCredentials({
-        workspaceId,
-        harness: agentConfig.harness,
-        provider: agentConfig.provider,
-        model: agentConfig.model,
-        thinking: agentConfig.thinking,
-      });
+      const runtimeConfig = await resolveRuntimeCredentials(
+        {
+          workspaceId,
+          harness: agentConfig.harness,
+          provider: agentConfig.provider,
+          model: agentConfig.model,
+          thinking: agentConfig.thinking,
+        },
+        {secrets},
+      );
 
       reply.header('cache-control', 'no-store');
       return runtimeConfig;
