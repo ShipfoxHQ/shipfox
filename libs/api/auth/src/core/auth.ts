@@ -330,7 +330,7 @@ export async function createSessionForUser(
   const user = params.userId
     ? await findUserById({id: params.userId})
     : params.email
-      ? await findUserByEmail({email: params.email})
+      ? await findUserByEmail({email: emailSchema.parse(params.email)})
       : undefined;
 
   if (!user) {

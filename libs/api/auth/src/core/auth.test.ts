@@ -165,11 +165,11 @@ describe('auth core', () => {
     const storedSuspended = await findUserById({id: suspended.id});
 
     const existingUnverified = await provisionUser({
-      email: unverified.email.toUpperCase(),
+      email: `  ${unverified.email.toUpperCase()}  `,
       name: 'Replacement Name',
     });
     const existingSuspended = await provisionUser({
-      email: suspended.email.toUpperCase(),
+      email: `  ${suspended.email.toUpperCase()}  `,
       name: 'Replacement Name',
     });
 
@@ -255,6 +255,27 @@ describe('auth core', () => {
     await expect(createSessionForUser({userId: suspended.id})).rejects.toBeInstanceOf(
       InvalidCredentialsError,
     );
+  });
+
+  test('createSessionForUser({email}) resolves surrounding whitespace and mixed case', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+
+    const result = await createSessionForUser({email: `  ${user.email.toUpperCase()}  `});
+
+    expect(result.user.id).toBe(user.id);
+    expect(result.token).toEqual(expect.any(String));
+  });
+
+  test('createSessionForUser({email}) retains eligibility checks', async () => {
+    const unverified = await userFactory.create();
+    const suspended = await userFactory.create({emailVerifiedAt: new Date()});
+    await db().update(users).set({status: 'suspended'}).where(eq(users.id, suspended.id));
+
+    const unverifiedResult = createSessionForUser({email: unverified.email});
+    const suspendedResult = createSessionForUser({email: suspended.email});
+
+    await expect(unverifiedResult).rejects.toBeInstanceOf(EmailNotVerifiedError);
+    await expect(suspendedResult).rejects.toBeInstanceOf(InvalidCredentialsError);
   });
 
   test('refreshAccessToken rotates the refresh token', async () => {

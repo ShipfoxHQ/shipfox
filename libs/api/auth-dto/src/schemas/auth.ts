@@ -1,15 +1,11 @@
-import {displayNameSchema} from '@shipfox/api-common-dto';
+import {displayNameSchema, emailSchema} from '@shipfox/api-common-dto';
 import {z} from 'zod';
 import {userDtoSchema} from './user.js';
 
 export const EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = 60;
 
 export const passwordSchema = z.string().min(12).max(128);
-export const emailSchema = z
-  .string()
-  .email()
-  .max(254)
-  .transform((value) => value.toLowerCase());
+export {emailSchema};
 
 export const signupBodySchema = z.object({
   email: emailSchema,

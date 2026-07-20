@@ -239,7 +239,8 @@ It also exports lower-level pieces for tests and advanced integration:
 - `issueRunnerSessionToken(claims)` / `verifyRunnerSessionToken(token)`: mint and verify runner session tokens.
 - `issueJobLeaseToken(claims)` / `verifyJobLeaseToken(token)`: mint and verify job lease tokens.
 - `getClientContext(request)`: reads the authenticated user context from a Fastify request.
-- Entity types: `User`, `UserStatus`, `RefreshToken`, `EmailVerification`, and `PasswordReset`.
+- `findUserByEmail({email})`: read-only lookup of the current owner of a normalized email; see below.
+- Entity types: `User`, `UserStatus`, `RefreshToken`, `EmailVerification`, `PasswordReset`, and `EmailOwner`.
 
 ### External identity callbacks
 
@@ -286,6 +287,29 @@ status, verification state, or password. Repeated and concurrent callbacks are
 safe.
 
 This pre-verified user state lets an external login method create a session when password login and email-verification routes are disabled.
+
+### Email ownership lookup
+
+`findUserByEmail({email})` answers "who currently owns this email?" without
+creating a session or changing that user:
+
+```ts
+import {findUserByEmail} from '@shipfox/api-auth';
+
+const owner = await findUserByEmail({email: rawEmail});
+if (owner) {
+  // owner: {id, email, status}
+}
+```
+
+It parses `rawEmail` through the same shared `emailSchema` used by every other
+auth entry point, so whitespace and casing differences resolve to the same
+owner. It returns an owner for every account status (`active`, `suspended`, or
+`deleted`), and `undefined` when no user owns the address. The returned
+`EmailOwner` is an explicit projection of `id`, `email`, and `status` only; it
+never carries a password hash, profile fields, or verification timestamps.
+This seam performs no writes, so it is safe to call before deciding whether to
+provision, link, or reject an identity.
 
 `createSessionForUser` accepts either a `userId` or an `email`. It only creates
 a session for an active, verified user. It can throw `UserNotFoundError`,

@@ -68,6 +68,7 @@ try {
   const tsc = resolve(repositoryRoot, 'tools/typescript/node_modules/typescript/bin/tsc');
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
+  await run(process.execPath, ['auth-email-seams.mjs'], fixtureRoot);
   await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
   await run(
     resolve(repositoryRoot, 'tools/application-release/node_modules/.bin/tsx'),
@@ -148,6 +149,10 @@ void createServer({
       `Object.assign(process.env, {...${JSON.stringify(runtimeEnvironment(), null, 2)}, INTEGRATIONS_ENABLE_SENTRY_PROVIDER: 'true', NODE_ENV: 'production'});\n\nconst {readdir, readFile} = await import('node:fs/promises');\nconst {dirname, join} = await import('node:path');\nconst {defaultModules} = await import('@shipfox/api-server');\nconst {loadProductionWorkflowBundle} = await import('@shipfox/node-temporal');\nconst modules = await defaultModules();\nconst workflowPaths = new Set(\n  modules.flatMap((module) => module.workers ?? []).map((worker) => worker.workflowsPath),\n);\n\nif (!workflowPaths.size) throw new Error('Packed API server declares no workflow entrypoints.');\n\nconst bundles = new Map();\nfor (const workflowsPath of workflowPaths) {\n  const workflowBundle = loadProductionWorkflowBundle(workflowsPath);\n  bundles.set(workflowsPath, workflowBundle);\n\n  const code = await readFile(workflowBundle.codePath, 'utf8');\n  if (/@shipfox[/\\\\][^/\\\\]+[/\\\\]src[/\\\\]/u.test(code)) {\n    throw new Error(\n      \`Workflow bundle for \${workflowsPath} resolved a first-party source path.\`,\n    );\n  }\n}\n\nconst declaredCodePaths = new Set([...bundles.values()].map(({codePath}) => codePath));\nif (declaredCodePaths.size !== workflowPaths.size) {\n  throw new Error('Packed API workflow entrypoints do not map one-to-one to prebuilt bundles.');\n}\n\nconst workflowDirectories = new Set([...workflowPaths].map((workflowsPath) => dirname(workflowsPath)));\nconst emittedBundles = (\n  await Promise.all(\n    [...workflowDirectories].map(async (directory) =>\n      (await readdir(directory))\n        .filter((entry) => entry.endsWith('.bundle.js'))\n        .map((entry) => join(directory, entry)),\n    ),\n  )\n).flat();\nconst unreferencedBundles = emittedBundles.filter((codePath) => !declaredCodePaths.has(codePath));\nif (unreferencedBundles.length) {\n  throw new Error(\n    \`Packed API contains unreferenced workflow bundles: \${unreferencedBundles.join(', ')}\`,\n  );\n}\n\nconsole.log(\`Validated \${workflowPaths.size} packed API workflow bundles.\`);\n`,
     ),
     writeFile(
+      join(root, 'auth-email-seams.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst {createPostgresClient, pgClient, closePostgresClient} = await import('@shipfox/node-postgres');\nconst {initializeModules} = await import('@shipfox/node-module');\nconst {authModule, provisionUser, findUserByEmail} = await import('@shipfox/api-auth');\nconst {emailSchema} = await import('@shipfox/api-common-dto');\n\ncreatePostgresClient();\ntry {\n  await initializeModules({modules: [authModule]});\n\n  const email = \`packed-consumer-\${crypto.randomUUID()}@example.com\`;\n  const equivalentInput = \`  \${email.toUpperCase()}  \`;\n  if (emailSchema.parse(equivalentInput) !== email) {\n    throw new Error('Packed emailSchema did not normalize the equivalent raw input.');\n  }\n\n  const user = await provisionUser({email});\n  try {\n    const owner = await findUserByEmail({email: equivalentInput});\n    if (!owner) throw new Error('Packed findUserByEmail did not resolve the provisioned owner.');\n    if (owner.id !== user.id || owner.email !== email || owner.status !== 'active') {\n      throw new Error('Packed findUserByEmail returned an unexpected owner.');\n    }\n    const keys = Object.keys(owner).sort();\n    if (keys.join(',') !== 'email,id,status') {\n      throw new Error(\`Packed EmailOwner projection leaked extra fields: \${keys.join(',')}\`);\n    }\n    console.log('Packed auth-email seams provisioned and looked up one owner via installed tarballs.');\n  } finally {\n    try {\n      await pgClient().query('DELETE FROM auth_users WHERE id = $1', [user.id]);\n    } catch (cleanupError) {\n      console.error('Packed auth-email seams cleanup failed:', cleanupError);\n    }\n  }\n} finally {\n  await closePostgresClient();\n}\n`,
+    ),
+    writeFile(
       join(root, 'development-conditions.mjs'),
       `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nawait import('@shipfox/api-server/instrumentation');\nprocess.exit(0);\n`,
     ),
@@ -206,11 +211,21 @@ function findWorkspaceRange(value, path = 'package.json') {
 }
 
 function runtimeEnvironment() {
+  // Prefer the active workspace's own Postgres connection (e.g. a Conductor
+  // worktree's isolated instance) over the fixed port CI's dedicated service
+  // listens on, so this fixture never migrates or mutates an unrelated
+  // Postgres instance that happens to also be reachable on the CI default.
+  const postgresHost = process.env.POSTGRES_HOST ?? '127.0.0.1';
+  const postgresPort = process.env.POSTGRES_PORT ?? '5432';
+  const postgresUsername = process.env.POSTGRES_USERNAME ?? 'shipfox';
+  const postgresPassword = process.env.POSTGRES_PASSWORD ?? 'password';
+  const postgresDatabase = 'api_test';
+
   return {
     AUTH_JOB_LEASE_TOKEN_SECRET: 'external-consumer-lease-secret',
     AUTH_JWT_SECRET: 'external-consumer-jwt-secret',
     AUTH_RUNNER_SESSION_TOKEN_SECRET: 'external-consumer-runner-secret',
-    DATABASE_URL: 'postgres://shipfox:password@127.0.0.1:5432/api_test',
+    DATABASE_URL: `postgres://${postgresUsername}:${postgresPassword}@${postgresHost}:${postgresPort}/${postgresDatabase}`,
     GITEA_BASE_URL: 'https://gitea.example.com',
     GITEA_SERVICE_TOKEN: 'external-consumer-token',
     GITEA_SERVICE_USERNAME: 'shipfox-bot',
@@ -245,12 +260,12 @@ function runtimeEnvironment() {
     LOG_STORAGE_S3_FORCE_PATH_STYLE: 'true',
     LOG_STORAGE_S3_REGION: 'garage',
     LOG_STORAGE_S3_SECRET_ACCESS_KEY: 'external-consumer-secret-key',
-    POSTGRES_DATABASE: 'api_test',
-    POSTGRES_HOST: '127.0.0.1',
+    POSTGRES_DATABASE: postgresDatabase,
+    POSTGRES_HOST: postgresHost,
     POSTGRES_MAX_CONNECTIONS: '5',
-    POSTGRES_PASSWORD: 'password',
-    POSTGRES_PORT: '5432',
-    POSTGRES_USERNAME: 'shipfox',
+    POSTGRES_PASSWORD: postgresPassword,
+    POSTGRES_PORT: postgresPort,
+    POSTGRES_USERNAME: postgresUsername,
     SECRETS_ENCRYPTION_KEK: 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=',
     SENTRY_APP_CLIENT_ID: 'external-consumer-client-id',
     SENTRY_APP_CLIENT_SECRET: 'external-consumer-client-secret',

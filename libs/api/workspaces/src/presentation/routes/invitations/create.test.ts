@@ -34,7 +34,7 @@ describe('POST /workspaces/:workspaceId/invitations', () => {
       method: 'POST',
       url: `/workspaces/${workspaceId}/invitations`,
       headers: {authorization: `Bearer ${owner.token}`},
-      payload: {email: inviteeEmail.toUpperCase()},
+      payload: {email: `  ${inviteeEmail.toUpperCase()}  `},
     });
 
     expect(res.statusCode).toBe(201);
@@ -59,6 +59,24 @@ describe('POST /workspaces/:workspaceId/invitations', () => {
       url: `/workspaces/${workspaceId}/invitations`,
       headers: {authorization: `Bearer ${owner.token}`},
       payload: {email: inviteeEmail},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('open-invitation-exists');
+    expect(await invitationOutboxEventsTo(inviteeEmail)).toHaveLength(1);
+  });
+
+  test('transforms a whitespace/case-equivalent duplicate open invitation into 409', async () => {
+    const owner = await signupVerifyLogin(app, 'invite-create-duplicate-equivalent');
+    const workspaceId = await createWorkspace(app, owner.token);
+    const inviteeEmail = uniqueEmail('duplicate-invite-equivalent');
+    await createInvite(app, {token: owner.token, workspaceId, email: inviteeEmail});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/workspaces/${workspaceId}/invitations`,
+      headers: {authorization: `Bearer ${owner.token}`},
+      payload: {email: `  ${inviteeEmail.toUpperCase()}  `},
     });
 
     expect(res.statusCode).toBe(409);
