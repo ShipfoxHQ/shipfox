@@ -23,6 +23,54 @@ const currentE2eLayer =
 const e2eSourcePath = '^(?:src|test|tests)(?:/|$)|^playwright\\.config\\.ts$';
 const workspacePathPattern = (workspacePath) =>
   `^${escapeRegExp(toPosixPath(path.relative(currentDirectory, path.join(workspaceRoot, workspacePath))))}/`;
+const apiContextImplementationPaths = {
+  agent: ['libs/api/agent'],
+  annotations: ['libs/api/annotations'],
+  auth: ['libs/api/auth'],
+  definitions: ['libs/api/definitions'],
+  emailChallenges: ['libs/api/email-challenges'],
+  integrations: [
+    'libs/api/integration/core',
+    'libs/api/integration/gitea',
+    'libs/api/integration/github',
+    'libs/api/integration/jira',
+    'libs/api/integration/linear',
+    'libs/api/integration/sentry',
+    'libs/api/integration/slack',
+    'libs/api/integration/webhook',
+  ],
+  logs: ['libs/api/logs'],
+  projects: ['libs/api/projects'],
+  runners: ['libs/api/runners'],
+  secrets: ['libs/api/secrets'],
+  triggers: ['libs/api/triggers'],
+  workflows: ['libs/api/workflows'],
+  workspaces: ['libs/api/workspaces'],
+};
+const currentApiContext = Object.entries(apiContextImplementationPaths).find(([, packagePaths]) =>
+  packagePaths.some((packagePath) => {
+    const packageDirectory = path.join(workspaceRoot, packagePath);
+    const relativePath = path.relative(packageDirectory, currentDirectory);
+    return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+  }),
+)?.[0];
+const crossContextImplementationPaths = currentApiContext
+  ? Object.entries(apiContextImplementationPaths)
+      .filter(([context]) => context !== currentApiContext)
+      .flatMap(([, packagePaths]) => packagePaths.map(workspacePathPattern))
+  : [];
+const currentApiContextRules = currentApiContext
+  ? [
+      {
+        name: 'api-no-cross-context-implementation-imports',
+        comment:
+          'API bounded contexts may use peer DTO and /inter-module contracts, but production code must not import another context implementation package root or subpath.',
+        severity: 'error',
+        from: {path: '^src/', pathNot: '\\.test\\.ts$'},
+        to: {path: crossContextImplementationPaths},
+      },
+    ]
+  : [];
 const isBelowWorkspacePath = (workspacePath) => {
   const relativePath = path.relative(path.join(workspaceRoot, workspacePath), currentDirectory);
   return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
@@ -167,6 +215,7 @@ module.exports = {
         ]
       : []),
     ...currentE2eRules,
+    ...currentApiContextRules,
     ...(currentPackage.name === '@shipfox/node-temporal'
       ? [
           {

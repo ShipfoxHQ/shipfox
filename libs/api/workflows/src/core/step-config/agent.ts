@@ -8,7 +8,7 @@ import {
   type MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import type {AgentDefaultsResolver, ResolvedAgentDefaults} from '#core/agent-defaults.js';

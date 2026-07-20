@@ -1,4 +1,4 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {WorkflowExpression} from '@shipfox/expression';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {
