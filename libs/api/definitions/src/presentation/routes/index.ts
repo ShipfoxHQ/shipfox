@@ -4,25 +4,23 @@ import {
   buildCreateDefinitionRoute,
   type CreateDefinitionRouteOptions,
 } from './create-definition.js';
-import {getDefinitionRoute} from './get-definition.js';
-import {listDefinitionsRoute} from './list-definitions.js';
+import {buildGetDefinitionRoute} from './get-definition.js';
+import {buildListDefinitionsRoute} from './list-definitions.js';
 import {validateDefinitionRoute} from './validate-definition.js';
 
 export interface DefinitionRouteOptions extends CreateDefinitionRouteOptions {}
 
-export function createDefinitionRoutes(options: DefinitionRouteOptions = {}): RouteGroup[] {
+export function createDefinitionRoutes(options: DefinitionRouteOptions): RouteGroup[] {
   return [
     {
       prefix: '/definitions',
       auth: AUTH_USER,
       routes: [
         buildCreateDefinitionRoute(options),
-        listDefinitionsRoute,
-        getDefinitionRoute,
+        buildListDefinitionsRoute(options.projects),
+        buildGetDefinitionRoute(options.projects),
         validateDefinitionRoute,
       ],
     },
   ];
 }
-
-export const definitionRoutes = createDefinitionRoutes();

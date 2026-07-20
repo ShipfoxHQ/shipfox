@@ -1,10 +1,15 @@
-import type {Project} from '@shipfox/api-projects';
 import {Factory} from 'fishery';
 
-// Build-only: the workflows routes resolve projects through a mocked
-// `getProjectById`, so these are never persisted (the projects table lives in
-// @shipfox/api-projects). Typed against the real `Project` so the mock cannot
-// drift from the contract under test.
+interface Project {
+  id: string;
+  workspaceId: string;
+  sourceConnectionId: string;
+  sourceExternalRepositoryId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export const projectFactory = Factory.define<Project>(({sequence}) => ({
   id: crypto.randomUUID(),
   workspaceId: crypto.randomUUID(),

@@ -2171,9 +2171,6 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../integration/core-dto
-      '@shipfox/api-projects':
-        specifier: workspace:*
-        version: link:../projects
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
@@ -3335,6 +3332,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -3417,6 +3417,9 @@ importers:
       '@shipfox/api-common-dto':
         specifier: workspace:*
         version: link:../common-dto
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -3588,15 +3591,18 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
-      '@shipfox/api-projects':
+      '@shipfox/api-projects-dto':
         specifier: workspace:*
-        version: link:../projects
+        version: link:../projects-dto
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -3695,6 +3701,9 @@ importers:
       '@shipfox/api-projects':
         specifier: workspace:*
         version: link:../projects
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../projects-dto
       '@shipfox/api-runners':
         specifier: workspace:*
         version: link:../runners
@@ -3738,6 +3747,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -3908,9 +3920,9 @@ importers:
       '@shipfox/api-integration-core':
         specifier: workspace:*
         version: link:../integration/core
-      '@shipfox/api-projects':
+      '@shipfox/api-projects-dto':
         specifier: workspace:*
-        version: link:../projects
+        version: link:../projects-dto
       '@shipfox/api-runners':
         specifier: workspace:*
         version: link:../runners

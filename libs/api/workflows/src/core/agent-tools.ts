@@ -12,7 +12,7 @@ import type {
   LoadWorkspaceConnectionSnapshot,
   WorkspaceConnectionSnapshot,
 } from '@shipfox/api-integration-core';
-import {getProjectById} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {AgentIntegrationMaterializationError} from './errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
@@ -20,6 +20,7 @@ type WorkflowModelAgentStep = Extract<WorkflowModelJob['steps'][number], {kind: 
 type WorkflowModelStepIntegration = NonNullable<WorkflowModelAgentStep['integrations']>[number];
 
 interface AgentToolMaterializationServices {
+  readonly projects: ProjectsModuleClient;
   readonly catalogs: AgentToolCatalogs;
   readonly loadWorkspaceConnectionSnapshot: LoadWorkspaceConnectionSnapshot;
   readonly getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
@@ -74,8 +75,8 @@ export async function loadAgentToolMaterializationContext(params: {
     throw new AgentIntegrationMaterializationError('Agent tool materialization is not configured');
   }
 
-  const project = await getProjectById(params.projectId);
-  if (project === undefined) {
+  const {project} = await services.projects.getProjectById({projectId: params.projectId});
+  if (project === null) {
     throw new AgentIntegrationMaterializationError(
       `Project ${params.projectId} was not found while materializing agent integrations`,
     );

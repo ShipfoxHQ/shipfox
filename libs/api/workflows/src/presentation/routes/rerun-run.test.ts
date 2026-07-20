@@ -1,5 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import {requireProjectAccess} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
@@ -15,16 +15,11 @@ import {rerunRunRoute} from './rerun-run.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
 
-vi.mock('@shipfox/api-projects', () => ({
-  requireProjectAccess: vi.fn(({projectId}) =>
-    Promise.resolve({
-      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
-      workspaceId: projectAccessState.workspaceId,
-    }),
-  ),
-}));
-
-const mockRequireProjectAccess = vi.mocked(requireProjectAccess);
+const getProjectById = vi.fn();
+const projects = {
+  getProjectById,
+  requireProjectForWorkspace: vi.fn(),
+} as unknown as ProjectsModuleClient;
 
 describe('POST /api/workflows/runs/:id/rerun', () => {
   let app: FastifyInstance;
@@ -46,7 +41,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
       );
       done();
     });
-    app.post('/api/workflows/runs/:id/rerun', rerunRunRoute);
+    app.post('/api/workflows/runs/:id/rerun', rerunRunRoute(projects));
     await app.ready();
   });
 
@@ -54,7 +49,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     projectAccessState.workspaceId = workspaceId;
-    mockRequireProjectAccess.mockImplementation(({projectId: requestedProjectId}) =>
+    getProjectById.mockImplementation(({projectId: requestedProjectId}) =>
       Promise.resolve({
         project: {
           id: requestedProjectId,
@@ -62,10 +57,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
           sourceConnectionId: crypto.randomUUID(),
           sourceExternalRepositoryId: `repo:${crypto.randomUUID()}`,
           name: 'Project',
-          createdAt: new Date(),
-          updatedAt: new Date(),
         },
-        workspaceId,
       }),
     );
   });
@@ -174,9 +166,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
       payload: {mode: 'all'},
     });
     const source = await createTerminalRun('failed');
-    mockRequireProjectAccess.mockRejectedValueOnce(
-      new ClientError('Forbidden', 'forbidden', {status: 403}),
-    );
+    getProjectById.mockRejectedValueOnce(new ClientError('Forbidden', 'forbidden', {status: 403}));
 
     const inaccessible = await app.inject({
       method: 'POST',

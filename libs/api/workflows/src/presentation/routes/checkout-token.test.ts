@@ -6,7 +6,7 @@ import {
   IntegrationProviderError,
   type IntegrationSourceControlService,
 } from '@shipfox/api-integration-core';
-import {getProjectById} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
 import {clearSourceControl, setSourceControl} from '#core/source-control.js';
@@ -17,8 +17,13 @@ import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
-vi.mock('@shipfox/api-projects', () => ({getProjectById: vi.fn()}));
-const mockGetProjectById = vi.mocked(getProjectById);
+const mockGetProjectById = vi.fn();
+const projects = {
+  getProjectById: async ({projectId}: {projectId: string}) => ({
+    project: await mockGetProjectById(projectId),
+  }),
+  requireProjectForWorkspace: vi.fn(),
+} as unknown as ProjectsModuleClient;
 
 const URL = '/runs/jobs/current/checkout-token';
 
@@ -37,7 +42,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     setSourceControl({createCheckoutSpec} as unknown as IntegrationSourceControlService);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
+      routes: [createLeaseTokenRouteGroup(runnersTestClient, projects)],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });
@@ -259,7 +264,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   });
 
   test('returns 404 when the run has no project linkage', async () => {
-    mockGetProjectById.mockResolvedValue(undefined);
+    mockGetProjectById.mockResolvedValue(null);
     const project = {id: crypto.randomUUID(), workspaceId: crypto.randomUUID()};
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     const token = await mintActiveLeaseToken({jobId: job.id});

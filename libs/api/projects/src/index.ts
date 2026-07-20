@@ -11,6 +11,7 @@ import {db, migrationsPath, projectsOutbox} from '#db/index.js';
 import {registerProjectsServiceMetrics} from '#metrics/index.js';
 import {projectsE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
+import {createProjectsInterModulePresentation} from '#presentation/inter-module.js';
 import {onSourceCommitPushed} from '#presentation/subscribers/index.js';
 import {createProjectsMaintenanceActivities} from '#temporal/activities/index.js';
 import {PROJECTS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
@@ -52,6 +53,7 @@ export function createProjectsModule({sourceControl}: CreateProjectsModuleOption
     e2eRoutes: [projectsE2eRoutes],
     metrics: registerProjectsServiceMetrics,
     publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],
+    interModulePresentations: [createProjectsInterModulePresentation()],
     subscribers: [subscriber(INTEGRATION_SOURCE_COMMIT_PUSHED, onSourceCommitPushed)],
     workers: [
       {

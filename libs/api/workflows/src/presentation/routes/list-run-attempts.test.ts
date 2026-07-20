@@ -1,5 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import {requireProjectAccess} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
@@ -14,16 +14,11 @@ import {listRunAttemptsRoute} from './list-run-attempts.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
 
-vi.mock('@shipfox/api-projects', () => ({
-  requireProjectAccess: vi.fn(({projectId}) =>
-    Promise.resolve({
-      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
-      workspaceId: projectAccessState.workspaceId,
-    }),
-  ),
-}));
-
-const mockRequireProjectAccess = vi.mocked(requireProjectAccess);
+const getProjectById = vi.fn();
+const projects = {
+  getProjectById,
+  requireProjectForWorkspace: vi.fn(),
+} as unknown as ProjectsModuleClient;
 
 describe('GET /api/workflows/runs/:id/attempts', () => {
   let app: FastifyInstance;
@@ -46,7 +41,7 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
       );
       done();
     });
-    app.get('/api/workflows/runs/:id/attempts', listRunAttemptsRoute);
+    app.get('/api/workflows/runs/:id/attempts', listRunAttemptsRoute(projects));
     await app.ready();
   });
 
@@ -55,7 +50,7 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
     projectId = crypto.randomUUID();
     definitionId = crypto.randomUUID();
     projectAccessState.workspaceId = workspaceId;
-    mockRequireProjectAccess.mockImplementation(({projectId: requestedProjectId}) =>
+    getProjectById.mockImplementation(({projectId: requestedProjectId}) =>
       Promise.resolve({
         project: {
           id: requestedProjectId,
@@ -63,10 +58,7 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
           sourceConnectionId: crypto.randomUUID(),
           sourceExternalRepositoryId: `repo:${crypto.randomUUID()}`,
           name: 'Project',
-          createdAt: new Date(),
-          updatedAt: new Date(),
         },
-        workspaceId,
       }),
     );
   });
@@ -121,9 +113,7 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
       url: `/api/workflows/runs/${crypto.randomUUID()}/attempts`,
     });
     const run = await createRun();
-    mockRequireProjectAccess.mockRejectedValueOnce(
-      new ClientError('Forbidden', 'forbidden', {status: 403}),
-    );
+    getProjectById.mockRejectedValueOnce(new ClientError('Forbidden', 'forbidden', {status: 403}));
 
     const inaccessible = await app.inject({
       method: 'GET',
