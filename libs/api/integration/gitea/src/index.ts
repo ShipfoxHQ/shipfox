@@ -32,6 +32,11 @@ export {
   GiteaOrganizationNotFoundError,
 } from '#core/errors.js';
 export {GiteaSourceControlProvider} from '#core/source-control.js';
+export type {
+  CreateGiteaWebhookProcessorOptions,
+  GiteaWebhookProcessor,
+} from '#core/webhook-processor.js';
+export {createGiteaWebhookProcessor} from '#core/webhook-processor.js';
 export type {GiteaConnection, UpsertGiteaConnectionParams} from '#db/connections.js';
 export {
   getGiteaConnectionByConnectionId,
