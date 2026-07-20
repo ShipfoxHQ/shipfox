@@ -1,20 +1,26 @@
-import {Buffer} from 'node:buffer';
+import {randomUUID} from 'node:crypto';
 import type {
   ClaimWebhookDeliveryFn,
   GetIntegrationConnectionByIdFn,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
+  StoredWebhookRequest,
 } from '@shipfox/api-integration-core-dto';
 import {
-  slackEventsRequestSchema,
-  slackSlashCommandSchema,
-} from '@shipfox/api-integration-slack-dto';
-import {createRawBodyPlugin, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
-import {logger} from '@shipfox/node-opentelemetry';
+  createStoredWebhookRequest,
+  WEBHOOK_MAX_RAW_BODY_BYTES,
+} from '@shipfox/api-integration-core-dto';
+import {
+  ClientError,
+  createRawBodyPlugin,
+  defineRoute,
+  type RouteGroup,
+} from '@shipfox/node-fastify';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import {config} from '#config.js';
-import {verifySlackSignature} from '#core/signature.js';
-import {handleSlackCommand, handleSlackEvent} from '#core/webhook.js';
+import {
+  createSlackWebhookProcessor,
+  type SlackWebhookProcessingResult,
+} from '#core/webhook-processor.js';
 
 export const SLACK_WEBHOOK_BODY_LIMIT = 1024 * 1024;
 export const SLASH_COMMAND_ACK = {response_type: 'ephemeral', text: 'Working on it.'} as const;
@@ -37,6 +43,7 @@ export interface CreateSlackWebhookRoutesOptions {
 }
 
 export function createSlackWebhookRoutes(options: CreateSlackWebhookRoutesOptions): RouteGroup[] {
+  const processor = createSlackWebhookProcessor(options);
   const eventsRoute = defineRoute({
     method: 'POST',
     path: '/',
@@ -44,59 +51,25 @@ export function createSlackWebhookRoutes(options: CreateSlackWebhookRoutesOption
     description: 'Slack Events API receiver.',
     options: {bodyLimit: SLACK_WEBHOOK_BODY_LIMIT},
     handler: async (request, reply) => {
-      const rawBody = rawRequestBody(request.body);
-      if (rawBody === undefined) {
+      const body = rawRequestBody(request.body);
+      if (!body) {
         reply.code(400);
         return {error: 'expected raw JSON body'};
       }
-      if (!hasValidSlackSignature(request.headers, rawBody)) {
-        reply.code(401);
-        return {error: 'invalid signature'};
-      }
-
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(rawBody);
-      } catch (error) {
-        logger().warn(
-          {errorName: error instanceof Error ? error.name : 'unknown'},
-          'slack events payload JSON parse failed',
-        );
-        reply.code(400);
-        return {error: 'malformed JSON'};
-      }
-
-      const parsed = slackEventsRequestSchema.safeParse(parsedJson);
-      if (!parsed.success) {
-        logger().warn(
-          {issues: parsed.error.issues},
-          'slack events envelope failed schema validation',
-        );
-        reply.code(200);
-        return null;
-      }
-      const eventRequest = parsed.data;
-      if (eventRequest.type === 'url_verification') {
-        reply.code(200);
-        return {challenge: eventRequest.challenge};
-      }
-
-      await options.coreDb().transaction(async (tx) => {
-        await handleSlackEvent({
-          tx,
-          deliveryId: eventRequest.event_id,
-          envelope: eventRequest,
-          claimWebhookDelivery: options.claimWebhookDelivery,
-          publishIntegrationEventReceived: options.publishIntegrationEventReceived,
-          recordDeliveryOnly: options.recordDeliveryOnly,
-          getIntegrationConnectionById: options.getIntegrationConnectionById,
-        });
-      });
-      reply.code(200);
-      return null;
+      const result = await processor.process(
+        createSlackStoredWebhookRequest(
+          {
+            routeId: 'slack.event',
+            body,
+            headers: request.headers,
+            rawQueryString: rawQueryString(request),
+          },
+          new Date().toISOString(),
+        ),
+      );
+      return sendSlackEventResponse(reply, result);
     },
   });
-
   const commandsRoute = defineRoute({
     method: 'POST',
     path: '/',
@@ -104,37 +77,23 @@ export function createSlackWebhookRoutes(options: CreateSlackWebhookRoutesOption
     description: 'Slack slash-command receiver.',
     options: {bodyLimit: SLACK_WEBHOOK_BODY_LIMIT},
     handler: async (request, reply) => {
-      const rawBody = rawRequestBody(request.body);
-      if (rawBody === undefined) {
+      const body = rawRequestBody(request.body);
+      if (!body) {
         reply.code(400);
         return {error: 'expected raw form body'};
       }
-      if (!hasValidSlackSignature(request.headers, rawBody)) {
-        reply.code(401);
-        return {error: 'invalid signature'};
-      }
-
-      const command = slackSlashCommandSchema.safeParse(
-        Object.fromEntries(new URLSearchParams(rawBody)),
+      const result = await processor.process(
+        createSlackStoredWebhookRequest(
+          {
+            routeId: 'slack.command',
+            body,
+            headers: request.headers,
+            rawQueryString: rawQueryString(request),
+          },
+          new Date().toISOString(),
+        ),
       );
-      if (!command.success) {
-        logger().warn({issues: command.error.issues}, 'slack command failed schema validation');
-        reply.code(200);
-        return SLASH_COMMAND_ACK;
-      }
-
-      await options.coreDb().transaction(async (tx) => {
-        await handleSlackCommand({
-          tx,
-          deliveryId: command.data.trigger_id,
-          command: command.data,
-          publishIntegrationEventReceived: options.publishIntegrationEventReceived,
-          recordDeliveryOnly: options.recordDeliveryOnly,
-          getIntegrationConnectionById: options.getIntegrationConnectionById,
-        });
-      });
-      reply.code(200);
-      return SLASH_COMMAND_ACK;
+      return sendSlackCommandResponse(reply, result);
     },
   });
 
@@ -154,20 +113,89 @@ export function createSlackWebhookRoutes(options: CreateSlackWebhookRoutesOption
   ];
 }
 
-function rawRequestBody(body: unknown): string | undefined {
-  return Buffer.isBuffer(body) ? body.toString('utf8') : undefined;
+function rawRequestBody(body: unknown): Uint8Array | undefined {
+  return body instanceof Uint8Array ? body : undefined;
 }
 
-function hasValidSlackSignature(
-  headers: Record<string, string | string[] | undefined>,
-  rawBody: string,
-): boolean {
-  const signature = headers['x-slack-signature'];
-  const timestamp = headers['x-slack-request-timestamp'];
-  return verifySlackSignature({
-    signingSecret: config.SLACK_SIGNING_SECRET,
-    signature: typeof signature === 'string' ? signature : undefined,
-    timestamp: typeof timestamp === 'string' ? timestamp : undefined,
-    rawBody,
-  });
+function rawQueryString(request: {raw: {url?: string | undefined}}): string {
+  return request.raw.url?.split('?')[1] ?? '';
+}
+
+function createSlackStoredWebhookRequest(
+  input: {
+    routeId: 'slack.event' | 'slack.command';
+    body: Uint8Array;
+    headers: Record<string, string | string[] | undefined>;
+    rawQueryString: string;
+  },
+  receivedAt: string,
+): StoredWebhookRequest {
+  if (input.body.byteLength > WEBHOOK_MAX_RAW_BODY_BYTES) {
+    throw new ClientError('Webhook request body is too large', 'body-too-large', {status: 413});
+  }
+  try {
+    return createStoredWebhookRequest({
+      requestId: randomUUID(),
+      routeId: input.routeId,
+      receivedAt,
+      rawQueryString: input.rawQueryString,
+      headers: slackWebhookHeaders(input.headers),
+      body: input.body,
+    });
+  } catch (error) {
+    throw new ClientError('Webhook request metadata is invalid', 'invalid-webhook-request', {
+      cause: error,
+    });
+  }
+}
+
+function slackWebhookHeaders(headers: Record<string, string | string[] | undefined>) {
+  return Object.fromEntries(
+    ['content-type', 'x-slack-signature', 'x-slack-request-timestamp'].flatMap((name) => {
+      const value = headers[name];
+      return typeof value === 'string' ? [[name, value]] : [];
+    }),
+  );
+}
+
+function sendSlackEventResponse(
+  reply: {code(statusCode: number): void},
+  result: SlackWebhookProcessingResult,
+) {
+  if (result.outcome === 'processed' && 'challenge' in result) {
+    reply.code(200);
+    return {challenge: result.challenge};
+  }
+  if (
+    result.outcome === 'discarded' &&
+    (result.reason === 'invalid_signature' ||
+      result.reason === 'missing_required_input' ||
+      result.reason === 'stale_at_receipt')
+  ) {
+    reply.code(401);
+    return {error: 'invalid signature'};
+  }
+  if (result.outcome === 'discarded' && result.reason === 'malformed_payload') {
+    reply.code(400);
+    return {error: 'malformed JSON'};
+  }
+  reply.code(200);
+  return null;
+}
+
+function sendSlackCommandResponse(
+  reply: {code(statusCode: number): void},
+  result: SlackWebhookProcessingResult,
+) {
+  if (
+    result.outcome === 'discarded' &&
+    (result.reason === 'invalid_signature' ||
+      result.reason === 'missing_required_input' ||
+      result.reason === 'stale_at_receipt')
+  ) {
+    reply.code(401);
+    return {error: 'invalid signature'};
+  }
+  reply.code(200);
+  return SLASH_COMMAND_ACK;
 }

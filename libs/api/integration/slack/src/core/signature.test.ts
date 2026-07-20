@@ -3,11 +3,11 @@ import {verifySlackSignature} from './signature.js';
 
 const secret = 'test-signing-secret';
 const timestamp = '1721300000';
-const rawBody = '{"type":"event_callback"}';
+const rawBody = Buffer.from('{"type":"event_callback"}');
 const now = Number(timestamp) * 1000;
 
 function signature(body = rawBody): string {
-  return `v0=${createHmac('sha256', secret).update(`v0:${timestamp}:${body}`).digest('hex')}`;
+  return `v0=${createHmac('sha256', secret).update(`v0:${timestamp}:`).update(body).digest('hex')}`;
 }
 
 describe('verifySlackSignature', () => {
@@ -24,7 +24,7 @@ describe('verifySlackSignature', () => {
   });
 
   it.each([
-    ['a tampered body', {rawBody: '{"type":"tampered"}'}],
+    ['a tampered body', {rawBody: Buffer.from('{"type":"tampered"}')}],
     ['a missing signature', {signature: undefined}],
     ['an empty signing secret', {signingSecret: ''}],
     ['a missing timestamp', {timestamp: undefined}],

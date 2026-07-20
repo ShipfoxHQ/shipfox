@@ -1,5 +1,6 @@
 import {createHmac, randomUUID} from 'node:crypto';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {WEBHOOK_MAX_RAW_BODY_BYTES} from '@shipfox/api-integration-core-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {db} from '#db/db.js';
 import {getSlackInstallationByTeamId, upsertSlackInstallation} from '#db/installations.js';
@@ -157,6 +158,23 @@ describe('Slack webhook routes', () => {
     });
 
     expect(response.statusCode).toBe(400);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('rejects a body too large for the shared webhook request before processing it', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const rawBody = 'a'.repeat(WEBHOOK_MAX_RAW_BODY_BYTES + 1);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/slack/events',
+      headers: slackHeaders(rawBody, 'application/json'),
+      payload: rawBody,
+    });
+
+    expect(response.statusCode).toBe(413);
+    expect(response.json()).toEqual({code: 'body-too-large'});
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });

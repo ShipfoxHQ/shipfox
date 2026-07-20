@@ -67,7 +67,7 @@ export {
   SLACK_BOT_SCOPES,
 } from '#core/scopes.js';
 export type {VerifySlackSignatureParams} from '#core/signature.js';
-export {verifySlackSignature} from '#core/signature.js';
+export {isSlackTimestampWithinReplayWindow, verifySlackSignature} from '#core/signature.js';
 export type {SlackInstallStateClaims} from '#core/state.js';
 export {signSlackInstallState, verifySlackInstallState} from '#core/state.js';
 export type {
@@ -85,6 +85,12 @@ export type {
   SlackWebhookOutcome,
 } from '#core/webhook.js';
 export {handleSlackCommand, handleSlackEvent, isSelfAuthoredSlackEvent} from '#core/webhook.js';
+export type {
+  CreateSlackWebhookProcessorOptions,
+  SlackWebhookProcessingResult,
+  SlackWebhookProcessor,
+} from '#core/webhook-processor.js';
+export {createSlackWebhookProcessor} from '#core/webhook-processor.js';
 export type {
   SlackInstallation,
   SlackInstallationStatus,
