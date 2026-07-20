@@ -1,6 +1,7 @@
 import {annotationsModule} from '@shipfox/annotations';
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {createAgentModule} from '@shipfox/api-agent';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {authModule} from '@shipfox/api-auth';
 import {config as authConfig} from '@shipfox/api-auth/config';
 import {
@@ -51,6 +52,7 @@ export async function defaultModules(
   const interModuleTransport = createInMemoryInterModuleTransport();
   const workflowsClient = interModuleTransport.createClient(workflowsInterModuleContract);
   const authClient = interModuleTransport.createClient(authInterModuleContract);
+  const agentClient = interModuleTransport.createClient(agentInterModuleContract);
   const runnersClient = interModuleTransport.createClient(runnersInterModuleContract);
   const projectsClient = interModuleTransport.createClient(projectsInterModuleContract);
   const definitionsClient = interModuleTransport.createClient(definitionsInterModuleContract);
@@ -171,6 +173,7 @@ export async function defaultModules(
     definitionsModule,
     createWorkflowsModule({
       annotations: annotationsClient,
+      agent: agentClient,
       definitions: definitionsClient,
       auth: authClient,
       projects: projectsClient,

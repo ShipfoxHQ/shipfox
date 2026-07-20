@@ -1,8 +1,5 @@
-import {
-  type AgentDefaultsResolver,
-  catalogDefaultAgentResolver,
-} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {AgentDefaultsResolver} from './agent-defaults.js';
 import type {
   AgentToolMaterializationContext,
   AgentToolMaterializationSnapshot,
@@ -61,9 +58,9 @@ export interface MaterializedListenerExecution {
   readonly steps: readonly MaterializedWorkflowStep[];
 }
 
-export function materializeListenerExecution(
+export async function materializeListenerExecution(
   params: MaterializeListenerExecutionParams,
-): MaterializedListenerExecution {
+): Promise<MaterializedListenerExecution> {
   const fallbackName = `${params.job.key} #${params.sequence}`;
   let executionName = fallbackName;
   let evaluationTrace: readonly PersistedEvaluationTraceEntry[] = [];
@@ -95,11 +92,11 @@ export function materializeListenerExecution(
       context,
       definitionId: params.run.definitionId,
     });
-    steps = materializeJobExecutionSteps({
+    steps = await materializeJobExecutionSteps({
       model: params.model,
       job: modelJob,
       context,
-      resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
+      resolveAgentDefaults: params.resolveAgentDefaults,
       definitionId: params.run.definitionId,
       agentToolContext: params.agentToolContext,
       agentToolSnapshot: params.agentToolSnapshot,

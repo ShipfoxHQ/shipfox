@@ -1,4 +1,5 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
@@ -17,77 +18,44 @@ import {createNextStepRoute} from './next-step.js';
 import {createReportStepRoute} from './report-step.js';
 import {rerunRunRoute} from './rerun-run.js';
 
-const unconfiguredProjects = {
-  getProjectById: () => {
-    throw new Error('Projects client is not configured');
-  },
-  requireProjectForWorkspace: () => {
-    throw new Error('Projects client is not configured');
-  },
-} as unknown as ProjectsModuleClient;
-const unconfiguredSecrets = {
-  getSecret: () => {
-    throw new Error('Secrets client is not configured');
-  },
-  getSecretsByNamespace: () => {
-    throw new Error('Secrets client is not configured');
-  },
-  getVariablesByNamespace: () => {
-    throw new Error('Secrets client is not configured');
-  },
-} as unknown as SecretsInterModuleClient;
+type WorkflowRouteClients = {
+  agent: AgentInterModuleClient;
+  annotations: AnnotationsInterModuleClient;
+  auth: AuthInterModuleClient;
+  projects: ProjectsModuleClient;
+  runners: RunnersInterModuleClient;
+  secrets: SecretsInterModuleClient;
+};
 
-const unconfiguredAnnotations = {
-  replaceOrRemoveAnnotation: () => {
-    throw new Error('Annotations client is not configured');
-  },
-} as unknown as AnnotationsInterModuleClient;
-const unconfiguredAuthClient = new Proxy({} as AuthInterModuleClient, {
-  get() {
-    throw new Error('Auth client is not configured');
-  },
-});
-
-export function createLeaseTokenRouteGroup(
-  runners: RunnersInterModuleClient,
-  projects: ProjectsModuleClient = unconfiguredProjects,
-  annotations: AnnotationsInterModuleClient = unconfiguredAnnotations,
-  secrets: SecretsInterModuleClient = unconfiguredSecrets,
-  auth: AuthInterModuleClient = unconfiguredAuthClient,
-): RouteGroup {
+export function createLeaseTokenRouteGroup(params: WorkflowRouteClients): RouteGroup {
   return {
+    // The lease token names the job, so the path carries no job id ("current").
     prefix: '/runs/jobs/current',
     auth: AUTH_LEASED_JOB,
     routes: [
-      createNextStepRoute(runners, annotations, auth),
-      createReportStepRoute(runners),
-      createCheckoutTokenRoute(runners, projects),
-      createAgentRuntimeConfigRoute(runners, secrets),
-      createGetStepSecretsRoute(runners, secrets),
+      createNextStepRoute(params),
+      createReportStepRoute(params.runners),
+      createCheckoutTokenRoute(params.runners, params.projects),
+      createAgentRuntimeConfigRoute(params),
+      createGetStepSecretsRoute(params.runners, params.secrets),
     ],
   };
 }
 
-export function createWorkflowRoutes(
-  runners: RunnersInterModuleClient,
-  auth: AuthInterModuleClient,
-  projects: ProjectsModuleClient = unconfiguredProjects,
-  annotations: AnnotationsInterModuleClient = unconfiguredAnnotations,
-  secrets: SecretsInterModuleClient = unconfiguredSecrets,
-): RouteGroup[] {
+export function createWorkflowRoutes(params: WorkflowRouteClients): RouteGroup[] {
   return [
     {
       prefix: '/workflows/runs',
       auth: AUTH_USER,
       routes: [
-        listRunsRoute(projects),
-        getRunAggregatesRoute(projects),
-        listRunAttemptsRoute(projects),
-        getRunRoute(projects),
-        cancelRunRoute(projects),
-        rerunRunRoute(projects),
+        listRunsRoute(params.projects),
+        getRunAggregatesRoute(params.projects),
+        listRunAttemptsRoute(params.projects),
+        getRunRoute(params.projects),
+        cancelRunRoute(params.projects),
+        rerunRunRoute(params.projects),
       ],
     },
-    createLeaseTokenRouteGroup(runners, projects, annotations, secrets, auth),
+    createLeaseTokenRouteGroup(params),
   ];
 }

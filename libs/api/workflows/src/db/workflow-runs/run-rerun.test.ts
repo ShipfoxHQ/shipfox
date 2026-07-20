@@ -1,5 +1,5 @@
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {eq, inArray} from 'drizzle-orm';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';

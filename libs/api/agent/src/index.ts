@@ -2,6 +2,7 @@ import type {ShipfoxModule} from '@shipfox/node-module';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
 import {db, migrationsPath} from '#db/index.js';
 import {createAgentE2eRoutes} from '#presentation/e2eRoutes/index.js';
+import {createAgentInterModulePresentation} from '#presentation/inter-module.js';
 import {createAgentRoutes} from '#presentation/routes/index.js';
 
 export {
@@ -42,5 +43,6 @@ export function createAgentModule(params: {secrets: AgentSecretsClient}): Shipfo
     database: {db, migrationsPath},
     routes: createAgentRoutes(params.secrets),
     e2eRoutes: [createAgentE2eRoutes(params.secrets)],
+    interModulePresentations: [createAgentInterModulePresentation(params)],
   };
 }

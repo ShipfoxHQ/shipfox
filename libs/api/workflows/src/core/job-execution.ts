@@ -1,4 +1,4 @@
-import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import {
   coerceStepOutputs,
@@ -26,6 +26,7 @@ import {
   recordWorkflowJobExecutionStepsSettled,
   recordWorkflowStepRestartEnqueued,
 } from '#metrics/instance.js';
+import {createAgentDefaultsResolver} from './agent-defaults.js';
 import {defaultStepConditionTrace, explicitConditionTrace} from './condition-trace.js';
 import type {JobExecution} from './entities/job-execution.js';
 import type {PersistedEvaluationTraceEntry, Step, StepStatusReason} from './entities/step.js';
@@ -83,6 +84,7 @@ interface PendingStepDispatchParams {
   readonly jobExecution: JobExecution;
   readonly context: WorkflowEvaluationContext;
   readonly tx: Tx;
+  readonly agent?: AgentInterModuleClient | undefined;
 }
 
 interface ResolvePendingStepParams {
@@ -92,6 +94,7 @@ interface ResolvePendingStepParams {
   readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
   readonly jobs: Awaited<ReturnType<typeof getDirectDependencyJobContexts>>;
   readonly tx: Tx;
+  readonly agent?: AgentInterModuleClient | undefined;
 }
 
 type StepConditionOutcome =
@@ -105,6 +108,7 @@ type StepConditionOutcome =
 async function nextStepForJobExecutionInTransaction(
   jobExecutionId: string,
   tx: Tx,
+  agent?: AgentInterModuleClient | undefined,
 ): Promise<NextStep> {
   const steps = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
   const hasNoSteps = steps.length === 0;
@@ -129,7 +133,7 @@ async function nextStepForJobExecutionInTransaction(
   const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
   const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
 
-  return resolveNextPendingStep({jobExecutionId, steps, jobExecution, attempts, jobs, tx});
+  return resolveNextPendingStep({jobExecutionId, steps, jobExecution, attempts, jobs, tx, agent});
 }
 
 async function resolveNextPendingStep({
@@ -139,6 +143,7 @@ async function resolveNextPendingStep({
   attempts,
   jobs,
   tx,
+  agent,
 }: ResolvePendingStepParams): Promise<NextStep> {
   let skippedAny = false;
   let currentSteps = steps;
@@ -167,7 +172,7 @@ async function resolveNextPendingStep({
     });
     const condition = evaluateStepCondition({step: pending, context});
     if (condition.kind === 'run') {
-      return dispatchPendingStep({jobExecutionId, pending, jobExecution, context, tx});
+      return dispatchPendingStep({jobExecutionId, pending, jobExecution, context, tx, agent});
     }
 
     const skipped = await markStepSkipped(
@@ -208,12 +213,13 @@ async function dispatchPendingStepWithConfigPlan({
   jobExecution,
   context,
   tx,
+  agent,
 }: PendingStepDispatchParams): Promise<NextStep> {
   try {
-    const completed = completeStepDispatchConfig({
+    const completed = await completeStepDispatchConfig({
       step: pending,
       context,
-      resolveAgentDefaults: catalogDefaultAgentResolver,
+      resolveAgentDefaults: agent ? createAgentDefaultsResolver(agent, null) : undefined,
       definitionId: jobExecution.jobId,
     });
     const marked = await dispatchStepWithCompletedConfig(
@@ -258,7 +264,7 @@ async function dispatchPendingStepWithConfigPlan({
     });
     if (status) recordWorkflowJobExecutionStepsSettled(status);
     return status === null
-      ? nextStepForJobExecutionInTransaction(jobExecutionId, tx)
+      ? nextStepForJobExecutionInTransaction(jobExecutionId, tx, agent)
       : {kind: 'done', status};
   }
 }
@@ -333,6 +339,7 @@ export interface NextStepForLeasedJobExecutionParams {
   jobId: string;
   jobExecutionId: string;
   runnerSessionId: string;
+  agent?: AgentInterModuleClient | undefined;
 }
 
 export function nextStepForLeasedJobExecution(
@@ -342,16 +349,19 @@ export function nextStepForLeasedJobExecution(
     const leaseIsActive = await lockActiveJobExecutionLeaseForUpdate(params, tx);
     if (!leaseIsActive) throw new JobLeaseNotActiveError(params.jobExecutionId);
 
-    return nextStepForJobExecutionInTransaction(params.jobExecutionId, tx);
+    return nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent);
   });
 }
 
-export function nextStepForJob(jobId: string): Promise<NextStep> {
+export function nextStepForJob(
+  jobId: string,
+  agent?: AgentInterModuleClient | undefined,
+): Promise<NextStep> {
   return withTransaction(async (tx) => {
     const jobExecution = await getLatestJobExecutionByJobId(jobId, tx);
     if (!jobExecution) throw new JobNotFoundError(jobId);
 
-    return nextStepForJobExecutionInTransaction(jobExecution.id, tx);
+    return nextStepForJobExecutionInTransaction(jobExecution.id, tx, agent);
   });
 }
 

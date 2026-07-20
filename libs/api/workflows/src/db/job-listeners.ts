@@ -1,10 +1,11 @@
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   WORKFLOWS_JOB_ACTIVATED,
   type WorkflowsJobActivatedEventDto,
 } from '@shipfox/api-workflows-dto';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
+import {type AgentDefaultsResolver, createAgentDefaultsResolver} from '#core/agent-defaults.js';
 import {loadAgentToolMaterializationContext} from '#core/agent-tools.js';
 import {isJobTerminal, type JobStatus, type ResolutionReason} from '#core/entities/job.js';
 import type {JobExecutionStatus, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
@@ -176,6 +177,7 @@ export interface DrainListenerEventsParams {
   expectedSequence: number;
   maxSize?: number | undefined;
   resolveAgentDefaults?: AgentDefaultsResolver | undefined;
+  agent?: AgentInterModuleClient | undefined;
 }
 
 export async function drainListenerEventsIntoExecution(
@@ -202,14 +204,18 @@ export async function drainListenerEventsIntoExecution(
             projectId: target.run.projectId,
           })
         : undefined;
-    const materialized = materializeListenerExecution({
+    const materialized = await materializeListenerExecution({
       model,
       run: toWorkflowRun(target.run),
       job: toJob(target.job),
       sequence: params.expectedSequence,
       triggerEvents: listenerTriggerEvents(bufferedEvents),
       priorExecutions: target.priorExecutions,
-      resolveAgentDefaults: params.resolveAgentDefaults,
+      resolveAgentDefaults:
+        params.resolveAgentDefaults ??
+        (params.agent
+          ? createAgentDefaultsResolver(params.agent, target.run.workspaceId)
+          : undefined),
       agentToolContext,
       agentToolSnapshot: target.attempt.agentToolMaterialization,
     });

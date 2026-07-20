@@ -1,20 +1,28 @@
 import {
-  InvalidAgentModelError,
-  UnsupportedModelProviderError,
-} from '@shipfox/api-agent/core/errors';
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import {
   AGENT_INTEGRATION_MCP_AUTH,
   AGENT_INTEGRATION_MCP_ENDPOINT,
   AGENT_INTEGRATION_MCP_SERVER_NAME,
   AGENT_INTEGRATION_MCP_TRANSPORT,
 } from '@shipfox/api-agent-dto';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import type {AgentToolCatalogEntry} from '@shipfox/api-integration-core';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
+import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
-import {materializeJobExecutionSteps} from './materialize-job-execution-steps.js';
+import {materializeJobExecutionSteps as materializeJobExecutionStepsImpl} from './materialize-job-execution-steps.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
+
+function materializeJobExecutionSteps(
+  params: Parameters<typeof materializeJobExecutionStepsImpl>[0],
+): ReturnType<typeof materializeJobExecutionStepsImpl> {
+  return materializeJobExecutionStepsImpl({
+    resolveAgentDefaults: resolveTestAgentDefaults,
+    ...params,
+  });
+}
 
 function template(source: string): string {
   return `\${{ ${source} }}`;
@@ -150,7 +158,7 @@ function githubAgentToolCatalog(): readonly AgentToolCatalogEntry[] {
 }
 
 describe('materializeJobExecutionSteps', () => {
-  it('prepends setup and resolves job-execution context fields', () => {
+  it('prepends setup and resolves job-execution context fields', async () => {
     const model = workflowModel({
       jobs: {
         review: {
@@ -167,7 +175,7 @@ describe('materializeJobExecutionSteps', () => {
     const job = model.jobs[0];
     if (!job) throw new Error('Expected workflow job');
 
-    const steps = materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
 
     expect(steps).toEqual([
       {
@@ -231,7 +239,7 @@ describe('materializeJobExecutionSteps', () => {
     ]);
   });
 
-  it('freezes resolved agent integration tools with default connection, repo, and token scope', () => {
+  it('freezes resolved agent integration tools with default connection, repo, and token scope', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -256,7 +264,7 @@ describe('materializeJobExecutionSteps', () => {
     const job = model.jobs[0];
     if (!job) throw new Error('Expected workflow job');
 
-    const steps = materializeJobExecutionSteps({
+    const steps = await materializeJobExecutionSteps({
       model,
       job,
       context: jobExecutionContext(),
@@ -333,7 +341,7 @@ describe('materializeJobExecutionSteps', () => {
     ]);
   });
 
-  it('carries frozen integrations through the agent dispatch plan when prompt is deferred', () => {
+  it('carries frozen integrations through the agent dispatch plan when prompt is deferred', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -360,7 +368,7 @@ describe('materializeJobExecutionSteps', () => {
     const job = model.jobs[0];
     if (!job) throw new Error('Expected workflow job');
 
-    const steps = materializeJobExecutionSteps({
+    const steps = await materializeJobExecutionSteps({
       model,
       job,
       context: jobExecutionContext(),
@@ -412,7 +420,7 @@ describe('materializeJobExecutionSteps', () => {
     ]);
   });
 
-  it('throws a permanent interpolation error for available missing value paths', () => {
+  it('throws a permanent interpolation error for available missing value paths', async () => {
     const model = workflowModel({
       jobs: {
         review: {
@@ -426,7 +434,7 @@ describe('materializeJobExecutionSteps', () => {
 
     let error: unknown;
     try {
-      materializeJobExecutionSteps({
+      await materializeJobExecutionSteps({
         model,
         job,
         context: {...baseContext, values: {...baseContext.values, inputs: {}}},
@@ -444,10 +452,7 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
-  it.each([
-    new UnsupportedModelProviderError('unknown-provider'),
-    new InvalidAgentModelError('pi', 'anthropic', 'missing-model'),
-  ])('wraps known resolver errors as permanent agent config errors', (cause) => {
+  it('wraps known resolver errors as permanent agent config errors', async () => {
     const model = workflowModel({
       jobs: {
         review: {steps: [{prompt: 'Summarize the review.'}]},
@@ -456,7 +461,11 @@ describe('materializeJobExecutionSteps', () => {
     const job = model.jobs[0];
     if (!job) throw new Error('Expected workflow job');
     const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockImplementation(() => {
-      throw cause;
+      throw createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveAgentConfig,
+        'agent-config-invalid',
+        {},
+      );
     });
 
     const materialize = () =>
@@ -468,11 +477,13 @@ describe('materializeJobExecutionSteps', () => {
         definitionId: 'def-1',
       });
 
-    expect(materialize).toThrow(AgentConfigUnresolvableError);
-    expect(materialize).toThrow('Agent configuration cannot be resolved for definition def-1');
+    await expect(materialize()).rejects.toThrow(AgentConfigUnresolvableError);
+    await expect(materialize()).rejects.toThrow(
+      'Agent configuration cannot be resolved for definition def-1',
+    );
   });
 
-  it('throws a permanent interpolation error for unsafe run interpolation', () => {
+  it('throws a permanent interpolation error for unsafe run interpolation', async () => {
     const model = workflowModel({
       jobs: {
         review: {steps: [{run: `echo \`${template('execution.index')}\``}]},
@@ -489,6 +500,6 @@ describe('materializeJobExecutionSteps', () => {
         definitionId: 'def-1',
       });
 
-    expect(materialize).toThrow(InterpolationUnresolvableError);
+    await expect(materialize()).rejects.toThrow(InterpolationUnresolvableError);
   });
 });

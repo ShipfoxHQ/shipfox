@@ -3,6 +3,7 @@ import {
   harnessSchema,
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
@@ -25,6 +26,7 @@ import {getJobScope, getStepById, getStepByIdForJobExecution} from '#db/index.js
 import {deliverEventToListener} from '#db/job-listener-events.js';
 
 export function createWorkflowsInterModulePresentation(params: {
+  agent: AgentInterModuleClient;
   definitions: DefinitionsInterModuleClient;
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
   runners: RunnersInterModuleClient;
@@ -35,6 +37,7 @@ export function createWorkflowsInterModulePresentation(params: {
         const run = await runWorkflow(
           params.definitions,
           {
+            agent: params.agent,
             workspaceId: input.workspaceId,
             projectId: input.projectId,
             definitionId: input.definitionId,

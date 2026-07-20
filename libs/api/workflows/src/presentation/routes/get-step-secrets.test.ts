@@ -14,6 +14,10 @@ import {
 } from '#db/workflow-runs.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
+import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
@@ -28,7 +32,16 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient, undefined, undefined, secrets)],
+      routes: [
+        createLeaseTokenRouteGroup({
+          agent: agentTestClient,
+          annotations: annotationsTestClient,
+          auth: workflowsTestAuthClient,
+          projects: projectsTestClient,
+          runners: runnersTestClient,
+          secrets,
+        }),
+      ],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });
@@ -61,7 +74,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     await secrets.setSecrets({
       workspaceId: run.workspaceId,
       projectId: run.projectId,
-      namespace: '',
       values: {API_TOKEN: 'runtime-secret', UNUSED_TOKEN: 'unused-secret'},
     });
     const token = await mintActiveLeaseToken({jobId: job.id});
@@ -92,18 +104,15 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     ]);
     await secrets.setSecrets({
       workspaceId: run.workspaceId,
-      namespace: '',
       values: {API_TOKEN: 'workspace-secret'},
     });
     await secrets.setSecrets({
       workspaceId: run.workspaceId,
       projectId: run.projectId,
-      namespace: '',
       values: {API_TOKEN: 'project-secret'},
     });
     await secrets.setSecrets({
       workspaceId: hostileWorkspaceId,
-      namespace: '',
       values: {API_TOKEN: 'hostile-secret'},
     });
     const token = await mintActiveLeaseToken({

@@ -13,8 +13,12 @@ import {clearSourceControl, setSourceControl} from '#core/source-control.js';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 const mockGetProjectById = vi.fn();
@@ -26,6 +30,7 @@ const projects = {
 } as unknown as ProjectsModuleClient;
 
 const URL = '/runs/jobs/current/checkout-token';
+const secrets = createTestSecretsClient();
 
 const githubSpec = (token: string): CheckoutSpec => ({
   repositoryUrl: 'https://github.com/acme/repo.git',
@@ -42,7 +47,16 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     setSourceControl({createCheckoutSpec} as unknown as IntegrationSourceControlService);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient, projects)],
+      routes: [
+        createLeaseTokenRouteGroup({
+          agent: agentTestClient,
+          annotations: annotationsTestClient,
+          auth: workflowsTestAuthClient,
+          projects,
+          runners: runnersTestClient,
+          secrets,
+        }),
+      ],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });

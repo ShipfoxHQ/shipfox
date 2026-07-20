@@ -1,9 +1,10 @@
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
 import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
+import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {buildModel, expression, shellRef, template} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
@@ -46,6 +47,7 @@ describe('workflow run queries', () => {
           subscriptionId: crypto.randomUUID(),
           userId: crypto.randomUUID(),
         },
+        resolveAgentDefaults: resolveTestAgentDefaults,
       });
 
       expect(run.id).toBeDefined();
@@ -122,6 +124,7 @@ describe('workflow run queries', () => {
           subscriptionId: crypto.randomUUID(),
           userId: crypto.randomUUID(),
         },
+        resolveAgentDefaults: resolveTestAgentDefaults,
       });
       const [build, deploy] = await getJobsByWorkflowRunId(run.id);
       if (!build || !deploy) throw new Error('Expected build and deploy jobs');
@@ -844,6 +847,7 @@ describe('workflow run queries', () => {
           subscriptionId: crypto.randomUUID(),
           userId: crypto.randomUUID(),
         },
+        resolveAgentDefaults: resolveTestAgentDefaults,
       });
 
       const runJobs = await getJobsByWorkflowRunId(run.id);

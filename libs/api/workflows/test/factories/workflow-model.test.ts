@@ -1,3 +1,4 @@
+import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {workflowModel} from './workflow-model.js';
 
 describe('workflowModel', () => {
@@ -21,6 +22,9 @@ describe('workflowModel', () => {
       },
     });
 
-    expect(model.jobs.map((job) => job.runner)).toEqual([['ubuntu-22'], ['ubuntu-22', 'node-22']]);
+    expect(model.jobs.map((job: WorkflowModel['jobs'][number]) => job.runner)).toEqual([
+      ['ubuntu-22'],
+      ['ubuntu-22', 'node-22'],
+    ]);
   });
 });

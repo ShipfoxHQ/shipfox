@@ -1,11 +1,20 @@
-import {createCustomModelProviderConfig, testAndSaveModelProviderConfig} from '@shipfox/api-agent';
+import {
+  createAgentModule,
+  createCustomModelProviderConfig,
+  testAndSaveModelProviderConfig,
+} from '@shipfox/api-agent';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
+import {
+  createInMemoryInterModuleTransport,
+  registerInterModulePresentations,
+} from '@shipfox/node-module/inter-module';
 import {eq} from 'drizzle-orm';
 import type {StepStatus} from '#core/entities/step.js';
 import {db} from '#db/db.js';
@@ -14,7 +23,11 @@ import {steps as stepsTable} from '#db/schema/steps.js';
 import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
+import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
@@ -29,6 +42,13 @@ vi.mock('@shipfox/node-error-monitoring', () => ({captureException: captureExcep
 
 const URL = '/runs/jobs/current/agent-runtime-config';
 const secrets = createTestSecretsClient();
+const agentTransport = createInMemoryInterModuleTransport();
+const agentTestClient = agentTransport.createClient(agentInterModuleContract);
+registerInterModulePresentations({
+  transport: agentTransport,
+  modules: [createAgentModule({secrets})],
+});
+agentTransport.seal();
 
 describe('GET /runs/jobs/current/agent-runtime-config', () => {
   let app: FastifyInstance;
@@ -37,7 +57,16 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient, undefined, undefined, secrets)],
+      routes: [
+        createLeaseTokenRouteGroup({
+          agent: agentTestClient,
+          annotations: annotationsTestClient,
+          auth: workflowsTestAuthClient,
+          projects: projectsTestClient,
+          runners: runnersTestClient,
+          secrets,
+        }),
+      ],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });
@@ -369,7 +398,10 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('model-provider-credentials-invalid');
     expect(captureExceptionMock).toHaveBeenCalledWith(
-      expect.objectContaining({name: 'InterModuleKnownError'}),
+      expect.objectContaining({
+        name: 'InterModuleKnownError',
+        code: 'model-provider-credentials-invalid',
+      }),
     );
     expect(JSON.stringify(res.json())).not.toContain('sk-');
   });
@@ -463,7 +495,7 @@ async function createStep(params: {
     projectId: crypto.randomUUID(),
     definitionId: crypto.randomUUID(),
     model: workflowModel({jobs: {build: {steps: params.steps}}}),
-    resolveAgentDefaults: params.resolveAgentDefaults,
+    resolveAgentDefaults: params.resolveAgentDefaults ?? resolveTestAgentDefaults,
     triggerPayload: {
       source: 'manual',
       event: 'fire',
