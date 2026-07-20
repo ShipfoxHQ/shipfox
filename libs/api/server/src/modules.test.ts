@@ -115,6 +115,30 @@ describe('defaultModules', () => {
     ]);
   });
 
+  it('replaces only the runners module when a host provides one', async () => {
+    const runnersModule = {name: 'runners'};
+
+    const modules = await defaultModules({runnersModule});
+
+    expect(modules).toContain(runnersModule);
+    expect(modules.filter((module) => module.name === 'runners')).toEqual([runnersModule]);
+    expect(modules.map((module) => module.name)).toEqual([
+      'auth',
+      'workspaces',
+      'secrets',
+      'agent',
+      'integrations',
+      'projects',
+      'definitions',
+      'workflows',
+      'annotations',
+      'runners',
+      'logs',
+      'triggers',
+      'dispatcher',
+    ]);
+  });
+
   it('uses the leased-step loader and namespaced provider secrets', async () => {
     await defaultModules();
 

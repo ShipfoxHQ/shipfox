@@ -6,6 +6,7 @@ import {
   AUTH_USER,
 } from '@shipfox/api-auth-context';
 import type {RouteGroup} from '@shipfox/node-fastify';
+import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
 import {createManualRegistrationTokenRoute} from './create-manual-registration-token.js';
 import {createProvisionerTokenRoute} from './create-provisioner-token.js';
 import {getProvisionerMeRoute} from './get-provisioner-me.js';
@@ -15,7 +16,7 @@ import {listActiveRunnersRoute} from './list-active-runners.js';
 import {listManualRegistrationTokensRoute} from './list-manual-registration-tokens.js';
 import {listProvisionerTokensRoute} from './list-provisioner-tokens.js';
 import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
-import {pollDemandRoute} from './poll-demand.js';
+import {createPollDemandRoute, pollDemandRoute} from './poll-demand.js';
 import {reconcileProvisionedRunnersRoute} from './reconcile-provisioned-runners.js';
 import {registerRoute} from './register.js';
 import {reportProvisionedRunnersRoute} from './report-provisioned-runners.js';
@@ -82,5 +83,21 @@ export const provisionerRoutes: RouteGroup[] = [
     routes: [getProvisionerMeRoute],
   },
 ];
+
+export function createRunnerRoutes(options: CreateRunnersModuleOptions = {}): RouteGroup[] {
+  return [
+    ...runnerOnlyRoutes.map((route) =>
+      route.routes.includes(pollDemandRoute)
+        ? {
+            ...route,
+            routes: route.routes.map((r) =>
+              r === pollDemandRoute ? createPollDemandRoute(options) : r,
+            ),
+          }
+        : route,
+    ),
+    ...provisionerRoutes,
+  ];
+}
 
 export const runnerRoutes: RouteGroup[] = [...runnerOnlyRoutes, ...provisionerRoutes];
