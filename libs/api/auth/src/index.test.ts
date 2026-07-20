@@ -18,6 +18,9 @@ vi.mock('#config.js', () => ({
     AUTH_PASSWORD_ENABLED: true,
     CLIENT_BASE_URL: 'https://app.example.test',
   },
+}));
+
+vi.mock('@shipfox/node-mailer', () => ({
   mailer: {send: vi.fn()},
 }));
 

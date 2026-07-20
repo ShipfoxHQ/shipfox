@@ -16,7 +16,7 @@ const testMailer = vi.hoisted(
   },
 );
 
-vi.mock('#config.js', () => ({
+vi.mock('@shipfox/node-mailer', () => ({
   mailer: testMailer.mailer,
 }));
 
