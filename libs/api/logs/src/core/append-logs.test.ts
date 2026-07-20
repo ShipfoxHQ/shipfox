@@ -194,7 +194,7 @@ describe('appendLogs', () => {
         workflows: defineInterModulePresentation(workflowsInterModuleContract, {
           startRunFromTrigger: vi.fn(),
           deliverEventToJobListener: vi.fn(),
-          getStepLogContext: () => ({harness: 'claude'}),
+          getStepLogContext: () => ({harness: 'claude' as const}),
           getLeasedAgentToolContext: vi.fn(),
         }),
       }).workflows;
