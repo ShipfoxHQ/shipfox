@@ -13,8 +13,8 @@ import {authOutbox} from '#db/schema/outbox.js';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 import {createRunnerSessionAuthMethod} from '#presentation/auth/runner-session-auth.js';
-import {createAuthInterModulePresentation} from '#presentation/inter-module.js';
 import {createAuthE2eRoutes} from '#presentation/e2eRoutes/index.js';
+import {createAuthInterModulePresentation} from '#presentation/inter-module.js';
 import {buildAuthRoutes} from '#presentation/routes/index.js';
 import {
   onEmailVerificationSendRequested,

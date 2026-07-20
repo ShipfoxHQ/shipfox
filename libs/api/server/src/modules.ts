@@ -34,8 +34,8 @@ import {
 } from '@shipfox/api-workflows';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {workspacesModule} from '@shipfox/api-workspaces';
-import {durationToSeconds} from '@shipfox/node-jwt';
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {durationToSeconds} from '@shipfox/node-jwt';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {
   createInMemoryInterModuleTransport,
