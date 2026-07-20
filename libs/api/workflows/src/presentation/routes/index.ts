@@ -1,3 +1,4 @@
+import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
@@ -23,15 +24,22 @@ const unconfiguredProjects = {
   },
 } as unknown as ProjectsModuleClient;
 
+const unconfiguredAnnotations = {
+  replaceOrRemoveAnnotation: () => {
+    throw new Error('Annotations client is not configured');
+  },
+} as unknown as AnnotationsInterModuleClient;
+
 export function createLeaseTokenRouteGroup(
   runners: RunnersInterModuleClient,
   projects: ProjectsModuleClient = unconfiguredProjects,
+  annotations: AnnotationsInterModuleClient = unconfiguredAnnotations,
 ): RouteGroup {
   return {
     prefix: '/runs/jobs/current',
     auth: AUTH_LEASED_JOB,
     routes: [
-      createNextStepRoute(runners),
+      createNextStepRoute(runners, annotations),
       createReportStepRoute(runners),
       createCheckoutTokenRoute(runners, projects),
       createAgentRuntimeConfigRoute(runners),
@@ -43,6 +51,7 @@ export function createLeaseTokenRouteGroup(
 export function createWorkflowRoutes(
   runners: RunnersInterModuleClient,
   projects: ProjectsModuleClient = unconfiguredProjects,
+  annotations: AnnotationsInterModuleClient = unconfiguredAnnotations,
 ): RouteGroup[] {
   return [
     {
@@ -57,6 +66,6 @@ export function createWorkflowRoutes(
         rerunRunRoute(projects),
       ],
     },
-    createLeaseTokenRouteGroup(runners, projects),
+    createLeaseTokenRouteGroup(runners, projects, annotations),
   ];
 }

@@ -1,10 +1,7 @@
 import {
-  AnnotationBodyTooLargeError,
-  AnnotationCountLimitExceededError,
-  AnnotationTotalBytesLimitExceededError,
-  type WriteAnnotationsParams,
-  writeAnnotations,
-} from '@shipfox/annotations';
+  type AnnotationsInterModuleClient,
+  annotationsInterModuleContract,
+} from '@shipfox/annotations-dto/inter-module';
 import {
   harnessSchema,
   type MaterializedAgentStepConfigDto,
@@ -12,6 +9,7 @@ import {
 } from '@shipfox/api-agent-dto';
 import type {LeasedJobContext} from '@shipfox/api-auth-context';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {recordWorkflowAgentToolWarningFailed} from '#metrics/instance.js';
 import type {Step} from './entities/step.js';
@@ -22,6 +20,7 @@ type WarningFailureReason = 'budget' | 'lookup' | 'write';
 type WarningReason = 'known-absence' | 'harness-not-advertised' | 'unknown-or-stale';
 
 export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
+  annotations: AnnotationsInterModuleClient;
   runners: RunnersInterModuleClient;
   leaseIdentity: LeasedJobContext;
   step: Step;
@@ -73,11 +72,12 @@ export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
         };
 
   try {
-    await writeAnnotations({
-      ...writeParamsFromLease(params.leaseIdentity),
+    await params.annotations.replaceOrRemoveAnnotation({
+      ...annotationTargetFromLease(params.leaseIdentity),
       originStepId: params.step.id,
       originStepAttempt: params.step.currentAttempt,
-      operations: [operation],
+      context,
+      annotation: operation.op === 'remove' ? {op: 'remove'} : operation,
     });
   } catch (error) {
     const reason = isAnnotationBudgetError(error) ? 'budget' : 'write';
@@ -173,9 +173,12 @@ function warningReason(params: {reportFresh: boolean; harnessKnown: boolean}): W
   return params.reportFresh ? 'harness-not-advertised' : 'unknown-or-stale';
 }
 
-function writeParamsFromLease(
+function annotationTargetFromLease(
   lease: LeasedJobContext,
-): Omit<WriteAnnotationsParams, 'originStepId' | 'originStepAttempt' | 'operations'> {
+): Omit<
+  Parameters<AnnotationsInterModuleClient['replaceOrRemoveAnnotation']>[0],
+  'originStepId' | 'originStepAttempt' | 'context' | 'annotation'
+> {
   return {
     workspaceId: lease.workspaceId,
     projectId: lease.projectId,
@@ -188,10 +191,9 @@ function writeParamsFromLease(
 }
 
 function isAnnotationBudgetError(error: unknown): boolean {
-  return (
-    error instanceof AnnotationBodyTooLargeError ||
-    error instanceof AnnotationCountLimitExceededError ||
-    error instanceof AnnotationTotalBytesLimitExceededError
+  return isInterModuleKnownError(
+    annotationsInterModuleContract.methods.replaceOrRemoveAnnotation,
+    error,
   );
 }
 

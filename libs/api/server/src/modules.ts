@@ -1,4 +1,5 @@
 import {annotationsModule} from '@shipfox/annotations';
+import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {agentModule} from '@shipfox/api-agent';
 import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
@@ -46,6 +47,7 @@ export async function defaultModules(
   const runnersClient = interModuleTransport.createClient(runnersInterModuleContract);
   const projectsClient = interModuleTransport.createClient(projectsInterModuleContract);
   const definitionsClient = interModuleTransport.createClient(definitionsInterModuleContract);
+  const annotationsClient = interModuleTransport.createClient(annotationsInterModuleContract);
   const integrations = await createIntegrationsContext({
     secrets: {
       deleteSecrets,
@@ -132,6 +134,7 @@ export async function defaultModules(
     projectsModule,
     definitionsModule,
     createWorkflowsModule({
+      annotations: annotationsClient,
       definitions: definitionsClient,
       projects: projectsClient,
       runners: runnersClient,

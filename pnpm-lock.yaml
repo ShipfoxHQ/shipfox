@@ -1953,6 +1953,9 @@ importers:
 
   libs/api/annotations-dto:
     dependencies:
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -3914,9 +3917,9 @@ importers:
 
   libs/api/workflows:
     dependencies:
-      '@shipfox/annotations':
+      '@shipfox/annotations-dto':
         specifier: workspace:*
-        version: link:../annotations
+        version: link:../annotations-dto
       '@shipfox/api-agent':
         specifier: workspace:*
         version: link:../agent
@@ -4008,6 +4011,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
