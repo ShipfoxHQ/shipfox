@@ -1,8 +1,9 @@
+import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import {materializeListenerExecution} from './listener-execution-materialization.js';
 
 describe('materializeListenerExecution', () => {
-  it('fails cleanly when agent integration materialization is unresolvable', () => {
+  it('fails cleanly when agent integration materialization is unresolvable', async () => {
     const model = workflowModel({
       jobs: {
         review: {
@@ -16,7 +17,7 @@ describe('materializeListenerExecution', () => {
       },
     });
 
-    const result = materializeListenerExecution({
+    const result = await materializeListenerExecution({
       model,
       run: {
         id: crypto.randomUUID(),
@@ -37,6 +38,7 @@ describe('materializeListenerExecution', () => {
       sequence: 1,
       triggerEvents: [],
       priorExecutions: [],
+      resolveAgentDefaults: resolveTestAgentDefaults,
     });
 
     expect(result).toMatchObject({

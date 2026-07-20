@@ -1,6 +1,6 @@
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {WorkflowModel} from '@shipfox/api-definitions';
 import {canonicalizeLabels, findInvalidLabels, MAX_RUNNER_LABELS} from '@shipfox/runner-labels';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {
   AgentToolMaterializationContext,
   AgentToolMaterializationSnapshot,
@@ -38,9 +38,9 @@ export interface MaterializeWorkflowModelParams {
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }
 
-export function materializeWorkflowModel(
+export async function materializeWorkflowModel(
   params: MaterializeWorkflowModelParams,
-): readonly MaterializedWorkflowJob[] {
+): Promise<readonly MaterializedWorkflowJob[]> {
   const {
     model,
     context = {site: 'run-creation', values: {}},
@@ -51,31 +51,33 @@ export function materializeWorkflowModel(
   } = params;
   const jobsById = new Map(model.jobs.map((job) => [job.id, job]));
 
-  return model.jobs.map((job, position) => ({
-    key: job.key,
-    mode: job.mode,
-    ...(job.success === undefined ? {} : {success: job.success}),
-    ...(job.executionTimeoutMs === undefined ? {} : {executionTimeoutMs: job.executionTimeoutMs}),
-    checkout: job.checkout,
-    ...(job.listening === undefined ? {} : {listening: job.listening}),
-    ...(job.name === undefined ? {} : {name: job.name}),
-    ...(job.outputs === undefined ? {} : {outputs: job.outputs}),
-    dependencies: dependencySourceNames(job, jobsById),
-    runner: job.runner,
-    position,
-    steps:
-      job.mode === 'listening'
-        ? []
-        : materializeJobExecutionSteps({
-            model,
-            job,
-            context,
-            resolveAgentDefaults,
-            definitionId,
-            agentToolContext,
-            agentToolSnapshot,
-          }),
-  }));
+  return await Promise.all(
+    model.jobs.map(async (job, position) => ({
+      key: job.key,
+      mode: job.mode,
+      ...(job.success === undefined ? {} : {success: job.success}),
+      ...(job.executionTimeoutMs === undefined ? {} : {executionTimeoutMs: job.executionTimeoutMs}),
+      checkout: job.checkout,
+      ...(job.listening === undefined ? {} : {listening: job.listening}),
+      ...(job.name === undefined ? {} : {name: job.name}),
+      ...(job.outputs === undefined ? {} : {outputs: job.outputs}),
+      dependencies: dependencySourceNames(job, jobsById),
+      runner: job.runner,
+      position,
+      steps:
+        job.mode === 'listening'
+          ? []
+          : await materializeJobExecutionSteps({
+              model,
+              job,
+              context,
+              resolveAgentDefaults,
+              definitionId,
+              agentToolContext,
+              agentToolSnapshot,
+            }),
+    })),
+  );
 }
 
 export function materializeJobRunner(params: {

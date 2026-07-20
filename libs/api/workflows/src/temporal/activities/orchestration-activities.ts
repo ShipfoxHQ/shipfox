@@ -1,3 +1,4 @@
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {
   type RunnersInterModuleClient,
   runnersInterModuleContract,
@@ -280,12 +281,9 @@ export async function activateJobListenerActivity(params: {
   return await activateJobListener(params);
 }
 
-export async function drainListenerEventsActivity(params: {
-  jobId: string;
-  expectedSequence: number;
-  maxSize?: number | undefined;
-}) {
-  return await drainListenerEventsIntoExecution(params);
+export function createDrainListenerEventsActivity(agent: AgentInterModuleClient) {
+  return async (params: {jobId: string; expectedSequence: number; maxSize?: number | undefined}) =>
+    await drainListenerEventsIntoExecution({...params, agent});
 }
 
 export async function peekListenerBufferActivity(params: {jobId: string}) {

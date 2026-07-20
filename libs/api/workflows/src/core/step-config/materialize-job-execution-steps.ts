@@ -1,9 +1,6 @@
-import {
-  type AgentDefaultsResolver,
-  catalogDefaultAgentResolver,
-} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {WorkflowExpression} from '@shipfox/expression';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {
   AgentToolMaterializationContext,
   AgentToolMaterializationSnapshot,
@@ -57,14 +54,14 @@ const SETUP_STEP: MaterializedWorkflowStep = {
   position: 0,
 };
 
-export function materializeJobExecutionSteps(
+export async function materializeJobExecutionSteps(
   params: MaterializeJobExecutionStepsParams,
-): readonly MaterializedWorkflowStep[] {
+): Promise<readonly MaterializedWorkflowStep[]> {
   const {
     model,
     job,
     context,
-    resolveAgentDefaults = catalogDefaultAgentResolver,
+    resolveAgentDefaults,
     definitionId = model.name,
     agentToolContext,
     agentToolSnapshot,
@@ -72,37 +69,39 @@ export function materializeJobExecutionSteps(
 
   return [
     SETUP_STEP,
-    ...job.steps.map((step, stepPosition) => {
-      // The trusted context exposes the stable job key; the authored display field remains `job.name`.
-      const stepContext = {...context.values, job: {key: job.key}};
-      const resolved = resolveStepConfig({
-        jobKey: job.key,
-        step,
-        workflowEnv: model.env,
-        workflowEnvTemplates: model.templates?.env,
-        jobEnv: job.env,
-        jobEnvTemplates: job.templates?.env,
-        context: stepContext,
-        site: context.site,
-        resolveAgentDefaults,
-        definitionId,
-        agentToolContext,
-        agentToolSnapshot,
-      });
-      return {
-        key: step.key ?? null,
-        name: resolved.name ?? stepDisplayName(step),
-        sourceLocation: step.sourceLocation ?? null,
-        status: 'pending' as const,
-        type: step.kind,
-        config: resolved.config,
-        ...(step.if === undefined ? {} : {condition: step.if}),
-        authoredConfig: resolved.authoredConfig,
-        ...materializedConfigPlan(resolved.configPlan, resolved.trace),
-        ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
-        position: stepPosition + 1,
-      };
-    }),
+    ...(await Promise.all(
+      job.steps.map(async (step, stepPosition) => {
+        // The trusted context exposes the stable job key; the authored display field remains `job.name`.
+        const stepContext = {...context.values, job: {key: job.key}};
+        const resolved = await resolveStepConfig({
+          jobKey: job.key,
+          step,
+          workflowEnv: model.env,
+          workflowEnvTemplates: model.templates?.env,
+          jobEnv: job.env,
+          jobEnvTemplates: job.templates?.env,
+          context: stepContext,
+          site: context.site,
+          resolveAgentDefaults,
+          definitionId,
+          agentToolContext,
+          agentToolSnapshot,
+        });
+        return {
+          key: step.key ?? null,
+          name: resolved.name ?? stepDisplayName(step),
+          sourceLocation: step.sourceLocation ?? null,
+          status: 'pending' as const,
+          type: step.kind,
+          config: resolved.config,
+          ...(step.if === undefined ? {} : {condition: step.if}),
+          authoredConfig: resolved.authoredConfig,
+          ...materializedConfigPlan(resolved.configPlan, resolved.trace),
+          ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
+          position: stepPosition + 1,
+        };
+      }),
+    )),
   ];
 }
 

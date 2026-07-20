@@ -1,5 +1,3 @@
-import {UnsupportedHarnessThinkingError} from '@shipfox/api-agent/core/errors';
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {
   AGENT_INTEGRATION_MCP_AUTH,
   AGENT_INTEGRATION_MCP_ENDPOINT,
@@ -8,7 +6,10 @@ import {
   type AgentIntegrationMcpServerConfigDto,
   type MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {parseWorkflowTemplate, planInterpolationField} from '@shipfox/expression';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {Step} from '#core/entities/step.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
@@ -112,7 +113,7 @@ function integrationMcpServers(
 }
 
 describe('completeStepDispatchConfig', () => {
-  it('copies frozen agent integrations from the dispatch plan', () => {
+  it('copies frozen agent integrations from the dispatch plan', async () => {
     const integrations = [materializedIntegration()];
     const pending = step({
       type: 'agent',
@@ -130,7 +131,7 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const result = completeStepDispatchConfig({
+    const result = await completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
@@ -141,7 +142,7 @@ describe('completeStepDispatchConfig', () => {
     expect(result.config.mcpServers).toEqual(integrationMcpServers(integrations));
   });
 
-  it('serializes residual secret env values as secret bindings without writing env values', () => {
+  it('serializes residual secret env values as secret bindings without writing env values', async () => {
     const pending = step({
       config: {},
       configPlan: {
@@ -152,7 +153,7 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const result = completeStepDispatchConfig({
+    const result = await completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
@@ -196,7 +197,7 @@ describe('completeStepDispatchConfig', () => {
     ]);
   });
 
-  it('rejects secret env bindings with malformed target names', () => {
+  it('rejects secret env bindings with malformed target names', async () => {
     const pending = step({
       config: {},
       configPlan: {
@@ -214,10 +215,10 @@ describe('completeStepDispatchConfig', () => {
         definitionId: 'def-1',
       });
 
-    expect(act).toThrow();
+    await expect(act()).rejects.toThrow();
   });
 
-  it('keeps fully resolved step config byte-identical apart from resolved env additions', () => {
+  it('keeps fully resolved step config byte-identical apart from resolved env additions', async () => {
     const pending = step({
       config: {run: 'echo "$SHA"'},
       configPlan: {
@@ -227,7 +228,7 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const result = completeStepDispatchConfig({
+    const result = await completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
@@ -250,7 +251,7 @@ describe('completeStepDispatchConfig', () => {
     });
   });
 
-  it('completes deferred agent config with the resolved harness', () => {
+  it('completes deferred agent config with the resolved harness', async () => {
     const integration = materializedIntegration();
     const mcpServers = integrationMcpServers([integration]);
     const pending = step({
@@ -267,7 +268,7 @@ describe('completeStepDispatchConfig', () => {
       },
     });
 
-    const result = completeStepDispatchConfig({
+    const result = await completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults,
@@ -298,7 +299,7 @@ describe('completeStepDispatchConfig', () => {
     });
   });
 
-  it('wraps harness resolver errors as unresolvable agent config', () => {
+  it('wraps harness resolver errors as unresolvable agent config', async () => {
     const pending = step({
       type: 'agent',
       config: {},
@@ -311,13 +312,11 @@ describe('completeStepDispatchConfig', () => {
       },
     });
     const failingResolver: AgentDefaultsResolver = () => {
-      throw new UnsupportedHarnessThinkingError('claude', 'off', [
-        'low',
-        'medium',
-        'high',
-        'xhigh',
-        'max',
-      ]);
+      throw createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveAgentConfig,
+        'agent-config-invalid',
+        {},
+      );
     };
 
     const act = () =>
@@ -328,10 +327,10 @@ describe('completeStepDispatchConfig', () => {
         definitionId: 'def-1',
       });
 
-    expect(act).toThrow(AgentConfigUnresolvableError);
+    await expect(act()).rejects.toThrow(AgentConfigUnresolvableError);
   });
 
-  it('throws when a server-side segment still survives dispatch', () => {
+  it('throws when a server-side segment still survives dispatch', async () => {
     const pending = step({
       config: {},
       configPlan: {
@@ -349,6 +348,6 @@ describe('completeStepDispatchConfig', () => {
         definitionId: 'def-1',
       });
 
-    expect(act).toThrow(InterpolationUnresolvableError);
+    await expect(act()).rejects.toThrow(InterpolationUnresolvableError);
   });
 });

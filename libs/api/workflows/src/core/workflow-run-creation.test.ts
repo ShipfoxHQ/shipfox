@@ -1,6 +1,7 @@
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {buildModel, template} from '#test/helpers/workflow-runs.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
+import type {MaterializedWorkflowJob} from './step-config/materialize-workflow-model.js';
 import {
   deriveInitialJobExecutionPlan,
   materializeWorkflowRunJobs,
@@ -14,7 +15,7 @@ const triggerPayload: TriggerPayload = {
 };
 
 describe('deriveInitialJobExecutionPlan', () => {
-  it('resolves initial execution name and runner templates from creation context', () => {
+  it('resolves initial execution name and runner templates from creation context', async () => {
     const model = buildModel({
       jobs: {
         deploy: {
@@ -26,7 +27,7 @@ describe('deriveInitialJobExecutionPlan', () => {
       },
     });
     const run = workflowRun({inputs: {environment: 'prod', runner: 'GPU'}});
-    const {modelJob, job} = materializedJob(model, run, {inputs: run.inputs});
+    const {modelJob, job} = await materializedJob(model, run, {inputs: run.inputs});
 
     const plan = deriveInitialJobExecutionPlan({
       run,
@@ -55,7 +56,7 @@ describe('deriveInitialJobExecutionPlan', () => {
     });
   });
 
-  it('resolves variables referenced only by job runner templates', () => {
+  it('resolves variables referenced only by job runner templates', async () => {
     const model = buildModel({
       jobs: {
         build: {
@@ -65,7 +66,7 @@ describe('deriveInitialJobExecutionPlan', () => {
       },
     });
     const run = workflowRun();
-    const {modelJob, job} = materializedJob(model, run, {vars: {RUNNER: 'GPU'}});
+    const {modelJob, job} = await materializedJob(model, run, {vars: {RUNNER: 'GPU'}});
 
     const plan = deriveInitialJobExecutionPlan({
       run,
@@ -81,7 +82,7 @@ describe('deriveInitialJobExecutionPlan', () => {
     expect(plan.runner).toEqual(['gpu', 'ubuntu-latest']);
   });
 
-  it('uses the fallback name for execution-name self references', () => {
+  it('uses the fallback name for execution-name self references', async () => {
     const model = buildModel({
       jobs: {
         deploy: {
@@ -91,7 +92,7 @@ describe('deriveInitialJobExecutionPlan', () => {
       },
     });
     const run = workflowRun();
-    const {modelJob, job} = materializedJob(model, run);
+    const {modelJob, job} = await materializedJob(model, run);
 
     const plan = deriveInitialJobExecutionPlan({
       run,
@@ -107,15 +108,18 @@ describe('deriveInitialJobExecutionPlan', () => {
   });
 });
 
-function materializedJob(
+async function materializedJob(
   model: WorkflowModel,
   run: WorkflowRun,
   context: {
     inputs?: Record<string, unknown> | null | undefined;
     vars?: Record<string, string> | undefined;
   } = {},
-) {
-  const [job] = materializeWorkflowRunJobs({
+): Promise<{
+  job: MaterializedWorkflowJob;
+  modelJob: WorkflowModel['jobs'][number];
+}> {
+  const [job] = await materializeWorkflowRunJobs({
     run,
     model,
     triggerPayload,

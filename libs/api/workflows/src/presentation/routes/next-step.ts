@@ -1,4 +1,5 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
@@ -9,11 +10,12 @@ import {JobLeaseNotActiveError, JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
 import {toStepDto} from '#presentation/dto/step.js';
 
-export function createNextStepRoute(
-  runners: RunnersInterModuleClient,
-  annotations: AnnotationsInterModuleClient,
-  auth: AuthInterModuleClient,
-) {
+export function createNextStepRoute(params: {
+  agent: AgentInterModuleClient;
+  annotations: AnnotationsInterModuleClient;
+  auth: AuthInterModuleClient;
+  runners: RunnersInterModuleClient;
+}) {
   return defineRoute({
     method: 'POST',
     path: '/steps/next',
@@ -35,15 +37,15 @@ export function createNextStepRoute(
     },
     handler: async (request) => {
       const leasedJob = requireLeasedJobContext(request);
-
       const next = await nextStepForLeasedJobExecution({
         jobId: leasedJob.jobId,
         jobExecutionId: leasedJob.jobExecutionId,
         runnerSessionId: leasedJob.runnerSessionId,
+        agent: params.agent,
       });
 
       if (next.kind === 'step') {
-        const {token: leaseToken} = await auth.mintJobLeaseToken({
+        const {token: leaseToken} = await params.auth.mintJobLeaseToken({
           workflowRunId: leasedJob.workflowRunId,
           ...(leasedJob.workflowRunAttempt === undefined
             ? {}
@@ -59,8 +61,8 @@ export function createNextStepRoute(
         });
         if (next.dispatched) {
           await warnAgentToolCapabilityMismatchOnDispatch({
-            annotations,
-            runners,
+            annotations: params.annotations,
+            runners: params.runners,
             leaseIdentity: leasedJob,
             step: next.step,
           });

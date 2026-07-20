@@ -1,18 +1,17 @@
-import {
-  InvalidAgentModelError,
-  UnsupportedModelProviderError,
-} from '@shipfox/api-agent/core/errors';
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {
   DEFAULT_JOB_CHECKOUT,
   normalizeWorkflowDocument,
   type WorkflowModel,
 } from '@shipfox/api-definitions';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
+import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import {
   materializeJobRunner,
-  materializeWorkflowModel,
+  materializeWorkflowModel as materializeWorkflowModelImpl,
   modelHasAgentStep,
 } from './materialize-workflow-model.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
@@ -20,6 +19,12 @@ import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 type TestWorkflowExpression = NonNullable<
   NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['success']
 >;
+
+function materializeWorkflowModel(
+  params: Parameters<typeof materializeWorkflowModelImpl>[0],
+): ReturnType<typeof materializeWorkflowModelImpl> {
+  return materializeWorkflowModelImpl({resolveAgentDefaults: resolveTestAgentDefaults, ...params});
+}
 
 function expression(source: string): TestWorkflowExpression {
   return {language: 'cel', check: 'typed', source: source as TestWorkflowExpression['source']};
@@ -57,7 +62,7 @@ function creationContext(
 }
 
 describe('materializeWorkflowModel', () => {
-  it('converts workflow model jobs and steps to runtime rows', () => {
+  it('converts workflow model jobs and steps to runtime rows', async () => {
     const model = workflowModel({
       runner: 'ubuntu-latest',
       jobs: {
@@ -87,7 +92,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     const setupStep = {
       key: null,
@@ -162,7 +167,7 @@ describe('materializeWorkflowModel', () => {
     ]);
   });
 
-  it('materializes an agent step as type "agent" with its config, alongside run steps', () => {
+  it('materializes an agent step as type "agent" with its config, alongside run steps', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -191,7 +196,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[2]).toEqual({
       key: 'implement',
@@ -231,7 +236,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('materializes prompt-only agent steps with catalog defaults before runner execution', () => {
+  it('materializes prompt-only agent steps with catalog defaults before runner execution', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -240,7 +245,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]).toEqual({
       key: null,
@@ -260,7 +265,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('materializes agent step tools into resolved config', () => {
+  it('materializes agent step tools into resolved config', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -278,7 +283,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       harness: 'pi',
@@ -290,7 +295,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('materializes provider-only agent steps with that provider catalog default model', () => {
+  it('materializes provider-only agent steps with that provider catalog default model', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -299,7 +304,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       harness: 'pi',
@@ -310,7 +315,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('passes checkout through to materialized jobs', () => {
+  it('passes checkout through to materialized jobs', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -323,7 +328,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.checkout).toEqual({
       permissions: {contents: 'write'},
@@ -331,15 +336,15 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('passes default checkout through to materialized jobs', () => {
+  it('passes default checkout through to materialized jobs', async () => {
     const model = workflowModel();
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.checkout).toEqual(DEFAULT_JOB_CHECKOUT);
   });
 
-  it('routes agent steps through the provided resolver', () => {
+  it('routes agent steps through the provided resolver', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -354,7 +359,11 @@ describe('materializeWorkflowModel', () => {
       thinking: 'medium',
     });
 
-    const rows = materializeWorkflowModel({model, resolveAgentDefaults, definitionId: 'def-1'});
+    const rows = await materializeWorkflowModel({
+      model,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
 
     expect(resolveAgentDefaults).toHaveBeenCalledWith({
       harness: undefined,
@@ -374,27 +383,30 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it.each([
-    new UnsupportedModelProviderError('unknown-provider'),
-    new InvalidAgentModelError('pi', 'anthropic', 'missing-model'),
-  ])('wraps known resolver errors as permanent agent config errors', (cause) => {
+  it('wraps known resolver errors as permanent agent config errors', async () => {
     const model = workflowModel({
       jobs: {
         fix: {steps: [{prompt: 'Fix the failing tests.'}]},
       },
     });
     const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockImplementation(() => {
-      throw cause;
+      throw createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveAgentConfig,
+        'agent-config-invalid',
+        {},
+      );
     });
 
     const materialize = () =>
       materializeWorkflowModel({model, resolveAgentDefaults, definitionId: 'def-1'});
 
-    expect(materialize).toThrow(AgentConfigUnresolvableError);
-    expect(materialize).toThrow('Agent configuration cannot be resolved for definition def-1');
+    await expect(materialize()).rejects.toThrow(AgentConfigUnresolvableError);
+    await expect(materialize()).rejects.toThrow(
+      'Agent configuration cannot be resolved for definition def-1',
+    );
   });
 
-  it('re-throws unknown resolver errors unchanged', () => {
+  it('re-throws unknown resolver errors unchanged', async () => {
     const model = workflowModel({
       jobs: {
         fix: {steps: [{prompt: 'Fix the failing tests.'}]},
@@ -408,10 +420,10 @@ describe('materializeWorkflowModel', () => {
     const materialize = () =>
       materializeWorkflowModel({model, resolveAgentDefaults, definitionId: 'def-1'});
 
-    expect(materialize).toThrow(error);
+    await expect(materialize()).rejects.toThrow(error);
   });
 
-  it('materializes merged env for run steps only', () => {
+  it('materializes merged env for run steps only', async () => {
     const model = workflowModel({
       env: {SHARED: 'workflow', WORKFLOW_ONLY: 'yes'},
       jobs: {
@@ -431,7 +443,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[0]?.config).toEqual({});
     expect(rows[0]?.steps[1]?.config).toEqual({
@@ -452,7 +464,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('omits env from run-step config when the merge is empty', () => {
+  it('omits env from run-step config when the merge is empty', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -461,12 +473,12 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]?.config).toEqual({run: 'npm test'});
   });
 
-  it('hoists run interpolation into generated env vars with shell references', () => {
+  it('hoists run interpolation into generated env vars with shell references', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -475,7 +487,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: creationContext()});
+    const rows = await materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: `echo "${shellRef('__sf_0')}" && echo "${shellRef('__sf_1')}"`,
@@ -489,7 +501,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('hoists command secret assignments outside command substitutions', () => {
+  it('hoists command secret assignments outside command substitutions', async () => {
     const command = [
       `COMMAND_SECRET='${template('secrets.RUNTIME_TOKEN')}'`,
       'export COMMAND_SECRET',
@@ -503,7 +515,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: creationContext()});
+    const rows = await materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: [
@@ -526,7 +538,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('freezes vars from the run-creation context into step config', () => {
+  it('freezes vars from the run-creation context into step config', async () => {
     const model = normalizeWorkflowDocument({
       name: 'vars workflow',
       runner: 'ubuntu-latest',
@@ -542,7 +554,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext({...runContext(), vars: {REGION: 'west'}}),
     });
@@ -565,7 +577,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('merges env before resolving and only resolves the winning values', () => {
+  it('merges env before resolving and only resolves the winning values', async () => {
     const model = workflowModel({
       env: {SHARED: template('event.missing'), WORKFLOW_ONLY: template('run.id')},
       jobs: {
@@ -581,7 +593,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: creationContext()});
+    const rows = await materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: 'echo ok',
@@ -604,7 +616,7 @@ describe('materializeWorkflowModel', () => {
     expect(rows[0]?.steps[1]?.diagnostics).toBeUndefined();
   });
 
-  it('throws a permanent interpolation error for available missing untrusted env paths', () => {
+  it('throws a permanent interpolation error for available missing untrusted env paths', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -615,7 +627,7 @@ describe('materializeWorkflowModel', () => {
 
     let error: unknown;
     try {
-      materializeWorkflowModel({
+      await materializeWorkflowModel({
         model,
         context: creationContext({...runContext(), event: {}}),
         definitionId: 'def-1',
@@ -633,7 +645,7 @@ describe('materializeWorkflowModel', () => {
     expect((error as Error).message).toContain("Use has(x) ? x : ''");
   });
 
-  it('preserves dispatch-time execution paths in the config plan at creation', () => {
+  it('preserves dispatch-time execution paths in the config plan at creation', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -642,7 +654,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext(),
       definitionId: 'def-1',
@@ -661,7 +673,7 @@ describe('materializeWorkflowModel', () => {
     expect(rows[0]?.steps[1]?.diagnostics).toBeUndefined();
   });
 
-  it('reserves user env names when generating run interpolation env vars', () => {
+  it('reserves user env names when generating run interpolation env vars', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -670,7 +682,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: creationContext()});
+    const rows = await materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: `echo "${shellRef('__sf_1')}"`,
@@ -678,7 +690,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('reserves deferred user env names when generating run interpolation env vars', () => {
+  it('reserves deferred user env names when generating run interpolation env vars', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -692,7 +704,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: creationContext()});
+    const rows = await materializeWorkflowModel({model, context: creationContext()});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       run: `echo "${shellRef('__sf_1')}"`,
@@ -711,7 +723,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('resolves agent prompt, model, and provider before catalog defaults', () => {
+  it('resolves agent prompt, model, and provider before catalog defaults', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -734,7 +746,7 @@ describe('materializeWorkflowModel', () => {
       thinking: 'medium',
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext({
         ...runContext({name: 'gpt-5.5-pro'}),
@@ -767,7 +779,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('keeps agent tools in the dispatch plan while config is deferred', () => {
+  it('keeps agent tools in the dispatch plan while config is deferred', async () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -784,7 +796,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext(),
       definitionId: 'def-1',
@@ -810,7 +822,7 @@ describe('materializeWorkflowModel', () => {
     ]);
   });
 
-  it('throws a permanent interpolation error for unsafe run interpolation', () => {
+  it('throws a permanent interpolation error for unsafe run interpolation', async () => {
     const model = workflowModel({
       jobs: {
         build: {steps: [{run: `echo \`${template('run.id')}\``}]},
@@ -820,10 +832,10 @@ describe('materializeWorkflowModel', () => {
     const materialize = () =>
       materializeWorkflowModel({model, context: creationContext(), definitionId: 'def-1'});
 
-    expect(materialize).toThrow(InterpolationUnresolvableError);
+    await expect(materialize()).rejects.toThrow(InterpolationUnresolvableError);
   });
 
-  it('throws a permanent interpolation error for a missing trusted run path', () => {
+  it('throws a permanent interpolation error for a missing trusted run path', async () => {
     const model = workflowModel({
       jobs: {
         build: {steps: [{run: `echo "${template('run.id')}"`}]},
@@ -833,10 +845,10 @@ describe('materializeWorkflowModel', () => {
     const materialize = () =>
       materializeWorkflowModel({model, context: creationContext({}), definitionId: 'def-1'});
 
-    expect(materialize).toThrow(InterpolationUnresolvableError);
+    await expect(materialize()).rejects.toThrow(InterpolationUnresolvableError);
   });
 
-  it('throws a permanent interpolation error for missing available agent prompt paths', () => {
+  it('throws a permanent interpolation error for missing available agent prompt paths', async () => {
     const model = workflowModel({
       jobs: {
         fix: {steps: [{prompt: template('inputs.ticket')}]},
@@ -845,7 +857,7 @@ describe('materializeWorkflowModel', () => {
 
     let error: unknown;
     try {
-      materializeWorkflowModel({
+      await materializeWorkflowModel({
         model,
         context: creationContext({...runContext(), inputs: {}}),
         definitionId: 'def-1',
@@ -861,7 +873,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('throws a permanent interpolation error for a missing trusted agent model path', () => {
+  it('throws a permanent interpolation error for a missing trusted agent model path', async () => {
     const model = workflowModel({
       jobs: {
         fix: {steps: [{model: template('run.missing'), prompt: 'Fix it.'}]},
@@ -870,7 +882,7 @@ describe('materializeWorkflowModel', () => {
 
     let error: unknown;
     try {
-      materializeWorkflowModel({
+      await materializeWorkflowModel({
         model,
         context: creationContext(),
         definitionId: 'def-1',
@@ -886,7 +898,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('degrades missing execution paths in step names', () => {
+  it('degrades missing execution paths in step names', async () => {
     const model = workflowModel({
       jobs: {
         review: {
@@ -900,7 +912,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext(),
       definitionId: 'def-1',
@@ -919,7 +931,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('degrades missing available untrusted paths in step names', () => {
+  it('degrades missing available untrusted paths in step names', async () => {
     const model = workflowModel({
       jobs: {
         review: {
@@ -933,7 +945,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext({...runContext(), event: {}}),
       definitionId: 'def-1',
@@ -952,7 +964,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('uses the display-name fallback when a degraded step name resolves empty', () => {
+  it('uses the display-name fallback when a degraded step name resolves empty', async () => {
     const model = workflowModel({
       jobs: {
         build: {
@@ -966,7 +978,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext({...runContext(), event: {}}),
       definitionId: 'def-1',
@@ -985,7 +997,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('skips listening job steps at workflow-run creation', () => {
+  it('skips listening job steps at workflow-run creation', async () => {
     const stepNameSource = `Review ${template('execution.index')}`;
     const model = normalizeWorkflowDocument({
       name: 'Listening workflow',
@@ -1001,7 +1013,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({
+    const rows = await materializeWorkflowModel({
       model,
       context: creationContext(),
       definitionId: 'def-1',
@@ -1014,7 +1026,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('materializes one-shot siblings while skipping listening steps', () => {
+  it('materializes one-shot siblings while skipping listening steps', async () => {
     const model = normalizeWorkflowDocument({
       name: 'Mixed workflow',
       runner: 'ubuntu-latest',
@@ -1032,7 +1044,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model, context: creationContext()});
+    const rows = await materializeWorkflowModel({model, context: creationContext()});
 
     const review = rows.find((job) => job.key === 'review');
     const build = rows.find((job) => job.key === 'build');
@@ -1042,18 +1054,18 @@ describe('materializeWorkflowModel', () => {
     expect(build?.steps[1]).toMatchObject({type: 'run', config: {run: 'npm test'}, position: 1});
   });
 
-  it('uses the supplied context for each materialization call', () => {
+  it('uses the supplied context for each materialization call', async () => {
     const model = workflowModel({
       jobs: {
         build: {steps: [{run: `echo "${template('run.id')}"`}]},
       },
     });
 
-    const first = materializeWorkflowModel({
+    const first = await materializeWorkflowModel({
       model,
       context: creationContext(runContext({id: 'run-a'})),
     });
-    const second = materializeWorkflowModel({
+    const second = await materializeWorkflowModel({
       model,
       context: creationContext(runContext({id: 'run-b'})),
     });
@@ -1062,10 +1074,10 @@ describe('materializeWorkflowModel', () => {
     expect(second[0]?.steps[1]?.config).toMatchObject({env: {__sf_0: 'run-b'}});
   });
 
-  it('gives a job with no user steps just the synthetic setup step', () => {
+  it('gives a job with no user steps just the synthetic setup step', async () => {
     const model = workflowModel({jobs: {noop: {steps: []}}});
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     expect(rows[0]?.steps).toEqual([
       {
@@ -1082,7 +1094,7 @@ describe('materializeWorkflowModel', () => {
     expect(rows[0]?.checkout).toEqual(DEFAULT_JOB_CHECKOUT);
   });
 
-  it('materializes step if as server-owned condition outside runner config', () => {
+  it('materializes step if as server-owned condition outside runner config', async () => {
     const model = normalizeWorkflowDocument({
       name: 'Conditional workflow',
       runner: 'ubuntu-latest',
@@ -1093,7 +1105,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel({model});
+    const rows = await materializeWorkflowModel({model});
 
     const step = rows[0]?.steps[1];
     expect(step?.condition).toEqual({
@@ -1105,7 +1117,7 @@ describe('materializeWorkflowModel', () => {
     expect(step?.config).toEqual({run: 'npm test'});
   });
 
-  it('fails fast when the model contains an unresolved dependency id', () => {
+  it('fails fast when the model contains an unresolved dependency id', async () => {
     const model: WorkflowModel = {
       ...workflowModel(),
       jobs: [
@@ -1122,7 +1134,7 @@ describe('materializeWorkflowModel', () => {
       dependencies: [{from: 'missing', to: 'test'}],
     };
 
-    expect(() => materializeWorkflowModel({model})).toThrow(
+    await expect(materializeWorkflowModel({model})).rejects.toThrow(
       'Unresolved workflow model dependency "missing" for job "test"',
     );
   });

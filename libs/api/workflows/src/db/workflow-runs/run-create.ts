@@ -1,12 +1,9 @@
-import {
-  type AgentDefaultsResolver,
-  catalogDefaultAgentResolver,
-} from '@shipfox/api-agent/core/resolve-agent-config';
 import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {
   createAgentToolMaterializationSnapshot,
   loadAgentToolMaterializationContext,
@@ -128,13 +125,13 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       definitionId: params.definitionId,
       secrets: params.secrets,
     });
-    const materializedJobs = materializeWorkflowRunJobs({
+    const materializedJobs = await materializeWorkflowRunJobs({
       run,
       model: params.model,
       triggerPayload: params.triggerPayload,
       inputs: params.inputs ?? null,
       vars,
-      resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
+      resolveAgentDefaults: params.resolveAgentDefaults,
       definitionId: params.definitionId,
       agentToolContext,
       agentToolSnapshot: agentToolMaterialization,

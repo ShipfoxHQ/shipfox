@@ -2,6 +2,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
@@ -78,6 +79,7 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
 export function createWorkflowsModule({
+  agent,
   definitions,
   annotations,
   auth,
@@ -85,6 +87,7 @@ export function createWorkflowsModule({
   runners,
   secrets,
 }: {
+  agent: AgentInterModuleClient;
   definitions: DefinitionsInterModuleClient;
   annotations: AnnotationsInterModuleClient;
   auth: AuthInterModuleClient;
@@ -95,7 +98,7 @@ export function createWorkflowsModule({
   return {
     name: 'workflows',
     database: {db, migrationsPath},
-    routes: createWorkflowRoutes(runners, auth, projects, annotations, secrets),
+    routes: createWorkflowRoutes({agent, annotations, auth, projects, runners, secrets}),
     metrics: registerWorkflowsServiceMetrics,
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
@@ -113,12 +116,12 @@ export function createWorkflowsModule({
       {
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createOrchestrationActivities(runners, secrets),
+        activities: () => createOrchestrationActivities({agent, runners, secrets}),
         workflows: [],
       },
     ],
     interModulePresentations: [
-      createWorkflowsInterModulePresentation({definitions, runners, secrets}),
+      createWorkflowsInterModulePresentation({agent, definitions, runners, secrets}),
     ],
   };
 }

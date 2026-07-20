@@ -1,8 +1,5 @@
-import {
-  type AgentDefaultsResolver,
-  catalogDefaultAgentResolver,
-} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {AgentDefaultsResolver} from './agent-defaults.js';
 import type {
   AgentToolMaterializationContext,
   AgentToolMaterializationSnapshot,
@@ -20,7 +17,7 @@ import {
 } from './step-config/materialize-workflow-model.js';
 import {resolveJobExecutionName} from './step-config/resolve-job-execution-name.js';
 
-export function materializeWorkflowRunJobs(params: {
+export async function materializeWorkflowRunJobs(params: {
   run: WorkflowRun;
   model: WorkflowModel;
   triggerPayload: TriggerPayload;
@@ -30,17 +27,17 @@ export function materializeWorkflowRunJobs(params: {
   definitionId: string;
   agentToolContext?: AgentToolMaterializationContext | undefined;
   agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
-}): readonly MaterializedWorkflowJob[] {
+}): Promise<readonly MaterializedWorkflowJob[]> {
   const context = assembleCreationContext({
     run: params.run,
     triggerPayload: params.triggerPayload,
     inputs: params.inputs ?? null,
     vars: params.vars,
   });
-  return materializeWorkflowModel({
+  return await materializeWorkflowModel({
     model: params.model,
     context,
-    resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
+    resolveAgentDefaults: params.resolveAgentDefaults,
     definitionId: params.definitionId,
     agentToolContext: params.agentToolContext,
     agentToolSnapshot: params.agentToolSnapshot,

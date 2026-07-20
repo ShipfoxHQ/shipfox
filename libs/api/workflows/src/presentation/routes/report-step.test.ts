@@ -9,10 +9,11 @@ import {
   getWorkflowRunByAttemptId,
 } from '#db/workflow-runs.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
+import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
-import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 function reportUrl(stepId: string): string {
@@ -30,12 +31,11 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
       routes: [
-        createLeaseTokenRouteGroup(
-          runnersTestClient,
-          undefined,
-          undefined,
-          createTestSecretsClient(),
-        ),
+        createLeaseTokenRouteGroup({
+          agent: agentTestClient,
+          projects: projectsTestClient,
+          runners: runnersTestClient,
+        }),
       ],
       swagger: false,
     });

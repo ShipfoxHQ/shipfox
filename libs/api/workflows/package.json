@@ -41,7 +41,6 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-agent": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
@@ -72,6 +71,7 @@
   "devDependencies": {
     "@shipfox/annotations": "workspace:*",
     "@shipfox/api-auth": "workspace:*",
+    "@shipfox/api-agent": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",

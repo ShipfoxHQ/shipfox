@@ -1,11 +1,4 @@
 import {
-  InvalidAgentModelError,
-  UnsupportedHarnessProviderError,
-  UnsupportedHarnessThinkingError,
-  UnsupportedModelProviderError,
-} from '@shipfox/api-agent/core/errors';
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import {
   AGENT_INTEGRATION_MCP_AUTH,
   AGENT_INTEGRATION_MCP_ENDPOINT,
   AGENT_INTEGRATION_MCP_SERVER_NAME,
@@ -14,8 +7,11 @@ import {
   type AgentThinking,
   type MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
+import type {WorkflowModel} from '@shipfox/api-definitions';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
+import type {AgentDefaultsResolver, ResolvedAgentDefaults} from '#core/agent-defaults.js';
 import {
   type AgentToolMaterializationContext,
   type AgentToolMaterializationSnapshot,
@@ -55,7 +51,7 @@ export interface ResolveAgentStepConfigParams {
   readonly context: WorkflowEvaluationContext;
   readonly mode: StepConfigMode;
   readonly definitionId: string;
-  readonly resolveAgentDefaults: AgentDefaultsResolver;
+  readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
 }
@@ -68,7 +64,9 @@ export interface AgentStepConfig {
   readonly hasTemplates: boolean;
 }
 
-export function resolveAgentStepConfig(params: ResolveAgentStepConfigParams): AgentStepConfig {
+export async function resolveAgentStepConfig(
+  params: ResolveAgentStepConfigParams,
+): Promise<AgentStepConfig> {
   const fields = resolveAgentFields(params);
   const usesAuthoredMode = params.mode === 'authored';
 
@@ -78,17 +76,17 @@ export function resolveAgentStepConfig(params: ResolveAgentStepConfigParams): Ag
     fields.model?.kind === 'residual' || fields.provider?.kind === 'residual';
   if (hasDeferredModelOrProvider) return deferredAgentStepConfig(params, fields);
 
-  return agentStepConfigWithDefaults(params.step, params, fields);
+  return await agentStepConfigWithDefaults(params.step, params, fields);
 }
 
-export function completeAgentConfig(params: {
+export async function completeAgentConfig(params: {
   readonly config: Record<string, unknown>;
   readonly plan: StepConfigDispatchPlan;
   readonly context: WorkflowEvaluationContext;
-  readonly resolveAgentDefaults: AgentDefaultsResolver;
+  readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId: string;
   readonly trace: PersistedEvaluationTraceEntry[];
-}): void {
+}): Promise<void> {
   const agent = params.plan.agent;
   if (agent === undefined) return;
 
@@ -117,7 +115,7 @@ export function completeAgentConfig(params: {
           params,
         });
 
-  const defaults = completeAgentDefaults({
+  const defaults = await completeAgentDefaults({
     harness: agent.harness ?? readConfigHarness(params.config),
     provider,
     model,
@@ -159,16 +157,18 @@ function completeAgentField(args: {
   return resolved.value;
 }
 
-export function completeAgentDefaults(params: {
+export async function completeAgentDefaults(params: {
   readonly harness: WorkflowModelAgentStep['harness'] | undefined;
   readonly provider: string | undefined;
   readonly model: string | undefined;
   readonly thinking: AgentThinking | undefined;
-  readonly resolveAgentDefaults: AgentDefaultsResolver;
+  readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId: string;
-}): ReturnType<AgentDefaultsResolver> {
+}): Promise<ResolvedAgentDefaults> {
+  if (!params.resolveAgentDefaults) throw new Error('Agent defaults resolver is required');
+
   try {
-    return params.resolveAgentDefaults({
+    return await params.resolveAgentDefaults({
       harness: params.harness,
       provider: params.provider,
       model: params.model,
@@ -176,10 +176,8 @@ export function completeAgentDefaults(params: {
     });
   } catch (error) {
     if (
-      error instanceof UnsupportedModelProviderError ||
-      error instanceof UnsupportedHarnessProviderError ||
-      error instanceof UnsupportedHarnessThinkingError ||
-      error instanceof InvalidAgentModelError
+      isInterModuleKnownError(agentInterModuleContract.methods.resolveAgentConfig, error) &&
+      error.code === 'agent-config-invalid'
     ) {
       throw new AgentConfigUnresolvableError(params.definitionId, {cause: error});
     }
@@ -273,16 +271,16 @@ function deferredAgentStepConfig(
   };
 }
 
-function agentStepConfigWithDefaults(
+async function agentStepConfigWithDefaults(
   step: WorkflowModelAgentStep,
   params: ResolveAgentStepConfigParams,
   fields: AgentFieldResolutions,
-): AgentStepConfig {
+): Promise<AgentStepConfig> {
   const providerValue = frozenFieldValue(fields.provider);
   const modelValue = frozenFieldValue(fields.model);
   const promptIsDeferred = fields.prompt.kind === 'residual';
 
-  const resolved = completeAgentDefaults({
+  const resolved = await completeAgentDefaults({
     harness: step.harness,
     provider: providerValue,
     model: modelValue,

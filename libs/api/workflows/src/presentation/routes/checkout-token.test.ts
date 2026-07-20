@@ -13,6 +13,7 @@ import {clearSourceControl, setSourceControl} from '#core/source-control.js';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
@@ -42,7 +43,9 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     setSourceControl({createCheckoutSpec} as unknown as IntegrationSourceControlService);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient, projects)],
+      routes: [
+        createLeaseTokenRouteGroup({agent: agentTestClient, projects, runners: runnersTestClient}),
+      ],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });
@@ -264,7 +267,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   });
 
   test('returns 404 when the run has no project linkage', async () => {
-    mockGetProjectById.mockResolvedValue(null);
+    mockGetProjectById.mockResolvedValue(undefined);
     const project = {id: crypto.randomUUID(), workspaceId: crypto.randomUUID()};
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     const token = await mintActiveLeaseToken({jobId: job.id});

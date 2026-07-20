@@ -8,6 +8,9 @@ import {
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
+import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createWorkflowRoutes} from './index.js';
@@ -32,13 +35,14 @@ afterEach(async () => {
 });
 
 describe('workflow route auth', () => {
-  const workflowRoutes = createWorkflowRoutes(
-    runnersTestClient,
-    workflowsTestAuthClient,
-    undefined,
-    undefined,
-    createTestSecretsClient(),
-  );
+  const workflowRoutes = createWorkflowRoutes({
+    agent: agentTestClient,
+    annotations: annotationsTestClient,
+    auth: workflowsTestAuthClient,
+    projects: projectsTestClient,
+    runners: runnersTestClient,
+    secrets: createTestSecretsClient(),
+  });
   test('uses user auth', () => {
     expect(workflowRoutes[0]?.auth).toBe(AUTH_USER);
   });

@@ -1,4 +1,5 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
+import {setSecrets} from '@shipfox/api-secrets';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
 import {eq} from 'drizzle-orm';
@@ -14,21 +15,27 @@ import {
 } from '#db/workflow-runs.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
-import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 const URL_PREFIX = '/runs/jobs/current/steps';
 
 describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
   let app: FastifyInstance;
-  const secrets = createTestSecretsClient();
   const {logger, lines: logLines, clear: clearLogLines} = createCapturingLogger();
 
   beforeAll(async () => {
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [createLeaseTokenRouteGroup(runnersTestClient, undefined, undefined, secrets)],
+      routes: [
+        createLeaseTokenRouteGroup({
+          agent: agentTestClient,
+          projects: projectsTestClient,
+          runners: runnersTestClient,
+        }),
+      ],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });
@@ -58,10 +65,9 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
         segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
       },
     ]);
-    await secrets.setSecrets({
+    await setSecrets({
       workspaceId: run.workspaceId,
       projectId: run.projectId,
-      namespace: '',
       values: {API_TOKEN: 'runtime-secret', UNUSED_TOKEN: 'unused-secret'},
     });
     const token = await mintActiveLeaseToken({jobId: job.id});
@@ -90,22 +96,13 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
         segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
       },
     ]);
-    await secrets.setSecrets({
-      workspaceId: run.workspaceId,
-      namespace: '',
-      values: {API_TOKEN: 'workspace-secret'},
-    });
-    await secrets.setSecrets({
+    await setSecrets({workspaceId: run.workspaceId, values: {API_TOKEN: 'workspace-secret'}});
+    await setSecrets({
       workspaceId: run.workspaceId,
       projectId: run.projectId,
-      namespace: '',
       values: {API_TOKEN: 'project-secret'},
     });
-    await secrets.setSecrets({
-      workspaceId: hostileWorkspaceId,
-      namespace: '',
-      values: {API_TOKEN: 'hostile-secret'},
-    });
+    await setSecrets({workspaceId: hostileWorkspaceId, values: {API_TOKEN: 'hostile-secret'}});
     const token = await mintActiveLeaseToken({
       jobId: job.id,
       token: {workspaceId: hostileWorkspaceId, projectId: crypto.randomUUID()},

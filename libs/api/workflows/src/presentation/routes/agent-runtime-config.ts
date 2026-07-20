@@ -1,15 +1,13 @@
-import {ModelProviderConfigNotFoundError} from '@shipfox/api-agent/core/errors';
-import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {
   agentRuntimeCredentialsResponseSchema,
   type MaterializedAgentStepConfigDto,
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
-import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {
-  type SecretsInterModuleClient,
-  secretsInterModuleContract,
-} from '@shipfox/api-secrets-dto/inter-module';
+  type AgentInterModuleClient,
+  agentInterModuleContract,
+} from '@shipfox/api-agent-dto/inter-module';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {agentRuntimeConfigQuerySchema} from '@shipfox/api-workflows-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {captureException} from '@shipfox/node-error-monitoring';
@@ -17,10 +15,10 @@ import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {ZodError} from 'zod';
 import {loadRunningLeasedStep} from './leased-step.js';
 
-export function createAgentRuntimeConfigRoute(
-  runners: RunnersInterModuleClient,
-  secrets: SecretsInterModuleClient,
-) {
+export function createAgentRuntimeConfigRoute(params: {
+  agent: AgentInterModuleClient;
+  runners: RunnersInterModuleClient;
+}) {
   return defineRoute({
     method: 'GET',
     path: '/agent-runtime-config',
@@ -34,7 +32,11 @@ export function createAgentRuntimeConfigRoute(
     },
     errorHandler: (error) => {
       if (
-        isInterModuleKnownError(secretsInterModuleContract.methods.getSecretsByNamespace, error)
+        isInterModuleKnownError(
+          agentInterModuleContract.methods.resolveRuntimeCredentials,
+          error,
+        ) &&
+        error.code === 'model-provider-credentials-invalid'
       ) {
         captureException(error);
         throw new ClientError(
@@ -46,7 +48,13 @@ export function createAgentRuntimeConfigRoute(
           },
         );
       }
-      if (error instanceof ModelProviderConfigNotFoundError) {
+      if (
+        isInterModuleKnownError(
+          agentInterModuleContract.methods.resolveRuntimeCredentials,
+          error,
+        ) &&
+        error.code === 'model-provider-not-configured'
+      ) {
         throw new ClientError(
           'Model provider credentials are not configured',
           'model-provider-not-configured',
@@ -59,7 +67,12 @@ export function createAgentRuntimeConfigRoute(
     },
     handler: async (request, reply) => {
       const {step_id: stepId, attempt} = request.query;
-      const {step, workspaceId} = await loadRunningLeasedStep({runners, request, stepId, attempt});
+      const {step, workspaceId} = await loadRunningLeasedStep({
+        runners: params.runners,
+        request,
+        stepId,
+        attempt,
+      });
 
       if (step.type !== 'agent') {
         throw new ClientError('Step is not an agent step', 'step-not-agent', {status: 409});
@@ -78,16 +91,13 @@ export function createAgentRuntimeConfigRoute(
         throw error;
       }
 
-      const runtimeConfig = await resolveRuntimeCredentials(
-        {
-          workspaceId,
-          harness: agentConfig.harness,
-          provider: agentConfig.provider,
-          model: agentConfig.model,
-          thinking: agentConfig.thinking,
-        },
-        {secrets},
-      );
+      const runtimeConfig = await params.agent.resolveRuntimeCredentials({
+        workspaceId,
+        harness: agentConfig.harness,
+        provider: agentConfig.provider,
+        model: agentConfig.model,
+        thinking: agentConfig.thinking,
+      });
 
       reply.header('cache-control', 'no-store');
       return runtimeConfig;

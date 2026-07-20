@@ -1,11 +1,11 @@
-import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
 import {
   type AvailabilitySite,
   capTraceEntries,
   type EvaluationTraceLimitEntry,
   type WorkflowExpressionEvaluationContext,
 } from '@shipfox/expression';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {
   AgentToolMaterializationContext,
   AgentToolMaterializationSnapshot,
@@ -46,7 +46,7 @@ export interface ResolveStepConfigParams {
   readonly jobEnvTemplates: WorkflowEnvTemplates | undefined;
   readonly context: WorkflowExpressionEvaluationContext;
   readonly site: AvailabilitySite;
-  readonly resolveAgentDefaults: AgentDefaultsResolver;
+  readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId: string;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
@@ -62,11 +62,13 @@ interface BuiltStepConfig {
   readonly hasTemplates: boolean;
 }
 
-export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStepConfig {
+export async function resolveStepConfig(
+  params: ResolveStepConfigParams,
+): Promise<ResolvedStepConfig> {
   const context = evaluationContext(params);
-  const effective = buildStepConfig({...params, context, mode: 'effective'});
+  const effective = await buildStepConfig({...params, context, mode: 'effective'});
   const authoredConfig = effective.hasTemplates
-    ? buildStepConfig({...params, context, mode: 'authored'}).config
+    ? (await buildStepConfig({...params, context, mode: 'authored'})).config
     : null;
   const name = resolveStepName(params.step, context, params.definitionId);
 
@@ -80,9 +82,9 @@ export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStep
   };
 }
 
-function buildStepConfig(
+async function buildStepConfig(
   params: Omit<BuildStepConfigParams, 'context'> & {readonly context: WorkflowEvaluationContext},
-): BuiltStepConfig {
+): Promise<BuiltStepConfig> {
   const gate = gateConfigForStep(params.step);
   const outputs = outputsConfigForStep(params.step);
   const runStep = runStepOrNull(params.step);
@@ -102,7 +104,7 @@ function buildStepConfig(
   const agentStep = agentStepOrNull(params.step);
   if (agentStep === null) throw new Error(`Unsupported workflow step kind: ${params.step.kind}`);
 
-  const agent = resolveAgentStepConfig({...params, step: agentStep});
+  const agent = await resolveAgentStepConfig({...params, step: agentStep});
   return {
     config: {...agent.config, ...gate, ...outputs},
     configPlan: agent.configPlan,

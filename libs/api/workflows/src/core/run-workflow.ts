@@ -1,9 +1,9 @@
-import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import {createWorkspaceAgentDefaultsResolver} from '@shipfox/api-agent/core/workspace-agent-defaults-resolver';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {workflowModelFromSnapshot} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {createWorkflowRun} from '#db/workflow-runs.js';
+import {createAgentDefaultsResolver} from './agent-defaults.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
 import {modelHasAgentStep} from './step-config/materialize-workflow-model.js';
@@ -19,7 +19,7 @@ export interface RunWorkflowParams {
 
 export async function runWorkflow(
   definitions: DefinitionsInterModuleClient,
-  params: RunWorkflowParams,
+  params: RunWorkflowParams & {agent: AgentInterModuleClient},
   options: {secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>} = {},
 ): Promise<WorkflowRun> {
   const {definition} = await definitions.getDefinitionForWorkflowRun({
@@ -31,9 +31,10 @@ export async function runWorkflow(
     throw new ProjectMismatchError(definition.projectId, params.projectId);
   }
   const model = workflowModelFromSnapshot(definition.model);
-  const resolveAgentDefaults = modelHasAgentStep(model)
-    ? await createWorkspaceAgentDefaultsResolver(params.workspaceId)
-    : catalogDefaultAgentResolver;
+  const resolveAgentDefaults = createAgentDefaultsResolver(
+    params.agent,
+    modelHasAgentStep(model) ? params.workspaceId : null,
+  );
 
   return createWorkflowRun({
     workspaceId: params.workspaceId,
