@@ -7,9 +7,9 @@ import {
 } from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
-import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';

@@ -16,6 +16,7 @@ import {workflowModel} from '#test/factories/workflow-model.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
@@ -35,6 +36,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
         createLeaseTokenRouteGroup({
           agent: agentTestClient,
           annotations: annotationsTestClient,
+          auth: workflowsTestAuthClient,
           projects: projectsTestClient,
           runners: runnersTestClient,
           secrets,

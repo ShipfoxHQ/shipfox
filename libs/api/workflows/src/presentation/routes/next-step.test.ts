@@ -13,8 +13,8 @@ import {
   getWorkflowRunByAttemptId,
 } from '#db/workflow-runs.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
-import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';

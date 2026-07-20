@@ -15,6 +15,7 @@ import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
@@ -50,6 +51,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
         createLeaseTokenRouteGroup({
           agent: agentTestClient,
           annotations: annotationsTestClient,
+          auth: workflowsTestAuthClient,
           projects,
           runners: runnersTestClient,
           secrets,

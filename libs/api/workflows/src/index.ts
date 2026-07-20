@@ -1,8 +1,8 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
-import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
