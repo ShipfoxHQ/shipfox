@@ -12,10 +12,10 @@ import {workspacesModule} from '@shipfox/api-workspaces';
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import {createApp, listen} from '@shipfox/node-fastify';
 import {
-  createInMemoryInterModuleTransport,
   initializeModules,
   registerInterModulePresentations,
 } from '@shipfox/node-module';
+import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 
 const interModuleTransport = createInMemoryInterModuleTransport();
 const workspaces = interModuleTransport.createClient(workspacesInterModuleContract);
