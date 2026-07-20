@@ -14,7 +14,8 @@ import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
-import {leaseTokenRouteGroup} from './index.js';
+import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {createLeaseTokenRouteGroup} from './index.js';
 
 vi.mock('@shipfox/api-projects', () => ({getProjectById: vi.fn()}));
 const mockGetProjectById = vi.mocked(getProjectById);
@@ -36,7 +37,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     setSourceControl({createCheckoutSpec} as unknown as IntegrationSourceControlService);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
-      routes: [leaseTokenRouteGroup],
+      routes: [createLeaseTokenRouteGroup(runnersTestClient)],
       swagger: false,
       fastifyOptions: {loggerInstance: logger},
     });

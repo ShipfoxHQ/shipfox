@@ -1,16 +1,17 @@
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {
   activateJobListenerActivity,
   bulkSetStepStatuses,
-  cancelRunnerJobsActivity,
+  createCancelRunnerJobsActivity,
+  createEnqueueJobExecutionForRunner,
+  createReleaseLeaseActivity,
   drainListenerEventsActivity,
-  enqueueJobExecutionForRunner,
   evaluateJobActivationsActivity,
   failJobExecutionAsTimedOutActivity,
   failRunAsTimedOutActivity,
   loadRunAttemptDag,
   peekListenerBufferActivity,
   recordListenerFiringOutcomeActivity,
-  releaseLeaseActivity,
   resolveJobListenerActivity,
   resolveJobStatusFromJobExecutionsActivity,
   resolveLeaseExpiredJobExecutionActivity,
@@ -20,15 +21,15 @@ import {
   settleListenerJobExecutionActivity,
 } from './orchestration-activities.js';
 
-export function createOrchestrationActivities() {
+export function createOrchestrationActivities(runners: RunnersInterModuleClient) {
   return {
     loadRunAttemptDag,
     setRunAttemptStatus,
     setJobStatus,
     setJobExecutionStatus,
     bulkSetStepStatuses,
-    cancelRunnerJobsActivity,
-    enqueueJobExecutionForRunner,
+    cancelRunnerJobsActivity: createCancelRunnerJobsActivity(runners),
+    enqueueJobExecutionForRunner: createEnqueueJobExecutionForRunner(runners),
     evaluateJobActivationsActivity,
     failJobExecutionAsTimedOutActivity,
     failRunAsTimedOutActivity,
@@ -40,6 +41,6 @@ export function createOrchestrationActivities() {
     recordListenerFiringOutcomeActivity,
     resolveLeaseExpiredJobExecutionActivity,
     resolveJobStatusFromJobExecutionsActivity,
-    releaseLeaseActivity,
+    releaseLeaseActivity: createReleaseLeaseActivity(runners),
   };
 }

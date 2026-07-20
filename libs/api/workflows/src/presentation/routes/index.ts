@@ -1,42 +1,47 @@
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
-import {agentRuntimeConfigRoute} from './agent-runtime-config.js';
+import {createAgentRuntimeConfigRoute} from './agent-runtime-config.js';
 import {cancelRunRoute} from './cancel-run.js';
-import {checkoutTokenRoute} from './checkout-token.js';
+import {createCheckoutTokenRoute} from './checkout-token.js';
 import {getRunRoute} from './get-run.js';
 import {getRunAggregatesRoute} from './get-run-aggregates.js';
-import {getStepSecretsRoute} from './get-step-secrets.js';
+import {createGetStepSecretsRoute} from './get-step-secrets.js';
 import {listRunAttemptsRoute} from './list-run-attempts.js';
 import {listRunsRoute} from './list-runs.js';
-import {nextStepRoute} from './next-step.js';
-import {reportStepRoute} from './report-step.js';
+import {createNextStepRoute} from './next-step.js';
+import {createReportStepRoute} from './report-step.js';
 import {rerunRunRoute} from './rerun-run.js';
 
-export const leaseTokenRouteGroup: RouteGroup = {
-  // The lease token names the job, so the path carries no job id ("current").
-  prefix: '/runs/jobs/current',
-  auth: AUTH_LEASED_JOB,
-  routes: [
-    nextStepRoute,
-    reportStepRoute,
-    checkoutTokenRoute,
-    agentRuntimeConfigRoute,
-    getStepSecretsRoute,
-  ],
-};
-
-export const workflowRoutes: RouteGroup[] = [
-  {
-    prefix: '/workflows/runs',
-    auth: AUTH_USER,
+export function createLeaseTokenRouteGroup(runners: RunnersInterModuleClient): RouteGroup {
+  return {
+    // The lease token names the job, so the path carries no job id ("current").
+    prefix: '/runs/jobs/current',
+    auth: AUTH_LEASED_JOB,
     routes: [
-      listRunsRoute,
-      getRunAggregatesRoute,
-      listRunAttemptsRoute,
-      getRunRoute,
-      cancelRunRoute,
-      rerunRunRoute,
+      createNextStepRoute(runners),
+      createReportStepRoute(runners),
+      createCheckoutTokenRoute(runners),
+      createAgentRuntimeConfigRoute(runners),
+      createGetStepSecretsRoute(runners),
     ],
-  },
-  leaseTokenRouteGroup,
-];
+  };
+}
+
+export function createWorkflowRoutes(runners: RunnersInterModuleClient): RouteGroup[] {
+  return [
+    {
+      prefix: '/workflows/runs',
+      auth: AUTH_USER,
+      routes: [
+        listRunsRoute,
+        getRunAggregatesRoute,
+        listRunAttemptsRoute,
+        getRunRoute,
+        cancelRunRoute,
+        rerunRunRoute,
+      ],
+    },
+    createLeaseTokenRouteGroup(runners),
+  ];
+}

@@ -1,5 +1,6 @@
 import {issueJobLeaseToken, jobLeaseParamsFrom} from '@shipfox/api-auth';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {warnAgentToolCapabilityMismatchOnDispatch} from '#core/agent-tool-capability-warning.js';
@@ -7,56 +8,59 @@ import {JobLeaseNotActiveError, JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
 import {toStepDto} from '#presentation/dto/step.js';
 
-export const nextStepRoute = defineRoute({
-  method: 'POST',
-  path: '/steps/next',
-  description:
-    'Returns the next step for the runner to run on its job. The job is identified by the access token, so no job ID is needed. Calling this again before reporting the current step returns that same step, so retries are safe. When no runnable steps remain, the response reports that there are no more steps to run, along with the job status; the runner then stops. Finalization is driven server-side from recorded step results and dispatch-time skips, not by the runner calling a job-completion endpoint.',
-  schema: {
-    response: {
-      200: nextStepResponseSchema,
+export function createNextStepRoute(runners: RunnersInterModuleClient) {
+  return defineRoute({
+    method: 'POST',
+    path: '/steps/next',
+    description:
+      'Returns the next step for the runner to run on its job. The job is identified by the access token, so no job ID is needed. Calling this again before reporting the current step returns that same step, so retries are safe. When no runnable steps remain, the response reports that there are no more steps to run, along with the job status; the runner then stops. Finalization is driven server-side from recorded step results and dispatch-time skips, not by the runner calling a job-completion endpoint.',
+    schema: {
+      response: {
+        200: nextStepResponseSchema,
+      },
     },
-  },
-  errorHandler: (error) => {
-    if (error instanceof JobNotFoundError) {
-      throw new ClientError(error.message, 'job-not-found', {status: 404});
-    }
-    if (error instanceof JobLeaseNotActiveError) {
-      throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
-    }
-    throw error;
-  },
-  handler: async (request) => {
-    const leasedJob = requireLeasedJobContext(request);
-
-    const next = await nextStepForLeasedJobExecution({
-      jobId: leasedJob.jobId,
-      jobExecutionId: leasedJob.jobExecutionId,
-      runnerSessionId: leasedJob.runnerSessionId,
-    });
-
-    if (next.kind === 'step') {
-      const leaseToken = await issueJobLeaseToken(
-        jobLeaseParamsFrom(leasedJob, {
-          currentStepId: next.step.id,
-          currentStepAttempt: next.step.currentAttempt,
-        }),
-      );
-      if (next.dispatched) {
-        await warnAgentToolCapabilityMismatchOnDispatch({
-          leaseIdentity: leasedJob,
-          step: next.step,
-        });
+    errorHandler: (error) => {
+      if (error instanceof JobNotFoundError) {
+        throw new ClientError(error.message, 'job-not-found', {status: 404});
       }
-      // The runner echoes this back on report so a stale report from a superseded
-      // attempt is ignored.
-      return {
-        kind: 'step' as const,
-        step: toStepDto(next.step),
-        attempt: next.step.currentAttempt,
-        lease_token: leaseToken,
-      };
-    }
-    return {kind: 'done' as const, status: next.status};
-  },
-});
+      if (error instanceof JobLeaseNotActiveError) {
+        throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
+      }
+      throw error;
+    },
+    handler: async (request) => {
+      const leasedJob = requireLeasedJobContext(request);
+
+      const next = await nextStepForLeasedJobExecution({
+        jobId: leasedJob.jobId,
+        jobExecutionId: leasedJob.jobExecutionId,
+        runnerSessionId: leasedJob.runnerSessionId,
+      });
+
+      if (next.kind === 'step') {
+        const leaseToken = await issueJobLeaseToken(
+          jobLeaseParamsFrom(leasedJob, {
+            currentStepId: next.step.id,
+            currentStepAttempt: next.step.currentAttempt,
+          }),
+        );
+        if (next.dispatched) {
+          await warnAgentToolCapabilityMismatchOnDispatch({
+            runners,
+            leaseIdentity: leasedJob,
+            step: next.step,
+          });
+        }
+        // The runner echoes this back on report so a stale report from a superseded
+        // attempt is ignored.
+        return {
+          kind: 'step' as const,
+          step: toStepDto(next.step),
+          attempt: next.step.currentAttempt,
+          lease_token: leaseToken,
+        };
+      }
+      return {kind: 'done' as const, status: next.status};
+    },
+  });
+}

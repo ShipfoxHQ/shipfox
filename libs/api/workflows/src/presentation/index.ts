@@ -1,4 +1,4 @@
-export {workflowRoutes as routes} from './routes/index.js';
+export {createWorkflowRoutes} from './routes/index.js';
 export {
   onJobEventDelivered,
   onJobStepsSettled,

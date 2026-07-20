@@ -6,6 +6,7 @@ import {
   RUNNER_JOB_QUEUED,
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {
   WORKFLOWS_JOB_EVENT_DELIVERED,
   WORKFLOWS_JOB_STEPS_SETTLED,
@@ -18,6 +19,7 @@ import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
 import {registerWorkflowsServiceMetrics} from '#metrics/index.js';
 import {
+  createWorkflowRoutes,
   onJobEventDelivered,
   onJobStepsSettled,
   onRunnerJobClaimed,
@@ -25,7 +27,6 @@ import {
   onRunnerJobQueued,
   onWorkflowRunAttemptCreated,
   onWorkflowRunCancelled,
-  routes,
 } from '#presentation/index.js';
 import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
@@ -64,7 +65,6 @@ export {
   migrationsPath,
   workflowsOutbox,
 } from '#db/index.js';
-export {routes} from '#presentation/index.js';
 export {loadRunningLeasedStep} from '#presentation/routes/leased-step.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -72,11 +72,11 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
-export function createWorkflowsModule(): ShipfoxModule {
+export function createWorkflowsModule(params: {runners: RunnersInterModuleClient}): ShipfoxModule {
   return {
     name: 'workflows',
     database: {db, migrationsPath},
-    routes,
+    routes: createWorkflowRoutes(params.runners),
     metrics: registerWorkflowsServiceMetrics,
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
@@ -94,12 +94,10 @@ export function createWorkflowsModule(): ShipfoxModule {
       {
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
-        activities: createOrchestrationActivities,
+        activities: () => createOrchestrationActivities(params.runners),
         workflows: [],
       },
     ],
     interModulePresentations: [createWorkflowsInterModulePresentation()],
   };
 }
-
-export const workflowsModule = createWorkflowsModule();
