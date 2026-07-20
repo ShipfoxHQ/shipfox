@@ -1,7 +1,7 @@
 import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
-import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {analyzeContextKeyAccess, type ResolvedFieldSegment} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';

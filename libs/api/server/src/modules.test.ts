@@ -2,6 +2,7 @@ import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-mod
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {authInterModuleContract} from '@shipfox/api-auth-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {
@@ -129,7 +130,18 @@ describe('defaultModules', () => {
     mocks.setSourceControl.mockReset();
 
     mocks.createIntegrationsContext.mockResolvedValue({
-      module: {name: 'integrations'},
+      module: {
+        name: 'integrations',
+        interModulePresentations: [
+          defineInterModulePresentation(integrationsInterModuleContract, {
+            createCheckoutSpec: vi.fn(),
+            fetchSourceFile: vi.fn(),
+            getAgentToolsContext: vi.fn(),
+            listSourceFiles: vi.fn(),
+            resolveSourceRepository: vi.fn(),
+          }),
+        ],
+      },
       registry: {},
       sourceControl: {provider: 'source-control'},
     });
@@ -202,7 +214,6 @@ describe('defaultModules', () => {
         },
       ],
     });
-    mocks.createSecretsModule.mockReturnValue({name: 'secrets'});
     mocks.createWorkflowsModule.mockReturnValue({
       name: 'workflows',
       interModulePresentations: [
