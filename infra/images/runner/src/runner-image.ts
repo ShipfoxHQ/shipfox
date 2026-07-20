@@ -89,6 +89,9 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
     const output = execFileSync('packer', packerBuildArgs(build, workspacePath, rootDir), {
       cwd: rootDir,
       encoding: 'utf8',
+      // A full AMI bake (apt, node, pnpm install) streams well past the 1 MB default,
+      // and an ENOBUFS throw would discard the already-built AMI. Give it ample room.
+      maxBuffer: 256 * 1024 * 1024,
     });
     process.stdout.write(output);
     if (build.platform !== 'aws') return {amiId: null};

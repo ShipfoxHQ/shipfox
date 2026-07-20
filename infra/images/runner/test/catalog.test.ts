@@ -126,7 +126,7 @@ describe('runner-image-catalog CLI', () => {
         last_run_uuid: 'run-123',
         builds: [
           {
-            name: 'build_image',
+            name: 'runner.build_image',
             builder_type: 'amazon-ebs',
             packer_run_uuid: 'run-123',
             build_time: 1_784_390_400,

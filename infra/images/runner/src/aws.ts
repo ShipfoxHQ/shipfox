@@ -28,7 +28,7 @@ export function parsePackerAmiArtifact(value: unknown): PackerAmiArtifact {
       (item) =>
         item.packer_run_uuid === lastRunUuid &&
         item.builder_type === 'amazon-ebs' &&
-        item.name === 'build_image',
+        buildImageName(item.name),
     );
 
   if (!build) throw new Error('Packer manifest does not include the completed runner AMI build.');
@@ -46,6 +46,13 @@ export function parsePackerAmiArtifact(value: unknown): PackerAmiArtifact {
     buildTime: number(build.build_time, 'Packer manifest build_time'),
     customData: stringRecord(build.custom_data, 'Packer manifest custom_data'),
   };
+}
+
+// Packer prefixes the build-block name onto the source name, so the manifest
+// records this build as `runner.build_image` (see `-only runner.amazon-ebs.build_image`).
+// Match the source suffix rather than an exact string so the build name can change.
+function buildImageName(value: unknown): boolean {
+  return typeof value === 'string' && (value === 'build_image' || value.endsWith('.build_image'));
 }
 
 function object(value: unknown, label: string): Record<string, unknown> {
