@@ -2,6 +2,13 @@ import {createApp} from '@shipfox/node-fastify';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {buildAuthRoutes} from './index.js';
 
+const workspaces = {
+  listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
+  preflightInvitationAcceptance: vi.fn(),
+  acceptInvitation: vi.fn(),
+  requireActiveMembership: vi.fn(),
+};
+
 const disabledPasswordPaths = [
   '/auth/signup',
   '/auth/verify-email/confirm',
@@ -14,7 +21,7 @@ const disabledPasswordPaths = [
 
 describe('buildAuthRoutes', () => {
   test('preserves the default route table when password login is enabled', () => {
-    const routes = buildAuthRoutes(true);
+    const routes = buildAuthRoutes(true, workspaces);
 
     expect(routes.routes.map((route) => ('path' in route ? route.path : route.prefix))).toEqual([
       '/signup',
@@ -31,7 +38,7 @@ describe('buildAuthRoutes', () => {
   });
 
   test('keeps only session lifecycle routes when password login is disabled', () => {
-    const routes = buildAuthRoutes(false);
+    const routes = buildAuthRoutes(false, workspaces);
 
     expect(routes.routes.map((route) => ('path' in route ? route.path : route.prefix))).toEqual([
       '/refresh',
@@ -43,7 +50,7 @@ describe('buildAuthRoutes', () => {
   test('does not register password or email-verification routes when password login is disabled', async () => {
     const app = await createApp({
       auth: [createJwtAuthMethod()],
-      routes: [buildAuthRoutes(false)],
+      routes: [buildAuthRoutes(false, workspaces)],
       swagger: false,
     });
 

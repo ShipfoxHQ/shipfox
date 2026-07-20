@@ -1,17 +1,20 @@
 import {createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
-import {authE2eRoutes} from './index.js';
-
-vi.mock('@shipfox/api-workspaces', () => ({
-  listMembershipsByUser: vi.fn(() => Promise.resolve([])),
-}));
+import {createAuthE2eRoutes} from './index.js';
 
 describe('auth E2E routes', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
     app = await createApp({
-      routes: [authE2eRoutes],
+      routes: [
+        createAuthE2eRoutes({
+          listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
+          preflightInvitationAcceptance: vi.fn(),
+          acceptInvitation: vi.fn(),
+          requireActiveMembership: vi.fn(),
+        }),
+      ],
       swagger: false,
     });
   });

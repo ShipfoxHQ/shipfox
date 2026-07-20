@@ -7,7 +7,6 @@ import {
   slackCallbackQuerySchema,
   slackCallbackResponseSchema,
 } from '@shipfox/api-integration-slack-dto';
-import {requireWorkspaceMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';
@@ -33,6 +32,11 @@ export interface CreateSlackIntegrationRoutesOptions {
   ) => Promise<IntegrationConnection<'slack'>>;
   disconnectSlackInstallation: (input: {connectionId: string}) => Promise<void>;
   connectionCapabilities: IntegrationCapability[];
+  requireActiveWorkspaceMembership?: (input: {
+    workspaceId: string;
+    userId: string;
+    memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+  }) => Promise<unknown>;
 }
 
 export function createSlackIntegrationRoutes({
@@ -42,6 +46,7 @@ export function createSlackIntegrationRoutes({
   connectSlackInstallation,
   disconnectSlackInstallation,
   connectionCapabilities,
+  requireActiveWorkspaceMembership,
 }: CreateSlackIntegrationRoutesOptions): RouteGroup {
   const installRoute = defineRoute({
     method: 'POST',
@@ -86,7 +91,8 @@ export function createSlackIntegrationRoutes({
           errorDescription: query.error_description,
           sessionUserId: actor.userId,
           sessionMemberships: actor.memberships,
-          requireWorkspaceMembership,
+          requireWorkspaceMembership:
+            requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
         });
       }
       const connection = await handleSlackCallback({
@@ -96,7 +102,8 @@ export function createSlackIntegrationRoutes({
         state: query.state,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
-        requireWorkspaceMembership,
+        requireWorkspaceMembership:
+          requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
         getExistingSlackConnection,
         connectSlackInstallation,
         disconnectSlackInstallation,
@@ -106,6 +113,14 @@ export function createSlackIntegrationRoutes({
   });
 
   return {prefix: '/integrations/slack', routes: [installRoute, callbackApiRoute]};
+}
+
+function unavailableWorkspaceMembershipCheck(_input: {
+  workspaceId: string;
+  userId: string;
+  memberships: ReadonlyArray<import('@shipfox/api-auth-context').UserContextMembership>;
+}): Promise<never> {
+  return Promise.reject(new Error('Workspaces inter-module client is not configured'));
 }
 
 function isSlackOAuthErrorCallback(query: SlackCallbackQueryDto): query is SlackCallbackQueryDto & {

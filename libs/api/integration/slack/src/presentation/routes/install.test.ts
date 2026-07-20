@@ -14,10 +14,7 @@ import {verifySlackInstallState} from '#core/state.js';
 import type {SlackTokenStore} from '#core/tokens.js';
 import {createSlackIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
-}));
-
+const requireWorkspaceMembershipMock = vi.fn(() => Promise.resolve());
 let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
@@ -105,6 +102,7 @@ async function createTestApp(
           Promise.resolve(connection({workspaceId: input.workspaceId})),
         ),
       disconnectSlackInstallation: vi.fn(() => Promise.resolve()),
+      requireActiveWorkspaceMembership: requireWorkspaceMembershipMock,
     },
   });
   const app = await createApp({auth: [fakeUserAuth], routes: provider.routes, swagger: false});

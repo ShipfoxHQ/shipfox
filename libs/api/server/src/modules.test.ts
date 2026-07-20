@@ -10,6 +10,7 @@ import {
 } from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {defineInterModulePresentation} from '@shipfox/inter-module';
+import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import {defaultModules} from './modules.js';
 
 const mocks = vi.hoisted(() => ({
@@ -45,7 +46,7 @@ vi.mock('@shipfox/annotations', () => ({
   },
 }));
 vi.mock('@shipfox/api-auth', () => ({
-  authModule: {
+  createAuthModule: () => ({
     name: 'auth',
     interModulePresentations: [
       {
@@ -56,7 +57,7 @@ vi.mock('@shipfox/api-auth', () => ({
         },
       },
     ],
-  },
+  }),
 }));
 vi.mock('@shipfox/api-agent', () => ({createAgentModule: mocks.createAgentModule}));
 vi.mock('@shipfox/api-auth/config', () => ({
@@ -89,7 +90,22 @@ vi.mock('@shipfox/api-workflows', () => ({
   setSourceControl: mocks.setSourceControl,
   workflowsModule: {name: 'workflows'},
 }));
-vi.mock('@shipfox/api-workspaces', () => ({workspacesModule: {name: 'workspaces'}}));
+vi.mock('@shipfox/api-workspaces', () => ({
+  workspacesModule: {
+    name: 'workspaces',
+    interModulePresentations: [
+      {
+        contract: workspacesInterModuleContract,
+        handlers: {
+          listMembershipsForTokenClaims: vi.fn(),
+          preflightInvitationAcceptance: vi.fn(),
+          acceptInvitation: vi.fn(),
+          requireActiveMembership: vi.fn(),
+        },
+      },
+    ],
+  },
+}));
 
 describe('defaultModules', () => {
   beforeEach(() => {
@@ -267,6 +283,7 @@ describe('defaultModules', () => {
     await defaultModules();
 
     expect(mocks.createIntegrationsContext).toHaveBeenCalledWith({
+      workspaces: expect.anything(),
       secrets: {
         deleteSecrets: expect.any(Function),
         linear: {

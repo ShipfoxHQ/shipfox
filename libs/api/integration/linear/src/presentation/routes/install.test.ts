@@ -16,12 +16,7 @@ import {verifyLinearInstallState} from '#core/state.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 import {createLinearIntegrationProvider} from '#index.js';
 
-vi.mock('@shipfox/api-workspaces', () => ({
-  requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
-}));
-
-const {requireWorkspaceMembership} = await import('@shipfox/api-workspaces');
-const requireWorkspaceMembershipMock = vi.mocked(requireWorkspaceMembership);
+const requireWorkspaceMembershipMock = vi.fn(() => Promise.resolve());
 let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
@@ -120,6 +115,7 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
         ),
       disconnectLinearInstallation:
         options.disconnectLinearInstallation ?? vi.fn(() => Promise.resolve()),
+      requireActiveWorkspaceMembership: requireWorkspaceMembershipMock,
     },
   });
   const app = await createApp({

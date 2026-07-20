@@ -8,6 +8,7 @@ import {subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, workspacesOutbox} from '#db/index.js';
 import {registerWorkspacesServiceMetrics} from '#metrics/index.js';
 import {workspacesE2eRoutes} from '#presentation/e2eRoutes/index.js';
+import {createWorkspacesInterModulePresentation} from '#presentation/inter-module.js';
 import {workspacesRoutes} from '#presentation/routes/index.js';
 import {onInvitationSendRequested} from '#presentation/subscribers/index.js';
 
@@ -45,4 +46,5 @@ export const workspacesModule: ShipfoxModule = {
   ],
   subscribers: [subscriber(WORKSPACES_INVITATION_SEND_REQUESTED, onInvitationSendRequested)],
   metrics: registerWorkspacesServiceMetrics,
+  interModulePresentations: [createWorkspacesInterModulePresentation()],
 };

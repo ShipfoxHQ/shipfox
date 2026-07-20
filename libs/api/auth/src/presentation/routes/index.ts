@@ -1,20 +1,28 @@
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
-import {config} from '#config.js';
 import {authCookiePlugin} from '#presentation/auth/refresh-cookie.js';
-import {verifyEmailConfirmRoute} from './email-verification/verify-email-confirm.js';
+import {createVerifyEmailConfirmRoute} from './email-verification/verify-email-confirm.js';
 import {verifyEmailResendRoute} from './email-verification/verify-email-resend.js';
 import {changePasswordRoute} from './password/change-password.js';
-import {passwordResetConfirmRoute} from './password/password-reset-confirm.js';
+import {createPasswordResetConfirmRoute} from './password/password-reset-confirm.js';
 import {passwordResetRequestRoute} from './password/password-reset-request.js';
-import {signupRoute} from './registration/signup.js';
-import {loginRoute} from './session/login.js';
+import {createSignupRoute} from './registration/signup.js';
+import {createLoginRoute} from './session/login.js';
 import {logoutRoute} from './session/logout.js';
 import {meRoute} from './session/me.js';
-import {refreshRoute} from './session/refresh.js';
+import {createRefreshRoute} from './session/refresh.js';
 
-export function buildAuthRoutes(passwordEnabled: boolean): RouteGroup {
+export function buildAuthRoutes(
+  passwordEnabled: boolean,
+  workspaces: WorkspacesInterModuleClient,
+): RouteGroup {
   const passwordRoutes = passwordEnabled
-    ? [signupRoute, verifyEmailConfirmRoute, verifyEmailResendRoute, loginRoute]
+    ? [
+        createSignupRoute(workspaces),
+        createVerifyEmailConfirmRoute(workspaces),
+        verifyEmailResendRoute,
+        createLoginRoute(workspaces),
+      ]
     : [];
 
   return {
@@ -22,14 +30,16 @@ export function buildAuthRoutes(passwordEnabled: boolean): RouteGroup {
     plugins: [authCookiePlugin],
     routes: [
       ...passwordRoutes,
-      refreshRoute,
+      createRefreshRoute(workspaces),
       logoutRoute,
       meRoute,
       ...(passwordEnabled
-        ? [changePasswordRoute, passwordResetRequestRoute, passwordResetConfirmRoute]
+        ? [
+            changePasswordRoute,
+            passwordResetRequestRoute,
+            createPasswordResetConfirmRoute(workspaces),
+          ]
         : []),
     ],
   };
 }
-
-export const authRoutes = buildAuthRoutes(config.AUTH_PASSWORD_ENABLED);

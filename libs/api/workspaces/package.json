@@ -54,6 +54,7 @@
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
+    "@shipfox/inter-module": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-email": "workspace:*",

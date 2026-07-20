@@ -152,6 +152,9 @@ async function loadJiraModuleParts(
         getExistingJiraConnection,
         connectJiraInstallation,
         disconnectJiraInstallation,
+        ...(options.requireActiveWorkspaceMembership
+          ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+          : {}),
       },
     }),
     database: {db: jiraDb, migrationsPath, migrationsTableName: JIRA_MIGRATIONS_TABLE},

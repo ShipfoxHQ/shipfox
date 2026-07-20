@@ -1,4 +1,6 @@
 import {AUTH_EMAIL_VERIFICATION_SEND_REQUESTED} from '@shipfox/api-auth-dto';
+import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {FastifyInstance} from 'fastify';
 import {verifyUserToken} from '#core/jwt.js';
 import {
@@ -138,18 +140,9 @@ describe('POST /auth/signup', () => {
       },
       alreadyMember: false,
     }));
-    listMembershipsByUserMock.mockResolvedValueOnce([
-      {
-        id: membershipId,
-        userId: crypto.randomUUID(),
-        userEmail: email,
-        userName: 'Invitee',
-        workspaceId,
-        workspaceName: 'Acme',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
+    listMembershipsByUserMock.mockResolvedValueOnce({
+      memberships: [{workspaceId, role: 'admin' as const}],
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/auth/signup',
@@ -219,66 +212,27 @@ describe('POST /auth/signup', () => {
   });
 
   test.each([
-    {
-      name: 'invalid token',
-      invitation: undefined,
-      expectedStatus: 410,
-      expectedCode: 'invitation-token-invalid',
-    },
+    {name: 'invalid token', expectedCode: 'invitation-token-invalid' as const, expectedStatus: 410},
     {
       name: 'already accepted token',
-      invitation: {
-        acceptedAt: new Date(),
-        expiresAt: new Date(Date.now() + 86_400_000),
-        email: uniqueEmail('signup-invite-used'),
-      },
+      expectedCode: 'invitation-token-used' as const,
       expectedStatus: 410,
-      expectedCode: 'invitation-token-used',
     },
-    {
-      name: 'expired token',
-      invitation: {
-        acceptedAt: null,
-        expiresAt: new Date(Date.now() - 60_000),
-        email: uniqueEmail('signup-invite-expired'),
-      },
-      expectedStatus: 410,
-      expectedCode: 'invitation-token-expired',
-    },
+    {name: 'expired token', expectedCode: 'invitation-token-expired' as const, expectedStatus: 410},
     {
       name: 'email mismatch',
-      invitation: {
-        acceptedAt: null,
-        expiresAt: new Date(Date.now() + 86_400_000),
-        email: uniqueEmail('signup-invite-other'),
-      },
+      expectedCode: 'invitation-email-mismatch' as const,
       expectedStatus: 403,
-      expectedCode: 'invitation-email-mismatch',
     },
-  ])('rejects signup with invitation for $name', async ({
-    invitation,
-    expectedStatus,
-    expectedCode,
-  }) => {
+  ])('rejects signup with invitation for $name', async ({expectedCode, expectedStatus}) => {
     const email = uniqueEmail('signup-invite-error');
-    if (invitation === undefined) {
-      peekInvitationByRawTokenMock.mockResolvedValueOnce(undefined);
-    } else {
-      peekInvitationByRawTokenMock.mockResolvedValueOnce({
-        id: crypto.randomUUID(),
-        workspaceId: crypto.randomUUID(),
-        email: invitation.email,
-        hashedToken: 'hashed',
-        expiresAt: invitation.expiresAt,
-        revokedAt: null,
-        acceptedAt: invitation.acceptedAt,
-        acceptedByUserId: null,
-        invitedByUserId: crypto.randomUUID(),
-        invitedByDisplay: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-    }
+    peekInvitationByRawTokenMock.mockRejectedValueOnce(
+      createInterModuleKnownError(
+        workspacesInterModuleContract.methods.preflightInvitationAcceptance,
+        expectedCode,
+        {},
+      ),
+    );
 
     const res = await app.inject({
       method: 'POST',

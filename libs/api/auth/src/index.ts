@@ -13,9 +13,9 @@ import {authOutbox} from '#db/schema/outbox.js';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 import {createRunnerSessionAuthMethod} from '#presentation/auth/runner-session-auth.js';
-import {authE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createAuthInterModulePresentation} from '#presentation/inter-module.js';
-import {authRoutes} from '#presentation/routes/index.js';
+import {createAuthE2eRoutes} from '#presentation/e2eRoutes/index.js';
+import {buildAuthRoutes} from '#presentation/routes/index.js';
 import {
   onEmailVerificationSendRequested,
   onPasswordResetSendRequested,
@@ -60,17 +60,23 @@ export {createRunnerSessionAuthMethod} from '#presentation/auth/runner-session-a
 
 const subscriber = subscriberFactory<AuthEventMap>();
 
-export const authModule: ShipfoxModule = {
-  name: 'auth',
-  database: {db, migrationsPath},
-  auth: [createJwtAuthMethod(), createLeaseTokenAuthMethod(), createRunnerSessionAuthMethod()],
-  loginMethods: passwordLoginMethods(config.AUTH_PASSWORD_ENABLED),
-  routes: [authRoutes],
-  e2eRoutes: [authE2eRoutes],
-  publishers: [{name: 'auth', table: authOutbox, db, eventSchemas: authEventSchemas}],
-  subscribers: [
-    subscriber(AUTH_EMAIL_VERIFICATION_SEND_REQUESTED, onEmailVerificationSendRequested),
-    subscriber(AUTH_PASSWORD_RESET_SEND_REQUESTED, onPasswordResetSendRequested),
-  ],
-  interModulePresentations: [createAuthInterModulePresentation()],
-};
+export function createAuthModule({
+  workspaces,
+}: {
+  workspaces: import('@shipfox/api-workspaces-dto/inter-module').WorkspacesInterModuleClient;
+}): ShipfoxModule {
+  return {
+    name: 'auth',
+    database: {db, migrationsPath},
+    auth: [createJwtAuthMethod(), createLeaseTokenAuthMethod(), createRunnerSessionAuthMethod()],
+    loginMethods: passwordLoginMethods(config.AUTH_PASSWORD_ENABLED),
+    routes: [buildAuthRoutes(config.AUTH_PASSWORD_ENABLED, workspaces)],
+    e2eRoutes: [createAuthE2eRoutes(workspaces)],
+    publishers: [{name: 'auth', table: authOutbox, db, eventSchemas: authEventSchemas}],
+    subscribers: [
+      subscriber(AUTH_EMAIL_VERIFICATION_SEND_REQUESTED, onEmailVerificationSendRequested),
+      subscriber(AUTH_PASSWORD_RESET_SEND_REQUESTED, onPasswordResetSendRequested),
+    ],
+    interModulePresentations: [createAuthInterModulePresentation()],
+  };
+}

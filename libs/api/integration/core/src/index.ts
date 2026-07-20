@@ -9,6 +9,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {WebhookProcessorNotConfiguredError} from '#core/errors.js';
@@ -138,6 +139,7 @@ export interface CreateIntegrationsModuleOptions {
    */
   parts?: IntegrationModuleParts[] | undefined;
   secrets?: IntegrationProviderSecrets | undefined;
+  workspaces?: WorkspacesInterModuleClient | undefined;
   agentTools?:
     | {
         workflows: WorkflowsModuleClient;
@@ -179,6 +181,7 @@ export async function createIntegrationsModule(
 export async function createIntegrationsContext(
   options: CreateIntegrationsModuleOptions = {},
 ): Promise<IntegrationsContext> {
+  const workspaces = options.workspaces;
   const parts: IntegrationModuleParts[] =
     options.parts ??
     (options.providers
@@ -186,7 +189,24 @@ export async function createIntegrationsContext(
           provider,
           webhookProcessors: provider.webhookProcessors,
         }))
-      : await loadEnabledProviderModules({secrets: options.secrets}));
+      : await loadEnabledProviderModules({
+          secrets: options.secrets,
+          ...(workspaces
+            ? {
+                requireActiveWorkspaceMembership: (input: {
+                  workspaceId: string;
+                  userId: string;
+                  memberships: ReadonlyArray<
+                    import('@shipfox/api-auth-context').UserContextMembership
+                  >;
+                }) =>
+                  workspaces.requireActiveMembership({
+                    ...input,
+                    memberships: [...input.memberships],
+                  }),
+              }
+            : {}),
+        }));
 
   const registry = createIntegrationProviderRegistry(parts.map((part) => part.provider));
   const sourceControl = createSourceControlIntegrationService({

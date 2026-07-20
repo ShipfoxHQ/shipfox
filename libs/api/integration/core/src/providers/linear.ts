@@ -159,6 +159,9 @@ async function loadLinearModuleParts(
       recordDeliveryOnly,
       getIntegrationConnectionById,
       coreDb: db,
+      ...(options.requireActiveWorkspaceMembership
+        ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+        : {}),
     },
   });
 

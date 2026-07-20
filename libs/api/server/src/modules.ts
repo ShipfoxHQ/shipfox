@@ -2,7 +2,7 @@ import {annotationsModule} from '@shipfox/annotations';
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {createAgentModule} from '@shipfox/api-agent';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import {authModule} from '@shipfox/api-auth';
+import {createAuthModule} from '@shipfox/api-auth';
 import {config as authConfig} from '@shipfox/api-auth/config';
 import {
   type AuthInterModuleClient,
@@ -35,6 +35,7 @@ import {
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import {durationToSeconds} from '@shipfox/node-jwt';
+import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {
   createInMemoryInterModuleTransport,
@@ -58,7 +59,9 @@ export async function defaultModules(
   const definitionsClient = interModuleTransport.createClient(definitionsInterModuleContract);
   const annotationsClient = interModuleTransport.createClient(annotationsInterModuleContract);
   const secretsClient = interModuleTransport.createClient(secretsInterModuleContract);
+  const workspacesClient = interModuleTransport.createClient(workspacesInterModuleContract);
   const integrations = await createIntegrationsContext({
+    workspaces: workspacesClient,
     secrets: {
       deleteSecrets: async (params) => (await secretsClient.deleteSecrets(params)).deleted,
       linear: {
@@ -164,7 +167,7 @@ export async function defaultModules(
   });
 
   const modules = [
-    authModule,
+    createAuthModule({workspaces: workspacesClient}),
     workspacesModule,
     createSecretsModule(projectsClient),
     createAgentModule({secrets: secretsClient}),
