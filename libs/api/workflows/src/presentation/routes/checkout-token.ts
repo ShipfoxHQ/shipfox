@@ -3,6 +3,7 @@ import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
 } from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {checkoutTokenResponseSchema} from '@shipfox/api-workflows-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
@@ -18,6 +19,7 @@ import {toCheckoutTokenDto} from '#presentation/dto/checkout-token.js';
 export function createCheckoutTokenRoute(clients: {
   runners: RunnersInterModuleClient;
   integrations: IntegrationsModuleClient;
+  projects: ProjectsModuleClient;
 }) {
   return defineRoute({
     method: 'POST',
@@ -110,6 +112,7 @@ export function createCheckoutTokenRoute(clients: {
       const checkout = await createJobCheckoutSpec({
         jobId: leasedJob.jobId,
         integrations: clients.integrations,
+        projects: clients.projects,
       });
       reply.header('cache-control', 'no-store');
       return toCheckoutTokenDto(checkout.spec, {persist: checkout.persistCredentials});

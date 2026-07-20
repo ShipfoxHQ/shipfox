@@ -1,5 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import {getProjectById} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import * as workflowRuns from '#db/workflow-runs.js';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
@@ -10,16 +10,16 @@ import {
   WorkflowRunNotFoundError,
 } from './errors.js';
 
-vi.mock('@shipfox/api-projects', () => ({getProjectById: vi.fn()}));
-const mockGetProjectById = vi.mocked(getProjectById);
+const getProjectById = vi.fn();
+const projects = {getProjectById} as Pick<ProjectsModuleClient, 'getProjectById'>;
 
 describe('resolveCheckoutIntent', () => {
   it('resolves connection + repo from the project, using the project workspace', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
 
-    const intent = await resolveCheckoutIntent(job.id);
+    const intent = await resolveCheckoutIntent(job.id, projects as ProjectsModuleClient);
 
     expect(intent).toEqual({
       workspaceId: project.workspaceId,
@@ -31,41 +31,41 @@ describe('resolveCheckoutIntent', () => {
   });
 
   it('throws JobNotFoundError for an unknown job', async () => {
-    const act = resolveCheckoutIntent(crypto.randomUUID());
+    const act = resolveCheckoutIntent(crypto.randomUUID(), projects as ProjectsModuleClient);
 
     await expect(act).rejects.toBeInstanceOf(JobNotFoundError);
   });
 
   it('resolves the checkout target while the parent job projection is still pending', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create(
       {},
       {transient: {projectId: project.id, status: 'pending'}},
     );
 
-    const intent = await resolveCheckoutIntent(job.id);
+    const intent = await resolveCheckoutIntent(job.id, projects as ProjectsModuleClient);
 
     expect(intent.connectionId).toBe(project.sourceConnectionId);
   });
 
   it('throws WorkflowRunNotFoundError when the run is missing', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     vi.spyOn(workflowRuns, 'getWorkflowRunByAttemptId').mockResolvedValue(undefined);
 
-    const act = resolveCheckoutIntent(job.id);
+    const act = resolveCheckoutIntent(job.id, projects as ProjectsModuleClient);
 
     await expect(act).rejects.toBeInstanceOf(WorkflowRunNotFoundError);
   });
 
   it('throws CheckoutIntentUnresolvedError when the project is missing', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(undefined);
+    getProjectById.mockResolvedValue({project: null});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
 
-    const act = resolveCheckoutIntent(job.id);
+    const act = resolveCheckoutIntent(job.id, projects as ProjectsModuleClient);
 
     await expect(act).rejects.toBeInstanceOf(CheckoutIntentUnresolvedError);
   });
@@ -74,7 +74,7 @@ describe('resolveCheckoutIntent', () => {
 describe('createJobCheckoutSpec', () => {
   it('passes the resolved intent and an undefined ref to the service', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
     const spec = {repositoryUrl: 'https://github.com/acme/repo.git', ref: 'main'};
     const createCheckoutSpec = vi.fn().mockResolvedValue(spec);
@@ -86,6 +86,7 @@ describe('createJobCheckoutSpec', () => {
     const result = await createJobCheckoutSpec({
       jobId: job.id,
       integrations: integrations as IntegrationsModuleClient,
+      projects: projects as ProjectsModuleClient,
     });
 
     expect(result).toEqual({spec, persistCredentials: true});
@@ -100,7 +101,7 @@ describe('createJobCheckoutSpec', () => {
 
   it('passes requested write contents permission to the service', async () => {
     const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
+    getProjectById.mockResolvedValue({project});
     const job = await jobFactory.create(
       {},
       {transient: {projectId: project.id, checkout: {permissions: {contents: 'write'}}}},
@@ -115,6 +116,7 @@ describe('createJobCheckoutSpec', () => {
     await createJobCheckoutSpec({
       jobId: job.id,
       integrations: integrations as IntegrationsModuleClient,
+      projects: projects as ProjectsModuleClient,
     });
 
     expect(createCheckoutSpec).toHaveBeenCalledWith(

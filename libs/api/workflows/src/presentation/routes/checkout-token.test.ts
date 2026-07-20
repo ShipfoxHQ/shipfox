@@ -33,7 +33,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
       auth: [createLeaseTokenAuthMethod()],
       routes: [
         createLeaseTokenRouteGroup({
-          projects: {} as never,
+          projects: {getProjectById: mockGetProjectById} as never,
           runners: runnersTestClient,
           integrations: {createCheckoutSpec} as never,
         }),

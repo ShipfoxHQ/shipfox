@@ -1,5 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import {getProjectById} from '@shipfox/api-projects';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {getJobById, getWorkflowRunByAttemptId} from '#db/workflow-runs.js';
 import {
   CheckoutIntentUnresolvedError,
@@ -20,15 +20,18 @@ export interface CheckoutIntent {
  * (`workflowRunId`/`workflowRunAttemptId`/`workspaceId` in the lease claim are informational).
  * Chain: job → attempt → run → project source metadata. Credential-free.
  */
-export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutIntent> {
+export async function resolveCheckoutIntent(
+  jobId: string,
+  projects: ProjectsModuleClient,
+): Promise<CheckoutIntent> {
   const job = await getJobById(jobId);
   if (!job) throw new JobNotFoundError(jobId);
 
   const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
   if (!run) throw new WorkflowRunNotFoundError(job.workflowRunAttemptId);
 
-  const project = await getProjectById(run.projectId);
-  if (!project) throw new CheckoutIntentUnresolvedError(run.projectId);
+  const {project} = await projects.getProjectById({projectId: run.projectId});
+  if (project === null) throw new CheckoutIntentUnresolvedError(run.projectId);
 
   return {
     workspaceId: project.workspaceId,
@@ -47,9 +50,11 @@ export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutInte
 export async function createJobCheckoutSpec({
   jobId,
   integrations,
+  projects,
 }: {
   jobId: string;
   integrations: IntegrationsModuleClient;
+  projects: ProjectsModuleClient;
 }): Promise<{
   spec: {
     repositoryUrl: string;
@@ -59,7 +64,7 @@ export async function createJobCheckoutSpec({
   };
   persistCredentials: boolean;
 }> {
-  const intent = await resolveCheckoutIntent(jobId);
+  const intent = await resolveCheckoutIntent(jobId, projects);
   const response = await integrations.createCheckoutSpec({
     workspaceId: intent.workspaceId,
     connectionId: intent.connectionId,
