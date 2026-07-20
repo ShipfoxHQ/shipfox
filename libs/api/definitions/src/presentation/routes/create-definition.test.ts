@@ -1,30 +1,19 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {buildCreateDefinitionRoute, createDefinitionRoute} from './create-definition.js';
+import {buildCreateDefinitionRoute} from './create-definition.js';
 
-const projectAccessState = vi.hoisted(() => ({workspaceId: '', sourceConnectionId: ''}));
-
-vi.mock('@shipfox/api-projects', () => ({
-  ProjectNotFoundError: class ProjectNotFoundError extends Error {},
-  requireProjectAccess: vi.fn(({projectId}) =>
-    Promise.resolve({
-      project: {
-        id: projectId,
-        workspaceId: projectAccessState.workspaceId,
-        sourceConnectionId: projectAccessState.sourceConnectionId,
-      },
-      workspaceId: projectAccessState.workspaceId,
-    }),
-  ),
-}));
+const getProjectById = vi.fn();
+const projects = {getProjectById} as Pick<ProjectsModuleClient, 'getProjectById'>;
 
 describe('POST /api/definitions', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let projectId: string;
+  let sourceConnectionId: string;
 
   beforeAll(async () => {
     app = Fastify();
@@ -41,15 +30,20 @@ describe('POST /api/definitions', () => {
       );
       done();
     });
-    app.post('/api/definitions', createDefinitionRoute);
+    app.post(
+      '/api/definitions',
+      buildCreateDefinitionRoute({projects: projects as ProjectsModuleClient}),
+    );
     await app.ready();
   });
 
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
-    projectAccessState.workspaceId = workspaceId;
-    projectAccessState.sourceConnectionId = crypto.randomUUID();
+    sourceConnectionId = crypto.randomUUID();
+    getProjectById.mockResolvedValue({
+      project: {id: projectId, workspaceId, sourceConnectionId},
+    } as never);
   });
 
   const validYaml = `
@@ -101,6 +95,7 @@ jobs:
     appWithOptions.post(
       '/api/definitions',
       buildCreateDefinitionRoute({
+        projects: projects as ProjectsModuleClient,
         integrations: {getAgentToolsContext} as Pick<
           IntegrationsModuleClient,
           'getAgentToolsContext'
@@ -142,14 +137,14 @@ jobs:
         catalogs: [],
         workspaceConnections: [
           {
-            id: projectAccessState.sourceConnectionId,
+            id: sourceConnectionId,
             slug: 'github-main',
             provider: 'github',
             capabilities: ['agent_tools' as const],
           },
         ],
         defaultConnection: {
-          id: projectAccessState.sourceConnectionId,
+          id: sourceConnectionId,
           slug: 'github-main',
           provider: 'github',
         },
@@ -172,6 +167,7 @@ jobs:
     appWithOptions.post(
       '/api/definitions',
       buildCreateDefinitionRoute({
+        projects: projects as ProjectsModuleClient,
         integrations: {getAgentToolsContext} as Pick<
           IntegrationsModuleClient,
           'getAgentToolsContext'
@@ -202,7 +198,7 @@ jobs:
     expect(res.statusCode).toBe(200);
     expect(getAgentToolsContext).toHaveBeenCalledWith({
       workspaceId,
-      defaultConnectionId: projectAccessState.sourceConnectionId,
+      defaultConnectionId: sourceConnectionId,
     });
   });
 

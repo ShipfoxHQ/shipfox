@@ -6,6 +6,7 @@ import {
   definitionsEventSchemas,
 } from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {
   PROJECT_SOURCE_BOUND,
   PROJECT_SOURCE_COMMIT_OBSERVED,
@@ -39,7 +40,6 @@ export {
   normalizeWorkflowDocument,
 } from '#core/index.js';
 export {db, definitionsOutbox, getDefinitionById, migrationsPath} from '#db/index.js';
-export {routes} from '#presentation/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
@@ -47,10 +47,12 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 const subscriber = subscriberFactory<DefinitionsEventMap & ProjectsEventMap>();
 
 export interface CreateDefinitionsModuleOptions {
+  projects: ProjectsModuleClient;
   integrations: IntegrationsModuleClient;
 }
 
 export function createDefinitionsModule({
+  projects,
   integrations,
 }: CreateDefinitionsModuleOptions): ShipfoxModule {
   const sourceControl = createDefinitionsSourceControl(integrations);
@@ -58,7 +60,7 @@ export function createDefinitionsModule({
   return {
     name: 'definitions',
     database: {db, migrationsPath},
-    routes: createDefinitionRoutes({integrations}),
+    routes: createDefinitionRoutes({projects, integrations}),
     publishers: [
       {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
     ],
