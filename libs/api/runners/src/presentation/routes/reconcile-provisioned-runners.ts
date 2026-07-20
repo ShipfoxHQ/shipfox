@@ -1,4 +1,4 @@
-import {requireWorkspaceProvisionerContext} from '@shipfox/api-auth-context';
+import {requireProvisionerContext} from '@shipfox/api-auth-context';
 import {
   reconcileProvisionedRunnersBodySchema,
   reconcileProvisionedRunnersResponseSchema,
@@ -18,10 +18,10 @@ export const reconcileProvisionedRunnersRoute = defineRoute({
     },
   },
   handler: async (request) => {
-    const {provisionerTokenId, workspaceId} = requireWorkspaceProvisionerContext(request);
+    const context = requireProvisionerContext(request);
     const result = await reconcileProvisionedRunners({
-      workspaceId,
-      provisionerId: provisionerTokenId,
+      workspaceId: context.scope === 'workspace' ? context.workspaceId : null,
+      provisionerId: context.provisionerTokenId,
       observedProvisionedRunnerIds: request.body.observed_provisioned_runner_ids,
     });
 

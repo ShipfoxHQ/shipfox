@@ -8,7 +8,7 @@ export type ProvisionedRunnerState =
 
 export interface ProvisionedRunner {
   id: string;
-  workspaceId: string;
+  workspaceId: string | null;
   provisionerId: string;
   provisionedRunnerId: string;
   reservationId: string | null;

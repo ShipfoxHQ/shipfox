@@ -532,7 +532,7 @@
           "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "provisioner_id": {
           "name": "provisioner_id",
@@ -544,7 +544,7 @@
           "name": "provisioned_runner_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "reservation_id": {
           "name": "reservation_id",
@@ -562,7 +562,8 @@
           "name": "labels",
           "type": "text[]",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'{}'"
         },
         "state": {
           "name": "state",
@@ -647,15 +648,9 @@
         }
       },
       "indexes": {
-        "runners_provisioned_runners_workspace_provisioner_runner_unique": {
-          "name": "runners_provisioned_runners_workspace_provisioner_runner_unique",
+        "runners_provisioned_runners_provisioner_runner_unique": {
+          "name": "runners_provisioned_runners_provisioner_runner_unique",
           "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "provisioner_id",
               "isExpression": false,
@@ -670,6 +665,7 @@
             }
           ],
           "isUnique": true,
+          "where": "\"runners_provisioned_runners\".\"provisioned_runner_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -677,12 +673,6 @@
         "runners_provisioned_runners_workspace_state_updated_idx": {
           "name": "runners_provisioned_runners_workspace_state_updated_idx",
           "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "state",
               "isExpression": false,
@@ -721,12 +711,6 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            },
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -737,12 +721,6 @@
         "runners_provisioned_runners_active_template_counts_idx": {
           "name": "runners_provisioned_runners_active_template_counts_idx",
           "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "provisioner_id",
               "isExpression": false,

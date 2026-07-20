@@ -17,12 +17,14 @@ export const provisionedRunners = pgTable(
   'provisioned_runners',
   {
     id: uuidv7PrimaryKey(),
-    workspaceId: uuid('workspace_id').notNull(),
+    // Kept during the protocol migration for legacy workspace capacity. New capacity is owned
+    // only by its provisioner and has no workspace assignment.
+    workspaceId: uuid('workspace_id'),
     provisionerId: uuid('provisioner_id').notNull(),
-    provisionedRunnerId: text('provisioned_runner_id').notNull(),
+    provisionedRunnerId: text('provisioned_runner_id'),
     reservationId: uuid('reservation_id'),
     templateKey: text('template_key'),
-    labels: text('labels').array().notNull(),
+    labels: text('labels').array().notNull().default([]),
     state: provisionedRunnerStateEnum('state').notNull(),
     reason: text('reason'),
     runnerSessionId: uuid('runner_session_id'),
@@ -38,13 +40,10 @@ export const provisionedRunners = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('runners_provisioned_runners_workspace_provisioner_runner_unique').on(
-      table.workspaceId,
-      table.provisionerId,
-      table.provisionedRunnerId,
-    ),
+    uniqueIndex('runners_provisioned_runners_provisioner_runner_unique')
+      .on(table.provisionerId, table.provisionedRunnerId)
+      .where(sql`${table.provisionedRunnerId} is not null`),
     index('runners_provisioned_runners_workspace_state_updated_idx').on(
-      table.workspaceId,
       table.state,
       table.updatedAt,
     ),
@@ -52,10 +51,9 @@ export const provisionedRunners = pgTable(
       table.state,
       table.updatedAt,
       table.reportedAt,
-      table.workspaceId,
     ),
     index('runners_provisioned_runners_active_template_counts_idx')
-      .on(table.workspaceId, table.provisionerId, table.state, table.templateKey)
+      .on(table.provisionerId, table.state, table.templateKey)
       .where(sql`"state" in ('starting', 'running') and "template_key" is not null`),
   ],
 );
@@ -64,6 +62,7 @@ export type ProvisionedRunnerDb = typeof provisionedRunners.$inferSelect;
 export type ProvisionedRunnerInsertDb = typeof provisionedRunners.$inferInsert;
 
 export function toProvisionedRunner(row: ProvisionedRunnerDb): ProvisionedRunner {
+  if (!row.provisionedRunnerId) throw new Error('Planned capacity has no provider runner identity');
   return {
     id: row.id,
     workspaceId: row.workspaceId,

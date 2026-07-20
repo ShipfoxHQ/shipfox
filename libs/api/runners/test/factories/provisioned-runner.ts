@@ -1,7 +1,7 @@
 import {Factory} from 'fishery';
 import type {ProvisionedRunner} from '#core/entities/provisioned-runner.js';
 import {db} from '#db/db.js';
-import {provisionedRunners} from '#db/schema/provisioned-runners.js';
+import {provisionedRunners, toProvisionedRunner} from '#db/schema/provisioned-runners.js';
 
 export const provisionedRunnerFactory = Factory.define<ProvisionedRunner>(({onCreate}) => {
   onCreate(async (provisionedRunner) => {
@@ -29,28 +29,7 @@ export const provisionedRunnerFactory = Factory.define<ProvisionedRunner>(({onCr
       .returning();
 
     if (!row) throw new Error('Insert returned no rows');
-    return {
-      id: row.id,
-      workspaceId: row.workspaceId,
-      provisionerId: row.provisionerId,
-      provisionedRunnerId: row.provisionedRunnerId,
-      reservationId: row.reservationId,
-      templateKey: row.templateKey,
-      labels: row.labels,
-      state: row.state,
-      reason: row.reason,
-      runnerSessionId: row.runnerSessionId,
-      providerKind: row.providerKind,
-      reportedAt: row.reportedAt,
-      startedAt: row.startedAt,
-      stoppingAt: row.stoppingAt,
-      stoppedAt: row.stoppedAt,
-      failedAt: row.failedAt,
-      terminatedAt: row.terminatedAt,
-      reservationReleasedAt: row.reservationReleasedAt,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    };
+    return toProvisionedRunner(row);
   });
 
   return {

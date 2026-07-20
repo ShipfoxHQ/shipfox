@@ -43,6 +43,23 @@ export const reportProvisionedRunnersResponseSchema = z.object({
   reservations_released: z.number().int().min(0),
 });
 
+export const createPlannedCapacityBodySchema = z
+  .object({
+    provider_kind: providerKindSchema.optional(),
+    template_key: z.string().min(1).max(255).optional(),
+  })
+  .strict();
+
+export const createPlannedCapacityResponseSchema = z.object({
+  capacity_id: z.string().uuid(),
+});
+
+export const attachProviderRunnerBodySchema = z
+  .object({provisioned_runner_id: z.string().min(1).max(255)})
+  .strict();
+
+export const attachProviderRunnerResponseSchema = z.object({attached: z.boolean()});
+
 export const activeRunnerStateSchema = z.enum(['starting', 'running', 'stopping', 'busy']);
 
 export const activeRunnerDtoSchema = z.object({
@@ -70,6 +87,10 @@ export type ReportProvisionedRunnersBodyDto = z.infer<typeof reportProvisionedRu
 export type ReportProvisionedRunnersResponseDto = z.infer<
   typeof reportProvisionedRunnersResponseSchema
 >;
+export type CreatePlannedCapacityBodyDto = z.infer<typeof createPlannedCapacityBodySchema>;
+export type CreatePlannedCapacityResponseDto = z.infer<typeof createPlannedCapacityResponseSchema>;
+export type AttachProviderRunnerBodyDto = z.infer<typeof attachProviderRunnerBodySchema>;
+export type AttachProviderRunnerResponseDto = z.infer<typeof attachProviderRunnerResponseSchema>;
 export type ActiveRunnerStateDto = z.infer<typeof activeRunnerStateSchema>;
 export type ActiveRunnerDto = z.infer<typeof activeRunnerDtoSchema>;
 export type ActiveRunnersResponseDto = z.infer<typeof activeRunnersResponseSchema>;

@@ -3,6 +3,8 @@ import {and, desc, eq, inArray, or, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
 import {
+  attachProviderRunnerId,
+  createPlannedProvisionedCapacity,
   listActiveProvisionedRunnerCountsByTemplateTx,
   listActiveProvisionedRunners,
   listProvisionerTerminateIntentRowsTx,
@@ -86,6 +88,31 @@ describe('reportProvisionedRunners', () => {
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
+  });
+
+  it('reports and reconciles installation capacity without a workspace assignment', async () => {
+    const reportedAt = new Date();
+
+    const report = await reportProvisionedRunners({
+      workspaceId: null,
+      provisionerId,
+      events: [event({provisionedRunnerId: 'installation-runner', reportedAt})],
+    });
+    const reconcile = await reconcileProvisionedRunners({
+      workspaceId: null,
+      provisionerId,
+      observedProvisionedRunnerIds: ['installation-runner'],
+      terminateGraceSeconds: 60,
+    });
+    const [row] = await db()
+      .select()
+      .from(provisionedRunners)
+      .where(eq(provisionedRunners.provisionedRunnerId, 'installation-runner'));
+
+    expect(report).toEqual({accepted: 1, reservationsReleased: 0, terminateIntentsHonored: []});
+    expect(reconcile.absentIds).toEqual([]);
+    expect(reconcile.observedRows).toMatchObject([{workspaceId: null}]);
+    expect(row).toMatchObject({workspaceId: null, provisionerId, reportedAt});
   });
 
   it('dedupes duplicate provisioned runner ids in one batch', async () => {
@@ -997,6 +1024,31 @@ describe('reapStaleProvisionedRunners', () => {
     expect(reservation?.count).toBe(1);
   });
 
+  it('fails stale planned installation capacity before provider attachment', async () => {
+    const installationProvisioner = await provisionerTokenFactory.create({
+      scope: 'installation',
+      workspaceId: null,
+    });
+    const capacity = await createPlannedProvisionedCapacity({
+      provisionerId: installationProvisioner.id,
+      providerKind: 'docker',
+      templateKey: null,
+    });
+    await db()
+      .update(provisionedRunners)
+      .set({reportedAt: staleAt(), updatedAt: staleAt()})
+      .where(eq(provisionedRunners.id, capacity.capacityId));
+
+    const result = await reapStaleProvisionedRunners({thresholdSeconds: 60, limit: 100});
+    const [row] = await db()
+      .select()
+      .from(provisionedRunners)
+      .where(eq(provisionedRunners.id, capacity.capacityId));
+
+    expect(result.reaped).toBe(1);
+    expect(row).toMatchObject({workspaceId: null, provisionedRunnerId: null, state: 'failed'});
+  });
+
   it('skips fresh rows, live provisioners, terminal rows, running jobs, and fresh sessions', async () => {
     await createProvisionedRunner({
       provisionedRunnerId: 'fresh-row',
@@ -1773,6 +1825,42 @@ describe('reconcileProvisionedRunners', () => {
       reportedAt: params.reportedAt ?? new Date(),
     };
   }
+});
+
+describe('planned provisioned capacity', () => {
+  it('belongs to its provisioner until it receives one provider runner identity', async () => {
+    const provisionerId = crypto.randomUUID();
+    const capacity = await createPlannedProvisionedCapacity({
+      provisionerId,
+      providerKind: 'docker',
+      templateKey: 'linux',
+    });
+
+    const attached = await attachProviderRunnerId({
+      capacityId: capacity.capacityId,
+      provisionerId,
+      provisionedRunnerId: 'container-1',
+    });
+    const rebound = await attachProviderRunnerId({
+      capacityId: capacity.capacityId,
+      provisionerId,
+      provisionedRunnerId: 'container-2',
+    });
+    const [row] = await db()
+      .select()
+      .from(provisionedRunners)
+      .where(eq(provisionedRunners.id, capacity.capacityId));
+
+    expect(attached).toBe(true);
+    expect(rebound).toBe(false);
+    expect(row).toMatchObject({
+      workspaceId: null,
+      provisionerId,
+      provisionedRunnerId: 'container-1',
+      labels: [],
+      state: 'starting',
+    });
+  });
 });
 
 function deferred<T>() {

@@ -1,5 +1,7 @@
 import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import {
+  attachProviderRunnerId as attachProviderRunnerIdDb,
+  createPlannedProvisionedCapacity as createPlannedProvisionedCapacityDb,
   isTerminalState,
   listActiveProvisionedRunners,
   listActiveRunningJobExecutions,
@@ -22,9 +24,25 @@ import {
 import {config} from '../config.js';
 
 export interface ReportProvisionedRunnersParams {
-  workspaceId: string;
+  workspaceId: string | null;
   provisionerId: string;
   events: ProvisionedRunnerReportEvent[];
+}
+
+export function createPlannedProvisionedCapacity(params: {
+  provisionerId: string;
+  providerKind: string | null;
+  templateKey: string | null;
+}): Promise<{capacityId: string}> {
+  return createPlannedProvisionedCapacityDb(params);
+}
+
+export function attachProviderRunnerId(params: {
+  capacityId: string;
+  provisionerId: string;
+  provisionedRunnerId: string;
+}): Promise<boolean> {
+  return attachProviderRunnerIdDb(params);
 }
 
 export interface ReportProvisionedRunnersResult {
@@ -33,7 +51,7 @@ export interface ReportProvisionedRunnersResult {
 }
 
 export interface ReconcileProvisionedRunnersParams {
-  workspaceId: string;
+  workspaceId: string | null;
   provisionerId: string;
   observedProvisionedRunnerIds: string[];
 }

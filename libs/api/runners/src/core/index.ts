@@ -32,6 +32,8 @@ export {
 } from './manual-registration-tokens.js';
 export {
   type ActiveRunner,
+  attachProviderRunnerId,
+  createPlannedProvisionedCapacity,
   listActiveRunners,
   type ReconcileDesiredIntent,
   type ReconciledBoundJobExecution,
