@@ -44,6 +44,7 @@ describe('Workflows inter-module presentation', () => {
     const presentation = createWorkflowsInterModulePresentation({
       definitions: {} as never,
       runners: {} as never,
+      secrets: {} as never,
     });
 
     const result = await presentation.handlers.getStepLogContext(
@@ -95,6 +96,7 @@ describe('Workflows inter-module presentation', () => {
     const presentation = createWorkflowsInterModulePresentation({
       definitions: {} as never,
       runners: runners as never,
+      secrets: {} as never,
     });
 
     const result = await presentation.handlers.getLeasedAgentToolContext(input, {
