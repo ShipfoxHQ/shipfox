@@ -84,19 +84,22 @@ async function loadSentryModuleParts(): Promise<IntegrationModuleParts> {
     );
   }
 
+  const integrationProvider = createSentryIntegrationProvider({
+    getSentryInstallation: ({installationUuid}) =>
+      getSentryInstallationByInstallationUuid(installationUuid),
+    getConnectionById,
+    connectSentryInstallation,
+    persistVerifiedUnclaimedInstallation,
+    coreDb: db,
+    publishIntegrationEventReceived,
+    recordDeliveryOnly,
+    getIntegrationConnectionById,
+    updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
+  });
+
   return {
-    provider: createSentryIntegrationProvider({
-      getSentryInstallation: ({installationUuid}) =>
-        getSentryInstallationByInstallationUuid(installationUuid),
-      getConnectionById,
-      connectSentryInstallation,
-      persistVerifiedUnclaimedInstallation,
-      coreDb: db,
-      publishIntegrationEventReceived,
-      recordDeliveryOnly,
-      getIntegrationConnectionById,
-      updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
-    }),
+    provider: integrationProvider,
+    webhookProcessors: integrationProvider.webhookProcessors,
     database: {
       db: sentryDb,
       migrationsPath: sentryMigrationsPath,

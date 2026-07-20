@@ -4,6 +4,7 @@ import {createSlackApiClient, type SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';
 import {SlackAgentToolsProvider} from '#core/agent-tools-provider.js';
 import type {SlackTokenStore} from '#core/tokens.js';
+import {createSlackWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {getSlackInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -153,6 +154,10 @@ export function createSlackIntegrationProvider(
     throw new Error('Slack webhook routes require every core persistence dependency');
   }
   const routes: RouteGroup[] = [];
+  const webhookProcessor =
+    options.routes && hasSlackWebhookRoutesOptions(options.routes)
+      ? createSlackWebhookProcessor(options.routes)
+      : undefined;
   if (options.routes && hasSlackInstallationRoutesOptions(options.routes)) {
     const {
       tokenStore,
@@ -171,8 +176,8 @@ export function createSlackIntegrationProvider(
       }),
     );
   }
-  if (options.routes && hasSlackWebhookRoutesOptions(options.routes)) {
-    routes.push(...createSlackWebhookRoutes(options.routes));
+  if (options.routes && hasSlackWebhookRoutesOptions(options.routes) && webhookProcessor) {
+    routes.push(...createSlackWebhookRoutes({...options.routes, processor: webhookProcessor}));
   }
 
   return {
@@ -186,6 +191,9 @@ export function createSlackIntegrationProvider(
     },
     ...options.cleanup,
     routes,
+    webhookProcessors: webhookProcessor
+      ? [{routeIds: ['slack.event', 'slack.command'] as const, processor: webhookProcessor}]
+      : undefined,
   };
 }
 

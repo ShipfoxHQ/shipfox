@@ -9,6 +9,7 @@ import {
   createIntegrationsContext,
   createWorkspaceConnectionSnapshotLoader,
   getIntegrationConnectionById,
+  type WebhookDeliverySource,
 } from '@shipfox/api-integration-core';
 import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
@@ -33,6 +34,7 @@ import {
 
 export interface DefaultModulesOptions {
   runnersModule?: ShipfoxModule;
+  webhookDeliverySource?: WebhookDeliverySource | undefined;
 }
 
 export async function defaultModules(
@@ -91,6 +93,7 @@ export async function defaultModules(
     agentTools: {
       loadLeasedAgentStep: (params) => loadRunningLeasedStep({runners: runnersClient, ...params}),
     },
+    webhookDeliverySource: options.webhookDeliverySource,
   });
   const [agentToolSelectionCatalogs, agentToolCatalogs] = await Promise.all([
     buildAgentToolSelectionCatalogs(integrations.registry),

@@ -15,16 +15,18 @@ export const webhookProviderModule: IntegrationProviderModule = {
   enabled: config.INTEGRATIONS_ENABLE_WEBHOOK_PROVIDER,
   load: async () => {
     const {createWebhookIntegrationProvider} = await import('@shipfox/api-integration-webhook');
+    const integrationProvider = createWebhookIntegrationProvider({
+      coreDb: db,
+      createIntegrationConnection,
+      listIntegrationConnections,
+      getIntegrationConnectionById,
+      updateIntegrationConnectionLifecycleStatus,
+      deleteIntegrationConnection,
+      publishIntegrationEventReceived,
+    });
     return {
-      provider: createWebhookIntegrationProvider({
-        coreDb: db,
-        createIntegrationConnection,
-        listIntegrationConnections,
-        getIntegrationConnectionById,
-        updateIntegrationConnectionLifecycleStatus,
-        deleteIntegrationConnection,
-        publishIntegrationEventReceived,
-      }),
+      provider: integrationProvider,
+      webhookProcessors: integrationProvider.webhookProcessors,
     };
   },
 };

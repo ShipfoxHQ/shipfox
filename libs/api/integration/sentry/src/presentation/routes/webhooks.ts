@@ -10,13 +10,18 @@ import {
   rawBodyPlugin,
   WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
-import {createSentryWebhookProcessor} from '#core/webhook-processor.js';
+import {
+  createSentryWebhookProcessor,
+  type SentryWebhookProcessor,
+} from '#core/webhook-processor.js';
 import type {SentryWebhookContext} from './webhook-context.js';
 
 export type {SentryWebhookContext} from './webhook-context.js';
 
-export function createSentryWebhookRoutes(context: SentryWebhookContext): RouteGroup {
-  const processor = createSentryWebhookProcessor(context);
+export function createSentryWebhookRoutes(
+  context: SentryWebhookContext & {processor?: SentryWebhookProcessor | undefined},
+): RouteGroup {
+  const processor = context.processor ?? createSentryWebhookProcessor(context);
   const webhookRoute = defineRoute({
     method: 'POST',
     path: '/',

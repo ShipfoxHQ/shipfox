@@ -1,3 +1,4 @@
+import type {WebhookRequestProcessor, WebhookRouteId} from '@shipfox/api-integration-core-dto';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {ModuleDatabase, ModuleWorker} from '@shipfox/node-module';
 import type {IntegrationProvider} from '#core/entities/provider.js';
@@ -17,6 +18,12 @@ export interface IntegrationModuleParts {
   e2eRoutes?: RouteExport[] | undefined;
   workers?: ModuleWorker[] | undefined;
   startupTasks?: Array<() => Promise<void>> | undefined;
+  webhookProcessors?: WebhookProcessorRegistration[] | undefined;
+}
+
+export interface WebhookProcessorRegistration {
+  routeIds: readonly WebhookRouteId[];
+  processor: WebhookRequestProcessor;
 }
 
 /**

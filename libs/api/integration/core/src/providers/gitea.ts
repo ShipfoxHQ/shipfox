@@ -79,15 +79,18 @@ async function loadGiteaModuleParts(): Promise<IntegrationModuleParts> {
     );
   }
 
+  const integrationProvider = createGiteaIntegrationProvider({
+    getExistingGiteaConnection,
+    connectGiteaConnection,
+    publishSourcePush,
+    recordDeliveryOnly,
+    getIntegrationConnectionById,
+    coreDb: db,
+  });
+
   return {
-    provider: createGiteaIntegrationProvider({
-      getExistingGiteaConnection,
-      connectGiteaConnection,
-      publishSourcePush,
-      recordDeliveryOnly,
-      getIntegrationConnectionById,
-      coreDb: db,
-    }),
+    provider: integrationProvider,
+    webhookProcessors: integrationProvider.webhookProcessors,
     database: {
       db: giteaDb,
       migrationsPath: giteaMigrationsPath,

@@ -19,7 +19,10 @@ import {
   WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import {createGithubWebhookProcessor} from '#core/webhook-processor.js';
+import {
+  createGithubWebhookProcessor,
+  type GithubWebhookProcessor,
+} from '#core/webhook-processor.js';
 
 const SIGNATURE_HEADER = 'x-hub-signature-256';
 const EVENT_HEADER = 'x-github-event';
@@ -34,10 +37,11 @@ export interface CreateGithubWebhookRoutesOptions {
   deleteInstallationTokenSecret?:
     | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
     | undefined;
+  processor?: GithubWebhookProcessor | undefined;
 }
 
 export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOptions): RouteGroup {
-  const processor = createGithubWebhookProcessor(options);
+  const processor = options.processor ?? createGithubWebhookProcessor(options);
 
   const pushRoute = defineRoute({
     method: 'POST',

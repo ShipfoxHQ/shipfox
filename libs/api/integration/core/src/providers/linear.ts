@@ -136,32 +136,35 @@ async function loadLinearModuleParts(
     secrets,
   });
 
+  const integrationProvider = createLinearIntegrationProvider({
+    agentTools: {tokenStore, endpoint: linearConfig.LINEAR_MCP_ENDPOINT},
+    cleanup: {
+      deleteConnectionRecords: async (connection, {tx}) => {
+        await deleteLinearInstallationByConnectionId(connection.id, {tx});
+      },
+      deleteConnectionSecrets: async (connection) => {
+        // Scoped secrets accept the provider-local suffix, after this helper validates its prefix.
+        await (options.secrets?.linear?.deleteSecrets({
+          workspaceId: connection.workspaceId,
+          namespace: linearNamespaceSuffix(linearSecretsNamespace(connection.id)),
+        }) ?? Promise.resolve());
+      },
+    },
+    routes: {
+      tokenStore,
+      getExistingLinearConnection,
+      connectLinearInstallation,
+      disconnectLinearInstallation,
+      publishIntegrationEventReceived,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+      coreDb: db,
+    },
+  });
+
   return {
-    provider: createLinearIntegrationProvider({
-      agentTools: {tokenStore, endpoint: linearConfig.LINEAR_MCP_ENDPOINT},
-      cleanup: {
-        deleteConnectionRecords: async (connection, {tx}) => {
-          await deleteLinearInstallationByConnectionId(connection.id, {tx});
-        },
-        deleteConnectionSecrets: async (connection) => {
-          // Scoped secrets accept the provider-local suffix, after this helper validates its prefix.
-          await (options.secrets?.linear?.deleteSecrets({
-            workspaceId: connection.workspaceId,
-            namespace: linearNamespaceSuffix(linearSecretsNamespace(connection.id)),
-          }) ?? Promise.resolve());
-        },
-      },
-      routes: {
-        tokenStore,
-        getExistingLinearConnection,
-        connectLinearInstallation,
-        disconnectLinearInstallation,
-        publishIntegrationEventReceived,
-        recordDeliveryOnly,
-        getIntegrationConnectionById,
-        coreDb: db,
-      },
-    }),
+    provider: integrationProvider,
+    webhookProcessors: integrationProvider.webhookProcessors,
     e2eRoutes: [
       createLinearE2eRoutes({
         tokenStore,

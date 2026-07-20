@@ -9,6 +9,7 @@ import type {
 import type {ModuleWorker} from '@shipfox/node-module';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createSentryApiClient, type SentryApiClient} from '#api/client.js';
+import {createSentryWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {
   getSentryInstallationByConnectionId,
@@ -84,6 +85,14 @@ export function createSentryIntegrationProvider(options: CreateSentryIntegration
     options.getSentryInstallationByConnectionId ?? getSentryInstallationByConnectionId;
   const persistUnclaimed =
     options.persistVerifiedUnclaimedInstallation ?? persistVerifiedUnclaimedInstallation;
+  const webhookProcessor = createSentryWebhookProcessor({
+    sentry,
+    coreDb: options.coreDb,
+    publishIntegrationEventReceived: options.publishIntegrationEventReceived,
+    recordDeliveryOnly: options.recordDeliveryOnly,
+    getIntegrationConnectionById: options.getIntegrationConnectionById,
+    updateConnectionLifecycleStatus: options.updateConnectionLifecycleStatus,
+  });
 
   return {
     provider: 'sentry' as const,
@@ -108,8 +117,10 @@ export function createSentryIntegrationProvider(options: CreateSentryIntegration
         recordDeliveryOnly: options.recordDeliveryOnly,
         getIntegrationConnectionById: options.getIntegrationConnectionById,
         updateConnectionLifecycleStatus: options.updateConnectionLifecycleStatus,
+        processor: webhookProcessor,
       }),
     ],
+    webhookProcessors: [{routeIds: ['sentry'] as const, processor: webhookProcessor}],
   };
 }
 

@@ -15,7 +15,10 @@ import type {FastifyPluginAsync} from 'fastify';
 import fp from 'fastify-plugin';
 import {z} from 'zod';
 import {WEBHOOK_ACCEPTED_CONTENT_TYPES, WEBHOOK_INBOUND_BODY_LIMIT} from '#constants.js';
-import {createGenericWebhookProcessor} from '#core/webhook-processor.js';
+import {
+  createGenericWebhookProcessor,
+  type GenericWebhookProcessor,
+} from '#core/webhook-processor.js';
 
 const MAX_DELIVERY_ID_HEADER_LENGTH = 200;
 const acceptedContentTypes = new Set<string>(WEBHOOK_ACCEPTED_CONTENT_TYPES);
@@ -39,6 +42,7 @@ export interface CreateWebhookInboundRoutesOptions {
   };
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
+  processor?: GenericWebhookProcessor | undefined;
 }
 
 const inboundParamsSchema = z.object({
@@ -69,7 +73,7 @@ function hasDeliveryId(header: string | string[] | undefined): boolean {
 }
 
 export function createWebhookInboundRoutes(options: CreateWebhookInboundRoutesOptions): RouteGroup {
-  const processor = createGenericWebhookProcessor(options);
+  const processor = options.processor ?? createGenericWebhookProcessor(options);
   const inboundRoute = defineRoute({
     method: 'POST',
     path: '/:connectionId',
