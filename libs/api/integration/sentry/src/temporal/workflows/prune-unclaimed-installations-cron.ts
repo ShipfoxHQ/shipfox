@@ -8,7 +8,10 @@ const {pruneUnclaimedSentryInstallationsActivity} = proxyActivities<
 });
 
 export async function pruneUnclaimedSentryInstallationsCron(): Promise<void> {
-  const {tombstoned} = await pruneUnclaimedSentryInstallationsActivity();
+  const {releasedPending, tombstoned} = await pruneUnclaimedSentryInstallationsActivity();
+  if (releasedPending > 0) {
+    log.info('Released stale pending Sentry installation claims', {releasedPending});
+  }
   if (tombstoned > 0) {
     log.info('Tombstoned stale unclaimed Sentry installations', {tombstoned});
   }

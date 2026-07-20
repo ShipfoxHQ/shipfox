@@ -27,13 +27,14 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
   };
 }
 
-function sentryClient(): SentryApiClient {
+function sentryClient(overrides: Partial<SentryApiClient> = {}): SentryApiClient {
   return {
     exchangeAuthorizationCode: vi.fn(() =>
       Promise.resolve({token: 'tok', refreshToken: 'refresh', expiresAt: 'x'}),
     ),
     getInstallation: vi.fn(() => Promise.resolve({orgSlug: 'acme'})),
     verifyInstallation: vi.fn(() => Promise.resolve()),
+    ...overrides,
   };
 }
 
@@ -140,5 +141,164 @@ describe('Sentry webhook processor', () => {
 
     expect(result).toMatchObject({outcome: 'discarded', reason: 'invalid_signature'});
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+  });
+
+  it('continues from the durable exchange checkpoint after completion persistence fails', async () => {
+    const installationUuid = 'processor-installation-retry';
+    const deliveryId = randomUUID();
+    const exchangeAuthorizationCode = vi.fn(() =>
+      Promise.resolve({token: 'tok', refreshToken: 'refresh', expiresAt: 'x'}),
+    );
+    const recordDeliveryOnly = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('delivery persistence failed'))
+      .mockResolvedValueOnce(undefined);
+    const processor = createSentryWebhookProcessor({
+      sentry: sentryClient({exchangeAuthorizationCode}),
+      coreDb: db,
+      publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
+      recordDeliveryOnly,
+      getIntegrationConnectionById: vi.fn(() => Promise.resolve(fakeConnection())),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+    });
+    const request = signedRequest({
+      deliveryId,
+      resource: 'installation',
+      body: {
+        action: 'created',
+        data: {
+          installation: {
+            uuid: installationUuid,
+            code: 'single-use-code',
+            organization: {slug: 'acme'},
+          },
+        },
+      },
+    });
+
+    const firstAttempt = processor.process(request);
+    await expect(firstAttempt).rejects.toThrow('delivery persistence failed');
+    const checkpoint = await db()
+      .select()
+      .from(sentryInstallations)
+      .where(eq(sentryInstallations.installationUuid, installationUuid));
+    const retryResult = await processor.process(request);
+    const [completed] = await db()
+      .select()
+      .from(sentryInstallations)
+      .where(eq(sentryInstallations.installationUuid, installationUuid));
+
+    expect(checkpoint[0]?.status).toBe('exchange-succeeded');
+    expect(retryResult).toEqual({outcome: 'processed', deliveryId});
+    expect(completed?.status).toBe('installed');
+    expect(exchangeAuthorizationCode).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps deletion terminal when it races a pending installation exchange', async () => {
+    const installationUuid = 'processor-installation-delete-race';
+    let signalExchangeStarted = (): void => undefined;
+    const exchangeStarted = new Promise<void>((resolve) => {
+      signalExchangeStarted = resolve;
+    });
+    let finishExchange!: (authorization: {
+      token: string;
+      refreshToken: string;
+      expiresAt: string;
+    }) => void;
+    const exchangeResult = new Promise<{
+      token: string;
+      refreshToken: string;
+      expiresAt: string;
+    }>((resolve) => {
+      finishExchange = resolve;
+    });
+    const exchangeAuthorizationCode = vi.fn(() => {
+      signalExchangeStarted();
+      return exchangeResult;
+    });
+    const processor = createSentryWebhookProcessor({
+      sentry: sentryClient({exchangeAuthorizationCode}),
+      coreDb: db,
+      publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      getIntegrationConnectionById: vi.fn(() => Promise.resolve(fakeConnection())),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+    });
+    const creation = signedRequest({
+      resource: 'installation',
+      body: {
+        action: 'created',
+        data: {
+          installation: {
+            uuid: installationUuid,
+            code: 'single-use-code',
+            organization: {slug: 'acme'},
+          },
+        },
+      },
+    });
+    const deletion = signedRequest({
+      resource: 'installation',
+      body: {action: 'deleted', data: {installation: {uuid: installationUuid}}},
+    });
+
+    const creationAttempt = processor.process(creation);
+    await exchangeStarted;
+    const deletionResult = await processor.process(deletion);
+    finishExchange({token: 'tok', refreshToken: 'refresh', expiresAt: 'x'});
+    const creationResult = await creationAttempt;
+    const [installation] = await db()
+      .select()
+      .from(sentryInstallations)
+      .where(eq(sentryInstallations.installationUuid, installationUuid));
+
+    expect(creationResult.outcome).toBe('processed');
+    expect(deletionResult.outcome).toBe('processed');
+    expect(installation?.status).toBe('deleted');
+  });
+
+  it('keeps an out-of-order deletion as a monotonic tombstone', async () => {
+    const installationUuid = 'processor-installation-reordered';
+    const exchangeAuthorizationCode = vi.fn(() =>
+      Promise.resolve({token: 'tok', refreshToken: 'refresh', expiresAt: 'x'}),
+    );
+    const processor = createSentryWebhookProcessor({
+      sentry: sentryClient({exchangeAuthorizationCode}),
+      coreDb: db,
+      publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      getIntegrationConnectionById: vi.fn(() => Promise.resolve(fakeConnection())),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+    });
+    const deletion = signedRequest({
+      resource: 'installation',
+      body: {action: 'deleted', data: {installation: {uuid: installationUuid}}},
+    });
+    const creation = signedRequest({
+      resource: 'installation',
+      body: {
+        action: 'created',
+        data: {
+          installation: {
+            uuid: installationUuid,
+            code: 'single-use-code',
+            organization: {slug: 'acme'},
+          },
+        },
+      },
+    });
+
+    const deletionResult = await processor.process(deletion);
+    const creationResult = await processor.process(creation);
+    const [installation] = await db()
+      .select()
+      .from(sentryInstallations)
+      .where(eq(sentryInstallations.installationUuid, installationUuid));
+
+    expect(deletionResult.outcome).toBe('processed');
+    expect(creationResult.outcome).toBe('processed');
+    expect(installation?.status).toBe('deleted');
+    expect(exchangeAuthorizationCode).not.toHaveBeenCalled();
   });
 });

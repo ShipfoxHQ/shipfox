@@ -617,7 +617,7 @@ describe('Sentry webhook route', () => {
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
 
-  test('installation/deleted with no matching row records the delivery and does not disable', async () => {
+  test('installation/deleted with no matching row writes a tombstone and does not disable', async () => {
     const {app, recordDeliveryOnly, updateConnectionLifecycleStatus} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
@@ -635,6 +635,7 @@ describe('Sentry webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
+    expect((await readInstallation('never-installed'))?.status).toBe('deleted');
     expect(updateConnectionLifecycleStatus).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
@@ -719,7 +720,7 @@ describe('Sentry webhook route', () => {
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
 
-  test('installation/created records-and-drops when the code exchange fails', async () => {
+  test('installation/created stays pending when access denied has no success checkpoint', async () => {
     const installationUuid = 'install-created-exchangefail';
     const {app, recordDeliveryOnly} = await createTestApp({
       sentry: sentryClient({
@@ -745,9 +746,9 @@ describe('Sentry webhook route', () => {
       payload: body,
     });
 
-    expect(res.statusCode).toBe(204);
-    expect(await readInstallation(installationUuid)).toBeUndefined();
-    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).toBe(500);
+    expect((await readInstallation(installationUuid))?.status).toBe('pending');
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
   test('records the delivery only for a malformed installation payload', async () => {

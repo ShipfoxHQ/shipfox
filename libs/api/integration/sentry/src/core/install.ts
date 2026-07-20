@@ -89,7 +89,7 @@ export async function verifyAndPersistUnclaimedInstallation(
   });
 
   if (params.verifyInstall) {
-    await bestEffortVerifyInstallation({
+    await verifySentryInstallationBestEffort({
       sentry: params.sentry,
       installationUuid: params.installationUuid,
       token: authorization.token,
@@ -143,6 +143,9 @@ export async function handleSentryConnect(
     if (install.connectionId) {
       return resolveClaimedInstall(params, install.connectionId);
     }
+    if (!isVerifiedUnclaimed(install)) {
+      throw new SentryVerificationInProgressError(params.installationUuid);
+    }
     return claimVerifiedInstall(params, install);
   }
 
@@ -162,7 +165,7 @@ async function resolveClaimedInstall(
 
 async function claimVerifiedInstall(
   params: HandleSentryConnectParams,
-  install: SentryInstallation,
+  install: VerifiedUnclaimedSentryInstallation,
 ): Promise<IntegrationConnection<'sentry'>> {
   let authorization: SentryAuthorization;
   try {
@@ -188,7 +191,7 @@ async function claimVerifiedInstall(
     codeHash: hashAuthorizationCode(params.code),
   });
   if (params.verifyInstall) {
-    await bestEffortVerifyInstallation({
+    await verifySentryInstallationBestEffort({
       sentry: params.sentry,
       installationUuid: params.installationUuid,
       token: authorization.token,
@@ -222,7 +225,7 @@ async function claimBrowserFirst(
     codeHash: hashAuthorizationCode(params.code),
   });
   if (params.verifyInstall) {
-    await bestEffortVerifyInstallation({
+    await verifySentryInstallationBestEffort({
       sentry: params.sentry,
       installationUuid: params.installationUuid,
       token: result.authorization.token,
@@ -255,8 +258,19 @@ async function reconcileConcurrentClaim(
   throw new SentryVerificationInProgressError(params.installationUuid);
 }
 
-function isVerifiedUnclaimed(install: SentryInstallation): boolean {
-  return install.connectionId === null && install.status === 'installed';
+type VerifiedUnclaimedSentryInstallation = SentryInstallation & {
+  connectionId: null;
+  status: 'installed';
+  orgSlug: string;
+  codeHash: string;
+};
+
+function isVerifiedUnclaimed(
+  install: SentryInstallation,
+): install is VerifiedUnclaimedSentryInstallation {
+  return (
+    install.connectionId === null && install.status === 'installed' && install.codeHash !== null
+  );
 }
 
 function bindClaim(
@@ -273,7 +287,7 @@ function bindClaim(
   });
 }
 
-async function bestEffortVerifyInstallation(input: {
+export async function verifySentryInstallationBestEffort(input: {
   sentry: SentryApiClient;
   installationUuid: string;
   token: string;

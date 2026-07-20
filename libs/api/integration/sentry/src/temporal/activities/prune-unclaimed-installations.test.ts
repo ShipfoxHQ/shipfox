@@ -7,8 +7,7 @@ import {pruneUnclaimedSentryInstallationsActivity} from './prune-unclaimed-insta
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // The activity derives its cutoff from SENTRY_UNCLAIMED_INSTALLATION_RETENTION_DAYS
-// (default 7), so rows are seeded with an explicit createdAt to straddle it; the
-// persist helpers always stamp createdAt=now and could not exercise the cutoff.
+// (default 7), so rows are seeded with an explicit updatedAt to straddle it.
 describe('pruneUnclaimedSentryInstallationsActivity', () => {
   beforeEach(async () => {
     await db().delete(sentryInstallations);
@@ -30,6 +29,7 @@ describe('pruneUnclaimedSentryInstallationsActivity', () => {
     const result = await pruneUnclaimedSentryInstallationsActivity();
 
     expect(result.tombstoned).toBe(1);
+    expect(result.releasedPending).toBe(0);
     expect((await getSentryInstallationByInstallationUuid(staleUuid))?.status).toBe('deleted');
   });
 
@@ -47,6 +47,28 @@ describe('pruneUnclaimedSentryInstallationsActivity', () => {
     const result = await pruneUnclaimedSentryInstallationsActivity();
 
     expect(result.tombstoned).toBe(0);
+    expect(result.releasedPending).toBe(0);
     expect((await getSentryInstallationByInstallationUuid(freshUuid))?.status).toBe('installed');
+  });
+
+  test('releases pending claims older than the retention window', async () => {
+    const staleUuid = randomUUID();
+    await db()
+      .insert(sentryInstallations)
+      .values({
+        connectionId: null,
+        installationUuid: staleUuid,
+        orgSlug: 'acme',
+        status: 'pending',
+        codeHash: 'hash',
+        createdAt: new Date(Date.now() - 8 * DAY_MS),
+        updatedAt: new Date(Date.now() - 8 * DAY_MS),
+      });
+
+    const result = await pruneUnclaimedSentryInstallationsActivity();
+    const installation = await getSentryInstallationByInstallationUuid(staleUuid);
+
+    expect(result).toEqual({releasedPending: 1, tombstoned: 0});
+    expect(installation).toBeUndefined();
   });
 });

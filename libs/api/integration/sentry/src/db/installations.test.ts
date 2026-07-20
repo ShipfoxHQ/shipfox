@@ -1,10 +1,14 @@
 import {randomUUID} from 'node:crypto';
+import {eq} from 'drizzle-orm';
 import {SentryInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {
+  claimSentryInstallationVerification,
+  completeSentryInstallationVerification,
   getSentryInstallationByInstallationUuid,
   listUnclaimedSentryInstallations,
   markSentryInstallationDeleted,
+  markSentryInstallationExchangeSucceeded,
   persistVerifiedUnclaimedInstallation,
   pruneUnclaimedSentryInstallations,
   upsertSentryInstallation,
@@ -99,10 +103,29 @@ describe('sentry installations persistence', () => {
     expect(deleted?.connectionId).toBe(connectionId);
   });
 
-  test('markSentryInstallationDeleted returns undefined when no row matches', async () => {
+  test('markSentryInstallationDeleted creates a tombstone when no row matches', async () => {
     const result = await markSentryInstallationDeleted({installationUuid: 'never-installed'});
 
-    expect(result).toBeUndefined();
+    expect(result.status).toBe('deleted');
+    expect(result.connectionId).toBeNull();
+    expect(result.orgSlug).toBe('');
+  });
+
+  test('upsert never restores a deleted tombstone', async () => {
+    const installationUuid = randomUUID();
+    await markSentryInstallationDeleted({installationUuid});
+
+    const reconnect = upsertSentryInstallation({
+      connectionId: randomUUID(),
+      installationUuid,
+      orgSlug: 'acme',
+      status: 'installed',
+    });
+
+    await expect(reconnect).rejects.toBeInstanceOf(SentryInstallationAlreadyLinkedError);
+    expect((await getSentryInstallationByInstallationUuid(installationUuid))?.status).toBe(
+      'deleted',
+    );
   });
 
   test('getSentryInstallationByInstallationUuid returns undefined for a miss', async () => {
@@ -123,6 +146,57 @@ describe('sentry installations persistence', () => {
     expect(persisted.connectionId).toBeNull();
     expect(persisted.status).toBe('installed');
     expect(persisted.codeHash).toBe('hash-1');
+  });
+
+  test('claimSentryInstallationVerification preserves the first pending code', async () => {
+    const installationUuid = randomUUID();
+    const first = await claimSentryInstallationVerification({
+      installationUuid,
+      orgSlug: 'acme',
+      codeHash: 'hash-1',
+    });
+
+    const second = await claimSentryInstallationVerification({
+      installationUuid,
+      orgSlug: 'other',
+      codeHash: 'hash-2',
+    });
+
+    expect(first.status).toBe('pending');
+    expect(second.status).toBe('pending');
+    expect(second.orgSlug).toBe('acme');
+    expect(second.codeHash).toBe('hash-1');
+  });
+
+  test('verification advances only from a matching pending claim through the exchange checkpoint', async () => {
+    const installationUuid = randomUUID();
+    await claimSentryInstallationVerification({
+      installationUuid,
+      orgSlug: 'acme',
+      codeHash: 'hash-1',
+    });
+
+    const prematureCompletion = await completeSentryInstallationVerification({
+      installationUuid,
+      codeHash: 'hash-1',
+    });
+    const mismatch = await markSentryInstallationExchangeSucceeded({
+      installationUuid,
+      codeHash: 'hash-2',
+    });
+    const exchanged = await markSentryInstallationExchangeSucceeded({
+      installationUuid,
+      codeHash: 'hash-1',
+    });
+    const completed = await completeSentryInstallationVerification({
+      installationUuid,
+      codeHash: 'hash-1',
+    });
+
+    expect(prematureCompletion).toBeUndefined();
+    expect(mismatch).toBeUndefined();
+    expect(exchanged?.status).toBe('exchange-succeeded');
+    expect(completed?.status).toBe('installed');
   });
 
   test('persistVerifiedUnclaimedInstallation never clobbers a claimed connection or downgrades status', async () => {
@@ -149,24 +223,42 @@ describe('sentry installations persistence', () => {
     expect(reconciled.codeHash).toBe('webhook-hash');
   });
 
-  test('listUnclaimedSentryInstallations returns only rows with no connection', async () => {
+  test('listUnclaimedSentryInstallations returns every non-deleted row with no connection', async () => {
     const claimedUuid = randomUUID();
-    const unclaimedUuid = randomUUID();
+    const pendingUuid = randomUUID();
+    const exchangedUuid = randomUUID();
+    const installedUuid = randomUUID();
     await upsertSentryInstallation({
       connectionId: randomUUID(),
       installationUuid: claimedUuid,
       orgSlug: 'acme',
       status: 'installed',
     });
+    await claimSentryInstallationVerification({
+      installationUuid: pendingUuid,
+      orgSlug: 'acme',
+      codeHash: 'pending-hash',
+    });
+    await claimSentryInstallationVerification({
+      installationUuid: exchangedUuid,
+      orgSlug: 'acme',
+      codeHash: 'exchanged-hash',
+    });
+    await markSentryInstallationExchangeSucceeded({
+      installationUuid: exchangedUuid,
+      codeHash: 'exchanged-hash',
+    });
     await persistVerifiedUnclaimedInstallation({
-      installationUuid: unclaimedUuid,
+      installationUuid: installedUuid,
       orgSlug: 'acme',
       codeHash: 'hash',
     });
 
     const unclaimed = await listUnclaimedSentryInstallations();
 
-    expect(unclaimed.map((row) => row.installationUuid)).toEqual([unclaimedUuid]);
+    expect(unclaimed.map((row) => row.installationUuid).sort()).toEqual(
+      [pendingUuid, exchangedUuid, installedUuid].sort(),
+    );
   });
 
   test('listUnclaimedSentryInstallations filters by age when olderThan is given', async () => {
@@ -184,25 +276,79 @@ describe('sentry installations persistence', () => {
     expect(await listUnclaimedSentryInstallations({olderThan: past})).toHaveLength(0);
   });
 
-  test('pruneUnclaimedSentryInstallations tombstones stale unclaimed rows and leaves fresh ones', async () => {
-    const staleUuid = randomUUID();
+  test('pruneUnclaimedSentryInstallations releases stale pending claims', async () => {
+    const installationUuid = randomUUID();
+    await claimSentryInstallationVerification({
+      installationUuid,
+      orgSlug: 'acme',
+      codeHash: 'stale-hash',
+    });
+
+    const result = await pruneUnclaimedSentryInstallations({
+      olderThan: new Date(Date.now() + 60_000),
+    });
+    const reclaimed = await claimSentryInstallationVerification({
+      installationUuid,
+      orgSlug: 'acme',
+      codeHash: 'fresh-hash',
+    });
+
+    expect(result).toEqual({releasedPending: 1, tombstoned: 0});
+    expect(reclaimed.status).toBe('pending');
+    expect(reclaimed.codeHash).toBe('fresh-hash');
+  });
+
+  test('pruneUnclaimedSentryInstallations tombstones stale exchanged and installed rows', async () => {
+    const exchangedUuid = randomUUID();
+    const installedUuid = randomUUID();
+    await claimSentryInstallationVerification({
+      installationUuid: exchangedUuid,
+      orgSlug: 'acme',
+      codeHash: 'exchanged-hash',
+    });
+    await markSentryInstallationExchangeSucceeded({
+      installationUuid: exchangedUuid,
+      codeHash: 'exchanged-hash',
+    });
     await persistVerifiedUnclaimedInstallation({
-      installationUuid: staleUuid,
+      installationUuid: installedUuid,
       orgSlug: 'acme',
       codeHash: 'hash',
     });
 
-    const youngResult = await pruneUnclaimedSentryInstallations({
-      olderThan: new Date(Date.now() - 60_000),
-    });
-    expect(youngResult.tombstoned).toBe(0);
-
-    const staleResult = await pruneUnclaimedSentryInstallations({
+    const result = await pruneUnclaimedSentryInstallations({
       olderThan: new Date(Date.now() + 60_000),
     });
-    expect(staleResult.tombstoned).toBe(1);
-    expect((await getSentryInstallationByInstallationUuid(staleUuid))?.status).toBe('deleted');
+
+    expect(result).toEqual({releasedPending: 0, tombstoned: 2});
+    expect((await getSentryInstallationByInstallationUuid(exchangedUuid))?.status).toBe('deleted');
+    expect((await getSentryInstallationByInstallationUuid(installedUuid))?.status).toBe('deleted');
     expect(await listUnclaimedSentryInstallations()).toHaveLength(0);
+  });
+
+  test('completing an old claim starts a fresh installed retention window', async () => {
+    const installationUuid = randomUUID();
+    const oldTimestamp = new Date(Date.now() - 120_000);
+    await claimSentryInstallationVerification({
+      installationUuid,
+      orgSlug: 'acme',
+      codeHash: 'hash',
+    });
+    await db()
+      .update(sentryInstallations)
+      .set({createdAt: oldTimestamp, updatedAt: oldTimestamp})
+      .where(eq(sentryInstallations.installationUuid, installationUuid));
+    await markSentryInstallationExchangeSucceeded({installationUuid, codeHash: 'hash'});
+    await completeSentryInstallationVerification({installationUuid, codeHash: 'hash'});
+
+    const result = await pruneUnclaimedSentryInstallations({
+      olderThan: new Date(Date.now() - 60_000),
+    });
+
+    expect(result).toEqual({releasedPending: 0, tombstoned: 0});
+    expect((await getSentryInstallationByInstallationUuid(installationUuid))?.status).toBe(
+      'installed',
+    );
   });
 
   test('pruneUnclaimedSentryInstallations never tombstones a claimed install', async () => {

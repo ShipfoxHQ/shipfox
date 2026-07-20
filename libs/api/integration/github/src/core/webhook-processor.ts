@@ -84,9 +84,12 @@ async function processGithubWebhookRequest(
       publishSourcePush: options.publishSourcePush,
       recordDeliveryOnly: options.recordDeliveryOnly,
       getIntegrationConnectionById: options.getIntegrationConnectionById,
-      deleteInstallationTokenSecret: options.deleteInstallationTokenSecret,
     }),
   );
+
+  if (result.installationTokenCleanup && options.deleteInstallationTokenSecret) {
+    await options.deleteInstallationTokenSecret(result.installationTokenCleanup);
+  }
 
   return result.outcome.startsWith('duplicate')
     ? {outcome: 'duplicate', deliveryId}

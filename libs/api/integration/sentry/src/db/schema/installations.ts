@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
-import type {SentryInstallation} from '#db/installations.js';
+import type {SentryInstallation, SentryInstallationRowStatus} from '#db/installations.js';
 import {pgTable} from './common.js';
 
 export const sentryInstallations = pgTable(
@@ -8,15 +8,15 @@ export const sentryInstallations = pgTable(
   {
     id: uuidv7PrimaryKey(),
     // Null until a logged-in user claims the verified install into a workspace.
-    // An unclaimed install (`connection_id IS NULL`, `status='installed'`) is
-    // persisted by the authoritative webhook before any browser claim arrives.
+    // Pending and verified installs remain unclaimed until the browser binds a
+    // connection. Deleted rows are terminal tombstones.
     connectionId: uuid('connection_id'),
     installationUuid: text('installation_uuid').notNull(),
     orgSlug: text('org_slug').notNull(),
-    status: text('status').notNull(),
-    // sha256(authorization code) of the exchange that verified this install.
-    // The claim presents the code and we match the hash, so a bare uuid alone
-    // cannot bind the install (IDOR guard) without storing a live credential.
+    status: text('status').notNull().$type<SentryInstallationRowStatus>(),
+    // sha256(authorization code) claimed for this install. The hash identifies
+    // which pending exchange reached the durable success checkpoint and keeps a
+    // bare uuid from binding an install (IDOR guard) without storing a credential.
     codeHash: text('code_hash'),
     installerUserId: uuid('installer_user_id'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),

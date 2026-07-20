@@ -30,9 +30,6 @@ export interface HandleGithubEventParams {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
-  deleteInstallationTokenSecret?:
-    | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
-    | undefined;
 }
 
 export type HandleGithubEventOutcome =
@@ -47,13 +44,18 @@ export type HandleGithubEventOutcome =
   | 'inactive-connection'
   | 'no-installation-id';
 
+export interface HandleGithubEventResult {
+  outcome: HandleGithubEventOutcome;
+  installationTokenCleanup?: {workspaceId: string; installationId: number} | undefined;
+}
+
 function isBranchDeletion(after: string): boolean {
   return after === DELETED_BRANCH_SHA;
 }
 
 export async function handleGithubEvent(
   params: HandleGithubEventParams,
-): Promise<{outcome: HandleGithubEventOutcome}> {
+): Promise<HandleGithubEventResult> {
   const actionEnvelope = githubWebhookActionSchema.safeParse(params.payload);
   const action = actionEnvelope.success ? actionEnvelope.data.action : undefined;
   const installationEnvelope = githubWebhookInstallationSchema.safeParse(params.payload);
@@ -120,7 +122,13 @@ export async function handleGithubEvent(
       provider: GITHUB_SOURCE,
       deliveryId: params.deliveryId,
     });
-    return {outcome: 'inactive-connection'};
+    return withInstallationTokenCleanup(
+      {outcome: 'inactive-connection'},
+      params.event,
+      action,
+      connection.workspaceId,
+      installationId,
+    );
   }
 
   if (params.event === 'push') {
@@ -157,51 +165,28 @@ export async function handleGithubEvent(
     connection,
     event: eventName,
   });
-  if (result.outcome === 'published-envelope') {
-    await deleteInstallationTokenSecretBestEffort({
-      deleteInstallationTokenSecret: params.deleteInstallationTokenSecret,
-      event: params.event,
-      action,
-      deliveryId: params.deliveryId,
-      workspaceId: connection.workspaceId,
-      installationId,
-    });
-  }
-  return result;
+  return withInstallationTokenCleanup(
+    result,
+    params.event,
+    action,
+    connection.workspaceId,
+    installationId,
+  );
 }
 
 function shouldDeleteInstallationTokenSecret(event: string, action: string | undefined): boolean {
   return event === 'installation' && (action === 'deleted' || action === 'suspend');
 }
 
-async function deleteInstallationTokenSecretBestEffort(params: {
-  deleteInstallationTokenSecret:
-    | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
-    | undefined;
-  event: string;
-  action: string | undefined;
-  deliveryId: string;
-  workspaceId: string;
-  installationId: number;
-}): Promise<void> {
-  if (!shouldDeleteInstallationTokenSecret(params.event, params.action)) return;
-
-  try {
-    await params.deleteInstallationTokenSecret?.({
-      workspaceId: params.workspaceId,
-      installationId: params.installationId,
-    });
-  } catch (error) {
-    logger().warn(
-      {
-        deliveryId: params.deliveryId,
-        installationId: params.installationId,
-        workspaceId: params.workspaceId,
-        error,
-      },
-      'github webhook installation token cleanup failed',
-    );
-  }
+function withInstallationTokenCleanup(
+  result: HandleGithubEventResult,
+  event: string,
+  action: string | undefined,
+  workspaceId: string,
+  installationId: number,
+): HandleGithubEventResult {
+  if (!shouldDeleteInstallationTokenSecret(event, action)) return result;
+  return {...result, installationTokenCleanup: {workspaceId, installationId}};
 }
 
 async function publishGithubPush(params: {
