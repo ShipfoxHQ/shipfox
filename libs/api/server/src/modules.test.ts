@@ -202,6 +202,7 @@ describe('defaultModules', () => {
         },
       ],
     });
+    mocks.createSecretsModule.mockReturnValue({name: 'secrets'});
     mocks.createWorkflowsModule.mockReturnValue({
       name: 'workflows',
       interModulePresentations: [
