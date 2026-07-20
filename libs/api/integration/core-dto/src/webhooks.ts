@@ -94,7 +94,13 @@ export const storedWebhookRequestSchema = z.discriminatedUnion('route_id', [
 export type StoredWebhookRequest = z.infer<typeof storedWebhookRequestSchema>;
 
 export const webhookProcessingResultSchema = z.discriminatedUnion('outcome', [
-  z.object({outcome: z.literal('processed'), deliveryId: z.string().min(1).optional()}).strict(),
+  z
+    .object({
+      outcome: z.literal('processed'),
+      deliveryId: z.string().min(1).optional(),
+      challenge: z.string().min(1).optional(),
+    })
+    .strict(),
   z.object({outcome: z.literal('duplicate'), deliveryId: z.string().min(1)}).strict(),
   z
     .object({

@@ -83,6 +83,7 @@ describe('storedWebhookRequestSchema', () => {
 describe('webhookProcessingResultSchema', () => {
   it.each([
     {outcome: 'processed'},
+    {outcome: 'processed', challenge: 'slack-url-verification'},
     {outcome: 'duplicate', deliveryId: 'delivery-1'},
     {outcome: 'discarded', reason: 'invalid_signature'},
   ])('accepts the %s processing outcome', (result) => {

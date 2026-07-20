@@ -83,7 +83,18 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
   const getInstallationByConnectionId =
     options.getGithubInstallationByConnectionId ?? getGithubInstallationByConnectionId;
   const deleteSecrets = options.deleteSecrets;
-  const webhookProcessor = createGithubWebhookProcessor(options);
+  const deleteInstallationTokenSecret = deleteSecrets
+    ? (params: {workspaceId: string; installationId: number}) =>
+        deleteGithubInstallationTokenSecret({
+          workspaceId: params.workspaceId,
+          installationId: params.installationId,
+          deleteSecrets,
+        })
+    : undefined;
+  const webhookProcessor = createGithubWebhookProcessor({
+    ...options,
+    deleteInstallationTokenSecret,
+  });
 
   return {
     provider: 'github' as const,
@@ -117,14 +128,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
         publishSourcePush: options.publishSourcePush,
         recordDeliveryOnly: options.recordDeliveryOnly,
         getIntegrationConnectionById: options.getIntegrationConnectionById,
-        deleteInstallationTokenSecret: deleteSecrets
-          ? (params) =>
-              deleteGithubInstallationTokenSecret({
-                workspaceId: params.workspaceId,
-                installationId: params.installationId,
-                deleteSecrets,
-              })
-          : undefined,
+        deleteInstallationTokenSecret,
         processor: webhookProcessor,
       }),
     ],

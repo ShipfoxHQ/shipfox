@@ -3,7 +3,7 @@ import type {
   WebhookRequestProcessor,
 } from '@shipfox/api-integration-core-dto';
 import {type ModuleService, startModuleServices} from '@shipfox/node-module';
-import {createIntegrationsContext} from './index.js';
+import {createIntegrationsContext, WebhookProcessorNotConfiguredError} from './index.js';
 
 const request = {
   schema_version: 1,
@@ -58,6 +58,38 @@ describe('createIntegrationsContext', () => {
     });
 
     expect(context.module.services).toBeUndefined();
+  });
+
+  it('rejects a queued request with no registered processor', async () => {
+    const context = await createIntegrationsContext({
+      parts: [{provider: {provider: 'github', displayName: 'GitHub', adapters: {}}}],
+    });
+
+    const result = context.webhookProcessor.process(request);
+
+    await expect(result).rejects.toEqual(new WebhookProcessorNotConfiguredError('github'));
+  });
+
+  it('fails composition when more than one processor handles a route', async () => {
+    const processor: WebhookRequestProcessor = {
+      process: vi.fn().mockResolvedValue({outcome: 'processed', deliveryId: 'delivery-1'}),
+    };
+
+    const result = createIntegrationsContext({
+      parts: [
+        {
+          provider: {provider: 'github', displayName: 'GitHub', adapters: {}},
+          webhookProcessors: [
+            {routeIds: ['github'], processor},
+            {routeIds: ['github'], processor},
+          ],
+        },
+      ],
+    });
+
+    await expect(result).rejects.toThrow(
+      'Webhook processor is registered more than once for github',
+    );
   });
 
   it('fails composition when a configured delivery source is invalid', async () => {

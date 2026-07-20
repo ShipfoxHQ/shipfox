@@ -5,6 +5,7 @@ import type {
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
   StoredWebhookRequest,
+  WebhookProcessingResult,
 } from '@shipfox/api-integration-core-dto';
 import {
   createStoredWebhookRequest,
@@ -17,11 +18,7 @@ import {
   type RouteGroup,
 } from '@shipfox/node-fastify';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import {
-  createSlackWebhookProcessor,
-  type SlackWebhookProcessingResult,
-  type SlackWebhookProcessor,
-} from '#core/webhook-processor.js';
+import {createSlackWebhookProcessor, type SlackWebhookProcessor} from '#core/webhook-processor.js';
 
 export const SLACK_WEBHOOK_BODY_LIMIT = 1024 * 1024;
 export const SLASH_COMMAND_ACK = {response_type: 'ephemeral', text: 'Working on it.'} as const;
@@ -162,7 +159,7 @@ function slackWebhookHeaders(headers: Record<string, string | string[] | undefin
 
 function sendSlackEventResponse(
   reply: {code(statusCode: number): void},
-  result: SlackWebhookProcessingResult,
+  result: WebhookProcessingResult,
 ) {
   if (result.outcome === 'processed' && 'challenge' in result) {
     reply.code(200);
@@ -187,7 +184,7 @@ function sendSlackEventResponse(
 
 function sendSlackCommandResponse(
   reply: {code(statusCode: number): void},
-  result: SlackWebhookProcessingResult,
+  result: WebhookProcessingResult,
 ) {
   if (
     result.outcome === 'discarded' &&

@@ -10,6 +10,7 @@ import {
 import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
+import {WebhookProcessorNotConfiguredError} from '#core/errors.js';
 import {
   createIntegrationProviderRegistry,
   type IntegrationProviderRegistry,
@@ -35,6 +36,12 @@ import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
+export type {
+  StoredWebhookRequest,
+  WebhookProcessingResult,
+  WebhookRequestProcessor,
+  WebhookRouteId,
+} from '@shipfox/api-integration-core-dto';
 export {
   buildProviderRepositoryId,
   MAX_REPOSITORY_FILE_BYTES,
@@ -73,6 +80,7 @@ export {
   IntegrationConnectionWorkspaceMismatchError,
   IntegrationProviderError,
   IntegrationProviderUnavailableError,
+  WebhookProcessorNotConfiguredError,
 } from '#core/errors.js';
 export type {
   AgentToolCallInput,
@@ -265,7 +273,7 @@ function createComposedWebhookProcessor(
     async process(request: StoredWebhookRequest): Promise<WebhookProcessingResult> {
       const processor = processors.get(request.route_id);
       if (!processor) {
-        throw new Error(`No webhook processor is configured for ${request.route_id}`);
+        throw new WebhookProcessorNotConfiguredError(request.route_id);
       }
       return await processor.process(request);
     },
