@@ -1,7 +1,10 @@
 export {
   WORKSPACES_INVITATION_SEND_REQUESTED,
+  WORKSPACES_WORKSPACE_CREATED,
+  type WorkspaceCreatedEvent,
   type WorkspacesEventMap,
   type WorkspacesInvitationSendRequestedEvent,
+  workspaceCreatedEventSchema,
   workspacesEventSchemas,
   workspacesInvitationSendRequestedSchema,
 } from '../events.js';

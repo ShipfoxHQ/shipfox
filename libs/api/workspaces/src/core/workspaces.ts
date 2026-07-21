@@ -1,5 +1,10 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
-import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
+import {
+  WORKSPACES_WORKSPACE_CREATED,
+  type WorkspaceRole,
+  type WorkspacesEventMap,
+} from '@shipfox/api-workspaces-dto';
+import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {db} from '#db/db.js';
 import {
   findMembership,
@@ -10,6 +15,7 @@ import {
   removeMembership,
 } from '#db/memberships.js';
 import {memberships} from '#db/schema/memberships.js';
+import {workspacesOutbox} from '#db/schema/outbox.js';
 import {toWorkspace, workspaces} from '#db/schema/workspaces.js';
 import {getWorkspaceById} from '#db/workspaces.js';
 import type {Workspace} from './entities/workspace.js';
@@ -68,7 +74,18 @@ export async function createWorkspaceForUser(params: {
       userName: params.userName ?? null,
       workspaceId: workspaceRow.id,
     });
-    return toWorkspace(workspaceRow);
+    const workspace = toWorkspace(workspaceRow);
+
+    await writeOutboxEvent<WorkspacesEventMap>(tx, workspacesOutbox, {
+      type: WORKSPACES_WORKSPACE_CREATED,
+      payload: {
+        workspaceId: workspace.id,
+        name: workspace.name,
+        creatorUserId: params.userId,
+      },
+    });
+
+    return workspace;
   });
 }
 
