@@ -1,5 +1,11 @@
 # @shipfox/node-temporal
 
+## 0.3.2
+
+### Patch Changes
+
+- f4bc2eb: Provides the Temporal workflow peer at the package boundary to keep runtime singleton dependencies deduplicated.
+
 ## 0.3.1
 
 ### Patch Changes

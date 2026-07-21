@@ -1,5 +1,20 @@
 # @shipfox/client-workflows
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies [23563de]
+- Updated dependencies [1820feb]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [23a4dc2]
+  - @shipfox/api-workflows-dto@6.0.0
+  - @shipfox/react-ui@0.3.3
+  - @shipfox/client-shell@2.0.0
+  - @shipfox/client-ui@2.0.0
+  - @shipfox/client-logs@2.0.0
+  - @shipfox/client-triggers@2.0.0
+
 ## 1.0.0
 
 ### Patch Changes

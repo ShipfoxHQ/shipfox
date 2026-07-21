@@ -1,5 +1,11 @@
 # @shipfox/redact
 
+## 0.2.3
+
+### Patch Changes
+
+- 7ac43a4: Consolidates packed-consumer validation around stable publication and composition contracts instead of package-state snapshots.
+
 ## 0.2.2
 
 ### Patch Changes

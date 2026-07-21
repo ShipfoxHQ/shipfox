@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 0.3.3
+
+### Patch Changes
+
+- 1820feb: Makes the Slack icon inherit the surrounding interface color.
+
 ## 0.3.2
 
 ### Patch Changes

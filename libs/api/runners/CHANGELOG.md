@@ -1,5 +1,66 @@
 # @shipfox/api-runners
 
+## 6.0.0
+
+### Major Changes
+
+- 8bdc149: Adds scoped workspace and installation provisioner identities with explicit authorization boundaries.
+- 6741be8: Renames the provisioned-runner lifecycle contract to runner instances and provider runner IDs.
+
+### Minor Changes
+
+- e52513c: Adds provisioner-owned planned capacity with immutable provider runner attachment.
+- b70f920: Adds assigned runner activation and descendant provisioner revocation.
+- add4c77: Adds host-configurable runners composition with batched installation workspace eligibility policy.
+- 3cda0c6: Adds fresh workspace provisioner capability snapshots for managed fallback policy.
+- 795e293: Adds installation-scoped fallback demand reservations across eligible workspaces.
+- e10c829: Adds immutable capacity assignments while retaining the registration-token protocol for existing provisioners.
+- b00ed29: Adds runner bootstrap enrollment and isolated pre-workspace control sessions.
+
+### Patch Changes
+
+- 6a52909: Replaces separate API auth secrets with domain-separated keys derived from one required AUTH_ROOT_KEY.
+- 9006b75: Adds the Runners inter-module contract and requires the injected Runners client when composing Workflows.
+- 112c0fa: Adds the Auth inter-module token-minting contract and removes Auth implementation and configuration coupling from its consumers.
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- Updated dependencies [e52513c]
+- Updated dependencies [b70f920]
+- Updated dependencies [23563de]
+- Updated dependencies [6a52909]
+- Updated dependencies [e6eba5b]
+- Updated dependencies [54ce48b]
+- Updated dependencies [9006b75]
+- Updated dependencies [3cda0c6]
+- Updated dependencies [ba2e3dc]
+- Updated dependencies [f4bc2eb]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [a01e917]
+- Updated dependencies [112c0fa]
+- Updated dependencies [8bdc149]
+- Updated dependencies [795e293]
+- Updated dependencies [e10c829]
+- Updated dependencies [3810996]
+- Updated dependencies [23a4dc2]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+- Updated dependencies [6741be8]
+  - @shipfox/api-runners-dto@6.0.0
+  - @shipfox/node-tokens@0.3.0
+  - @shipfox/api-workflows-dto@6.0.0
+  - @shipfox/node-auth-root-key@0.2.0
+  - @shipfox/node-rate-limit@0.3.0
+  - @shipfox/api-auth-dto@6.0.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-temporal@0.3.2
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

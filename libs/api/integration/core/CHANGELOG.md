@@ -1,5 +1,70 @@
 # @shipfox/api-integration-core
 
+## 6.0.0
+
+### Major Changes
+
+- 23a4dc2: Moves Logs and Integrations to injected Workflows inter-module clients with minimal log and leased agent-tool queries.
+
+### Minor Changes
+
+- 0bb82a4: Adds the Agent and Integrations inter-module APIs, moving Workflows agent configuration, runtime credential resolution, and integration consumers behind producer-owned clients.
+- f262539: Adds a composed webhook processor and optional provider-neutral delivery source for hosted API runtimes.
+- 3bb4e26: Fixes composed webhook processing and exposes Slack URL-verification responses through the shared contract.
+
+### Patch Changes
+
+- 7ac43a4: Consolidates packed-consumer validation around stable publication and composition contracts instead of package-state snapshots.
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- 326f4c0: Exposes Workspaces inter-module operations and moves Auth and OAuth providers onto injected clients.
+- Updated dependencies [0bb82a4]
+- Updated dependencies [23563de]
+- Updated dependencies [54ce48b]
+- Updated dependencies [f4bc2eb]
+- Updated dependencies [40a6e0f]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [f262539]
+- Updated dependencies [a01e917]
+- Updated dependencies [3bb4e26]
+- Updated dependencies [1b79cda]
+- Updated dependencies [e3b6338]
+- Updated dependencies [c2db8c3]
+- Updated dependencies [a42b575]
+- Updated dependencies [8390468]
+- Updated dependencies [a869cfd]
+- Updated dependencies [8bdc149]
+- Updated dependencies [f73da5d]
+- Updated dependencies [3810996]
+- Updated dependencies [0649d62]
+- Updated dependencies [23a4dc2]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [326f4c0]
+- Updated dependencies [1820feb]
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+- Updated dependencies [4604a06]
+  - @shipfox/api-agent-dto@6.0.0
+  - @shipfox/api-integration-core-dto@6.0.0
+  - @shipfox/api-workflows-dto@6.0.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-temporal@0.3.2
+  - @shipfox/api-integration-slack@6.0.0
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/redact@0.2.3
+  - @shipfox/api-integration-gitea@6.0.0
+  - @shipfox/api-integration-github@6.0.0
+  - @shipfox/api-integration-linear@6.0.0
+  - @shipfox/api-integration-sentry@6.0.0
+  - @shipfox/api-integration-webhook@6.0.0
+  - @shipfox/api-workspaces-dto@6.0.0
+  - @shipfox/api-integration-jira@6.0.0
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Minor Changes

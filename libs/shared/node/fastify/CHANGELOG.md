@@ -1,5 +1,11 @@
 # @shipfox/node-fastify
 
+## 0.2.4
+
+### Patch Changes
+
+- 8aa7cd3: Adds a shared Linear webhook processor that preserves raw-body signatures and receipt-time replay validation.
+
 ## 0.2.3
 
 ### Patch Changes

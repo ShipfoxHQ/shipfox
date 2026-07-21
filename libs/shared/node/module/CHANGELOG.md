@@ -1,5 +1,27 @@
 # @shipfox/node-module
 
+## 0.4.0
+
+### Minor Changes
+
+- 54ce48b: Makes an empty outbox publisher registry fail dispatcher boot and logs registered publishers safely.
+- c0162b0: Adds a bounded lifecycle for non-Temporal API module services.
+- a01e917: Passes a per-initialization outbox registry through module startup, workers, and dispatch services instead of process-global state.
+- 3810996: Adds dispatcher backlog metrics from registered pending outbox rows.
+- 81f9544: Adds the registered in-memory inter-module transport: browser-safe contract primitives in `@shipfox/inter-module` (`defineInterModuleContract`, `defineInterModulePresentation`, known-error branding) and `@shipfox/node-module/inter-module` (`createInMemoryInterModuleTransport`, module integration, and a framework-neutral fake-presentation test harness). Extends the packed external-consumer check to cover the new package.
+
+### Patch Changes
+
+- Updated dependencies [f4bc2eb]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [81f9544]
+  - @shipfox/node-temporal@0.3.2
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/inter-module@0.2.0
+
 ## 0.3.2
 
 ### Patch Changes

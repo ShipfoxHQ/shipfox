@@ -1,5 +1,27 @@
 # @shipfox/api-runners-dto
 
+## 6.0.0
+
+### Major Changes
+
+- 8bdc149: Adds scoped workspace and installation provisioner identities with explicit authorization boundaries.
+- 6741be8: Renames the provisioned-runner lifecycle contract to runner instances and provider runner IDs.
+
+### Minor Changes
+
+- e52513c: Adds provisioner-owned planned capacity with immutable provider runner attachment.
+- b70f920: Adds assigned runner activation and descendant provisioner revocation.
+- 9006b75: Adds the Runners inter-module contract and requires the injected Runners client when composing Workflows.
+- 3cda0c6: Adds fresh workspace provisioner capability snapshots for managed fallback policy.
+- 795e293: Adds installation-scoped fallback demand reservations across eligible workspaces.
+- e10c829: Adds immutable capacity assignments while retaining the registration-token protocol for existing provisioners.
+- b00ed29: Adds runner bootstrap enrollment and isolated pre-workspace control sessions.
+
+### Patch Changes
+
+- Updated dependencies [81f9544]
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

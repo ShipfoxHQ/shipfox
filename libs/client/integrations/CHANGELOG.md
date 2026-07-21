@@ -1,5 +1,32 @@
 # @shipfox/client-integrations
 
+## 2.0.0
+
+### Minor Changes
+
+- 1820feb: Adds Slack Settings installation and callback recovery while returning stable workspace access errors.
+
+### Patch Changes
+
+- Updated dependencies [0bb82a4]
+- Updated dependencies [ba2e3dc]
+- Updated dependencies [1820feb]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [f262539]
+- Updated dependencies [3bb4e26]
+- Updated dependencies [4604a06]
+  - @shipfox/api-integration-core-dto@6.0.0
+  - @shipfox/client-auth@2.0.0
+  - @shipfox/react-ui@0.3.3
+  - @shipfox/client-shell@2.0.0
+  - @shipfox/api-integration-gitea-dto@6.0.0
+  - @shipfox/api-integration-github-dto@6.0.0
+  - @shipfox/api-integration-linear-dto@6.0.0
+  - @shipfox/api-integration-sentry-dto@6.0.0
+  - @shipfox/api-integration-slack-dto@6.0.0
+  - @shipfox/api-integration-webhook-dto@6.0.0
+  - @shipfox/client-ui@2.0.0
+
 ## 1.0.0
 
 ### Patch Changes

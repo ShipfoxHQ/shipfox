@@ -1,5 +1,44 @@
 # @shipfox/api-workspaces
 
+## 6.0.0
+
+### Minor Changes
+
+- 6bdf24b: Adds idempotent workspace invitation reconciliation for retry-safe external acceptance flows.
+- 326f4c0: Exposes Workspaces inter-module operations and moves Auth and OAuth providers onto injected clients.
+- 1820feb: Adds Slack Settings installation and callback recovery while returning stable workspace access errors.
+
+### Patch Changes
+
+- 7366f04: Adds a configured shared mailer that owns SMTP delivery settings. `@shipfox/api-auth` and `@shipfox/api-workspaces` drop their own mailer environment variables and factory logic and use the shared `mailer` from `@shipfox/node-mailer` instead.
+- c2db8c3: Adds workspace member invitation and join lifecycle events to the workspaces outbox.
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- Updated dependencies [b70f920]
+- Updated dependencies [7366f04]
+- Updated dependencies [54ce48b]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [a01e917]
+- Updated dependencies [1b79cda]
+- Updated dependencies [c2db8c3]
+- Updated dependencies [8bdc149]
+- Updated dependencies [3810996]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [326f4c0]
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+  - @shipfox/node-tokens@0.3.0
+  - @shipfox/node-mailer@0.2.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/api-workspaces-dto@6.0.0
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/api-common-dto@6.0.0
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

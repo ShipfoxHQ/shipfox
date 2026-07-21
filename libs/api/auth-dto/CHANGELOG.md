@@ -1,5 +1,24 @@
 # @shipfox/api-auth-dto
 
+## 6.0.0
+
+### Major Changes
+
+- ba2e3dc: Migrates password email verification from magic links to shared eight-digit email challenges.
+
+### Minor Changes
+
+- e6eba5b: Adds the auth user signed-up event contract for durable signup lifecycle integrations.
+- 112c0fa: Adds the Auth inter-module token-minting contract and removes Auth implementation and configuration coupling from its consumers.
+
+### Patch Changes
+
+- 4a91956: Publishes a shared provider-neutral `emailSchema` in `@shipfox/api-common-dto` and adopts it across auth and workspace invitation inputs. Adds a read-only `findUserByEmail`/`EmailOwner` seam to `@shipfox/api-auth` for looking up the current owner of a normalized email without creating a session or mutating that user. Extends the packed external consumer gate to exercise both seams against PostgreSQL through installed tarballs.
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+  - @shipfox/api-common-dto@6.0.0
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

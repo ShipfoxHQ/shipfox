@@ -1,5 +1,11 @@
 # @shipfox/node-drizzle
 
+## 0.3.2
+
+### Patch Changes
+
+- 7ac43a4: Consolidates packed-consumer validation around stable publication and composition contracts instead of package-state snapshots.
+
 ## 0.3.1
 
 ### Patch Changes

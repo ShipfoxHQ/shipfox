@@ -1,5 +1,12 @@
 # @shipfox/node-tokens
 
+## 0.3.0
+
+### Minor Changes
+
+- b70f920: Adds assigned runner activation and descendant provisioner revocation.
+- b00ed29: Adds runner bootstrap enrollment and isolated pre-workspace control sessions.
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,5 +1,37 @@
 # @shipfox/api-logs
 
+## 6.0.0
+
+### Major Changes
+
+- 23a4dc2: Moves Logs and Integrations to injected Workflows inter-module clients with minimal log and leased agent-tool queries.
+
+### Patch Changes
+
+- 112c0fa: Adds the Auth inter-module token-minting contract and removes Auth implementation and configuration coupling from its consumers.
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- Updated dependencies [0bb82a4]
+- Updated dependencies [23563de]
+- Updated dependencies [54ce48b]
+- Updated dependencies [f4bc2eb]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [a01e917]
+- Updated dependencies [8bdc149]
+- Updated dependencies [3810996]
+- Updated dependencies [23a4dc2]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [81f9544]
+  - @shipfox/api-agent-dto@6.0.0
+  - @shipfox/api-workflows-dto@6.0.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-temporal@0.3.2
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+
 ## 5.0.0
 
 ### Patch Changes
