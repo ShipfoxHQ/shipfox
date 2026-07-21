@@ -8,7 +8,7 @@ import {pgTable} from './common.js';
 export const runnerSessionScopeEnum = pgEnum('runners_runner_session_scope', ['workspace']);
 export const runnerSessionRegistrationTokenKindEnum = pgEnum(
   'runners_runner_session_registration_token_kind',
-  ['manual', 'ephemeral'],
+  ['manual', 'ephemeral', 'activation'],
 );
 
 export const runnerSessions = pgTable(
@@ -20,6 +20,7 @@ export const runnerSessions = pgTable(
     registrationTokenId: uuid('registration_token_id').notNull(),
     registrationTokenKind:
       runnerSessionRegistrationTokenKindEnum('registration_token_kind').notNull(),
+    runnerInstanceId: uuid('runner_instance_id'),
     provisionerId: uuid('provisioner_id'),
     providerRunnerId: text('provider_runner_id'),
     labels: text('labels').array().notNull(),
@@ -27,6 +28,7 @@ export const runnerSessions = pgTable(
     toolCapabilitiesReportedAt: timestamp('tool_capabilities_reported_at', {withTimezone: true}),
     maxClaims: integer('max_claims'),
     claimsUsed: integer('claims_used').notNull().default(0),
+    revokedAt: timestamp('revoked_at', {withTimezone: true}),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -38,11 +40,11 @@ export const runnerSessions = pgTable(
     ),
     check(
       'runners_runner_sessions_claims_ck',
-      sql`${table.claimsUsed} >= 0 AND ((${table.registrationTokenKind} = 'manual' AND ${table.maxClaims} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.maxClaims} IS NOT NULL AND ${table.maxClaims} > 0 AND ${table.claimsUsed} <= ${table.maxClaims}))`,
+      sql`${table.claimsUsed} >= 0 AND ((${table.registrationTokenKind} = 'manual' AND ${table.maxClaims} IS NULL) OR (${table.registrationTokenKind} in ('ephemeral', 'activation') AND ${table.maxClaims} IS NOT NULL AND ${table.maxClaims} > 0 AND ${table.claimsUsed} <= ${table.maxClaims}))`,
     ),
     check(
       'runners_runner_sessions_link_ck',
-      sql`((${table.registrationTokenKind} = 'manual' AND ${table.provisionerId} IS NULL AND ${table.providerRunnerId} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.provisionerId} IS NOT NULL AND ${table.providerRunnerId} IS NOT NULL))`,
+      sql`((${table.registrationTokenKind} = 'manual' AND ${table.runnerInstanceId} IS NULL AND ${table.provisionerId} IS NULL AND ${table.providerRunnerId} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.runnerInstanceId} IS NULL AND ${table.provisionerId} IS NOT NULL AND ${table.providerRunnerId} IS NOT NULL) OR (${table.registrationTokenKind} = 'activation' AND ${table.runnerInstanceId} IS NOT NULL AND ${table.provisionerId} IS NOT NULL AND ${table.providerRunnerId} IS NOT NULL))`,
     ),
     index('runners_runner_sessions_provider_runner_updated_idx')
       .on(table.workspaceId, table.provisionerId, table.providerRunnerId, table.updatedAt)
@@ -64,6 +66,7 @@ export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
     scope: row.scope,
     registrationTokenId: row.registrationTokenId,
     registrationTokenKind: row.registrationTokenKind,
+    runnerInstanceId: row.runnerInstanceId,
     provisionerId: row.provisionerId,
     providerRunnerId: row.providerRunnerId,
     labels: row.labels,
@@ -71,6 +74,7 @@ export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
     toolCapabilitiesReportedAt: row.toolCapabilitiesReportedAt,
     maxClaims: row.maxClaims,
     claimsUsed: row.claimsUsed,
+    revokedAt: row.revokedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

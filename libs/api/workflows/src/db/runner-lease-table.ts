@@ -6,7 +6,7 @@ const pgTable = pgTableCreator((name) => `runners_${name}`);
 export const runnerSessionScopeEnum = pgEnum('runners_runner_session_scope', ['workspace']);
 export const runnerSessionRegistrationTokenKindEnum = pgEnum(
   'runners_runner_session_registration_token_kind',
-  ['manual', 'ephemeral'],
+  ['manual', 'ephemeral', 'activation'],
 );
 
 export const runnerSessions = pgTable('runner_sessions', {

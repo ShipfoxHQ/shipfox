@@ -5,7 +5,8 @@ export interface RunnerSession {
   workspaceId: string;
   scope: 'workspace';
   registrationTokenId: string;
-  registrationTokenKind: 'manual' | 'ephemeral';
+  registrationTokenKind: 'manual' | 'ephemeral' | 'activation';
+  runnerInstanceId: string | null;
   provisionerId: string | null;
   providerRunnerId: string | null;
   labels: string[];
@@ -13,6 +14,7 @@ export interface RunnerSession {
   toolCapabilitiesReportedAt: Date | null;
   maxClaims: number | null;
   claimsUsed: number;
+  revokedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

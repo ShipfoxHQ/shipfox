@@ -31,6 +31,7 @@ import {
   createRunnerInstancesRoute,
   enrollRunnerRoute,
   exchangeRunnerBootstrapRoute,
+  runnerAssignmentPollRoute,
   runnerControlHeartbeatRoute,
 } from './runner-enrollment.js';
 
@@ -86,7 +87,12 @@ const runnerControlRoutes: RouteGroup[] = [
   {prefix: '/runner-enrollment', routes: [exchangeRunnerBootstrapRoute]},
   {
     prefix: '/runner-control',
-    routes: [enrollRunnerRoute, attachRunnerControlProviderIdRoute, runnerControlHeartbeatRoute],
+    routes: [
+      enrollRunnerRoute,
+      attachRunnerControlProviderIdRoute,
+      runnerControlHeartbeatRoute,
+      runnerAssignmentPollRoute,
+    ],
   },
 ];
 

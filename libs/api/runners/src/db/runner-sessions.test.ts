@@ -41,6 +41,19 @@ describe('deleteExpiredRunnerSessions', () => {
     expect(remaining).toEqual([active]);
   });
 
+  it('deletes activation sessions using the ephemeral retention window', async () => {
+    const expired = await insertRunnerSession({kind: 'activation', createdDaysAgo: 8});
+    const active = await insertRunnerSession({kind: 'activation', createdDaysAgo: 6});
+
+    await deleteExpiredRunnerSessions({
+      manualRetentionDays: 30,
+      ephemeralRetentionDays: 7,
+      limit: 100,
+    });
+
+    expect(await listRunnerSessionIds([expired, active])).toEqual([active]);
+  });
+
   it('applies the retention window for each registration token kind independently', async () => {
     const manualExpired = await insertRunnerSession({kind: 'manual', createdDaysAgo: 31});
     const manualActive = await insertRunnerSession({kind: 'manual', createdDaysAgo: 8});
@@ -94,15 +107,14 @@ describe('deleteExpiredRunnerSessions', () => {
   });
 
   async function insertRunnerSession(params: {
-    kind: 'manual' | 'ephemeral';
+    kind: 'manual' | 'ephemeral' | 'activation';
     createdDaysAgo: number;
   }): Promise<string> {
     const id = crypto.randomUUID();
     const registrationTokenId = crypto.randomUUID();
     const createdAt = new Date(Date.now() - params.createdDaysAgo * 24 * 60 * 60 * 1000);
-    const provisionerId = params.kind === 'ephemeral' ? crypto.randomUUID() : null;
-    const providerRunnerId =
-      params.kind === 'ephemeral' ? `provisioned-${crypto.randomUUID()}` : null;
+    const provisionerId = params.kind === 'manual' ? null : crypto.randomUUID();
+    const providerRunnerId = params.kind === 'manual' ? null : `provisioned-${crypto.randomUUID()}`;
 
     await db()
       .insert(runnerSessions)
@@ -112,10 +124,11 @@ describe('deleteExpiredRunnerSessions', () => {
         scope: 'workspace',
         registrationTokenId,
         registrationTokenKind: params.kind,
+        runnerInstanceId: params.kind === 'activation' ? crypto.randomUUID() : null,
         provisionerId,
         providerRunnerId,
         labels: ['linux'],
-        maxClaims: params.kind === 'ephemeral' ? 1 : null,
+        maxClaims: params.kind === 'manual' ? null : 1,
         claimsUsed: 0,
         createdAt,
         updatedAt: createdAt,

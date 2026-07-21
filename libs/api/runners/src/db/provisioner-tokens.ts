@@ -1,4 +1,4 @@
-import {and, desc, eq, gt, isNull, or, sql} from 'drizzle-orm';
+import {and, desc, eq, gt, inArray, isNull, or, sql} from 'drizzle-orm';
 import type {
   ActiveProvisionerToken,
   ProvisionerScope,
@@ -6,6 +6,10 @@ import type {
 } from '#core/entities/provisioner-token.js';
 import {db} from './db.js';
 import {provisionerTokens, toProvisionerToken} from './schema/provisioner-tokens.js';
+import {runnerActivationTokens} from './schema/runner-activation-tokens.js';
+import {runnerBootstrapTokens, runnerControlSessions} from './schema/runner-control-sessions.js';
+import {providerRunners} from './schema/runner-instances.js';
+import {runnerSessions} from './schema/runner-sessions.js';
 
 export interface CreateProvisionerTokenParams {
   scope: ProvisionerScope;
@@ -15,6 +19,60 @@ export interface CreateProvisionerTokenParams {
   createdByUserId: string;
   name?: string | undefined;
   expiresAt?: Date | undefined;
+}
+
+async function cascadeProvisionerRevocation(
+  tx: Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0],
+  provisionerId: string,
+) {
+  await tx
+    .update(runnerBootstrapTokens)
+    .set({revokedAt: sql`now()`})
+    .where(eq(runnerBootstrapTokens.provisionerId, provisionerId));
+  await tx
+    .update(runnerControlSessions)
+    .set({closedAt: sql`now()`, closeReason: 'provisioner-revoked'})
+    .where(
+      and(
+        eq(runnerControlSessions.provisionerId, provisionerId),
+        isNull(runnerControlSessions.closedAt),
+      ),
+    );
+  await tx
+    .update(runnerActivationTokens)
+    .set({revokedAt: sql`now()`})
+    .where(
+      and(
+        isNull(runnerActivationTokens.consumedAt),
+        isNull(runnerActivationTokens.revokedAt),
+        inArray(
+          runnerActivationTokens.runnerInstanceId,
+          tx
+            .select({id: providerRunners.id})
+            .from(providerRunners)
+            .where(eq(providerRunners.provisionerId, provisionerId)),
+        ),
+      ),
+    );
+  await tx
+    .update(providerRunners)
+    .set({state: 'terminated', terminatedAt: sql`now()`, updatedAt: sql`now()`})
+    .where(
+      and(
+        eq(providerRunners.provisionerId, provisionerId),
+        isNull(providerRunners.runnerSessionId),
+      ),
+    );
+  await tx
+    .update(runnerSessions)
+    .set({revokedAt: sql`now()`})
+    .where(
+      and(
+        eq(runnerSessions.provisionerId, provisionerId),
+        eq(runnerSessions.claimsUsed, 0),
+        isNull(runnerSessions.revokedAt),
+      ),
+    );
 }
 
 export async function createProvisionerToken(
@@ -42,17 +100,23 @@ export async function revokeInstallationProvisionerToken(params: {
   tokenId: string;
   revokedByUserId: string;
 }): Promise<ProvisionerToken | undefined> {
-  const rows = await db()
-    .update(provisionerTokens)
-    .set({revokedAt: new Date(), revokedByUserId: params.revokedByUserId, updatedAt: new Date()})
-    .where(
-      and(
-        eq(provisionerTokens.id, params.tokenId),
-        eq(provisionerTokens.scope, 'installation'),
-        isNull(provisionerTokens.revokedAt),
-      ),
-    )
-    .returning();
+  const rows = await db().transaction(async (tx) => {
+    const rows = await tx
+      .update(provisionerTokens)
+      .set({revokedAt: new Date(), revokedByUserId: params.revokedByUserId, updatedAt: new Date()})
+      .where(
+        and(
+          eq(provisionerTokens.id, params.tokenId),
+          eq(provisionerTokens.scope, 'installation'),
+          isNull(provisionerTokens.revokedAt),
+        ),
+      )
+      .returning();
+    if (rows[0]) {
+      await cascadeProvisionerRevocation(tx, params.tokenId);
+    }
+    return rows;
+  });
 
   const row = rows[0];
   if (row) return toProvisionerToken(row);
@@ -107,18 +171,22 @@ export async function revokeProvisionerToken(params: {
   workspaceId: string;
   revokedByUserId: string;
 }): Promise<ProvisionerToken | undefined> {
-  const rows = await db()
-    .update(provisionerTokens)
-    .set({revokedAt: new Date(), revokedByUserId: params.revokedByUserId, updatedAt: new Date()})
-    .where(
-      and(
-        eq(provisionerTokens.id, params.tokenId),
-        eq(provisionerTokens.workspaceId, params.workspaceId),
-        eq(provisionerTokens.scope, 'workspace'),
-        isNull(provisionerTokens.revokedAt),
-      ),
-    )
-    .returning();
+  const rows = await db().transaction(async (tx) => {
+    const rows = await tx
+      .update(provisionerTokens)
+      .set({revokedAt: new Date(), revokedByUserId: params.revokedByUserId, updatedAt: new Date()})
+      .where(
+        and(
+          eq(provisionerTokens.id, params.tokenId),
+          eq(provisionerTokens.workspaceId, params.workspaceId),
+          eq(provisionerTokens.scope, 'workspace'),
+          isNull(provisionerTokens.revokedAt),
+        ),
+      )
+      .returning();
+    if (rows[0]) await cascadeProvisionerRevocation(tx, params.tokenId);
+    return rows;
+  });
 
   const row = rows[0];
   if (row) return toProvisionerToken(row);

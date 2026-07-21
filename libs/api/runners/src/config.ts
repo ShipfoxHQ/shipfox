@@ -14,6 +14,18 @@ export const config = createConfig({
     desc: 'Lifetime of a pre-workspace runner-control session in seconds. This session can only enroll, attach its provider identity, and report its own liveness.',
     default: 3600,
   }),
+  RUNNER_ACTIVATION_TOKEN_TTL_SECONDS: num({
+    desc: 'Lifetime of a one-use activation token in seconds. The token is issued only to an assigned runner-control session and creates one workspace runner session.',
+    default: 300,
+  }),
+  RUNNER_ASSIGNMENT_POLL_MAX_WAIT_SECONDS: num({
+    desc: 'Maximum time the runner assignment poll waits before returning no assignment, in seconds.',
+    default: 30,
+  }),
+  RUNNER_ASSIGNMENT_POLL_INTERVAL_MS: num({
+    desc: 'Delay between durable assignment reads while a runner-control session waits for an assignment, in milliseconds.',
+    default: 1000,
+  }),
   EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS: num({
     desc: `Lifetime of a provisioner-minted runner registration token, in seconds. The token can be exchanged once by a runner before this time passes. Set this between 1 and ${EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS}.`,
     default: 300,
@@ -134,6 +146,7 @@ if (
 for (const [name, value] of [
   ['RUNNER_BOOTSTRAP_TOKEN_TTL_SECONDS', config.RUNNER_BOOTSTRAP_TOKEN_TTL_SECONDS],
   ['RUNNER_CONTROL_SESSION_TTL_SECONDS', config.RUNNER_CONTROL_SESSION_TTL_SECONDS],
+  ['RUNNER_ACTIVATION_TOKEN_TTL_SECONDS', config.RUNNER_ACTIVATION_TOKEN_TTL_SECONDS],
 ] as const) {
   if (
     !Number.isInteger(value) ||
@@ -144,6 +157,14 @@ for (const [name, value] of [
       `${name} (${value}) must be a whole number of seconds between 1 and ${RUNNER_CONTROL_PLANE_TOKEN_TTL_HARD_MAX_SECONDS}.`,
     );
   }
+}
+
+for (const [name, value] of [
+  ['RUNNER_ASSIGNMENT_POLL_MAX_WAIT_SECONDS', config.RUNNER_ASSIGNMENT_POLL_MAX_WAIT_SECONDS],
+  ['RUNNER_ASSIGNMENT_POLL_INTERVAL_MS', config.RUNNER_ASSIGNMENT_POLL_INTERVAL_MS],
+] as const) {
+  if (!Number.isInteger(value) || value < 0)
+    throw new Error(`${name} (${value}) must be a whole number >= 0.`);
 }
 
 if (

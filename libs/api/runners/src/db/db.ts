@@ -9,6 +9,7 @@ import {provisionerCapabilitySnapshots} from './schema/provisioner-capability-sn
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {runnersRateLimits} from './schema/rate-limits.js';
 import {reservations} from './schema/reservations.js';
+import {runnerActivationTokens} from './schema/runner-activation-tokens.js';
 import {runnerBootstrapTokens, runnerControlSessions} from './schema/runner-control-sessions.js';
 import {providerRunners} from './schema/runner-instances.js';
 import {runnerSessions} from './schema/runner-sessions.js';
@@ -26,6 +27,7 @@ export const schema = {
   runnerSessions,
   runnerBootstrapTokens,
   runnerControlSessions,
+  runnerActivationTokens,
   manualRegistrationTokens,
   runningJobExecutions,
   runnersOutbox,

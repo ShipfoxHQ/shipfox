@@ -42,6 +42,7 @@ export {
   revokeInstallationProvisionerToken,
   revokeWorkspaceProvisionerToken,
 } from './provisioner-tokens.js';
+export {getRunnerAssignment, issueRunnerActivationToken} from './runner-activation.js';
 export {
   attachRunnerControlProviderId,
   createRunnerInstancesWithBootstrapTokens,

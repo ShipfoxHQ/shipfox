@@ -36,6 +36,9 @@ export const attachRunnerControlProviderIdBodySchema = z
   .object({provider_runner_id: z.string().min(1).max(255)})
   .strict();
 export const runnerControlHeartbeatResponseSchema = z.object({ok: z.literal(true)});
+export const runnerAssignmentPollResponseSchema = z.object({
+  activation_token: z.string().min(1).nullable(),
+});
 
 export type RunnerBootstrapExchangeBodyDto = z.infer<typeof runnerBootstrapExchangeBodySchema>;
 export type CreateRunnerInstancesBodyDto = z.infer<typeof createRunnerInstancesBodySchema>;

@@ -2,14 +2,17 @@ import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
-import {createRunnerSession} from '#db/runner-sessions.js';
+import {
+  createRunnerSession,
+  createRunnerSessionConsumingActivationToken,
+} from '#db/runner-sessions.js';
 import type {RunnerSession} from './entities/runner-session.js';
 import {EmptyRunnerLabelsError} from './errors.js';
 
 export interface RegisterRunnerSessionResult {
   session: RunnerSession;
   sessionToken: string;
-  mode: 'manual' | 'ephemeral';
+  mode: 'manual' | 'ephemeral' | 'activation';
   maxClaims: number | null;
 }
 
@@ -26,7 +29,8 @@ export type RunnerRegistrationCredential =
       provisionerId: string;
       reservationId: string | null;
       providerRunnerId: string;
-    };
+    }
+  | {kind: 'activation'; activationTokenId: string; workspaceId: string};
 
 export async function registerRunnerSession(params: {
   auth: AuthInterModuleClient;
@@ -38,7 +42,7 @@ export async function registerRunnerSession(params: {
   if (labels.length === 0) throw new EmptyRunnerLabelsError();
 
   const mode = params.credential.kind;
-  const maxClaims = params.credential.kind === 'ephemeral' ? 1 : null;
+  const maxClaims = params.credential.kind === 'manual' ? null : 1;
   const session =
     params.credential.kind === 'manual'
       ? await createRunnerSession({
@@ -48,13 +52,19 @@ export async function registerRunnerSession(params: {
           labels,
           toolCapabilities: params.toolCapabilities ?? null,
         })
-      : await createRunnerSessionConsumingEphemeralToken({
-          ephemeralTokenId: params.credential.ephemeralTokenId,
-          workspaceId: params.credential.workspaceId,
-          labels,
-          toolCapabilities: params.toolCapabilities ?? null,
-          maxClaims: 1,
-        });
+      : params.credential.kind === 'ephemeral'
+        ? await createRunnerSessionConsumingEphemeralToken({
+            ephemeralTokenId: params.credential.ephemeralTokenId,
+            workspaceId: params.credential.workspaceId,
+            labels,
+            toolCapabilities: params.toolCapabilities ?? null,
+            maxClaims: 1,
+          })
+        : await createRunnerSessionConsumingActivationToken({
+            activationTokenId: params.credential.activationTokenId,
+            labels,
+            toolCapabilities: params.toolCapabilities ?? null,
+          });
   const {token: sessionToken} = await params.auth.mintRunnerSessionToken({
     runnerSessionId: session.id,
     workspaceId: session.workspaceId,

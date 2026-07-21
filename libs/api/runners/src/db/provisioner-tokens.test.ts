@@ -1,5 +1,5 @@
 import {hashOpaqueToken} from '@shipfox/node-tokens';
-import {sql} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {
   createProvisionerToken,
@@ -10,7 +10,11 @@ import {
   touchProvisionerLastSeen,
 } from '#db/provisioner-tokens.js';
 import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
-import {provisionerTokenFactory} from '#test/index.js';
+import {runnerActivationTokens} from '#db/schema/runner-activation-tokens.js';
+import {runnerBootstrapTokens, runnerControlSessions} from '#db/schema/runner-control-sessions.js';
+import {providerRunners} from '#db/schema/runner-instances.js';
+import {runnerSessions} from '#db/schema/runner-sessions.js';
+import {providerRunnerFactory, provisionerTokenFactory} from '#test/index.js';
 
 describe('provisioner token db', () => {
   it('creates and resolves a token', async () => {
@@ -96,6 +100,115 @@ describe('provisioner token db', () => {
     expect(revoked?.id).toBe(token.id);
     expect(revoked?.revokedAt).toBeInstanceOf(Date);
     expect(revoked?.revokedByUserId).toBe(revokedByUserId);
+  });
+
+  it("cascades revocation to the provisioner's unclaimed runner credentials and sessions", async () => {
+    const workspaceId = crypto.randomUUID();
+    const provisioner = await provisionerTokenFactory.create({workspaceId});
+    const runner = await providerRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisioner.id,
+      runnerSessionId: null,
+    });
+    const future = new Date(Date.now() + 60_000);
+    const tokenValue = (name: string) => hashOpaqueToken(`${name}-${crypto.randomUUID()}`);
+    await db()
+      .insert(runnerBootstrapTokens)
+      .values({
+        runnerInstanceId: runner.id,
+        provisionerId: provisioner.id,
+        hashedToken: tokenValue('bootstrap'),
+        prefix: 'bootstrap',
+        expiresAt: future,
+      });
+    await db()
+      .insert(runnerControlSessions)
+      .values({
+        runnerInstanceId: runner.id,
+        provisionerId: provisioner.id,
+        hashedToken: tokenValue('control'),
+        prefix: 'control',
+        expiresAt: future,
+      });
+    await db()
+      .insert(runnerActivationTokens)
+      .values({
+        runnerInstanceId: runner.id,
+        hashedToken: tokenValue('activation'),
+        prefix: 'activation',
+        expiresAt: future,
+      });
+    const [unclaimedSession] = await db()
+      .insert(runnerSessions)
+      .values({
+        workspaceId,
+        scope: 'workspace',
+        registrationTokenId: crypto.randomUUID(),
+        registrationTokenKind: 'activation',
+        runnerInstanceId: runner.id,
+        provisionerId: provisioner.id,
+        providerRunnerId: runner.providerRunnerId,
+        labels: ['linux'],
+        maxClaims: 1,
+        claimsUsed: 0,
+      })
+      .returning();
+    const [claimedSession] = await db()
+      .insert(runnerSessions)
+      .values({
+        workspaceId,
+        scope: 'workspace',
+        registrationTokenId: crypto.randomUUID(),
+        registrationTokenKind: 'activation',
+        runnerInstanceId: crypto.randomUUID(),
+        provisionerId: provisioner.id,
+        providerRunnerId: crypto.randomUUID(),
+        labels: ['linux'],
+        maxClaims: 1,
+        claimsUsed: 1,
+      })
+      .returning();
+    if (!unclaimedSession || !claimedSession) throw new Error('Runner sessions were not created');
+
+    await revokeProvisionerToken({
+      tokenId: provisioner.id,
+      workspaceId,
+      revokedByUserId: crypto.randomUUID(),
+    });
+
+    const [bootstrap] = await db()
+      .select()
+      .from(runnerBootstrapTokens)
+      .where(eq(runnerBootstrapTokens.runnerInstanceId, runner.id));
+    const [control] = await db()
+      .select()
+      .from(runnerControlSessions)
+      .where(eq(runnerControlSessions.runnerInstanceId, runner.id));
+    const [activation] = await db()
+      .select()
+      .from(runnerActivationTokens)
+      .where(eq(runnerActivationTokens.runnerInstanceId, runner.id));
+    const [terminatedRunner] = await db()
+      .select()
+      .from(providerRunners)
+      .where(eq(providerRunners.id, runner.id));
+    const [revokedSession] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, unclaimedSession.id));
+    const [preservedSession] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, claimedSession.id));
+
+    expect(bootstrap?.revokedAt).toBeInstanceOf(Date);
+    expect(control).toMatchObject({closeReason: 'provisioner-revoked'});
+    expect(control?.closedAt).toBeInstanceOf(Date);
+    expect(activation?.revokedAt).toBeInstanceOf(Date);
+    expect(terminatedRunner).toMatchObject({state: 'terminated'});
+    expect(terminatedRunner?.terminatedAt).toBeInstanceOf(Date);
+    expect(revokedSession?.revokedAt).toBeInstanceOf(Date);
+    expect(preservedSession?.revokedAt).toBeNull();
   });
 
   it('preserves the original revocation audit fields on repeat revoke', async () => {

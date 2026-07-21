@@ -1,7 +1,10 @@
 import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
-import {and, asc, eq, inArray, lt, notExists, or, sql} from 'drizzle-orm';
+import {and, asc, eq, gt, inArray, isNull, lt, notExists, or, sql} from 'drizzle-orm';
 import type {RunnerSession} from '#core/entities/runner-session.js';
 import {db} from './db.js';
+import {runnerActivationTokens} from './schema/runner-activation-tokens.js';
+import {runnerControlSessions} from './schema/runner-control-sessions.js';
+import {providerRunners} from './schema/runner-instances.js';
 import {runnerSessions, toRunnerSession} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
@@ -47,6 +50,79 @@ export async function getRunnerSessionById(runnerSessionId: string): Promise<Run
   return row ? toRunnerSession(row) : null;
 }
 
+export async function createRunnerSessionConsumingActivationToken(params: {
+  activationTokenId: string;
+  labels: string[];
+  toolCapabilities?: RunnerToolCapabilitiesDto | null;
+}) {
+  return await db().transaction(async (tx) => {
+    const [token] = await tx
+      .select({
+        id: runnerActivationTokens.id,
+        runnerInstanceId: runnerActivationTokens.runnerInstanceId,
+        workspaceId: providerRunners.workspaceId,
+        provisionerId: providerRunners.provisionerId,
+        providerRunnerId: providerRunners.providerRunnerId,
+      })
+      .from(runnerActivationTokens)
+      .innerJoin(providerRunners, eq(providerRunners.id, runnerActivationTokens.runnerInstanceId))
+      .where(
+        and(
+          eq(runnerActivationTokens.id, params.activationTokenId),
+          isNull(runnerActivationTokens.consumedAt),
+          isNull(runnerActivationTokens.revokedAt),
+          gt(runnerActivationTokens.expiresAt, sql`now()`),
+          isNull(providerRunners.runnerSessionId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!token?.workspaceId || !token.providerRunnerId)
+      throw new Error('Runner activation token is invalid, expired, or has already been used');
+    const [session] = await tx
+      .insert(runnerSessions)
+      .values({
+        workspaceId: token.workspaceId,
+        scope: 'workspace',
+        registrationTokenId: token.id,
+        registrationTokenKind: 'activation',
+        runnerInstanceId: token.runnerInstanceId,
+        provisionerId: token.provisionerId,
+        providerRunnerId: token.providerRunnerId,
+        labels: params.labels,
+        toolCapabilities: params.toolCapabilities ?? null,
+        toolCapabilitiesReportedAt: params.toolCapabilities ? sql`now()` : null,
+        maxClaims: 1,
+        claimsUsed: 0,
+      })
+      .returning();
+    if (!session) throw new Error('Runner activation session insert returned no row');
+    await tx
+      .update(runnerActivationTokens)
+      .set({consumedAt: sql`now()`, consumedSessionId: session.id})
+      .where(eq(runnerActivationTokens.id, token.id));
+    await tx
+      .update(providerRunners)
+      .set({runnerSessionId: session.id, updatedAt: sql`now()`})
+      .where(
+        and(
+          eq(providerRunners.id, token.runnerInstanceId),
+          isNull(providerRunners.runnerSessionId),
+        ),
+      );
+    await tx
+      .update(runnerControlSessions)
+      .set({closedAt: sql`now()`, closeReason: 'activated'})
+      .where(
+        and(
+          eq(runnerControlSessions.runnerInstanceId, token.runnerInstanceId),
+          isNull(runnerControlSessions.closedAt),
+        ),
+      );
+    return toRunnerSession(session);
+  });
+}
+
 export interface DeleteExpiredRunnerSessionsParams {
   manualRetentionDays: number;
   ephemeralRetentionDays: number;
@@ -70,7 +146,7 @@ export async function deleteExpiredRunnerSessions(
             ),
           ),
           and(
-            eq(runnerSessions.registrationTokenKind, 'ephemeral'),
+            inArray(runnerSessions.registrationTokenKind, ['ephemeral', 'activation']),
             lt(
               runnerSessions.createdAt,
               sql`now() - (${params.ephemeralRetentionDays} || ' days')::interval`,
