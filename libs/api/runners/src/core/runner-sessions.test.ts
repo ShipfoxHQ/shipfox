@@ -2,6 +2,7 @@ import {verifyRunnerSessionToken} from '@shipfox/api-auth';
 import {and, eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
+import {runnerActivationTokens} from '#db/schema/runner-activation-tokens.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {
@@ -15,6 +16,7 @@ import {
   RegistrationTokenConsumedError,
   RegistrationTokenWorkspaceMismatchError,
 } from './errors.js';
+import {issueRunnerActivationToken} from './runner-activation.js';
 import {registerRunnerSession} from './runner-sessions.js';
 
 describe('registerRunnerSession', () => {
@@ -211,5 +213,87 @@ describe('registerRunnerSession', () => {
           claimsUsed: 0,
         }),
     ).rejects.toThrow();
+  });
+});
+
+describe('activation runner sessions', () => {
+  let workspaceId: string;
+  let provisionerId: string;
+  let runnerInstanceId: string;
+
+  beforeEach(async () => {
+    workspaceId = crypto.randomUUID();
+    provisionerId = crypto.randomUUID();
+    const runner = await providerRunnerFactory.create({workspaceId, provisionerId});
+    runnerInstanceId = runner.id;
+  });
+
+  it('replaces an unconsumed activation token when assignment delivery is retried', async () => {
+    const firstToken = await issueRunnerActivationToken({
+      runnerInstanceId,
+      provisionerId,
+      ttlSeconds: 60,
+    });
+    const replacementToken = await issueRunnerActivationToken({
+      runnerInstanceId,
+      provisionerId,
+      ttlSeconds: 60,
+    });
+
+    const tokens = await db()
+      .select()
+      .from(runnerActivationTokens)
+      .where(eq(runnerActivationTokens.runnerInstanceId, runnerInstanceId));
+
+    expect(firstToken).not.toBeNull();
+    expect(replacementToken).not.toBeNull();
+    expect(replacementToken).not.toBe(firstToken);
+    expect(tokens).toHaveLength(2);
+    expect(tokens.filter((token) => token.revokedAt === null)).toHaveLength(1);
+    expect(tokens.filter((token) => token.revokedAt !== null)).toHaveLength(1);
+  });
+
+  it('allows only one concurrent registration to consume an activation token', async () => {
+    const rawToken = await issueRunnerActivationToken({
+      runnerInstanceId,
+      provisionerId,
+      ttlSeconds: 60,
+    });
+    const [activationToken] = await db()
+      .select()
+      .from(runnerActivationTokens)
+      .where(eq(runnerActivationTokens.runnerInstanceId, runnerInstanceId));
+    if (!rawToken || !activationToken) throw new Error('Activation token was not created');
+
+    const registrations = await Promise.allSettled([
+      registerRunnerSession({
+        auth: runnersTestAuthClient,
+        credential: {kind: 'activation', activationTokenId: activationToken.id, workspaceId},
+        labels: ['linux'],
+      }),
+      registerRunnerSession({
+        auth: runnersTestAuthClient,
+        credential: {kind: 'activation', activationTokenId: activationToken.id, workspaceId},
+        labels: ['linux'],
+      }),
+    ]);
+
+    const [storedToken] = await db()
+      .select()
+      .from(runnerActivationTokens)
+      .where(eq(runnerActivationTokens.id, activationToken.id));
+    const sessions = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.runnerInstanceId, runnerInstanceId));
+
+    expect(
+      registrations.filter((registration) => registration.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(registrations.filter((registration) => registration.status === 'rejected')).toHaveLength(
+      1,
+    );
+    expect(storedToken?.consumedAt).toBeInstanceOf(Date);
+    expect(sessions).toHaveLength(1);
   });
 });
