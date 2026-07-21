@@ -42,7 +42,7 @@ describe('loginErrorToFormError', () => {
 
     expect(result).toEqual({
       kind: 'form',
-      message: 'Sign-in protection is temporarily unavailable. Try again soon.',
+      message: 'Sign-in is temporarily unavailable. Try again soon.',
     });
   });
 
