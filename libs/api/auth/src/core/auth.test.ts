@@ -1,4 +1,4 @@
-import {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
+import {AUTH_PASSWORD_RESET_SEND_REQUESTED, AUTH_USER_SIGNED_UP} from '@shipfox/api-auth-dto';
 import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
@@ -14,6 +14,7 @@ import {
   provisionUser,
   requestPasswordReset,
   signup,
+  signupWithInvitation,
 } from '#core/auth.js';
 import {
   AuthDependencyUnavailableError,
@@ -136,6 +137,15 @@ describe('auth core', () => {
     expect(user.emailChallenge.id).toEqual(expect.any(String));
     expect(user.emailChallenge.nextResendAvailableAt).toBeInstanceOf(Date);
     expect(captured).toHaveLength(1);
+
+    const events = await outboxEventsTo(email, AUTH_USER_SIGNED_UP);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      userId: user.id,
+      email,
+      name: 'Sign Up',
+      viaInvitation: false,
+    });
   });
 
   test('signup rejects duplicate email with a business error', async () => {
@@ -147,6 +157,33 @@ describe('auth core', () => {
     });
 
     await expect(promise).rejects.toBeInstanceOf(EmailTakenError);
+  });
+
+  test('signup with an invitation writes the signed-up event with its user insert', async () => {
+    const email = `signup-invitation-${crypto.randomUUID()}@example.com`;
+    const userId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    workspaces.preflightInvitationAcceptance.mockResolvedValueOnce(undefined);
+    workspaces.acceptInvitation.mockResolvedValueOnce({
+      membership: {id: crypto.randomUUID(), userId, workspaceId},
+    });
+
+    const result = await signupWithInvitation({
+      email,
+      password: 'correct horse battery staple',
+      name: 'Invited User',
+      invitationToken: `invite-${crypto.randomUUID()}`,
+      workspaces,
+    });
+
+    const events = await outboxEventsTo(email, AUTH_USER_SIGNED_UP);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      userId: result.user.id,
+      email,
+      name: 'Invited User',
+      viaInvitation: true,
+    });
   });
 
   test('provisionUser creates a verified, password-less user with a normalized email', async () => {

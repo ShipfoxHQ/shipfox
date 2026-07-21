@@ -1,7 +1,10 @@
+import {AUTH_USER_SIGNED_UP, type AuthEventMap} from '@shipfox/api-auth-dto';
+import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {eq} from 'drizzle-orm';
 import type {User} from '#core/entities/user.js';
 import {EmailTakenError} from '#core/errors.js';
 import {db} from './db.js';
+import {authOutbox} from './schema/outbox.js';
 import {toUser, type UserDb, users} from './schema/users.js';
 
 export interface CreateUserParams {
@@ -9,6 +12,7 @@ export interface CreateUserParams {
   hashedPassword: string | null;
   name?: string | null;
   emailVerifiedAt?: Date | null;
+  signedUp?: {viaInvitation: boolean};
 }
 
 export interface ProvisionUserParams {
@@ -29,27 +33,41 @@ function isAuthUsersEmailUniqueViolation(error: unknown): boolean {
 }
 
 export async function createUser(params: CreateUserParams): Promise<User> {
-  let rows: UserDb[];
   try {
-    rows = await db()
-      .insert(users)
-      .values({
-        email: params.email,
-        hashedPassword: params.hashedPassword,
-        name: params.name ?? null,
-        emailVerifiedAt: params.emailVerifiedAt ?? null,
-      })
-      .returning();
+    return await db().transaction(async (tx) => {
+      const rows: UserDb[] = await tx
+        .insert(users)
+        .values({
+          email: params.email,
+          hashedPassword: params.hashedPassword,
+          name: params.name ?? null,
+          emailVerifiedAt: params.emailVerifiedAt ?? null,
+        })
+        .returning();
+
+      const row = rows[0];
+      if (!row) throw new Error('Insert returned no rows');
+
+      const user = toUser(row);
+      if (params.signedUp) {
+        await writeOutboxEvent<AuthEventMap>(tx, authOutbox, {
+          type: AUTH_USER_SIGNED_UP,
+          payload: {
+            userId: user.id,
+            email: user.email,
+            ...(user.name ? {name: user.name} : {}),
+            viaInvitation: params.signedUp.viaInvitation,
+          },
+        });
+      }
+      return user;
+    });
   } catch (error) {
     if (isAuthUsersEmailUniqueViolation(error)) {
       throw new EmailTakenError(params.email);
     }
     throw error;
   }
-
-  const row = rows[0];
-  if (!row) throw new Error('Insert returned no rows');
-  return toUser(row);
 }
 
 export async function provisionUser(params: ProvisionUserParams): Promise<User> {

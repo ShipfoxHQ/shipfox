@@ -1,4 +1,8 @@
-import {AUTH_PASSWORD_RESET_SEND_REQUESTED, authEventSchemas} from '@shipfox/api-auth-dto';
+import {
+  AUTH_PASSWORD_RESET_SEND_REQUESTED,
+  AUTH_USER_SIGNED_UP,
+  authEventSchemas,
+} from '@shipfox/api-auth-dto';
 import {createAuthModule} from './index.js';
 import {passwordLoginMethods} from './login-methods.js';
 
@@ -40,6 +44,7 @@ describe('authModule', () => {
     expect(publisher?.eventSchemas).toBe(authEventSchemas);
     expect(Object.keys(publisher?.eventSchemas ?? {}).sort()).toEqual([
       AUTH_PASSWORD_RESET_SEND_REQUESTED,
+      AUTH_USER_SIGNED_UP,
     ]);
     expect(events).toEqual(expect.arrayContaining([AUTH_PASSWORD_RESET_SEND_REQUESTED]));
   });

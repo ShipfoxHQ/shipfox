@@ -187,6 +187,7 @@ export async function signup(params: SignupParams & {sourceIp?: string}): Promis
     email: params.email,
     hashedPassword,
     name: params.name ?? null,
+    signedUp: {viaInvitation: false},
   });
 
   const emailChallenge = await createEmailChallenge({
@@ -236,6 +237,7 @@ export async function signupWithInvitation(
     hashedPassword,
     name: params.name ?? null,
     emailVerifiedAt: new Date(),
+    signedUp: {viaInvitation: true},
   });
 
   // Step 3: Accept the invitation through the workspaces module boundary.
