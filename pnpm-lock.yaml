@@ -475,7 +475,7 @@ catalogs:
       specifier: 1.1.38
       version: 1.1.38
     typescript:
-      specifier: ~6.0.1-rc
+      specifier: ^6.0.3
       version: 6.0.3
     vaul:
       specifier: ^1.1.1
