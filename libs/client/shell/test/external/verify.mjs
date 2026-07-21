@@ -91,6 +91,7 @@ try {
 
   await run('pnpm', ['exec', 'vite', 'build'], fixtureRoot, {capture: true});
   await validateGeneratedModule(fixtureRoot);
+  await validateManifestAssets(fixtureRoot);
   await run('pnpm', ['exec', 'vitest', 'run', '--mode', 'production'], fixtureRoot, {
     capture: true,
     env: {NODE_ENV: 'production'},
@@ -116,6 +117,41 @@ try {
   process.stdout.write(`Collision: ${EXPECTED_COLLISION_DIAGNOSTIC}\n`);
 } finally {
   await rm(temporaryRoot, {recursive: true, force: true});
+}
+
+async function validateManifestAssets(root) {
+  const output = await readFile(join(root, 'dist', 'index.html'), 'utf8');
+  const emittedPaths = [
+    '/favicon.ico',
+    '/favicon.svg',
+    '/favicon-96x96.png',
+    '/apple-touch-icon.png',
+    '/site.webmanifest',
+    '/web-app-manifest-192x192.png',
+    '/web-app-manifest-512x512.png',
+  ];
+  const linkedPaths = [
+    '/favicon.ico',
+    '/favicon.svg',
+    '/favicon-96x96.png',
+    '/apple-touch-icon.png',
+    '/site.webmanifest',
+  ];
+  for (const path of emittedPaths) {
+    await readFile(join(root, 'dist', path));
+  }
+  for (const path of linkedPaths) {
+    if (!output.includes(`"${path}"`)) {
+      throw new Error(`Vite output does not reference manifest asset ${path}`);
+    }
+  }
+  if (!output.includes('name="theme-color" content="#ff4b00"')) {
+    throw new Error('Vite output does not include the Shipfox theme color.');
+  }
+  const manifest = JSON.parse(await readFile(join(root, 'dist', 'site.webmanifest'), 'utf8'));
+  if (manifest.start_url !== '/') {
+    throw new Error('Vite output does not preserve the Shipfox manifest start_url.');
+  }
 }
 
 function linkedPackageSpecs(names, packages) {
