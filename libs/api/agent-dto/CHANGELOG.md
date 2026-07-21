@@ -1,5 +1,16 @@
 # @shipfox/api-agent-dto
 
+## 6.0.0
+
+### Minor Changes
+
+- 0bb82a4: Adds the Agent and Integrations inter-module APIs, moving Workflows agent configuration, runtime credential resolution, and integration consumers behind producer-owned clients.
+
+### Patch Changes
+
+- Updated dependencies [81f9544]
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @shipfox/api-projects-dto
 
+## 6.0.0
+
+### Patch Changes
+
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+  - @shipfox/api-common-dto@6.0.0
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

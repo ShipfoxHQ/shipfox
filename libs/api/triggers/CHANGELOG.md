@@ -1,5 +1,44 @@
 # @shipfox/api-triggers
 
+## 6.0.0
+
+### Major Changes
+
+- 23563de: Moves Triggers to the injected Workflows inter-module contract with stable run idempotency and listener delivery commands.
+
+### Patch Changes
+
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- Updated dependencies [a8f0545]
+- Updated dependencies [0bb82a4]
+- Updated dependencies [23563de]
+- Updated dependencies [54ce48b]
+- Updated dependencies [f4bc2eb]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [f262539]
+- Updated dependencies [a01e917]
+- Updated dependencies [3bb4e26]
+- Updated dependencies [8bdc149]
+- Updated dependencies [f73da5d]
+- Updated dependencies [3810996]
+- Updated dependencies [23a4dc2]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [81f9544]
+- Updated dependencies [4604a06]
+  - @shipfox/api-definitions-dto@6.0.0
+  - @shipfox/api-integration-core-dto@6.0.0
+  - @shipfox/api-projects@6.0.0
+  - @shipfox/api-workflows-dto@6.0.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-temporal@0.3.2
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

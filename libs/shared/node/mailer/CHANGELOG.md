@@ -1,5 +1,11 @@
 # @shipfox/node-mailer
 
+## 0.2.0
+
+### Minor Changes
+
+- 7366f04: Adds a configured shared mailer that owns SMTP delivery settings. `@shipfox/api-auth` and `@shipfox/api-workspaces` drop their own mailer environment variables and factory logic and use the shared `mailer` from `@shipfox/node-mailer` instead.
+
 ## 0.1.4
 
 ### Patch Changes

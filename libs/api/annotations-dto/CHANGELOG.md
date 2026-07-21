@@ -1,5 +1,16 @@
 # @shipfox/annotations-dto
 
+## 6.0.0
+
+### Minor Changes
+
+- 9cb2442: Moves workflow capability-warning annotations behind the producer-owned inter-module API.
+
+### Patch Changes
+
+- Updated dependencies [81f9544]
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @shipfox/api-workspaces-dto
 
+## 6.0.0
+
+### Minor Changes
+
+- 1b79cda: Add a workspace-created domain event.
+- c2db8c3: Adds workspace member invitation and join lifecycle events to the workspaces outbox.
+- 326f4c0: Exposes Workspaces inter-module operations and moves Auth and OAuth providers onto injected clients.
+
+### Patch Changes
+
+- 4a91956: Publishes a shared provider-neutral `emailSchema` in `@shipfox/api-common-dto` and adopts it across auth and workspace invitation inputs. Adds a read-only `findUserByEmail`/`EmailOwner` seam to `@shipfox/api-auth` for looking up the current owner of a normalized email without creating a session or mutating that user. Extends the packed external consumer gate to exercise both seams against PostgreSQL through installed tarballs.
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+  - @shipfox/api-common-dto@6.0.0
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

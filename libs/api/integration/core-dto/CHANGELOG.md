@@ -1,5 +1,19 @@
 # @shipfox/api-integration-core-dto
 
+## 6.0.0
+
+### Minor Changes
+
+- 0bb82a4: Adds the Agent and Integrations inter-module APIs, moving Workflows agent configuration, runtime credential resolution, and integration consumers behind producer-owned clients.
+- f262539: Adds a composed webhook processor and optional provider-neutral delivery source for hosted API runtimes.
+- 3bb4e26: Fixes composed webhook processing and exposes Slack URL-verification responses through the shared contract.
+- 4604a06: Adds the shared versioned inbound webhook request and processing contracts.
+
+### Patch Changes
+
+- Updated dependencies [81f9544]
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Minor Changes

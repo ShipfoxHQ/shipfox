@@ -1,5 +1,19 @@
 # @shipfox/api-workflows-dto
 
+## 6.0.0
+
+### Minor Changes
+
+- 23563de: Moves Triggers to the injected Workflows inter-module contract with stable run idempotency and listener delivery commands.
+- 23a4dc2: Moves Logs and Integrations to injected Workflows inter-module clients with minimal log and leased agent-tool queries.
+
+### Patch Changes
+
+- Updated dependencies [0bb82a4]
+- Updated dependencies [81f9544]
+  - @shipfox/api-agent-dto@6.0.0
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

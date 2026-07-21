@@ -1,5 +1,29 @@
 # @shipfox/api-dispatcher
 
+## 6.0.0
+
+### Minor Changes
+
+- a01e917: Passes a per-initialization outbox registry through module startup, workers, and dispatch services instead of process-global state.
+- 8ce515b: Adds a supervised in-process outbox dispatcher with configurable polling.
+
+### Patch Changes
+
+- 7b449a1: Removes the Temporal outbox dispatch poll loop.
+- 54ce48b: Makes an empty outbox publisher registry fail dispatcher boot and logs registered publishers safely.
+- 822b8c5: Document in-process outbox dispatching and its self-hosted configuration.
+- 3810996: Adds dispatcher backlog metrics from registered pending outbox rows.
+- Updated dependencies [54ce48b]
+- Updated dependencies [f4bc2eb]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [a01e917]
+- Updated dependencies [3810996]
+- Updated dependencies [81f9544]
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-temporal@0.3.2
+  - @shipfox/node-outbox@0.2.4
+
 ## 5.0.0
 
 ### Patch Changes

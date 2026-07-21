@@ -1,5 +1,36 @@
 # @shipfox/api-integration-jira
 
+## 6.0.0
+
+### Minor Changes
+
+- a42b575: Exposes Secrets through its inter-module contract and migrates Agent, integrations, and Workflows consumers.
+
+### Patch Changes
+
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- 326f4c0: Exposes Workspaces inter-module operations and moves Auth and OAuth providers onto injected clients.
+- Updated dependencies [0bb82a4]
+- Updated dependencies [7366f04]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [f262539]
+- Updated dependencies [3bb4e26]
+- Updated dependencies [c2db8c3]
+- Updated dependencies [8bdc149]
+- Updated dependencies [f73da5d]
+- Updated dependencies [6bdf24b]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [326f4c0]
+- Updated dependencies [1820feb]
+- Updated dependencies [4604a06]
+  - @shipfox/api-integration-core-dto@6.0.0
+  - @shipfox/api-workspaces@6.0.0
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/api-integration-jira-dto@6.0.0
+
 ## 5.0.0
 
 ### Patch Changes

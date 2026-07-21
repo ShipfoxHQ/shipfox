@@ -1,5 +1,13 @@
 # @shipfox/node-outbox
 
+## 0.2.4
+
+### Patch Changes
+
+- 7ac43a4: Consolidates packed-consumer validation around stable publication and composition contracts instead of package-state snapshots.
+- Updated dependencies [7ac43a4]
+  - @shipfox/node-drizzle@0.3.2
+
 ## 0.2.3
 
 ### Patch Changes

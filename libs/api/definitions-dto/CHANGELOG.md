@@ -1,5 +1,16 @@
 # @shipfox/api-definitions-dto
 
+## 6.0.0
+
+### Minor Changes
+
+- a8f0545: Adds the versioned Definitions workflow snapshot contract and registered presentation.
+
+### Patch Changes
+
+- Updated dependencies [81f9544]
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

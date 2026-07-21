@@ -1,5 +1,57 @@
 # @shipfox/api-auth
 
+## 6.0.0
+
+### Major Changes
+
+- 6a52909: Replaces separate API auth secrets with domain-separated keys derived from one required AUTH_ROOT_KEY.
+- ba2e3dc: Migrates password email verification from magic links to shared eight-digit email challenges.
+
+### Minor Changes
+
+- 326f4c0: Exposes Workspaces inter-module operations and moves Auth and OAuth providers onto injected clients.
+- 4a91956: Publishes a shared provider-neutral `emailSchema` in `@shipfox/api-common-dto` and adopts it across auth and workspace invitation inputs. Adds a read-only `findUserByEmail`/`EmailOwner` seam to `@shipfox/api-auth` for looking up the current owner of a normalized email without creating a session or mutating that user. Extends the packed external consumer gate to exercise both seams against PostgreSQL through installed tarballs.
+
+### Patch Changes
+
+- 7366f04: Adds a configured shared mailer that owns SMTP delivery settings. `@shipfox/api-auth` and `@shipfox/api-workspaces` drop their own mailer environment variables and factory logic and use the shared `mailer` from `@shipfox/node-mailer` instead.
+- 112c0fa: Adds the Auth inter-module token-minting contract and removes Auth implementation and configuration coupling from its consumers.
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- Updated dependencies [905b6a3]
+- Updated dependencies [b70f920]
+- Updated dependencies [7366f04]
+- Updated dependencies [6a52909]
+- Updated dependencies [e6eba5b]
+- Updated dependencies [54ce48b]
+- Updated dependencies [ba2e3dc]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [a01e917]
+- Updated dependencies [1b79cda]
+- Updated dependencies [c2db8c3]
+- Updated dependencies [112c0fa]
+- Updated dependencies [8bdc149]
+- Updated dependencies [3810996]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [326f4c0]
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+  - @shipfox/api-email-challenges@0.2.0
+  - @shipfox/node-tokens@0.3.0
+  - @shipfox/node-mailer@0.2.0
+  - @shipfox/node-auth-root-key@0.2.0
+  - @shipfox/node-jwt@0.3.0
+  - @shipfox/node-rate-limit@0.3.0
+  - @shipfox/api-auth-dto@6.0.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/api-workspaces-dto@6.0.0
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

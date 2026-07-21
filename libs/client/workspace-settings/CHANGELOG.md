@@ -1,5 +1,28 @@
 # @shipfox/client-workspace-settings
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies [ba2e3dc]
+- Updated dependencies [1820feb]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [1b79cda]
+- Updated dependencies [c2db8c3]
+- Updated dependencies [326f4c0]
+- Updated dependencies [1820feb]
+- Updated dependencies [4a91956]
+  - @shipfox/client-auth@2.0.0
+  - @shipfox/react-ui@0.3.3
+  - @shipfox/client-shell@2.0.0
+  - @shipfox/api-workspaces-dto@6.0.0
+  - @shipfox/client-integrations@2.0.0
+  - @shipfox/client-runners@2.0.0
+  - @shipfox/client-agent@2.0.0
+  - @shipfox/client-ui@2.0.0
+  - @shipfox/client-secrets@2.0.0
+  - @shipfox/client-triggers@2.0.0
+
 ## 1.0.0
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @shipfox/api-secrets-dto
 
+## 6.0.0
+
+### Minor Changes
+
+- a42b575: Exposes Secrets through its inter-module contract and migrates Agent, integrations, and Workflows consumers.
+
+### Patch Changes
+
+- Updated dependencies [81f9544]
+  - @shipfox/inter-module@0.2.0
+
 ## 5.0.0
 
 ### Patch Changes

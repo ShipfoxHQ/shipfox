@@ -1,5 +1,36 @@
 # @shipfox/api-integration-sentry
 
+## 6.0.0
+
+### Minor Changes
+
+- f262539: Adds a composed webhook processor and optional provider-neutral delivery source for hosted API runtimes.
+- 8390468: Adds a shared Sentry webhook processor for direct and durable delivery adapters.
+
+### Patch Changes
+
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- 0649d62: Keeps GitHub credential cleanup and Sentry installation lifecycle handling safe across duplicate, concurrent, and reordered webhook delivery.
+- Updated dependencies [0bb82a4]
+- Updated dependencies [54ce48b]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [f262539]
+- Updated dependencies [a01e917]
+- Updated dependencies [3bb4e26]
+- Updated dependencies [8bdc149]
+- Updated dependencies [3810996]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [81f9544]
+- Updated dependencies [4604a06]
+  - @shipfox/api-integration-core-dto@6.0.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/api-integration-sentry-dto@6.0.0
+
 ## 5.0.0
 
 ### Patch Changes

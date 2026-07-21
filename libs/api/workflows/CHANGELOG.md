@@ -1,5 +1,77 @@
 # @shipfox/api-workflows
 
+## 6.0.0
+
+### Major Changes
+
+- a8f0545: Adds the versioned Definitions workflow snapshot contract and registered presentation.
+- 9006b75: Adds the Runners inter-module contract and requires the injected Runners client when composing Workflows.
+
+### Minor Changes
+
+- 23563de: Moves Triggers to the injected Workflows inter-module contract with stable run idempotency and listener delivery commands.
+- a42b575: Exposes Secrets through its inter-module contract and migrates Agent, integrations, and Workflows consumers.
+- 23a4dc2: Moves Logs and Integrations to injected Workflows inter-module clients with minimal log and leased agent-tool queries.
+
+### Patch Changes
+
+- 0bb82a4: Adds the Agent and Integrations inter-module APIs, moving Workflows agent configuration, runtime credential resolution, and integration consumers behind producer-owned clients.
+- 9cb2442: Moves workflow capability-warning annotations behind the producer-owned inter-module API.
+- b70f920: Adds assigned runner activation and descendant provisioner revocation.
+- 112c0fa: Adds the Auth inter-module token-minting contract and removes Auth implementation and configuration coupling from its consumers.
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- Updated dependencies [e52513c]
+- Updated dependencies [a8f0545]
+- Updated dependencies [0bb82a4]
+- Updated dependencies [9cb2442]
+- Updated dependencies [b70f920]
+- Updated dependencies [23563de]
+- Updated dependencies [6a52909]
+- Updated dependencies [e6eba5b]
+- Updated dependencies [54ce48b]
+- Updated dependencies [add4c77]
+- Updated dependencies [9006b75]
+- Updated dependencies [3cda0c6]
+- Updated dependencies [ba2e3dc]
+- Updated dependencies [f4bc2eb]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [f262539]
+- Updated dependencies [a01e917]
+- Updated dependencies [3bb4e26]
+- Updated dependencies [a42b575]
+- Updated dependencies [112c0fa]
+- Updated dependencies [8bdc149]
+- Updated dependencies [795e293]
+- Updated dependencies [e10c829]
+- Updated dependencies [f73da5d]
+- Updated dependencies [3810996]
+- Updated dependencies [23a4dc2]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [4a91956]
+- Updated dependencies [81f9544]
+- Updated dependencies [4604a06]
+- Updated dependencies [6741be8]
+  - @shipfox/api-runners@6.0.0
+  - @shipfox/api-runners-dto@6.0.0
+  - @shipfox/api-definitions-dto@6.0.0
+  - @shipfox/api-agent-dto@6.0.0
+  - @shipfox/api-integration-core-dto@6.0.0
+  - @shipfox/api-projects@6.0.0
+  - @shipfox/annotations-dto@6.0.0
+  - @shipfox/api-workflows-dto@6.0.0
+  - @shipfox/api-auth-dto@6.0.0
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-temporal@0.3.2
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/api-secrets-dto@6.0.0
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/inter-module@0.2.0
+  - @shipfox/api-projects-dto@6.0.0
+
 ## 5.0.0
 
 ### Patch Changes

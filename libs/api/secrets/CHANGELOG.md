@@ -1,5 +1,33 @@
 # @shipfox/api-secrets
 
+## 6.0.0
+
+### Minor Changes
+
+- a42b575: Exposes Secrets through its inter-module contract and migrates Agent, integrations, and Workflows consumers.
+
+### Patch Changes
+
+- f73da5d: Enforces bounded API context imports and routes inter-module consumers through producer contracts.
+- Updated dependencies [54ce48b]
+- Updated dependencies [c0162b0]
+- Updated dependencies [7ac43a4]
+- Updated dependencies [a01e917]
+- Updated dependencies [a42b575]
+- Updated dependencies [8bdc149]
+- Updated dependencies [3810996]
+- Updated dependencies [b00ed29]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [81f9544]
+  - @shipfox/node-module@0.4.0
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/api-secrets-dto@6.0.0
+  - @shipfox/api-auth-context@6.0.0
+  - @shipfox/node-fastify@0.2.4
+  - @shipfox/inter-module@0.2.0
+  - @shipfox/api-projects-dto@6.0.0
+
 ## 5.0.0
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @shipfox/runner-logs
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [7ac43a4]
+  - @shipfox/redact@0.2.3
+  - @shipfox/runner-protocol@0.1.4
+
 ## 0.1.4
 
 ### Patch Changes

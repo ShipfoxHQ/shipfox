@@ -1,5 +1,29 @@
 # @shipfox/api-auth-context
 
+## 6.0.0
+
+### Major Changes
+
+- 8bdc149: Adds scoped workspace and installation provisioner identities with explicit authorization boundaries.
+
+### Minor Changes
+
+- b00ed29: Adds runner bootstrap enrollment and isolated pre-workspace control sessions.
+
+### Patch Changes
+
+- Updated dependencies [e6eba5b]
+- Updated dependencies [ba2e3dc]
+- Updated dependencies [1b79cda]
+- Updated dependencies [c2db8c3]
+- Updated dependencies [112c0fa]
+- Updated dependencies [8aa7cd3]
+- Updated dependencies [326f4c0]
+- Updated dependencies [4a91956]
+  - @shipfox/api-auth-dto@6.0.0
+  - @shipfox/api-workspaces-dto@6.0.0
+  - @shipfox/node-fastify@0.2.4
+
 ## 5.0.0
 
 ### Patch Changes
