@@ -10,6 +10,7 @@
   "type": "module",
   "scripts": {
     "check:dependencies": "syncpack lint --no-ansi",
+    "check:api-context-inventory": "node dev/api-context-inventory.mjs",
     "check:lockfile": "node dev/dependency-lockfile-audit.mjs",
     "check:published-artifacts": "node dev/published-package-artifacts.mjs",
     "fix:dependencies": "syncpack fix --no-ansi",

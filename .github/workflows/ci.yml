@@ -51,6 +51,9 @@ jobs:
       - name: Check direct dependency catalog policy
         run: pnpm check:dependencies
 
+      - name: Check API context inventory
+        run: pnpm check:api-context-inventory
+
       - name: Test repository tooling
         run: pnpm test
 

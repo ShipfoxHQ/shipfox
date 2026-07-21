@@ -361,6 +361,11 @@ Provider packages belong to Integrations unless this record changes the boundary
 DTO-only packages, the shared auth context, Email Challenges, and dispatcher infrastructure are not
 bounded contexts. Email Challenges is provider-neutral infrastructure consumed directly by Auth.
 
+**Keep the inventory complete.** `pnpm check:api-context-inventory` scans every non-DTO API package
+and requires exactly one classification in `api-contexts.cjs`: a bounded context, shared
+infrastructure, or the composition root. It also rejects stale registry paths. CI runs this check
+before Dependency Cruiser, so a new package cannot bypass the boundary by omission.
+
 **Add a method at the producer boundary.** Put its Zod input, output, and known-error schemas in
 the producer DTO package's `/inter-module` export. Add the method to the contract, implement it in
 the producer presentation, create the typed client in `libs/api/server/src/modules.ts`, and inject

@@ -3,6 +3,7 @@ const path = require('node:path');
 const workspaceRoot = __dirname;
 const currentDirectory = process.cwd();
 const currentPackage = require(path.join(currentDirectory, 'package.json'));
+const {apiContextImplementationPaths} = require('./api-contexts.cjs');
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const toPosixPath = (value) => value.split(path.sep).join('/');
@@ -23,29 +24,6 @@ const currentE2eLayer =
 const e2eSourcePath = '^(?:src|test|tests)(?:/|$)|^playwright\\.config\\.ts$';
 const workspacePathPattern = (workspacePath) =>
   `^${escapeRegExp(toPosixPath(path.relative(currentDirectory, path.join(workspaceRoot, workspacePath))))}/`;
-const apiContextImplementationPaths = {
-  agent: ['libs/api/agent'],
-  annotations: ['libs/api/annotations'],
-  auth: ['libs/api/auth'],
-  definitions: ['libs/api/definitions'],
-  integrations: [
-    'libs/api/integration/core',
-    'libs/api/integration/gitea',
-    'libs/api/integration/github',
-    'libs/api/integration/jira',
-    'libs/api/integration/linear',
-    'libs/api/integration/sentry',
-    'libs/api/integration/slack',
-    'libs/api/integration/webhook',
-  ],
-  logs: ['libs/api/logs'],
-  projects: ['libs/api/projects'],
-  runners: ['libs/api/runners'],
-  secrets: ['libs/api/secrets'],
-  triggers: ['libs/api/triggers'],
-  workflows: ['libs/api/workflows'],
-  workspaces: ['libs/api/workspaces'],
-};
 const currentApiContext = Object.entries(apiContextImplementationPaths).find(([, packagePaths]) =>
   packagePaths.some((packagePath) => {
     const packageDirectory = path.join(workspaceRoot, packagePath);
