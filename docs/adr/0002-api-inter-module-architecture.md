@@ -332,7 +332,8 @@ not belong to a business context.
 ## Dependency Cruiser enforcement
 
 **The final migration adds a repository gate.** It reads the context map from this record. It checks
-production and test imports. The check covers relative paths and dynamic imports.
+production imports, including relative paths and dynamic imports. Caller tests use fake presentations
+instead of importing peer implementations.
 
 <details>
 <summary><strong>Show the planned rule set.</strong></summary>
@@ -350,6 +351,32 @@ application or end-to-end (E2E) layer.
 
 **The gate has no broad temporary list.** A blocked move gets one exact path, one owner, one reason,
 and one tracking issue. The final move removes that path or records a new decision.
+
+## Adding a context or method
+
+**Add a context to the map before adding its code.** List every implementation package in
+`.dependency-cruiser.cjs`. The rule then blocks imports from every other mapped context. The
+application root remains the only package that imports multiple implementations to compose them.
+Provider packages belong to Integrations unless this record changes the boundary.
+DTO-only packages, the shared auth context, Email Challenges, and dispatcher infrastructure are not
+bounded contexts. Email Challenges is provider-neutral infrastructure consumed directly by Auth.
+
+**Keep the inventory complete.** `pnpm check:api-context-inventory` scans every non-DTO API package
+and requires exactly one classification in `api-contexts.cjs`: a bounded context, shared
+infrastructure, or the composition root. It also rejects stale registry paths. CI runs this check
+before Dependency Cruiser, so a new package cannot bypass the boundary by omission.
+
+**Add a method at the producer boundary.** Put its Zod input, output, and known-error schemas in
+the producer DTO package's `/inter-module` export. Add the method to the contract, implement it in
+the producer presentation, create the typed client in `libs/api/server/src/modules.ts`, and inject
+only that client into its callers. Register the presentation through the producer's
+`ShipfoxModule` declaration. Do not add a root compatibility export, callback, global setter, or
+test replacement hook.
+
+**Prove the whole path.** Add contract-schema, producer-presentation, and fake-client caller tests.
+Update the API server composition test to prove every client has one presentation and that the
+transport seals. Run the producer and consumer package checks, Dependency Cruiser, and the packed
+consumer check before publishing a contract change.
 
 ## Testing model
 

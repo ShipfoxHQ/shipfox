@@ -1837,6 +1837,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -1929,6 +1932,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/node-auth-root-key':
         specifier: workspace:*
         version: link:../../shared/node/auth-root-key
@@ -2063,6 +2069,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -2265,6 +2274,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/regex':
         specifier: workspace:*
         version: link:../../shared/common/regex
@@ -2542,6 +2554,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -2646,6 +2661,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -2750,6 +2768,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -2845,6 +2866,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -2943,6 +2967,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -3041,6 +3068,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../../../shared/node/temporal
@@ -3111,12 +3141,15 @@ importers:
       '@shipfox/api-integration-slack-dto':
         specifier: workspace:*
         version: link:../slack-dto
-      '@shipfox/api-workspaces':
+      '@shipfox/api-workspaces-dto':
         specifier: workspace:*
-        version: link:../../workspaces
+        version: link:../../workspaces-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
@@ -3142,6 +3175,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -3225,6 +3261,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -3341,6 +3380,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
@@ -3463,6 +3505,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -3606,6 +3651,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
@@ -3728,6 +3776,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -3874,6 +3925,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
@@ -3959,6 +4013,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -4263,6 +4320,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc

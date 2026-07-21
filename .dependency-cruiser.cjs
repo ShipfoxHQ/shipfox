@@ -3,6 +3,7 @@ const path = require('node:path');
 const workspaceRoot = __dirname;
 const currentDirectory = process.cwd();
 const currentPackage = require(path.join(currentDirectory, 'package.json'));
+const {apiContextImplementationPaths} = require('./api-contexts.cjs');
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const toPosixPath = (value) => value.split(path.sep).join('/');
@@ -23,6 +24,30 @@ const currentE2eLayer =
 const e2eSourcePath = '^(?:src|test|tests)(?:/|$)|^playwright\\.config\\.ts$';
 const workspacePathPattern = (workspacePath) =>
   `^${escapeRegExp(toPosixPath(path.relative(currentDirectory, path.join(workspaceRoot, workspacePath))))}/`;
+const currentApiContext = Object.entries(apiContextImplementationPaths).find(([, packagePaths]) =>
+  packagePaths.some((packagePath) => {
+    const packageDirectory = path.join(workspaceRoot, packagePath);
+    const relativePath = path.relative(packageDirectory, currentDirectory);
+    return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+  }),
+)?.[0];
+const crossContextImplementationPaths = currentApiContext
+  ? Object.entries(apiContextImplementationPaths)
+      .filter(([context]) => context !== currentApiContext)
+      .flatMap(([, packagePaths]) => packagePaths.map(workspacePathPattern))
+  : [];
+const currentApiContextRules = currentApiContext
+  ? [
+      {
+        name: 'api-no-cross-context-implementation-imports',
+        comment:
+          'API bounded contexts may use peer DTO and /inter-module contracts, but production code must not import another context implementation package root or subpath.',
+        severity: 'error',
+        from: {path: '^src/', pathNot: '\\.test\\.ts$'},
+        to: {path: crossContextImplementationPaths},
+      },
+    ]
+  : [];
 const isBelowWorkspacePath = (workspacePath) => {
   const relativePath = path.relative(path.join(workspaceRoot, workspacePath), currentDirectory);
   return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
@@ -167,6 +192,7 @@ module.exports = {
         ]
       : []),
     ...currentE2eRules,
+    ...currentApiContextRules,
     ...(currentPackage.name === '@shipfox/node-temporal'
       ? [
           {

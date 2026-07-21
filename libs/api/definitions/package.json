@@ -34,6 +34,7 @@
     "build": "shipfox-swc && shipfox-temporal-bundle dist/temporal/workflows/index.js",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "depcruise": "shipfox-depcruise",
     "test": "shipfox-vitest-run",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
@@ -70,6 +71,7 @@
   "devDependencies": {
     "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/biome": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
     "@shipfox/regex": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",

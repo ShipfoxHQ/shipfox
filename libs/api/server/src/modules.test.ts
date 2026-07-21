@@ -30,9 +30,7 @@ const mocks = vi.hoisted(() => ({
   deleteSecrets: vi.fn(),
   getIntegrationConnectionById: vi.fn(),
   getSecret: vi.fn(),
-  setAgentToolMaterializationServices: vi.fn(),
   setSecrets: vi.fn(),
-  setSourceControl: vi.fn(),
 }));
 
 vi.mock('@shipfox/annotations', () => ({
@@ -90,9 +88,6 @@ vi.mock('@shipfox/api-secrets', () => ({
 vi.mock('@shipfox/api-triggers', () => ({createTriggersModule: mocks.createTriggersModule}));
 vi.mock('@shipfox/api-workflows', () => ({
   createWorkflowsModule: mocks.createWorkflowsModule,
-  setAgentToolMaterializationServices: mocks.setAgentToolMaterializationServices,
-  setSourceControl: mocks.setSourceControl,
-  workflowsModule: {name: 'workflows'},
 }));
 vi.mock('@shipfox/api-workspaces', () => ({
   workspacesModule: {
@@ -128,9 +123,7 @@ describe('defaultModules', () => {
     mocks.deleteSecrets.mockReset();
     mocks.getIntegrationConnectionById.mockReset();
     mocks.getSecret.mockReset();
-    mocks.setAgentToolMaterializationServices.mockReset();
     mocks.setSecrets.mockReset();
-    mocks.setSourceControl.mockReset();
 
     mocks.createIntegrationsContext.mockResolvedValue({
       module: {
@@ -255,45 +248,10 @@ describe('defaultModules', () => {
     ]);
   });
 
-  it('injects Auth into a host-provided runners module factory', async () => {
-    const runnersModule = {
-      name: 'runners',
-      interModulePresentations: [
-        {
-          contract: runnersInterModuleContract,
-          handlers: {
-            cancelJobs: vi.fn(),
-            enqueueJobExecution: vi.fn(),
-            getEffectiveRunnerToolCapabilities: vi.fn(),
-            getLeaseState: vi.fn(),
-            releaseJobExecution: vi.fn(),
-          },
-        },
-      ],
-    };
+  it('injects Auth into the Runners module', async () => {
+    await defaultModules();
 
-    const createRunnersModule = vi.fn(() => runnersModule);
-    const modules = await defaultModules({createRunnersModule});
-
-    expect(modules).toContain(runnersModule);
-    expect(createRunnersModule).toHaveBeenCalledWith({auth: expect.any(Object)});
-    expect(modules.filter((module) => module.name === 'runners')).toEqual([runnersModule]);
-    expect(modules.map((module) => module.name)).toEqual([
-      'email-challenges',
-      'auth',
-      'workspaces',
-      'secrets',
-      'agent',
-      'integrations',
-      'projects',
-      'definitions',
-      'workflows',
-      'annotations',
-      'runners',
-      'logs',
-      'triggers',
-      'dispatcher',
-    ]);
+    expect(mocks.createRunnersModule).toHaveBeenCalledWith({auth: expect.any(Object)});
   });
 
   it('injects Workflows into integrations and logs and namespaces provider secrets', async () => {

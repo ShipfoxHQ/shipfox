@@ -1,4 +1,4 @@
-import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   type AvailabilitySite,
   capTraceEntries,
