@@ -4,6 +4,10 @@ export {
   type Ec2LifecycleOptions,
 } from '#lifecycle.js';
 export {
+  type RegisterEc2ServiceMetricsOptions,
+  registerEc2ServiceMetrics,
+} from '#metrics/service.js';
+export {
   type Ec2Market,
   Ec2TemplateConfigError,
   type Ec2TemplateSpec,

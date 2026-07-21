@@ -1,4 +1,5 @@
 import type {RunnerInstanceReportEventDto} from '@shipfox/api-runners-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {
   ProviderRunnerLaunch,
   ProviderRunnerTracker,
@@ -9,6 +10,7 @@ import type {
 import {ProvisionerAuthenticationError} from '@shipfox/provisioner-core';
 import {type Ec2Engine, Ec2EngineError, type Ec2InstanceView} from '#ec2-engine.js';
 import {buildInstanceTags, parseInstanceIdentity} from '#instance-identity.js';
+import {recordEc2Launch, recordEc2Termination} from '#metrics/instance.js';
 import type {Ec2TemplateSpec} from '#templates.js';
 
 const MAX_REPORT_BATCH = 1000;
@@ -89,7 +91,7 @@ async function launchRunner(
   try {
     await attachProviderIdentity(context, launch);
     await reportEvents(context, [eventForLaunch(context, launch, 'starting')]);
-    await context.engine.runInstance({
+    const instance = await context.engine.runInstance({
       clientToken: launch.providerRunnerId,
       tags: buildInstanceTags({launch, identity: context.identity}),
       ami: launch.template.spec.ami,
@@ -107,7 +109,25 @@ async function launchRunner(
       ...(context.renderUserData ? {userData: context.renderUserData(launch)} : {}),
     });
     context.locallyLaunched.set(launch.providerRunnerId, {templateKey: launch.template.key});
+    recordEc2Launch(launch.template.spec.market, 'launched');
+    logger().info(
+      {
+        provisioned_runner_id: launch.providerRunnerId,
+        runner_instance_id: launch.runnerInstanceId,
+        aws_instance_id: instance.instanceId,
+      },
+      'Launched EC2 runner instance',
+    );
   } catch (error) {
+    recordEc2Launch(launch.template.spec.market, launchOutcome(error));
+    logger().error(
+      {
+        err: error,
+        provisioned_runner_id: launch.providerRunnerId,
+        runner_instance_id: launch.runnerInstanceId,
+      },
+      'Failed to launch EC2 runner instance',
+    );
     await reportEvents(context, [eventForLaunch(context, launch, 'failed', errorReason(error))]);
     throw error;
   }
@@ -133,6 +153,20 @@ async function observe(context: Ec2LifecycleContext): Promise<void> {
     if (labels.length === 0) continue;
 
     const mapped = mapInstanceState(instance);
+    if (mapped.state === 'failed' || mapped.state === 'terminated') {
+      const terminationReason =
+        mapped.reason === 'spot-interruption' ? 'spot-interruption' : 'observed-terminated';
+      recordEc2Termination(terminationReason);
+      logger().info(
+        {
+          provisioned_runner_id: identity.providerRunnerId,
+          ...(identity.runnerInstanceId ? {runner_instance_id: identity.runnerInstanceId} : {}),
+          aws_instance_id: instance.instanceId,
+          reason: terminationReason,
+        },
+        'Observed EC2 runner instance termination',
+      );
+    }
     events.push(eventForInstance(context, instance, mapped.state, labels, mapped.reason));
     if ((mapped.state === 'starting' || mapped.state === 'running') && identity.templateKey) {
       trackerRunners.push({
@@ -283,6 +317,13 @@ function selectSubnet(launch: ProviderRunnerLaunch<Ec2TemplateSpec>): string {
 function errorReason(error: unknown): string {
   if (error instanceof Ec2EngineError) return error.reason;
   return error instanceof Error ? error.message : String(error);
+}
+
+function launchOutcome(error: unknown): 'capacity' | 'throttled' | 'error' {
+  if (!(error instanceof Ec2EngineError)) return 'error';
+  if (error.reason === 'insufficient-capacity' || error.reason === 'spot-price-too-low')
+    return 'capacity';
+  return error.reason === 'throttled' ? 'throttled' : 'error';
 }
 
 function responseStatus(error: unknown): number | undefined {

@@ -6060,6 +6060,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
       '@shipfox/provisioner-core':
         specifier: workspace:*
         version: link:../core
