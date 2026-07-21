@@ -7,7 +7,7 @@ import type {
   WorkflowRunJobDetailDto,
   WorkflowRunJobExecutionDetailDto,
 } from '@shipfox/api-workflows-dto';
-import type {createApiClient} from '@shipfox/e2e-core';
+import {createApiClient, pollUntil, requestJson} from '@shipfox/e2e-core';
 import {waitForRunDetailMatching} from './polling.js';
 import {postWebhookDelivery} from './webhook.js';
 
@@ -214,13 +214,38 @@ export async function waitForListenerStatus(params: {
   listenerStatus: ListenerStatusDto;
   timeoutMs: number;
 }): Promise<WorkflowRunDetailResponseDto> {
-  return await waitForRunDetailMatching({
-    token: params.token,
-    runId: params.runId,
-    timeoutMs: params.timeoutMs,
-    description: `listener job ${params.jobKey} status ${params.listenerStatus}`,
-    matches: (runDetail) => listenerStatusMatches({...params, runDetail}),
-  });
+  const client = createApiClient({token: params.token});
+  let diagnostic = `listener job ${params.jobKey} missing`;
+  return await pollUntil(
+    {
+      timeoutMs: params.timeoutMs,
+      intervalMs: 250,
+      maxIntervalMs: 250,
+      describe: () =>
+        `listener job ${params.jobKey} status ${params.listenerStatus}: ${diagnostic}`,
+    },
+    async () => {
+      const runDetail = await client.requestJson<WorkflowRunDetailResponseDto>(
+        'get',
+        `/workflows/runs/${encodeURIComponent(params.runId)}`,
+      );
+      const status = listenerStatusMatches({...params, runDetail});
+      diagnostic = status.diagnostic;
+      if (!status.matched) return null;
+
+      const job = findListenerJob(runDetail, params.jobKey);
+      if (!job) return null;
+      const readiness = await requestJson<{ready: boolean}>(
+        'get',
+        `/__e2e/triggers/listeners/${encodeURIComponent(job.id)}/readiness`,
+        {},
+      );
+      diagnostic = readiness.ready
+        ? `${status.diagnostic}, trigger subscriptions ready`
+        : `${status.diagnostic}, trigger subscriptions pending`;
+      return readiness.ready ? runDetail : null;
+    },
+  );
 }
 
 export async function waitForListenerResolution(params: {
