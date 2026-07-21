@@ -235,50 +235,40 @@ export async function stepLogText(params: {
   return logText(logs.records);
 }
 
-export async function sendBatchPairUntilObserved(params: {
+export async function sendBatchPairAndAwaitExecution(params: {
   testCase: ListenerCase;
   runId: string;
   label: string;
+  sequence: number;
 }): Promise<{deliveryIds: string[]; runDetail: Awaited<ReturnType<typeof waitForRunTerminal>>}> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= 6; attempt += 1) {
-    const deliveryIds = [
-      `${params.testCase.uniqueId}-${params.label}-${attempt}-a`,
-      `${params.testCase.uniqueId}-${params.label}-${attempt}-b`,
-    ];
-    for (const deliveryId of deliveryIds) {
-      params.testCase.fireDiagnostics.deliveryIds.push(deliveryId);
-      await postWebhookDelivery({
-        client: params.testCase.client,
-        connection: params.testCase.fireConnection,
-        deliveryId,
-        webhook: {body: {message: deliveryId, delivery_id: deliveryId}},
-      });
-    }
-
-    try {
-      const runDetail = await waitForRunDetailMatching({
-        token: params.testCase.token,
-        runId: params.runId,
-        timeoutMs: 8_000,
-        description: `batched listener deliveries ${deliveryIds.join(', ')}`,
-        matches: (candidate) =>
-          batchedListenerExecutionMatches({
-            runDetail: candidate,
-            jobKey: LISTENER_JOB,
-            sequence: 1,
-            deliveryIds,
-          }),
-      });
-      return {deliveryIds, runDetail};
-    } catch (error) {
-      lastError = error;
-    }
+  const deliveryIds = [
+    `${params.testCase.uniqueId}-${params.label}-a`,
+    `${params.testCase.uniqueId}-${params.label}-b`,
+  ];
+  for (const deliveryId of deliveryIds) {
+    params.testCase.fireDiagnostics.deliveryIds.push(deliveryId);
+    await postWebhookDelivery({
+      client: params.testCase.client,
+      connection: params.testCase.fireConnection,
+      deliveryId,
+      webhook: {body: {message: deliveryId, delivery_id: deliveryId}},
+    });
   }
 
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('Batched listener deliveries were not observed');
+  const runDetail = await waitForRunDetailMatching({
+    token: params.testCase.token,
+    runId: params.runId,
+    timeoutMs: 8_000,
+    description: `batched listener deliveries ${deliveryIds.join(', ')}`,
+    matches: (candidate) =>
+      batchedListenerExecutionMatches({
+        runDetail: candidate,
+        jobKey: LISTENER_JOB,
+        sequence: params.sequence,
+        deliveryIds,
+      }),
+  });
+  return {deliveryIds, runDetail};
 }
 
 export const listenerWorkflows = {
