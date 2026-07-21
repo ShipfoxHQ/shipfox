@@ -1,9 +1,12 @@
 export {
   AUTH_PASSWORD_RESET_SEND_REQUESTED,
+  AUTH_USER_SIGNED_UP,
   type AuthEventMap,
   type AuthPasswordResetSendRequestedEvent,
+  type AuthUserSignedUpEvent,
   authEventSchemas,
   authPasswordResetSendRequestedSchema,
+  authUserSignedUpSchema,
 } from '../events.js';
 export {
   type ChangePasswordBodyDto,
