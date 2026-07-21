@@ -49,7 +49,7 @@ describe('createEc2Lifecycle', () => {
     vi.clearAllMocks();
   });
 
-  it('attaches and reports starting before launching an instance', async () => {
+  it('attaches its provider identity and reports starting before launching an instance', async () => {
     const engine = fakeEngine();
     const client = fakeClient();
     const lifecycle = makeLifecycle({engine, client});
@@ -217,7 +217,7 @@ describe('createEc2Lifecycle', () => {
     await expect(lifecycle.launch(launch())).rejects.toThrow(ProvisionerAuthenticationError);
   });
 
-  it('reports a failed launch and never calls runInstance when provider identity attach is rejected', async () => {
+  it('reports a failed launch and does not launch when provider identity attachment is rejected', async () => {
     const engine = fakeEngine();
     const client = fakeClient({attachResult: {attached: false}});
     const lifecycle = makeLifecycle({engine, client});

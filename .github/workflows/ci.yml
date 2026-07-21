@@ -172,6 +172,8 @@ jobs:
             image: client
           - package: "@shipfox/provisioner-docker"
             image: provisioner-docker
+          - package: "@shipfox/provisioner-ec2"
+            image: provisioner-ec2
           - package: "@shipfox/runner"
             image: runner
 

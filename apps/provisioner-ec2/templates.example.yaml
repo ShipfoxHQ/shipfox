@@ -1,0 +1,18 @@
+# Point SHIPFOX_PROVISIONER_TEMPLATES_FILE at a copy of this file.
+# The AMI must be a prebaked Shipfox runner image that reads /etc/shipfox/runner.env.
+templates:
+  ec2-ubuntu22-2vcpu-spot:
+    labels: [ubuntu22, ubuntu22-2vcpu]
+    ami: ami-0123456789abcdef0
+    instance_type: m6i.large
+    market: spot
+    spot_max_price: null
+    subnets: [subnet-0123456789abcdef0]
+    security_groups: [sg-0123456789abcdef0]
+    iam_instance_profile: shipfox-runner
+    associate_public_ip: false
+    root_volume_gb: 100
+    root_device_name: /dev/sda1
+    max_concurrency: 100
+    target_concurrency: 0
+    cost: 5

@@ -1822,6 +1822,53 @@ describe('reconcileRunnerInstances', () => {
 });
 
 describe('runner instance provider attachment', () => {
+  it('updates the pre-created runner instance before its first lifecycle report', async () => {
+    const provisionerId = crypto.randomUUID();
+    const providerRunnerId = 'ec2-runner-1';
+    const [instance] = await db()
+      .insert(providerRunners)
+      .values({
+        provisionerId,
+        providerKind: 'ec2',
+        templateKey: 'linux',
+        labels: ['linux'],
+        state: 'starting',
+        reportedAt: new Date(),
+      })
+      .returning({id: providerRunners.id});
+    if (!instance) throw new Error('Runner instance insert returned no row');
+
+    const attached = await attachRunnerInstanceProviderId({
+      runnerInstanceId: instance.id,
+      provisionerId,
+      providerRunnerId,
+    });
+    await reportRunnerInstances({
+      workspaceId: null,
+      provisionerId,
+      events: [
+        {
+          providerRunnerId,
+          reservationId: null,
+          templateKey: 'linux',
+          labels: ['linux'],
+          state: 'starting',
+          reason: null,
+          runnerSessionId: null,
+          providerKind: 'ec2',
+          reportedAt: new Date(),
+        },
+      ],
+    });
+    const rows = await db()
+      .select()
+      .from(providerRunners)
+      .where(eq(providerRunners.provisionerId, provisionerId));
+
+    expect(attached).toBe(true);
+    expect(rows).toMatchObject([{id: instance.id, providerRunnerId, state: 'starting'}]);
+  });
+
   it('belongs to its provisioner until it receives one provider runner identity', async () => {
     const provisionerId = crypto.randomUUID();
     const [instance] = await db()

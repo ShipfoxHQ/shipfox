@@ -1,7 +1,60 @@
 # @shipfox/provisioner-ec2
 
-This app will run the EC2 provisioner once its engine, lifecycle, and provider wiring
-land. It is intentionally not runnable in this scaffold issue and exits with an error.
+Runs one-job Shipfox runners on Amazon EC2 from a prebaked AMI.
 
-The current provider package, [`@shipfox/provisioner-ec2-provider`](../../libs/provisioner/ec2),
-only loads and validates EC2 template configuration.
+## What it does
+
+- **Starts runners**: Creates a runner instance and one-use bootstrap token before launch.
+- **Uses EC2 tags**: Finds and adopts its instances after a restart.
+- **Keeps state in sync**: Reports state, reaps missed enrollment, and applies terminate requests.
+- **Protects credentials**: Sends bootstrap data to the AMI. It never sends workspace registration credentials.
+
+## Setup
+
+Copy [`templates.example.yaml`](templates.example.yaml). Set
+`SHIPFOX_PROVISIONER_TEMPLATES_FILE` to that copy. Set `target_concurrency` above
+zero to keep ready runners without demand.
+
+The AMI must include the Shipfox runner and its shutdown watchdog. Cloud-init writes
+`/etc/shipfox/runner.env` with the API URL, one-use token, labels, poll time, and
+maximum lifetime. The AMI reads that file and shuts down when its watchdog exits.
+
+## Configuration
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `SHIPFOX_API_URL` | yes | — | Base URL of the Shipfox API. |
+| `SHIPFOX_RUNNER_API_URL` | no | `SHIPFOX_API_URL` | API URL injected into runner instances when they reach the API through a different address. |
+| `SHIPFOX_PROVISIONER_TOKEN` | yes | — | Long-lived provisioner token. |
+| `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | yes | — | Path to the EC2 template YAML file. |
+| `AWS_REGION` | yes | — | AWS region where the provider launches instances. |
+| `SHIPFOX_PROVISIONER_EC2_REGISTRATION_DEADLINE_MS` | no | `300000` | Maximum time an EC2 instance may remain pending without runner enrollment. |
+| `SHIPFOX_PROVISIONER_EC2_RECONCILE_INTERVAL_MS` | no | `60000` | Interval between full EC2/backend reconciliation passes. |
+| `SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS` | no | `30` | Demand long-poll duration. |
+| `SHIPFOX_PROVISIONER_POLL_INTERVAL_MS` | no | `1000` | Delay between healthy demand polls. |
+| `SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS` | no | `5000` | Maximum error-backoff interval. |
+| `SHIPFOX_PROVISIONER_MAX_RESERVATIONS` | no | `250` | Largest demand reservation request. |
+| `SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE` | no | `250` | Runner instances created per control-plane request. |
+| `SHIPFOX_RUNNER_POLL_MAX_DURATION_MS` | no | `300000` | Idle polling lifetime injected into each runner. |
+| `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS` | no | `3600` | Hard lifetime injected into each runner watchdog. |
+
+## Development
+
+```sh
+# Create apps/provisioner-ec2/.env.local with the required values.
+pnpm --filter=@shipfox/provisioner-ec2 dev
+
+turbo check --filter=@shipfox/provisioner-ec2
+turbo type --filter=@shipfox/provisioner-ec2
+turbo test --filter=@shipfox/provisioner-ec2-provider
+```
+
+Build the image with:
+
+```sh
+pnpm --filter=@shipfox/provisioner-ec2 image
+```
+
+## License
+
+MIT
