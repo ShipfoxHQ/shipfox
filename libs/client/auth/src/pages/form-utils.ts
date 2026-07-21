@@ -19,7 +19,7 @@ export function authErrorMessage(error: unknown): string {
     return 'Too many attempts. Wait a bit and try again.';
   }
   if (error.code === 'auth-rate-limit-unavailable') {
-    return 'Sign-in protection is temporarily unavailable. Try again soon.';
+    return 'Sign-in is temporarily unavailable. Try again soon.';
   }
   if (error.code === 'network-error') {
     return 'We could not reach the API. Check your connection and try again.';
