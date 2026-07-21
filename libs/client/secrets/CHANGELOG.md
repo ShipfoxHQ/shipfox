@@ -1,5 +1,13 @@
 # @shipfox/client-secrets
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [cb58afe]
+  - @shipfox/react-ui@0.3.4
+  - @shipfox/client-ui@3.0.0
+
 ## 2.0.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/api-integration-jira
 
+## 7.0.0
+
+### Patch Changes
+
+- @shipfox/api-workspaces@7.0.0
+
 ## 6.0.0
 
 ### Minor Changes

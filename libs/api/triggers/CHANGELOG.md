@@ -1,5 +1,11 @@
 # @shipfox/api-triggers
 
+## 7.0.0
+
+### Patch Changes
+
+- 10d60f6: Adds deterministic E2E listener-subscription readiness checks for workflow batching tests.
+
 ## 6.0.0
 
 ### Major Changes

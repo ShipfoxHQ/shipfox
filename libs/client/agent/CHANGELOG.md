@@ -1,5 +1,16 @@
 # @shipfox/client-agent
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [cb58afe]
+- Updated dependencies [d735fe3]
+- Updated dependencies [5b06cd5]
+  - @shipfox/react-ui@0.3.4
+  - @shipfox/client-shell@3.0.0
+  - @shipfox/client-ui@3.0.0
+
 ## 2.0.0
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @shipfox/runner-protocol
 
+## 0.2.0
+
+### Minor Changes
+
+- ce8fb21: Adds managed runner bootstrap enrollment, assignment waiting, and activation transport helpers.
+
+### Patch Changes
+
+- Updated dependencies [bc7cfdc]
+  - @shipfox/api-runners-dto@7.0.0
+
 ## 0.1.4
 
 ### Patch Changes

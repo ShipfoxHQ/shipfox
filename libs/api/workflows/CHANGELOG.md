@@ -1,5 +1,13 @@
 # @shipfox/api-workflows
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [bc7cfdc]
+  - @shipfox/api-runners@7.0.0
+  - @shipfox/api-runners-dto@7.0.0
+
 ## 6.0.0
 
 ### Major Changes

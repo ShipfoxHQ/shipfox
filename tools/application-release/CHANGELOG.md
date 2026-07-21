@@ -1,5 +1,12 @@
 # @shipfox/application-release
 
+## 0.1.3
+
+### Patch Changes
+
+- 88156ba: Verifies packed API runner composition with an installation provisioning policy.
+- d735fe3: Moves external package verification into package-owned Turbo tasks and stages production manifests outside the workspace.
+
 ## 0.1.2
 
 ### Patch Changes

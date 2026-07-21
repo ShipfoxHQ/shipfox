@@ -1,5 +1,11 @@
 # @shipfox/node-email
 
+## 0.3.0
+
+### Minor Changes
+
+- 4d7c87e: Adds a branded verification-code email with warmer account setup copy.
+
 ## 0.2.2
 
 ### Patch Changes
