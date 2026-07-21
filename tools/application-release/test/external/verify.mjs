@@ -35,7 +35,9 @@ const manifestPacker = createProductionManifestPacker();
 
 try {
   await mkdir(tarballRoot);
-  const tarballs = await mapWithConcurrency(closure, 4, async (name) => {
+  // `pack()` temporarily productionizes each source manifest. Serializing those
+  // mutations keeps pnpm from reading another package's transient manifest.
+  const tarballs = await mapWithConcurrency(closure, 1, async (name) => {
     const workspacePackage = workspacePackages.get(name);
     if (!workspacePackage) throw new Error(`Missing workspace package: ${name}`);
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
