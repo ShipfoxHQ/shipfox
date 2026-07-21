@@ -1,0 +1,29 @@
+{
+  "name": "@shipfox/dependency-policy",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "fix": "cd ../.. && tools/dependency-policy/node_modules/.bin/syncpack fix --config .syncpackrc.json --no-ansi",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit",
+    "verify": "pnpm run verify:dependencies && pnpm run verify:lockfile",
+    "verify:dependencies": "cd ../.. && tools/dependency-policy/node_modules/.bin/syncpack lint --config .syncpackrc.json --no-ansi",
+    "verify:lockfile": "node dist/dependency-lockfile-audit.js"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@types/node": "catalog:",
+    "syncpack": "catalog:",
+    "yaml": "catalog:"
+  }
+}

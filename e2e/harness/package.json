@@ -1,0 +1,10 @@
+{
+  "name": "@shipfox/e2e-harness",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "node src/e2e.mjs run",
+    "test": "node --test test/*.test.mjs"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test:external": {
+      "dependsOn": [
+        "$TURBO_EXTENDS$",
+        "@shipfox/client-features#build",
+        "@shipfox/client-features#type:emit"
+      ]
+    }
+  }
+}

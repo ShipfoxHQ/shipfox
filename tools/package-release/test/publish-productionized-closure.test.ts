@@ -2,14 +2,15 @@ import assert from 'node:assert/strict';
 import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {afterEach, describe, test} from 'node:test';
 
 import {
   findClosureManifests,
   publishProductionizedClosure,
-} from './publish-productionized-closure.mjs';
+} from '../src/publish-productionized-closure.js';
 
-const roots = [];
+type JsonRecord = Record<string, unknown>;
+
+const roots: string[] = [];
 const DUPLICATE_MANIFEST_ERROR = /Duplicate package manifest: @shipfox\/duplicate/u;
 const MISSING_MANIFEST_ERROR = /Publication closure package has no manifest: @shipfox\/missing/u;
 const SPAWN_FAILURE_ERROR = /spawn failed/u;
@@ -18,7 +19,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, {force: true, recursive: true});
 });
 
-function createFixture(packages) {
+function createFixture(packages: Array<[string, JsonRecord]>) {
   const root = mkdtempSync(join(tmpdir(), 'shipfox-publish-'));
   roots.push(root);
 
@@ -31,7 +32,7 @@ function createFixture(packages) {
   return root;
 }
 
-function closureManifest(name) {
+function closureManifest(name: string) {
   return {
     name,
     imports: {

@@ -1,0 +1,32 @@
+{
+  "name": "@shipfox/package-release",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./packer": "./dist/productionized-manifest-packer.js"
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "publish:closure": "node dist/publish-productionized-closure.js",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit",
+    "verify": "node dist/published-package-artifacts.js"
+  },
+  "dependencies": {
+    "@shipfox/tool-utils": "workspace:*",
+    "yaml": "catalog:"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@types/node": "catalog:"
+  }
+}

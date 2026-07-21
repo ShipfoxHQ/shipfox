@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import {describe, test} from 'node:test';
 import {
   apiContextPackagePaths,
   auditApiContextInventory,
   auditRepository,
-} from './api-context-inventory.mjs';
+} from '../src/api-context-inventory.js';
 
 describe('auditApiContextInventory', () => {
   test('requires every API implementation package to have one classification', () => {

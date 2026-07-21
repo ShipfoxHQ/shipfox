@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import {describe, test} from 'node:test';
 import {
   auditDependencyGraph,
   formatAuditResult,
   resolveLockfileVersions,
-} from './dependency-lockfile-audit.mjs';
+} from '../src/dependency-lockfile-audit.js';
 
 const workspaceWithoutOverrides = 'catalog: {}\noverrides: {}\n';
 const singletonWorkspace = `
@@ -14,7 +13,7 @@ overrides:
   fixture-singleton: "catalog:"
 `;
 
-function lockfile(...snapshotKeys) {
+function lockfile(...snapshotKeys: string[]): string {
   const snapshots = snapshotKeys.map((key) => `  ${JSON.stringify(key)}: {}`).join('\n');
   return `lockfileVersion: '9.0'\nsnapshots:\n${snapshots}\n`;
 }

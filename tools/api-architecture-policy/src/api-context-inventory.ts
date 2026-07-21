@@ -5,16 +5,29 @@ import process from 'node:process';
 import {fileURLToPath} from 'node:url';
 
 const require = createRequire(import.meta.url);
-const {apiContextExemptPaths, apiContextImplementationPaths} = require('../api-contexts.cjs');
-const apiRoot = new URL('../libs/api/', import.meta.url);
+const {apiContextExemptPaths, apiContextImplementationPaths} =
+  require('../../../api-contexts.cjs') as {
+    apiContextExemptPaths: Record<string, string[]>;
+    apiContextImplementationPaths: Record<string, string[]>;
+  };
+const apiRoot = new URL('../../../libs/api/', import.meta.url);
 
-function compareText(left, right) {
+interface ClassifiedPath {
+  classification: string;
+  packagePath: string;
+}
+
+interface PackageManifest {
+  name?: unknown;
+}
+
+function compareText(left: string, right: string): number {
   if (left < right) return -1;
   if (left > right) return 1;
   return 0;
 }
 
-function classifiedPaths() {
+function classifiedPaths(): ClassifiedPath[] {
   return [
     ...Object.entries(apiContextImplementationPaths).flatMap(([context, paths]) =>
       paths.map((packagePath) => ({classification: `context:${context}`, packagePath})),
@@ -25,15 +38,15 @@ function classifiedPaths() {
   ];
 }
 
-export function apiContextPackagePaths() {
+export function apiContextPackagePaths(): string[] {
   return classifiedPaths()
     .map(({packagePath}) => packagePath)
     .sort(compareText);
 }
 
-export function auditApiContextInventory(packagePaths) {
-  const classifications = new Map();
-  const errors = [];
+export function auditApiContextInventory(packagePaths: string[]): string[] {
+  const classifications = new Map<string, string[]>();
+  const errors: string[] = [];
 
   for (const {classification, packagePath} of classifiedPaths()) {
     const entries = classifications.get(packagePath) ?? [];
@@ -57,9 +70,9 @@ export function auditApiContextInventory(packagePaths) {
   return errors.sort(compareText);
 }
 
-async function findPackageJsonPaths(directory, relativeDirectory = '') {
+async function findPackageJsonPaths(directory: string, relativeDirectory = ''): Promise<string[]> {
   const entries = await readdir(directory, {withFileTypes: true});
-  const packageJsonPaths = [];
+  const packageJsonPaths: string[] = [];
 
   for (const entry of entries) {
     if (entry.name === 'node_modules') continue;
@@ -75,31 +88,34 @@ async function findPackageJsonPaths(directory, relativeDirectory = '') {
   return packageJsonPaths;
 }
 
-function isApiImplementationPackage(manifest) {
+function isApiImplementationPackage(manifest: PackageManifest): boolean {
   return (
+    typeof manifest.name === 'string' &&
     (manifest.name === '@shipfox/annotations' || manifest.name.startsWith('@shipfox/api-')) &&
     !manifest.name.endsWith('-dto')
   );
 }
 
-export async function apiImplementationPackagePaths() {
+export async function apiImplementationPackagePaths(): Promise<string[]> {
   const packageJsonPaths = await findPackageJsonPaths(fileURLToPath(apiRoot));
   const packagePaths = await Promise.all(
     packageJsonPaths.map(async (packageJsonPath) => {
-      const manifestPath = new URL(`../libs/api/${packageJsonPath}`, import.meta.url);
-      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+      const manifestPath = new URL(`../../../libs/api/${packageJsonPath}`, import.meta.url);
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as PackageManifest;
       if (!isApiImplementationPackage(manifest)) return null;
       return `libs/api/${path.posix.dirname(packageJsonPath)}`;
     }),
   );
-  return packagePaths.filter(Boolean).sort(compareText);
+  return packagePaths
+    .filter((packagePath): packagePath is string => packagePath !== null)
+    .sort(compareText);
 }
 
-export async function auditRepository() {
+export async function auditRepository(): Promise<string[]> {
   return auditApiContextInventory(await apiImplementationPackagePaths());
 }
 
-async function main() {
+async function main(): Promise<void> {
   const errors = await auditRepository();
   if (errors.length === 0) {
     process.stdout.write('API context inventory passed\n');

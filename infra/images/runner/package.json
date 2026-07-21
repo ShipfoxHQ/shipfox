@@ -19,7 +19,8 @@
     "image:candidate": "node ./bin/build-runner-image-candidate.js",
     "test": "shipfox-vitest-run",
     "type": "shipfox-tsc-check",
-    "type:emit": "shipfox-tsc-emit"
+    "type:emit": "shipfox-tsc-emit",
+    "verify": "node scripts/verify-packer.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-ec2": "catalog:",

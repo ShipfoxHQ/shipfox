@@ -10,7 +10,7 @@ import {
   e2eEnv,
   parseArgs,
   turboCommandArgs,
-} from './e2e.mjs';
+} from '../src/e2e.mjs';
 
 const unknownCommandPattern = /Unknown command/;
 

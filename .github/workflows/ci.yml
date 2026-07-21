@@ -48,59 +48,17 @@ jobs:
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Check direct dependency catalog policy
-        run: pnpm check:dependencies
-
-      - name: Check API context inventory
-        run: pnpm check:api-context-inventory
-
-      - name: Test repository tooling
-        run: pnpm test
-
-      - name: Audit dependency lockfile
-        run: pnpm check:lockfile
-
       - name: Run static verification
         run: turbo check type build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
-      - name: Verify packed published package artifacts
-        run: pnpm check:published-artifacts
+      - name: Verify repository and package policies
+        run: turbo verify --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Wait for test services
         wait: test-services
 
-      - name: Verify packed API runtime closure
-        run: pnpm --filter=@shipfox/application-release test:external
-
-      - name: Verify packed client composition
-        run: pnpm --filter=@shipfox/client-shell test:external
-
-  validate-runner-image:
-    name: Validate runner image
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-
-      - name: Set up mise
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
-
-      - name: Validate Packer configuration
-        run: |
-          mkdir -p /tmp/shipfox-runner-workspace
-          packer init infra/images/runner
-          packer fmt -check infra/images/runner
-          packer validate \
-            -var build_attempt=1 \
-            -var build_number=ci \
-            -var node_version=24.17.0 \
-            -var platform=aws \
-            -var revision=ci \
-            -var runner_workspace=/tmp/shipfox-runner-workspace \
-            -var runner_version=0.0.0-ci \
-            infra/images/runner
+      - name: Verify external package contracts
+        run: turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
 
   tests:
     name: Unit and story tests
@@ -170,12 +128,6 @@ jobs:
       - name: Set up Playwright
         uses: ./.github/actions/setup-playwright
 
-      # E2E dev servers still depend on dist/ for Temporal workflow bundles,
-      # the shared vite-dev bin, and the client feature registry evaluated by
-      # the composition generator.
-      - name: Build dev server dependencies
-        run: turbo build --filter @shipfox/api --filter @shipfox/vite --filter @shipfox/client-features...
-
       - name: Wait for test services
         wait: test-services
 
@@ -192,7 +144,7 @@ jobs:
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: node dev/e2e.mjs run
+        run: mise run e2e
 
       - name: Upload E2E diagnostics
         if: failure() && steps.e2e.outcome == 'failure'

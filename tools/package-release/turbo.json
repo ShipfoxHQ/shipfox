@@ -1,0 +1,27 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "verify": {
+      "dependsOn": [
+        "$TURBO_EXTENDS$",
+        "@shipfox/application-release#build",
+        "@shipfox/application-release#type:emit",
+        "@shipfox/react-ui#build",
+        "@shipfox/react-ui#type:emit",
+        "@shipfox/redact#build",
+        "@shipfox/redact#type:emit",
+        "@shipfox/regex#build",
+        "@shipfox/regex#type:emit"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/pnpm-lock.yaml",
+        "$TURBO_ROOT$/pnpm-workspace.yaml",
+        "$TURBO_ROOT$/tools/application-release/package.json",
+        "$TURBO_ROOT$/libs/shared/common/{redact,regex}/package.json",
+        "$TURBO_ROOT$/libs/shared/react/ui/package.json"
+      ]
+    }
+  }
+}

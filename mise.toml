@@ -44,7 +44,12 @@ fi
 
 [tasks.e2e]
 description = "Run E2E tests with local API and client dev servers"
-run = 'node dev/e2e.mjs run'
+depends = ["e2e:build"]
+run = 'node e2e/harness/src/e2e.mjs run'
+
+[tasks."e2e:build"]
+description = "Build the runtime dependencies used by E2E dev servers"
+run = "turbo build --filter @shipfox/api --filter @shipfox/vite --filter @shipfox/client-features..."
 
 [settings]
 lockfile = true

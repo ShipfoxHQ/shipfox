@@ -9,18 +9,17 @@
   "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
-    "check:dependencies": "syncpack lint --no-ansi",
-    "check:api-context-inventory": "node dev/api-context-inventory.mjs",
-    "check:lockfile": "node dev/dependency-lockfile-audit.mjs",
-    "check:published-artifacts": "node dev/published-package-artifacts.mjs",
-    "fix:dependencies": "syncpack fix --no-ansi",
-    "test": "node --test dev/*.test.mjs",
-    "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && node dev/publish-productionized-closure.mjs"
+    "check:dependencies": "pnpm --filter=@shipfox/dependency-policy verify:dependencies",
+    "check:api-context-inventory": "turbo verify --filter=@shipfox/api-architecture-policy",
+    "check:lockfile": "turbo build --filter=@shipfox/dependency-policy && pnpm --filter=@shipfox/dependency-policy verify:lockfile",
+    "check:published-artifacts": "turbo verify --filter=@shipfox/package-release",
+    "fix:dependencies": "pnpm --filter=@shipfox/dependency-policy fix",
+    "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && pnpm --filter=@shipfox/package-release publish:closure",
+    "test:external": "turbo test:external",
+    "verify": "turbo verify"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
-    "@types/node": "catalog:",
-    "syncpack": "catalog:",
-    "yaml": "catalog:"
+    "@types/node": "catalog:"
   }
 }

@@ -13,7 +13,18 @@ import {
 } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, dirname, join, relative, resolve, sep} from 'node:path';
-import {fileURLToPath, pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
+
+import {
+  computePublicationClosure,
+  entryPointSupportsRuntimeImport,
+  entryPointSupportsTypeResolution,
+  listPublicPackageEntryPoints,
+  readPublicationClosureConfig,
+  readWorkspacePackages,
+  validatePublicationState,
+} from '@shipfox/application-release/dist/package-closure.js';
+import {productionizeManifest} from '@shipfox/tool-utils';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('../../../../..', import.meta.url)));
 const externalRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -28,20 +39,6 @@ if (arguments_.some((argument) => argument.startsWith('--') && argument !== '--l
   throw new Error('Usage: node verify.mjs [--link]');
 }
 
-const {
-  computePublicationClosure,
-  entryPointSupportsRuntimeImport,
-  entryPointSupportsTypeResolution,
-  listPublicPackageEntryPoints,
-  readPublicationClosureConfig,
-  readWorkspacePackages,
-  validatePublicationState,
-} = await import(
-  pathToFileURL(join(repositoryRoot, 'tools/application-release/dist/package-closure.js')).href
-);
-const {productionizeManifest} = await import(
-  pathToFileURL(join(repositoryRoot, 'tools/utils/src/productionize.js')).href
-);
 const config = readPublicationClosureConfig(join(repositoryRoot, 'publication-closure.json'));
 const workspacePackages = readWorkspacePackages(repositoryRoot);
 validatePublicationState(workspacePackages, config, repositoryRoot);

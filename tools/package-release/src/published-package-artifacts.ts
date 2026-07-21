@@ -1,3 +1,4 @@
+import {globSync} from 'node:fs';
 import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
@@ -6,18 +7,48 @@ import {fileURLToPath} from 'node:url';
 import {parse as parseYaml} from 'yaml';
 
 import {
-  createProductionManifestPacker,
   mapWithConcurrency,
+  type PackageDependencyContext,
+  packProductionizedPackage,
   run,
-} from './productionized-manifest-packer.mjs';
+} from './productionized-manifest-packer.js';
 
-const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+type DependencyMap = Record<string, string>;
+
+interface PackageManifest extends Record<string, unknown> {
+  dependencies?: DependencyMap;
+  name: string;
+  peerDependencies?: DependencyMap;
+  private?: boolean;
+  version?: string;
+}
+
+interface ReactPeerDependencies {
+  react: string;
+  'react-dom': string;
+}
+
+interface SourcePackage {
+  directory: string;
+  manifest: PackageManifest;
+  manifestPath: string;
+}
+
+interface WorkspaceConfig {
+  catalog?: DependencyMap;
+  catalogs?: Record<string, DependencyMap>;
+}
+
+type SourcePackageEntry = [string, SourcePackage];
+type SourcePackages = Map<string, SourcePackage>;
+
+const repositoryRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const packageSources = {
   '@shipfox/application-release': 'tools/application-release',
   '@shipfox/react-ui': 'libs/shared/react/ui',
   '@shipfox/redact': 'libs/shared/common/redact',
   '@shipfox/regex': 'libs/shared/common/regex',
-};
+} satisfies Record<string, string>;
 const packageNames = Object.keys(packageSources);
 const registryShipfoxPackagePattern = /^@shipfox\+[^@]+@\d/u;
 const developmentConditionImports = ['@shipfox/regex'];
@@ -31,11 +62,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 }
 
 export async function main() {
-  const [workspaceText, sourcePackageEntries] = await Promise.all([
+  const [workspaceText, sourcePackageEntries, workspaceVersions] = await Promise.all([
     readFile(join(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8'),
     readSourcePackages(),
+    readWorkspaceVersions(),
   ]);
-  const workspace = parseYaml(workspaceText);
+  const workspace = parseYaml(workspaceText) as WorkspaceConfig;
+  const dependencyContext = {workspaceConfig: workspace, workspaceVersions};
   const sourcePackages = new Map(sourcePackageEntries);
   const expectedDependencies = new Map(
     [...sourcePackages].map(([name, sourcePackage]) => [
@@ -45,11 +78,16 @@ export async function main() {
   );
   const fixtureRoot = await mkdtemp(join(tmpdir(), 'shipfox-published-artifacts-'));
   const tarballRoot = join(fixtureRoot, 'tarballs');
+  const stagingRoot = join(fixtureRoot, 'packages');
 
   try {
-    await buildPackageArtifacts();
-    await mkdir(tarballRoot);
-    const tarballs = await packPackages([...sourcePackages], tarballRoot);
+    await Promise.all([mkdir(tarballRoot), mkdir(stagingRoot)]);
+    const tarballs = await packPackages(
+      [...sourcePackages],
+      tarballRoot,
+      stagingRoot,
+      dependencyContext,
+    );
     await writeConsumerManifest(fixtureRoot, tarballs, reactUiPeerDependencies(sourcePackages));
     await run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], fixtureRoot);
     await validateInstalledPackages(fixtureRoot, sourcePackages, expectedDependencies);
@@ -61,12 +99,12 @@ export async function main() {
   }
 }
 
-function readSourcePackages() {
+function readSourcePackages(): Promise<SourcePackageEntry[]> {
   return Promise.all(
     Object.entries(packageSources).map(async ([name, directory]) => {
       const manifest = JSON.parse(
         await readFile(join(repositoryRoot, directory, 'package.json'), 'utf8'),
-      );
+      ) as PackageManifest;
       if (manifest.name !== name) throw new Error(`Expected ${directory} to define ${name}`);
       if (manifest.private === true) throw new Error(`Representative package ${name} is private`);
       return [
@@ -76,13 +114,16 @@ function readSourcePackages() {
           manifest,
           manifestPath: join(repositoryRoot, directory, 'package.json'),
         },
-      ];
+      ] satisfies SourcePackageEntry;
     }),
   );
 }
 
-export function catalogDependencies(manifest, workspaceConfig) {
-  const dependencies = {};
+export function catalogDependencies(
+  manifest: PackageManifest,
+  workspaceConfig: WorkspaceConfig,
+): DependencyMap {
+  const dependencies: DependencyMap = {};
   for (const [name, reference] of Object.entries(manifest.dependencies ?? {})) {
     if (typeof reference !== 'string' || !reference.startsWith('catalog:')) {
       throw new Error(`Representative package ${manifest.name} must use a catalog for ${name}`);
@@ -92,7 +133,11 @@ export function catalogDependencies(manifest, workspaceConfig) {
   return dependencies;
 }
 
-export function catalogRange(reference, dependency, workspaceConfig) {
+export function catalogRange(
+  reference: string,
+  dependency: string,
+  workspaceConfig: WorkspaceConfig,
+): string {
   const catalogName = reference === 'catalog:' ? 'default' : reference.slice('catalog:'.length);
   const catalog =
     catalogName === 'default' ? workspaceConfig.catalog : workspaceConfig.catalogs?.[catalogName];
@@ -103,31 +148,50 @@ export function catalogRange(reference, dependency, workspaceConfig) {
   return range;
 }
 
-async function buildPackageArtifacts() {
-  await run(
-    'pnpm',
-    ['exec', 'turbo', 'build', 'type:emit', ...packageNames.map((name) => `--filter=${name}`)],
-    repositoryRoot,
+async function packPackages(
+  packages: SourcePackageEntry[],
+  tarballRoot: string,
+  stagingRoot: string,
+  dependencyContext: PackageDependencyContext,
+): Promise<DependencyMap> {
+  const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
+    const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
+    await packProductionizedPackage({
+      dependencyContext,
+      manifest: sourcePackage.manifest,
+      sourceDirectory: sourcePackage.directory,
+      stagingRoot,
+      packArtifact: (stagedDirectory) =>
+        run('pnpm', ['pack', '--out', tarball], stagedDirectory, {stdio: 'ignore'}),
+    });
+    return [name, tarball] as const;
+  });
+  return Object.fromEntries(tarballs);
+}
+
+async function readWorkspaceVersions(): Promise<Map<string, string>> {
+  const manifestPaths = globSync(
+    join(repositoryRoot, '{apps,e2e,infra,libs,tools,turbo}/**/package.json'),
+    {exclude: ['**/node_modules/**']},
+  );
+  const entries = await Promise.all(
+    manifestPaths.map(async (manifestPath) => {
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as PackageManifest;
+      return typeof manifest.name === 'string' && typeof manifest.version === 'string'
+        ? ([manifest.name, manifest.version] as const)
+        : undefined;
+    }),
+  );
+  return new Map(
+    entries.filter((entry): entry is readonly [string, string] => entry !== undefined),
   );
 }
 
-async function packPackages(packages, tarballRoot) {
-  const manifestPacker = createProductionManifestPacker();
-  try {
-    const tarballs = await mapWithConcurrency(packages, 3, async ([name, sourcePackage]) => {
-      const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-      await manifestPacker.pack(sourcePackage.manifestPath, sourcePackage.manifest, (signal) =>
-        run('pnpm', ['pack', '--out', tarball], sourcePackage.directory, {signal, stdio: 'ignore'}),
-      );
-      return [name, tarball];
-    });
-    return Object.fromEntries(tarballs);
-  } finally {
-    manifestPacker.dispose();
-  }
-}
-
-async function writeConsumerManifest(root, tarballs, reactUiPeers) {
+async function writeConsumerManifest(
+  root: string,
+  tarballs: DependencyMap,
+  reactUiPeers: ReactPeerDependencies,
+): Promise<void> {
   const manifest = {
     name: 'shipfox-published-package-artifacts-consumer',
     version: '1.0.0',
@@ -138,7 +202,10 @@ async function writeConsumerManifest(root, tarballs, reactUiPeers) {
   await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-export function consumerDependencies(tarballs, reactUiPeers) {
+export function consumerDependencies(
+  tarballs: DependencyMap,
+  reactUiPeers: ReactPeerDependencies,
+): DependencyMap {
   return {
     ...Object.fromEntries(
       Object.entries(tarballs).map(([name, tarball]) => [name, `file:${tarball}`]),
@@ -148,7 +215,7 @@ export function consumerDependencies(tarballs, reactUiPeers) {
   };
 }
 
-function reactUiPeerDependencies(sourcePackages) {
+function reactUiPeerDependencies(sourcePackages: SourcePackages): ReactPeerDependencies {
   const peerDependencies = sourcePackages.get('@shipfox/react-ui')?.manifest.peerDependencies;
   const react = peerDependencies?.react;
   const reactDom = peerDependencies?.['react-dom'];
@@ -158,7 +225,11 @@ function reactUiPeerDependencies(sourcePackages) {
   return {react, 'react-dom': reactDom};
 }
 
-async function validateInstalledPackages(root, packages, expectedDependencies) {
+async function validateInstalledPackages(
+  root: string,
+  packages: SourcePackages,
+  expectedDependencies: Map<string, DependencyMap>,
+): Promise<void> {
   const fixturePath = await realpath(root);
   for (const [name, sourcePackage] of packages) {
     const manifestPath = join(root, 'node_modules', name, 'package.json');
@@ -181,19 +252,23 @@ async function validateInstalledPackages(root, packages, expectedDependencies) {
   }
 }
 
-export function findUnsupportedProtocol(value, path = 'package.json') {
+export function findUnsupportedProtocol(value: unknown, path = 'package.json'): string | undefined {
   if (typeof value === 'string') {
     return value.startsWith('catalog:') || value.startsWith('workspace:') ? path : undefined;
   }
   if (!value || typeof value !== 'object') return undefined;
-  for (const [key, child] of Object.entries(value)) {
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     const unsupportedProtocol = findUnsupportedProtocol(child, `${path}.${key}`);
     if (unsupportedProtocol) return unsupportedProtocol;
   }
   return undefined;
 }
 
-function validateCatalogRanges(name, manifest, expectedDependencies) {
+function validateCatalogRanges(
+  name: string,
+  manifest: PackageManifest,
+  expectedDependencies: Map<string, DependencyMap>,
+): void {
   for (const [dependency, expectedRange] of Object.entries(expectedDependencies.get(name) ?? {})) {
     const actualRange = manifest.dependencies?.[dependency];
     if (actualRange !== expectedRange) {
@@ -204,7 +279,11 @@ function validateCatalogRanges(name, manifest, expectedDependencies) {
   }
 }
 
-function validatePeerRanges(name, sourceManifest, packedManifest) {
+function validatePeerRanges(
+  name: string,
+  sourceManifest: PackageManifest,
+  packedManifest: PackageManifest,
+): void {
   const expectedPeers = sourceManifest.peerDependencies ?? {};
   for (const [peer, expectedRange] of Object.entries(expectedPeers)) {
     const actualRange = packedManifest.peerDependencies?.[peer];
@@ -216,7 +295,7 @@ function validatePeerRanges(name, sourceManifest, packedManifest) {
   }
 }
 
-async function validateNoRegistryShipfoxPackages(root) {
+async function validateNoRegistryShipfoxPackages(root: string): Promise<void> {
   const virtualStore = await readdir(join(root, 'node_modules/.pnpm'), {withFileTypes: true});
   const registryPackages = virtualStore
     .filter((entry) => entry.isDirectory())
@@ -229,7 +308,7 @@ async function validateNoRegistryShipfoxPackages(root) {
   }
 }
 
-async function exerciseConsumer(root) {
+async function exerciseConsumer(root: string): Promise<void> {
   const imports = ['@shipfox/redact', '@shipfox/react-ui/button'];
   await run(
     process.execPath,
@@ -266,6 +345,6 @@ if (typeof tool.createApplicationReleaseManifest !== 'function') throw new Error
   );
 }
 
-export function safePackageName(name) {
+export function safePackageName(name: string): string {
   return name.replace('@shipfox/', '').replaceAll('/', '-');
 }
