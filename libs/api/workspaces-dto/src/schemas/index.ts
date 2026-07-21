@@ -1,12 +1,18 @@
 export {
   WORKSPACES_INVITATION_SEND_REQUESTED,
+  WORKSPACES_MEMBER_INVITED,
+  WORKSPACES_MEMBER_JOINED,
   WORKSPACES_WORKSPACE_CREATED,
   type WorkspaceCreatedEvent,
   type WorkspacesEventMap,
   type WorkspacesInvitationSendRequestedEvent,
+  type WorkspacesMemberInvitedEvent,
+  type WorkspacesMemberJoinedEvent,
   workspaceCreatedEventSchema,
   workspacesEventSchemas,
   workspacesInvitationSendRequestedSchema,
+  workspacesMemberInvitedSchema,
+  workspacesMemberJoinedSchema,
 } from '../events.js';
 export {
   type E2eCreateInvitationBodyDto,
