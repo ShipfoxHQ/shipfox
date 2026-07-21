@@ -2,11 +2,11 @@ import posthog from 'posthog-js';
 import {sanitizePosthogCapture, sanitizeTrackedUrl} from '@/lib/docs-analytics-core';
 
 const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+const posthogUrl = process.env.NEXT_PUBLIC_POSTHOG_URL;
 
-if (posthogKey && posthogHost) {
+if (posthogKey && posthogUrl) {
   posthog.init(posthogKey, {
-    api_host: posthogHost,
+    api_host: posthogUrl,
     defaults: '2025-05-24',
     autocapture: {
       element_attribute_ignorelist: ['href', 'src', 'value'],

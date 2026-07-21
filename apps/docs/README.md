@@ -22,7 +22,7 @@ The production Vercel deployment requires these public browser variables:
 
 ```text
 NEXT_PUBLIC_POSTHOG_KEY=<project token>
-NEXT_PUBLIC_POSTHOG_HOST=<HTTPS ingestion host>
+NEXT_PUBLIC_POSTHOG_URL=<HTTPS ingestion URL>
 ```
 
 Set them only for the Vercel production environment. Local development and

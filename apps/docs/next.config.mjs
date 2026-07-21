@@ -5,18 +5,18 @@ const withMDX = createMDX();
 const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
 const isVercelProduction = process.env.VERCEL_ENV === 'production';
 const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+const posthogUrl = process.env.NEXT_PUBLIC_POSTHOG_URL;
 
-if (isVercelProduction && (!posthogKey || !posthogHost)) {
+if (isVercelProduction && (!posthogKey || !posthogUrl)) {
   throw new Error(
-    'NEXT_PUBLIC_POSTHOG_KEY and NEXT_PUBLIC_POSTHOG_HOST are required for the production docs deployment.',
+    'NEXT_PUBLIC_POSTHOG_KEY and NEXT_PUBLIC_POSTHOG_URL are required for the production docs deployment.',
   );
 }
 
-if (posthogHost) {
-  const parsedPosthogHost = new URL(posthogHost);
-  if (isVercelProduction && parsedPosthogHost.protocol !== 'https:')
-    throw new Error('NEXT_PUBLIC_POSTHOG_HOST must use HTTPS in production.');
+if (posthogUrl) {
+  const parsedPosthogUrl = new URL(posthogUrl);
+  if (isVercelProduction && parsedPosthogUrl.protocol !== 'https:')
+    throw new Error('NEXT_PUBLIC_POSTHOG_URL must use HTTPS in production.');
 }
 
 // The production docs deployment is mounted behind the cloud landing app at
