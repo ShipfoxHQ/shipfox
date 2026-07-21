@@ -9,10 +9,10 @@ const identity: ProvisionerIdentity = {
 };
 
 const launch: ProviderRunnerLaunch<DockerTemplateSpec> = {
+  runnerInstanceId: '00000000-0000-4000-8000-000000000004',
   providerRunnerId: 'runner-1',
   reservationId: '00000000-0000-4000-8000-000000000003',
-  registrationToken: 'sf_ert_secret',
-  registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
+  bootstrapToken: 'sf_rbt_secret',
   runnerEnv: {},
   template: {
     key: 'small',
@@ -30,6 +30,7 @@ describe('container identity labels', () => {
     const parsed = parseContainerIdentity(view({name: 'runner-1', labels}));
 
     expect(parsed).toEqual({
+      runnerInstanceId: launch.runnerInstanceId,
       providerRunnerId: 'runner-1',
       provisionerId: identity.id,
       reservationId: launch.reservationId,

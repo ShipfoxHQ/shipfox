@@ -4,7 +4,7 @@ describe('buildRunnerEnv', () => {
   it('includes the runner maximum lifetime in the shared image contract', () => {
     const runnerEnv = buildRunnerEnv({
       template: {key: 'small', labels: ['ubuntu24'], maxConcurrency: 1, cost: 1, spec: null},
-      registrationToken: 'sf_ert_test',
+      bootstrapToken: 'sf_rbt_test',
     });
 
     expect(runnerEnv).toMatchObject({

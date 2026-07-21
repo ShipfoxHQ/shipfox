@@ -4,103 +4,6 @@
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.runners_capacity_assignments": {
-      "name": "runners_capacity_assignments",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "capacity_id": {
-          "name": "capacity_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reservation_id": {
-          "name": "reservation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provisioner_id": {
-          "name": "provisioner_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "runners_capacity_assignments_capacity_unique": {
-          "name": "runners_capacity_assignments_capacity_unique",
-          "columns": [
-            {
-              "expression": "capacity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "runners_capacity_assignments_reservation_idx": {
-          "name": "runners_capacity_assignments_reservation_idx",
-          "columns": [
-            {
-              "expression": "reservation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "runners_capacity_assignments_workspace_idx": {
-          "name": "runners_capacity_assignments_workspace_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.runners_ephemeral_registration_tokens": {
       "name": "runners_ephemeral_registration_tokens",
       "schema": "",
@@ -849,6 +752,12 @@
         "reservation_id": {
           "name": "reservation_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

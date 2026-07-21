@@ -49,7 +49,7 @@ until observation succeeds.
 | `SHIPFOX_PROVISIONER_POLL_INTERVAL_MS` | no | `1000` | Base delay between polls; backs off on error. |
 | `SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS` | no | `5000` | Backoff ceiling. |
 | `SHIPFOX_PROVISIONER_MAX_RESERVATIONS` | no | `250` | Most reservations requested per poll (also capped by free capacity and the API's limit of 1000). |
-| `SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE` | no | `250` | Tokens minted per request (1–1000); must not exceed the API's `REGISTRATION_TOKEN_BATCH_MAX` (default 500), or the mint is rejected. |
+| `SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE` | no | `250` | Runner instances created per request (1–1000). |
 | `SHIPFOX_RUNNER_POLL_MAX_DURATION_MS` | no | `300000` | Injected into each runner as `SHIPFOX_POLL_MAX_DURATION_MS`. |
 
 ## Runner image
@@ -58,12 +58,12 @@ Each template `image` must run the Shipfox runner process and consume the inject
 environment:
 
 - `SHIPFOX_API_URL`
-- `SHIPFOX_RUNNER_REGISTRATION_TOKEN`
+- `SHIPFOX_RUNNER_BOOTSTRAP_TOKEN`
 - `SHIPFOX_RUNNER_LABELS`
 - `SHIPFOX_POLL_MAX_DURATION_MS`
 
 Do not bake a static manual registration token into the image or container environment. The
-provisioner injects one single-use ephemeral registration token (`sf_ert_...`) per reserved runner.
+provisioner injects one single-use bootstrap token (`sf_rbt_...`) per runner instance.
 
 ## Run locally
 

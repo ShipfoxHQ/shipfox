@@ -8,7 +8,7 @@ import {
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import type {CreateRunnersModuleOptions} from '#installation-provisioning.js';
-import {assignCapacityRoute} from './assign-capacity.js';
+import {assignRunnerInstancesRoute} from './assign-runner-instances.js';
 import {createManualRegistrationTokenRoute} from './create-manual-registration-token.js';
 import {createProvisionerTokenRoute} from './create-provisioner-token.js';
 import {getProvisionerMeRoute} from './get-provisioner-me.js';
@@ -17,8 +17,6 @@ import {listActiveProvisionersRoute} from './list-active-provisioners.js';
 import {listActiveRunnersRoute} from './list-active-runners.js';
 import {listManualRegistrationTokensRoute} from './list-manual-registration-tokens.js';
 import {listProvisionerTokensRoute} from './list-provisioner-tokens.js';
-import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
-import {attachProviderRunnerRoute, createPlannedCapacityRoute} from './planned-capacity.js';
 import {createPollDemandRoute, pollDemandRoute} from './poll-demand.js';
 import {reconcileRunnerInstancesRoute} from './reconcile-runner-instances.js';
 import {createRegisterRoute} from './register.js';
@@ -28,6 +26,7 @@ import {revokeManualRegistrationTokenRoute} from './revoke-manual-registration-t
 import {revokeProvisionerTokenRoute} from './revoke-provisioner-token.js';
 import {
   attachRunnerControlProviderIdRoute,
+  attachRunnerInstanceProviderIdRoute,
   createRunnerInstancesRoute,
   enrollRunnerRoute,
   exchangeRunnerBootstrapRoute,
@@ -72,10 +71,8 @@ function createRunnerOnlyRoutes(auth: AuthInterModuleClient): RouteGroup[] {
       routes: [
         pollDemandRoute,
         createRunnerInstancesRoute,
-        createPlannedCapacityRoute,
-        attachProviderRunnerRoute,
-        assignCapacityRoute,
-        mintRegistrationTokensRoute,
+        attachRunnerInstanceProviderIdRoute,
+        assignRunnerInstancesRoute,
         reportRunnerInstancesRoute,
         reconcileRunnerInstancesRoute,
       ],

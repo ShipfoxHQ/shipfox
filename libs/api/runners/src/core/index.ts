@@ -1,5 +1,3 @@
-export {assignCapacityBatch} from './capacity-assignments.js';
-export type {CapacityAssignment} from './entities/capacity-assignment.js';
 export type {EphemeralRegistrationToken} from './entities/ephemeral-registration-token.js';
 export type {ManualRegistrationToken} from './entities/manual-registration-token.js';
 export type {ProvisionerCapabilitySnapshot} from './entities/provisioner-capability-snapshot.js';
@@ -13,11 +11,6 @@ export type {
   RunnerInstanceState,
 } from './entities/runner-instance.js';
 export type {RunnerSession} from './entities/runner-session.js';
-export {
-  type MintEphemeralRegistrationTokenParams,
-  type MintEphemeralRegistrationTokenResult,
-  mintEphemeralRegistrationToken,
-} from './ephemeral-registration-tokens.js';
 export {
   EmptyRunnerLabelsError,
   ManualRegistrationTokenNotFoundError,
@@ -43,6 +36,7 @@ export {
   revokeWorkspaceProvisionerToken,
 } from './provisioner-tokens.js';
 export {getRunnerAssignment, issueRunnerActivationToken} from './runner-activation.js';
+export {assignRunnerInstances} from './runner-assignments.js';
 export {
   attachRunnerControlProviderId,
   createRunnerInstancesWithBootstrapTokens,
@@ -54,8 +48,7 @@ export {
 } from './runner-control-sessions.js';
 export {
   type ActiveRunner,
-  attachProviderRunnerId,
-  createPlannedProvisionedCapacity,
+  attachRunnerInstanceProviderId,
   listActiveRunners,
   type ReconcileDesiredIntent,
   type ReconciledBoundJobExecution,

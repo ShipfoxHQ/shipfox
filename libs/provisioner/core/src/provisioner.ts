@@ -55,7 +55,7 @@ export interface RunProvisionerIterationResult {
 
 /**
  * Run the provisioner control loop until a shutdown signal: authenticate, load the
- * provider's templates once, then repeatedly poll demand, plan launches, mint tokens,
+ * provider's templates once, then repeatedly poll demand, plan launches, bootstrap instances,
  * and start runners through the provider's launcher. Backs off on error and aborts the
  * in-flight long-poll on SIGINT/SIGTERM so shutdown is prompt.
  */
@@ -86,13 +86,11 @@ export async function startProvisioner<Spec>(
   // Fail fast at startup if the token is rejected, rather than discovering it on the
   // first poll.
   const identity = await client.getIdentity();
-  if (identity.scope !== 'workspace') {
-    throw new Error('Provisioner daemon requires a workspace provisioner credential');
-  }
   logger().info(
     {
       provisionerId: identity.id,
-      workspaceId: identity.workspace_id,
+      workspaceId: identity.scope === 'workspace' ? identity.workspace_id : undefined,
+      scope: identity.scope,
       templateCount: templates.length,
     },
     'Provisioner authenticated',
@@ -103,7 +101,11 @@ export async function startProvisioner<Spec>(
   try {
     await options.adapter.onStart?.({
       client,
-      identity: {id: identity.id, workspaceId: identity.workspace_id},
+      identity: {
+        id: identity.id,
+        workspaceId: identity.scope === 'workspace' ? identity.workspace_id : null,
+        scope: identity.scope,
+      },
       tracker,
     });
   } catch (error) {
@@ -183,7 +185,7 @@ export async function runProvisionerIteration<Spec>(
     buildRunnerEnv,
     maxReservations,
     waitSeconds: config.SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS,
-    registrationTokenBatchSize: config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE,
+    runnerInstanceBatchSize: config.SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE,
     ...(deps.signal ? {signal: deps.signal} : {}),
   });
 
@@ -217,9 +219,9 @@ export async function runProvisionerIteration<Spec>(
   };
 }
 
-export const buildRunnerEnv: RunnerEnvFactory<unknown> = ({template, registrationToken}) => ({
+export const buildRunnerEnv: RunnerEnvFactory<unknown> = ({template, bootstrapToken}) => ({
   SHIPFOX_API_URL: config.SHIPFOX_RUNNER_API_URL ?? config.SHIPFOX_API_URL,
-  SHIPFOX_RUNNER_REGISTRATION_TOKEN: registrationToken,
+  SHIPFOX_RUNNER_BOOTSTRAP_TOKEN: bootstrapToken,
   SHIPFOX_RUNNER_LABELS: template.labels.join(','),
   SHIPFOX_POLL_MAX_DURATION_MS: String(config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS),
   SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS: String(config.SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS),

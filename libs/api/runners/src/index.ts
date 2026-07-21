@@ -22,15 +22,6 @@ import {createRunnersMaintenanceActivities} from '#temporal/activities/index.js'
 import {RUNNERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
 export {
-  type MintEphemeralRegistrationTokenParams,
-  type MintEphemeralRegistrationTokenResult,
-  type MintEphemeralRegistrationTokensBatchParams,
-  type MintEphemeralRegistrationTokensBatchResult,
-  type MintEphemeralRegistrationTokensBatchRunnerInstance,
-  mintEphemeralRegistrationToken,
-  mintEphemeralRegistrationTokensBatch,
-} from '#core/ephemeral-registration-tokens.js';
-export {
   type EffectiveRunnerToolCapabilitiesResult,
   getEffectiveRunnerToolCapabilities,
   unadvertisedRunnerTools,

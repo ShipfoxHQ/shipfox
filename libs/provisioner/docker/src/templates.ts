@@ -28,6 +28,7 @@ const dockerTemplateSchema = z.object({
   cpu: z.number().positive(),
   memory: z.string().regex(MEMORY_PATTERN, 'must be a size like "4GiB", "512m", "2g", or "512"'),
   max_concurrency: z.number().int().positive().max(MAX_TEMPLATE_CONCURRENCY),
+  target_concurrency: z.number().int().min(0).max(MAX_TEMPLATE_CONCURRENCY).default(0),
 });
 
 const dockerTemplatesFileSchema = z.object({
@@ -85,6 +86,7 @@ function toTemplate(
     key,
     labels,
     maxConcurrency: spec.max_concurrency,
+    targetConcurrency: spec.target_concurrency,
     // Cheaper (fewer vCPU) templates win when several satisfy the same generic label.
     cost: spec.cpu,
     spec: {image: spec.image, cpu: spec.cpu, memory: spec.memory},

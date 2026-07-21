@@ -24,6 +24,7 @@ export const providerRunners = pgTable(
     provisionerId: uuid('provisioner_id').notNull(),
     providerRunnerId: text('provider_runner_id'),
     reservationId: uuid('reservation_id'),
+    assignedAt: timestamp('assigned_at', {withTimezone: true}),
     templateKey: text('template_key'),
     labels: text('labels').array().notNull().default([]),
     state: providerRunnerStateEnum('state').notNull(),
@@ -62,13 +63,14 @@ export type RunnerInstanceDb = typeof providerRunners.$inferSelect;
 export type RunnerInstanceInsertDb = typeof providerRunners.$inferInsert;
 
 export function toRunnerInstance(row: RunnerInstanceDb): RunnerInstance {
-  if (!row.providerRunnerId) throw new Error('Planned capacity has no provider runner identity');
+  if (!row.providerRunnerId) throw new Error('Runner instance has no provider runner identity');
   return {
     id: row.id,
     workspaceId: row.workspaceId,
     provisionerId: row.provisionerId,
     providerRunnerId: row.providerRunnerId,
     reservationId: row.reservationId,
+    assignedAt: row.assignedAt,
     templateKey: row.templateKey,
     labels: row.labels,
     state: row.state,

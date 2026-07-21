@@ -1,7 +1,6 @@
 import type {RunnerInstance, RunnerInstanceState} from '#core/entities/runner-instance.js';
 import {
-  attachProviderRunnerId as attachProviderRunnerIdDb,
-  createPlannedProvisionedCapacity as createPlannedProvisionedCapacityDb,
+  attachRunnerInstanceProviderId as attachRunnerInstanceProviderIdDb,
   isTerminalState,
   listActiveRunnerInstances,
   listActiveRunningJobExecutions,
@@ -29,20 +28,12 @@ export interface ReportRunnerInstancesParams {
   events: RunnerInstanceReportEvent[];
 }
 
-export function createPlannedProvisionedCapacity(params: {
-  provisionerId: string;
-  providerKind: string | null;
-  templateKey: string | null;
-}): Promise<{capacityId: string}> {
-  return createPlannedProvisionedCapacityDb(params);
-}
-
-export function attachProviderRunnerId(params: {
-  capacityId: string;
+export function attachRunnerInstanceProviderId(params: {
+  runnerInstanceId: string;
   provisionerId: string;
   providerRunnerId: string;
 }): Promise<boolean> {
-  return attachProviderRunnerIdDb(params);
+  return attachRunnerInstanceProviderIdDb(params);
 }
 
 export interface ReportRunnerInstancesResult {

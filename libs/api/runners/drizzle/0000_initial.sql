@@ -2,18 +2,6 @@ CREATE TYPE "public"."runners_provider_runner_state" AS ENUM('starting', 'runnin
 CREATE TYPE "public"."runners_provisioner_scope" AS ENUM('workspace', 'installation');--> statement-breakpoint
 CREATE TYPE "public"."runners_runner_session_registration_token_kind" AS ENUM('manual', 'ephemeral', 'activation');--> statement-breakpoint
 CREATE TYPE "public"."runners_runner_session_scope" AS ENUM('workspace');--> statement-breakpoint
-CREATE TABLE "runners_capacity_assignments" (
-	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"capacity_id" uuid NOT NULL,
-	"reservation_id" uuid NOT NULL,
-	"workspace_id" uuid NOT NULL,
-	"provisioner_id" uuid NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX "runners_capacity_assignments_capacity_unique" ON "runners_capacity_assignments" USING btree ("capacity_id");--> statement-breakpoint
-CREATE INDEX "runners_capacity_assignments_reservation_idx" ON "runners_capacity_assignments" USING btree ("reservation_id");--> statement-breakpoint
-CREATE INDEX "runners_capacity_assignments_workspace_idx" ON "runners_capacity_assignments" USING btree ("workspace_id");--> statement-breakpoint
 CREATE TABLE "runners_ephemeral_registration_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid,
@@ -73,6 +61,7 @@ CREATE TABLE "runners_runner_instances" (
 	"provisioner_id" uuid NOT NULL,
 	"provider_runner_id" text,
 	"reservation_id" uuid,
+	"assigned_at" timestamp with time zone,
 	"template_key" text,
 	"labels" text[] DEFAULT '{}' NOT NULL,
 	"state" "runners_provider_runner_state" NOT NULL,

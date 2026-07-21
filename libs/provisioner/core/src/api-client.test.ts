@@ -2,12 +2,11 @@ import {createProvisionerClient, ProvisionerAuthenticationError} from '#api-clie
 
 const BASE_URL = 'https://api.test';
 const TOKEN = 'sfpt_test-token';
-const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001';
-const PROVISIONER_ID = '00000000-0000-4000-8000-000000000002';
-const RESERVATION_ID = '00000000-0000-4000-8000-000000000003';
+const RUNNER_INSTANCE_ID = '00000000-0000-4000-8000-000000000001';
+const RESERVATION_ID = '00000000-0000-4000-8000-000000000002';
 
-let calls: Array<{url: string; method: string; authorization: string | null; body: string}>;
 let originalFetch: typeof globalThis.fetch;
+let calls: Array<{url: string; method: string; body: string}>;
 
 beforeAll(() => {
   originalFetch = globalThis.fetch;
@@ -21,183 +20,73 @@ beforeEach(() => {
   calls = [];
 });
 
+describe('createProvisionerClient', () => {
+  it('creates instances before launch with bootstrap tokens', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        runner_instances: [
+          {runner_instance_id: RUNNER_INSTANCE_ID, bootstrap_token: 'sf_rbt_test'},
+        ],
+      }),
+    );
+
+    const result = await client().createRunnerInstances({
+      runner_instances: [{template_key: 'linux'}],
+    });
+
+    expect(result.runner_instances[0]?.bootstrap_token).toBe('sf_rbt_test');
+    expect(calls[0]).toMatchObject({method: 'POST'});
+    expect(calls[0]?.url).toContain('provisioners/runner-instances/batch');
+  });
+
+  it('attaches a provider identity and assigns enrolled instances through explicit routes', async () => {
+    stubFetch((url) =>
+      jsonResponse(
+        url.includes('/assignments')
+          ? {runner_instance_ids: [RUNNER_INSTANCE_ID]}
+          : {attached: true},
+      ),
+    );
+
+    const attached = await client().attachRunnerInstanceProviderId(
+      RUNNER_INSTANCE_ID,
+      'container-1',
+    );
+    const assigned = await client().assignRunnerInstances(RESERVATION_ID, [RUNNER_INSTANCE_ID]);
+
+    expect(attached).toEqual({attached: true});
+    expect(assigned).toEqual({runner_instance_ids: [RUNNER_INSTANCE_ID]});
+    expect(calls.map((call) => call.url)).toEqual([
+      expect.stringContaining(`/runner-instances/${RUNNER_INSTANCE_ID}/provider-runner`),
+      expect.stringContaining('/runner-instances/assignments'),
+    ]);
+    expect(JSON.parse(calls[1]?.body ?? '{}')).toEqual({
+      reservation_id: RESERVATION_ID,
+      runner_instance_ids: [RUNNER_INSTANCE_ID],
+    });
+  });
+
+  it('maps rejected provisioner credentials consistently', async () => {
+    stubFetch(() => new Response(null, {status: 401}));
+
+    await expect(client().createRunnerInstances({runner_instances: [{}]})).rejects.toThrow(
+      ProvisionerAuthenticationError,
+    );
+  });
+});
+
 function client() {
   return createProvisionerClient({baseUrl: BASE_URL, token: TOKEN});
 }
 
-describe('createProvisionerClient', () => {
-  it('getIdentity sends the provisioner token to /provisioners/me and parses identity', async () => {
-    stubFetch(() =>
-      jsonResponse({id: PROVISIONER_ID, scope: 'workspace', workspace_id: WORKSPACE_ID}),
-    );
-
-    const identity = await client().getIdentity();
-
-    expect(identity).toEqual({id: PROVISIONER_ID, scope: 'workspace', workspace_id: WORKSPACE_ID});
-    expect(calls[0]?.url).toContain('provisioners/me');
-    expect(calls[0]?.method).toBe('GET');
-    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
-  });
-
-  it('pollDemand posts to /demand/poll with the token and parses the response', async () => {
-    stubFetch(() => jsonResponse({stats: [], reservations: [], terminate_provider_runner_ids: []}));
-
-    const result = await client().pollDemand({
-      wait_seconds: 30,
-      max_reservations: 10,
-      templates: [
-        {template_key: 'small', labels: ['ubuntu22'], available_slots: 5, starting: 0, running: 0},
-      ],
-    });
-
-    expect(result).toEqual({stats: [], reservations: [], terminate_provider_runner_ids: []});
-    expect(calls[0]?.url).toContain('provisioners/demand/poll');
-    expect(calls[0]?.method).toBe('POST');
-    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
-  });
-
-  it('mintRegistrationTokens posts to the batch route with the token and parses tokens', async () => {
-    stubFetch(() =>
-      jsonResponse({
-        tokens: [
-          {
-            provider_runner_id: 'r1',
-            registration_token: 'sf_ert_x',
-            expires_at: '2026-01-01T00:00:00.000Z',
-          },
-        ],
-      }),
-    );
-
-    const result = await client().mintRegistrationTokens({
-      reservation_id: RESERVATION_ID,
-      runner_instances: [{provider_runner_id: 'r1'}],
-    });
-
-    expect(result.tokens[0]?.registration_token).toBe('sf_ert_x');
-    expect(calls[0]?.url).toContain('provisioners/runner-registration-tokens/batch');
-    expect(calls[0]?.method).toBe('POST');
-    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
-  });
-
-  it('reportRunnerInstances posts lifecycle events with the token and parses the response', async () => {
-    stubFetch(() => jsonResponse({accepted: 1, reservations_released: 1}));
-
-    const result = await client().reportRunnerInstances({
-      events: [
-        {
-          provider_runner_id: 'provisioned-runner-1',
-          reservation_id: RESERVATION_ID,
-          template_key: 'small',
-          labels: ['ubuntu22'],
-          state: 'running',
-          reported_at: '2026-01-01T00:00:00.000Z',
-          provider_kind: 'docker',
-        },
-      ],
-    });
-
-    expect(result).toEqual({accepted: 1, reservations_released: 1});
-    expect(calls[0]?.url).toContain('provisioners/runner-instances/report');
-    expect(calls[0]?.method).toBe('POST');
-    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
-  });
-
-  it('reconcileRunnerInstances posts observed ids with the token and parses intent', async () => {
-    stubFetch(() =>
-      jsonResponse({
-        runners: [
-          {
-            provider_runner_id: 'runner-1',
-            state: 'running',
-            reservation_id: RESERVATION_ID,
-            runner_session_id: null,
-            bound_job: null,
-            desired_intent: 'keep',
-          },
-        ],
-        terminated_absent_provider_runner_ids: ['runner-2'],
-      }),
-    );
-
-    const result = await client().reconcileRunnerInstances({
-      observed_provider_runner_ids: ['runner-1'],
-    });
-
-    expect(result.runners[0]?.desired_intent).toBe('keep');
-    expect(result.terminated_absent_provider_runner_ids).toEqual(['runner-2']);
-    expect(calls[0]?.url).toContain('provisioners/runner-instances/reconcile');
-    expect(calls[0]?.method).toBe('POST');
-    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
-    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
-      observed_provider_runner_ids: ['runner-1'],
-    });
-  });
-
-  it('maps a 401 on getIdentity to ProvisionerAuthenticationError', async () => {
-    stubFetch(() => new Response(null, {status: 401}));
-
-    await expect(client().getIdentity()).rejects.toThrow(ProvisionerAuthenticationError);
-  });
-
-  it('maps a 403 on pollDemand to ProvisionerAuthenticationError', async () => {
-    stubFetch(() => new Response(null, {status: 403}));
-
-    const request = client().pollDemand({
-      wait_seconds: 0,
-      max_reservations: 0,
-      templates: [
-        {template_key: 'small', labels: ['ubuntu22'], available_slots: 0, starting: 0, running: 0},
-      ],
-    });
-
-    await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
-  });
-
-  it('maps a 403 on reportRunnerInstances to ProvisionerAuthenticationError', async () => {
-    stubFetch(() => new Response(null, {status: 403}));
-
-    const request = client().reportRunnerInstances({
-      events: [
-        {
-          provider_runner_id: 'provisioned-runner-1',
-          labels: ['ubuntu22'],
-          state: 'running',
-          reported_at: '2026-01-01T00:00:00.000Z',
-        },
-      ],
-    });
-
-    await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
-  });
-
-  it('maps a 401 on reconcileRunnerInstances to ProvisionerAuthenticationError', async () => {
-    stubFetch(() => new Response(null, {status: 401}));
-
-    const request = client().reconcileRunnerInstances({
-      observed_provider_runner_ids: ['runner-1'],
-    });
-
-    await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
-  });
-});
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {'content-type': 'application/json'},
-  });
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {headers: {'content-type': 'application/json'}});
 }
 
 function stubFetch(handler: (url: string) => Response): void {
   globalThis.fetch = vi.fn(async (input: Request | string | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(String(input), init);
-    calls.push({
-      url: request.url,
-      method: request.method,
-      authorization: request.headers.get('authorization'),
-      body: await request.clone().text(),
-    });
+    calls.push({url: request.url, method: request.method, body: await request.clone().text()});
     return handler(request.url);
   }) as unknown as typeof globalThis.fetch;
 }

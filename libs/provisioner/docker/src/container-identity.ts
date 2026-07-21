@@ -6,6 +6,7 @@ import type {DockerTemplateSpec} from '#templates.js';
 const LEADING_SLASH = /^\//;
 
 export const SHIPFOX_LABELS = {
+  runnerInstanceId: 'shipfox.runner_instance_id',
   providerRunnerId: 'shipfox.provider_runner_id',
   provisionerId: 'shipfox.provisioner_id',
   reservationId: 'shipfox.reservation_id',
@@ -15,6 +16,7 @@ export const SHIPFOX_LABELS = {
 } as const;
 
 export interface ParsedContainerIdentity {
+  readonly runnerInstanceId?: string;
   readonly providerRunnerId: string;
   readonly provisionerId?: string;
   readonly reservationId?: string;
@@ -28,11 +30,14 @@ export function buildContainerLabels(args: {
   identity: ProvisionerIdentity;
 }): Record<string, string> {
   return {
+    [SHIPFOX_LABELS.runnerInstanceId]: args.launch.runnerInstanceId ?? args.launch.providerRunnerId,
     [SHIPFOX_LABELS.providerRunnerId]: args.launch.providerRunnerId,
     [SHIPFOX_LABELS.provisionerId]: args.identity.id,
-    [SHIPFOX_LABELS.reservationId]: args.launch.reservationId,
+    ...(args.launch.reservationId
+      ? {[SHIPFOX_LABELS.reservationId]: args.launch.reservationId}
+      : {}),
     [SHIPFOX_LABELS.templateKey]: args.launch.template.key,
-    [SHIPFOX_LABELS.workspaceId]: args.identity.workspaceId,
+    ...(args.identity.workspaceId ? {[SHIPFOX_LABELS.workspaceId]: args.identity.workspaceId} : {}),
     [SHIPFOX_LABELS.labels]: args.launch.template.labels.join(','),
   };
 }
@@ -45,6 +50,9 @@ export function parseContainerIdentity(
   const labels = canonicalizeLabels(parseLabelList(view.labels[SHIPFOX_LABELS.labels] ?? ''));
 
   return {
+    ...(view.labels[SHIPFOX_LABELS.runnerInstanceId]
+      ? {runnerInstanceId: view.labels[SHIPFOX_LABELS.runnerInstanceId]}
+      : {}),
     providerRunnerId,
     ...(view.labels[SHIPFOX_LABELS.provisionerId]
       ? {provisionerId: view.labels[SHIPFOX_LABELS.provisionerId]}

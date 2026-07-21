@@ -2,8 +2,8 @@ import {createConfig, num, str, url} from '@shipfox/config';
 
 /** The API caps reservations per poll at 1000; configuration may not ask for more. */
 const MAX_RESERVATIONS_PER_POLL = 1000;
-/** The API caps a registration-token batch at 1000 tokens per request. */
-const MAX_REGISTRATION_TOKEN_BATCH = 1000;
+/** The API caps a runner-instance creation batch at 1000 instances per request. */
+const MAX_RUNNER_INSTANCE_BATCH = 1000;
 
 export const config = createConfig({
   SHIPFOX_API_URL: url({
@@ -32,8 +32,8 @@ export const config = createConfig({
     desc: 'Most reservations the provisioner requests in one poll. The provisioner also never asks for more than its templates have free capacity, and the API caps a single poll at 1000.',
     default: 250,
   }),
-  SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE: num({
-    desc: "How many ephemeral registration tokens the provisioner mints per request, between 1 and 1000. It must not exceed the API's own batch limit (REGISTRATION_TOKEN_BATCH_MAX, default 500), or the request is rejected and the reservation goes unlaunched. Larger batches reduce request volume at the cost of bigger responses.",
+  SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE: num({
+    desc: 'How many runner instances the provisioner creates per request, between 1 and 1000. Larger batches reduce request volume at the cost of bigger responses.',
     default: 250,
   }),
   SHIPFOX_RUNNER_POLL_MAX_DURATION_MS: num({
@@ -81,12 +81,12 @@ if (
 }
 
 if (
-  !Number.isInteger(config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE) ||
-  config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE < 1 ||
-  config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE > MAX_REGISTRATION_TOKEN_BATCH
+  !Number.isInteger(config.SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE) ||
+  config.SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE < 1 ||
+  config.SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE > MAX_RUNNER_INSTANCE_BATCH
 ) {
   throw new Error(
-    `SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE must be an integer between 1 and ${MAX_REGISTRATION_TOKEN_BATCH}; got ${config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE}.`,
+    `SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE must be an integer between 1 and ${MAX_RUNNER_INSTANCE_BATCH}; got ${config.SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE}.`,
   );
 }
 

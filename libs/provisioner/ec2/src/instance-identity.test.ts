@@ -8,10 +8,10 @@ const identity: ProvisionerIdentity = {
 };
 
 const launch: ProviderRunnerLaunch<Ec2TemplateSpec> = {
+  runnerInstanceId: '00000000-0000-4000-8000-000000000004',
   providerRunnerId: 'runner-1',
   reservationId: '00000000-0000-4000-8000-000000000003',
-  registrationToken: 'sf_ert_secret',
-  registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
+  bootstrapToken: 'sf_rbt_secret',
   runnerEnv: {},
   template: {
     key: 'small',
@@ -37,6 +37,7 @@ describe('instance identity tags', () => {
     const tags = buildInstanceTags({launch, identity});
 
     expect(tags).toEqual({
+      [SHIPFOX_TAGS.runnerInstanceId]: launch.runnerInstanceId,
       [SHIPFOX_TAGS.providerRunnerId]: 'runner-1',
       [SHIPFOX_TAGS.provisionerId]: identity.id,
       [SHIPFOX_TAGS.reservationId]: launch.reservationId,
@@ -54,6 +55,7 @@ describe('instance identity tags', () => {
     const parsed = parseInstanceIdentity({tags});
 
     expect(parsed).toEqual({
+      runnerInstanceId: launch.runnerInstanceId,
       providerRunnerId: 'runner-1',
       provisionerId: identity.id,
       reservationId: launch.reservationId,

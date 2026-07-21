@@ -1,8 +1,8 @@
-import {REGISTRATION_TOKEN_BATCH_HARD_MAX} from '@shipfox/api-runners-dto';
 import {bool, createConfig, num} from '@shipfox/config';
 import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 const EPHEMERAL_REGISTRATION_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
+const REGISTRATION_TOKEN_BATCH_HARD_MAX = 1000;
 const RUNNER_CONTROL_PLANE_TOKEN_TTL_HARD_MAX_SECONDS = 3600;
 
 export const config = createConfig({

@@ -1,9 +1,9 @@
 export {
-  type AssignCapacityBatchBodyDto,
-  type AssignCapacityBatchResponseDto,
-  assignCapacityBatchBodySchema,
-  assignCapacityBatchResponseSchema,
-} from './assign-capacity.js';
+  type AssignRunnerInstancesBodyDto,
+  type AssignRunnerInstancesResponseDto,
+  assignRunnerInstancesBodySchema,
+  assignRunnerInstancesResponseSchema,
+} from './assign-runner-instances.js';
 export {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
@@ -34,17 +34,6 @@ export {
   type RevokeManualRegistrationTokenResponseDto,
   revokeManualRegistrationTokenResponseSchema,
 } from './manual-registration-token.js';
-export {
-  type MintedRegistrationTokenDto,
-  type MintRegistrationTokensBatchBodyDto,
-  type MintRegistrationTokensBatchResponseDto,
-  type MintRegistrationTokensRunnerInstanceDto,
-  mintedRegistrationTokenSchema,
-  mintRegistrationTokensBatchBodySchema,
-  mintRegistrationTokensBatchResponseSchema,
-  mintRegistrationTokensRunnerInstanceSchema,
-  REGISTRATION_TOKEN_BATCH_HARD_MAX,
-} from './mint-registration-tokens.js';
 export {
   type DemandStatDto,
   demandStatSchema,
@@ -97,17 +86,9 @@ export {
   type ActiveRunnerDto,
   type ActiveRunnerStateDto,
   type ActiveRunnersResponseDto,
-  type AttachProviderRunnerBodyDto,
-  type AttachProviderRunnerResponseDto,
   activeRunnerDtoSchema,
   activeRunnerStateSchema,
   activeRunnersResponseSchema,
-  attachProviderRunnerBodySchema,
-  attachProviderRunnerResponseSchema,
-  type CreatePlannedCapacityBodyDto,
-  type CreatePlannedCapacityResponseDto,
-  createPlannedCapacityBodySchema,
-  createPlannedCapacityResponseSchema,
   MAX_PROVIDER_KIND_LENGTH,
   MAX_PROVIDER_RUNNER_REASON_LENGTH,
   MAX_PROVIDER_RUNNER_REPORT_EVENTS,

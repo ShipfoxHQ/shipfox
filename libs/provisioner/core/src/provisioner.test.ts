@@ -1,5 +1,5 @@
 import type {
-  MintRegistrationTokensBatchBodyDto,
+  CreateRunnerInstancesBodyDto,
   PollDemandBodyDto,
   PollDemandResponseDto,
 } from '@shipfox/api-runners-dto';
@@ -155,14 +155,14 @@ type PollDemandResponseFixture = Omit<PollDemandResponseDto, 'terminate_provider
 function harness(options: {response: PollDemandResponseFixture; onPoll?: () => void}): {
   client: ProvisionerClient;
   pollBodies: PollDemandBodyDto[];
-  mintBodies: MintRegistrationTokensBatchBodyDto[];
+  createBodies: CreateRunnerInstancesBodyDto[];
 } {
   const pollBodies: PollDemandBodyDto[] = [];
-  const mintBodies: MintRegistrationTokensBatchBodyDto[] = [];
+  const createBodies: CreateRunnerInstancesBodyDto[] = [];
 
   return {
     pollBodies,
-    mintBodies,
+    createBodies,
     client: {
       getIdentity: () =>
         Promise.resolve({id: 'provisioner', scope: 'workspace', workspace_id: 'workspace'}),
@@ -174,16 +174,18 @@ function harness(options: {response: PollDemandResponseFixture; onPoll?: () => v
           terminate_provider_runner_ids: options.response.terminate_provider_runner_ids ?? [],
         });
       },
-      mintRegistrationTokens: (body) => {
-        mintBodies.push(body);
+      createRunnerInstances: (body) => {
+        createBodies.push(body);
         return Promise.resolve({
-          tokens: body.runner_instances.map((runner) => ({
-            provider_runner_id: runner.provider_runner_id,
-            registration_token: `sf_ert_${runner.provider_runner_id}`,
-            expires_at: EXPIRES_AT,
+          runner_instances: body.runner_instances.map(() => ({
+            runner_instance_id: crypto.randomUUID(),
+            bootstrap_token: 'sf_rbt_test',
           })),
         });
       },
+      attachRunnerInstanceProviderId: () => Promise.resolve({attached: true}),
+      assignRunnerInstances: (_reservationId, runnerInstanceIds) =>
+        Promise.resolve({runner_instance_ids: runnerInstanceIds}),
       reportRunnerInstances: () => Promise.resolve({accepted: 0, reservations_released: 0}),
       reconcileRunnerInstances: () =>
         Promise.resolve({runners: [], terminated_absent_provider_runner_ids: []}),

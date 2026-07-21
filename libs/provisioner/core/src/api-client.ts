@@ -1,7 +1,7 @@
 import {
-  type MintRegistrationTokensBatchBodyDto,
-  type MintRegistrationTokensBatchResponseDto,
-  mintRegistrationTokensBatchResponseSchema,
+  type CreateRunnerInstancesBodyDto,
+  type CreateRunnerInstancesResponseDto,
+  createRunnerInstancesResponseSchema,
   type PollDemandBodyDto,
   type PollDemandResponseDto,
   type ProvisionerIdentityResponseDto,
@@ -33,10 +33,20 @@ export interface ProvisionerClient {
     body: PollDemandBodyDto,
     options?: {signal?: AbortSignal},
   ): Promise<PollDemandResponseDto>;
-  mintRegistrationTokens(
-    body: MintRegistrationTokensBatchBodyDto,
+  createRunnerInstances(
+    body: CreateRunnerInstancesBodyDto,
     options?: {signal?: AbortSignal},
-  ): Promise<MintRegistrationTokensBatchResponseDto>;
+  ): Promise<CreateRunnerInstancesResponseDto>;
+  attachRunnerInstanceProviderId(
+    runnerInstanceId: string,
+    providerRunnerId: string,
+    options?: {signal?: AbortSignal},
+  ): Promise<{attached: boolean}>;
+  assignRunnerInstances(
+    reservationId: string,
+    runnerInstanceIds: string[],
+    options?: {signal?: AbortSignal},
+  ): Promise<{runner_instance_ids: string[]}>;
   reportRunnerInstances(
     body: ReportRunnerInstancesBodyDto,
     options?: {signal?: AbortSignal},
@@ -76,13 +86,36 @@ export function createProvisionerClient(params: {
       });
     },
 
-    mintRegistrationTokens(body, options = {}) {
+    createRunnerInstances(body, options = {}) {
       return withAuthMapping(async () => {
-        const response = await api.post('provisioners/runner-registration-tokens/batch', {
+        const response = await api.post('provisioners/runner-instances/batch', {
           json: body,
           ...(options.signal ? {signal: options.signal} : {}),
         });
-        return mintRegistrationTokensBatchResponseSchema.parse(await response.json());
+        return createRunnerInstancesResponseSchema.parse(await response.json());
+      });
+    },
+
+    attachRunnerInstanceProviderId(runnerInstanceId, providerRunnerId, options = {}) {
+      return withAuthMapping(async () => {
+        const response = await api.post(
+          `provisioners/runner-instances/${runnerInstanceId}/provider-runner`,
+          {
+            json: {provider_runner_id: providerRunnerId},
+            ...(options.signal ? {signal: options.signal} : {}),
+          },
+        );
+        return (await response.json()) as {attached: boolean};
+      });
+    },
+
+    assignRunnerInstances(reservationId, runnerInstanceIds, options = {}) {
+      return withAuthMapping(async () => {
+        const response = await api.post('provisioners/runner-instances/assignments', {
+          json: {reservation_id: reservationId, runner_instance_ids: runnerInstanceIds},
+          ...(options.signal ? {signal: options.signal} : {}),
+        });
+        return (await response.json()) as {runner_instance_ids: string[]};
       });
     },
 

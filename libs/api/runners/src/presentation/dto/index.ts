@@ -1,9 +1,5 @@
 export {toActiveProvisionerDto} from './active-provisioner.js';
 export {toManualRegistrationTokenDto} from './manual-registration-token.js';
-export {
-  toMintRegistrationTokensResponseDto,
-  toMintRegistrationTokensRunnerInstances,
-} from './mint-registration-tokens.js';
 export {toPollDemandResponseDto} from './poll-demand.js';
 export {toProvisionerTokenDto} from './provisioner-token.js';
 export {

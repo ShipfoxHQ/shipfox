@@ -49,21 +49,21 @@ describe('provisioner core config validation', () => {
     await expect(import('#config.js')).rejects.toThrow('SHIPFOX_PROVISIONER_MAX_RESERVATIONS');
   });
 
-  it('rejects a zero registration-token batch size', async () => {
-    vi.stubEnv('SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE', '0');
+  it('rejects a zero runner-instance batch size', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE', '0');
     vi.resetModules();
 
     await expect(import('#config.js')).rejects.toThrow(
-      'SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE',
+      'SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE',
     );
   });
 
   it('rejects a fractional batch size', async () => {
-    vi.stubEnv('SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE', '12.5');
+    vi.stubEnv('SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE', '12.5');
     vi.resetModules();
 
     await expect(import('#config.js')).rejects.toThrow(
-      'SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE',
+      'SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE',
     );
   });
 
@@ -88,7 +88,7 @@ describe('provisioner core config validation', () => {
 
     expect(config.SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS).toBe(30);
     expect(config.SHIPFOX_PROVISIONER_MAX_RESERVATIONS).toBe(250);
-    expect(config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE).toBe(250);
+    expect(config.SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE).toBe(250);
     expect(config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS).toBe(300_000);
     expect(config.SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS).toBe(3600);
   });

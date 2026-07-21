@@ -19,6 +19,7 @@ export const providerKindSchema = z.string().min(1).max(MAX_PROVIDER_KIND_LENGTH
 
 export const providerRunnerReportEventSchema = z
   .object({
+    runner_instance_id: z.string().uuid().optional(),
     provider_runner_id: z.string().min(1).max(255),
     reservation_id: z.string().uuid().optional(),
     template_key: z.string().min(1).max(255).optional(),
@@ -39,23 +40,6 @@ export const reportRunnerInstancesResponseSchema = z.object({
   accepted: z.number().int().min(0),
   reservations_released: z.number().int().min(0),
 });
-
-export const createPlannedCapacityBodySchema = z
-  .object({
-    provider_kind: providerKindSchema.optional(),
-    template_key: z.string().min(1).max(255).optional(),
-  })
-  .strict();
-
-export const createPlannedCapacityResponseSchema = z.object({
-  capacity_id: z.string().uuid(),
-});
-
-export const attachProviderRunnerBodySchema = z
-  .object({provider_runner_id: z.string().min(1).max(255)})
-  .strict();
-
-export const attachProviderRunnerResponseSchema = z.object({attached: z.boolean()});
 
 export const activeRunnerStateSchema = z.enum(['starting', 'running', 'stopping', 'busy']);
 
@@ -82,10 +66,6 @@ export type RunnerInstanceStateDto = z.infer<typeof providerRunnerStateSchema>;
 export type RunnerInstanceReportEventDto = z.infer<typeof providerRunnerReportEventSchema>;
 export type ReportRunnerInstancesBodyDto = z.infer<typeof reportRunnerInstancesBodySchema>;
 export type ReportRunnerInstancesResponseDto = z.infer<typeof reportRunnerInstancesResponseSchema>;
-export type CreatePlannedCapacityBodyDto = z.infer<typeof createPlannedCapacityBodySchema>;
-export type CreatePlannedCapacityResponseDto = z.infer<typeof createPlannedCapacityResponseSchema>;
-export type AttachProviderRunnerBodyDto = z.infer<typeof attachProviderRunnerBodySchema>;
-export type AttachProviderRunnerResponseDto = z.infer<typeof attachProviderRunnerResponseSchema>;
 export type ActiveRunnerStateDto = z.infer<typeof activeRunnerStateSchema>;
 export type ActiveRunnerDto = z.infer<typeof activeRunnerDtoSchema>;
 export type ActiveRunnersResponseDto = z.infer<typeof activeRunnersResponseSchema>;

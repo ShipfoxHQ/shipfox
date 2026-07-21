@@ -25,6 +25,7 @@ import {
   RunnerControlSessionInvalidError,
   touchRunnerControlSession,
 } from '#core/runner-control-sessions.js';
+import {attachRunnerInstanceProviderId} from '#core/runner-instances.js';
 import {runnerBootstrapExchangeCount, runnerControlHeartbeatCount} from '#metrics/instance.js';
 import {authenticateRunnerControlSession} from '#presentation/auth/index.js';
 
@@ -52,6 +53,27 @@ export const createRunnerInstancesRoute = defineRoute({
         runner_instance_id: result.runnerInstanceId,
         bootstrap_token: result.bootstrapToken,
       })),
+    };
+  },
+});
+
+export const attachRunnerInstanceProviderIdRoute = defineRoute({
+  method: 'POST',
+  path: '/runner-instances/:runnerInstanceId/provider-runner',
+  description: 'Attach the provider identity after the provisioner launches a runner instance',
+  schema: {
+    params: z.object({runnerInstanceId: z.string().uuid()}),
+    body: attachRunnerControlProviderIdBodySchema,
+    response: {200: z.object({attached: z.boolean()})},
+  },
+  handler: async (request) => {
+    const {provisionerTokenId} = requireProvisionerContext(request);
+    return {
+      attached: await attachRunnerInstanceProviderId({
+        runnerInstanceId: request.params.runnerInstanceId,
+        provisionerId: provisionerTokenId,
+        providerRunnerId: request.body.provider_runner_id,
+      }),
     };
   },
 });

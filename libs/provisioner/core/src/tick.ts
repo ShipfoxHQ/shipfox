@@ -1,7 +1,7 @@
 import * as nodeCrypto from 'node:crypto';
 import type {
+  CreateRunnerInstancesResponseDto,
   DemandStatDto,
-  MintRegistrationTokensBatchResponseDto,
   PollDemandTemplateDto,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -19,7 +19,7 @@ const cryptoWithUuidV7 = nodeCrypto as typeof nodeCrypto & {
 
 export type RunnerEnvFactory<Spec> = (args: {
   template: ProvisionerTemplate<Spec>;
-  registrationToken: string;
+  bootstrapToken: string;
 }) => Record<string, string>;
 
 export interface ProvisionerTickDeps<Spec> {
@@ -31,7 +31,7 @@ export interface ProvisionerTickDeps<Spec> {
   readonly buildRunnerEnv: RunnerEnvFactory<Spec>;
   readonly maxReservations: number;
   readonly waitSeconds: number;
-  readonly registrationTokenBatchSize: number;
+  readonly runnerInstanceBatchSize: number;
   readonly signal?: AbortSignal;
 }
 
@@ -46,7 +46,7 @@ export interface ProvisionerTickResult {
 /**
  * One cycle of the control loop: advertise current capacity, long-poll demand, plan
  * launches for the reservations the API grants without exceeding local concurrency,
- * batch-mint a registration token per planned runner, and hand each to the launcher.
+ * create a runner instance and bootstrap token per planned runner, and hand each to the launcher.
  * All mutation flows through injected ports, so the cycle is deterministic to test.
  */
 export async function runProvisionerTick<Spec>(
@@ -112,6 +112,17 @@ export async function runProvisionerTick<Spec>(
     launchedCount += result.launched;
   }
 
+  const hotGroups = deps.templates.flatMap((template) => {
+    const counts = deps.tracker.countsByTemplate().get(template.key) ?? {starting: 0, running: 0};
+    const count = Math.max(0, (template.targetConcurrency ?? 0) - counts.starting - counts.running);
+    return count > 0 ? [{reservationId: undefined, template, count}] : [];
+  });
+  if (!deps.signal?.aborted && hotGroups.length > 0) {
+    const result = await launchReservation(undefined, hotGroups, deps);
+    launchAttemptedCount += result.attempted;
+    launchedCount += result.launched;
+  }
+
   return {
     stats: response.stats,
     reservationCount: response.reservations.length,
@@ -122,11 +133,14 @@ export async function runProvisionerTick<Spec>(
 }
 
 async function launchReservation<Spec>(
-  reservationId: string,
-  groups: readonly PlannedLaunchGroup<Spec>[],
+  reservationId: string | undefined,
+  groups: readonly (
+    | PlannedLaunchGroup<Spec>
+    | {reservationId: undefined; template: ProvisionerTemplate<Spec>; count: number}
+  )[],
   deps: ProvisionerTickDeps<Spec>,
 ): Promise<{attempted: number; launched: number}> {
-  // A fresh, never-reused id per runner: it binds the ephemeral registration token,
+  // A fresh, never-reused provider identity per runner names the compute resource;
   // names the resource, and keys idempotent reporting and reconciliation. UUIDv7 keeps
   // generated ids time-ordered without adding a dependency.
   const plannedRunners = groups.flatMap((group) =>
@@ -141,62 +155,60 @@ async function launchReservation<Spec>(
 
   let attempted = 0;
   let launched = 0;
-  for (const batch of chunk(plannedRunners, deps.registrationTokenBatchSize)) {
+  for (const batch of chunk(plannedRunners, deps.runnerInstanceBatchSize)) {
     if (deps.signal?.aborted) break;
-    let minted: MintRegistrationTokensBatchResponseDto;
+    let created: CreateRunnerInstancesResponseDto;
     try {
-      minted = await deps.client.mintRegistrationTokens(
-        {
-          reservation_id: reservationId,
-          runner_instances: batch.map((runner) => ({
-            provider_runner_id: runner.providerRunnerId,
-          })),
-        },
+      created = await deps.client.createRunnerInstances(
+        {runner_instances: batch.map((runner) => ({template_key: runner.template.key}))},
         deps.signal ? {signal: deps.signal} : {},
       );
     } catch (error) {
       // Leave these slots free: the reservation TTL releases the demand and another
       // tick (or another provisioner) can pick it up.
-      logger().error({err: error, reservationId}, 'Failed to mint registration tokens');
+      logger().error({err: error, reservationId}, 'Failed to create runner instances');
       continue;
     }
 
-    if (minted.tokens.length < batch.length) {
-      // The mint endpoint is atomic, so a shortfall is unexpected; surface it rather
-      // than silently dropping the runners that got no token.
+    if (created.runner_instances.length < batch.length) {
       logger().warn(
-        {reservationId, requested: batch.length, minted: minted.tokens.length},
-        'Mint returned fewer registration tokens than requested',
+        {reservationId, requested: batch.length, created: created.runner_instances.length},
+        'Runner instance creation returned fewer results than requested',
       );
     }
 
-    for (const token of minted.tokens) {
+    for (const [index, createdRunner] of created.runner_instances.entries()) {
       if (deps.signal?.aborted) break;
-      const template = templateById.get(token.provider_runner_id);
+      const plannedRunner = batch[index];
+      if (!plannedRunner) continue;
+      const template = templateById.get(plannedRunner.providerRunnerId);
       if (!template) continue;
 
       deps.tracker.recordStarting({
-        providerRunnerId: token.provider_runner_id,
+        providerRunnerId: plannedRunner.providerRunnerId,
         templateKey: template.key,
       });
       attempted += 1;
       try {
         await deps.launch({
-          providerRunnerId: token.provider_runner_id,
-          reservationId,
+          runnerInstanceId: createdRunner.runner_instance_id,
+          providerRunnerId: plannedRunner.providerRunnerId,
+          ...(reservationId ? {reservationId} : {}),
           template,
-          registrationToken: token.registration_token,
-          registrationTokenExpiresAt: token.expires_at,
-          runnerEnv: deps.buildRunnerEnv({template, registrationToken: token.registration_token}),
+          bootstrapToken: createdRunner.bootstrap_token,
+          runnerEnv: deps.buildRunnerEnv({
+            template,
+            bootstrapToken: createdRunner.bootstrap_token,
+          }),
         });
         launched += 1;
       } catch (error) {
         // The launch call rejected, so no resource was created: free the slot now instead
         // of leaving a phantom `starting` runner. A persistent failure (bad image, daemon
         // down) would otherwise drain capacity to zero and wedge the loop until restart.
-        deps.tracker.remove(token.provider_runner_id);
+        deps.tracker.remove(plannedRunner.providerRunnerId);
         logger().error(
-          {err: error, providerRunnerId: token.provider_runner_id},
+          {err: error, providerRunnerId: plannedRunner.providerRunnerId},
           'Failed to launch provisioned runner',
         );
       }

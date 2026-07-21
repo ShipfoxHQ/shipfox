@@ -3,6 +3,7 @@ import {canonicalizeLabels, parseLabelList} from '@shipfox/runner-labels';
 import type {Ec2TemplateSpec} from '#templates.js';
 
 export const SHIPFOX_TAGS = {
+  runnerInstanceId: 'shipfox.runner_instance_id',
   providerRunnerId: 'shipfox.provider_runner_id',
   provisionerId: 'shipfox.provisioner_id',
   reservationId: 'shipfox.reservation_id',
@@ -12,6 +13,7 @@ export const SHIPFOX_TAGS = {
 } as const;
 
 export interface ParsedInstanceIdentity {
+  readonly runnerInstanceId?: string;
   readonly providerRunnerId: string;
   readonly provisionerId?: string;
   readonly reservationId?: string;
@@ -25,11 +27,12 @@ export function buildInstanceTags(args: {
   identity: ProvisionerIdentity;
 }): Record<string, string> {
   return {
+    [SHIPFOX_TAGS.runnerInstanceId]: args.launch.runnerInstanceId,
     [SHIPFOX_TAGS.providerRunnerId]: args.launch.providerRunnerId,
     [SHIPFOX_TAGS.provisionerId]: args.identity.id,
-    [SHIPFOX_TAGS.reservationId]: args.launch.reservationId,
+    ...(args.launch.reservationId ? {[SHIPFOX_TAGS.reservationId]: args.launch.reservationId} : {}),
     [SHIPFOX_TAGS.templateKey]: args.launch.template.key,
-    [SHIPFOX_TAGS.workspaceId]: args.identity.workspaceId,
+    ...(args.identity.workspaceId ? {[SHIPFOX_TAGS.workspaceId]: args.identity.workspaceId} : {}),
     [SHIPFOX_TAGS.labels]: args.launch.template.labels.join(','),
     Name: args.launch.providerRunnerId,
   };
@@ -42,6 +45,9 @@ export function parseInstanceIdentity(view: {
   const labels = canonicalizeLabels(parseLabelList(view.tags[SHIPFOX_TAGS.labels] ?? ''));
 
   return {
+    ...(view.tags[SHIPFOX_TAGS.runnerInstanceId]
+      ? {runnerInstanceId: view.tags[SHIPFOX_TAGS.runnerInstanceId]}
+      : {}),
     providerRunnerId,
     ...(view.tags[SHIPFOX_TAGS.provisionerId]
       ? {provisionerId: view.tags[SHIPFOX_TAGS.provisionerId]}
