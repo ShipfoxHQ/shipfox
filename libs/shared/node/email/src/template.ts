@@ -20,6 +20,7 @@ const logoUrl = new URL('/email-logo.png', config.CLIENT_BASE_URL).toString();
 // Subjects are plain text, not HTML, so compile them with `noEscape` to keep a
 // workspace name like `A&B` from turning into `A&amp;B` in the subject line.
 const subjects: Record<TemplateName, string> = {
+  'verification-code': 'Your Shipfox verification code',
   'verify-email': 'Verify your email',
   'reset-password': 'Reset your password',
   'workspace-invitation': 'Join {{workspaceName}} on Shipfox',

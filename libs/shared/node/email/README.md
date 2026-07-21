@@ -16,6 +16,7 @@ sends.
 
 | Name | Data | Sent by |
 |------|------|---------|
+| `verification-code` | `{verificationCode, expiresInMinutes}` | `@shipfox/api-email-challenges` on signup / resend |
 | `verify-email` | `{verifyLink}` | `@shipfox/api-auth` on signup / resend |
 | `reset-password` | `{resetLink, expiresInHours}` | `@shipfox/api-auth` on password reset request |
 | `workspace-invitation` | `{email, workspaceName, inviterName, inviteLink}` | `@shipfox/api-workspaces` on invite |

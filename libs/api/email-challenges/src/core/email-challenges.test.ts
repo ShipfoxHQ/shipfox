@@ -19,6 +19,27 @@ function sentCode(send: ReturnType<typeof vi.fn>): string {
 }
 
 describe('email challenges', () => {
+  test('sends the verification code in a branded message', async () => {
+    const send = vi.spyOn(mailer, 'send').mockResolvedValue();
+
+    await createEmailChallenge({
+      email: 'branded@example.com',
+      purpose: 'signup',
+      continuation: 'branded-browser',
+      sourceIp: '127.0.0.2',
+    });
+    const verificationCode = sentCode(send);
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'branded@example.com',
+        subject: 'Your Shipfox verification code',
+        html: expect.stringContaining(verificationCode),
+        text: expect.stringContaining("You're almost there"),
+      }),
+    );
+  });
+
   test('replaces the code on resend and consumes only the same continuation idempotently', async () => {
     const send = vi.spyOn(mailer, 'send').mockResolvedValue();
     const challenge = await createEmailChallenge({

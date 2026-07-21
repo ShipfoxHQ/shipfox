@@ -52,6 +52,7 @@
     "@shipfox/api-common-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-email": "workspace:*",
     "@shipfox/node-auth-root-key": "workspace:*",
     "@shipfox/node-mailer": "workspace:*",
     "@shipfox/node-module": "workspace:*",
