@@ -8,13 +8,20 @@ import {
 } from '@shipfox/node-resilient-loop';
 import {runnerToolCapabilities} from '@shipfox/runner-agent';
 import {
+  consumeManagedRunnerBootstrapToken,
   createLeaseClient,
+  enrollRunnerControlSession,
+  exchangeRunnerBootstrapToken,
   HTTPError,
+  heartbeatRunnerControlSession,
+  managedRunnerEnrollmentConfig,
+  pollRunnerAssignment,
   RunnerSessionExhaustedError,
   registerRunnerSession,
   requestJob,
   requireRunnerLabels,
   runnerRegistrationToken,
+  runnerStartupMode,
 } from '@shipfox/runner-protocol';
 import {
   cleanupJobCredentials,
@@ -55,6 +62,7 @@ export async function startRunner(): Promise<void> {
   // not silently fail every job.
   const workspaceRoot = resolveWorkspaceRootFromEnv();
   requireRunnerLabels();
+  const startupMode = runnerStartupMode();
 
   logger().info(
     {
@@ -66,9 +74,12 @@ export async function startRunner(): Promise<void> {
   );
 
   let currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
-  let runnerSession: RunnerSession | undefined;
-
   await interruptableSleep(withJitter(config.SHIPFOX_POLL_INTERVAL_MS));
+  let runnerSession: RunnerSession | undefined;
+  if (startupMode === 'managed') {
+    runnerSession = await initializeManagedRunnerSession();
+    if (!runnerSession) return;
+  }
   let pollDeadline = nextPollDeadline();
 
   while (running) {
@@ -106,6 +117,10 @@ export async function startRunner(): Promise<void> {
       pollDeadline = nextPollDeadline();
     } catch (pollError) {
       if (isUnauthorized(pollError)) {
+        if (startupMode === 'managed') {
+          logger().info('Activated runner session rejected; runner exiting');
+          return;
+        }
         runnerSession = undefined;
         logger().info('Runner session rejected; registering a new session');
         if (hasPollDeadlinePassed(pollDeadline)) {
@@ -174,7 +189,8 @@ export async function runJob(
   let currentLeaseToken = initialLeaseToken;
   let previousRenewedLeaseToken: string | undefined;
   let currentRenewedLeaseToken: string | undefined;
-  const secrets = [runnerSecret, initialLeaseToken];
+  const runnerSecrets = runnerSecret.length > 0 ? [runnerSecret] : [];
+  const secrets = [...runnerSecrets, initialLeaseToken];
   const leaseTokenSecretSubscribers = new Set<(secrets: string[]) => void>();
   const rotatingLeaseSecrets = () =>
     [previousRenewedLeaseToken, currentRenewedLeaseToken].filter(
@@ -185,7 +201,13 @@ export async function runJob(
     previousRenewedLeaseToken = currentRenewedLeaseToken;
     currentRenewedLeaseToken = leaseToken;
     currentLeaseToken = leaseToken;
-    secrets.splice(0, secrets.length, runnerSecret, initialLeaseToken, ...rotatingLeaseSecrets());
+    secrets.splice(
+      0,
+      secrets.length,
+      ...runnerSecrets,
+      initialLeaseToken,
+      ...rotatingLeaseSecrets(),
+    );
     for (const subscriber of leaseTokenSecretSubscribers) subscriber(rotatingLeaseSecrets());
   };
 
@@ -238,6 +260,81 @@ export async function runJob(
     await cleanupWorkspace(cwd);
     await cleanupJobLogs(logsDir);
   }
+}
+
+async function initializeManagedRunnerSession(): Promise<RunnerSession | undefined> {
+  const bootstrapToken = consumeManagedRunnerBootstrapToken();
+  const exchanged = await exchangeRunnerBootstrapToken(bootstrapToken);
+  const controlSessionToken = exchanged.controlSessionToken;
+  const enrollmentConfig = managedRunnerEnrollmentConfig();
+  await enrollRunnerControlSession({
+    controlSessionToken,
+    capabilities: runnerToolCapabilities(),
+    providerKind: enrollmentConfig.providerKind,
+    protocolVersion: enrollmentConfig.protocolVersion,
+  });
+  const activationToken = await waitForRunnerActivation(controlSessionToken);
+  if (!activationToken) return undefined;
+
+  const runnerSession = await registerRunnerSession({
+    capabilities: runnerToolCapabilities(),
+    registrationToken: activationToken,
+  });
+  logger().info({runnerSessionId: runnerSession.session_id}, 'Managed runner activated');
+  return runnerSession;
+}
+
+async function waitForRunnerActivation(controlSessionToken: string): Promise<string | undefined> {
+  const controller = new AbortController();
+  const abortOnShutdown = () => controller.abort();
+  shutdownController.signal.addEventListener('abort', abortOnShutdown, {once: true});
+  let heartbeatError: unknown;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  const heartbeat = async () => {
+    try {
+      await heartbeatRunnerControlSession(controlSessionToken, controller.signal);
+    } catch (error) {
+      heartbeatError = error;
+      controller.abort();
+    }
+  };
+  try {
+    await heartbeat();
+    if (!running) return undefined;
+    if (heartbeatError) return handleControlSessionError(heartbeatError);
+    heartbeatTimer = setInterval(() => void heartbeat(), config.SHIPFOX_HEARTBEAT_INTERVAL_MS);
+    while (running && !controller.signal.aborted) {
+      try {
+        const activationToken = await pollRunnerAssignment(controlSessionToken, controller.signal);
+        if (activationToken) return activationToken;
+      } catch (error) {
+        if (!running) return undefined;
+        if (controller.signal.aborted && heartbeatError)
+          return handleControlSessionError(heartbeatError);
+        if (isTerminalControlSessionError(error)) return handleControlSessionError(error);
+        throw error;
+      }
+    }
+    return undefined;
+  } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    shutdownController.signal.removeEventListener('abort', abortOnShutdown);
+    controller.abort();
+  }
+}
+
+function handleControlSessionError(error: unknown): undefined {
+  if (isTerminalControlSessionError(error)) {
+    logger().info('Runner control session is no longer usable; runner exiting');
+    return undefined;
+  }
+  throw error;
+}
+
+function isTerminalControlSessionError(error: unknown): boolean {
+  return (
+    error instanceof HTTPError && (error.response.status === 401 || error.response.status === 409)
+  );
 }
 
 function isUnauthorized(error: unknown): boolean {

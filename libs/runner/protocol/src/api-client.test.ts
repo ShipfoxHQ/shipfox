@@ -11,8 +11,12 @@ import {
   AgentRuntimeConfigRequestError,
   appendStepLogs,
   createLeaseClient,
+  enrollRunnerControlSession,
+  exchangeRunnerBootstrapToken,
   HTTPError,
   heartbeat,
+  heartbeatRunnerControlSession,
+  pollRunnerAssignment,
   RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
@@ -81,6 +85,54 @@ describe('runner labels', () => {
 });
 
 describe('api-client auth contexts', () => {
+  it('exchanges a bootstrap token without granting job-plane authority', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        runner_instance_id: crypto.randomUUID(),
+        control_session_token: 'control-token',
+        expires_at: '2026-07-21T12:00:00.000Z',
+      }),
+    );
+
+    const session = await exchangeRunnerBootstrapToken('bootstrap-token');
+
+    expect(session).toEqual({controlSessionToken: 'control-token'});
+    expect(calls[0]?.url).toContain('runner-enrollment/exchange');
+    expect(calls[0]?.authorization).toBeNull();
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({bootstrap_token: 'bootstrap-token'});
+  });
+
+  it('enrolls, heartbeats, and polls only with the control-session token', async () => {
+    stubFetch(() => new Response(null, {status: 204}));
+
+    await enrollRunnerControlSession({
+      controlSessionToken: 'control-token',
+      capabilities: TOOL_CAPABILITIES,
+      providerKind: 'ec2',
+      protocolVersion: '1',
+    });
+
+    expect(calls[0]?.url).toContain('runner-control/enrollment');
+    expect(calls[0]?.authorization).toBe('Bearer control-token');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      labels: ['linux', 'x64'],
+      capabilities: TOOL_CAPABILITIES,
+      provider_kind: 'ec2',
+      protocol_version: '1',
+    });
+
+    stubFetch(() => jsonResponse({ok: true}));
+    await heartbeatRunnerControlSession('control-token');
+    expect(calls[1]?.url).toContain('runner-control/heartbeat');
+    expect(calls[1]?.authorization).toBe('Bearer control-token');
+
+    stubFetch(() => jsonResponse({activation_token: 'activation-token'}));
+    const activationToken = await pollRunnerAssignment('control-token');
+    expect(activationToken).toBe('activation-token');
+    expect(calls[2]?.url).toContain('runner-control/assignment');
+    expect(calls[2]?.authorization).toBe('Bearer control-token');
+  });
+
   it('registerRunnerSession sends the registration token and configured labels', async () => {
     stubFetch(() => jsonResponse(registerResponse()));
 

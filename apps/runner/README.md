@@ -25,11 +25,16 @@ A setup failure (missing `git`, a denied credential, or an unreachable provider)
 fails the job before any step runs, with a machine-readable reason recorded on
 the step.
 
-At startup, the runner exchanges `SHIPFOX_RUNNER_REGISTRATION_TOKEN` for a short-lived runner
-session token using `SHIPFOX_RUNNER_LABELS`. The value can be a manual token
-(`sf_mrt_...`) or an ephemeral token (`sf_ert_...`). Job polling uses that session token.
-Heartbeat, step, checkout, and log calls use the per-job lease token returned by
-the claim response.
+At startup, the runner uses exactly one of two modes. Direct runners exchange
+`SHIPFOX_RUNNER_REGISTRATION_TOKEN` for a short-lived runner session token using
+`SHIPFOX_RUNNER_LABELS`. The value can be a manual token (`sf_mrt_...`) or an
+ephemeral token (`sf_ert_...`). Provisioner-managed runners exchange
+`SHIPFOX_RUNNER_BOOTSTRAP_TOKEN`, enroll with their labels and capabilities,
+heartbeat while waiting for their own assignment, then exchange the delivered
+activation token through the same registration endpoint. The bootstrap and
+control credentials are discarded before job polling. Job polling uses the
+resulting session token. Heartbeat, step, checkout, and log calls use the
+per-job lease token returned by the claim response.
 
 The runner refuses to start when `SHIPFOX_RUNNER_LABELS` is empty after trimming.
 When no job is claimed before `SHIPFOX_POLL_MAX_DURATION_MS`, it exits cleanly so
@@ -59,7 +64,10 @@ configured root is empty, the filesystem root (`/`), or a home directory.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `SHIPFOX_API_URL` | — | Base URL of the Shipfox API. |
-| `SHIPFOX_RUNNER_REGISTRATION_TOKEN` | — | Manual (`sf_mrt_...`) or ephemeral (`sf_ert_...`) registration token. The runner exchanges it for a session token at startup. |
+| `SHIPFOX_RUNNER_REGISTRATION_TOKEN` | — | Manual (`sf_mrt_...`) or ephemeral (`sf_ert_...`) registration token. Set this or `SHIPFOX_RUNNER_BOOTSTRAP_TOKEN`, not both. |
+| `SHIPFOX_RUNNER_BOOTSTRAP_TOKEN` | — | One-use managed-runner bootstrap token. The runner enrolls and waits for an assignment before exchanging its activation token for a runner session. Set this or `SHIPFOX_RUNNER_REGISTRATION_TOKEN`, not both. |
+| `SHIPFOX_RUNNER_PROVIDER_KIND` | — | Provider kind the managed runner declares during enrollment, such as `ec2` or `docker`. Required with `SHIPFOX_RUNNER_BOOTSTRAP_TOKEN`. |
+| `SHIPFOX_RUNNER_PROTOCOL_VERSION` | `1` | Protocol version the managed runner declares during enrollment. |
 | `SHIPFOX_RUNNER_LABELS` | — | Comma-separated labels registered on this runner session, such as `linux,x64,self-hosted`. |
 | `SHIPFOX_RUNNER_WORKSPACE_ROOT` | OS temp dir | Parent directory for per-job workspaces (see above). |
 | `SHIPFOX_POLL_INTERVAL_MS` | `1000` | Base poll interval when requesting jobs. |
