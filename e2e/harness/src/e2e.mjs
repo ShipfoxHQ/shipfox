@@ -481,7 +481,7 @@ function parsePositiveInteger(raw, flag) {
 }
 
 function usage() {
-  printLine(`Usage: node dev/e2e.mjs run [options] [turbo args]
+  printLine(`Usage: mise run e2e [options] [turbo args]
 
 Options:
   --filter=<package>      Passed through to turbo, for example --filter=@shipfox/e2e-flow-workflows
@@ -491,7 +491,7 @@ Options:
   --timeout-ms=<ms>       Readiness timeout for API and client (default: 60000)
 
 Examples:
-  node dev/e2e.mjs run --filter=@shipfox/e2e-flow-workflows
+  mise run e2e -- --filter=@shipfox/e2e-flow-workflows
   mise run e2e -- --filter=@shipfox/e2e-client-auth
 `);
 }

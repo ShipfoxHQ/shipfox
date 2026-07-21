@@ -7,11 +7,11 @@ settings entries, and merges a config fragment.
 
 ## Run the required packed gate
 
-The package script builds runtime files and declarations from a clean checkout before packing the
-full client closure:
+The Turbo task builds runtime files and declarations from a clean checkout. It then packs the full
+client closure:
 
 ```sh
-pnpm --filter=@shipfox/client-shell test:external
+turbo test:external --filter=@shipfox/client-shell
 ```
 
 The gate installs only the nine documented client composition roots, plus
@@ -25,7 +25,7 @@ asserts the exact rejected-collision diagnostic. CI runs this command during sta
 ## Run the linked iteration mode
 
 ```sh
-pnpm --filter=@shipfox/client-shell test:external -- --link
+turbo test:external --filter=@shipfox/client-shell -- --link
 ```
 
 This copies the Vite template to a temporary directory and links the workspace-built closure. It

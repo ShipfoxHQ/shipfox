@@ -2,12 +2,8 @@ import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:f
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-
-import {
-  createProductionManifestPacker,
-  mapWithConcurrency,
-  run,
-} from '../../../../dev/productionized-manifest-packer.mjs';
+import {mapWithConcurrency, packProductionizedPackage, run} from '@shipfox/package-release/packer';
+import {parse as parseYaml} from 'yaml';
 
 import {
   computePublicationClosure,
@@ -23,30 +19,37 @@ const repositoryRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.
 const REGISTRY_SHIPFOX_PACKAGE_PATTERN = /^@shipfox\+[^@]+@\d/u;
 const config = readPublicationClosureConfig(resolve(repositoryRoot, 'publication-closure.json'));
 const workspacePackages = readWorkspacePackages(repositoryRoot);
+const dependencyContext = {
+  workspaceConfig: parseYaml(await readFile(join(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8')),
+  workspaceVersions: new Map(
+    [...workspacePackages]
+      .filter(([, workspacePackage]) => typeof workspacePackage.manifest.version === 'string')
+      .map(([name, workspacePackage]) => [name, workspacePackage.manifest.version]),
+  ),
+};
 validatePublicationState(workspacePackages, config, repositoryRoot);
 const closure = computePublicationClosure(
   workspacePackages,
   config.roots.filter((root) => !root.startsWith('@shipfox/client-')),
 );
-await emitDeclarationFiles(closure);
 const fixtureRoot = await mkdtemp(join(tmpdir(), 'shipfox-api-runtime-'));
 const tarballRoot = join(fixtureRoot, 'tarballs');
-const manifestPacker = createProductionManifestPacker();
+const stagingRoot = join(fixtureRoot, 'packages');
 
 try {
-  await mkdir(tarballRoot);
-  // `pack()` temporarily productionizes each source manifest. Serializing those
-  // mutations keeps pnpm from reading another package's transient manifest.
-  const tarballs = await mapWithConcurrency(closure, 1, async (name) => {
+  await Promise.all([mkdir(tarballRoot), mkdir(stagingRoot)]);
+  const tarballs = await mapWithConcurrency(closure, 4, async (name) => {
     const workspacePackage = workspacePackages.get(name);
     if (!workspacePackage) throw new Error(`Missing workspace package: ${name}`);
     const tarball = join(tarballRoot, `${safePackageName(name)}.tgz`);
-    await manifestPacker.pack(workspacePackage.manifestPath, workspacePackage.manifest, (signal) =>
-      run('pnpm', ['pack', '--out', tarball], workspacePackage.directory, {
-        signal,
-        stdio: 'ignore',
-      }),
-    );
+    await packProductionizedPackage({
+      dependencyContext,
+      manifest: workspacePackage.manifest,
+      sourceDirectory: workspacePackage.directory,
+      stagingRoot,
+      packArtifact: (stagedDirectory) =>
+        run('pnpm', ['pack', '--out', tarball], stagedDirectory, {stdio: 'ignore'}),
+    });
     return [name, tarball];
   });
 
@@ -78,7 +81,6 @@ try {
   );
   await run(process.execPath, ['workflow-bundles.mjs'], fixtureRoot);
 } finally {
-  manifestPacker.dispose();
   await rm(fixtureRoot, {recursive: true, force: true});
 }
 
@@ -276,12 +278,4 @@ function runtimeEnvironment() {
 
 function safePackageName(name) {
   return name.replace('@shipfox/', '').replaceAll('/', '-');
-}
-
-async function emitDeclarationFiles(packageNames) {
-  await run(
-    'pnpm',
-    ['exec', 'turbo', 'build', 'type:emit', ...packageNames.map((name) => `--filter=${name}`)],
-    repositoryRoot,
-  );
 }

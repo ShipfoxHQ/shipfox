@@ -137,8 +137,10 @@ Docs-app pages additionally follow
 
 ```
 apps/           Application packages (deployable services)
+dev/            Local environment and Conductor workspace lifecycle
+e2e/            E2E harness, fixtures, screens, and suites
 libs/           Library packages (shared code, published or internal)
-tools/          Internal build tooling (SWC, TypeScript, Biome, Vitest wrappers)
+tools/          Internal build, policy, and release tooling
 ```
 
 Each package follows the same layout:
@@ -195,6 +197,8 @@ publish.
 | `turbo lint` / `turbo format` | Run checks across all packages |
 | `turbo type` | Type-check all packages in dependency order |
 | `turbo test` | Run tests across all packages |
+| `turbo verify` | Check repository and package invariants |
+| `turbo test:external` | Exercise built packages from clean consumers |
 | `turbo test:e2e` | Run Playwright E2E packages against a pre-started local stack |
 
 `--filter` scopes a task to a specific package:

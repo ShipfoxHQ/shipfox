@@ -91,8 +91,7 @@ turbo check --filter=@shipfox/application-release
 turbo type --filter=@shipfox/application-release
 turbo test --filter=@shipfox/application-release
 turbo build --filter=@shipfox/application-release
-pnpm --filter=@shipfox/application-release test:external
-node libs/client/shell/test/external/verify.mjs
+turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
 ```
 
 ## License

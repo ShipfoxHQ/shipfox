@@ -1,14 +1,24 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {createRequire} from 'node:module';
 import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
-import {describe, test} from 'node:test';
 import {fileURLToPath} from 'node:url';
 
-const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const syncpackBin = join(rootDir, 'node_modules/syncpack/index.cjs');
+type JsonRecord = Record<string, unknown>;
+
+interface Fixture {
+  consumerFile: string;
+  directory: string;
+  writePackage: (path: string, contents: JsonRecord) => Promise<void>;
+}
+
+const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const syncpackPackage = createRequire(import.meta.url).resolve('syncpack/package.json');
+const syncpackBin = join(dirname(syncpackPackage), 'index.cjs');
 const syncpackConfig = join(rootDir, '.syncpackrc.json');
+const directSourceError = /Direct sources require a named exception/;
 
 describe('Syncpack catalog policy', () => {
   test('accepts catalog references, broad peers, and local workspace references', async () => {
@@ -75,7 +85,7 @@ describe('Syncpack catalog policy', () => {
       const bannedSource = runSyncpack(directory, 'lint');
 
       assert.equal(bannedSource.status, 1, bannedSource.stderr);
-      assert.match(bannedSource.stderr, /Direct sources require a named exception/);
+      assert.match(bannedSource.stderr, directSourceError);
     });
   });
 
@@ -119,10 +129,10 @@ const catalogConsumerPackage = {
   version: '1.0.0',
 };
 
-async function withFixture(run) {
+async function withFixture(run: (fixture: Fixture) => Promise<void> | void): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), 'shipfox-syncpack-'));
   const consumerFile = join(directory, 'packages/consumer/package.json');
-  const writePackage = async (path, contents) => {
+  const writePackage = async (path: string, contents: JsonRecord) => {
     await mkdir(dirname(path), {recursive: true});
     await writeFile(path, `${JSON.stringify(contents, null, 2)}\n`);
   };
@@ -149,7 +159,7 @@ async function withFixture(run) {
   }
 }
 
-function runSyncpack(cwd, command) {
+function runSyncpack(cwd: string, command: 'fix' | 'lint') {
   return spawnSync(
     process.execPath,
     [syncpackBin, command, '--config', syncpackConfig, '--no-ansi'],

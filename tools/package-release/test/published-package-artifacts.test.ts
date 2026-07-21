@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import {describe, test} from 'node:test';
 
 import {
   catalogDependencies,
@@ -7,7 +6,7 @@ import {
   consumerDependencies,
   findUnsupportedProtocol,
   safePackageName,
-} from './published-package-artifacts.mjs';
+} from '../src/published-package-artifacts.js';
 
 const workspace = {
   catalog: {react: '^19.1.1'},

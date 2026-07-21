@@ -188,6 +188,7 @@ allowBuilds:
 
 packages:
   - "apps/*"
+  - "dev"
   - "e2e/**"
   - "libs/**"
   - "infra/**"

@@ -1,16 +1,25 @@
-import {spawn} from 'node:child_process';
+import {type ChildProcess, spawn} from 'node:child_process';
 import {globSync, readFileSync, writeFileSync} from 'node:fs';
 import {constants} from 'node:os';
 import {join, resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
-import {productionizeManifest} from '../tools/utils/src/productionize.js';
+import {productionizeManifest} from '@shipfox/tool-utils';
 
-export function findClosureManifests(root, packageNames) {
-  const manifestsByName = new Map();
+type JsonRecord = Record<string, unknown>;
+
+interface PublishProductionizedClosureOptions<T> {
+  onPrepared?: (restore: () => void) => void;
+  packageNames: string[];
+  publish: () => Promise<T> | T;
+  root: string;
+}
+
+export function findClosureManifests(root: string, packageNames: string[]): string[] {
+  const manifestsByName = new Map<string, string>();
   for (const manifestPath of globSync(join(root, 'libs/**/package.json'))) {
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    if (!manifest.name) continue;
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as JsonRecord;
+    if (typeof manifest.name !== 'string') continue;
     if (manifestsByName.has(manifest.name)) {
       throw new Error(`Duplicate package manifest: ${manifest.name}`);
     }
@@ -24,7 +33,12 @@ export function findClosureManifests(root, packageNames) {
   });
 }
 
-export async function publishProductionizedClosure({root, packageNames, publish, onPrepared}) {
+export async function publishProductionizedClosure<T>({
+  root,
+  packageNames,
+  publish,
+  onPrepared,
+}: PublishProductionizedClosureOptions<T>): Promise<T> {
   const manifestPaths = findClosureManifests(root, packageNames);
   const originalManifests = new Map(
     manifestPaths.map((manifestPath) => [manifestPath, readFileSync(manifestPath, 'utf8')]),
@@ -36,7 +50,7 @@ export async function publishProductionizedClosure({root, packageNames, publish,
   };
 
   for (const [manifestPath, originalManifest] of originalManifests) {
-    const manifest = JSON.parse(originalManifest);
+    const manifest = JSON.parse(originalManifest) as JsonRecord;
     const productionized = productionizeManifest(manifest);
     if (productionized === manifest) continue;
     writeFileSync(manifestPath, `${JSON.stringify(productionized, null, 2)}\n`);
@@ -50,7 +64,7 @@ export async function publishProductionizedClosure({root, packageNames, publish,
   }
 }
 
-export function publishChangesets(onSpawn) {
+export function publishChangesets(onSpawn?: (child: ChildProcess) => void): Promise<number> {
   return new Promise((resolvePublish, reject) => {
     const child = spawn('pnpm', ['exec', 'changeset', 'publish'], {stdio: 'inherit'});
     onSpawn?.(child);
@@ -62,10 +76,12 @@ export function publishChangesets(onSpawn) {
 async function main() {
   const repositoryRoot = process.cwd();
   const closurePath = join(repositoryRoot, 'publication-closure.json');
-  const packageNames = JSON.parse(readFileSync(closurePath, 'utf8')).packages;
-  let restore;
-  let stopPublish;
-  const stop = (signal) => {
+  const {packages: packageNames} = JSON.parse(readFileSync(closurePath, 'utf8')) as {
+    packages: string[];
+  };
+  let restore: (() => void) | undefined;
+  let stopPublish: (() => void) | undefined;
+  const stop = (signal: NodeJS.Signals) => {
     stopPublish?.();
     restore?.();
     process.exit(128 + constants.signals[signal]);

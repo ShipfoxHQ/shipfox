@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "verify": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/api-contexts.cjs",
+        "$TURBO_ROOT$/libs/api/**/package.json"
+      ]
+    }
+  }
+}
