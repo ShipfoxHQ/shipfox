@@ -5,11 +5,15 @@ export {
   appendStepLogs,
   configuredRunnerLabels,
   createLeaseClient,
+  enrollRunnerControlSession,
+  exchangeRunnerBootstrapToken,
   HTTPError,
   heartbeat,
+  heartbeatRunnerControlSession,
   type LeaseTokenSource,
   type LogAppendFn,
   type LogAppendOutcome,
+  pollRunnerAssignment,
   RunnerLabelsRequiredError,
   RunnerSessionExhaustedError,
   registerRunnerSession,
@@ -24,6 +28,12 @@ export {
   StepSecretsRequestError,
   writeStepAnnotations,
 } from '#api-client.js';
+export {
+  consumeManagedRunnerBootstrapToken,
+  managedRunnerEnrollmentConfig,
+  type RunnerStartupMode,
+  runnerStartupMode,
+} from '#config.js';
 export {
   createIntegrationToolsGatewayFetch,
   integrationToolsGatewayUrl,

@@ -19,6 +19,11 @@ import {
   type RunnerToolCapabilitiesDto,
   registerRunnerBodySchema,
   registerRunnerResponseSchema,
+  runnerAssignmentPollResponseSchema,
+  runnerBootstrapExchangeBodySchema,
+  runnerBootstrapExchangeResponseSchema,
+  runnerControlHeartbeatResponseSchema,
+  runnerEnrollmentBodySchema,
 } from '@shipfox/api-runners-dto';
 import {type StepSecretsResponseDto, stepSecretsResponseSchema} from '@shipfox/api-secrets-dto';
 import {
@@ -81,13 +86,6 @@ export type LogAppendFn = (args: {
 const baseUrl = config.SHIPFOX_API_URL.endsWith('/')
   ? config.SHIPFOX_API_URL
   : `${config.SHIPFOX_API_URL}/`;
-
-const registrationApi = ky.create({
-  baseUrl,
-  headers: {
-    Authorization: `Bearer ${config.SHIPFOX_RUNNER_REGISTRATION_TOKEN}`,
-  },
-});
 
 /**
  * The runner's registration bearer credential, exposed so the log masker can scrub it
@@ -153,7 +151,7 @@ export function requireRunnerLabels(): string[] {
 }
 
 export async function registerRunnerSession(
-  options: {capabilities?: RunnerToolCapabilitiesDto} = {},
+  options: {capabilities?: RunnerToolCapabilitiesDto; registrationToken?: string} = {},
 ): Promise<RegisterRunnerResponseDto> {
   const labels = configuredRunnerLabels();
 
@@ -163,9 +161,69 @@ export async function registerRunnerSession(
     labels,
     ...(options.capabilities ? {capabilities: options.capabilities} : {}),
   });
-  const response = await registrationApi.post('runners/register', {json: body});
+  const response = await createRegistrationApi(
+    options.registrationToken ?? config.SHIPFOX_RUNNER_REGISTRATION_TOKEN,
+  ).post('runners/register', {json: body});
 
   return registerRunnerResponseSchema.parse(await response.json());
+}
+
+function createRegistrationApi(registrationToken: string): KyInstance {
+  return ky.create({baseUrl, headers: {Authorization: `Bearer ${registrationToken}`}});
+}
+
+function createRunnerControlClient(controlSessionToken: string): KyInstance {
+  return ky.create({baseUrl, headers: {Authorization: `Bearer ${controlSessionToken}`}});
+}
+
+export async function exchangeRunnerBootstrapToken(
+  bootstrapToken: string,
+): Promise<{controlSessionToken: string}> {
+  const body = runnerBootstrapExchangeBodySchema.parse({bootstrap_token: bootstrapToken});
+  const response = await ky.post(new URL('runner-enrollment/exchange', baseUrl), {json: body});
+  const parsed = runnerBootstrapExchangeResponseSchema.parse(await response.json());
+  return {controlSessionToken: parsed.control_session_token};
+}
+
+export async function enrollRunnerControlSession(params: {
+  controlSessionToken: string;
+  capabilities: RunnerToolCapabilitiesDto;
+  providerKind: string;
+  protocolVersion: string;
+}): Promise<void> {
+  const body = runnerEnrollmentBodySchema.parse({
+    labels: configuredRunnerLabels(),
+    capabilities: params.capabilities,
+    provider_kind: params.providerKind,
+    protocol_version: params.protocolVersion,
+  });
+  await createRunnerControlClient(params.controlSessionToken).post('runner-control/enrollment', {
+    json: body,
+  });
+}
+
+export async function heartbeatRunnerControlSession(
+  controlSessionToken: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await createRunnerControlClient(controlSessionToken).post(
+    'runner-control/heartbeat',
+    signal ? {signal} : undefined,
+  );
+  runnerControlHeartbeatResponseSchema.parse(await response.json());
+}
+
+export async function pollRunnerAssignment(
+  controlSessionToken: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const response = await createRunnerControlClient(controlSessionToken).get(
+    'runner-control/assignment',
+    {
+      ...(signal ? {signal} : {}),
+    },
+  );
+  return runnerAssignmentPollResponseSchema.parse(await response.json()).activation_token;
 }
 
 function createRunnerSessionClient(sessionToken: string): KyInstance {

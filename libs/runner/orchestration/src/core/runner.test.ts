@@ -5,6 +5,8 @@ vi.mock('#config.js', () => ({
     SHIPFOX_POLL_MAX_DURATION_MS: 1,
     SHIPFOX_HEARTBEAT_INTERVAL_MS: 10_000,
     SHIPFOX_HEARTBEAT_MAX_STALE_MS: 10_000,
+    SHIPFOX_RUNNER_PROVIDER_KIND: 'ec2',
+    SHIPFOX_RUNNER_PROTOCOL_VERSION: '1',
   },
 }));
 
@@ -37,8 +39,15 @@ vi.mock('@shipfox/runner-agent', () => ({
 
 vi.mock('@shipfox/runner-protocol', () => ({
   registerRunnerSession: vi.fn(),
+  consumeManagedRunnerBootstrapToken: vi.fn(),
+  managedRunnerEnrollmentConfig: vi.fn(() => ({providerKind: 'ec2', protocolVersion: '1'})),
+  exchangeRunnerBootstrapToken: vi.fn(),
+  enrollRunnerControlSession: vi.fn(),
+  heartbeatRunnerControlSession: vi.fn(),
+  pollRunnerAssignment: vi.fn(),
   requireRunnerLabels: vi.fn(),
   requestJob: vi.fn(),
+  runnerStartupMode: vi.fn(() => 'direct'),
   createLeaseClient: vi.fn(() => ({}) as never),
   runnerRegistrationToken: vi.fn(() => 'sf_mrt_runner-registration-token'),
   RunnerLabelsRequiredError: class RunnerLabelsRequiredError extends Error {},
@@ -55,13 +64,19 @@ vi.mock('@shipfox/runner-protocol', () => ({
 
 import {runnerToolCapabilities} from '@shipfox/runner-agent';
 import {
+  consumeManagedRunnerBootstrapToken,
   createLeaseClient,
+  enrollRunnerControlSession,
+  exchangeRunnerBootstrapToken,
   HTTPError,
+  heartbeatRunnerControlSession,
+  pollRunnerAssignment,
   RunnerLabelsRequiredError,
   RunnerSessionExhaustedError,
   registerRunnerSession,
   requestJob,
   requireRunnerLabels,
+  runnerStartupMode,
 } from '@shipfox/runner-protocol';
 import {
   cleanupJobCredentials,
@@ -89,7 +104,13 @@ const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRootFromEnv);
 const mockRunJobSteps = vi.mocked(runJobSteps);
 const mockCreateLeaseClient = vi.mocked(createLeaseClient);
 const mockRegisterRunnerSession = vi.mocked(registerRunnerSession);
+const mockConsumeManagedRunnerBootstrapToken = vi.mocked(consumeManagedRunnerBootstrapToken);
+const mockExchangeRunnerBootstrapToken = vi.mocked(exchangeRunnerBootstrapToken);
+const mockEnrollRunnerControlSession = vi.mocked(enrollRunnerControlSession);
+const mockHeartbeatRunnerControlSession = vi.mocked(heartbeatRunnerControlSession);
+const mockPollRunnerAssignment = vi.mocked(pollRunnerAssignment);
 const mockRequireRunnerLabels = vi.mocked(requireRunnerLabels);
+const mockRunnerStartupMode = vi.mocked(runnerStartupMode);
 const mockRequestJob = vi.mocked(requestJob);
 const mockStartHeartbeatLoop = vi.mocked(startHeartbeatLoop);
 const mockRunnerToolCapabilities = vi.mocked(runnerToolCapabilities);
@@ -116,6 +137,8 @@ beforeEach(() => {
   setPollConfig({interval: 1, maxInterval: 5, maxDuration: 1});
   mockResolveWorkspaceRoot.mockReturnValue(WORKSPACE_ROOT);
   mockRequireRunnerLabels.mockReturnValue(['local']);
+  mockRunnerStartupMode.mockReturnValue('direct');
+  mockConsumeManagedRunnerBootstrapToken.mockReturnValue('sf_rbt_bootstrap-token');
   mockRegisterRunnerSession.mockResolvedValue({
     session_id: '00000000-0000-0000-0000-000000000003',
     session_token: 'session-token',
@@ -129,6 +152,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -327,6 +351,77 @@ describe('startRunner', () => {
 
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(1);
     expect(mockRequestJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('enrolls, waits, activates, and uses the activation session for managed runners', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    vi.stubEnv('SHIPFOX_RUNNER_BOOTSTRAP_TOKEN', 'sf_rbt_bootstrap-token');
+    vi.stubEnv('SHIPFOX_RUNNER_PROVIDER_KIND', 'ec2');
+    vi.stubEnv('SHIPFOX_RUNNER_PROTOCOL_VERSION', '1');
+    mockRunnerStartupMode.mockReturnValue('managed');
+    mockConsumeManagedRunnerBootstrapToken.mockReturnValue('sf_rbt_bootstrap-token');
+    mockExchangeRunnerBootstrapToken.mockResolvedValue({controlSessionToken: 'control-token'});
+    mockEnrollRunnerControlSession.mockResolvedValue();
+    mockHeartbeatRunnerControlSession.mockResolvedValue();
+    mockPollRunnerAssignment.mockResolvedValue('activation-token');
+    mockRequestJob.mockRejectedValue(new RunnerSessionExhaustedError());
+
+    await startRunner();
+
+    expect(mockConsumeManagedRunnerBootstrapToken).toHaveBeenCalledTimes(1);
+    expect(mockExchangeRunnerBootstrapToken).toHaveBeenCalledWith('sf_rbt_bootstrap-token');
+    expect(mockEnrollRunnerControlSession).toHaveBeenCalledWith({
+      controlSessionToken: 'control-token',
+      capabilities: {harnesses: {pi: {tools: ['read']}}},
+      providerKind: 'ec2',
+      protocolVersion: '1',
+    });
+    expect(mockHeartbeatRunnerControlSession).toHaveBeenCalledWith(
+      'control-token',
+      expect.any(AbortSignal),
+    );
+    expect(mockPollRunnerAssignment).toHaveBeenCalledWith('control-token', expect.any(AbortSignal));
+    expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
+      capabilities: {harnesses: {pi: {tools: ['read']}}},
+      registrationToken: 'activation-token',
+    });
+    expect(mockRequestJob).toHaveBeenCalledWith('session-token');
+  });
+
+  it('retries a failed first direct registration', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    mockRegisterRunnerSession
+      .mockRejectedValueOnce(new Error('api unavailable'))
+      .mockResolvedValueOnce({
+        session_id: '00000000-0000-0000-0000-000000000003',
+        session_token: 'session-token',
+        mode: 'manual',
+        max_claims: null,
+      });
+    mockRequestJob.mockRejectedValue(new RunnerSessionExhaustedError());
+
+    await startRunner();
+
+    expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(2);
+    expect(mockRequestJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('exits cleanly when shutdown aborts the managed assignment poll', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    mockRunnerStartupMode.mockReturnValue('managed');
+    mockExchangeRunnerBootstrapToken.mockResolvedValue({controlSessionToken: 'control-token'});
+    mockEnrollRunnerControlSession.mockResolvedValue();
+    mockHeartbeatRunnerControlSession.mockResolvedValue();
+    mockPollRunnerAssignment.mockImplementation(async (_controlSessionToken, signal) => {
+      process.emit('SIGTERM');
+      await Promise.reject(new DOMException('The operation was aborted', 'AbortError'));
+      return signal?.aborted ? null : 'activation-token';
+    });
+
+    await expect(startRunner()).resolves.toBeUndefined();
+
+    expect(mockRegisterRunnerSession).not.toHaveBeenCalled();
+    expect(mockRequestJob).not.toHaveBeenCalled();
   });
 
   it('registers a new session when the current session is unauthorized', async () => {
