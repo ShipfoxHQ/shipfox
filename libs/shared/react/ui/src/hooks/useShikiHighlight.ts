@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect, useState} from 'react';
+import type {ShikiTransformer} from 'shiki';
 
 type ShikiThemes = {
   light: string;
@@ -14,6 +15,25 @@ type UseShikiHighlightOptions = {
   resolvedTheme: 'light' | 'dark';
   syntaxHighlighting: boolean;
 };
+
+function diffLineTransformer(): ShikiTransformer {
+  return {
+    name: '@shipfox/react-ui:diff-line-styling',
+    line(node, lineNumber) {
+      const line = this.source.split('\n')[lineNumber - 1] ?? '';
+
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        this.addClassToHast(node, ['diff', 'add']);
+      }
+
+      if (line.startsWith('-') && !line.startsWith('---')) {
+        this.addClassToHast(node, ['diff', 'remove']);
+      }
+
+      return node;
+    },
+  };
+}
 
 export function useShikiHighlight({
   code,
@@ -45,6 +65,7 @@ export function useShikiHighlight({
             dark: themes.dark,
           },
           defaultColor: resolvedTheme === 'dark' ? 'dark' : 'light',
+          ...(lang === 'diff' ? {transformers: [diffLineTransformer()]} : {}),
         });
 
         if (!cancelled) {

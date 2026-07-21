@@ -21,6 +21,10 @@ const highlightedHtml = [
 ].join('');
 
 describe('CodeBlockContent', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   test('highlights fallback-rendered lines', () => {
     renderCodeBlockContent({
       code: 'one\ntwo\nthree',
@@ -45,6 +49,55 @@ describe('CodeBlockContent', () => {
     expect(lines[1]?.textContent).toContain('- uses: actions/checkout@v3');
     expect(lines[1]?.classList.contains('diff')).toBe(false);
     expect(lines[1]?.classList.contains('remove')).toBe(false);
+  });
+
+  test('does not pass the diff transformer for YAML syntax highlighting', async () => {
+    const codeToHtmlMock = vi.mocked(codeToHtml);
+    codeToHtmlMock.mockResolvedValue(highlightedHtml);
+
+    renderCodeBlockContent({
+      code: 'steps:\n  - uses: actions/checkout@v3',
+      language: 'yaml',
+      syntaxHighlighting: true,
+    });
+
+    await waitFor(() => {
+      expect(codeToHtmlMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(codeToHtmlMock.mock.calls[0]?.[1].transformers).toBeUndefined();
+  });
+
+  test('passes a Shiki transformer that marks explicit diff content', async () => {
+    const codeToHtmlMock = vi.mocked(codeToHtml);
+    codeToHtmlMock.mockResolvedValue(highlightedHtml);
+
+    renderCodeBlockContent({
+      code: '--- a/workflow.yml\n-old value\n+new value\n+++ b/workflow.yml',
+      language: 'diff',
+      syntaxHighlighting: true,
+    });
+
+    await waitFor(() => {
+      expect(codeToHtmlMock).toHaveBeenCalledTimes(1);
+    });
+
+    const options = codeToHtmlMock.mock.calls[0]?.[1];
+    const transformer = options?.transformers?.[0];
+    const classes: string[] = [];
+    const context = {
+      source: '--- a/workflow.yml\n-old value\n+new value\n+++ b/workflow.yml',
+      addClassToHast: (_node: unknown, classNames: string[]) => {
+        classes.push(...classNames);
+      },
+    };
+
+    transformer?.line?.call(context as never, {} as never, 2);
+    transformer?.line?.call(context as never, {} as never, 3);
+    transformer?.line?.call(context as never, {} as never, 1);
+    transformer?.line?.call(context as never, {} as never, 4);
+
+    expect(classes).toEqual(['diff', 'remove', 'diff', 'add']);
   });
 
   test('highlights Shiki-rendered lines without re-highlighting on range-only changes', async () => {
@@ -154,11 +207,13 @@ describe('CodeBlockContent scroll-into-view', () => {
 
 function renderCodeBlockContent({
   code,
+  language,
   syntaxHighlighting,
   highlightedLineRange,
   scrollHighlightedIntoView,
 }: {
   code: string;
+  language?: string | undefined;
   syntaxHighlighting?: boolean | undefined;
   highlightedLineRange?: Parameters<typeof CodeBlockContent>[0]['highlightedLineRange'];
   scrollHighlightedIntoView?: boolean | undefined;
@@ -166,7 +221,7 @@ function renderCodeBlockContent({
   return render(
     <CodeBlockContentHost>
       <CodeBlockContent
-        language="text"
+        language={language ?? 'text'}
         highlightedLineRange={highlightedLineRange}
         {...(syntaxHighlighting === undefined ? {} : {syntaxHighlighting})}
         {...(scrollHighlightedIntoView === undefined ? {} : {scrollHighlightedIntoView})}

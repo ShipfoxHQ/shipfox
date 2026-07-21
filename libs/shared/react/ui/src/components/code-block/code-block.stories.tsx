@@ -134,6 +134,27 @@ export const DiffContent: Story = {
   render: () => <CodeBlockShowcase data={[diffFile]} syntaxHighlighting />,
 };
 
+export const DiffLineHighlighting: Story = {
+  play: async (ctx) => {
+    await waitFor(
+      () => {
+        if (!ctx.canvasElement.querySelector('.line.diff.add.highlighted-line')) {
+          throw new Error('Shiki diff line highlighting has not rendered yet');
+        }
+      },
+      {timeout: 10_000},
+    );
+    await argosScreenshot(ctx, 'CodeBlock DiffLineHighlighting');
+  },
+  render: () => (
+    <CodeBlockShowcase
+      data={[diffFile]}
+      syntaxHighlighting
+      highlightedLineRange={{startLine: 7, endLine: 8}}
+    />
+  ),
+};
+
 export const LineHighlighting: Story = {
   render: () => (
     <CodeBlockShowcase data={[workflowFile]} highlightedLineRange={{startLine: 3, endLine: 5}} />
