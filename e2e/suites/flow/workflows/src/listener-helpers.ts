@@ -207,6 +207,22 @@ export async function waitForListenerExecution(params: {
   });
 }
 
+export async function waitForListenerStatus(params: {
+  token: string;
+  runId: string;
+  jobKey: string;
+  listenerStatus: ListenerStatusDto;
+  timeoutMs: number;
+}): Promise<WorkflowRunDetailResponseDto> {
+  return await waitForRunDetailMatching({
+    token: params.token,
+    runId: params.runId,
+    timeoutMs: params.timeoutMs,
+    description: `listener job ${params.jobKey} status ${params.listenerStatus}`,
+    matches: (runDetail) => listenerStatusMatches({...params, runDetail}),
+  });
+}
+
 export async function waitForListenerResolution(params: {
   token: string;
   runId: string;

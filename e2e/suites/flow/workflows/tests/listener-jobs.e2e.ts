@@ -2,6 +2,7 @@ import {
   findListenerExecutionByDeliveryIds,
   waitForListenerExecution,
   waitForListenerResolution,
+  waitForListenerStatus,
 } from '#listener-helpers.js';
 import {
   cleanupListenerCase,
@@ -9,7 +10,7 @@ import {
   LISTENER_JOB,
   type ListenerCase,
   listenerWorkflows,
-  sendBatchPairUntilObserved,
+  sendBatchPairAndAwaitExecution,
   sendFire,
   sendResolve,
   setupListenerCase,
@@ -210,7 +211,33 @@ test.describe('listener jobs', () => {
       });
       runId = await fireManualRun(testCase);
 
-      const batch = await sendBatchPairUntilObserved({testCase, runId, label: 'batch'});
+      await waitForListenerStatus({
+        token: testCase.token,
+        runId,
+        jobKey: LISTENER_JOB,
+        listenerStatus: 'listening',
+        timeoutMs: 8_000,
+      });
+      await sendBatchPairAndAwaitExecution({
+        testCase,
+        runId,
+        label: 'readiness',
+        sequence: 1,
+      });
+      await waitForListenerExecution({
+        token: testCase.token,
+        runId,
+        jobKey: LISTENER_JOB,
+        sequence: 1,
+        status: 'succeeded',
+        timeoutMs: 8_000,
+      });
+      const batch = await sendBatchPairAndAwaitExecution({
+        testCase,
+        runId,
+        label: 'batch',
+        sequence: 2,
+      });
       await sendResolve(testCase, 'resolve-batch');
       const terminal = await waitForRunTerminalOrFailedRunner({
         runId,
@@ -224,13 +251,13 @@ test.describe('listener jobs', () => {
         runDetail: terminal,
         token: testCase.token,
         jobKey: LISTENER_JOB,
-        sequence: 1,
+        sequence: 2,
         stepKey: 'show-batch',
       });
       expect(terminal.status).toBe('succeeded');
       expect(listen?.resolution_reason).toBe('until');
-      expect(listen?.job_executions).toHaveLength(1);
-      expect(listen?.job_executions[0]?.trigger_events.map((event) => event.delivery_id)).toEqual(
+      expect(listen?.job_executions).toHaveLength(2);
+      expect(listen?.job_executions[1]?.trigger_events.map((event) => event.delivery_id)).toEqual(
         batch.deliveryIds,
       );
       expect(logs).toContain(`batch_first=${batch.deliveryIds[0]}`);
