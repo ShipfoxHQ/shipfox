@@ -46,8 +46,16 @@ describe('assignRunnerInstances', () => {
     const runner = await createEnrolledRunner();
 
     const results = await Promise.all([
-      assignRunnerInstances({provisionerId, reservationId: reservation.id, runnerInstanceIds: [runner.id]}),
-      assignRunnerInstances({provisionerId, reservationId: reservation.id, runnerInstanceIds: [runner.id]}),
+      assignRunnerInstances({
+        provisionerId,
+        reservationId: reservation.id,
+        runnerInstanceIds: [runner.id],
+      }),
+      assignRunnerInstances({
+        provisionerId,
+        reservationId: reservation.id,
+        runnerInstanceIds: [runner.id],
+      }),
     ]);
 
     expect(results).toEqual([[runner.id], [runner.id]]);
@@ -141,13 +149,15 @@ describe('assignRunnerInstances', () => {
       })
       .returning();
     if (!runner) throw new Error('Runner instance insert returned no row');
-    await db().insert(runnerControlSessions).values({
-      runnerInstanceId: runner.id,
-      provisionerId,
-      hashedToken: crypto.randomUUID(),
-      prefix: 'test',
-      expiresAt: new Date(Date.now() + 60_000),
-    });
+    await db()
+      .insert(runnerControlSessions)
+      .values({
+        runnerInstanceId: runner.id,
+        provisionerId,
+        hashedToken: crypto.randomUUID(),
+        prefix: 'test',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
     return runner;
   }
 });
