@@ -1,5 +1,16 @@
 # @shipfox/provisioner-core
 
+## 1.0.0
+
+### Major Changes
+
+- bc7cfdc: Migrates provisioners to bootstrap runner instances with explicit reservation assignment.
+
+### Patch Changes
+
+- Updated dependencies [bc7cfdc]
+  - @shipfox/api-runners-dto@7.0.0
+
 ## 0.0.5
 
 ### Patch Changes

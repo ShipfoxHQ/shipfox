@@ -1,5 +1,13 @@
 # @shipfox/api-email-challenges
 
+## 0.2.1
+
+### Patch Changes
+
+- 4d7c87e: Adds a branded verification-code email with warmer account setup copy.
+- Updated dependencies [4d7c87e]
+  - @shipfox/node-email@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

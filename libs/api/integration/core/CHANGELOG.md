@@ -1,5 +1,13 @@
 # @shipfox/api-integration-core
 
+## 7.0.0
+
+### Patch Changes
+
+- @shipfox/api-integration-github@7.0.0
+- @shipfox/api-integration-jira@7.0.0
+- @shipfox/api-integration-linear@7.0.0
+
 ## 6.0.0
 
 ### Major Changes

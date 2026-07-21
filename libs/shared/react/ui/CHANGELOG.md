@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 0.3.4
+
+### Patch Changes
+
+- cb58afe: Adds Shiki-rendered styling for added and removed diff lines in code blocks.
+
 ## 0.3.3
 
 ### Patch Changes

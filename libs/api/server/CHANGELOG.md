@@ -1,5 +1,24 @@
 # @shipfox/api-server
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [10d60f6]
+- Updated dependencies [bc7cfdc]
+- Updated dependencies [4d7c87e]
+  - @shipfox/api-triggers@7.0.0
+  - @shipfox/api-runners@7.0.0
+  - @shipfox/api-runners-dto@7.0.0
+  - @shipfox/api-email-challenges@0.2.1
+  - @shipfox/api-workflows@7.0.0
+  - @shipfox/api-auth@7.0.0
+  - @shipfox/api-workspaces@7.0.0
+  - @shipfox/annotations@6.0.0
+  - @shipfox/api-logs@6.0.0
+  - @shipfox/api-integration-core@7.0.0
+  - @shipfox/api-definitions@6.0.0
+
 ## 6.0.0
 
 ### Minor Changes

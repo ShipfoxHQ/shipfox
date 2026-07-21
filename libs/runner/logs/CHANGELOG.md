@@ -1,5 +1,12 @@
 # @shipfox/runner-logs
 
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [ce8fb21]
+  - @shipfox/runner-protocol@0.2.0
+
 ## 0.1.5
 
 ### Patch Changes

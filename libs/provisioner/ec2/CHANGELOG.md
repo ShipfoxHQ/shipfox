@@ -1,5 +1,22 @@
 # @shipfox/provisioner-ec2-provider
 
+## 1.0.0
+
+### Major Changes
+
+- bc7cfdc: Migrates provisioners to bootstrap runner instances with explicit reservation assignment.
+
+### Minor Changes
+
+- 52fa4b5: Adds the EC2 provisioner lifecycle: launches runner instances, observes and reports their state to the backend, and reconciles AWS reality with tracked capacity.
+- aa53e13: Adds EC2 reconcile, periodic tick, and backend-driven terminate to the runner lifecycle, and reaps instances stuck past the registration deadline.
+
+### Patch Changes
+
+- Updated dependencies [bc7cfdc]
+  - @shipfox/api-runners-dto@7.0.0
+  - @shipfox/provisioner-core@1.0.0
+
 ## 0.1.2
 
 ### Patch Changes

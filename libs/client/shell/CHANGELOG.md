@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.0
+
+### Minor Changes
+
+- 5b06cd5: Adds a Vite manifest plugin that ships canonical Shipfox application identity assets and tags.
+
+### Patch Changes
+
+- d735fe3: Moves external package verification into package-owned Turbo tasks and stages production manifests outside the workspace.
+- Updated dependencies [cb58afe]
+  - @shipfox/react-ui@0.3.4
+  - @shipfox/client-config@3.0.0
+
 ## 2.0.0
 
 ### Patch Changes
