@@ -23,6 +23,7 @@ vi.mock('#metrics/instance.js', () => ({
 }));
 
 const NOW = new Date('2026-01-01T00:10:00.000Z');
+const RECONCILE_INTERVAL_MS = 60_000;
 const RUNNER_INSTANCE_ID = '00000000-0000-4000-8000-000000000004';
 
 const template: ProvisionerTemplate<Ec2TemplateSpec> = {
@@ -114,6 +115,23 @@ describe('createEc2Lifecycle', () => {
 
     expect(tracker.countsByTemplate()).toEqual(
       new Map([['spot-small', {starting: 1, running: 0}]]),
+    );
+  });
+
+  it('reports a locally launched runner as terminated after the DescribeInstances grace window', async () => {
+    const now = new Date(NOW);
+    const client = fakeClient();
+    const lifecycle = makeLifecycle({client, now: () => now});
+
+    await lifecycle.launch(launch());
+    now.setTime(now.getTime() + RECONCILE_INTERVAL_MS);
+    await lifecycle.observe();
+
+    expect(client.reportBodies.flatMap((body) => body.events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({state: 'starting'}),
+        expect.objectContaining({provider_runner_id: 'runner-1', state: 'terminated'}),
+      ]),
     );
   });
 
@@ -294,6 +312,156 @@ describe('createEc2Lifecycle', () => {
     expect(client.reportBodies[0]?.events[0]).toMatchObject({state: 'running'});
     expect(tracker.countsByTemplate().size).toBe(0);
   });
+
+  it('reconciles adopted instances and sends their observed ids to the backend', async () => {
+    const client = fakeClient({
+      reconcileResponse: {
+        runners: [reconciledRunner('runner-1', 'keep')],
+        terminated_absent_provider_runner_ids: [],
+      },
+    });
+    const tracker = testTracker();
+    const lifecycle = makeLifecycle({
+      client,
+      engine: fakeEngine({instances: [instance({state: 'running'})]}),
+      tracker,
+    });
+
+    await lifecycle.reconcile();
+
+    expect(client.reconcileBodies).toEqual([{observed_provider_runner_ids: ['runner-1']}]);
+    expect(tracker.countsByTemplate()).toEqual(
+      new Map([['spot-small', {starting: 0, running: 1}]]),
+    );
+  });
+
+  it('reconcile falls back to local observe when the observed id count exceeds the API limit', async () => {
+    const engine = fakeEngine({
+      instances: Array.from({length: 5001}, (_, index) =>
+        instance({state: 'running', instanceId: `i-${index}`, providerRunnerId: `runner-${index}`}),
+      ),
+    });
+    const client = fakeClient();
+    const lifecycle = makeLifecycle({engine, client});
+
+    await lifecycle.reconcile();
+
+    expect(client.reconcileBodies).toEqual([]);
+    expect(client.reportBodies.map((body) => body.events.length)).toEqual([
+      1000, 1000, 1000, 1000, 1000, 1,
+    ]);
+  });
+
+  it('terminates and reports instances with backend terminate intent', async () => {
+    const engine = fakeEngine({instances: [instance({state: 'running'})]});
+    const client = fakeClient({
+      reconcileResponse: {
+        runners: [reconciledRunner('runner-1', 'terminate')],
+        terminated_absent_provider_runner_ids: [],
+      },
+    });
+    const lifecycle = makeLifecycle({engine, client});
+
+    await lifecycle.reconcile();
+
+    expect(engine.terminated).toEqual(['i-123']);
+    expect(client.reportBodies.flatMap((body) => body.events)).toMatchObject([
+      {provider_runner_id: 'runner-1', state: 'terminated', reason: 'backend-terminate'},
+    ]);
+  });
+
+  it('terminates an instance with backend terminate intent even when its labels are unresolvable', async () => {
+    const engine = fakeEngine({
+      instances: [instance({state: 'running', templateKey: 'unknown-template', labels: ''})],
+    });
+    const client = fakeClient({
+      reconcileResponse: {
+        runners: [reconciledRunner('runner-1', 'terminate')],
+        terminated_absent_provider_runner_ids: [],
+      },
+    });
+    const lifecycle = makeLifecycle({engine, client});
+
+    await lifecycle.reconcile();
+
+    expect(engine.terminated).toEqual(['i-123']);
+  });
+
+  it('reaps a pending instance past its registration deadline even when its labels are unresolvable', async () => {
+    const engine = fakeEngine({
+      instances: [
+        instance({
+          state: 'pending',
+          launchTime: new Date('2026-01-01T00:00:00.000Z'),
+          templateKey: 'unknown-template',
+          labels: '',
+        }),
+      ],
+    });
+    const client = fakeClient();
+    const lifecycle = makeLifecycle({engine, client, registrationDeadlineMs: 60_000});
+
+    await lifecycle.observe();
+
+    expect(engine.terminated).toEqual(['i-123']);
+  });
+
+  it('reaps a pending instance past its registration deadline', async () => {
+    const engine = fakeEngine({
+      instances: [instance({state: 'pending', launchTime: new Date('2026-01-01T00:00:00.000Z')})],
+    });
+    const client = fakeClient();
+    const lifecycle = makeLifecycle({engine, client, registrationDeadlineMs: 60_000});
+
+    await lifecycle.observe();
+
+    expect(engine.terminated).toEqual(['i-123']);
+    expect(client.reportBodies[0]?.events[0]).toMatchObject({
+      state: 'terminated',
+      reason: 'registration-deadline',
+    });
+  });
+
+  it('periodically reconciles and otherwise observes', async () => {
+    const now = new Date(NOW);
+    const client = fakeClient({
+      reconcileResponse: {runners: [], terminated_absent_provider_runner_ids: []},
+    });
+    const lifecycle = makeLifecycle({client, now: () => now});
+
+    await lifecycle.tick();
+    now.setTime(now.getTime() + RECONCILE_INTERVAL_MS - 1);
+    await lifecycle.tick();
+    now.setTime(now.getTime() + 1);
+    await lifecycle.tick();
+
+    expect(client.reconcileBodies).toHaveLength(2);
+  });
+
+  it('logs backend absent ids while reconciling an empty observed set', async () => {
+    const client = fakeClient({
+      reconcileResponse: {runners: [], terminated_absent_provider_runner_ids: ['vanished-runner']},
+    });
+    const lifecycle = makeLifecycle({client});
+
+    await lifecycle.reconcile();
+
+    expect(client.reconcileBodies).toEqual([{observed_provider_runner_ids: []}]);
+  });
+
+  it('terminates only managed instances matching requested ids', async () => {
+    const engine = fakeEngine({
+      instances: [
+        instance({state: 'running'}),
+        instance({state: 'running', instanceId: 'i-456', providerRunnerId: 'runner-2'}),
+      ],
+    });
+    const lifecycle = makeLifecycle({engine});
+
+    await lifecycle.terminate(['runner-2', 'absent-runner']);
+
+    expect(engine.terminated).toEqual(['i-456']);
+  });
 });
 
 function makeLifecycle(
@@ -301,6 +469,8 @@ function makeLifecycle(
     engine?: ReturnType<typeof fakeEngine>;
     client?: ReturnType<typeof fakeClient>;
     tracker?: ProviderRunnerTracker;
+    registrationDeadlineMs?: number;
+    now?: () => Date;
   } = {},
 ) {
   return createEc2Lifecycle({
@@ -310,7 +480,9 @@ function makeLifecycle(
     tracker: args.tracker ?? testTracker(),
     templates: [template],
     providerKind: 'ec2',
-    now: () => NOW,
+    registrationDeadlineMs: args.registrationDeadlineMs ?? 300_000,
+    reconcileIntervalMs: RECONCILE_INTERVAL_MS,
+    now: args.now ?? (() => NOW),
   });
 }
 
@@ -328,28 +500,36 @@ function launch(): ProviderRunnerLaunch<Ec2TemplateSpec> {
 function instance(args: {
   state: Ec2InstanceView['state'];
   stateTransitionReason?: string;
+  launchTime?: Date;
+  instanceId?: string;
+  providerRunnerId?: string;
+  templateKey?: string;
+  labels?: string;
 }): Ec2InstanceView {
   return {
-    instanceId: 'i-123',
+    instanceId: args.instanceId ?? 'i-123',
     state: args.state,
     tags: {
       'shipfox.runner_instance_id': RUNNER_INSTANCE_ID,
-      'shipfox.provider_runner_id': 'runner-1',
+      'shipfox.provider_runner_id': args.providerRunnerId ?? 'runner-1',
       'shipfox.provisioner_id': '00000000-0000-4000-8000-000000000001',
       'shipfox.reservation_id': '00000000-0000-4000-8000-000000000003',
-      'shipfox.template_key': 'spot-small',
-      'shipfox.labels': 'ubuntu22',
+      'shipfox.template_key': args.templateKey ?? 'spot-small',
+      'shipfox.labels': args.labels ?? 'ubuntu22',
     },
     ...(args.stateTransitionReason ? {stateTransitionReason: args.stateTransitionReason} : {}),
+    ...(args.launchTime ? {launchTime: args.launchTime} : {}),
   };
 }
 
 function fakeEngine(
   options: {instances?: Ec2InstanceView[]; runError?: Error; listError?: Error} = {},
-): Ec2Engine & {runArgs: Parameters<Ec2Engine['runInstance']>[0][]} {
+): Ec2Engine & {runArgs: Parameters<Ec2Engine['runInstance']>[0][]; terminated: string[]} {
   const runArgs: Parameters<Ec2Engine['runInstance']>[0][] = [];
+  const terminated: string[] = [];
   return {
     runArgs,
+    terminated,
     runInstance: (args) => {
       runArgs.push(args);
       return options.runError
@@ -360,27 +540,46 @@ function fakeEngine(
       options.listError
         ? Promise.reject(options.listError)
         : Promise.resolve(options.instances ?? []),
-    terminate: () => Promise.resolve(),
+    terminate: (instanceIds) => {
+      terminated.push(...instanceIds);
+      return Promise.resolve();
+    },
   };
 }
 
 function fakeClient(
-  options: {reportErrors?: Error[]; attachResult?: {attached: boolean}} = {},
+  options: {
+    reportErrors?: Error[];
+    attachResult?: {attached: boolean};
+    reconcileResponse?: Awaited<ReturnType<ProvisionerClient['reconcileRunnerInstances']>>;
+  } = {},
 ): ProvisionerClient & {
   reportBodies: ReportRunnerInstancesBodyDto[];
+  reconcileBodies: Array<{observed_provider_runner_ids: string[]}>;
   attachments: Array<{runnerInstanceId: string; providerRunnerId: string}>;
 } {
   const reportBodies: ReportRunnerInstancesBodyDto[] = [];
+  const reconcileBodies: Array<{observed_provider_runner_ids: string[]}> = [];
   const attachments: Array<{runnerInstanceId: string; providerRunnerId: string}> = [];
   const reportErrors = [...(options.reportErrors ?? [])];
   return {
     reportBodies,
+    reconcileBodies,
     attachments,
     getIdentity: () =>
       Promise.resolve({id: 'provisioner', scope: 'installation', workspace_id: null}),
     pollDemand: () =>
       Promise.resolve({stats: [], reservations: [], terminate_provider_runner_ids: []}),
     createRunnerInstances: () => Promise.resolve({runner_instances: []}),
+    reconcileRunnerInstances: (body) => {
+      reconcileBodies.push(body);
+      return Promise.resolve(
+        options.reconcileResponse ?? {
+          runners: [],
+          terminated_absent_provider_runner_ids: [],
+        },
+      );
+    },
     attachRunnerInstanceProviderId: (runnerInstanceId, providerRunnerId) => {
       attachments.push({runnerInstanceId, providerRunnerId});
       return Promise.resolve(options.attachResult ?? {attached: true});
@@ -394,8 +593,17 @@ function fakeClient(
         ? Promise.reject(error)
         : Promise.resolve({accepted: body.events.length, reservations_released: 0});
     },
-    reconcileRunnerInstances: () =>
-      Promise.resolve({runners: [], terminated_absent_provider_runner_ids: []}),
+  };
+}
+
+function reconciledRunner(providerRunnerId: string, desiredIntent: 'keep' | 'terminate') {
+  return {
+    provider_runner_id: providerRunnerId,
+    state: 'running' as const,
+    reservation_id: '00000000-0000-4000-8000-000000000003',
+    runner_session_id: null,
+    bound_job: null,
+    desired_intent: desiredIntent,
   };
 }
 
