@@ -1,5 +1,6 @@
+import {WORKSPACES_MEMBER_INVITED, WORKSPACES_MEMBER_JOINED} from '@shipfox/api-workspaces-dto';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
-import {eq, sql} from 'drizzle-orm';
+import {and, eq, sql} from 'drizzle-orm';
 import {OpenInvitationExistsError} from '#core/errors.js';
 import {db} from './db.js';
 import {
@@ -11,6 +12,7 @@ import {
 } from './invitations.js';
 import {invitations} from './schema/invitations.js';
 import {memberships} from './schema/memberships.js';
+import {workspacesOutbox} from './schema/outbox.js';
 import {createWorkspace} from './workspaces.js';
 
 function emailFor(suffix: string): string {
@@ -38,6 +40,39 @@ describe('invitations db', () => {
 
     expect(invitation.workspaceId).toBe(workspace.id);
     expect(invitation.acceptedAt).toBeNull();
+  });
+
+  test('writes the member invited event when email delivery is skipped', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitedEmail = emailFor('guest');
+
+    await createInvitation({
+      workspaceId: workspace.id,
+      email: invitedEmail,
+      hashedToken: hashOpaqueToken('inv-event'),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+
+    const events = await db()
+      .select()
+      .from(workspacesOutbox)
+      .where(
+        and(
+          eq(workspacesOutbox.eventType, WORKSPACES_MEMBER_INVITED),
+          sql`${workspacesOutbox.payload}->>'workspaceId' = ${workspace.id}`,
+        ),
+      );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      workspaceId: workspace.id,
+      invitedEmail,
+      inviterUserId: inviter.userId,
+      role: 'admin',
+    });
   });
 
   test('rejects when an unexpired open invite already exists', async () => {
@@ -121,6 +156,24 @@ describe('invitations db', () => {
       expect(result.membership.userId).toBe(accepter.userId);
       expect(result.alreadyMember).toBe(false);
     }
+
+    const events = await db()
+      .select()
+      .from(workspacesOutbox)
+      .where(
+        and(
+          eq(workspacesOutbox.eventType, WORKSPACES_MEMBER_JOINED),
+          sql`${workspacesOutbox.payload}->>'workspaceId' = ${workspace.id}`,
+        ),
+      );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      workspaceId: workspace.id,
+      userId: accepter.userId,
+      email: accepter.email,
+      viaInvitation: true,
+    });
   });
 
   test('reconcileInvitationAcceptance accepts an existing member', async () => {

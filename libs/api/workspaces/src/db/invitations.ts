@@ -1,5 +1,7 @@
 import {
   WORKSPACES_INVITATION_SEND_REQUESTED,
+  WORKSPACES_MEMBER_INVITED,
+  WORKSPACES_MEMBER_JOINED,
   type WorkspacesEventMap,
 } from '@shipfox/api-workspaces-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
@@ -85,6 +87,15 @@ export async function createInvitation(params: CreateInvitationParams): Promise<
 
     const row = rows[0];
     if (!row) throw new Error('Insert returned no rows');
+    await writeOutboxEvent<WorkspacesEventMap>(tx, workspacesOutbox, {
+      type: WORKSPACES_MEMBER_INVITED,
+      payload: {
+        workspaceId: params.workspaceId,
+        invitedEmail: params.email,
+        inviterUserId: params.invitedByUserId,
+        role: 'admin',
+      },
+    });
     if (params.sendEmail) {
       await writeOutboxEvent<WorkspacesEventMap>(tx, workspacesOutbox, {
         type: WORKSPACES_INVITATION_SEND_REQUESTED,
@@ -214,6 +225,15 @@ export async function reconcileInvitationAcceptance(params: {
       const createdRow = created[0];
       if (!createdRow) throw new Error('Insert returned no rows');
       membership = toMembership(createdRow);
+      await writeOutboxEvent<WorkspacesEventMap>(tx, workspacesOutbox, {
+        type: WORKSPACES_MEMBER_JOINED,
+        payload: {
+          workspaceId: invitation.workspaceId,
+          userId: params.acceptedByUserId,
+          email: invitation.email,
+          viaInvitation: true,
+        },
+      });
     }
 
     const updated = await tx
