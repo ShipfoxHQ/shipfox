@@ -22,7 +22,7 @@ const WORKFLOWS_PATH = resolve(import.meta.dirname, '../../../dist/temporal/work
 
 beforeAll(async () => {
   await setupEnv();
-}, 60_000);
+}, 15_000);
 
 afterAll(async () => {
   await teardownEnv();
@@ -43,7 +43,9 @@ const defaultJobInput = {
   requiredLabels: ['ubuntu22'],
 };
 
-function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
+function executeJob(
+  input: typeof defaultJobInput & {executionTimeoutMs?: number | undefined},
+): Promise<{status: string; jobVersion: number}> {
   const normalized = {
     ...input,
     jobExecutionId:
@@ -295,6 +297,49 @@ describe('jobExecutionOrchestration', () => {
 
     expect(result.status).toBe('succeeded');
     expect(callsNamed('releaseLeaseActivity').length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('times out after the execution deadline and fails its steps without releasing the lease', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-timeout', 'build')]),
+      jobResults: new Map(),
+      skipSignal: true,
+    });
+
+    const result = await executeJob({
+      ...defaultJobInput,
+      jobId: 'job-timeout',
+      executionTimeoutMs: 250,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(callsNamed('failJobExecutionAsTimedOutActivity')).toHaveLength(1);
+    expect(finalStatusesFor('job-timeout')).toEqual(['running']);
+    expect(callsNamed('bulkSetStepStatuses')).toContainEqual({
+      name: 'bulkSetStepStatuses',
+      params: {jobExecutionId: 'job-timeout', status: 'failed'},
+    });
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
+  });
+
+  test('surfaces a timeout activity failure', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-timeout-error', 'build')]),
+      jobResults: new Map(),
+      skipSignal: true,
+      failJobExecutionAsTimedOutError: 'simulated DB outage',
+    });
+
+    await expect(
+      executeJob({
+        ...defaultJobInput,
+        jobId: 'job-timeout-error',
+        executionTimeoutMs: 250,
+      }),
+    ).rejects.toThrow();
+
+    expect(finalStatusesFor('job-timeout-error')).toEqual(['running']);
   });
 
   test('no signal — workflow stays blocked indefinitely', async () => {
