@@ -2424,6 +2424,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-email':
+        specifier: workspace:*
+        version: link:../../shared/node/email
       '@shipfox/node-mailer':
         specifier: workspace:*
         version: link:../../shared/node/mailer

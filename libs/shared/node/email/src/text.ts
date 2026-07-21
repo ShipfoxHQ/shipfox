@@ -1,4 +1,13 @@
-export type TemplateName = 'verify-email' | 'reset-password' | 'workspace-invitation';
+export type TemplateName =
+  | 'verification-code'
+  | 'verify-email'
+  | 'reset-password'
+  | 'workspace-invitation';
+
+export interface VerificationCodeData {
+  verificationCode: string;
+  expiresInMinutes: number;
+}
 
 export interface VerifyEmailData {
   verifyLink: string;
@@ -17,6 +26,7 @@ export interface WorkspaceInvitationData {
 }
 
 export interface TemplateVariables {
+  'verification-code': VerificationCodeData;
   'verify-email': VerifyEmailData;
   'reset-password': ResetPasswordData;
   'workspace-invitation': WorkspaceInvitationData;
@@ -25,6 +35,19 @@ export interface TemplateVariables {
 const signature = 'Thanks,\nThe Shipfox team';
 
 const builders: {[Name in TemplateName]: (data: TemplateVariables[Name]) => string} = {
+  'verification-code': ({verificationCode, expiresInMinutes}) =>
+    [
+      'Your Shipfox verification code',
+      '',
+      "You're almost there. Enter this code to verify your email and finish setting up your Shipfox account:",
+      '',
+      verificationCode,
+      '',
+      `This code expires in ${expiresInMinutes} minutes. If you didn't request it, you can safely ignore this email.`,
+      '',
+      signature,
+    ].join('\n'),
+
   'verify-email': ({verifyLink}) =>
     [
       'Verify your email',

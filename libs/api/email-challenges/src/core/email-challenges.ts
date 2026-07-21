@@ -1,6 +1,7 @@
 import {createHmac, randomInt, timingSafeEqual} from 'node:crypto';
 import {emailSchema} from '@shipfox/api-common-dto';
 import {emailChallengeKey} from '@shipfox/node-auth-root-key';
+import {renderEmail} from '@shipfox/node-email';
 import {mailer} from '@shipfox/node-mailer';
 import {and, eq, gt, isNull, lt, sql} from 'drizzle-orm';
 import {config} from '#config.js';
@@ -11,6 +12,7 @@ import {recordEmailChallenge} from '#metrics/instance.js';
 import {EmailChallengeError} from './errors.js';
 
 const ttlMs = 10 * 60 * 1000;
+const ttlMinutes = ttlMs / 60_000;
 const resendCooldownMs = 60 * 1000;
 const maxSends = 3;
 const maxFailedAttempts = 5;
@@ -120,11 +122,11 @@ async function consumeSendLimits(tx: Tx, email: string, sourceIp: string, now: D
 }
 
 async function deliver(email: string, value: string) {
-  await mailer.send({
-    to: email,
-    subject: 'Your Shipfox verification code',
-    text: `Your Shipfox verification code is ${value}. It expires in 10 minutes.`,
+  const message = await renderEmail('verification-code', {
+    verificationCode: value,
+    expiresInMinutes: ttlMinutes,
   });
+  await mailer.send({to: email, ...message});
 }
 
 export async function createEmailChallenge(

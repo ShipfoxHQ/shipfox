@@ -4,6 +4,24 @@ import {renderEmail} from '#template.js';
 const lineBreak = /[\r\n]/;
 
 describe('renderEmail', () => {
+  test('verification-code renders the code in branded html and standalone text', async () => {
+    const verificationCode = '12345678';
+
+    const email = await renderEmail('verification-code', {
+      verificationCode,
+      expiresInMinutes: 10,
+    });
+
+    expect(email.subject).toBe('Your Shipfox verification code');
+    expect(email.html).toContain("Let's get you verified");
+    expect(email.html).toContain('alt="Shipfox"');
+    expect(email.html).toContain(verificationCode);
+    expect(email.html).toContain('expires in 10 minutes');
+    expect(email.text).toContain("You're almost there");
+    expect(email.text).toContain(verificationCode);
+    expect(email.text).not.toContain('<');
+  });
+
   test('verify-email renders a branded html body, subject, and standalone text', async () => {
     const verifyLink = 'https://app.shipfox.io/auth/verify-email?token=abc123';
 
