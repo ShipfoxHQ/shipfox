@@ -1,4 +1,8 @@
+import {WORKSPACES_WORKSPACE_CREATED} from '@shipfox/api-workspaces-dto';
+import {sql} from 'drizzle-orm';
+import {db} from '#db/db.js';
 import {findMembership} from '#db/memberships.js';
+import {workspacesOutbox} from '#db/schema/outbox.js';
 import {userFactory} from '#test/index.js';
 import {MembershipRequiredError, WorkspaceNotFoundError} from './errors.js';
 import {createWorkspaceForUser, requireWorkspaceMembership} from './workspaces.js';
@@ -17,6 +21,30 @@ describe('workspaces core', () => {
 
     expect(workspace.name).toBe('Core Workspace');
     expect(membership).toBeDefined();
+  });
+
+  test('createWorkspaceForUser emits a workspace created event in the transaction', async () => {
+    const user = userFactory.build();
+
+    const workspace = await createWorkspaceForUser({
+      name: 'Evented Workspace',
+      userId: user.userId,
+      userEmail: user.email,
+      userName: user.name,
+    });
+    const [event] = await db()
+      .select()
+      .from(workspacesOutbox)
+      .where(sql`${workspacesOutbox.payload}->>'workspaceId' = ${workspace.id}`);
+
+    expect(event).toMatchObject({
+      eventType: WORKSPACES_WORKSPACE_CREATED,
+      payload: {
+        workspaceId: workspace.id,
+        name: workspace.name,
+        creatorUserId: user.userId,
+      },
+    });
   });
 
   test('requireWorkspaceMembership returns the workspace + role when memberships include it', async () => {
