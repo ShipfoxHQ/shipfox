@@ -1,6 +1,6 @@
 CREATE TYPE "public"."runners_provider_runner_state" AS ENUM('starting', 'running', 'stopping', 'stopped', 'failed', 'terminated');--> statement-breakpoint
 CREATE TYPE "public"."runners_provisioner_scope" AS ENUM('workspace', 'installation');--> statement-breakpoint
-CREATE TYPE "public"."runners_runner_session_registration_token_kind" AS ENUM('manual', 'ephemeral');--> statement-breakpoint
+CREATE TYPE "public"."runners_runner_session_registration_token_kind" AS ENUM('manual', 'ephemeral', 'activation');--> statement-breakpoint
 CREATE TYPE "public"."runners_runner_session_scope" AS ENUM('workspace');--> statement-breakpoint
 CREATE TABLE "runners_capacity_assignments" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
@@ -104,6 +104,18 @@ CREATE TABLE "runners_runner_bootstrap_tokens" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "runners_runner_activation_tokens" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"runner_instance_id" uuid NOT NULL,
+	"hashed_token" text NOT NULL,
+	"prefix" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"consumed_at" timestamp with time zone,
+	"revoked_at" timestamp with time zone,
+	"consumed_session_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "runners_runner_control_sessions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"runner_instance_id" uuid NOT NULL,
@@ -175,6 +187,7 @@ CREATE TABLE "runners_runner_sessions" (
 	"scope" "runners_runner_session_scope" DEFAULT 'workspace' NOT NULL,
 	"registration_token_id" uuid NOT NULL,
 	"registration_token_kind" "runners_runner_session_registration_token_kind" NOT NULL,
+	"runner_instance_id" uuid,
 	"provisioner_id" uuid,
 	"provider_runner_id" text,
 	"labels" text[] NOT NULL,
@@ -182,10 +195,11 @@ CREATE TABLE "runners_runner_sessions" (
 	"tool_capabilities_reported_at" timestamp with time zone,
 	"max_claims" integer,
 	"claims_used" integer DEFAULT 0 NOT NULL,
+	"revoked_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "runners_runner_sessions_claims_ck" CHECK ("runners_runner_sessions"."claims_used" >= 0 AND (("runners_runner_sessions"."registration_token_kind" = 'manual' AND "runners_runner_sessions"."max_claims" IS NULL) OR ("runners_runner_sessions"."registration_token_kind" = 'ephemeral' AND "runners_runner_sessions"."max_claims" IS NOT NULL AND "runners_runner_sessions"."max_claims" > 0 AND "runners_runner_sessions"."claims_used" <= "runners_runner_sessions"."max_claims"))),
-	CONSTRAINT "runners_runner_sessions_link_ck" CHECK ((("runners_runner_sessions"."registration_token_kind" = 'manual' AND "runners_runner_sessions"."provisioner_id" IS NULL AND "runners_runner_sessions"."provider_runner_id" IS NULL) OR ("runners_runner_sessions"."registration_token_kind" = 'ephemeral' AND "runners_runner_sessions"."provisioner_id" IS NOT NULL AND "runners_runner_sessions"."provider_runner_id" IS NOT NULL)))
+	CONSTRAINT "runners_runner_sessions_claims_ck" CHECK ("runners_runner_sessions"."claims_used" >= 0 AND (("runners_runner_sessions"."registration_token_kind" = 'manual' AND "runners_runner_sessions"."max_claims" IS NULL) OR ("runners_runner_sessions"."registration_token_kind" in ('ephemeral', 'activation') AND "runners_runner_sessions"."max_claims" IS NOT NULL AND "runners_runner_sessions"."max_claims" > 0 AND "runners_runner_sessions"."claims_used" <= "runners_runner_sessions"."max_claims"))),
+	CONSTRAINT "runners_runner_sessions_link_ck" CHECK ((("runners_runner_sessions"."registration_token_kind" = 'manual' AND "runners_runner_sessions"."runner_instance_id" IS NULL AND "runners_runner_sessions"."provisioner_id" IS NULL AND "runners_runner_sessions"."provider_runner_id" IS NULL) OR ("runners_runner_sessions"."registration_token_kind" = 'ephemeral' AND "runners_runner_sessions"."runner_instance_id" IS NULL AND "runners_runner_sessions"."provisioner_id" IS NOT NULL AND "runners_runner_sessions"."provider_runner_id" IS NOT NULL) OR ("runners_runner_sessions"."registration_token_kind" = 'activation' AND "runners_runner_sessions"."runner_instance_id" IS NOT NULL AND "runners_runner_sessions"."provisioner_id" IS NOT NULL AND "runners_runner_sessions"."provider_runner_id" IS NOT NULL)))
 );
 --> statement-breakpoint
 CREATE TABLE "runners_running_jobs" (
@@ -222,6 +236,8 @@ CREATE INDEX "runners_pending_jobs_workspace_created_idx" ON "runners_pending_jo
 CREATE INDEX "runners_pending_jobs_job_id_idx" ON "runners_pending_jobs" USING btree ("job_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_runner_instances_provisioner_runner_unique" ON "runners_runner_instances" USING btree ("provisioner_id","provider_runner_id") WHERE "provider_runner_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_runner_bootstrap_tokens_hashed_token_unique" ON "runners_runner_bootstrap_tokens" USING btree ("hashed_token");--> statement-breakpoint
+CREATE UNIQUE INDEX "runners_runner_activation_tokens_hashed_token_unique" ON "runners_runner_activation_tokens" USING btree ("hashed_token");--> statement-breakpoint
+CREATE INDEX "runners_runner_activation_tokens_runner_instance_idx" ON "runners_runner_activation_tokens" USING btree ("runner_instance_id");--> statement-breakpoint
 CREATE INDEX "runners_runner_bootstrap_tokens_runner_instance_idx" ON "runners_runner_bootstrap_tokens" USING btree ("runner_instance_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_runner_control_sessions_hashed_token_unique" ON "runners_runner_control_sessions" USING btree ("hashed_token");--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_runner_control_sessions_active_runner_instance_unique" ON "runners_runner_control_sessions" USING btree ("runner_instance_id") WHERE "closed_at" is null;--> statement-breakpoint

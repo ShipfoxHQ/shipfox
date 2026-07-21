@@ -152,6 +152,7 @@ export async function claimPendingJobExecution(params: {
         .select({
           maxClaims: runnerSessions.maxClaims,
           claimsUsed: runnerSessions.claimsUsed,
+          revokedAt: runnerSessions.revokedAt,
           provisionerId: runnerSessions.provisionerId,
           providerRunnerId: runnerSessions.providerRunnerId,
         })
@@ -160,7 +161,12 @@ export async function claimPendingJobExecution(params: {
         .limit(1)
         .for('update');
 
-      if (!session || session.maxClaims === null || session.claimsUsed >= session.maxClaims) {
+      if (
+        !session ||
+        session.revokedAt ||
+        session.maxClaims === null ||
+        session.claimsUsed >= session.maxClaims
+      ) {
         throw new RunnerSessionExhaustedError(params.runnerSessionId);
       }
 

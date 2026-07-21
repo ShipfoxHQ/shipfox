@@ -109,6 +109,7 @@ export {
   reservationGrantSchema,
   revokeManualRegistrationTokenResponseSchema,
   revokeProvisionerTokenResponseSchema,
+  runnerAssignmentPollResponseSchema,
   runnerBootstrapExchangeBodySchema,
   runnerBootstrapExchangeResponseSchema,
   runnerControlHeartbeatResponseSchema,

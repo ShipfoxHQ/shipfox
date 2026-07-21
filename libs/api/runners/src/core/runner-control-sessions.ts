@@ -1,9 +1,10 @@
 import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {extractDisplayPrefix, generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
-import {and, eq, gt, isNull, notInArray, sql} from 'drizzle-orm';
+import {and, eq, gt, isNull, notInArray, or, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {terminalStates} from '#db/runner-instances.js';
+import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {runnerBootstrapTokens, runnerControlSessions} from '#db/schema/runner-control-sessions.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
 
@@ -96,12 +97,18 @@ export async function exchangeRunnerBootstrapToken(params: {
 
 export async function resolveRunnerControlSession(rawToken: string) {
   const [session] = await db()
-    .select()
+    .select({
+      id: runnerControlSessions.id,
+      runnerInstanceId: runnerControlSessions.runnerInstanceId,
+      provisionerId: runnerControlSessions.provisionerId,
+    })
     .from(runnerControlSessions)
+    .leftJoin(provisionerTokens, eq(provisionerTokens.id, runnerControlSessions.provisionerId))
     .where(
       and(
         eq(runnerControlSessions.hashedToken, hashOpaqueToken(rawToken)),
         isNull(runnerControlSessions.closedAt),
+        or(isNull(provisionerTokens.id), isNull(provisionerTokens.revokedAt)),
         gt(runnerControlSessions.expiresAt, sql`now()`),
       ),
     )

@@ -130,6 +130,7 @@ export {
   type RunnerBootstrapExchangeBodyDto,
   type RunnerBootstrapExchangeResponseDto,
   type RunnerEnrollmentBodyDto,
+  runnerAssignmentPollResponseSchema,
   runnerBootstrapExchangeBodySchema,
   runnerBootstrapExchangeResponseSchema,
   runnerControlHeartbeatResponseSchema,

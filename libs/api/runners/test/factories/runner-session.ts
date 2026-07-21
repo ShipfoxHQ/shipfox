@@ -19,6 +19,7 @@ export const runnerSessionFactory = Factory.define<RunnerSession>(({onCreate}) =
     scope: 'workspace',
     registrationTokenId: crypto.randomUUID(),
     registrationTokenKind: 'manual',
+    runnerInstanceId: null,
     provisionerId: null,
     providerRunnerId: null,
     labels: ['linux', 'x64'],
@@ -26,6 +27,7 @@ export const runnerSessionFactory = Factory.define<RunnerSession>(({onCreate}) =
     toolCapabilitiesReportedAt: null,
     maxClaims: null,
     claimsUsed: 0,
+    revokedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

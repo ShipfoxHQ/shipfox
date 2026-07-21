@@ -6,6 +6,7 @@ import {
   attachRunnerControlProviderIdBodySchema,
   createRunnerInstancesBodySchema,
   createRunnerInstancesResponseSchema,
+  runnerAssignmentPollResponseSchema,
   runnerBootstrapExchangeBodySchema,
   runnerBootstrapExchangeResponseSchema,
   runnerControlHeartbeatResponseSchema,
@@ -14,6 +15,7 @@ import {
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {config} from '#config.js';
+import {getRunnerAssignment, issueRunnerActivationToken} from '#core/runner-activation.js';
 import {
   attachRunnerControlProviderId,
   createRunnerInstancesWithBootstrapTokens,
@@ -139,5 +141,34 @@ export const runnerControlHeartbeatRoute = defineRoute({
     await touchRunnerControlSession(session.runnerInstanceId, session.provisionerId);
     runnerControlHeartbeatCount.add(1);
     return {ok: true};
+  },
+});
+
+export const runnerAssignmentPollRoute = defineRoute({
+  method: 'GET',
+  path: '/assignment',
+  description: 'Wait for only the authenticated runner instance assignment',
+  schema: {response: {200: runnerAssignmentPollResponseSchema}},
+  preHandler: authenticateRunnerControlSession,
+  handler: async (request, reply) => {
+    const session = requireRunnerControlSessionContext(request);
+    const deadline = Date.now() + config.RUNNER_ASSIGNMENT_POLL_MAX_WAIT_SECONDS * 1000;
+    const abortController = new AbortController();
+    reply.raw.on('close', () => abortController.abort());
+    while (Date.now() <= deadline) {
+      if (abortController.signal.aborted) return {activation_token: null};
+      const assignment = await getRunnerAssignment(session);
+      if (assignment) {
+        const activationToken = await issueRunnerActivationToken({
+          ...session,
+          ttlSeconds: config.RUNNER_ACTIVATION_TOKEN_TTL_SECONDS,
+        });
+        return {activation_token: activationToken};
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, config.RUNNER_ASSIGNMENT_POLL_INTERVAL_MS),
+      );
+    }
+    return {activation_token: null};
   },
 });
