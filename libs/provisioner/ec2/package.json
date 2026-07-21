@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-ec2": "catalog:",
+    "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/provisioner-core": "workspace:*",
     "@shipfox/runner-labels": "workspace:*",

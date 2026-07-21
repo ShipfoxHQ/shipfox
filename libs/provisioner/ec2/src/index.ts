@@ -1,4 +1,9 @@
 export {
+  createEc2Lifecycle,
+  type Ec2Lifecycle,
+  type Ec2LifecycleOptions,
+} from '#lifecycle.js';
+export {
   type Ec2Market,
   Ec2TemplateConfigError,
   type Ec2TemplateSpec,
