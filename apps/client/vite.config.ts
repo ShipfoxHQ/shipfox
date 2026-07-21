@@ -1,4 +1,4 @@
-import {shipfoxClientComposition} from '@shipfox/client-shell/vite';
+import {shipfoxClientComposition, shipfoxClientManifest} from '@shipfox/client-shell/vite';
 import {defineConfig} from '@shipfox/vite';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
@@ -13,7 +13,12 @@ if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
 }
 
 export default defineConfig({
-  plugins: [shipfoxClientComposition({features: './src/features.ts'}), react(), tailwindcss()],
+  plugins: [
+    shipfoxClientManifest(),
+    shipfoxClientComposition({features: './src/features.ts'}),
+    react(),
+    tailwindcss(),
+  ],
   resolve: {
     dedupe: ['react', 'react-dom', '@tanstack/react-router', '@tanstack/react-query', 'jotai'],
   },
