@@ -67,6 +67,7 @@ interface DockerLifecycleContext {
 interface ObservationPlan {
   readonly trackerRunners: TrackerSeed[];
   readonly liveEvents: RunnerInstanceReportEventDto[];
+  readonly assignmentCandidates: Array<{reservationId: string; runnerInstanceId: string}>;
   readonly terminalActions: TerminalAction[];
 }
 
@@ -116,17 +117,6 @@ async function launch(
   runner: ProviderRunnerLaunch<DockerTemplateSpec>,
 ): Promise<void> {
   const labels = buildContainerLabels({launch: runner, identity: context.identity});
-  await reportEvents(context, [
-    {
-      provider_runner_id: runner.providerRunnerId,
-      reservation_id: runner.reservationId,
-      template_key: runner.template.key,
-      labels: [...runner.template.labels],
-      state: 'starting',
-      reported_at: context.now().toISOString(),
-      provider_kind: context.providerKind,
-    },
-  ]);
 
   try {
     await context.engine.createAndStart({
@@ -137,13 +127,49 @@ async function launch(
       nanoCpus: Math.round(runner.template.spec.cpu * 1_000_000_000),
       memoryBytes: parseMemoryToBytes(runner.template.spec.memory),
     });
-    context.knownLiveIds.add(runner.providerRunnerId);
-    context.knownTemplateKeys.set(runner.providerRunnerId, runner.template.key);
-  } catch (error) {
+    const attachRunnerInstanceProviderId = context.client.attachRunnerInstanceProviderId;
+    if (!attachRunnerInstanceProviderId)
+      throw new Error(
+        'Provisioner client does not support runner-instance provider identity attachment',
+      );
+    const result = await attachRunnerInstanceProviderId(
+      runner.runnerInstanceId,
+      runner.providerRunnerId,
+    );
+    if (!result.attached) {
+      throw new Error(
+        `Provider identity was not attached for runner instance ${runner.runnerInstanceId}`,
+      );
+    }
     await reportEvents(context, [
       {
         provider_runner_id: runner.providerRunnerId,
-        reservation_id: runner.reservationId,
+        template_key: runner.template.key,
+        labels: [...runner.template.labels],
+        state: 'starting',
+        reported_at: context.now().toISOString(),
+        provider_kind: context.providerKind,
+      },
+    ]);
+    context.knownLiveIds.add(runner.providerRunnerId);
+    context.knownTemplateKeys.set(runner.providerRunnerId, runner.template.key);
+  } catch (error) {
+    // Preserve the pre-created instance as the lifecycle record even when launch fails.
+    // The provider ID is still the stable idempotency key for the failed launch attempt.
+    try {
+      await context.client.attachRunnerInstanceProviderId(
+        runner.runnerInstanceId,
+        runner.providerRunnerId,
+      );
+    } catch (attachError) {
+      logger().warn(
+        {err: attachError, runnerInstanceId: runner.runnerInstanceId},
+        'Failed to attach provider identity after runner launch failure',
+      );
+    }
+    await reportEvents(context, [
+      {
+        provider_runner_id: runner.providerRunnerId,
         template_key: runner.template.key,
         labels: [...runner.template.labels],
         state: 'failed',
@@ -234,6 +260,7 @@ function buildObservationPlan(
   const plan: ObservationPlan = {
     trackerRunners: [],
     liveEvents: [],
+    assignmentCandidates: [],
     terminalActions: [],
   };
 
@@ -315,6 +342,12 @@ function recordLiveContainer(
   plan.liveEvents.push(
     eventFor(container, mapped.state, labels, context.providerKind, context.now(), mapped.reason),
   );
+  if (parsed.runnerInstanceId && parsed.reservationId) {
+    plan.assignmentCandidates.push({
+      runnerInstanceId: parsed.runnerInstanceId,
+      reservationId: parsed.reservationId,
+    });
+  }
   if (parsed.templateKey) {
     plan.trackerRunners.push({
       providerRunnerId: parsed.providerRunnerId,
@@ -355,8 +388,28 @@ async function applyObservationPlan(
   plan: ObservationPlan,
 ): Promise<void> {
   context.tracker.replaceAll(plan.trackerRunners);
+  await assignEnrolledReservations(context, plan);
   if (plan.liveEvents.length > 0) await reportEvents(context, plan.liveEvents);
   await applyTerminalActions(context, plan.terminalActions);
+}
+
+async function assignEnrolledReservations(
+  context: DockerLifecycleContext,
+  plan: ObservationPlan,
+): Promise<void> {
+  const assignments = new Map<string, string[]>();
+  for (const {reservationId, runnerInstanceId} of plan.assignmentCandidates) {
+    const runnerInstanceIds = assignments.get(reservationId) ?? [];
+    runnerInstanceIds.push(runnerInstanceId);
+    assignments.set(reservationId, runnerInstanceIds);
+  }
+  for (const [reservationId, runnerInstanceIds] of assignments) {
+    try {
+      await context.client.assignRunnerInstances(reservationId, runnerInstanceIds);
+    } catch (error) {
+      if (responseStatus(error) !== 409) throw error;
+    }
+  }
 }
 
 async function applyObservedContainers(
@@ -444,6 +497,7 @@ function terminalActionFor(
   }
 
   return {
+    ...(parsed.runnerInstanceId ? {runner_instance_id: parsed.runnerInstanceId} : {}),
     providerRunnerId: parsed.providerRunnerId,
     event: eventFor(container, 'terminated', labels, context.providerKind, context.now(), reason),
     killAndRemove: container.name,
@@ -539,8 +593,8 @@ function eventFor(
 ): RunnerInstanceReportEventDto {
   const parsed = parseContainerIdentity(container);
   return {
+    ...(parsed.runnerInstanceId ? {runner_instance_id: parsed.runnerInstanceId} : {}),
     provider_runner_id: parsed.providerRunnerId,
-    ...(parsed.reservationId ? {reservation_id: parsed.reservationId} : {}),
     ...(parsed.templateKey ? {template_key: parsed.templateKey} : {}),
     labels: [...labels],
     state,

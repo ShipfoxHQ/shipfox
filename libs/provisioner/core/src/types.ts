@@ -14,6 +14,8 @@ export interface ProvisionerTemplate<Spec = unknown> {
   readonly labels: readonly string[];
   /** Maximum runners the provisioner will keep alive concurrently for this template. */
   readonly maxConcurrency: number;
+  /** Enrolled, unassigned runners this template keeps ready without demand. */
+  readonly targetConcurrency?: number;
   /**
    * Selection cost; lower is preferred when several templates satisfy the same
    * reservation. Providers map this to whatever they optimize for (Docker uses
@@ -31,17 +33,16 @@ export interface TemplateCounts {
 }
 
 /**
- * One runner the control loop has decided to start: a minted single-use
- * registration token plus the environment the runner container needs. The
- * registration token is a secret and must never be logged.
+ * One runner the control loop has decided to start. The bootstrap token is a
+ * single-use secret and must never be logged.
  */
 export interface ProviderRunnerLaunch<Spec = unknown> {
+  readonly runnerInstanceId: string;
   readonly providerRunnerId: string;
-  readonly reservationId: string;
+  readonly reservationId?: string;
   readonly template: ProvisionerTemplate<Spec>;
-  readonly registrationToken: string;
-  readonly registrationTokenExpiresAt: string;
-  /** Environment to inject into the runner process (carries the registration token). */
+  readonly bootstrapToken: string;
+  /** Environment to inject into the runner process (carries the bootstrap token). */
   readonly runnerEnv: Readonly<Record<string, string>>;
 }
 
@@ -53,7 +54,8 @@ export type TerminateRunners = (providerRunnerIds: readonly string[]) => Promise
 
 export interface ProvisionerIdentity {
   readonly id: string;
-  readonly workspaceId: string;
+  readonly workspaceId: string | null;
+  readonly scope?: 'workspace' | 'installation';
 }
 
 export interface ProvisionerRuntime {
@@ -65,7 +67,7 @@ export interface ProvisionerRuntime {
 /**
  * The provider plug-in the control loop drives. A provider supplies its templates
  * (parsed and validated from local config) and a launcher that actually starts a
- * runner from a minted registration token.
+ * runner from a bootstrap token.
  */
 export interface ProvisionerAdapter<Spec = unknown> {
   loadTemplates(): Promise<readonly ProvisionerTemplate<Spec>[]>;

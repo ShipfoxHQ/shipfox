@@ -12,6 +12,7 @@ export interface RunnerInstance {
   provisionerId: string;
   providerRunnerId: string;
   reservationId: string | null;
+  assignedAt?: Date | null;
   templateKey: string | null;
   labels: string[];
   state: RunnerInstanceState;

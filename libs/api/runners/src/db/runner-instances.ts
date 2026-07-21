@@ -97,28 +97,8 @@ export interface ReapStaleRunnerInstancesResult {
   reservationsReleased: number;
 }
 
-export async function createPlannedProvisionedCapacity(params: {
-  provisionerId: string;
-  providerKind: string | null;
-  templateKey: string | null;
-}): Promise<{capacityId: string}> {
-  const [row] = await db()
-    .insert(providerRunners)
-    .values({
-      provisionerId: params.provisionerId,
-      providerKind: params.providerKind,
-      templateKey: params.templateKey,
-      state: 'starting',
-      labels: [],
-      reportedAt: new Date(),
-    })
-    .returning({capacityId: providerRunners.id});
-  if (!row) throw new Error('Planned capacity insert returned no row');
-  return row;
-}
-
-export async function attachProviderRunnerId(params: {
-  capacityId: string;
+export async function attachRunnerInstanceProviderId(params: {
+  runnerInstanceId: string;
   provisionerId: string;
   providerRunnerId: string;
 }): Promise<boolean> {
@@ -127,7 +107,7 @@ export async function attachProviderRunnerId(params: {
     .set({providerRunnerId: params.providerRunnerId, updatedAt: sql`now()`})
     .where(
       and(
-        eq(providerRunners.id, params.capacityId),
+        eq(providerRunners.id, params.runnerInstanceId),
         eq(providerRunners.provisionerId, params.provisionerId),
         isNull(providerRunners.providerRunnerId),
         notInArray(providerRunners.state, [...terminalStates]),

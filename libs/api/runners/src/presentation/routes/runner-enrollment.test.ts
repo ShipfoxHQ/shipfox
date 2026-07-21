@@ -10,6 +10,7 @@ import {
 import {eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
+import {reservations} from '#db/schema/reservations.js';
 import {runnerActivationTokens} from '#db/schema/runner-activation-tokens.js';
 import {runnerBootstrapTokens, runnerControlSessions} from '#db/schema/runner-control-sessions.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
@@ -160,6 +161,65 @@ describe('runner enrollment control plane', () => {
 
     expect(enrolled.statusCode).toBe(409);
     expect(enrolled.json()).toMatchObject({code: 'runner-control-session-invalid'});
+  });
+
+  it('assigns an enrolled runner instance only through the owned reservation', async () => {
+    const workspaceId = crypto.randomUUID();
+    const created = await app.inject({
+      method: 'POST',
+      url: '/provisioners/runner-instances/batch',
+      headers: {authorization: `Bearer ${token}`},
+      payload: {runner_instances: [{template_key: 'linux'}]},
+    });
+    const runner = created.json().runner_instances[0];
+    const exchanged = await app.inject({
+      method: 'POST',
+      url: '/runner-enrollment/exchange',
+      payload: {bootstrap_token: runner.bootstrap_token},
+    });
+    const controlToken = exchanged.json().control_session_token;
+    await app.inject({
+      method: 'POST',
+      url: '/runner-control/enrollment',
+      headers: {authorization: `Bearer ${controlToken}`},
+      payload: {labels: ['linux'], provider_kind: 'docker', protocol_version: '1'},
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/runner-control/provider-runner',
+      headers: {authorization: `Bearer ${controlToken}`},
+      payload: {provider_runner_id: 'container-assignment-test'},
+    });
+    const [reservation] = await db()
+      .insert(reservations)
+      .values({
+        workspaceId,
+        provisionerId,
+        requiredLabels: ['linux'],
+        count: 1,
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      .returning();
+    if (!reservation) throw new Error('Reservation insert returned no row');
+
+    const assigned = await app.inject({
+      method: 'POST',
+      url: '/provisioners/runner-instances/assignments',
+      headers: {authorization: `Bearer ${token}`},
+      payload: {reservation_id: reservation.id, runner_instance_ids: [runner.runner_instance_id]},
+    });
+
+    expect(assigned.statusCode).toBe(200);
+    expect(assigned.json()).toEqual({runner_instance_ids: [runner.runner_instance_id]});
+    const [instance] = await db()
+      .select()
+      .from(providerRunners)
+      .where(eq(providerRunners.id, runner.runner_instance_id));
+    expect(instance).toMatchObject({
+      workspaceId,
+      reservationId: reservation.id,
+      assignedAt: expect.any(Date),
+    });
   });
 
   it('returns an activation token only for its assigned runner and closes control access after registration', async () => {

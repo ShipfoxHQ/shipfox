@@ -86,16 +86,16 @@ export class ReservationExpiredError extends Error {
   }
 }
 
-export class CapacityNotAssignableError extends Error {
-  constructor(public readonly capacityId: string) {
-    super(`Capacity cannot be assigned: ${capacityId}`);
-    this.name = 'CapacityNotAssignableError';
+export class RunnerInstanceNotAssignableError extends Error {
+  constructor(public readonly runnerInstanceId: string) {
+    super(`Runner instance cannot be assigned: ${runnerInstanceId}`);
+    this.name = 'RunnerInstanceNotAssignableError';
   }
 }
-export class CapacityAlreadyAssignedError extends Error {
-  constructor(public readonly capacityId: string) {
-    super(`Capacity is already assigned: ${capacityId}`);
-    this.name = 'CapacityAlreadyAssignedError';
+export class RunnerInstanceAlreadyAssignedError extends Error {
+  constructor(public readonly runnerInstanceId: string) {
+    super(`Runner instance is already assigned: ${runnerInstanceId}`);
+    this.name = 'RunnerInstanceAlreadyAssignedError';
   }
 }
 export class ReservationAlreadyAssignedError extends Error {

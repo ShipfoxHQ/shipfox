@@ -1,7 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export {assignCapacityBatch} from './capacity-assignments.js';
 export {closeDb, db, schema} from './db.js';
 export type {
   CreateEphemeralRegistrationTokenParams,
@@ -67,6 +66,7 @@ export {
   pollDemandAndReserve,
   releaseReservationUnits,
 } from './reservations.js';
+export {assignRunnerInstances} from './runner-assignments.js';
 export type {
   ActiveRunnerInstanceTemplateCount,
   ReapStaleRunnerInstancesResult,
@@ -78,8 +78,7 @@ export type {
   RunnerInstanceTerminateIntentReason,
 } from './runner-instances.js';
 export {
-  attachProviderRunnerId,
-  createPlannedProvisionedCapacity,
+  attachRunnerInstanceProviderId,
   isTerminalState,
   listActiveRunnerInstanceCountsByTemplateTx,
   listActiveRunnerInstances,

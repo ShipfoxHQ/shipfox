@@ -36,7 +36,6 @@ describe('createDockerLifecycle', () => {
 
     expect(client.reportBodies[0]?.events[0]).toMatchObject({
       provider_runner_id: 'runner-1',
-      reservation_id: RESERVATION_ID,
       template_key: 'small',
       labels: ['ubuntu22'],
       state: 'starting',
@@ -45,7 +44,7 @@ describe('createDockerLifecycle', () => {
     expect(engine.created[0]).toMatchObject({
       name: 'runner-1',
       image: 'runner:latest',
-      env: {SHIPFOX_RUNNER_REGISTRATION_TOKEN: 'sf_ert_secret'},
+      env: {SHIPFOX_RUNNER_BOOTSTRAP_TOKEN: 'sf_rbt_secret'},
       nanoCpus: 1_500_000_000,
       memoryBytes: 2 * 1024 ** 3,
     });
@@ -61,11 +60,34 @@ describe('createDockerLifecycle', () => {
 
     await expect(lifecycle.launch(launch())).rejects.toThrow(DockerEngineError);
 
-    expect(client.reportBodies.map((body) => body.events[0]?.state)).toEqual([
-      'starting',
-      'failed',
+    expect(client.reportBodies.map((body) => body.events[0]?.state)).toEqual(['failed']);
+    expect(client.reportBodies[0]?.events[0]?.reason).toBe('start-failed');
+  });
+
+  it('assigns an enrolled observed runner through its container identity', async () => {
+    const engine = fakeEngine({
+      containers: [
+        container({
+          state: 'running',
+          labels: {
+            'shipfox.runner_instance_id': '00000000-0000-4000-8000-000000000004',
+            'shipfox.provider_runner_id': 'runner-1',
+            'shipfox.provisioner_id': '00000000-0000-4000-8000-000000000001',
+            'shipfox.reservation_id': RESERVATION_ID,
+            'shipfox.template_key': 'small',
+            'shipfox.labels': 'ubuntu22',
+          },
+        }),
+      ],
+    });
+    const client = fakeClient();
+    const lifecycle = makeLifecycle({engine, client});
+
+    await lifecycle.observe();
+
+    expect(client.assignmentBodies).toEqual([
+      {reservationId: RESERVATION_ID, runnerInstanceIds: ['00000000-0000-4000-8000-000000000004']},
     ]);
-    expect(client.reportBodies[1]?.events[0]?.reason).toBe('start-failed');
   });
 
   it('observe re-reports running containers every tick', async () => {
@@ -582,11 +604,11 @@ function makeLifecycle(
 
 function launch(): ProviderRunnerLaunch<DockerTemplateSpec> {
   return {
+    runnerInstanceId: '00000000-0000-4000-8000-000000000004',
     providerRunnerId: 'runner-1',
     reservationId: RESERVATION_ID,
-    registrationToken: 'sf_ert_secret',
-    registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
-    runnerEnv: {SHIPFOX_RUNNER_REGISTRATION_TOKEN: 'sf_ert_secret'},
+    bootstrapToken: 'sf_rbt_secret',
+    runnerEnv: {SHIPFOX_RUNNER_BOOTSTRAP_TOKEN: 'sf_rbt_secret'},
     template,
   };
 }
@@ -600,14 +622,17 @@ function fakeClient(
 ): ProvisionerClient & {
   reportBodies: ReportRunnerInstancesBodyDto[];
   reconcileBodies: ReconcileRunnerInstancesBodyDto[];
+  assignmentBodies: Array<{reservationId: string; runnerInstanceIds: string[]}>;
 } {
   const reportBodies: ReportRunnerInstancesBodyDto[] = [];
   const reconcileBodies: ReconcileRunnerInstancesBodyDto[] = [];
+  const assignmentBodies: Array<{reservationId: string; runnerInstanceIds: string[]}> = [];
   const reportErrors = [...(options.reportErrors ?? [])];
   const reconcileErrors = [...(options.reconcileErrors ?? [])];
   return {
     reportBodies,
     reconcileBodies,
+    assignmentBodies,
     getIdentity: () =>
       Promise.resolve({
         id: '00000000-0000-4000-8000-000000000001',
@@ -616,7 +641,12 @@ function fakeClient(
       }),
     pollDemand: () =>
       Promise.resolve({stats: [], reservations: [], terminate_provider_runner_ids: []}),
-    mintRegistrationTokens: () => Promise.resolve({tokens: []}),
+    createRunnerInstances: () => Promise.resolve({runner_instances: []}),
+    attachRunnerInstanceProviderId: () => Promise.resolve({attached: true}),
+    assignRunnerInstances: (reservationId, runnerInstanceIds) => {
+      assignmentBodies.push({reservationId, runnerInstanceIds});
+      return Promise.resolve({runner_instance_ids: runnerInstanceIds});
+    },
     reportRunnerInstances: (body): Promise<ReportRunnerInstancesResponseDto> => {
       reportBodies.push(body);
       const error = reportErrors.shift();

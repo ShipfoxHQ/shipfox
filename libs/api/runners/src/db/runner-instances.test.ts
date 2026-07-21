@@ -3,8 +3,7 @@ import {and, desc, eq, inArray, or, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
 import {
-  attachProviderRunnerId,
-  createPlannedProvisionedCapacity,
+  attachRunnerInstanceProviderId,
   listActiveRunnerInstanceCountsByTemplateTx,
   listActiveRunnerInstances,
   listProvisionerTerminateIntentRowsTx,
@@ -1014,26 +1013,33 @@ describe('reapStaleRunnerInstances', () => {
     expect(reservation?.count).toBe(1);
   });
 
-  it('fails stale planned installation capacity before provider attachment', async () => {
+  it('fails a stale installation runner instance before provider attachment', async () => {
     const installationProvisioner = await provisionerTokenFactory.create({
       scope: 'installation',
       workspaceId: null,
     });
-    const capacity = await createPlannedProvisionedCapacity({
-      provisionerId: installationProvisioner.id,
-      providerKind: 'docker',
-      templateKey: null,
-    });
     await db()
-      .update(providerRunners)
-      .set({reportedAt: staleAt(), updatedAt: staleAt()})
-      .where(eq(providerRunners.id, capacity.capacityId));
+      .update(provisionerTokens)
+      .set({lastSeenAt: null})
+      .where(eq(provisionerTokens.id, installationProvisioner.id));
+    const [instance] = await db()
+      .insert(providerRunners)
+      .values({
+        provisionerId: installationProvisioner.id,
+        providerKind: 'docker',
+        labels: [],
+        state: 'starting',
+        reportedAt: staleAt(),
+        updatedAt: staleAt(),
+      })
+      .returning({id: providerRunners.id});
+    if (!instance) throw new Error('Runner instance insert returned no row');
 
     const result = await reapStaleRunnerInstances({thresholdSeconds: 60, limit: 100});
     const [row] = await db()
       .select()
       .from(providerRunners)
-      .where(eq(providerRunners.id, capacity.capacityId));
+      .where(eq(providerRunners.id, instance.id));
 
     expect(result.reaped).toBe(1);
     expect(row).toMatchObject({workspaceId: null, providerRunnerId: null, state: 'failed'});
@@ -1815,29 +1821,36 @@ describe('reconcileRunnerInstances', () => {
   }
 });
 
-describe('planned provisioned capacity', () => {
+describe('runner instance provider attachment', () => {
   it('belongs to its provisioner until it receives one provider runner identity', async () => {
     const provisionerId = crypto.randomUUID();
-    const capacity = await createPlannedProvisionedCapacity({
-      provisionerId,
-      providerKind: 'docker',
-      templateKey: 'linux',
-    });
+    const [instance] = await db()
+      .insert(providerRunners)
+      .values({
+        provisionerId,
+        providerKind: 'docker',
+        templateKey: 'linux',
+        labels: [],
+        state: 'starting',
+        reportedAt: new Date(),
+      })
+      .returning({id: providerRunners.id});
+    if (!instance) throw new Error('Runner instance insert returned no row');
 
-    const attached = await attachProviderRunnerId({
-      capacityId: capacity.capacityId,
+    const attached = await attachRunnerInstanceProviderId({
+      runnerInstanceId: instance.id,
       provisionerId,
       providerRunnerId: 'container-1',
     });
-    const rebound = await attachProviderRunnerId({
-      capacityId: capacity.capacityId,
+    const rebound = await attachRunnerInstanceProviderId({
+      runnerInstanceId: instance.id,
       provisionerId,
       providerRunnerId: 'container-2',
     });
     const [row] = await db()
       .select()
       .from(providerRunners)
-      .where(eq(providerRunners.id, capacity.capacityId));
+      .where(eq(providerRunners.id, instance.id));
 
     expect(attached).toBe(true);
     expect(rebound).toBe(false);
