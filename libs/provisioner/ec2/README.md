@@ -10,6 +10,12 @@ wiring land in later issues.
 - `loadEc2Templates(filePath)` reads, parses, and validates EC2 template YAML.
 - `Ec2TemplateSpec` describes the EC2 launch details for a template.
 - `Ec2TemplateConfigError` identifies a missing, malformed, or invalid template file.
+- `renderRunnerBootstrapUserData(options)` renders cloud-init for the prebaked managed-runner image.
+- `redactRunnerBootstrapUserData(options)` returns launch metadata that is safe to log.
+
+The user-data renderer writes the API URL, one-use bootstrap token, runner-declared labels,
+managed-runner protocol metadata, poll deadline, and watchdog lifetime. It never renders a
+workspace ID, workspace registration token, or activation token.
 
 ## Template config
 
