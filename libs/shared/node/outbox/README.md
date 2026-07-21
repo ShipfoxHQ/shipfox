@@ -99,7 +99,6 @@ turbo type --filter=@shipfox/node-outbox
 turbo type:emit --filter=@shipfox/node-outbox
 turbo build --filter=@shipfox/node-outbox
 turbo test --filter=@shipfox/node-outbox
-pnpm --filter=@shipfox/node-outbox test:external
 ```
 
 The PostgreSQL contract tests need the local PostgreSQL 18 service. Start it with `docker compose up -d`.

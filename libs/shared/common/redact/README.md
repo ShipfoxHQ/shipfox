@@ -70,11 +70,7 @@ version.
 turbo check --filter=@shipfox/redact
 turbo type --filter=@shipfox/redact
 turbo test --filter=@shipfox/redact
-pnpm --filter=@shipfox/redact test:external
 ```
-
-The external test packs the package and installs it in a clean temporary
-project. It checks runtime imports, type imports, and the published file list.
 
 ## License
 
