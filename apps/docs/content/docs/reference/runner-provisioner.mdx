@@ -11,7 +11,7 @@ This page is the canonical reference for configuring the Docker runner provision
 | Variable | Purpose |
 | --- | --- |
 | `SHIPFOX_API_URL` | Base URL of the Shipfox API the provisioner connects to. |
-| `SHIPFOX_PROVISIONER_TOKEN` | Long-lived token that authenticates control-plane calls. Created on **Settings → Runner Provisioners**: the value is shown once and can be revoked there. |
+| `SHIPFOX_PROVISIONER_TOKEN` | Long-lived token that authenticates control-plane calls. Create it for the provisioner scope you intend to run and keep it secret. The value is shown once and can be revoked. |
 | `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | Path to the YAML file describing the runner templates this provisioner can start. |
 
 ## Optional variables
@@ -27,8 +27,9 @@ This page is the canonical reference for configuring the Docker runner provision
 | `SHIPFOX_PROVISIONER_POLL_INTERVAL_MS` | `1000` | Wait between demand polls. Backs off toward the max after errors. |
 | `SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS` | `5000` | Largest poll backoff interval after repeated errors. |
 | `SHIPFOX_PROVISIONER_MAX_RESERVATIONS` | `250` | Most reservations requested in one poll. Also bounded by free template capacity and the API's cap of 1000. |
-| `SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE` | `250` | Ephemeral registration tokens minted per request (1–1000). Must not exceed the API's own batch limit. |
+| `SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE` | `250` | Runner instances created per request (1–1000). Must not exceed the API's own batch limit. |
 | `SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS` | `120000` | How long a created container may stay unstarted before the provisioner reaps it as stale. |
+| `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS` | `3600` | Hard maximum lifetime injected into each runner. Set it above the longest permitted job so a runner terminates if its provisioner is unavailable. |
 
 ## Template file schema
 
@@ -51,6 +52,7 @@ templates:
 | `cpu` | `number` | vCPUs allocated to the container. Also the template's selection cost. |
 | `memory` | `string` | Memory allocation, such as `4GiB`. |
 | `max_concurrency` | `number` | Cap on live containers started from this template. |
+| `target_concurrency` | `number` | Enrolled, unassigned runners to keep ready without demand. Defaults to `0`. Keep it at or below `max_concurrency`: the provisioner does not currently reject a template where it is higher. |
 
 **Template selection:** when several templates satisfy a job's labels, the provisioner picks the cheapest (fewest vCPUs), then the most specific.
 
@@ -58,7 +60,7 @@ templates:
 
 <Cards>
   <Card title="Runner Provisioners" href="/operations/runner-provisioners">
-    The control loop: advertise, poll, mint, launch.
+    The control loop: reserve, create runner instances, launch, enroll, and assign.
   </Card>
   <Card title="Run a provisioner" href="/installation/runner-provisioner">
     Prerequisites, token creation, and the launch command.
