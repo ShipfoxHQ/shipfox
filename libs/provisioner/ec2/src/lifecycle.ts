@@ -1,4 +1,7 @@
-import type {RunnerInstanceReportEventDto} from '@shipfox/api-runners-dto';
+import {
+  MAX_RECONCILE_OBSERVED_RUNNERS,
+  type RunnerInstanceReportEventDto,
+} from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {
   ProviderRunnerLaunch,
@@ -25,12 +28,17 @@ type TrackerSeed = {
 };
 
 type LocallyLaunchedRunner = {
+  runnerInstanceId: string;
   templateKey: string;
+  launchedAt: Date;
 };
 
 export interface Ec2Lifecycle {
   launch(launch: ProviderRunnerLaunch<Ec2TemplateSpec>): Promise<void>;
   observe(): Promise<void>;
+  reconcile(): Promise<void>;
+  tick(): Promise<void>;
+  terminate(providerRunnerIds: readonly string[]): Promise<void>;
   flush(): Promise<void>;
 }
 
@@ -41,6 +49,8 @@ export interface Ec2LifecycleOptions {
   readonly tracker: ProviderRunnerTracker;
   readonly templates: readonly ProvisionerTemplate<Ec2TemplateSpec>[];
   readonly providerKind: string;
+  readonly registrationDeadlineMs: number;
+  readonly reconcileIntervalMs: number;
   readonly now?: () => Date;
   readonly renderUserData?: (launch: ProviderRunnerLaunch<Ec2TemplateSpec>) => string;
 }
@@ -52,10 +62,13 @@ interface Ec2LifecycleContext {
   readonly tracker: ProviderRunnerTracker;
   readonly templatesByKey: ReadonlyMap<string, ProvisionerTemplate<Ec2TemplateSpec>>;
   readonly providerKind: string;
+  readonly registrationDeadlineMs: number;
+  readonly reconcileIntervalMs: number;
   readonly now: () => Date;
   readonly renderUserData?: (launch: ProviderRunnerLaunch<Ec2TemplateSpec>) => string;
   readonly locallyLaunched: Map<string, LocallyLaunchedRunner>;
   readonly pendingReports: RunnerInstanceReportEventDto[];
+  lastReconciledAt?: Date;
 }
 
 /**
@@ -71,6 +84,8 @@ export function createEc2Lifecycle(options: Ec2LifecycleOptions): Ec2Lifecycle {
     tracker: options.tracker,
     templatesByKey: new Map(options.templates.map((template) => [template.key, template])),
     providerKind: options.providerKind,
+    registrationDeadlineMs: options.registrationDeadlineMs,
+    reconcileIntervalMs: options.reconcileIntervalMs,
     now: options.now ?? (() => new Date()),
     ...(options.renderUserData ? {renderUserData: options.renderUserData} : {}),
     locallyLaunched: new Map(),
@@ -80,6 +95,9 @@ export function createEc2Lifecycle(options: Ec2LifecycleOptions): Ec2Lifecycle {
   return {
     launch: (launch) => launchRunner(context, launch),
     observe: () => observe(context),
+    reconcile: () => reconcile(context),
+    tick: () => tick(context),
+    terminate: (ids) => terminate(context, ids),
     flush: () => flush(context),
   };
 }
@@ -108,7 +126,11 @@ async function launchRunner(
       rootDeviceName: launch.template.spec.rootDeviceName,
       ...(context.renderUserData ? {userData: context.renderUserData(launch)} : {}),
     });
-    context.locallyLaunched.set(launch.providerRunnerId, {templateKey: launch.template.key});
+    context.locallyLaunched.set(launch.providerRunnerId, {
+      runnerInstanceId: launch.runnerInstanceId,
+      templateKey: launch.template.key,
+      launchedAt: new Date(context.now()),
+    });
     recordEc2Launch(launch.template.spec.market, 'launched');
     logger().info(
       {
@@ -136,15 +158,91 @@ async function launchRunner(
 async function observe(context: Ec2LifecycleContext): Promise<void> {
   await reportEvents(context, []);
   const instances = await context.engine.listManaged(context.identity.id);
+  await applyObservedInstances(context, instances, new Set());
+}
+
+async function reconcile(context: Ec2LifecycleContext): Promise<void> {
+  await reportEvents(context, []);
+  const instances = await context.engine.listManaged(context.identity.id);
+  const observedProviderRunnerIds = observedRunnerIds(instances);
+  if (observedProviderRunnerIds.length > MAX_RECONCILE_OBSERVED_RUNNERS) {
+    logger().error(
+      {
+        observedCount: observedProviderRunnerIds.length,
+        maxObserved: MAX_RECONCILE_OBSERVED_RUNNERS,
+      },
+      'Skipping backend reconcile because observed EC2 runner count exceeds the API limit',
+    );
+    await applyObservedInstances(context, instances, new Set());
+    return;
+  }
+
+  const response = await context.client.reconcileRunnerInstances({
+    observed_provider_runner_ids: observedProviderRunnerIds,
+  });
+  const terminateIntentIds = new Set(
+    response.runners
+      .filter((runner) => runner.desired_intent === 'terminate')
+      .map((runner) => runner.provider_runner_id),
+  );
+  if (response.terminated_absent_provider_runner_ids.length > 0) {
+    logger().info(
+      {providerRunnerIds: response.terminated_absent_provider_runner_ids},
+      'Backend terminated provisioned runners absent from EC2',
+    );
+  }
+
+  await applyObservedInstances(context, instances, terminateIntentIds);
+  context.lastReconciledAt = new Date(context.now());
+}
+
+function tick(context: Ec2LifecycleContext): Promise<void> {
+  const needsReconcile =
+    !context.lastReconciledAt ||
+    context.now().getTime() - context.lastReconciledAt.getTime() >= context.reconcileIntervalMs;
+  if (needsReconcile) return reconcile(context);
+  return observe(context);
+}
+
+async function terminate(
+  context: Ec2LifecycleContext,
+  providerRunnerIds: readonly string[],
+): Promise<void> {
+  if (providerRunnerIds.length === 0) return;
+
+  const requestedIds = new Set(providerRunnerIds);
+  const instances = await context.engine.listManaged(context.identity.id);
+  const matchingInstances = instances.filter((instance) =>
+    requestedIds.has(parseInstanceIdentity(instance).providerRunnerId),
+  );
+  await terminateInstances(context, matchingInstances, 'backend-terminate');
+}
+
+async function applyObservedInstances(
+  context: Ec2LifecycleContext,
+  instances: readonly Ec2InstanceView[],
+  terminateIntentIds: ReadonlySet<string>,
+): Promise<void> {
   const trackerRunners: TrackerSeed[] = [];
   const events: RunnerInstanceReportEventDto[] = [];
   const observedIds = new Set<string>();
+  const reapInstances: Ec2InstanceView[] = [];
+  const terminateIntentInstances: Ec2InstanceView[] = [];
 
   for (const instance of instances) {
     const identity = parseInstanceIdentity(instance);
     if (!identity.providerRunnerId) continue;
     observedIds.add(identity.providerRunnerId);
     context.locallyLaunched.delete(identity.providerRunnerId);
+
+    if (terminateIntentIds.has(identity.providerRunnerId)) {
+      terminateIntentInstances.push(instance);
+      continue;
+    }
+    if (isPastRegistrationDeadline(instance, context)) {
+      reapInstances.push(instance);
+      continue;
+    }
 
     const template = identity.templateKey
       ? context.templatesByKey.get(identity.templateKey)
@@ -177,16 +275,82 @@ async function observe(context: Ec2LifecycleContext): Promise<void> {
     }
   }
 
-  // DescribeInstances is eventually consistent. Retaining a locally successful
-  // launch until AWS returns it avoids turning that gap into a free capacity slot.
-  for (const [providerRunnerId, launched] of context.locallyLaunched) {
-    if (!observedIds.has(providerRunnerId)) {
-      trackerRunners.push({providerRunnerId, templateKey: launched.templateKey, state: 'starting'});
-    }
-  }
-
+  synthesizeAbsentLaunchedRunners(context, observedIds, trackerRunners, events);
   context.tracker.replaceAll(trackerRunners);
-  await reportEvents(context, events);
+  if (events.length > 0) await reportEvents(context, events);
+  await terminateInstances(context, terminateIntentInstances, 'backend-terminate');
+  await terminateInstances(context, reapInstances, 'registration-deadline');
+}
+
+function synthesizeAbsentLaunchedRunners(
+  context: Ec2LifecycleContext,
+  observedIds: ReadonlySet<string>,
+  trackerRunners: TrackerSeed[],
+  events: RunnerInstanceReportEventDto[],
+): void {
+  for (const [providerRunnerId, launched] of context.locallyLaunched) {
+    if (observedIds.has(providerRunnerId)) continue;
+    const launchAgeMs = context.now().getTime() - launched.launchedAt.getTime();
+    if (launchAgeMs < context.reconcileIntervalMs) {
+      trackerRunners.push({providerRunnerId, templateKey: launched.templateKey, state: 'starting'});
+      continue;
+    }
+    context.locallyLaunched.delete(providerRunnerId);
+    const template = context.templatesByKey.get(launched.templateKey);
+    if (!template) continue;
+    events.push({
+      runner_instance_id: launched.runnerInstanceId,
+      provider_runner_id: providerRunnerId,
+      template_key: template.key,
+      labels: [...template.labels],
+      state: 'terminated',
+      reported_at: context.now().toISOString(),
+      provider_kind: context.providerKind,
+    });
+  }
+}
+
+function isPastRegistrationDeadline(
+  instance: Ec2InstanceView,
+  context: Ec2LifecycleContext,
+): boolean {
+  return (
+    instance.state === 'pending' &&
+    instance.launchTime !== undefined &&
+    context.now().getTime() - instance.launchTime.getTime() >= context.registrationDeadlineMs
+  );
+}
+
+async function terminateInstances(
+  context: Ec2LifecycleContext,
+  instances: readonly Ec2InstanceView[],
+  reason: string,
+): Promise<void> {
+  if (instances.length === 0) return;
+  await context.engine.terminate(instances.map((instance) => instance.instanceId));
+  const events = instances.flatMap((instance) => {
+    const identity = parseInstanceIdentity(instance);
+    const template = identity.templateKey
+      ? context.templatesByKey.get(identity.templateKey)
+      : undefined;
+    const labels = identity.labels.length > 0 ? identity.labels : (template?.labels ?? []);
+    if (!identity.providerRunnerId || labels.length === 0) return [];
+    return [eventForInstance(context, instance, 'terminated', labels, reason)];
+  });
+  if (events.length > 0) await reportEvents(context, events);
+  for (const instance of instances) {
+    const identity = parseInstanceIdentity(instance);
+    context.locallyLaunched.delete(identity.providerRunnerId);
+    context.tracker.remove(identity.providerRunnerId);
+  }
+}
+
+function observedRunnerIds(instances: readonly Ec2InstanceView[]): string[] {
+  return [
+    ...new Set(
+      instances.map((instance) => parseInstanceIdentity(instance).providerRunnerId).filter(Boolean),
+    ),
+  ];
 }
 
 async function attachProviderIdentity(
