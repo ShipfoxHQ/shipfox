@@ -2,8 +2,10 @@
 
 import {Search, Webhook, X} from 'lucide-react';
 import Link from 'next/link';
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {siGithub, siLinear, siSentry, siSlack} from 'simple-icons';
+import {captureDocsEvent} from '@/lib/docs-analytics';
+import {nextCatalogSearchState, normalizeCatalogQuery} from '@/lib/docs-analytics-core';
 import {
   type CatalogIcon,
   type CatalogProvider,
@@ -17,6 +19,11 @@ import {
   INTEGRATION_CATALOG_CAPABILITIES,
   INTEGRATION_CATALOG_CATEGORIES,
 } from '@/lib/integration-catalog';
+import {
+  catalogFilterChangedProperties,
+  catalogResultClickedProperties,
+  catalogSearchProperties,
+} from '@/lib/integration-catalog-analytics';
 
 const availabilitySections = INTEGRATION_CATALOG_AVAILABILITIES;
 
@@ -27,6 +34,7 @@ interface IntegrationCatalogProps {
 export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
   const [filters, setFilters] = useState(emptyCatalogFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const lastCapturedQuery = useRef<string | null>(null);
   const filteredProviders = useMemo(
     () => filterProviders(providers, filters),
     [filters, providers],
@@ -35,8 +43,94 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
   const activeFilterCount = filters.capability.length + filters.category.length;
   const hasFilters = filters.query.length > 0 || activeFilterCount > 0;
 
+  useEffect(() => {
+    const query = normalizeCatalogQuery(filters.query);
+    if (query.queryLength === 0) {
+      lastCapturedQuery.current = null;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const searchState = nextCatalogSearchState(lastCapturedQuery.current, query.dedupeKey);
+      lastCapturedQuery.current = searchState.lastQuery;
+      if (searchState.capture)
+        captureDocsEvent(
+          'docs_catalog_searched',
+          catalogSearchProperties(filters, filteredProviders.length),
+        );
+    }, 750);
+
+    return () => window.clearTimeout(timer);
+  }, [filteredProviders.length, filters]);
+
   function clearFilters() {
+    if (hasFilters)
+      captureDocsEvent(
+        'docs_catalog_filter_changed',
+        catalogFilterChangedProperties(providers, emptyCatalogFilters, {
+          facet: 'all',
+          value: 'all',
+          action: 'cleared',
+        }),
+      );
     setFilters(emptyCatalogFilters);
+  }
+
+  function toggleCapability(value: (typeof INTEGRATION_CATALOG_CAPABILITIES)[number]) {
+    const isSelected = filters.capability.includes(value);
+    const nextFilters = {
+      ...filters,
+      capability: toggleFilter(filters.capability, value),
+    };
+    setFilters(nextFilters);
+    captureDocsEvent(
+      'docs_catalog_filter_changed',
+      catalogFilterChangedProperties(providers, nextFilters, {
+        facet: 'capability',
+        value,
+        action: isSelected ? 'removed' : 'selected',
+      }),
+    );
+  }
+
+  function toggleCategory(value: (typeof INTEGRATION_CATALOG_CATEGORIES)[number]) {
+    const isSelected = filters.category.includes(value);
+    const nextFilters = {...filters, category: toggleFilter(filters.category, value)};
+    setFilters(nextFilters);
+    captureDocsEvent(
+      'docs_catalog_filter_changed',
+      catalogFilterChangedProperties(providers, nextFilters, {
+        facet: 'category',
+        value,
+        action: isSelected ? 'removed' : 'selected',
+      }),
+    );
+  }
+
+  function removeCapability(value: (typeof INTEGRATION_CATALOG_CAPABILITIES)[number]) {
+    const nextFilters = {...filters, capability: removeFilter(filters.capability, value)};
+    setFilters(nextFilters);
+    captureDocsEvent(
+      'docs_catalog_filter_changed',
+      catalogFilterChangedProperties(providers, nextFilters, {
+        facet: 'capability',
+        value,
+        action: 'removed',
+      }),
+    );
+  }
+
+  function removeCategory(value: (typeof INTEGRATION_CATALOG_CATEGORIES)[number]) {
+    const nextFilters = {...filters, category: removeFilter(filters.category, value)};
+    setFilters(nextFilters);
+    captureDocsEvent(
+      'docs_catalog_filter_changed',
+      catalogFilterChangedProperties(providers, nextFilters, {
+        facet: 'category',
+        value,
+        action: 'removed',
+      }),
+    );
   }
 
   return (
@@ -57,6 +151,7 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
             id="integration-catalog-search"
             type="search"
             value={filters.query}
+            data-ph-no-autocapture=""
             onChange={(event) => setFilters((current) => ({...current, query: event.target.value}))}
             placeholder="Search by provider, type, or related term"
             className="h-11 w-full rounded-md border border-fd-border bg-fd-background py-2 pr-9 pl-10 text-sm text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus-visible:ring-2 focus-visible:ring-fd-ring"
@@ -108,12 +203,7 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
             selected={filters.capability}
             labels={catalogCapabilityLabels}
             counts={facetCounts.capability}
-            onToggle={(value) =>
-              setFilters((current) => ({
-                ...current,
-                capability: toggleFilter(current.capability, value),
-              }))
-            }
+            onToggle={toggleCapability}
           />
           <FacetGroup
             label="Type"
@@ -121,12 +211,7 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
             selected={filters.category}
             labels={catalogCategoryLabels}
             counts={facetCounts.category}
-            onToggle={(value) =>
-              setFilters((current) => ({
-                ...current,
-                category: toggleFilter(current.category, value),
-              }))
-            }
+            onToggle={toggleCategory}
           />
         </div>
       </aside>
@@ -142,24 +227,14 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
               <FilterChip
                 key={capability}
                 label={catalogCapabilityLabels[capability]}
-                onRemove={() =>
-                  setFilters((current) => ({
-                    ...current,
-                    capability: removeFilter(current.capability, capability),
-                  }))
-                }
+                onRemove={() => removeCapability(capability)}
               />
             ))}
             {filters.category.map((category) => (
               <FilterChip
                 key={category}
                 label={catalogCategoryLabels[category]}
-                onRemove={() =>
-                  setFilters((current) => ({
-                    ...current,
-                    category: removeFilter(current.category, category),
-                  }))
-                }
+                onRemove={() => removeCategory(category)}
               />
             ))}
           </div>
@@ -205,7 +280,21 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
                   </h2>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {sectionProviders.map((provider) => (
-                      <IntegrationCard key={provider.slug} provider={provider} />
+                      <IntegrationCard
+                        key={provider.slug}
+                        provider={provider}
+                        onNavigate={(target) =>
+                          captureDocsEvent(
+                            'docs_catalog_result_clicked',
+                            catalogResultClickedProperties(
+                              filters,
+                              filteredProviders,
+                              provider,
+                              target,
+                            ),
+                          )
+                        }
+                      />
                     ))}
                   </div>
                 </section>
@@ -286,13 +375,20 @@ function FilterChip({label, onRemove}: {label: string; onRemove: () => void}) {
   );
 }
 
-function IntegrationCard({provider}: {provider: CatalogProvider}) {
+function IntegrationCard({
+  provider,
+  onNavigate,
+}: {
+  provider: CatalogProvider;
+  onNavigate: (target: 'overview' | 'setup') => void;
+}) {
   return (
     <article className="flex min-h-56 flex-col rounded-lg border border-fd-border bg-fd-card p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
             href={provider.overviewHref}
+            onClick={() => onNavigate('overview')}
             className="flex items-start gap-3 font-semibold text-fd-foreground outline-none hover:text-fd-primary hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
           >
             <ProviderIcon icon={provider.icon} />
@@ -303,6 +399,7 @@ function IntegrationCard({provider}: {provider: CatalogProvider}) {
         {provider.setupHref ? (
           <Link
             href={provider.setupHref}
+            onClick={() => onNavigate('setup')}
             className="-mt-2 -mr-2 inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm font-medium text-fd-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
           >
             Set up

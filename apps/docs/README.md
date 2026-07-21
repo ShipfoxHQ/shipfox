@@ -16,6 +16,24 @@ pnpm dev
 
 Open http://localhost:3500 with your browser to see the result.
 
+## Analytics
+
+The production Vercel deployment requires these public browser variables:
+
+```text
+NEXT_PUBLIC_POSTHOG_KEY=<project token>
+NEXT_PUBLIC_POSTHOG_HOST=<HTTPS ingestion host>
+```
+
+Set them only for the Vercel production environment. Local development and
+preview deployments omit both variables and do not send analytics. The values
+are included in browser code and visible in network requests, so neither value
+is a secret.
+
+The docs record every production session. In the PostHog project, keep session
+recording at 100% with no URL or event trigger, and keep request and response
+bodies, headers, and console logs disabled. Inputs are masked by the client SDK.
+
 ## Explore
 
 In the project, you can see:

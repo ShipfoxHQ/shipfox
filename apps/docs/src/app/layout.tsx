@@ -3,6 +3,7 @@ import {RootProvider} from 'fumadocs-ui/provider/next';
 import {Inter} from 'next/font/google';
 import localFont from 'next/font/local';
 import type {ReactNode} from 'react';
+import {DocsAnalyticsTracker} from '@/app/components/docs-analytics-tracker';
 import {basePath} from '@/url';
 
 const inter = Inter({
@@ -27,6 +28,7 @@ export default function Layout({children}: {children: ReactNode}) {
         <link rel="alternate" type="text/markdown" href="/llms.txt" />
       </head>
       <body className="flex flex-col min-h-screen">
+        <DocsAnalyticsTracker />
         {/* The search client fetches this URL as-is; Next does not apply basePath to
             it, so it must carry the /docs prefix in production (empty in dev). */}
         <RootProvider search={{options: {api: `${basePath}/api/search`}}}>{children}</RootProvider>
